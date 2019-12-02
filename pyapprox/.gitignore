@@ -1,0 +1,13 @@
+*.pyc
+*.bak
+*~
+*.so
+*.c
+*.html
+*.pdf
+*.npz
+*.pkl
+#*#
+build/
+dist/
+*egg-info/
