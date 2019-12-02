@@ -23,5 +23,5 @@ gh-pages:
 	cp -r build/html/* ../
 	rm -rf $(GH_PAGES_SOURCES) build
 	cd ..
-	git add -A
+	git add -A .
 	git commit -m "Generated gh-pages for `git log master -1 --pretty=short --abbrev-commit`"
