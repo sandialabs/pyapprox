@@ -1,0 +1,326 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Polynomial Chaos Regression &mdash; PyApprox 1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}"}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Cantilever Beam" href="cantilever_beam.html" />
+    <link rel="prev" title="Compute isotropic sparse grid quadrature rule" href="isotropic_sparse_grid_quadrature_example.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> PyApprox
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="parameter_sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cantilever_beam.html">Cantilever Beam</a></li>
+<li class="toctree-l2"><a class="reference internal" href="control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">Examples</a> &raquo;</li>
+        
+      <li>Polynomial Chaos Regression</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/polynomial_chaos_interpolation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="polynomial-chaos-regression">
+<h1>Polynomial Chaos Regression<a class="headerlink" href="#polynomial-chaos-regression" title="Permalink to this headline">¶</a></h1>
+<p>Often an approximation is not defined over the user defined variable space <span class="math notranslate nohighlight">\(\mathcal{X}\)</span> but over another space <span class="math notranslate nohighlight">\(\mathcal{U}\)</span>. This is often done to enhance the numerical stability of the approximation or to facilitate the use of simpler approximations. For instance it usually best practice to convert a set of correlated Normal variables into a set of independent Normal variables using the tranformation</p>
+<div class="math notranslate nohighlight">
+\[T(x)=Lx\]</div>
+<p>where <span class="math notranslate nohighlight">\(L\)</span> is the Cholesky factor of the covariance of the correlated variables</p>
+<p>In this case the monomial approximation is always defined on <span class="math notranslate nohighlight">\(\mathcal{U}=[-1,1]^d\)</span> so lets define a transformation</p>
+<div class="math notranslate nohighlight">
+\[T:[0,1]^d\rightarrow[-1,1]^d\]</div>
+<p>Here we focus on how to build a maximum-degree multivariate polynomial approximation</p>
+<div class="math notranslate nohighlight">
+\[f(x)\approx p(T(x))=p(u)=\sum_{\|\lambda\|_\infty\le p} c_\lambda\phi_\lambda(u),\]</div>
+<p>for some degree <span class="math notranslate nohighlight">\(p\)</span>.</p>
+<p>Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples <span class="math notranslate nohighlight">\(X=[x^{(1)},\ldots,x^{(M)}]\)</span> to obtain a set of function values <span class="math notranslate nohighlight">\(Y=[f^{(1)},\ldots,f^{(M)}]^T\)</span>. The function may be vectored valued and thus each <span class="math notranslate nohighlight">\(f^{(i)}\in\mathbb{R}^Q\)</span> is a vector and <span class="math notranslate nohighlight">\(Y\in\mathbb{R}^{M\times Q}\)</span> is a matrix</p>
+<p>In the following we will use the tensor product of the nodes of the univariate Clenshaw-Curtis quadrature rule. However any well conditioned sampling set can be used, such as Leja sequences. Random sampling from the probability measure is not well-conditioned.</p>
+<p>These function values can the be used to approximate the polynomial coefficients using least squares system</p>
+<div class="math notranslate nohighlight">
+\[\Phi c=Y\]</div>
+<p>where entries of the basis matrix <span class="math notranslate nohighlight">\(\Phi\in\mathbb{R}^{M\times N}\)</span> are given by <span class="math notranslate nohighlight">\(\Phi_{ij}=\phi_j(x^{(i)})\)</span></p>
+<p>Here we will use numpy’s in built least squares function to solve the interpolation problem. The following plots show the function being approximated and the magnitude of the error in the polynomial interpolant</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variable_transformations</span> <span class="kn">import</span> \
+<span class="n">AffineRandomVariableTransformation</span>
+<span class="kn">from</span> <span class="nn">pyapprox.multivariate_polynomials</span> <span class="kn">import</span> <span class="n">PolynomialChaosExpansion</span><span class="p">,</span>\
+<span class="n">define_poly_options_from_variable_transformation</span>
+<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="kn">import</span> \
+<span class="n">generate_independent_random_samples</span>
+<span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span><span class="p">,</span> <span class="n">beta</span>
+<span class="kn">from</span> <span class="nn">pyapprox.indexing</span> <span class="kn">import</span> <span class="n">compute_hyperbolic_indices</span><span class="p">,</span> <span class="n">tensor_product_indices</span>
+<span class="kn">from</span> <span class="nn">pyapprox.models.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">pyapprox.univariate_quadrature</span> <span class="kn">import</span> <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">,</span> \
+<span class="n">clenshaw_curtis_in_polynomial_order</span>
+<span class="kn">from</span> <span class="nn">pyapprox.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span>
+<span class="n">uniform</span><span class="p">(),</span><span class="n">beta</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">)]</span>
+<span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+<span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineRandomVariableTransformation</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+
+<span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">())</span>
+<span class="n">c</span><span class="o">*=</span><span class="mi">4</span><span class="o">/</span><span class="n">c</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">w</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span> <span class="s2">&quot;oscillatory&quot;</span><span class="p">,</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span><span class="n">w</span><span class="o">=</span><span class="n">w</span> <span class="p">)</span>
+
+
+<span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+<span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
+<span class="n">poly</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+
+<span class="c1">#num_train_samples = indices.shape[1]#*2</span>
+<span class="c1">#train_samples = generate_independent_random_samples(</span>
+<span class="c1">#    var_trans.variable,num_train_samples)</span>
+
+<span class="c1">#univariate_quadrature_rules = [</span>
+<span class="c1">#    partial(gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0),</span>
+<span class="c1">#    partial(gauss_jacobi_pts_wts_1D,alpha_poly=2,beta_poly=2)]</span>
+<span class="n">level</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">univariate_quadrature_rules</span> <span class="o">=</span> <span class="p">[</span>
+<span class="n">partial</span><span class="p">(</span><span class="n">clenshaw_curtis_in_polynomial_order</span><span class="p">,</span>
+<span class="n">return_weights_for_all_levels</span><span class="o">=</span><span class="bp">False</span><span class="p">)]</span><span class="o">*</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+<span class="n">train_samples</span><span class="p">,</span> <span class="n">train_weights</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
+<span class="n">level</span><span class="p">,</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">univariate_quadrature_rules</span><span class="p">,</span>
+<span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical_space</span><span class="p">)</span>
+
+<span class="n">degrees</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">train_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()))]</span><span class="o">*</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+<span class="c1">#indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)</span>
+<span class="n">indices</span> <span class="o">=</span> <span class="n">tensor_product_indices</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span>
+<span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+<span class="n">train_values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+
+<span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+<span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_values</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="bp">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+
+<span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">30</span>
+<span class="kn">from</span> <span class="nn">pyapprox.configure_plots</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">pyapprox.visualization</span> <span class="kn">import</span> <span class="n">plot_surface</span><span class="p">,</span> <span class="n">get_meshgrid_function_data</span>
+
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">ax</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">Z</span> <span class="o">=</span> <span class="n">get_meshgrid_function_data</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+<span class="n">plot_surface</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">Z</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+
+<span class="n">ax</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+<span class="n">error</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">-</span><span class="n">poly</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">Z</span> <span class="o">=</span> <span class="n">get_meshgrid_function_data</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">plot_limits</span><span class="p">,</span> <span class="n">num_pts_1d</span><span class="p">)</span>
+<span class="n">plot_surface</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">Z</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="n">offset</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">-</span><span class="n">Z</span><span class="o">.</span><span class="n">min</span><span class="p">())</span><span class="o">/</span><span class="mi">2</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">train_samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,:],</span>
+<span class="c1">#offset*np.ones(train_samples.shape[1]),&#39;o&#39;,zorder=100,color=&#39;b&#39;)</span>
+<span class="n">error</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)[:,</span><span class="mi">0</span><span class="p">],</span><span class="s1">&#39;o&#39;</span><span class="p">,</span><span class="n">zorder</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">view_init</span><span class="p">(</span><span class="mi">80</span><span class="p">,</span> <span class="mi">45</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//polynomial_chaos_interpolation-1.py">Source code</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-1.png">png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-1.hires.png">hires.png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-1.pdf">pdf</a>)</p>
+<div class="figure align-default">
+<img alt="_images/polynomial_chaos_interpolation-1.png" src="_images/polynomial_chaos_interpolation-1.png" />
+</div>
+<p>As you can see the error in the interpolant is zero at the training points.</p>
+<p>If all the variables of the model are independent and indentically distributed then we can construct the variable transformation with the helper function</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">var_trans</span> <span class="o">=</span> <span class="n">define_iid_random_variable_transformation</span><span class="p">(</span>
+<span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span><span class="n">num_vars</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="cantilever_beam.html" class="btn btn-neutral float-right" title="Cantilever Beam" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="isotropic_sparse_grid_quadrature_example.html" class="btn btn-neutral float-left" title="Compute isotropic sparse grid quadrature rule" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

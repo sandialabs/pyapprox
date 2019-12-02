@@ -1,0 +1,486 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Cantilever Beam &mdash; PyApprox 1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}"}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Control Variate Monte Carlo" href="control_variate_monte_carlo.html" />
+    <link rel="prev" title="Polynomial Chaos Regression" href="polynomial_chaos_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> PyApprox
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="parameter_sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polynomial_chaos_interpolation.html">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Cantilever Beam</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#determinstic-optimization">Determinstic optimization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#design-under-uncertainty">Design under uncertainty</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">Examples</a> &raquo;</li>
+        
+      <li>Cantilever Beam</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/cantilever_beam.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="cantilever-beam">
+<h1>Cantilever Beam<a class="headerlink" href="#cantilever-beam" title="Permalink to this headline">¶</a></h1>
+<div class="figure align-center" id="id1">
+<img alt="_images/cantilever-beam.png" src="_images/cantilever-beam.png" />
+<p class="caption"><span class="caption-text">Conceptual model of the cantilever-beam</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</div>
+<table class="docutils align-center" id="id2">
+<caption><span class="caption-text">Uncertainties</span><a class="headerlink" href="#id2" title="Permalink to this table">¶</a></caption>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 19%" />
+<col style="width: 49%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Uncertainty</p></th>
+<th class="head"><p>Symbol</p></th>
+<th class="head"><p>Prior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Yield stress</p></td>
+<td><p><span class="math notranslate nohighlight">\(R\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(N(40000,2000)\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>Young’s modulus</p></td>
+<td><p><span class="math notranslate nohighlight">\(E\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(N(2.9e7,1.45e6)\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>Horizontal load</p></td>
+<td><p><span class="math notranslate nohighlight">\(X\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(N(500,100)\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>Vertical Load</p></td>
+<td><p><span class="math notranslate nohighlight">\(Y\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(N(1000,100)\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<p>First we must specify the distribution of the random variables</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_beam_random_variables</span><span class="p">():</span>
+    <span class="c1"># traditional parameterization</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mf">2.9e7</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">1.45e6</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">40000</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2000</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># increased total variance contribution from E</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mf">2.9e7</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">1.45e6</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">ss</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">40000</span><span class="p">,</span><span class="n">scale</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2000</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">10</span><span class="p">)</span>
+
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMultivariateRandomVariable</span><span class="p">([</span><span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">E</span><span class="p">,</span><span class="n">R</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">variable</span>
+</pre></div>
+</div>
+<p>Let <span class="math notranslate nohighlight">\(\V{z}=(R,E,X,Y), \mathbf{w}=(w,t)\)</span> denote the random and design variables respectively. We want to minimize weight <span class="math notranslate nohighlight">\(wt\)</span> subject subject to constraints based upon the following functions defining failure</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align*}
+ f_1(\V{z},\mathbf{w})=1 - \frac{6L}{{\color{red}{R}}wt} \left(\frac{X}{w}+\frac{Y}{t}\right) \ge 0&amp; &amp;
+f_2(\V{z},\mathbf{w})=1 - \frac{4L^3}{{\color{red}{2.2535}}E w t } \sqrt{\frac{X^2}{w^4}+\frac{Y^2}{t^4}} \ge 0
+\end{align*}\]</div>
+<p>We specify the objective and constraints with</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">beam_obj</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">):</span>
+    <span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span> <span class="o">=</span> <span class="n">check_inputs</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">)</span>
+    <span class="n">w</span><span class="p">,</span><span class="n">t</span> <span class="o">=</span> <span class="n">design_samples</span>
+    <span class="k">return</span> <span class="n">w</span><span class="o">*</span><span class="n">t</span>
+
+<span class="k">def</span> <span class="nf">beam_constraint_I</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">):</span>
+    <span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span> <span class="o">=</span> <span class="n">check_inputs</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">)</span>
+    <span class="n">w</span><span class="p">,</span><span class="n">t</span>     <span class="o">=</span> <span class="n">design_samples</span> <span class="c1"># width, height</span>
+    <span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">E</span><span class="p">,</span><span class="n">R</span> <span class="o">=</span> <span class="n">uq_samples</span>     <span class="c1"># external forces, modulus, yield strength</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="mi">100</span>                  <span class="c1"># length of beam</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="mi">1</span><span class="o">-</span><span class="mi">6</span><span class="o">*</span><span class="n">L</span><span class="o">/</span><span class="p">(</span><span class="n">w</span><span class="o">*</span><span class="n">t</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">X</span><span class="o">/</span><span class="n">w</span><span class="o">+</span><span class="n">Y</span><span class="o">/</span><span class="n">t</span><span class="p">)</span><span class="o">/</span><span class="n">R</span> <span class="c1"># scaled version</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+<span class="k">def</span> <span class="nf">beam_constraint_II</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">):</span>
+    <span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span> <span class="o">=</span> <span class="n">check_inputs</span><span class="p">(</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_samples</span><span class="p">)</span>
+    <span class="n">w</span><span class="p">,</span><span class="n">t</span>     <span class="o">=</span> <span class="n">design_samples</span> <span class="c1"># width, height</span>
+    <span class="n">X</span><span class="p">,</span><span class="n">Y</span><span class="p">,</span><span class="n">E</span><span class="p">,</span><span class="n">R</span> <span class="o">=</span> <span class="n">uq_samples</span>     <span class="c1"># external forces, modulus, yield strength</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="mi">100</span>                  <span class="c1"># length of beam</span>
+    <span class="n">D0</span> <span class="o">=</span> <span class="mf">2.2535</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="mi">1</span><span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">L</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="p">(</span><span class="n">E</span><span class="o">*</span><span class="n">w</span><span class="o">*</span><span class="n">t</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">X</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="n">w</span><span class="o">**</span><span class="mi">4</span><span class="o">+</span><span class="n">Y</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="n">t</span><span class="o">**</span><span class="mi">4</span><span class="p">)</span><span class="o">/</span><span class="n">D0</span> <span class="c1"># scaled version</span>
+    <span class="k">return</span> <span class="n">vals</span>
+
+</pre></div>
+</div>
+<div class="section" id="determinstic-optimization">
+<h2>Determinstic optimization<a class="headerlink" href="#determinstic-optimization" title="Permalink to this headline">¶</a></h2>
+<p>First we use deterministic optimiation to design the beam by solving the following optimization problem</p>
+<div class="math notranslate nohighlight">
+\begin{align*}
+&amp;\argmin_{w,t}\;  wt\\
+&amp;f_1(\V{z})\ge 0\\
+&amp;f_2(\V{z})\ge 0\\
+&amp;1 \le w \le 4 \quad 1\le t \le 4
+\end{align*}</div><p>Deterministic optimization requires defining the nominal values of the random parameters. Here we use the means of the random variables.</p>
+<p>We can find the deterministic optima using</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">setup_beam_design</span><span class="p">():</span>
+    <span class="n">uq_vars</span> <span class="o">=</span> <span class="n">define_beam_random_variables</span><span class="p">()</span>
+    <span class="n">init_design_sample</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
+    <span class="c1">#bounds = Bounds([1,1], [4,4])</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">]]</span>
+    <span class="n">quantile_lower_bound</span><span class="o">=</span><span class="mi">0</span>
+    <span class="n">constraint_functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">beam_constraint_I</span><span class="p">,</span><span class="n">beam_constraint_II</span><span class="p">]</span>
+    <span class="n">objective</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">beam_obj</span><span class="p">,</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">uq_vars</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">constraint_functions</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">init_design_sample</span>
+
+<span class="k">def</span> <span class="nf">plot_beam_design</span><span class="p">(</span><span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span>
+                     <span class="n">uq_samples</span><span class="p">,</span><span class="n">design_sample</span><span class="p">,</span><span class="n">res</span><span class="p">,</span><span class="n">opt_history</span><span class="p">,</span>
+                     <span class="n">label</span><span class="p">,</span>
+                     <span class="n">fig_pdf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">axs_pdf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">fig_cdf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">axs_cdf</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">quantile</span><span class="o">=</span><span class="mf">0.1</span>
+    <span class="n">fig_opt</span><span class="p">,</span><span class="n">axs_opt</span> <span class="o">=</span> <span class="n">plot_optimization_history</span><span class="p">(</span>
+        <span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">opt_history</span><span class="p">,[</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">])</span>
+    <span class="n">plot_constraint_pdfs</span><span class="p">(</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">design_sample</span><span class="p">,</span>
+                        <span class="n">fig_pdf</span><span class="o">=</span><span class="n">fig_pdf</span><span class="p">,</span><span class="n">axs_pdf</span><span class="o">=</span><span class="n">axs_pdf</span><span class="p">,</span>
+                        <span class="n">label</span><span class="o">=</span><span class="s1">&#39;deterministic&#39;</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">)</span>
+    <span class="n">plot_constraint_cdfs</span><span class="p">(</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span>
+                        <span class="n">design_sample</span><span class="p">,</span><span class="n">quantile</span><span class="p">,</span><span class="n">fig_cdf</span><span class="o">=</span><span class="n">fig_cdf</span><span class="p">,</span>
+                        <span class="n">axs_cdf</span><span class="o">=</span><span class="n">axs_cdf</span><span class="p">,</span>
+                        <span class="n">label</span><span class="o">=</span><span class="s1">&#39;deterministic&#39;</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;b&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">fun</span>
+
+
+<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="k">import</span> \
+    <span class="n">generate_independent_random_samples</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="k">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+<span class="k">def</span> <span class="nf">find_deterministic_beam_design</span><span class="p">():</span>
+    <span class="n">lower_bound</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">uq_vars</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">constraint_functions</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">init_design_sample</span> <span class="o">=</span> \
+        <span class="n">setup_beam_design</span><span class="p">()</span>
+
+    <span class="n">uq_nominal_sample</span> <span class="o">=</span> <span class="n">uq_vars</span><span class="o">.</span><span class="n">get_statistics</span><span class="p">(</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+    <span class="c1">#constraints_info = [{&#39;type&#39;:&#39;deterministic&#39;,</span>
+    <span class="c1">#                     &#39;lower_bound&#39;:lower_bound}]*len(constraint_functions)</span>
+    <span class="c1">#constraints = setup_inequality_constraints(</span>
+    <span class="c1">#    constraint_functions,constraints_info,uq_nominal_sample)</span>
+
+    <span class="n">constraint_info</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lower_bound&#39;</span><span class="p">:</span><span class="n">lower_bound</span><span class="p">,</span>
+                       <span class="s1">&#39;uq_nominal_sample&#39;</span><span class="p">:</span><span class="n">uq_nominal_sample</span><span class="p">}</span>
+    <span class="n">individual_constraints</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">DeterministicConstraint</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">constraint_info</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">constraint_functions</span><span class="p">]</span>
+    <span class="n">constraints</span> <span class="o">=</span> <span class="n">MultipleConstraints</span><span class="p">(</span><span class="n">individual_constraints</span><span class="p">)</span>
+    
+    <span class="n">optim_options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;ftol&#39;</span><span class="p">:</span> <span class="mf">1e-9</span><span class="p">,</span> <span class="s1">&#39;disp&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;maxiter&#39;</span><span class="p">:</span><span class="mi">1000</span><span class="p">}</span>
+    <span class="n">res</span><span class="p">,</span> <span class="n">opt_history</span> <span class="o">=</span> <span class="n">run_design</span><span class="p">(</span>
+        <span class="n">objective</span><span class="p">,</span><span class="n">init_design_sample</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">bounds</span><span class="p">,</span><span class="n">optim_options</span><span class="p">)</span>
+
+    <span class="n">nsamples</span> <span class="o">=</span> <span class="mi">10000</span>
+    <span class="n">uq_samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">uq_vars</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">res</span><span class="p">,</span>\
+        <span class="n">opt_history</span>
+
+</pre></div>
+</div>
+<p>Lets put this altogether. The aforementioned steps can be combined and run using the following</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.examples.cantilever_beam</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">res</span><span class="p">,</span><span class="n">opt_history</span> <span class="o">=</span> \
+    <span class="n">find_deterministic_beam_design</span><span class="p">()</span>
+<span class="n">plot_beam_design</span><span class="p">(</span>
+    <span class="n">beam_obj</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">x</span><span class="p">,</span><span class="n">res</span><span class="p">,</span><span class="n">opt_history</span><span class="p">,</span><span class="s1">&#39;deterministic&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//cantilever_beam-1.py">Source code</a>)</p>
+<div class="figure align-default" id="id3">
+<img alt="_images/cantilever_beam-1_00.png" src="_images/cantilever_beam-1_00.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-1_00.png">png</a>, <a class="reference external" href=".//cantilever_beam-1_00.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-1_00.pdf">pdf</a>)</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-default" id="id4">
+<img alt="_images/cantilever_beam-1_01.png" src="_images/cantilever_beam-1_01.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-1_01.png">png</a>, <a class="reference external" href=".//cantilever_beam-1_01.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-1_01.pdf">pdf</a>)</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-default" id="id5">
+<img alt="_images/cantilever_beam-1_02.png" src="_images/cantilever_beam-1_02.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-1_02.png">png</a>, <a class="reference external" href=".//cantilever_beam-1_02.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-1_02.pdf">pdf</a>)</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+</div>
+<p>The first three rows of plots are:</p>
+<ol class="arabic simple">
+<li><p>From left to right, the contraints <span class="math notranslate nohighlight">\(f_1,f_2\)</span> and objective as functions of the design variables. The black lines represent the constraints and the number dots are iterations of the optimization algorithm. It can be seen that the initial design is infeasible, i.e. it violates the constraints. From this initial design optimization marches towards the constraint boundaries until the constraints are satisfied.</p></li>
+<li><p>The PDFs of the contstraint functions at the optima. Shaded areas to left of the horizontal line represents failure.</p></li>
+<li><p>The CDFs of the constraints at the optima. Shaded areas to left of the horizontal line represents failure. There is clearly a large probability that the constraints will be violated when uncertainty is taken into account.</p></li>
+</ol>
+</div>
+<div class="section" id="design-under-uncertainty">
+<h2>Design under uncertainty<a class="headerlink" href="#design-under-uncertainty" title="Permalink to this headline">¶</a></h2>
+<p>It is better to incoporate uncertainty into the design process. In the following we will solve the so called reliability based desgin optimization (RBDO) problem:</p>
+<div class="math notranslate nohighlight">
+\begin{align*}
+&amp;\argmin_{w,t}\; wt\\
+&amp;P(f_1(\V{z})\le0)\le \delta_1\\
+&amp;P(f_2(\V{z})\le0)\le \delta_2\\
+&amp;1 \le w \le 4 \quad 1\le t \le 4
+\end{align*}</div><p>To setup the optimization problem use</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">find_uncertainty_aware_beam_design</span><span class="p">(</span><span class="n">constraint_type</span><span class="o">=</span><span class="s1">&#39;quantile&#39;</span><span class="p">):</span>
+
+    <span class="n">quantile</span><span class="o">=</span><span class="mf">0.1</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">quantile</span><span class="p">)</span>
+    <span class="n">quantile_lower_bound</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">uq_vars</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">constraint_functions</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">init_design_sample</span> <span class="o">=</span> \
+        <span class="n">setup_beam_design</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">constraint_type</span><span class="o">==</span><span class="s1">&#39;quantile&#39;</span><span class="p">:</span>
+        <span class="n">constraint_info</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span><span class="s1">&#39;quantile&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;lower_bound&#39;</span><span class="p">:</span><span class="n">quantile_lower_bound</span><span class="p">,</span>
+                             <span class="s1">&#39;quantile&#39;</span><span class="p">:</span><span class="n">quantile</span><span class="p">}]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">constraint_functions</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">constraint_type</span><span class="o">==</span><span class="s1">&#39;cvar&#39;</span><span class="p">:</span>
+        <span class="n">constraint_info</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span><span class="s1">&#39;cvar&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;lower_bound&#39;</span><span class="p">:</span><span class="mf">0.05</span><span class="p">,</span>
+                             <span class="s1">&#39;quantile&#39;</span><span class="p">:</span><span class="n">quantile</span><span class="p">,</span>
+                             <span class="s1">&#39;smoothing_eps&#39;</span><span class="p">:</span><span class="mf">1e-1</span><span class="p">}]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span>
+                                 <span class="n">constraint_functions</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
+
+    <span class="n">nsamples</span><span class="o">=</span><span class="mi">10000</span>
+    <span class="n">uq_samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">uq_vars</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="c1">#constraints = setup_inequality_constraints(</span>
+    <span class="c1">#    constraint_functions,constraint_info,uq_samples)</span>
+
+    <span class="k">def</span> <span class="nf">generate_samples</span><span class="p">():</span>
+        <span class="c1"># always use the same samples avoid noise in constraint vals</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">uq_samples</span>
+    <span class="n">individual_constraints</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">MCStatisticConstraint</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">generate_samples</span><span class="p">,</span><span class="n">constraint_info</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">constraint_functions</span><span class="p">]</span>
+    <span class="n">constraints</span> <span class="o">=</span> <span class="n">MultipleConstraints</span><span class="p">(</span><span class="n">individual_constraints</span><span class="p">)</span>
+
+
+    <span class="n">optim_options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;ftol&#39;</span><span class="p">:</span> <span class="mf">1e-9</span><span class="p">,</span> <span class="s1">&#39;disp&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;maxiter&#39;</span><span class="p">:</span><span class="mi">1000</span><span class="p">}</span>
+    <span class="n">res</span><span class="p">,</span> <span class="n">opt_history</span> <span class="o">=</span> <span class="n">run_design</span><span class="p">(</span>
+        <span class="n">objective</span><span class="p">,</span><span class="n">init_design_sample</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">bounds</span><span class="p">,</span><span class="n">optim_options</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">res</span><span class="p">,</span>\
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.examples.cantilever_beam</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">objective</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span><span class="n">res</span><span class="p">,</span><span class="n">opt_history</span> <span class="o">=</span> \
+   <span class="n">find_uncertainty_aware_beam_design</span><span class="p">()</span>
+<span class="n">plot_beam_design</span><span class="p">(</span>
+   <span class="n">beam_obj</span><span class="p">,</span><span class="n">constraints</span><span class="p">,</span><span class="n">constraint_functions</span><span class="p">,</span><span class="n">uq_samples</span><span class="p">,</span>
+   <span class="n">res</span><span class="o">.</span><span class="n">x</span><span class="p">,</span><span class="n">res</span><span class="p">,</span><span class="n">opt_history</span><span class="p">,</span><span class="s1">&#39;DUU&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//cantilever_beam-2.py">Source code</a>)</p>
+<div class="figure align-default" id="id6">
+<img alt="_images/cantilever_beam-2_00.png" src="_images/cantilever_beam-2_00.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-2_00.png">png</a>, <a class="reference external" href=".//cantilever_beam-2_00.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-2_00.pdf">pdf</a>)</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-default" id="id7">
+<img alt="_images/cantilever_beam-2_01.png" src="_images/cantilever_beam-2_01.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-2_01.png">png</a>, <a class="reference external" href=".//cantilever_beam-2_01.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-2_01.pdf">pdf</a>)</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-default" id="id8">
+<img alt="_images/cantilever_beam-2_02.png" src="_images/cantilever_beam-2_02.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//cantilever_beam-2_02.png">png</a>, <a class="reference external" href=".//cantilever_beam-2_02.hires.png">hires.png</a>, <a class="reference external" href=".//cantilever_beam-2_02.pdf">pdf</a>)</span><a class="headerlink" href="#id8" title="Permalink to this image">¶</a></p>
+</div>
+<p>The final design is heavier than the deterministic design, but by construction the optimization problem enforces the probability of failure is small at the optima. Weight has been sacrificied for improved reliability/safety.</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="polynomial_chaos_interpolation.html" class="btn btn-neutral float-left" title="Polynomial Chaos Regression" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

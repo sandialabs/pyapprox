@@ -1,0 +1,324 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Parameter Sweeps &mdash; PyApprox 1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}"}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Tensor product Lagrange interpolation" href="tensor_product_lagrange_interpolation.html" />
+    <link rel="prev" title="Examples" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> PyApprox
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Examples</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Parameter Sweeps</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#bounded-variables">Bounded variables</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#correlated-gaussian-variables">Correlated Gaussian variables</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polynomial_chaos_interpolation.html">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cantilever_beam.html">Cantilever Beam</a></li>
+<li class="toctree-l2"><a class="reference internal" href="control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">Examples</a> &raquo;</li>
+        
+      <li>Parameter Sweeps</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/parameter_sweeps.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="parameter-sweeps">
+<h1>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Permalink to this headline">¶</a></h1>
+<p>The efficacy of different uncertainty quantification methods depends on the smoothness and variation of the model being analyzed. One-dimensional parameter sweeps provide a good mechanism to visualize these characteristics. In the following we show how to conduct parameter sweeps for models of bounded random variables and correlated Gaussian random variables.</p>
+<div class="section" id="bounded-variables">
+<h2>Bounded variables<a class="headerlink" href="#bounded-variables" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.examples.parameter_sweeps_example</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">num_vars</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">num_samples_per_sweep</span><span class="p">,</span><span class="n">num_sweeps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="mi">2</span>
+<span class="n">var_trans</span> <span class="o">=</span> <span class="n">define_iid_random_variable_transformation</span><span class="p">(</span>
+<span class="n">uniform</span><span class="p">(),</span><span class="n">num_vars</span><span class="p">)</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="n">num_vars</span><span class="p">)</span>
+<span class="n">c</span><span class="o">*=</span><span class="mi">20</span><span class="o">/</span><span class="n">c</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+<span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">c</span><span class="p">);</span> <span class="n">w</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span> <span class="s2">&quot;oscillatory&quot;</span><span class="p">,</span> <span class="n">num_vars</span><span class="p">,</span><span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span><span class="n">w</span><span class="o">=</span><span class="n">w</span> <span class="p">)</span>
+<span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">get_hypercube_parameter_sweeps_samples</span><span class="p">(</span>
+    <span class="n">var_trans</span><span class="o">.</span><span class="n">get_ranges</span><span class="p">(),</span><span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="n">num_samples_per_sweep</span><span class="p">,</span>
+    <span class="n">num_sweeps</span><span class="o">=</span><span class="n">num_sweeps</span><span class="p">)</span>
+<span class="n">vals</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">plot_parameter_sweeps</span><span class="p">(</span><span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                      <span class="n">show</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//parameter_sweeps-1.py">Source code</a>, <a class="reference external" href=".//parameter_sweeps-1.png">png</a>, <a class="reference external" href=".//parameter_sweeps-1.hires.png">hires.png</a>, <a class="reference external" href=".//parameter_sweeps-1.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="_images/parameter_sweeps-1.png" src="_images/parameter_sweeps-1.png" />
+</div>
+<p>In 2D we can also plot the multivariate coordinates of the univariate parameter
+sweeps</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">f</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,:],</span><span class="s1">&#39;o&#39;</span><span class="p">)</span>
+<span class="c1"># plot the samples at the begining and end of each parameter sweep</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_sweeps</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,[</span><span class="n">ii</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">,(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+    <span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,[</span><span class="n">ii</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="p">,(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+    <span class="s1">&#39;sr&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//parameter_sweeps-2.py">Source code</a>, <a class="reference external" href=".//parameter_sweeps-2.png">png</a>, <a class="reference external" href=".//parameter_sweeps-2.hires.png">hires.png</a>, <a class="reference external" href=".//parameter_sweeps-2.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="_images/parameter_sweeps-2.png" src="_images/parameter_sweeps-2.png" />
+</div>
+<p>Note the above code can also be used for independent unbounded variables. In this situation specify ranges to be interval that captures a certain percentage of the total probability. For example give a frozen scipy random variable
+var.interval(0.95) will give such a range.</p>
+</div>
+<div class="section" id="correlated-gaussian-variables">
+<h2>Correlated Gaussian variables<a class="headerlink" href="#correlated-gaussian-variables" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.examples.parameter_sweeps_example</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">num_vars</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">sweep_radius</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">num_samples_per_sweep</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="n">num_sweeps</span><span class="o">=</span><span class="mi">2</span>
+<span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)</span>
+<span class="n">covariance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span><span class="mf">0.7</span><span class="p">],[</span><span class="mf">0.7</span><span class="p">,</span><span class="mf">1.</span><span class="p">]])</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">x</span><span class="o">-</span><span class="n">mean</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+<span class="n">covariance_chol_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">covariance</span><span class="p">)</span>
+<span class="n">covariance_sqrt</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span> <span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">covariance_chol_factor</span><span class="p">,</span><span class="n">x</span><span class="p">)</span>
+
+<span class="n">samples</span><span class="p">,</span> <span class="n">active_samples</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="n">get_gaussian_parameter_sweeps_samples</span><span class="p">(</span>
+    <span class="n">mean</span><span class="p">,</span> <span class="n">covariance</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">covariance_sqrt</span><span class="o">=</span><span class="n">covariance_sqrt</span><span class="p">,</span>
+    <span class="n">sweep_radius</span><span class="o">=</span><span class="n">sweep_radius</span><span class="p">,</span>
+    <span class="n">num_samples_per_sweep</span><span class="o">=</span><span class="n">num_samples_per_sweep</span><span class="p">,</span>
+    <span class="n">num_sweeps</span><span class="o">=</span><span class="n">num_sweeps</span><span class="p">)</span>
+<span class="n">vals</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">plot_parameter_sweeps</span><span class="p">(</span><span class="n">active_samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="n">qoi_indices</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                      <span class="n">show</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//parameter_sweeps-3.py">Source code</a>, <a class="reference external" href=".//parameter_sweeps-3.png">png</a>, <a class="reference external" href=".//parameter_sweeps-3.hires.png">hires.png</a>, <a class="reference external" href=".//parameter_sweeps-3.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="_images/parameter_sweeps-3.png" src="_images/parameter_sweeps-3.png" />
+</div>
+<p>In 2D we can also plot the multivariate coordinates of the univariate parameter
+sweeps</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.density</span> <span class="kn">import</span> <span class="n">plot_gaussian_contours</span>
+<span class="n">f</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">=</span><span class="n">plot_gaussian_contours</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">covariance</span><span class="p">),</span><span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,:],</span><span class="s1">&#39;o&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,[</span><span class="mi">0</span><span class="p">,</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+        <span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,[</span><span class="mi">0</span><span class="p">,</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span><span class="s1">&#39;sr&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">num_sweeps</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,[</span><span class="n">num_samples_per_sweep</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+            <span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,[</span><span class="n">num_samples_per_sweep</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">num_samples_per_sweep</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span>
+            <span class="s1">&#39;sr&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//parameter_sweeps-4.py">Source code</a>, <a class="reference external" href=".//parameter_sweeps-4.png">png</a>, <a class="reference external" href=".//parameter_sweeps-4.hires.png">hires.png</a>, <a class="reference external" href=".//parameter_sweeps-4.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="_images/parameter_sweeps-4.png" src="_images/parameter_sweeps-4.png" />
+</div>
+<p>These plots can be obtained using convienience functions which save plots to file. To run use</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.examples.parameter_sweeps_example</span> <span class="k">import</span> <span class="o">*</span>
+<span class="n">bivariate_uniform_example</span><span class="p">()</span>
+<span class="n">bivariate_gaussian_example</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="tensor_product_lagrange_interpolation.html" class="btn btn-neutral float-right" title="Tensor product Lagrange interpolation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.html" class="btn btn-neutral float-left" title="Examples" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
