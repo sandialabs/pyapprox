@@ -1,6 +1,5 @@
-############
 Introduction
-############
+============
 
 PyApprox provides flexible and efficient tools for high-dimensional approximation and uncertainty quantification. PyApprox implements methods addressing various issues surrounding high-dimensional parameter spaces and limited evaluations of expensive simulation models with the goal of facilitating simulation-aided knowledge discovery, prediction and design. Tools are provided for: (1) building surrogates using polynomial chaos expansions using least squares, compressive sensing and interpolation; (2) sparse grid interpolation and quadrature; (3) low-rank tensor-decompositions; (4) multi-fidelity approximation and sampling; (5) large-scale Bayesian inference; (6) numerical solvers for canonical ordinary and partial differential equations useful for demonstration purposes; (7) compressive sensing solvers; and (8) visualization. The code is intended to as a python toolbox but provides c++ code with Python interfaces to computationally expensive algorithms to increase performance
 
