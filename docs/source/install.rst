@@ -2,9 +2,17 @@
 Installation
 ############
 
-Installation
-------------
-To install PyApprox run::
+Download
+--------
+Clone the latest version of the software using::
+  
+  git clone https://github.com/sandialabs/pyapprox.git
+
+or download the source from the `PyApprox github repository <https://github.com/sandialabs/pyapprox>`_.
+
+Install
+-------
+To install PyApprox run the following in the PyApprox root directory::
 
     python setup.py install
 
@@ -13,8 +21,8 @@ to be edited and changes activated without needed to reinstall use::
   
     python setup.py develop
 
-Testing
--------
+Test
+----
 To run all tests use::
   
   python setup.py test
