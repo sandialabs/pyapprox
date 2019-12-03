@@ -48,4 +48,6 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
    plot_tensor_product_lagrange_basis_2d(level,ii,jj,ax)
    plt.show()
 
-   
+References
+^^^^^^^^^^
+Adaptive Multi-index Collocation for Uncertainty Quantification and Sensitivity Analysis, J.D. Jakeman, M Eldred, G Geraci, A Gorodetsky - arXiv preprint `arXiv:1909.13845 <https://arxiv.org/pdf/1909.13845.pdf>`_, 2019
