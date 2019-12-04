@@ -21,6 +21,11 @@ to be edited and changes activated without needed to reinstall use::
   
     python setup.py develop
 
+Note that sometimes developers need to remove all files generated when calling setup.py. To do this use::
+
+  python setup.py clean --all
+  find . -name "*.pyc" -exec rm -f {} \;
+
 Test
 ----
 To run all tests use::
