@@ -14,12 +14,19 @@ Install
 -------
 To install PyApprox run the following in the PyApprox root directory::
 
-    python setup.py install
+    pip install -e .
+
 
 To instead install a version for developlement which allows for package source
 to be edited and changes activated without needed to reinstall use::
-  
+
+    pip install -r requirements.txt
     python setup.py develop
+
+Note that sometimes developers need to remove all files generated when calling setup.py. To do this use::
+
+  python setup.py clean --all
+  find . -name "*.pyc" -exec rm -f {} \;
 
 Test
 ----
