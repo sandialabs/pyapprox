@@ -1,16 +1,8 @@
 # PyApprox
 
-Dependencies
-------------
-scipy, numpy, matplotlib
-
-Testing
--------
-To run all tests in tests/ directory use
-python setup.py test
-
-Run a single test with
-nosetests --nologcapture <file>:<Test_Case>.<test_method>
+Documentation
+-------------
+Online documentation can be found at [PyApprox](https://sandialabs.github.io/pyapprox/index.html)
 
 Description
 -----------
