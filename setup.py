@@ -1,13 +1,54 @@
 import sys
 import setuptools
-from Cython.Build import cythonize
-import numpy as np
 import os
-os.environ["C_INCLUDE_PATH"] = np.get_include()
-print (np.get_include())
+try:
+    # This is necessary when installing package with pip install -e .
+    # and numpy is not yet installed. pip will install numpy then install
+    # pyapprox
+    import numpy as np
+    os.environ["C_INCLUDE_PATH"] = np.get_include()
+except:
+    pass
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+def no_cythonize(extensions, **_ignore):
+    for extension in extensions:
+        sources = []
+        for sfile in extension.sources:
+            path, ext = os.path.splitext(sfile)
+            if ext in ('.pyx', '.py'):
+                if extension.language == 'c++':
+                    ext = '.cpp'
+                else:
+                    ext = '.c'
+                sfile = path + ext
+            sources.append(sfile)
+        extension.sources[:] = sources
+    return extensions
+
+try:
+    from Cython.Build import cythonize
+    USE_CYTHON=True
+except:
+    USE_CYTHON=False
+
+if USE_CYTHON:
+    extensions = cythonize(
+        "pyapprox/cython/*.pyx",
+        compiler_directives={'language_level' : 3},
+        annotate=True)
+else:
+    import glob
+    from setuptools import Extension
+    pyx_files = glob.glob("pyapprox/cython/*.pyx")
+    extensions = []
+    for pyx_file in pyx_files:
+        name= pyx_file[:-4].replace('/', '.')
+        ext = Extension(name=name,sources=[pyx_file])
+        extensions.append(ext)
+    extensions = no_cythonize(extensions)
 
 setuptools.setup(
     name="pyapprox",
@@ -29,17 +70,15 @@ setuptools.setup(
         'numpy >= 1.14',
         'matplotlib',
         'scipy >= 1.0.0',
-        'cython',
+#        'cython',
         'cvxopt',
+        'sympy',
         'numpydoc',
         'sphinx',
         'sphinx_automodapi',
         'sphinx_rtd_theme'
       ],
-    ext_modules = cythonize(
-        "pyapprox/cython/*.pyx",
-        compiler_directives={'language_level' : 3},
-        annotate=True),
+    ext_modules = extensions,
     test_suite='nose.collector',
     tests_require=['nose'],
     license='MIT',
