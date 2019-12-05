@@ -1,6 +1,8 @@
 import unittest
 from pyapprox.cvar_regression import *
-
+from pyapprox.stochastic_dominance import *
+from scipy.special import erf, erfinv, factorial
+from scipy.stats import truncnorm as truncnorm_rv
 def get_lognormal_example_exact_quantities(mu,sigma):
     f= lambda x: np.exp(x).T
 
@@ -47,7 +49,7 @@ def get_lognormal_example_exact_quantities(mu,sigma):
     ssd_disutil  =  lambda eta: (1-f_cdf(-eta))*(eta+cond_exp_y_ge_eta(-eta))
     return f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil
 
-def get_log_truncated_normal_example_exact_quantities(lb,ub,mu,sigma):
+def get_truncated_lognormal_example_exact_quantities(lb,ub,mu,sigma):
     f = lambda x: np.exp(x).T
 
     #lb,ub passed to truncnorm_rv are defined for standard normal.
@@ -116,8 +118,169 @@ def get_log_truncated_normal_example_exact_quantities(lb,ub,mu,sigma):
 
     return f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil
 
+def plot_truncated_lognormal_example_exact_quantities(
+        num_samples=int(1e5),plot=False):
+    if plot:
+        assert num_samples<=1e5
+    num_vars,mu,sigma = 1,1.,2.
+    lb,ub = -1,3
+    
+    f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
+        get_truncated_lognormal_example_exact_quantities(lb,ub,mu,sigma)
+    #lb,ub passed to truncnorm_rv are defined for standard normal.
+    #Adjust for mu and sigma using
+    alpha, beta = (lb-mu)/sigma, (ub-mu)/sigma
+    samples = truncnorm_rv.rvs(
+        alpha,beta,mu,sigma,size=num_samples)[np.newaxis,:]
+    values = f(samples)[:,0]
+    
+    fig,axs=plt.subplots(1,6,sharey=False,figsize=(16,6))
+    
+    from pyapprox.density import EmpiricalCDF
+    ygrid = np.linspace(np.exp(lb)-1,np.exp(ub)*1.1,100)
+    ecdf = EmpiricalCDF(values)
+    if plot:
+        axs[0].plot(ygrid,ecdf(ygrid),'-')
+        axs[0].plot(ygrid,f_cdf(ygrid),'--')
+        axs[0].set_xlim(ygrid.min(),ygrid.max())
+        axs[0].set_title('CDF')
 
-class TestCVaR(unittest.TestCase):
+    if plot:
+        ygrid = np.linspace(np.exp(lb)-1,np.exp(ub)*1.1,100)
+        axs[1].hist(values,bins='auto',density=True) 
+        axs[1].plot(ygrid,f_pdf(ygrid),'--')
+        axs[1].set_xlim(ygrid.min(),ygrid.max())
+        axs[1].set_title('PDF')
+    
+    pgrid = np.linspace(0.01,1-1e-2,10)
+    evar = np.array([value_at_risk(values,p)[0] for p in pgrid]).squeeze()
+    assert np.allclose(evar,VaR(pgrid),rtol=2e-2)
+    if plot:
+        axs[2].plot(pgrid,evar,'-')
+        axs[2].plot(pgrid,VaR(pgrid),'--')
+        axs[2].set_title('VaR')
+
+    pgrid = np.linspace(0,1-1e-2,100)
+    ecvar = np.array([conditional_value_at_risk(values,p) for p in pgrid])
+    # CVaR for alpha=0 should be the mean
+    assert np.allclose(ecvar[0],values.mean())
+    assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=1e-2)
+    if plot:
+        axs[3].plot(pgrid,ecvar,'-')
+        axs[3].plot(pgrid,CVaR(pgrid),'--')
+        axs[3].set_xlim(pgrid.min(),pgrid.max())
+        axs[3].set_title('CVaR')
+    
+    ygrid = np.linspace(np.exp(lb)-10,np.exp(ub)+1,100)
+    essd = compute_conditional_expectations(ygrid,values,False)
+    assert np.allclose(essd.squeeze(),ssd(ygrid),rtol=2e-2)
+    if plot:
+        axs[4].plot(ygrid,essd,'-')
+        axs[4].plot(ygrid,ssd(ygrid),'--')
+        axs[4].set_xlim(ygrid.min(),ygrid.max())
+        axs[4].set_title(r'$E[(\eta-Y)^+]$')
+        axs[5].set_xlabel(r'$\eta$')
+
+    # zoom into ygrid over high probability region of -Y
+    ygrid = -ygrid[::-1]
+    disutil_essd = compute_conditional_expectations(ygrid,values,True)
+    assert np.allclose(disutil_essd,compute_conditional_expectations(
+        ygrid,-values,False))
+    #print(np.linalg.norm(disutil_essd.squeeze()-ssd_disutil(ygrid),ord=np.inf))
+    if plot:
+        axs[5].plot(ygrid,disutil_essd,'-',label='Empirical')
+        axs[5].plot(ygrid,ssd_disutil(ygrid),'--',label='Exact')
+        axs[5].set_xlim(ygrid.min(),ygrid.max())
+        axs[5].set_title(r'$E[(\eta-(-Y))^+]$')
+        axs[5].set_xlabel(r'$\eta$')
+        axs[5].legend()
+    
+        plt.show()    
+
+def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
+    num_vars,mu,sigma = 1,0.,1
+    if plot:
+        assert num_samples<=1e5
+    
+    f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
+        get_lognormal_example_exact_quantities(mu,sigma)
+    samples = np.random.normal(mu,sigma,(num_vars,num_samples))
+    values = f(samples)[:,0]
+    
+    fig,axs=plt.subplots(1,6,sharey=False,figsize=(16,6))
+    
+    from pyapprox.density import EmpiricalCDF
+    if plot:
+        ygrid = np.linspace(-1,5,100)
+        #ecdf = EmpiricalCDF(values)
+        #axs[0].plot(ygrid,ecdf(ygrid),'-')
+        axs[0].plot(ygrid,f_cdf(ygrid),'--')
+        #axs[0].set_xlim(ygrid.min(),ygrid.max())
+        axs[0].set_title('CDF')
+        #ecdf = EmpiricalCDF(-values)
+        #axs[0].plot(-ygrid,ecdf(-ygrid),'-')
+
+        ygrid = np.linspace(-1,20,100)
+        #axs[1].hist(values,bins='auto',density=True) 
+        axs[1].plot(ygrid,f_pdf(ygrid),'--')
+        axs[1].set_xlim(ygrid.min(),ygrid.max())
+        axs[1].set_title('PDF')
+    
+    pgrid = np.linspace(1e-2,1-1e-2,100)
+    evar = np.array([value_at_risk(values,p)[0] for p in pgrid])
+    #print(np.linalg.norm(evar.squeeze()-VaR(pgrid),ord=np.inf))
+    assert np.allclose(evar.squeeze(),VaR(pgrid),atol=1e-1)
+    if plot:
+        axs[2].plot(pgrid,evar,'-')
+        axs[2].plot(pgrid,VaR(pgrid),'--')
+        axs[2].set_title('VaR')
+
+    ygrid = np.linspace(1e-2,1-1e-2,100)
+    ecvar = np.array([conditional_value_at_risk(values,y) for y in ygrid])
+    assert np.allclose(ecvar.squeeze(),CVaR(ygrid).squeeze(),rtol=3e-2)
+    if plot:
+        axs[3].plot(ygrid,ecvar,'-')
+        axs[3].plot(ygrid,CVaR(ygrid),'--')
+        axs[3].set_xlim(ygrid.min(),ygrid.max())
+        axs[3].set_title('CVaR')
+    
+    ygrid = np.linspace(-1,10,100)
+    essd = compute_conditional_expectations(ygrid,values,False)
+    #print(np.linalg.norm(essd.squeeze()-ssd(ygrid),ord=np.inf))
+    assert np.allclose(essd.squeeze(),ssd(ygrid),atol=1e-2)
+    if plot:
+        axs[4].plot(ygrid,essd,'-')
+        axs[4].plot(ygrid,ssd(ygrid),'--')
+        axs[4].set_xlim(ygrid.min(),ygrid.max())
+        axs[4].set_title(r'$E[(\eta-Y)^+]$')
+        axs[4].set_xlabel(r'$\eta$')
+
+        
+    # zoom into ygrid over high probability region of -Y
+    ygrid = -ygrid[::-1]
+    disutil_essd = compute_conditional_expectations(ygrid,values,True)
+    assert np.allclose(disutil_essd,compute_conditional_expectations(
+        ygrid,-values,False))
+    assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=2e-2)
+    if plot:
+        axs[5].plot(ygrid,disutil_essd,'-',label='Empirical')
+        axs[5].plot(ygrid,ssd_disutil(ygrid),'--',label='Exact')
+        axs[5].set_xlim((ygrid).min(),(ygrid).max())
+        axs[5].set_title(r'$E[(\eta-(-Y))^+]$')
+        axs[5].set_xlabel(r'$\eta$')
+        axs[5].plot([0],[np.exp(mu+sigma**2/2)],'o')
+        axs[5].legend()
+        
+        plt.show()
+
+
+class TestRiskMeasures(unittest.TestCase):
+
+    def test_lognormal_example_exact_quantities(self):
+        plot_lognormal_example_exact_quantities(int(2e5))
+
+    def test_truncated_lognormal_example_exact_quantities(self):
+        plot_truncated_lognormal_example_exact_quantities(int(2e5))
 
     def test_value_at_risk_normal(self):
         weights=None
@@ -249,6 +412,6 @@ class TestCVaR(unittest.TestCase):
 
 
 if __name__== "__main__":    
-    cvar_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-         TestCVaR)
-    unittest.TextTestRunner(verbosity=2).run(cvar_test_suite)
+    risk_measures_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+         TestRiskMeasures)
+    unittest.TextTestRunner(verbosity=2).run(risk_measures_test_suite)
