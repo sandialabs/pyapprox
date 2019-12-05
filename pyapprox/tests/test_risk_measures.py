@@ -235,13 +235,13 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
         axs[2].plot(pgrid,VaR(pgrid),'--')
         axs[2].set_title('VaR')
 
-    ygrid = np.linspace(1e-2,1-1e-2,100)
-    ecvar = np.array([conditional_value_at_risk(values,y) for y in ygrid])
-    assert np.allclose(ecvar.squeeze(),CVaR(ygrid).squeeze(),rtol=3e-2)
+    pgrid = np.linspace(1e-2,1-1e-2,100)
+    ecvar = np.array([conditional_value_at_risk(values,y) for y in pgrid])
+    assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=3e-2)
     if plot:
-        axs[3].plot(ygrid,ecvar,'-')
-        axs[3].plot(ygrid,CVaR(ygrid),'--')
-        axs[3].set_xlim(ygrid.min(),ygrid.max())
+        axs[3].plot(pgrid,ecvar,'-')
+        axs[3].plot(pgrid,CVaR(pgrid),'--')
+        axs[3].set_xlim(pgrid.min(),pgrid.max())
         axs[3].set_title('CVaR')
     
     ygrid = np.linspace(-1,10,100)
