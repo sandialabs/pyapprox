@@ -39,7 +39,7 @@ class TestAdaptivePCE(unittest.TestCase):
             validation_samples.shape[1])
         return error, pce
 
-    def xtest_adaptive_leja_sampling_I(self):
+    def test_adaptive_leja_sampling_I(self):
         """
         If function is isotropic small changes in priority can cause
         different subspace to be refined when using slow vs fast method. This
@@ -124,9 +124,7 @@ class TestAdaptivePCE(unittest.TestCase):
         # plot_2d_indices(pce.poly_indices,other_indices=active_poly_indices);
         # plt.show()
 
-
-
-    def xtest_adaptive_least_squares_induced_sampling(self):
+    def test_adaptive_least_squares_induced_sampling(self):
         num_vars = 2; 
         alph=5; bet=5.
 
