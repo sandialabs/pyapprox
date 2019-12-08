@@ -6,6 +6,8 @@ from scipy.stats.mstats import mquantiles as quantile
 from scipy.stats import norm as normal_rv
 from scipy.special import erfinv
 from scipy import sparse
+from functools import partial
+from scipy import integrate
 
 def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     """
@@ -394,6 +396,42 @@ def cvar_regression(basis_matrix, values, alpha,verbosity=1):
     residuals = values-basis_matrix.dot(sol)[:,0]
     coef = np.append(conditional_value_at_risk(residuals,alpha),sol)
     return coef
+
+def cvar_univariate_integrand(f,pdf,t,x):
+    x = np.atleast_2d(x)
+    assert x.shape[0]==1
+    pdf_vals = pdf(x[0,:])
+    I = np.where(pdf_vals>0)[0]
+    vals = np.zeros(x.shape[1])
+    if I.shape[0]>0:
+        vals[I] = np.maximum(f(x[:,I])[:,0]-t,0)*pdf_vals[I]
+    return vals
+
+def compute_cvar_objective_from_univariate_function_quadpack(
+        f,pdf,lbx,ubx,alpha,t,tol=4*np.finfo(float).eps):
+    import warnings
+    #warnings.simplefilter("ignore")
+    integral,err = integrate.quad(
+        partial(cvar_univariate_integrand,f,pdf,t),lbx,ubx,
+        epsrel=tol,epsabs=tol,limit=100)
+    #warnings.simplefilter("default")
+    #assert err<1e-13,err
+    val = t+1./(1.-alpha)*integral
+    return val
+
+from scipy.optimize import minimize
+def compute_cvar_from_univariate_function(f,pdf,lbx,ubx,alpha,init_guess,
+                                          tol=1e-7):
+    # tolerance used to compute integral should be more accurate than
+    # optimization tolerance
+    obj = partial(compute_cvar_objective_from_univariate_function_quadpack,
+                  f,pdf,lbx,ubx,alpha)
+    method='L-BFGS-B'; options={'disp':False,'gtol':tol,'ftol':tol}
+    result=minimize(obj,init_guess,method=method,
+                    options=options)
+    value_at_risk = result['x']
+    cvar = result['fun']
+    return value_at_risk, cvar
 
 #sudo yum install glpk-devel glpk
 # pip install cvxopt
