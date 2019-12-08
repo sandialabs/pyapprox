@@ -25,8 +25,7 @@ def clenshaw_curtis_rule_growth(level):
     else:
         return 2**level+1
 
-def clenshaw_curtis_hierarchical_to_nodal_index(
-        level,ll,ii):
+def clenshaw_curtis_hierarchical_to_nodal_index(level,ll,ii):
     """
     Convert a 1D hierarchical index (ll,ii) to a nodal index for lookup in a
     Clenshaw-Curtis quadrature rule. 
@@ -285,7 +284,24 @@ def leja_growth_rule(level):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
-    return level+1
+    return constant_increment_growth_rule(1,level)
+
+def constant_increment_growth_rule(increment,level):
+    """
+    The number of samples in the 1D quadrature rule where number of of points 
+    grow by a fixed constant at each level.
+
+    Parameters
+    ----------
+    level : integer
+       The level of the quadrature rule
+
+    Return
+    ------
+    num_samples_1d : integer
+        The number of samples in the quadrature rule
+    """
+    return increment*level+1
 
 from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
 from pyapprox.leja_sequences import get_leja_sequence_1d,\
