@@ -10,9 +10,20 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
     Construct the matrix form of the constraints of quadratic program.
        Ax<=b
 
-    z_k+s_{ik} >= y_i, i=1,...,N, k=1,...,N
+    Utility formulation
+    Z dominates Y
+
+    s_{ik} + z_k >= y_i, i=1,...,N, k=1,...,N
     sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}], k=1,...,N
     s_ik>=0, i=1,...,N, k=1,...,N
+
+    Disutility formuation
+    -Y dominates -Z
+
+    s_{ik} -z_k >= -y_i, i=1,...,N, k=1,...,N
+    sum_{k=1}^N p_k s_{ik} >= v_i = E[(y_i+Y)^{+}], k=1,...,N
+    s_ik>=0, i=1,...,N, k=1,...,N
+    
 
     Note that A contains contraints that enforce s_ik >=0. This can be removed
     if solver being used allows bounds to be enforced separately to constraints.
@@ -27,7 +38,8 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
        The values y_i, i=1,...,M
 
     Yvec : np.ndarray (N,1)
-        The values v_i = E[(y_i-Y)^{+}], v_i=1,...,M
+        The values v_i = E[(y_i-Y)^{+}], v_i=1,...,M or
+        v_i = E[(y_i+Y)^{+}] if disutility_formulation=True
 
     p : np.ndarray (N,1)
        The probabilities p_k, k=1,...,M
@@ -55,7 +67,7 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
         row = i*N + i
         col = M + i*N
         if not disutility_formulation:
-            # z_k+s_{ik} >= y_i
+            # s_{ik}+z_k >= y_i
             A[row:row+N,:M]        = -basis_matrix
             A[row:row+N,col:col+N] = -I
             b[row:row+N]           = -Y
@@ -63,11 +75,11 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
             A[row+N,col:col+N] = p.T
             b[row+N]           = Yvec[i]
         else:
-            # z_k-s_{ik} <= y_i
+            # s_{ik}-z_k >= -y_i
             A[row:row+N,:M]        = basis_matrix
             A[row:row+N,col:col+N] = -I
             b[row:row+N]           = Y
-            # \sum_{k=1}^N p_k s_{ik} >= v_i = E[(Y-y_i)^{+}]
+            # \sum_{k=1}^N p_k s_{ik} >= v_i = E[(y_i+Y)^{+}]
             A[row+N,col:col+N] = -p.T
             b[row+N]           = -Yvec[i]
             
@@ -83,10 +95,12 @@ def compute_conditional_expectations(eta,samples,disutility_formulation=True):
     assert eta.ndim==1
     if disutility_formulation:
         values = np.asarray(
-            [np.maximum(samples-eta[ii],0).mean() for ii in range(eta.shape[0])])
+            [np.maximum(eta[ii]+samples,0).mean()
+             for ii in range(eta.shape[0])])
     else:
         values = np.asarray(
-            [np.maximum(eta[ii]-samples,0).mean() for ii in range(eta.shape[0])])
+            [np.maximum(eta[ii]-samples,0).mean()
+             for ii in range(eta.shape[0])])
     return values
 
 def gradient(coeff0,N,M):
