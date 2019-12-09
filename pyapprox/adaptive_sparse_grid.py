@@ -964,6 +964,26 @@ class SubSpaceRefinementManager(object):
             elif np.any(getattr(other,m)!=getattr(self,m)):
                 return False
         return True
+
+    def recompute_active_subspace_priorities(self):
+        if self.active_subspace_queue.empty():
+            return
+        items = extract_items_from_priority_queue(self.active_subspace_queue)[0]
+        self.active_subspace_queue = mypriorityqueue()
+        for item in items:
+            count = item[2]  # index of grid.subspace_indices
+            # find num_samples for subspace
+            subspace_index = self.subspace_indices[:, count]
+            num_subspace_samples = \
+                self.subspace_values_indices_list[count].shape[0]
+            print(num_subspace_samples,subspace_index)
+            # compute priority and error for subspace
+            priority, error = self.refinement_indicator(
+                    subspace_index, num_subspace_samples, self)
+            new_item = (priority, error, count)
+            self.active_subspace_queue.put(new_item)
+            self.error[count] = error
+    
     
 from pyapprox.univariate_quadrature import leja_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\

@@ -31,6 +31,7 @@ class TestAdaptivePCE(unittest.TestCase):
         while (not pce.active_subspace_queue.empty() or
                pce.subspace_indices.shape[1]==0):
             pce.refine()
+            pce.recompute_active_subspace_priorities()
         validation_samples = generate_independent_random_samples(
             var_trans.variable,int(1e3))
         validation_vals = function(validation_samples)
@@ -116,13 +117,12 @@ class TestAdaptivePCE(unittest.TestCase):
         subspace_num_active_vars = np.count_nonzero(pce.subspace_indices,axis=0)
         assert np.where(subspace_num_active_vars>1)[0].shape[0]==1
 
-        # from pyapprox.visualization import plot_2d_indices
-        # import matplotlib.pyplot as plt
-        # active_poly_indices = pce.get_active_unique_poly_indices()
-        # if active_poly_indices.shape[1]==0:
-        #     active_poly_indices = None
-        # plot_2d_indices(pce.poly_indices,other_indices=active_poly_indices);
-        # plt.show()
+        from pyapprox.sparse_grid import plot_sparse_grid_2d
+        import matplotlib.pyplot as plt
+        plot_sparse_grid_2d(
+            pce.samples,np.ones(pce.samples.shape[1]),
+            pce.pce.indices, pce.subspace_indices)
+        plt.show()
 
     def test_adaptive_least_squares_induced_sampling(self):
         num_vars = 2; 
