@@ -55,7 +55,7 @@ Polynomial chaos expansions are most easily constructed when the components of :
 
 .. math::
    \begin{align*}
-  \rvdom &= \times_{i=1}^d \rvdom_i, & \rvdom_i &\subset \reals, & \pdf(\V{\rv}) &= \prod_{i=1}^d \pdf_i(\rv_i),
+  \rvdom &= \times_{i=1}^d \rvdom_i, & \rvdom_i &\subseteq \reals, & \pdf(\V{\rv}) &= \prod_{i=1}^d \pdf_i(\rv_i),
   \end{align*}
 
 where :math:`\pdf_i` are the marginal densities of the variables :math:`\V{\rv}_i`, which completely characterizes the distribution of :math:`\rv`. This allows us to express the basis functions :math:`\phi` as tensor products of univariate orthonormal polynomials. That is
