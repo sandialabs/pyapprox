@@ -25,6 +25,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
    from pyapprox.utilities import get_tensor_product_quadrature_rule
+   from pyapprox.polynomial_sampling import christoffel_weights
    
    np.random.seed(1)
 
@@ -46,7 +47,10 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
 PCE represent the model output :math:`f(\V{\rv})` as an expansion in orthonormal polynomials, 
 
 
-.. math:: f(\V{\rv})\approx p(\V{\rv})=\sum_{n=1}^\infty \alpha_n\phi_n(\V{\rv}),
+.. math::
+   :label: eq:pce-integer-index
+	   
+   f(\V{\rv})\approx p(\V{\rv})=\sum_{n=1}^\infty \alpha_n\phi_n(\V{\rv}),
 
 Here :math:`\alpha_n` are the PCE coefficients that must be computed, and the basis functions :math:`\phi_n` are polynomial basis functions that are pairwise orthonormal under an inner product weighted by the probability density of :math:`\V{\rv}`. Above we assume that :math:`f` is scalar-valued, but the procedures we describe carry over to vector- or function-valued outputs.
 In this tutorial the components of :math:`\V{\rv}` are independent and so we can generate the multivariate polynomials :math:`\phi_n` from univariate orthogonal polynomials, but such a construction can also be accomplished when :math:`\V{\rv}` has dependent components. This will be demonstrated in another tutorial.
@@ -91,6 +95,7 @@ In practice the PCE  must be truncated to some finite number of terms, say :math
    \label{eq:pce-multi-index}
    f(\V{\rv}) &\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), & |\Lambda| &= N.
    \end{align*}
+   :label: eq:pce-multi-index
 
 Frequently the PCE is truncated to retain only the multivariate polynomials whose associated multi-indices have norm at most :math:`p`, i.e.,
 
@@ -107,60 +112,71 @@ Taking :math:`q=1` results in a total-degree space having dimension :math:`\text
   \pi_\Lambda &\coloneqq \mathrm{span} \left\{ \phi_\lambda \;\; \big| \;\; \lambda \in \Lambda \right\}, & f_N &\in \pi_\Lambda.
   \end{align*}
 
-Under an appropriate ordering of multi-indices, the expression \eqref{eq:pce-multi-index}, and the expression \eqref{eq:pce-integer-index} truncated to the first :math:`N` terms, are identical. Defining :math:`[N]:=\{1,\ldots,N\}`, for :math:`N\in\mathbb{N}`, we will in the following frequently make use of a linear ordering of the PCE basis, :math:`\phi_k` for :math:`k \in [N]` from \eqref{eq:pce-integer-index}, instead of the multi-index ordering of the PCE basis :math:`\phi_{\lambda}` for :math:`\lambda \in \Lambda` from \eqref{eq:pce-multi-index}.  Therefore,
+Under an appropriate ordering of multi-indices, the expression :eq:`eq:pce-integer-index` , and the expression :eq:`eq:pce-multi-index` truncated to the first :math:`N` terms, are identical. Defining :math:`[N]:=\{1,\ldots,N\}`, for :math:`N\in\mathbb{N}`, we will in the following frequently make use of a linear ordering of the PCE basis, :math:`\phi_k` for :math:`k \in [N]` from :eq:`eq:pce-integer-index`, instead of the multi-index ordering of the PCE basis :math:`\phi_{\lambda}` for :math:`\lambda \in \Lambda` from :eq:`eq:pce-multi-index`.  Therefore,
 
 .. math::
-  \sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(z) = \sum_{n=1}^N \alpha_n \phi_n(z).
+  \sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(V{\rv}).
 
 Any bijective map between :math:`\Lambda` and :math:`[N]` will serve to define this linear ordering, and the particular choice of this map is not relevant in our discussion.
 
-To set the PCE truncation to a third degree tensor product index set use
+To set the PCE truncation to a third degree total-degree index set use
 
 .. plot::
    :include-source:
    :context:
       close-figs
 
-   degrees = [3]*var_trans.num_vars()
-   indices = tensor_product_indices(degrees)
-   #indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)
+   degree=3
+   indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)
    poly.set_indices(indices)
 
 Now we have defined the PCE, we are now must compute its coefficients. Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples :math:`\mathcal{Z}=[\V{\rv}^{(1)},\ldots,\V{\rv}^{(M)}]` to obtain a set of function values :math:`\V{f}=[\V{f}^{(1)},\ldots,\V{f}^{(M)}]^T`. The function may be vectored valued and thus each :math:`\V{f}^{(i)}\in\mathbb{R}^Q` is a vector and :math:`\V{F}\in\mathbb{R}^{M\times Q}` is a matrix
 
-In the following we will use the tensor product of the nodes of the univariate Clenshaw-Curtis quadrature rule. However any well conditioned sampling set can be used, such as Leja sequences. We emphasize random sampling from the probability measure is not well-conditioned.
+In the following we will generate training samples by randomly drawing samples from the tensor-product Chebyshev measure.
 
-These function values can the be used to approximate the polynomial coefficients using least squares system
+.. math::
+   \begin{align*}
+   v(\V{\rv})=\prod_{i=1}^d v(\rv_i) & & v(\rv_i)=\frac{1}{\pi\sqrt{1-\rv_i^2}}
+   \end{align*}
 
-.. math:: \V{\Phi} \V{\alpha}=\V{F}
-	  
-where entries of the basis matrix :math:`\V{\Phi}\in\mathbb{R}^{M\times N}` are given by :math:`\Phi_{ij}=\phi_j(\V{\rv}^{(i)})`
-
-Here we will use numpy's in built least squares function to solve the interpolation problem. The following plots show the function being approximated and the magnitude of the error in the polynomial interpolant
-
-
-Now lets define the variable transformation
+Sampling from this measure is asymptorically optimal (as degree increases) for any bounded random variable [NJZ2017]_. The following code samples from the Chebyshev measure and evaluates the model at these samples.
 
 .. plot::
    :include-source:
    :context:
       close-figs
 
-   #univariate_quadrature_rules = [
-   #    partial(gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0),
-   #    partial(gauss_jacobi_pts_wts_1D,alpha_poly=2,beta_poly=2)]
-   level=1
-   univariate_quadrature_rules = [
-       partial(clenshaw_curtis_in_polynomial_order,
-       return_weights_for_all_levels=False)]*poly.num_vars()
-   train_samples, train_weights = get_tensor_product_quadrature_rule(
-       level,var_trans.num_vars(),univariate_quadrature_rules,
-       var_trans.map_from_canonical_space)
+   ntrain_samples = int(poly.indices.shape[1]*1.1)
+   train_samples = -np.cos(np.random.uniform(0,2*np.pi,(poly.num_vars(),ntrain_samples)))
+   train_samples = var_trans.map_from_canonical_space(train_samples)
+   train_values  = model(train_samples)
 
-   train_values = model(train_samples)
+Here we have used the variable transformation to map the samples from
+:math:`[-1,1]^d\rightarrow[0,1]^d`. More details on how to use variable transformations will be covered
+in another tutorial.
+
+The function values we generated can now be used to approximate the polynomial coefficients by solving the least squares system
+
+.. math:: \V{\Phi} \V{\alpha}=\V{F}
+	  
+where entries of the basis matrix :math:`\V{\Phi}\in\mathbb{R}^{M\times N}` are given by :math:`\Phi_{ij}=\phi_j(\V{\rv}^{(i)})`. Solving this system will be ill conditioned so we must precondition the system using an appropriate preconditioner. The optimal preconditioner when sampling from the Chebyshev measure is a diagonal matrix :math:`\V{w}` with entries 
+
+.. math:: W_{ii}=\left(\sum_{n=1}^N \phi_n^2(\V{\rv}^{(i)})\right)^{-\frac{1}{2}}
+
+We will use numpy's in built least squares function to solve the preconditioned system of equations
+
+.. math:: \V{W}\V{\Phi} \V{\alpha}=\V{W}\V{F}
+
+.. plot::
+   :include-source:
+   :context:
+      close-figs
 
    basis_matrix = poly.basis_matrix(train_samples)
-   coef = np.linalg.lstsq(basis_matrix,train_values,rcond=None)[0]
+   precond_weights = christoffel_weights(basis_matrix)
+   precond_basis_matrix = precond_weights[:,np.newaxis]*basis_matrix
+   precond_train_values = precond_weights[:,np.newaxis]*train_values
+   coef = np.linalg.lstsq(precond_basis_matrix,precond_train_values,rcond=None)[0]
    poly.set_coefficients(coef)
 
 Now lets plot the Genz function and the PCE approximation
@@ -190,5 +206,14 @@ Now lets plot the Genz function and the PCE approximation
    ax.view_init(80, 45)
    plt.show()
 
-As you can see the error in the interpolant is zero at the training points.
+As you can see the error in the interpolant is small near the training points and larger further away from those points.
+
+Notes
+^^^^^
+In this tutorial we sampled from the Chebyshev measure and applied a preconditioner (known as the Christoffel function) to generate a well-conditioned linear system. Other strategies exists for generating well conditioned systems. We will cover other choices and provide more information on the preconditioning techinque used here in another tutorial. However we want to emphasize that random sampling from the probability measure does not produce a well-conditioned system and should be avoided.
    
+References
+^^^^^^^^^^
+.. [NJZ2017] `Narayan A., Jakeman J., Zhou T. A christoffel function weighted least squares algorithm for collocation approximations Math. Comp., 86 (306) (2017), pp. 1913-1947 <https://doi.org/10.1090/mcom/3192>`_
+
+.. [JNZ2017] `Jakeman J.D., Narayan A., Zhou T. A generalized sampling and preconditioning scheme for sparse approximation of polynomial chaos expansions. SIAM J. Sci. Comput., 39 (3) (2017), pp. A1114-A1144. <https://epubs.siam.org/doi/10.1137/16M1063885>`_
