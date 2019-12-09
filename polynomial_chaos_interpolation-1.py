@@ -13,5 +13,6 @@ from functools import partial
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
 clenshaw_curtis_in_polynomial_order
 from pyapprox.utilities import get_tensor_product_quadrature_rule
+from pyapprox.polynomial_sampling import christoffel_weights
 
 np.random.seed(1)

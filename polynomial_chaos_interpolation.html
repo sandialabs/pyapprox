@@ -26,7 +26,7 @@
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
         <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "\\V{z}", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1]}}})</script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1]}}})</script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -183,6 +183,7 @@
 <span class="kn">from</span> <span class="nn">pyapprox.univariate_quadrature</span> <span class="kn">import</span> <span class="n">gauss_jacobi_pts_wts_1D</span><span class="p">,</span> \
 <span class="n">clenshaw_curtis_in_polynomial_order</span>
 <span class="kn">from</span> <span class="nn">pyapprox.utilities</span> <span class="kn">import</span> <span class="n">get_tensor_product_quadrature_rule</span>
+<span class="kn">from</span> <span class="nn">pyapprox.polynomial_sampling</span> <span class="kn">import</span> <span class="n">christoffel_weights</span>
 
 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
@@ -200,8 +201,8 @@
 </div>
 <p>(<a class="reference external" href=".//polynomial_chaos_interpolation-2.py">Source code</a>)</p>
 <p>PCE represent the model output <span class="math notranslate nohighlight">\(f(\V{\rv})\)</span> as an expansion in orthonormal polynomials,</p>
-<div class="math notranslate nohighlight">
-\[f(\V{\rv})\approx p(\V{\rv})=\sum_{n=1}^\infty \alpha_n\phi_n(\V{\rv}),\]</div>
+<div class="math notranslate nohighlight" id="equation-eq-pce-integer-index">
+<span class="eqno">(1)<a class="headerlink" href="#equation-eq-pce-integer-index" title="Permalink to this equation">¶</a></span>\[f(\V{\rv})\approx p(\V{\rv})=\sum_{n=1}^\infty \alpha_n\phi_n(\V{\rv}),\]</div>
 <p>Here <span class="math notranslate nohighlight">\(\alpha_n\)</span> are the PCE coefficients that must be computed, and the basis functions <span class="math notranslate nohighlight">\(\phi_n\)</span> are polynomial basis functions that are pairwise orthonormal under an inner product weighted by the probability density of <span class="math notranslate nohighlight">\(\V{\rv}\)</span>. Above we assume that <span class="math notranslate nohighlight">\(f\)</span> is scalar-valued, but the procedures we describe carry over to vector- or function-valued outputs.
 In this tutorial the components of <span class="math notranslate nohighlight">\(\V{\rv}\)</span> are independent and so we can generate the multivariate polynomials <span class="math notranslate nohighlight">\(\phi_n\)</span> from univariate orthogonal polynomials, but such a construction can also be accomplished when <span class="math notranslate nohighlight">\(\V{\rv}\)</span> has dependent components. This will be demonstrated in another tutorial.</p>
 <p>Polynomial chaos expansions are most easily constructed when the components of <span class="math notranslate nohighlight">\(\rv\)</span> are independent.  Under the assumption of independence, we have</p>
@@ -227,8 +228,8 @@ In this tutorial the components of <span class="math notranslate nohighlight">\(
 </div>
 <p>(<a class="reference external" href=".//polynomial_chaos_interpolation-3.py">Source code</a>)</p>
 <p>In practice the PCE  must be truncated to some finite number of terms, say <span class="math notranslate nohighlight">\(N\)</span>, defined by a multi-index set <span class="math notranslate nohighlight">\(\Lambda \subset \mathbb{N}_0^d\)</span>:</p>
-<div class="math notranslate nohighlight">
-\[\begin{align*}
+<div class="math notranslate nohighlight" id="equation-eq-pce-multi-index">
+<span class="eqno">(2)<a class="headerlink" href="#equation-eq-pce-multi-index" title="Permalink to this equation">¶</a></span>\[\begin{align*}
 \label{eq:pce-multi-index}
 f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), &amp; |\Lambda| &amp;= N.
 \end{align*}\]</div>
@@ -243,45 +244,52 @@ f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\
 \[\begin{align*}
 \pi_\Lambda &amp;\coloneqq \mathrm{span} \left\{ \phi_\lambda \;\; \big| \;\; \lambda \in \Lambda \right\}, &amp; f_N &amp;\in \pi_\Lambda.
 \end{align*}\]</div>
-<p>Under an appropriate ordering of multi-indices, the expression eqref{eq:pce-multi-index}, and the expression eqref{eq:pce-integer-index} truncated to the first <span class="math notranslate nohighlight">\(N\)</span> terms, are identical. Defining <span class="math notranslate nohighlight">\([N]:=\{1,\ldots,N\}\)</span>, for <span class="math notranslate nohighlight">\(N\in\mathbb{N}\)</span>, we will in the following frequently make use of a linear ordering of the PCE basis, <span class="math notranslate nohighlight">\(\phi_k\)</span> for <span class="math notranslate nohighlight">\(k \in [N]\)</span> from eqref{eq:pce-integer-index}, instead of the multi-index ordering of the PCE basis <span class="math notranslate nohighlight">\(\phi_{\lambda}\)</span> for <span class="math notranslate nohighlight">\(\lambda \in \Lambda\)</span> from eqref{eq:pce-multi-index}.  Therefore,</p>
+<p>Under an appropriate ordering of multi-indices, the expression <a class="reference internal" href="#equation-eq-pce-integer-index">(1)</a> , and the expression <a class="reference internal" href="#equation-eq-pce-multi-index">(2)</a> truncated to the first <span class="math notranslate nohighlight">\(N\)</span> terms, are identical. Defining <span class="math notranslate nohighlight">\([N]:=\{1,\ldots,N\}\)</span>, for <span class="math notranslate nohighlight">\(N\in\mathbb{N}\)</span>, we will in the following frequently make use of a linear ordering of the PCE basis, <span class="math notranslate nohighlight">\(\phi_k\)</span> for <span class="math notranslate nohighlight">\(k \in [N]\)</span> from <a class="reference internal" href="#equation-eq-pce-integer-index">(1)</a>, instead of the multi-index ordering of the PCE basis <span class="math notranslate nohighlight">\(\phi_{\lambda}\)</span> for <span class="math notranslate nohighlight">\(\lambda \in \Lambda\)</span> from <a class="reference internal" href="#equation-eq-pce-multi-index">(2)</a>.  Therefore,</p>
 <div class="math notranslate nohighlight">
-\[\sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(z) = \sum_{n=1}^N \alpha_n \phi_n(z).\]</div>
+\[\sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(V{\rv}).\]</div>
 <p>Any bijective map between <span class="math notranslate nohighlight">\(\Lambda\)</span> and <span class="math notranslate nohighlight">\([N]\)</span> will serve to define this linear ordering, and the particular choice of this map is not relevant in our discussion.</p>
-<p>To set the PCE truncation to a third degree tensor product index set use</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">degrees</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
-<span class="n">indices</span> <span class="o">=</span> <span class="n">tensor_product_indices</span><span class="p">(</span><span class="n">degrees</span><span class="p">)</span>
-<span class="c1">#indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)</span>
+<p>To set the PCE truncation to a third degree total-degree index set use</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">degree</span><span class="o">=</span><span class="mi">3</span>
+<span class="n">indices</span> <span class="o">=</span> <span class="n">compute_hyperbolic_indices</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">degree</span><span class="p">,</span><span class="mf">1.0</span><span class="p">)</span>
 <span class="n">poly</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>(<a class="reference external" href=".//polynomial_chaos_interpolation-4.py">Source code</a>)</p>
 <p>Now we have defined the PCE, we are now must compute its coefficients. Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples <span class="math notranslate nohighlight">\(\mathcal{Z}=[\V{\rv}^{(1)},\ldots,\V{\rv}^{(M)}]\)</span> to obtain a set of function values <span class="math notranslate nohighlight">\(\V{f}=[\V{f}^{(1)},\ldots,\V{f}^{(M)}]^T\)</span>. The function may be vectored valued and thus each <span class="math notranslate nohighlight">\(\V{f}^{(i)}\in\mathbb{R}^Q\)</span> is a vector and <span class="math notranslate nohighlight">\(\V{F}\in\mathbb{R}^{M\times Q}\)</span> is a matrix</p>
-<p>In the following we will use the tensor product of the nodes of the univariate Clenshaw-Curtis quadrature rule. However any well conditioned sampling set can be used, such as Leja sequences. We emphasize random sampling from the probability measure is not well-conditioned.</p>
-<p>These function values can the be used to approximate the polynomial coefficients using least squares system</p>
+<p>In the following we will generate training samples by randomly drawing samples from the tensor-product Chebyshev measure.</p>
 <div class="math notranslate nohighlight">
-\[\V{\Phi} \V{\alpha}=\V{F}\]</div>
-<p>where entries of the basis matrix <span class="math notranslate nohighlight">\(\V{\Phi}\in\mathbb{R}^{M\times N}\)</span> are given by <span class="math notranslate nohighlight">\(\Phi_{ij}=\phi_j(\V{\rv}^{(i)})\)</span></p>
-<p>Here we will use numpy’s in built least squares function to solve the interpolation problem. The following plots show the function being approximated and the magnitude of the error in the polynomial interpolant</p>
-<p>Now lets define the variable transformation</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">#univariate_quadrature_rules = [</span>
-<span class="c1">#    partial(gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0),</span>
-<span class="c1">#    partial(gauss_jacobi_pts_wts_1D,alpha_poly=2,beta_poly=2)]</span>
-<span class="n">level</span><span class="o">=</span><span class="mi">1</span>
-<span class="n">univariate_quadrature_rules</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="n">partial</span><span class="p">(</span><span class="n">clenshaw_curtis_in_polynomial_order</span><span class="p">,</span>
-    <span class="n">return_weights_for_all_levels</span><span class="o">=</span><span class="bp">False</span><span class="p">)]</span><span class="o">*</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
-<span class="n">train_samples</span><span class="p">,</span> <span class="n">train_weights</span> <span class="o">=</span> <span class="n">get_tensor_product_quadrature_rule</span><span class="p">(</span>
-    <span class="n">level</span><span class="p">,</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">univariate_quadrature_rules</span><span class="p">,</span>
-    <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical_space</span><span class="p">)</span>
-
-<span class="n">train_values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
-
-<span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
-<span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_values</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="bp">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+\[\begin{align*}
+v(\V{\rv})=\prod_{i=1}^d v(\rv_i) &amp; &amp; v(\rv_i)=\frac{1}{\pi\sqrt{1-\rv_i^2}}
+\end{align*}\]</div>
+<p>Sampling from this measure is asymptorically optimal (as degree increases) for any bounded random variable <a class="reference internal" href="#njz2017" id="id1"><span>[NJZ2017]</span></a>. The following code samples from the Chebyshev measure and evaluates the model at these samples.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ntrain_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="mf">1.1</span><span class="p">)</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">ntrain_samples</span><span class="p">)))</span>
+<span class="n">train_samples</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical_space</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+<span class="n">train_values</span>  <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>(<a class="reference external" href=".//polynomial_chaos_interpolation-5.py">Source code</a>)</p>
+<p>Here we have used the variable transformation to map the samples from
+<span class="math notranslate nohighlight">\([-1,1]^d\rightarrow[0,1]^d\)</span>. More details on how to use variable transformations will be covered
+in another tutorial.</p>
+<p>The function values we generated can now be used to approximate the polynomial coefficients by solving the least squares system</p>
+<div class="math notranslate nohighlight">
+\[\V{\Phi} \V{\alpha}=\V{F}\]</div>
+<p>where entries of the basis matrix <span class="math notranslate nohighlight">\(\V{\Phi}\in\mathbb{R}^{M\times N}\)</span> are given by <span class="math notranslate nohighlight">\(\Phi_{ij}=\phi_j(\V{\rv}^{(i)})\)</span>. Solving this system will be ill conditioned so we must precondition the system using an appropriate preconditioner. The optimal preconditioner when sampling from the Chebyshev measure is a diagonal matrix <span class="math notranslate nohighlight">\(\V{w}\)</span> with entries</p>
+<div class="math notranslate nohighlight">
+\[W_{ii}=\left(\sum_{n=1}^N \phi_n^2(\V{\rv}^{(i)})\right)^{-\frac{1}{2}}\]</div>
+<p>We will use numpy’s in built least squares function to solve the preconditioned system of equations</p>
+<div class="math notranslate nohighlight">
+\[\V{W}\V{\Phi} \V{\alpha}=\V{W}\V{F}\]</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+<span class="n">precond_weights</span> <span class="o">=</span> <span class="n">christoffel_weights</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">)</span>
+<span class="n">precond_basis_matrix</span> <span class="o">=</span> <span class="n">precond_weights</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">basis_matrix</span>
+<span class="n">precond_train_values</span> <span class="o">=</span> <span class="n">precond_weights</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">train_values</span>
+<span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">precond_basis_matrix</span><span class="p">,</span><span class="n">precond_train_values</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="bp">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//polynomial_chaos_interpolation-6.py">Source code</a>)</p>
 <p>Now lets plot the Genz function and the PCE approximation</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">30</span>
@@ -305,11 +313,26 @@ f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>(<a class="reference external" href=".//polynomial_chaos_interpolation-6.py">Source code</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-6.png">png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-6.hires.png">hires.png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-6.pdf">pdf</a>)</p>
+<p>(<a class="reference external" href=".//polynomial_chaos_interpolation-7.py">Source code</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-7.png">png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-7.hires.png">hires.png</a>, <a class="reference external" href=".//polynomial_chaos_interpolation-7.pdf">pdf</a>)</p>
 <div class="figure align-default">
-<img alt="_images/polynomial_chaos_interpolation-6.png" src="_images/polynomial_chaos_interpolation-6.png" />
+<img alt="_images/polynomial_chaos_interpolation-7.png" src="_images/polynomial_chaos_interpolation-7.png" />
 </div>
-<p>As you can see the error in the interpolant is zero at the training points.</p>
+<p>As you can see the error in the interpolant is small near the training points and larger further away from those points.</p>
+<div class="section" id="notes">
+<h2>Notes<a class="headerlink" href="#notes" title="Permalink to this headline">¶</a></h2>
+<p>In this tutorial we sampled from the Chebyshev measure and applied a preconditioner (known as the Christoffel function) to generate a well-conditioned linear system. Other strategies exists for generating well conditioned systems. We will cover other choices and provide more information on the preconditioning techinque used here in another tutorial. However we want to emphasize that random sampling from the probability measure does not produce a well-conditioned system and should be avoided.</p>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<dl class="citation">
+<dt class="label" id="njz2017"><span class="brackets"><a class="fn-backref" href="#id1">NJZ2017</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1090/mcom/3192">Narayan A., Jakeman J., Zhou T. A christoffel function weighted least squares algorithm for collocation approximations Math. Comp., 86 (306) (2017), pp. 1913-1947</a></p>
+</dd>
+<dt class="label" id="jnz2017"><span class="brackets">JNZ2017</span></dt>
+<dd><p><a class="reference external" href="https://epubs.siam.org/doi/10.1137/16M1063885">Jakeman J.D., Narayan A., Zhou T. A generalized sampling and preconditioning scheme for sparse approximation of polynomial chaos expansions. SIAM J. Sci. Comput., 39 (3) (2017), pp. A1114-A1144.</a></p>
+</dd>
+</dl>
+</div>
 </div>
 
 
