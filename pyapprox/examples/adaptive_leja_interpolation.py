@@ -27,14 +27,17 @@ def compute_l2_error(validation_samples,validation_values,pce,relative=True):
     return error
 
 def genz_example(max_num_samples):
+    error_tol=1e-12
 
     univariate_variables = [
         uniform(),beta(3,3)]
     variable = IndependentMultivariateRandomVariable(univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
-    
-    model = GenzFunction( "oscillatory",var_trans.num_vars())
-    model.set_coefficients(4,'exponential-decay')
+
+    c = np.array([10,0.00])
+    model = GenzFunction(
+        "oscillatory",var_trans.num_vars(),c=c,w=np.zeros_like(c))
+    # model.set_coefficients(4,'exponential-decay')
 
     validation_samples = generate_independent_random_samples(
     var_trans.variable,int(1e3))
@@ -54,7 +57,7 @@ def genz_example(max_num_samples):
 
     max_level=np.inf
     max_level_1d=[max_level]*(pce.num_vars)
-    error_tol=0.
+
     admissibility_function = partial(
         max_level_admissibility_function,max_level,max_level_1d,
         max_num_samples,error_tol)

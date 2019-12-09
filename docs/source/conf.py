@@ -127,7 +127,13 @@ mathjax_config = {
             "V": [r'{\boldsymbol{#1}}',1],
             "mean": [r'{\mathbb{E}\left[#1\right]}',1],
             "var": [r'{\mathbb{V}\left[#1\right]}',1],
-            "argmin": r'{\mathrm{argmin}}' 
+            "argmin": r'{\mathrm{argmin}}',
+            "rv":r'\V{z}',
+            "reals":r'\mathbb{R}',
+            "pdf":r'\rho',
+            "rvdom":r'\Gamma',
+            "coloneqq":r'\colon=',
+            "norm":[r'\lVert #1 \rVert',1]
             }                       
         }                           
     } 

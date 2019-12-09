@@ -55,6 +55,10 @@ def variance_pce_refinement_indicator(
 
     # compute marginal benefit 
     indicator/=cost
+    print(subspace_index,indicator,'indicator')
+    print(I)
+    if adaptive_pce.pce.coefficients.shape[0]>5:
+        print(np.sum(adaptive_pce.pce.coefficients[[3,4]]**2,axis=0))
     return -indicator, error[qoi_chosen]
     
 def solve_preconditioned_least_squares(basis_matrix_func,samples,values):

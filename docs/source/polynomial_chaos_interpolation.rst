@@ -1,36 +1,14 @@
 Polynomial Chaos Regression
 ===========================
 
-Often an approximation is not defined over the user defined variable space :math:`\mathcal{X}` but over another space :math:`\mathcal{U}`. This is often done to enhance the numerical stability of the approximation or to facilitate the use of simpler approximations. For instance it usually best practice to convert a set of correlated Normal variables into a set of independent Normal variables using the tranformation
+This tutorial discusses how to construct a polynomial chaos expansion of a function with uncertain parameters using least squares regression.
 
-.. math:: T(x)=Lx
-   
-where :math:`L` is the Cholesky factor of the covariance of the correlated variables
-
-In this case the monomial approximation is always defined on :math:`\mathcal{U}=[-1,1]^d` so lets define a transformation
-
-.. math:: T:[0,1]^d\rightarrow[-1,1]^d
-
-Here we focus on how to build a maximum-degree multivariate polynomial approximation
-
-.. math:: f(x)\approx p(T(x))=p(u)=\sum_{\|\lambda\|_\infty\le p} c_\lambda\phi_\lambda(u),
-
-for some degree :math:`p`.
-
-Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples :math:`X=[x^{(1)},\ldots,x^{(M)}]` to obtain a set of function values :math:`Y=[f^{(1)},\ldots,f^{(M)}]^T`. The function may be vectored valued and thus each :math:`f^{(i)}\in\mathbb{R}^Q` is a vector and :math:`Y\in\mathbb{R}^{M\times Q}` is a matrix
-
-In the following we will use the tensor product of the nodes of the univariate Clenshaw-Curtis quadrature rule. However any well conditioned sampling set can be used, such as Leja sequences. Random sampling from the probability measure is not well-conditioned.
-
-These function values can the be used to approximate the polynomial coefficients using least squares system
-
-.. math:: \Phi c=Y
-	  
-where entries of the basis matrix :math:`\Phi\in\mathbb{R}^{M\times N}` are given by :math:`\Phi_{ij}=\phi_j(x^{(i)})`
-
-Here we will use numpy's in built least squares function to solve the interpolation problem. The following plots show the function being approximated and the magnitude of the error in the polynomial interpolant
+Lets first import the necessary modules and set the random seed to ensure the exact plots of this tutorial are reproducbile
 
 .. plot::
    :include-source:
+   :context:
+      close-figs
 
    import numpy as np
    from pyapprox.variables import IndependentMultivariateRandomVariable
@@ -47,48 +25,149 @@ Here we will use numpy's in built least squares function to solve the interpolat
    from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
    from pyapprox.utilities import get_tensor_product_quadrature_rule
-
+   
    np.random.seed(1)
-   univariate_variables = [
-   uniform(),beta(3,3)]
-   variable = IndependentMultivariateRandomVariable(univariate_variables)
-   var_trans = AffineRandomVariableTransformation(variable)
 
-   c = np.random.uniform(0.,1.,var_trans.num_vars())
+Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to approximate a function :math:`f(z): \reals^d \rightarrow \reals` parameterized by the random variables :math:`z=(z_1,\ldots,z_d)`. with the joint probability density function :math:`\pdf(\V{\rv})`. In the following we will use a function commonly used in the literature, the oscillatory Genz function. This function is well suited for testing as the number of variables and the non-linearity can be adjusted.
+
+.. plot::
+   :include-source:
+   :context:
+      close-figs
+
+   univariate_variables = [uniform(),beta(3,3)]
+   variable = IndependentMultivariateRandomVariable(univariate_variables)
+
+   c = np.random.uniform(0.,1.,variable.num_vars())
    c*=4/c.sum()
    w = np.zeros_like(c); w[0] = np.random.uniform(0.,1.,1)
-   model = GenzFunction( "oscillatory",var_trans.num_vars(),c=c,w=w )
+   model = GenzFunction( "oscillatory",variable.num_vars(),c=c,w=w )
+
+PCE represent the model output :math:`f(\V{\rv})` as an expansion in orthonormal polynomials, 
 
 
+.. math:: f(\V{\rv})\approx p(\V{\rv})=\sum_{n=1}^\infty \alpha_n\phi_n(\V{\rv}),
+
+Here :math:`\alpha_n` are the PCE coefficients that must be computed, and the basis functions :math:`\phi_n` are polynomial basis functions that are pairwise orthonormal under an inner product weighted by the probability density of :math:`\V{\rv}`. Above we assume that :math:`f` is scalar-valued, but the procedures we describe carry over to vector- or function-valued outputs.
+In this tutorial the components of :math:`\V{\rv}` are independent and so we can generate the multivariate polynomials :math:`\phi_n` from univariate orthogonal polynomials, but such a construction can also be accomplished when :math:`\V{\rv}` has dependent components. This will be demonstrated in another tutorial.
+
+Polynomial chaos expansions are most easily constructed when the components of :math:`\rv` are independent.  Under the assumption of independence, we have
+
+.. math::
+   \begin{align*}
+  \rvdom &= \times_{i=1}^d \rvdom_i, & \rvdom_i &\subset \reals, & \pdf(\V{\rv}) &= \prod_{i=1}^d \pdf_i(\rv_i),
+  \end{align*}
+
+where :math:`\pdf_i` are the marginal densities of the variables :math:`\V{\rv}_i`, which completely characterizes the distribution of :math:`\rv`. This allows us to express the basis functions :math:`\phi` as tensor products of univariate orthonormal polynomials. That is
+
+.. math::
+   \phi_\lambda(\V{\rv})=\prod_{i=1}^d \phi^i_{\lambda_i}(\rv_i),
+
+where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index, and the univariate basis functions :math:`\phi^i_j` are defined uniquely (up to a sign) for each :math:`i = 1, \ldots, d`, as
+
+.. math::
+   \begin{align*}
+  \int_{\rvdom_i} \phi^i_{j}(z_i) \phi^i_{k}(z_i) \pdf_i(z_i) \;dz_i &= \delta_{j,k}, & j, k &\geq 0, & \deg \phi^i_j &= j.
+  \end{align*}
+  
+With this notation, the degree of the multivariate polynomial :math:`\phi_\lambda` is :math:`|\lambda| \colon= \sum_{j=1}^d \lambda_j`.
+
+The following code initializes a PCE with univariate polynomials orthonormal to the random variables.
+
+.. plot::
+   :include-source:
+   :context:
+      close-figs
+
+   var_trans = AffineRandomVariableTransformation(variable)
    poly = PolynomialChaosExpansion()
    poly_opts = define_poly_options_from_variable_transformation(var_trans)
    poly.configure(poly_opts)
 
-   #num_train_samples = indices.shape[1]#*2
-   #train_samples = generate_independent_random_samples(
-   #    var_trans.variable,num_train_samples)
+In practice the PCE  must be truncated to some finite number of terms, say :math:`N`, defined by a multi-index set :math:`\Lambda \subset \mathbb{N}_0^d`:
+
+.. math::
+   \begin{align*}
+   \label{eq:pce-multi-index}
+   f(\V{\rv}) &\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), & |\Lambda| &= N.
+   \end{align*}
+
+Frequently the PCE is truncated to retain only the multivariate polynomials whose associated multi-indices have norm at most :math:`p`, i.e.,
+
+.. math::
+   \label{eq:hyperbolic-index-set}
+   \begin{align*}
+   \Lambda &= \Lambda^d_{p,q} = \{\lambda \mid \norm{\lambda}{q} \le p\}., & \left\| \lambda \right\|_q &\coloneqq \left(\sum_{i=1}^d \lambda^q_i\right)^{1/q}.
+   \end{align*}
+
+Taking :math:`q=1` results in a total-degree space having dimension :math:`\text{card}\; \Lambda^d_{p,1} \equiv N = { d+p \choose d }`. The choice of :math:`\Lambda` identifies a subspace in which :math:`f_N` has membership:
+
+.. math::
+   \begin{align*}
+  \pi_\Lambda &\coloneqq \mathrm{span} \left\{ \phi_\lambda \;\; \big| \;\; \lambda \in \Lambda \right\}, & f_N &\in \pi_\Lambda.
+  \end{align*}
+
+Under an appropriate ordering of multi-indices, the expression \eqref{eq:pce-multi-index}, and the expression \eqref{eq:pce-integer-index} truncated to the first :math:`N` terms, are identical. Defining :math:`[N]:=\{1,\ldots,N\}`, for :math:`N\in\mathbb{N}`, we will in the following frequently make use of a linear ordering of the PCE basis, :math:`\phi_k` for :math:`k \in [N]` from \eqref{eq:pce-integer-index}, instead of the multi-index ordering of the PCE basis :math:`\phi_{\lambda}` for :math:`\lambda \in \Lambda` from \eqref{eq:pce-multi-index}.  Therefore,
+
+.. math::
+  \sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(z) = \sum_{n=1}^N \alpha_n \phi_n(z).
+
+Any bijective map between :math:`\Lambda` and :math:`[N]` will serve to define this linear ordering, and the particular choice of this map is not relevant in our discussion.
+
+To set the PCE truncation to a third degree tensor product index set use
+
+.. plot::
+   :include-source:
+   :context:
+      close-figs
+
+   degrees = [3]*var_trans.num_vars()
+   indices = tensor_product_indices(degrees)
+   #indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)
+   poly.set_indices(indices)
+
+Now we have defined the PCE, we are now must compute its coefficients. Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples :math:`\mathcal{Z}=[\V{\rv}^{(1)},\ldots,\V{\rv}^{(M)}]` to obtain a set of function values :math:`\V{f}=[\V{f}^{(1)},\ldots,\V{f}^{(M)}]^T`. The function may be vectored valued and thus each :math:`\V{f}^{(i)}\in\mathbb{R}^Q` is a vector and :math:`\V{F}\in\mathbb{R}^{M\times Q}` is a matrix
+
+In the following we will use the tensor product of the nodes of the univariate Clenshaw-Curtis quadrature rule. However any well conditioned sampling set can be used, such as Leja sequences. We emphasize random sampling from the probability measure is not well-conditioned.
+
+These function values can the be used to approximate the polynomial coefficients using least squares system
+
+.. math:: \V{\Phi} \V{\alpha}=\V{F}
+	  
+where entries of the basis matrix :math:`\V{\Phi}\in\mathbb{R}^{M\times N}` are given by :math:`\Phi_{ij}=\phi_j(\V{\rv}^{(i)})`
+
+Here we will use numpy's in built least squares function to solve the interpolation problem. The following plots show the function being approximated and the magnitude of the error in the polynomial interpolant
+
+
+Now lets define the variable transformation
+
+.. plot::
+   :include-source:
+   :context:
+      close-figs
 
    #univariate_quadrature_rules = [
    #    partial(gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0),
    #    partial(gauss_jacobi_pts_wts_1D,alpha_poly=2,beta_poly=2)]
    level=1
    univariate_quadrature_rules = [
-   partial(clenshaw_curtis_in_polynomial_order,
-   return_weights_for_all_levels=False)]*poly.num_vars()
+       partial(clenshaw_curtis_in_polynomial_order,
+       return_weights_for_all_levels=False)]*poly.num_vars()
    train_samples, train_weights = get_tensor_product_quadrature_rule(
-   level,var_trans.num_vars(),univariate_quadrature_rules,
-   var_trans.map_from_canonical_space)
-
-   degrees = [int(train_samples.shape[1]**(1/poly.num_vars()))]*poly.num_vars()
-   #indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)
-   indices = tensor_product_indices(degrees)
-   poly.set_indices(indices)
+       level,var_trans.num_vars(),univariate_quadrature_rules,
+       var_trans.map_from_canonical_space)
 
    train_values = model(train_samples)
 
    basis_matrix = poly.basis_matrix(train_samples)
    coef = np.linalg.lstsq(basis_matrix,train_values,rcond=None)[0]
    poly.set_coefficients(coef)
+
+Now lets plot the Genz function and the PCE approximation
+
+.. plot::
+   :include-source:
+   :context:
 
    plot_limits = [0,1,0,1]
    num_pts_1d = 30
@@ -113,10 +192,3 @@ Here we will use numpy's in built least squares function to solve the interpolat
 
 As you can see the error in the interpolant is zero at the training points.
    
-   
-If all the variables of the model are independent and indentically distributed then we can construct the variable transformation with the helper function
-
-.. code-block::
-   
-   var_trans = define_iid_random_variable_transformation(
-   uniform(-1,2),num_vars) 
