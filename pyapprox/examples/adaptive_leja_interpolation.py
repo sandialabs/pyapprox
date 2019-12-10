@@ -36,7 +36,7 @@ def genz_example(max_num_samples):
 
     c = np.array([10,0.00])
     model = GenzFunction(
-        "oscillatory",var_trans.num_vars(),c=c,w=np.zeros_like(c))
+        "oscillatory",variable.num_vars(),c=c,w=np.zeros_like(c))
     # model.set_coefficients(4,'exponential-decay')
 
     validation_samples = generate_independent_random_samples(
