@@ -55,6 +55,10 @@ extensions += ['sphinx_automodapi.automodapi']
 # to avoid having methods and attributes of classes being shown multiple times.
 numpydoc_show_class_members = False
 
+# allow easy reference of headers in other .rst files
+extensions += ['sphinx.ext.autosectionlabel']
+autosectionlabel_prefix_document = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -133,7 +137,8 @@ mathjax_config = {
             "pdf":r'\rho',
             "rvdom":r'\Gamma',
             "coloneqq":r'\colon=',
-            "norm":[r'\lVert #1 \rVert',1]
+            "norm":[r'\lVert #1 \rVert',1],
+            "argmax":[r'\operatorname{argmax}']
             }                       
         }                           
     } 
