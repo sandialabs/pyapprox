@@ -26,7 +26,7 @@
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
         <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1]}}})</script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"]}}})</script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -38,7 +38,7 @@
   <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Cantilever Beam" href="cantilever_beam.html" />
+    <link rel="next" title="Adaptive Leja Sequences" href="adaptive_leja_sequences.html" />
     <link rel="prev" title="Compute isotropic sparse grid quadrature rule" href="isotropic_sparse_grid_quadrature_example.html" /> 
 </head>
 
@@ -95,6 +95,7 @@
 <li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2"><a class="reference internal" href="adaptive_leja_sequences.html">Adaptive Leja Sequences</a></li>
 <li class="toctree-l2"><a class="reference internal" href="cantilever_beam.html">Cantilever Beam</a></li>
 </ul>
 </li>
@@ -165,10 +166,10 @@
            <div itemprop="articleBody">
             
   <div class="section" id="polynomial-chaos-regression">
-<h1>Polynomial Chaos Regression<a class="headerlink" href="#polynomial-chaos-regression" title="Permalink to this headline">¶</a></h1>
+<span id="id1"></span><h1>Polynomial Chaos Regression<a class="headerlink" href="#polynomial-chaos-regression" title="Permalink to this headline">¶</a></h1>
 <p>This tutorial discusses how to construct a polynomial chaos expansion of a function with uncertain parameters using least squares regression.</p>
-<p>Lets first import the necessary modules and set the random seed to ensure the exact plots of this tutorial are reproducbile</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<p>Lets first import the necessary modules and set the random seed to ensure the exact plots of this tutorial are reproducbile,</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
 <span class="kn">from</span> <span class="nn">pyapprox.variable_transformations</span> <span class="kn">import</span> \
 <span class="n">AffineRandomVariableTransformation</span>
@@ -246,7 +247,7 @@ f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\
 \end{align*}\]</div>
 <p>Under an appropriate ordering of multi-indices, the expression <a class="reference internal" href="#equation-eq-pce-integer-index">(1)</a> , and the expression <a class="reference internal" href="#equation-eq-pce-multi-index">(2)</a> truncated to the first <span class="math notranslate nohighlight">\(N\)</span> terms, are identical. Defining <span class="math notranslate nohighlight">\([N]:=\{1,\ldots,N\}\)</span>, for <span class="math notranslate nohighlight">\(N\in\mathbb{N}\)</span>, we will in the following frequently make use of a linear ordering of the PCE basis, <span class="math notranslate nohighlight">\(\phi_k\)</span> for <span class="math notranslate nohighlight">\(k \in [N]\)</span> from <a class="reference internal" href="#equation-eq-pce-integer-index">(1)</a>, instead of the multi-index ordering of the PCE basis <span class="math notranslate nohighlight">\(\phi_{\lambda}\)</span> for <span class="math notranslate nohighlight">\(\lambda \in \Lambda\)</span> from <a class="reference internal" href="#equation-eq-pce-multi-index">(2)</a>.  Therefore,</p>
 <div class="math notranslate nohighlight">
-\[\sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(V{\rv}).\]</div>
+\[\sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(\V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(\V{\rv}).\]</div>
 <p>Any bijective map between <span class="math notranslate nohighlight">\(\Lambda\)</span> and <span class="math notranslate nohighlight">\([N]\)</span> will serve to define this linear ordering, and the particular choice of this map is not relevant in our discussion.</p>
 <p>To set the PCE truncation to a third degree total-degree index set use</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">degree</span><span class="o">=</span><span class="mi">3</span>
@@ -261,7 +262,7 @@ f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\
 \[\begin{align*}
 v(\V{\rv})=\prod_{i=1}^d v(\rv_i) &amp; &amp; v(\rv_i)=\frac{1}{\pi\sqrt{1-\rv_i^2}}
 \end{align*}\]</div>
-<p>Sampling from this measure is asymptorically optimal (as degree increases) for any bounded random variable <a class="reference internal" href="#njz2017" id="id1"><span>[NJZ2017]</span></a>. The following code samples from the Chebyshev measure and evaluates the model at these samples.</p>
+<p>Sampling from this measure is asymptorically optimal (as degree increases) for any bounded random variable <a class="reference internal" href="#njz2017" id="id2"><span>[NJZ2017]</span></a>. The following code samples from the Chebyshev measure and evaluates the model at these samples.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ntrain_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="mf">1.1</span><span class="p">)</span>
 <span class="n">train_samples</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,(</span><span class="n">poly</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">ntrain_samples</span><span class="p">)))</span>
 <span class="n">train_samples</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">map_from_canonical_space</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
@@ -285,12 +286,12 @@ in another tutorial.</p>
 <span class="n">precond_weights</span> <span class="o">=</span> <span class="n">christoffel_weights</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">)</span>
 <span class="n">precond_basis_matrix</span> <span class="o">=</span> <span class="n">precond_weights</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">basis_matrix</span>
 <span class="n">precond_train_values</span> <span class="o">=</span> <span class="n">precond_weights</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">train_values</span>
-<span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">precond_basis_matrix</span><span class="p">,</span><span class="n">precond_train_values</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="bp">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">coef</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">precond_basis_matrix</span><span class="p">,</span><span class="n">precond_train_values</span><span class="p">,</span><span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 <span class="n">poly</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>(<a class="reference external" href=".//polynomial_chaos_interpolation-6.py">Source code</a>)</p>
-<p>Now lets plot the Genz function and the PCE approximation</p>
+<p>Now lets plot the Genz function and the error in the PCE approximation</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">plot_limits</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">num_pts_1d</span> <span class="o">=</span> <span class="mi">30</span>
 <span class="kn">from</span> <span class="nn">pyapprox.configure_plots</span> <span class="kn">import</span> <span class="o">*</span>
@@ -325,7 +326,7 @@ in another tutorial.</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <dl class="citation">
-<dt class="label" id="njz2017"><span class="brackets"><a class="fn-backref" href="#id1">NJZ2017</a></span></dt>
+<dt class="label" id="njz2017"><span class="brackets"><a class="fn-backref" href="#id2">NJZ2017</a></span></dt>
 <dd><p><a class="reference external" href="https://doi.org/10.1090/mcom/3192">Narayan A., Jakeman J., Zhou T. A christoffel function weighted least squares algorithm for collocation approximations Math. Comp., 86 (306) (2017), pp. 1913-1947</a></p>
 </dd>
 <dt class="label" id="jnz2017"><span class="brackets">JNZ2017</span></dt>
@@ -343,7 +344,7 @@ in another tutorial.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="cantilever_beam.html" class="btn btn-neutral float-right" title="Cantilever Beam" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="adaptive_leja_sequences.html" class="btn btn-neutral float-right" title="Adaptive Leja Sequences" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="isotropic_sparse_grid_quadrature_example.html" class="btn btn-neutral float-left" title="Compute isotropic sparse grid quadrature rule" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

@@ -1,0 +1,404 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Adaptive Leja Sequences &mdash; PyApprox 1.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"]}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Cantilever Beam" href="cantilever_beam.html" />
+    <link rel="prev" title="Polynomial Chaos Regression" href="polynomial_chaos_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> PyApprox
+          
+
+          
+            
+            <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="parameter_sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polynomial_chaos_interpolation.html">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Adaptive Leja Sequences</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cantilever_beam.html">Cantilever Beam</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">Examples</a> &raquo;</li>
+        
+      <li>Adaptive Leja Sequences</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/adaptive_leja_sequences.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="adaptive-leja-sequences">
+<h1>Adaptive Leja Sequences<a class="headerlink" href="#adaptive-leja-sequences" title="Permalink to this headline">¶</a></h1>
+<p>This tutorial describes how to construct a polynomial chaos expansion (PCE) of a function with uncertain parameters using Leja sequences. This tutorial assumes that the reader is familiar with the tutorial in <a class="reference internal" href="polynomial_chaos_interpolation.html#polynomial-chaos-regression"><span class="std std-ref">Polynomial Chaos Regression</span></a>.</p>
+<p>First lets import necessary modules and define a function useful for estimating the error in the PCE.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyapprox.configure_plots</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">pyapprox.adaptive_polynomial_chaos</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variable_transformations</span> <span class="kn">import</span> \
+<span class="n">AffineBoundedVariableTransformation</span><span class="p">,</span> <span class="n">AffineRandomVariableTransformation</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+<span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">beta</span>
+<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="kn">import</span> \
+    <span class="n">generate_independent_random_samples</span>
+<span class="kn">from</span> <span class="nn">pyapprox.adaptive_sparse_grid</span> <span class="kn">import</span> <span class="n">max_level_admissibility_function</span><span class="p">,</span> \
+    <span class="n">isotropic_refinement_indicator</span>
+<span class="kn">from</span> <span class="nn">pyapprox.univariate_quadrature</span> <span class="kn">import</span> <span class="n">clenshaw_curtis_rule_growth</span><span class="p">,</span> \
+    <span class="n">constant_increment_growth_rule</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span><span class="p">,</span><span class="n">beta</span>
+<span class="kn">from</span> <span class="nn">pyapprox.models.genz</span> <span class="kn">import</span> <span class="n">GenzFunction</span>
+
+<span class="k">def</span> <span class="nf">compute_l2_error</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">,</span><span class="n">validation_values</span><span class="p">,</span><span class="n">pce</span><span class="p">,</span><span class="n">relative</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">pce_values</span> <span class="o">=</span> <span class="n">pce</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">pce_values</span><span class="o">-</span><span class="n">validation_values</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">relative</span><span class="p">:</span>
+        <span class="n">error</span> <span class="o">/=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">validation_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">error</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_values</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">error</span>
+
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-1.py">Source code</a>)</p>
+<p>Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to approximate a function <span class="math notranslate nohighlight">\(f(z): \reals^d \rightarrow \reals\)</span> parameterized by the random variables <span class="math notranslate nohighlight">\(z=(z_1,\ldots,z_d)\)</span>. with the joint probability density function <span class="math notranslate nohighlight">\(\pdf(\V{\rv})\)</span>. In the following we will use a function commonly used in the literature, the oscillatory Genz function. This function is well suited for testing as the number of variables and the non-linearity can be adjusted. We define the random variables and the function with the following code</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">uniform</span><span class="p">(),</span><span class="n">beta</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">)]</span>
+<span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+
+<span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span><span class="mf">0.01</span><span class="p">])</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">GenzFunction</span><span class="p">(</span>
+    <span class="s2">&quot;oscillatory&quot;</span><span class="p">,</span><span class="n">variable</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span><span class="n">w</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+<span class="c1"># model.set_coefficients(4,&#39;exponential-decay&#39;)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-2.py">Source code</a>)</p>
+<p>Here we have intentionally set the coefficients <span class="math notranslate nohighlight">\(c\)</span>: of the Genz function to be highly anisotropic, to emphasize the properties of the adaptive algorithm.</p>
+<p>PCE represent the model output <span class="math notranslate nohighlight">\(f(\V{\rv})\)</span> as an expansion in orthonormal polynomials,</p>
+<div class="math notranslate nohighlight">
+\[\begin{align*}
+\label{eq:pce-multi-index}
+f(\V{\rv}) &amp;\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), &amp; |\Lambda| &amp;= N.
+\end{align*}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d\)</span> is a multi-index and <span class="math notranslate nohighlight">\(\Lambda\)</span> specifies the terms included in the expansion. In <a class="reference internal" href="polynomial_chaos_interpolation.html#polynomial-chaos-regression"><span class="std std-ref">Polynomial Chaos Regression</span></a> we set <span class="math notranslate nohighlight">\(\Lambda\)</span> to be a total degree expansion. This choice was somewhat arbitray. The exact indices in <span class="math notranslate nohighlight">\(\Lambda\)</span> should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set <span class="math notranslate nohighlight">\(\Lambda\)</span> in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE. Before starting the adaptive algorithm we must first define the PCE.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineRandomVariableTransformation</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+<span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+<span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span><span class="n">var_trans</span><span class="p">)</span>
+<span class="n">poly</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-3.py">Source code</a>)</p>
+<p>Next we will generate some test data to estimate the error in the PCE as the
+adaptive algorithm evolves. We will compute the error at each step using a callback function.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">validation_samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span>
+<span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="mf">1e3</span><span class="p">))</span>
+<span class="n">validation_values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+
+<span class="n">errors</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">num_samples</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">def</span> <span class="nf">callback</span><span class="p">(</span><span class="n">pce</span><span class="p">):</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">compute_l2_error</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">,</span><span class="n">validation_values</span><span class="p">,</span><span class="n">pce</span><span class="p">)</span>
+    <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+    <span class="n">num_samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-4.py">Source code</a>)</p>
+<p>Now we setup the adaptive algorithm.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">max_num_samples</span><span class="o">=</span><span class="mi">100</span>
+<span class="n">error_tol</span><span class="o">=</span><span class="mf">1e-10</span>
+
+<span class="n">candidate_samples</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,(</span><span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="nb">int</span><span class="p">(</span><span class="mf">1e4</span><span class="p">))))</span>
+<span class="n">pce</span> <span class="o">=</span> <span class="n">AdaptiveLejaPCE</span><span class="p">(</span>
+    <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">candidate_samples</span><span class="p">,</span><span class="n">factorization_type</span><span class="o">=</span><span class="s1">&#39;fast&#39;</span><span class="p">)</span>
+
+<span class="n">max_level</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+<span class="n">max_level_1d</span><span class="o">=</span><span class="p">[</span><span class="n">max_level</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">)</span>
+
+<span class="n">admissibility_function</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+    <span class="n">max_level_admissibility_function</span><span class="p">,</span><span class="n">max_level</span><span class="p">,</span><span class="n">max_level_1d</span><span class="p">,</span>
+    <span class="n">max_num_samples</span><span class="p">,</span><span class="n">error_tol</span><span class="p">)</span>
+
+<span class="n">growth_rule</span> <span class="o">=</span>  <span class="n">partial</span><span class="p">(</span><span class="n">constant_increment_growth_rule</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span>
+<span class="c1">#growth_rule = clenshaw_curtis_rule_growth</span>
+<span class="n">pce</span><span class="o">.</span><span class="n">set_function</span><span class="p">(</span><span class="n">model</span><span class="p">,</span><span class="n">var_trans</span><span class="p">)</span>
+<span class="n">pce</span><span class="o">.</span><span class="n">set_refinement_functions</span><span class="p">(</span>
+    <span class="n">variance_pce_refinement_indicator</span><span class="p">,</span><span class="n">admissibility_function</span><span class="p">,</span>
+    <span class="n">growth_rule</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-5.py">Source code</a>)</p>
+<p>The AdaptiveLejaPCE object is used to build an adaptive Leja sequence. Before building the sequence, let us first introduce the basic concepts of Leja sequences.</p>
+<p>A Leja sequence (LS) is essentially a doubly-greedy computation of a determinant maximization procedure. Given an existing set of nodes <span class="math notranslate nohighlight">\(\mathcal{Z}_M\)</span>, a Leja sequence update chooses a new node <span class="math notranslate nohighlight">\(\V{\rv}^{(M+1)}\)</span> by maximizing the determinant of a new Vandermonde-like matrix with an additional row and column: the additional column is formed by adding a single predetermined new basis element, <span class="math notranslate nohighlight">\(\phi_{M+1}\)</span>, and the additional row is defined by the newly added point. Hence a LS is both greedy in the chosen interpolation points, and also assumes some <em>a priori</em> ordering of the basis elements.</p>
+<p>In one dimension, a weighted LS can be understood without linear algebra: Let <span class="math notranslate nohighlight">\(\mathcal{Z}_N\)</span> be a set of nodes on <span class="math notranslate nohighlight">\(\rvdom\)</span> with cardinality <span class="math notranslate nohighlight">\(N \geq 1\)</span>. We will add a new point <span class="math notranslate nohighlight">\(z^{(N+1)}\)</span> to <span class="math notranslate nohighlight">\(\mathcal{Z}\)</span> determined by the following:</p>
+<div class="math notranslate nohighlight">
+\[\argmax_{\rv \in \rvdom} v(\rv)\prod_{n=1}^N |\rv - \rv^{(n)}|\]</div>
+<p>We omit notation indicating the dependence of <span class="math notranslate nohighlight">\(z^{(N+1)}\)</span> on <span class="math notranslate nohighlight">\(\mathcal{Z}_N\)</span>.
+By iterating the above equation, one can progressively build up the Leja sequence <span class="math notranslate nohighlight">\(\mathcal{Z}\)</span> by recomputing and maximizing the objective function for increasing <span class="math notranslate nohighlight">\(N\)</span>.</p>
+<p>Traditionally Leja sequences were developed with <span class="math notranslate nohighlight">\(v(\rv)=1\)</span>. In the following we use</p>
+<div class="math notranslate nohighlight">
+\[v(\V{\rv})=\left(\sum_{n=1}^N \phi_n^2(\V{\rv}^{(i)})\right)^{-\frac{1}{2}}\]</div>
+<p>which is the square-root of the Christoffel function.</p>
+<p>Note univaraite weighted Leja sequence were intially developed setting <span class="math notranslate nohighlight">\(v(\V{\rv})=\sqrt{\rho(\V{\rv}}\)</span> to be the square-root of the joint probability density of the random variables <a class="reference internal" href="#nj2014" id="id1"><span>[NJ2014]</span></a>. However using the Christoffel function typically produces more well-conditioned Leja sequences and requires no explicit knowldege of the joint PDF.</p>
+<p>In multiple dimensions, formulating a generalization of the univariate procedure is challenging. The following linear algebra formulation greedily maximizes the weighted Vandermonde-like determinant</p>
+<div class="math notranslate nohighlight">
+\[\V{\rv}^{(N+1)} = \argmax_{\rv \in \rvdom} |\det v(\V{\rv}) \Phi(\mathcal{Z}, \V{\rv}^{(N+1)})|.\]</div>
+<p>The above procedure is an optimization with no known explicit solution, so constructing a Leja sequence is challenging. In <a class="reference internal" href="#nj2014" id="id2"><span>[NJ2014]</span></a>, gradient based optimization was used to construct weighted Leja sequences. However a simpler procedure based upon LU factorization can also be used <a class="reference internal" href="#jfnmp2019" id="id3"><span>[JFNMP2019]</span></a>. The simpler approach comes at a cost of slight degradation in the achieved determinant of the LS. We adopt the LU-based approach here due to its ease of implementation.</p>
+<p>The algorithm for generating weighted Leja sequences using LU factorization is outlined in Algorithm <span class="xref std std-ref">Algorithm 1</span>. The algorithm consists of 5 steps. First a polynomial basis must be specified. The number of polynomial basis elements must be greater than or equal to the number of desired samples in the Leja sequence, i.e. <span class="math notranslate nohighlight">\(N \geq M\)</span>. The input basis must also be ordered, and the Leja sequence is dependent on this ordering. In this paper we only consider total-degree polynomial spaces, that is we have</p>
+<div class="math notranslate nohighlight">
+\[\begin{align*}
+\mathrm{span}\{\phi_n\}_{n=1}^N &amp;= \pi_\Lambda, &amp; \Lambda = \Lambda_{k,1}^d,
+\end{align*}\]</div>
+<p>for some polynomial degree <span class="math notranslate nohighlight">\(k\)</span>. We use lexigraphical ordering on <span class="math notranslate nohighlight">\(\Lambda\)</span> to define the basis. The second step consists of generating a set of <span class="math notranslate nohighlight">\(S\)</span> candidate samples <span class="math notranslate nohighlight">\(\mathcal{Z}_S\)</span>; ideally, <span class="math notranslate nohighlight">\(S \gg M\)</span>. Our candidate samples will be generated as independent and identically-distributed realizations of a random variable. The precise choice of the random draw will be discussed in the next section. For now we only require that the measure of the draw have support identical with the measure of <span class="math notranslate nohighlight">\(Z\)</span>. Once candidates have been generated we then form the <span class="math notranslate nohighlight">\(S \times N\)</span> Vandermonde-like matrix <span class="math notranslate nohighlight">\(\Phi\)</span>, precondition this matrix with <span class="math notranslate nohighlight">\(V\)</span>, and compute a truncated LU factorization. (Computing the full LU factorization is expensive and unnecessary.) We terminate the LU factorization algorithm after computing the first <span class="math notranslate nohighlight">\(M\)</span> pivots. These ordered pivots correspond to indices in the candidate samples that will make up the Leja sequence. If we assume that there is textit{any} size-<span class="math notranslate nohighlight">\(M\)</span> subset of <span class="math notranslate nohighlight">\(\mathcal{Z}_S\)</span> that is unisolvent for interpolation, then by the pivoting procedure, a Leja sequence is always chosen so that the interpolation problem is unisolvent.</p>
+<p>Algorithm 1:</p>
+<blockquote>
+<div><p><strong>Require</strong> number of desired samples <span class="math notranslate nohighlight">\(M\)</span>, preconditioning function <span class="math notranslate nohighlight">\(v(\V{\rv})\)</span>, basis <span class="math notranslate nohighlight">\(\{\phi\}_{n=1}^N\)</span></p>
+<ol class="arabic simple">
+<li><p>Choose the index set <span class="math notranslate nohighlight">\(\Lambda\)</span> such that <span class="math notranslate nohighlight">\(N\ge M\)</span></p></li>
+<li><p>Specifying an ordering of the basis <span class="math notranslate nohighlight">\(\phi\)</span></p></li>
+<li><p>Generate set of <span class="math notranslate nohighlight">\(S\gg M\)</span> candidate samples <span class="math notranslate nohighlight">\(\mathcal{Z}_S\)</span></p></li>
+<li><p>Build <span class="math notranslate nohighlight">\(\Phi\)</span>, <span class="math notranslate nohighlight">\(\Phi_{m,n} =\phi_n(\V{\rv}^{(m)})\)</span>, <span class="math notranslate nohighlight">\(m\in[S]\)</span>, <span class="math notranslate nohighlight">\(n\in[N]\)</span></p></li>
+<li><p>Compute preconditioning matrix <span class="math notranslate nohighlight">\(V\)</span>, <span class="math notranslate nohighlight">\(V_{mm}=v(\V{\rv}^{(m)})\)</span></p></li>
+<li><p>Compute first M pivots of LU factorization, <span class="math notranslate nohighlight">\(PLU=LU(V \Phi\)</span>,M)</p></li>
+</ol>
+</div></blockquote>
+<p>Once a Leja sequence <span class="math notranslate nohighlight">\(\mathcal{Z}_M\)</span> has been generated one can easily generate a polynomial interpolant with two simple steps. The first step evaluates the function at the samples in the sequence, i.e. <span class="math notranslate nohighlight">\(y=f(\mathcal{Z})\)</span>. The coefficients of the PCE interpolant can then be computed via</p>
+<div class="math notranslate nohighlight">
+\[\alpha=(LU)^{-1}P^{-1} V y\]</div>
+<p>where the matrices <span class="math notranslate nohighlight">\(P\)</span>, <span class="math notranslate nohighlight">\(L\)</span>, and <span class="math notranslate nohighlight">\(U\)</span> are identified in <span class="xref std std-ref">Algorithm 1</span>.</p>
+<p>These two steps are carried out at each iteration of the adaptive algorithm. The PCE coefficients are used to guide refinement of the polynomial index set <span class="math notranslate nohighlight">\(\Lambda\)</span>.</p>
+<p>In the following we use an adaptive algorithm first developed for generalized sparse grid approximation (this is discussed in another tutorial). At each iteration the algorithm identifies a number of different sets <span class="math notranslate nohighlight">\(\mathcal{S}\subset\Lambda\)</span> of candidate indices <span class="math notranslate nohighlight">\(\V{\lambda}\)</span> which may significantly reduce the PCE error. The algorithm then chooses the set <span class="math notranslate nohighlight">\(\mathcal{S}\)</span> which does produce the biggest change and uses this set to generate new candidate sets <span class="math notranslate nohighlight">\(\mathcal{S}\)</span> for refinement. Here we use the change in variance induced by a set as a proxy for the change in PCE error. This change in variance is simply the sum of the coefficients squared associated with the set, i.e.</p>
+<div class="math notranslate nohighlight">
+\[\sum_{\lambda\in \mathcal{S}} \alpha_\V{\lambda}^2\]</div>
+<p>We end this section by noting that (approximate) Fekete points are an alternative determinant-maximizing choice for interpolation points. We opt to use Leja sequences here because they are indeed a <em>sequence</em>, whereas a Fekete point construction is not nested.</p>
+<p>Now we are in a position to start the adaptive process</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="p">(</span><span class="ow">not</span> <span class="n">pce</span><span class="o">.</span><span class="n">active_subspace_queue</span><span class="o">.</span><span class="n">empty</span><span class="p">()</span> <span class="ow">or</span>
+       <span class="n">pce</span><span class="o">.</span><span class="n">subspace_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">):</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">recompute_active_subspace_priorities</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">callback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">callback</span><span class="p">(</span><span class="n">pce</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-6.py">Source code</a>)</p>
+<p>And finally we plot the final polynomial index set <span class="math notranslate nohighlight">\(\Lambda\)</span> the subspace index set, the Leja sequence, and the decay in error as the number of samples increases.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.sparse_grid</span> <span class="kn">import</span> <span class="n">plot_sparse_grid_2d</span>
+<span class="n">plot_sparse_grid_2d</span><span class="p">(</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">pce</span><span class="o">.</span><span class="n">subspace_indices</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">num_samples</span><span class="p">,</span><span class="n">errors</span><span class="p">,</span><span class="s1">&#39;o-&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href=".//adaptive_leja_sequences-7.py">Source code</a>)</p>
+<div class="figure align-center" id="id4">
+<img alt="_images/adaptive_leja_sequences-7_00.png" src="_images/adaptive_leja_sequences-7_00.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//adaptive_leja_sequences-7_00.png">png</a>, <a class="reference external" href=".//adaptive_leja_sequences-7_00.hires.png">hires.png</a>, <a class="reference external" href=".//adaptive_leja_sequences-7_00.pdf">pdf</a>)</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-center" id="id5">
+<img alt="_images/adaptive_leja_sequences-7_01.png" src="_images/adaptive_leja_sequences-7_01.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href=".//adaptive_leja_sequences-7_01.png">png</a>, <a class="reference external" href=".//adaptive_leja_sequences-7_01.hires.png">hires.png</a>, <a class="reference external" href=".//adaptive_leja_sequences-7_01.pdf">pdf</a>)</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<dl class="citation">
+<dt class="label" id="nj2014"><span class="brackets">NJ2014</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/140966368">Narayan A., Jakeman J.D. Adaptive Leja sparse grid constructions for stochastic collocation and high-dimensional approximation SIAM J. Sci. Comput., 36 (6) (2014), pp. A2952-A2983</a></p>
+</dd>
+<dt class="label" id="jfnmp2019"><span class="brackets"><a class="fn-backref" href="#id3">JFNMP2019</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.cma.2019.03.049">John D. Jakeman, Fabian Franzelin, Akil Narayan, Michael Eldred, and Dirk Plfuger.  Polynomial chaosexpansions for dependent random variables. Computer Methods in Applied Mechanics and Engineering, 351:643-666, 2019</a></p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="cantilever_beam.html" class="btn btn-neutral float-right" title="Cantilever Beam" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="polynomial_chaos_interpolation.html" class="btn btn-neutral float-left" title="Polynomial Chaos Regression" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

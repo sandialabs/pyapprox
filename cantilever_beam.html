@@ -26,7 +26,7 @@
         <script type="text/javascript" src="_static/doctools.js"></script>
         <script type="text/javascript" src="_static/language_data.js"></script>
         <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1]}}})</script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"]}}})</script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -38,7 +38,7 @@
   <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Polynomial Chaos Regression" href="polynomial_chaos_interpolation.html" /> 
+    <link rel="prev" title="Adaptive Leja Sequences" href="adaptive_leja_sequences.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -94,6 +94,7 @@
 <li class="toctree-l2"><a class="reference internal" href="tensor_product_lagrange_interpolation.html">Tensor product Lagrange interpolation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="isotropic_sparse_grid_quadrature_example.html">Compute isotropic sparse grid quadrature rule</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polynomial_chaos_interpolation.html">Polynomial Chaos Regression</a></li>
+<li class="toctree-l2"><a class="reference internal" href="adaptive_leja_sequences.html">Adaptive Leja Sequences</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Cantilever Beam</a></li>
 </ul>
 </li>
@@ -289,9 +290,9 @@ f_2(\V{z},\mathbf{w})=1 - \frac{4L^3}{{\color{red}{2.2535}}E w t } \sqrt{\frac{X
     <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">fun</span>
 
 
-<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="k">import</span> \
+<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="kn">import</span> \
     <span class="n">generate_independent_random_samples</span>
-<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="k">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
 <span class="k">def</span> <span class="nf">find_deterministic_beam_design</span><span class="p">():</span>
     <span class="n">lower_bound</span> <span class="o">=</span> <span class="mi">0</span>
 
@@ -440,7 +441,7 @@ f_2(\V{z},\mathbf{w})=1 - \frac{4L^3}{{\color{red}{2.2535}}E w t } \sqrt{\frac{X
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
       
-        <a href="polynomial_chaos_interpolation.html" class="btn btn-neutral float-left" title="Polynomial Chaos Regression" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="adaptive_leja_sequences.html" class="btn btn-neutral float-left" title="Adaptive Leja Sequences" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
