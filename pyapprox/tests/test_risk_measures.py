@@ -2,7 +2,52 @@ import unittest
 from pyapprox.cvar_regression import *
 from pyapprox.stochastic_dominance import *
 from scipy.special import erf, erfinv, factorial
-from scipy.stats import truncnorm as truncnorm_rv
+from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv
+def triangle_quantile(u,c,loc,scale):
+    """
+    Also known as inverse CDF
+    """
+    if np.isscalar(u):
+        u = np.asarray([u])
+    assert u.ndim==1
+    lb = loc
+    mid = loc+c*scale
+    ub = loc+scale
+    I = np.where((u>=0)&(u < (mid-lb)/(ub-lb)))[0]
+    J = np.where((u<=1)&(u >= (mid-lb)/(ub-lb)))[0]
+    if I.shape[0]+J.shape[0]!=u.shape[0]:
+        raise Exception('Ensure u in [0,1] and loc<=loc+c*scale <=loc+scale')
+    
+    quantiles = np.empty_like(u)
+    quantiles[I]=lb + np.sqrt((ub-lb)*(mid-lb)*u[I])
+    quantiles[J]=ub - np.sqrt((ub-lb)*(ub-mid)*(1-u[J]))
+    return quantiles
+
+def triangle_superquantile(u,c,loc,scale):
+    lb = loc
+    mid = loc+c*scale
+    ub = loc+scale
+
+    if np.isscalar(u):
+        u = np.asarray([u])
+    assert u.ndim==1
+
+    left_integral  = lambda u: 2./3*u*np.sqrt(u*(lb - ub)*(lb - mid)) + lb*u
+    right_integral = lambda u: ub*u-2./3*(u-1)*np.sqrt((u-1)*(lb-ub)*(ub-mid)) 
+    
+    I = np.where((u>=0)&(u < (mid-lb)/(ub-lb)))[0]
+    J = np.where((u<1)&(u >= (mid-lb)/(ub-lb)))[0]
+    K = np.where((u==1))[0]
+    
+    if I.shape[0]+J.shape[0]+K.shape[0]!=u.shape[0]:
+        raise Exception('Ensure u in [0,1] and loc<=loc+c*scale <=loc+scale')
+
+    superquantiles = np.empty_like(u)
+    superquantiles[I]=(left_integral((mid-lb)/(ub-lb))-left_integral(u[I])+right_integral(1)-right_integral((mid-lb)/(ub-lb)))/(1-u[I])
+    superquantiles[J]=(right_integral(1)-right_integral(u[J]))/(1-u[J])
+    superquantiles[K]=triangle_rv.interval(1,c,loc,scale)[1]
+    return superquantiles
+
 def get_lognormal_example_exact_quantities(mu,sigma):
     f= lambda x: np.exp(x).T
 
@@ -275,6 +320,21 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
 
 
 class TestRiskMeasures(unittest.TestCase):
+
+    def test_triangle_quantile(self):
+        rv_1 = triangle_rv(0.5,loc=-0.5, scale=2)
+
+        alpha=np.array([0.3,0.75])
+        assert np.allclose(rv_1.ppf(alpha),triangle_quantile(alpha,0.5,-0.5,2))
+    
+    def test_triangle_superquantile(self):
+        c = 0.5; loc = -0.5; scale=2
+        u = np.asarray([0.3,0.75])
+        cvar = triangle_superquantile(u,c,loc,scale)
+        samples = triangle_quantile(np.random.uniform(0,1,(100000)),c,loc,scale)
+        for ii in range(len(u)):
+            mc_cvar = conditional_value_at_risk(samples,u[ii])
+        assert abs(cvar[ii]-mc_cvar)<1e-2
 
     def test_lognormal_example_exact_quantities(self):
         plot_lognormal_example_exact_quantities(int(2e5))
