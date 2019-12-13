@@ -199,16 +199,13 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
     try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
-        return multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
+        result=multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
             x, fn_vals, active_dims, active_abscissa_indices_1d, 
             num_abscissa_1d, num_active_abscissa_1d, shifts, 
             abscissa_and_weights)
-    
-        # from pyapprox.weave.barycentric_interpolation import \
-        #     c_multivariate_hierarchical_barycentric_lagrange_interpolation
-        # return c_multivariate_hierarchical_barycentric_lagrange_interpolation(
-        #     x,abscissa_1d,barycentric_weights_1d,fn_vals,active_dims,
-        #     active_abscissa_indices_1d)
+        if np.any(np.isnan(result)):
+            raise Exception('Error values not finite')
+        return result
     except:
         msg =  'multivariate_hierarchical_barycentric_lagrange_interpolation '
         msg += 'extension failed'
@@ -276,18 +273,17 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                     bases[ii,dd] = basis 
                     denom_d += basis
                 
-                if ( abs(denom_d) < eps ):
-                    # print ('#')
-                    print('abscissa',abscissa_and_weights[::2,act_dim_idx])
-                    print('weights',abscissa_and_weights[1::2,act_dim_idx])
-                    print(denom_d)
-                    # print(bases)
-                    # print(dim)
-                    # print(num_abscissa)
-                    # print(num_act_dims_pt)
-                    # print(x.shape)
-                    raise Exception("interpolation absacissa are not unique")
                 denom *= denom_d
+                
+            # the raise Exception('Error values not finite') at the end
+            # should catch this problem, which sometimes is actually not a
+            # problem
+            #if ( abs(denom) < eps ):
+            #    print(x[:,kk])
+            #    print(denom)
+            #    msg = "the evaluation of x using the interpolation "
+            #    msg += "absacissa  has precision issues"
+            #    raise Exception(msg)
 
             # end for dd in range(num_act_dims_pt):
                 

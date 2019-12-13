@@ -49,6 +49,7 @@ def triangle_superquantile(u,c,loc,scale):
     return superquantiles
 
 def get_lognormal_example_exact_quantities(mu,sigma):
+    #print('mu,sigma',mu,sigma)
     f= lambda x: np.exp(x).T
 
     mean = np.exp(mu+sigma**2/2)
@@ -164,10 +165,10 @@ def get_truncated_lognormal_example_exact_quantities(lb,ub,mu,sigma):
     return f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil
 
 def plot_truncated_lognormal_example_exact_quantities(
-        num_samples=int(1e5),plot=False):
+        num_samples=int(1e5),plot=False,mu=0,sigma=1):
     if plot:
         assert num_samples<=1e5
-    num_vars,mu,sigma = 1,1.,2.
+    num_vars=1.
     lb,ub = -1,3
     
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
@@ -242,15 +243,23 @@ def plot_truncated_lognormal_example_exact_quantities(
     
         plt.show()    
 
-def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
-    num_vars,mu,sigma = 1,0.,1
+def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
+                                            mu=0,sigma=1):
+    num_vars = 1
     if plot:
         assert num_samples<=1e5
+    else:
+        assert num_samples>=1e4
     
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
         get_lognormal_example_exact_quantities(mu,sigma)
-    samples = np.random.normal(mu,sigma,(num_vars,num_samples))
+    from pyapprox.utilities import transformed_halton_sequence
+    #samples = np.random.normal(mu,sigma,(num_vars,num_samples))
+    #values = f(samples)[:,0]
+    samples = transformed_halton_sequence(
+        [partial(normal_rv.ppf,loc=mu,scale=sigma)],num_vars,num_samples)
     values = f(samples)[:,0]
+
     
     fig,axs=plt.subplots(1,6,sharey=False,figsize=(16,6))
     
@@ -274,31 +283,36 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
     pgrid = np.linspace(1e-2,1-1e-2,100)
     evar = np.array([value_at_risk(values,p)[0] for p in pgrid])
     #print(np.linalg.norm(evar.squeeze()-VaR(pgrid),ord=np.inf))
-    assert np.allclose(evar.squeeze(),VaR(pgrid),atol=1e-1)
     if plot:
         axs[2].plot(pgrid,evar,'-')
         axs[2].plot(pgrid,VaR(pgrid),'--')
         axs[2].set_title('VaR')
+    else:
+        assert np.allclose(evar.squeeze(),VaR(pgrid),atol=2e-1)
 
     pgrid = np.linspace(1e-2,1-1e-2,100)
     ecvar = np.array([conditional_value_at_risk(values,y) for y in pgrid])
-    assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=3e-2)
+    #print(np.linalg.norm(ecvar.squeeze()-CVaR(pgrid).squeeze(),ord=np.inf))
+    print(CVaR(0.8))
     if plot:
         axs[3].plot(pgrid,ecvar,'-')
         axs[3].plot(pgrid,CVaR(pgrid),'--')
         axs[3].set_xlim(pgrid.min(),pgrid.max())
         axs[3].set_title('CVaR')
-    
+    else:
+        assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=4e-2)
+        
     ygrid = np.linspace(-1,10,100)
     essd = compute_conditional_expectations(ygrid,values,False)
     #print(np.linalg.norm(essd.squeeze()-ssd(ygrid),ord=np.inf))
-    assert np.allclose(essd.squeeze(),ssd(ygrid),atol=1e-2)
     if plot:
         axs[4].plot(ygrid,essd,'-')
         axs[4].plot(ygrid,ssd(ygrid),'--')
         axs[4].set_xlim(ygrid.min(),ygrid.max())
         axs[4].set_title(r'$E[(\eta-Y)^+]$')
         axs[4].set_xlabel(r'$\eta$')
+    else:
+        assert np.allclose(essd.squeeze(),ssd(ygrid),atol=1e-3)
 
         
     # zoom into ygrid over high probability region of -Y
@@ -306,7 +320,7 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
     disutil_essd = compute_conditional_expectations(ygrid,values,True)
     assert np.allclose(disutil_essd,compute_conditional_expectations(
         ygrid,-values,False))
-    assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=2e-2)
+    #print(np.linalg.norm(disutil_essd.squeeze()-ssd_disutil(ygrid),ord=np.inf))
     if plot:
         axs[5].plot(ygrid,disutil_essd,'-',label='Empirical')
         axs[5].plot(ygrid,ssd_disutil(ygrid),'--',label='Exact')
@@ -315,8 +329,10 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False):
         axs[5].set_xlabel(r'$\eta$')
         axs[5].plot([0],[np.exp(mu+sigma**2/2)],'o')
         axs[5].legend()
-        
         plt.show()
+    else:
+        assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=1e-3) 
+
 
 
 class TestRiskMeasures(unittest.TestCase):

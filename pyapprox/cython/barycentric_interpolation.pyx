@@ -111,9 +111,11 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
                       (x_dim_k - abscissa_and_weights[2*ii,act_dim_idx])
                     bases[ii,dd] = basis 
                     denom_d += basis
-
-                if ( abs(denom_d) < mach_eps ):
-                    raise Exception, "interpolation absacissa are not unique" 
+		    
+		# this is sometimes not a problem, just check all values are
+		# finite when this function is called from python
+                #if ( abs(denom_d) < mach_eps ):
+                #    raise Exception, "interpolation absacissa are not unique" 
                 denom *= denom_d
 
             # end for dd in range(num_act_dims_pt):
