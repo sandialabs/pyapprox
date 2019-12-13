@@ -1,9 +1,11 @@
+.. _Polynomial Chaos Regression:
+
 Polynomial Chaos Regression
 ===========================
 
 This tutorial discusses how to construct a polynomial chaos expansion of a function with uncertain parameters using least squares regression.
 
-Lets first import the necessary modules and set the random seed to ensure the exact plots of this tutorial are reproducbile
+Lets first import the necessary modules and set the random seed to ensure the exact plots of this tutorial are reproducbile,
 
 .. plot::
    :include-source:
@@ -115,7 +117,7 @@ Taking :math:`q=1` results in a total-degree space having dimension :math:`\text
 Under an appropriate ordering of multi-indices, the expression :eq:`eq:pce-integer-index` , and the expression :eq:`eq:pce-multi-index` truncated to the first :math:`N` terms, are identical. Defining :math:`[N]:=\{1,\ldots,N\}`, for :math:`N\in\mathbb{N}`, we will in the following frequently make use of a linear ordering of the PCE basis, :math:`\phi_k` for :math:`k \in [N]` from :eq:`eq:pce-integer-index`, instead of the multi-index ordering of the PCE basis :math:`\phi_{\lambda}` for :math:`\lambda \in \Lambda` from :eq:`eq:pce-multi-index`.  Therefore,
 
 .. math::
-  \sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(V{\rv}).
+  \sum_{\lambda \in \Lambda} \alpha_\lambda \phi_\lambda(\V{\rv}) = \sum_{n=1}^N \alpha_n \phi_n(\V{\rv}).
 
 Any bijective map between :math:`\Lambda` and :math:`[N]` will serve to define this linear ordering, and the particular choice of this map is not relevant in our discussion.
 
@@ -179,7 +181,7 @@ We will use numpy's in built least squares function to solve the preconditioned 
    coef = np.linalg.lstsq(precond_basis_matrix,precond_train_values,rcond=None)[0]
    poly.set_coefficients(coef)
 
-Now lets plot the Genz function and the PCE approximation
+Now lets plot the Genz function and the error in the PCE approximation
 
 .. plot::
    :include-source:
