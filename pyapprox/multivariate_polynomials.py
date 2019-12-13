@@ -66,21 +66,35 @@ def evaluate_multivariate_orthonormal_polynomial(
     
     # precompute 1D basis functions for faster evaluation of
     # multivariate terms
+    
     basis_vals_1d = []
     for dd in range(num_vars):
         basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
             samples[dd,:],max_level_1d[dd],
             recursion_coeffs[basis_type_index_map[dd]],deriv_order)
         basis_vals_1d.append(basis_vals_1d_dd)
+    # basis_vals_1d = np.empty(
+    #    (num_vars,samples.shape[1],(deriv_order+1)*(max_level_1d.max()+1)))
+    # for dd in range(num_vars):
+    #    basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
+    #        samples[dd,:],max_level_1d[dd],
+    #        recursion_coeffs[basis_type_index_map[dd]],deriv_order)
+    #    basis_vals_1d[dd,:,:basis_vals_1d_dd.shape[1]] = basis_vals_1d_dd
 
     num_samples = samples.shape[1]
     values = np.zeros(((1+deriv_order*num_vars)*num_samples,num_indices))
-
     for ii in range(num_indices):
         index = indices[:,ii]
         values[:num_samples,ii]=basis_vals_1d[0][:,index[0]]
         for dd in range(1,num_vars):
             values[:num_samples,ii]*=basis_vals_1d[dd][:,index[dd]]
+
+    # for ii in range(num_indices):
+    #    index = indices[:,ii]
+    #    values[:num_samples,ii]=basis_vals_1d[0,:,index[0]]
+    #    for dd in range(1,num_vars):
+    #        values[:num_samples,ii]*=basis_vals_1d[dd,:,index[dd]]
+
 
     if deriv_order==0:
         return values

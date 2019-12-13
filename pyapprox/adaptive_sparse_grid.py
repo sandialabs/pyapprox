@@ -116,26 +116,38 @@ def subspace_index_is_admissible(subspace_index, subspace_indices_dict):
 
 def max_level_admissibility_function(max_level,max_level_1d,
                                      max_num_sparse_grid_samples, error_tol,
-                                     sparse_grid, subspace_index):
+                                     sparse_grid, subspace_index,verbose=False):
     if subspace_index.sum()>max_level:
         return False
     
     if error_tol is not None:
         if sparse_grid.error.sum()<error_tol*np.absolute(
                 sparse_grid.values[0,0]):
-            print('Desired accuracy obtained',sparse_grid.error.sum(),
-                  error_tol*np.absolute(sparse_grid.values[0,0]))
+            if len(sparse_grid.active_subspace_queue.list)>0:
+                msg = 'Desired accuracy %1.2e obtained. Error: %1.2e'%(
+                    error_tol*np.absolute(sparse_grid.values[0,0]),
+                    sparse_grid.error.sum())
+                msg += "\nNo. active subspaces remaining %d"%len(
+                    sparse_grid.active_subspace_queue.list)
+                if verbose:
+                    print(msg)
+            #else:
+            #msg='Accuracy misleadingly appears reached because admissibility '
+            #msg+='criterion is preventing new subspaces from being added '
+            #msg+='to the active set'
             return False
         
     if max_level_1d is not None:
         for dd in range(subspace_index.shape[0]):
             if subspace_index[dd]>max_level_1d[dd]:
-                #print ('Max level reached in variable dd')
+                if verbose:
+                    print ('Max level reached in variable dd')
                 return False
     if (max_num_sparse_grid_samples is not None and
         (sparse_grid.num_equivalent_function_evaluations>
          max_num_sparse_grid_samples)):
-        #print ('Max num evaluations reached')
+        if verbose:
+            print ('Max num evaluations reached')
         return False
     return True
         
@@ -614,6 +626,7 @@ class SubSpaceRefinementManager(object):
         self.unique_quadrule_indices = None
         self.compact_univariate_growth_rule = None
         self.unique_poly_indices_idx=np.zeros((0),dtype=int)
+        self.enforce_variable_ordering=False
 
     def initialize(self):
         self.poly_indices_dict = dict()
@@ -637,7 +650,83 @@ class SubSpaceRefinementManager(object):
         self.prioritize_active_subspaces(
             new_active_subspace_indices, num_new_subspace_samples)
 
-        self.error[best_subspace_idx]=0.0 
+        self.error[best_subspace_idx]=0.0
+
+    def postpone_subspace_refinement(self,new_active_subspace_indices):
+        if not hasattr(self,'postponed_subspace_indices'):
+            self.postponed_subspace_indices=dict()
+
+        reactivated_subspace_indices_set = set()
+        reactivated_subspace_indices = []
+        activated_keys = []
+
+        # get maximum level of subspace_indices in sparse grid
+        # self.subspace_indices contains active indices as well so exclude
+        # by only considering index front for which non-zero smolyak coefficients
+        # is a proxy
+        I = np.where(np.abs(self.smolyak_coefficients)>np.finfo(float).eps)[0]
+        if I.shape[0]>0:
+            max_level_1d = np.max(self.subspace_indices[:,I],axis=1)
+        else:
+            max_level_1d = np.zeros(new_active_subspace_indices.shape[0])
+        
+        for key,new_subspace_index in self.postponed_subspace_indices.items():
+            use=True
+            for dd in range(1,new_active_subspace_indices.shape[0]):
+                if new_subspace_index[dd]>0:
+                    # if conditions correspond respectively to decreasing
+                    # conservatism. On problem I have tested there seems to
+                    # be no difference in final answer
+                    #temp_index = new_subspace_index.copy()
+                    #temp_index[dd-1]=new_subspace_index[dd]
+                    #temp_index[dd]-=1
+                    #temp_key = hash_array(temp_index)
+                    #if temp_key not in self.subspace_indices_dict:
+                    if np.any(max_level_1d[:dd]<new_subspace_index[dd]):
+                    #if np.any(max_level_1d[:dd]==0):
+                        use=False
+                        break
+            if use and self.admissibility_function(self,new_subspace_index):
+                reactivated_subspace_indices_set.add(key)
+                reactivated_subspace_indices.append(new_subspace_index)
+                activated_keys.append(key)
+
+        for key in activated_keys:
+            del self.postponed_subspace_indices[key]
+            
+        use_idx = []
+        for jj in range(new_active_subspace_indices.shape[1]):
+            use=True
+            new_subspace_index=new_active_subspace_indices[:,jj]
+            for dd in range(1,new_active_subspace_indices.shape[0]):
+                if new_subspace_index[dd]>0:
+                    #temp_index = new_subspace_index.copy()
+                    #temp_index[dd-1]=new_subspace_index[dd]
+                    #temp_index[dd]-=1
+                    #temp_key = hash_array(temp_index)
+                    #if temp_key not in self.subspace_indices_dict:
+                    if np.any(max_level_1d[:dd]<new_subspace_index[dd]):
+                    #if np.any(max_level_1d[:dd]==0):
+                        self.postponed_subspace_indices[
+                            hash_array(new_subspace_index)]=new_subspace_index
+                        use=False
+                        break
+            if use:
+                key = hash_array(new_subspace_index)
+                if key not in reactivated_subspace_indices_set:
+                    use_idx.append(jj)
+                if key in self.postponed_subspace_indices:
+                    del self.postponed_subspace_indices[key]
+
+
+        new_active_subspace_indices = new_active_subspace_indices[:,use_idx]
+        if len(reactivated_subspace_indices)>0:
+            new_active_subspace_indices=np.hstack([
+            new_active_subspace_indices,
+                np.asarray(reactivated_subspace_indices).T])
+
+        return new_active_subspace_indices
+
 
     def refine_subspace(self,subspace_index):
         new_active_subspace_indices = np.zeros((self.num_vars,0),dtype=int)
@@ -650,6 +739,15 @@ class SubSpaceRefinementManager(object):
                 self.admissibility_function(self,neighbor_index)):
                 new_active_subspace_indices = np.hstack(
                     (new_active_subspace_indices,neighbor_index[:,np.newaxis]))
+
+        if self.enforce_variable_ordering:
+            new_active_subspace_indices = self.postpone_subspace_refinement(
+                new_active_subspace_indices)
+        #print()
+        #print('subspace_index',subspace_index)
+        #print('new_active_subspace_indices',new_active_subspace_indices.T)
+        #print('self.subspace_indices',self.subspace_indices.T)
+                    
         return new_active_subspace_indices
 
     def build(self):
@@ -976,7 +1074,7 @@ class SubSpaceRefinementManager(object):
             subspace_index = self.subspace_indices[:, count]
             num_subspace_samples = \
                 self.subspace_values_indices_list[count].shape[0]
-            print(num_subspace_samples,subspace_index)
+            #print(num_subspace_samples,subspace_index)
             # compute priority and error for subspace
             priority, error = self.refinement_indicator(
                     subspace_index, num_subspace_samples, self)

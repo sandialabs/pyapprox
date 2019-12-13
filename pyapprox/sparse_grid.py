@@ -87,7 +87,7 @@ def update_1d_samples_weights_economical(
                     # Check if user specifies growth rule which is incompatible
                     # with quad rule.
                     assert w[ll].shape[0]==growth_rules[dd](ll)
-                    weights_1d[kk].append(w[ll][:growth_rules[dd]])
+                    weights_1d[kk].append(w[ll][:growth_rules[dd](ll)])
                     # following assumes nestedness of x
                     samples_1d[kk].append(
                         x[:growth_rules[dd](ll)])
@@ -528,6 +528,11 @@ def evaluate_sparse_grid_subspace(samples,subspace_index,subspace_values,
             compute_barycentric_weights_1d(
                 abscissa_1d[dd],interval_length=interval_length))
 
+    #for dd in len(barycentric_weights_1d):
+    #    I = np.argsort(barycentric_weights_1d[dd])
+    #    barycentric_weights_1d[dd] = barycentric_weights_1d[dd][I]
+    #    abscissa_1d[dd] = abscissa_1d[dd][I]
+
     if num_active_sample_vars==0:
         if output:
             print(('sub',subspace_index,
@@ -559,18 +564,18 @@ def evaluate_sparse_grid(samples, values,
     assert values.shape[0] == len(poly_indices_dict)
     assert sparse_grid_subspace_indices.shape[1]==smolyak_coefficients.shape[0]
 
-    max_level_samples_1d_min = [
-        samples_1d[dd][-1].min() for dd in range(len(samples_1d))]
-    max_level_samples_1d_max = [
-        samples_1d[dd][-1].max() for dd in range(len(samples_1d))]
-    if (np.any(samples.min(axis=1)<max_level_samples_1d_min) or
-        np.any(samples.max(axis=1)>max_level_samples_1d_max)):
-        print ('warning extrapolating outside abscissa')
-        print(samples.min(axis=1),max_level_samples_1d_min)
-        print(samples.max(axis=1),max_level_samples_1d_max)
-        # this can be true for univariate quadrature rules that are not closed
-        # i.e on bounded domain and with samples on both boundaries
-        # need to make this check better
+    #max_level_samples_1d_min = [
+    #    samples_1d[dd][-1].min() for dd in range(len(samples_1d))]
+    #max_level_samples_1d_max = [
+    #    samples_1d[dd][-1].max() for dd in range(len(samples_1d))]
+    # if (np.any(samples.min(axis=1)<max_level_samples_1d_min) or
+    #     np.any(samples.max(axis=1)>max_level_samples_1d_max)):
+    #     print ('warning extrapolating outside abscissa')
+    #     print(samples.min(axis=1),max_level_samples_1d_min)
+    #     print(samples.max(axis=1),max_level_samples_1d_max)
+    #     # this can be true for univariate quadrature rules that are not closed
+    #     # i.e on bounded domain and with samples on both boundaries
+    #     # need to make this check better
     
     num_qoi = values.shape[1]
     #must initialize to zero
@@ -841,7 +846,7 @@ def convert_univariate_lagrange_basis_to_orthonormal_polynomials(
     # Get the maximum number of terms in the orthonormal polynomial that
     # are need to interpolate all the interpolation nodes in samples_1d
     max_num_terms = samples_1d[-1].shape[0]
-    num_quad_points = 3*max_num_terms
+    num_quad_points = max_num_terms+1
     # Get the recursion coefficients of the orthonormal basis
     recursion_coeffs = get_recursion_coefficients(num_quad_points)
     # compute the points and weights of the correct quadrature rule
@@ -860,6 +865,11 @@ def convert_univariate_lagrange_basis_to_orthonormal_polynomials(
         barycentric_weights_1d = [
             compute_barycentric_weights_1d(samples_1d[ll])]
         values = np.eye((num_terms),dtype=float)
+        # Sometimes the following function will cause the erro
+        # interpolation absacissa are not unique. This can be due to x_quad
+        # not abscissa. E.g. x_quad may have points far enough outside
+        # range of abscissa, e.g. abscissa are clenshaw curtis points and
+        # x_quad points are Gauss-Hermite quadrature points
         lagrange_basis_vals = multivariate_barycentric_lagrange_interpolation( 
             x_quad[np.newaxis,:],samples_1d[ll][np.newaxis,:],
             barycentric_weights_1d,values,np.zeros(1,dtype=int))

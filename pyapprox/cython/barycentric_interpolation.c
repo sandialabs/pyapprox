@@ -1271,6 +1271,12 @@ static CYTHON_INLINE PyObject* __Pyx_PyObject_CallMethO(PyObject *func, PyObject
 /* PyObjectCallOneArg.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg);
 
+/* ArgTypeTest.proto */
+#define __Pyx_ArgTypeTest(obj, type, none_allowed, name, exact)\
+    ((likely((Py_TYPE(obj) == type) | (none_allowed && (obj == Py_None)))) ? 1 :\
+        __Pyx__ArgTypeTest(obj, type, name, exact))
+static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact);
+
 /* PyThreadStateGet.proto */
 #if CYTHON_FAST_THREAD_STATE
 #define __Pyx_PyThreadState_declare  PyThreadState *__pyx_tstate;
@@ -1309,12 +1315,6 @@ static CYTHON_INLINE void __Pyx_ErrFetchInState(PyThreadState *tstate, PyObject 
 
 /* RaiseException.proto */
 static void __Pyx_Raise(PyObject *type, PyObject *value, PyObject *tb, PyObject *cause);
-
-/* ArgTypeTest.proto */
-#define __Pyx_ArgTypeTest(obj, type, none_allowed, name, exact)\
-    ((likely((Py_TYPE(obj) == type) | (none_allowed && (obj == Py_None)))) ? 1 :\
-        __Pyx__ArgTypeTest(obj, type, name, exact))
-static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact);
 
 /* IncludeStringH.proto */
 #include <string.h>
@@ -1841,7 +1841,6 @@ static const char __pyx_k_active_abscissa_indices_1d[] = "active_abscissa_indice
 static const char __pyx_k_itemsize_0_for_cython_array[] = "itemsize <= 0 for cython.array";
 static const char __pyx_k_unable_to_allocate_array_data[] = "unable to allocate array data.";
 static const char __pyx_k_strided_and_direct_or_indirect[] = "<strided and direct or indirect>";
-static const char __pyx_k_interpolation_absacissa_are_not[] = "interpolation absacissa are not unique";
 static const char __pyx_k_Buffer_view_does_not_expose_stri[] = "Buffer view does not expose strides";
 static const char __pyx_k_Can_only_create_a_buffer_that_is[] = "Can only create a buffer that is contiguous in memory.";
 static const char __pyx_k_Cannot_assign_to_read_only_memor[] = "Cannot assign to read-only memoryview";
@@ -1908,7 +1907,6 @@ static PyObject *__pyx_n_s_getstate;
 static PyObject *__pyx_kp_s_got_differing_extents_in_dimensi;
 static PyObject *__pyx_n_s_id;
 static PyObject *__pyx_n_s_import;
-static PyObject *__pyx_kp_u_interpolation_absacissa_are_not;
 static PyObject *__pyx_n_s_itemsize;
 static PyObject *__pyx_kp_s_itemsize_0_for_cython_array;
 static PyObject *__pyx_n_s_main;
@@ -3498,43 +3496,14 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
  *                     bases[ii,dd] = basis
  *                     denom_d += basis             # <<<<<<<<<<<<<<
  * 
- *                 if ( abs(denom_d) < mach_eps ):
+ * 		# this is sometimes not a problem, just check all values are
  */
           __pyx_v_denom_d = (__pyx_v_denom_d + __pyx_v_basis);
         }
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":115
- *                     denom_d += basis
- * 
- *                 if ( abs(denom_d) < mach_eps ):             # <<<<<<<<<<<<<<
- *                     raise Exception, "interpolation absacissa are not unique"
- *                 denom *= denom_d
- */
-        __pyx_t_21 = ((fabs(__pyx_v_denom_d) < __pyx_v_mach_eps) != 0);
-        if (unlikely(__pyx_t_21)) {
-
-          /* "pyapprox/cython/barycentric_interpolation.pyx":116
- * 
- *                 if ( abs(denom_d) < mach_eps ):
- *                     raise Exception, "interpolation absacissa are not unique"             # <<<<<<<<<<<<<<
- *                 denom *= denom_d
- * 
- */
-          __Pyx_Raise(((PyObject *)(&((PyTypeObject*)PyExc_Exception)[0])), __pyx_kp_u_interpolation_absacissa_are_not, 0, 0);
-          __PYX_ERR(0, 116, __pyx_L1_error)
-
-          /* "pyapprox/cython/barycentric_interpolation.pyx":115
- *                     denom_d += basis
- * 
- *                 if ( abs(denom_d) < mach_eps ):             # <<<<<<<<<<<<<<
- *                     raise Exception, "interpolation absacissa are not unique"
- *                 denom *= denom_d
- */
-        }
-
-        /* "pyapprox/cython/barycentric_interpolation.pyx":117
- *                 if ( abs(denom_d) < mach_eps ):
- *                     raise Exception, "interpolation absacissa are not unique"
+        /* "pyapprox/cython/barycentric_interpolation.pyx":119
+ *                 #if ( abs(denom_d) < mach_eps ):
+ *                 #    raise Exception, "interpolation absacissa are not unique"
  *                 denom *= denom_d             # <<<<<<<<<<<<<<
  * 
  *             # end for dd in range(num_act_dims_pt):
@@ -3542,7 +3511,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
         __pyx_v_denom = (__pyx_v_denom * __pyx_v_denom_d);
       }
 
-      /* "pyapprox/cython/barycentric_interpolation.pyx":121
+      /* "pyapprox/cython/barycentric_interpolation.pyx":123
  *             # end for dd in range(num_act_dims_pt):
  * 
  *             if ( num_act_dims_pt == 0 ):             # <<<<<<<<<<<<<<
@@ -3552,7 +3521,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
       __pyx_t_21 = ((__pyx_v_num_act_dims_pt == 0) != 0);
       if (__pyx_t_21) {
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":124
+        /* "pyapprox/cython/barycentric_interpolation.pyx":126
  *                 # if point is an abscissa return the fn value at that point
  *                 # fn_val_index = np.sum(multi_index*shifts)
  *                 fn_val_index = 0             # <<<<<<<<<<<<<<
@@ -3561,7 +3530,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
  */
         __pyx_v_fn_val_index = 0;
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":125
+        /* "pyapprox/cython/barycentric_interpolation.pyx":127
  *                 # fn_val_index = np.sum(multi_index*shifts)
  *                 fn_val_index = 0
  *                 for dd in range(num_act_dims):             # <<<<<<<<<<<<<<
@@ -3573,7 +3542,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
         for (__pyx_t_13 = 0; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
           __pyx_v_dd = __pyx_t_13;
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":126
+          /* "pyapprox/cython/barycentric_interpolation.pyx":128
  *                 fn_val_index = 0
  *                 for dd in range(num_act_dims):
  *                     fn_val_index += multi_index[dd]*shifts[dd]             # <<<<<<<<<<<<<<
@@ -3585,7 +3554,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
           __pyx_v_fn_val_index = (__pyx_v_fn_val_index + ((*((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_53 * __pyx_v_multi_index.strides[0]) ))) * (*((long *) ( /* dim=0 */ (__pyx_v_shifts.data + __pyx_t_54 * __pyx_v_shifts.strides[0]) )))));
         }
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":127
+        /* "pyapprox/cython/barycentric_interpolation.pyx":129
  *                 for dd in range(num_act_dims):
  *                     fn_val_index += multi_index[dd]*shifts[dd]
  *                 result_view[kk,:] = fn_vals[fn_val_index,:]             # <<<<<<<<<<<<<<
@@ -3598,7 +3567,7 @@ __pyx_t_33.strides[0] = __pyx_v_result_view.strides[1];
         {
     Py_ssize_t __pyx_tmp_idx = __pyx_v_fn_val_index;
     Py_ssize_t __pyx_tmp_stride = __pyx_v_fn_vals.strides[0];
-        if ((0)) __PYX_ERR(0, 127, __pyx_L1_error)
+        if ((0)) __PYX_ERR(0, 129, __pyx_L1_error)
         __pyx_t_55.data += __pyx_tmp_idx * __pyx_tmp_stride;
 }
 
@@ -3612,7 +3581,7 @@ __pyx_t_56.data = __pyx_v_result_view.data;
         {
     Py_ssize_t __pyx_tmp_idx = __pyx_v_kk;
     Py_ssize_t __pyx_tmp_stride = __pyx_v_result_view.strides[0];
-        if ((0)) __PYX_ERR(0, 127, __pyx_L1_error)
+        if ((0)) __PYX_ERR(0, 129, __pyx_L1_error)
         __pyx_t_56.data += __pyx_tmp_idx * __pyx_tmp_stride;
 }
 
@@ -3620,7 +3589,7 @@ __pyx_t_56.shape[0] = __pyx_v_result_view.shape[1];
 __pyx_t_56.strides[0] = __pyx_v_result_view.strides[1];
     __pyx_t_56.suboffsets[0] = -1;
 
-if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0)) __PYX_ERR(0, 127, __pyx_L1_error)
+if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0)) __PYX_ERR(0, 129, __pyx_L1_error)
         __PYX_XDEC_MEMVIEW(&__pyx_t_56, 1);
         __pyx_t_56.memview = NULL;
         __pyx_t_56.data = NULL;
@@ -3628,17 +3597,17 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
         __pyx_t_55.memview = NULL;
         __pyx_t_55.data = NULL;
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":121
+        /* "pyapprox/cython/barycentric_interpolation.pyx":123
  *             # end for dd in range(num_act_dims_pt):
  * 
  *             if ( num_act_dims_pt == 0 ):             # <<<<<<<<<<<<<<
  *                 # if point is an abscissa return the fn value at that point
  *                 # fn_val_index = np.sum(multi_index*shifts)
  */
-        goto __pyx_L23;
+        goto __pyx_L22;
       }
 
-      /* "pyapprox/cython/barycentric_interpolation.pyx":130
+      /* "pyapprox/cython/barycentric_interpolation.pyx":132
  *             else:
  *                 # compute interpolant
  *                 c_persistent[:,:] = 0.             # <<<<<<<<<<<<<<
@@ -3669,7 +3638,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             }
         }
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":131
+        /* "pyapprox/cython/barycentric_interpolation.pyx":133
  *                 # compute interpolant
  *                 c_persistent[:,:] = 0.
  *                 done = True             # <<<<<<<<<<<<<<
@@ -3678,7 +3647,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
  */
         __pyx_v_done = 1;
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":132
+        /* "pyapprox/cython/barycentric_interpolation.pyx":134
  *                 c_persistent[:,:] = 0.
  *                 done = True
  *                 if ( num_act_dims_pt > 1 ): done = False             # <<<<<<<<<<<<<<
@@ -3690,7 +3659,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           __pyx_v_done = 0;
         }
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":133
+        /* "pyapprox/cython/barycentric_interpolation.pyx":135
  *                 done = True
  *                 if ( num_act_dims_pt > 1 ): done = False
  *                 fn_val_index = 0             # <<<<<<<<<<<<<<
@@ -3699,7 +3668,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
  */
         __pyx_v_fn_val_index = 0;
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":134
+        /* "pyapprox/cython/barycentric_interpolation.pyx":136
  *                 if ( num_act_dims_pt > 1 ): done = False
  *                 fn_val_index = 0
  *                 for dd in range(num_act_dims):             # <<<<<<<<<<<<<<
@@ -3711,7 +3680,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
         for (__pyx_t_13 = 0; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
           __pyx_v_dd = __pyx_t_13;
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":135
+          /* "pyapprox/cython/barycentric_interpolation.pyx":137
  *                 fn_val_index = 0
  *                 for dd in range(num_act_dims):
  *                     fn_val_index += multi_index[dd]*shifts[dd]             # <<<<<<<<<<<<<<
@@ -3723,7 +3692,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           __pyx_v_fn_val_index = (__pyx_v_fn_val_index + ((*((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_57 * __pyx_v_multi_index.strides[0]) ))) * (*((long *) ( /* dim=0 */ (__pyx_v_shifts.data + __pyx_t_58 * __pyx_v_shifts.strides[0]) )))));
         }
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":137
+        /* "pyapprox/cython/barycentric_interpolation.pyx":139
  *                     fn_val_index += multi_index[dd]*shifts[dd]
  * 		#fn_val_index = np.sum(multi_index*shifts)
  *                 while (True):             # <<<<<<<<<<<<<<
@@ -3732,7 +3701,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
  */
         while (1) {
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":138
+          /* "pyapprox/cython/barycentric_interpolation.pyx":140
  * 		#fn_val_index = np.sum(multi_index*shifts)
  *                 while (True):
  *                     act_dim_idx = act_dim_indices_pt_persistent[0]             # <<<<<<<<<<<<<<
@@ -3742,7 +3711,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           __pyx_t_59 = 0;
           __pyx_v_act_dim_idx = (*((long *) ( /* dim=0 */ (__pyx_v_act_dim_indices_pt_persistent.data + __pyx_t_59 * __pyx_v_act_dim_indices_pt_persistent.strides[0]) )));
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":139
+          /* "pyapprox/cython/barycentric_interpolation.pyx":141
  *                 while (True):
  *                     act_dim_idx = act_dim_indices_pt_persistent[0]
  *                     for ii in range(num_active_abscissa_1d[act_dim_idx]):             # <<<<<<<<<<<<<<
@@ -3755,7 +3724,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           for (__pyx_t_11 = 0; __pyx_t_11 < __pyx_t_62; __pyx_t_11+=1) {
             __pyx_v_ii = __pyx_t_11;
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":140
+            /* "pyapprox/cython/barycentric_interpolation.pyx":142
  *                     act_dim_idx = act_dim_indices_pt_persistent[0]
  *                     for ii in range(num_active_abscissa_1d[act_dim_idx]):
  *                         fn_val_index+=shifts[act_dim_idx]*(ii-multi_index[act_dim_idx])             # <<<<<<<<<<<<<<
@@ -3766,7 +3735,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_64 = __pyx_v_act_dim_idx;
             __pyx_v_fn_val_index = (__pyx_v_fn_val_index + ((*((long *) ( /* dim=0 */ (__pyx_v_shifts.data + __pyx_t_63 * __pyx_v_shifts.strides[0]) ))) * (__pyx_v_ii - (*((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_64 * __pyx_v_multi_index.strides[0]) ))))));
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":141
+            /* "pyapprox/cython/barycentric_interpolation.pyx":143
  *                     for ii in range(num_active_abscissa_1d[act_dim_idx]):
  *                         fn_val_index+=shifts[act_dim_idx]*(ii-multi_index[act_dim_idx])
  *                         multi_index[act_dim_idx] = ii             # <<<<<<<<<<<<<<
@@ -3776,7 +3745,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_65 = __pyx_v_act_dim_idx;
             *((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_65 * __pyx_v_multi_index.strides[0]) )) = __pyx_v_ii;
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":142
+            /* "pyapprox/cython/barycentric_interpolation.pyx":144
  *                         fn_val_index+=shifts[act_dim_idx]*(ii-multi_index[act_dim_idx])
  *                         multi_index[act_dim_idx] = ii
  *                         basis=bases[active_abscissa_indices_1d[act_dim_idx][ii],0]             # <<<<<<<<<<<<<<
@@ -3789,7 +3758,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_69 = 0;
             __pyx_v_basis = (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_bases.data + __pyx_t_68 * __pyx_v_bases.strides[0]) ) + __pyx_t_69 * __pyx_v_bases.strides[1]) )));
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":144
+            /* "pyapprox/cython/barycentric_interpolation.pyx":146
  *                         basis=bases[active_abscissa_indices_1d[act_dim_idx][ii],0]
  *                         #c_persistent[:,0]+= basis * fn_vals[fn_val_index,:]
  *                         for mm in range(num_qoi):             # <<<<<<<<<<<<<<
@@ -3801,7 +3770,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             for (__pyx_t_18 = 0; __pyx_t_18 < __pyx_t_13; __pyx_t_18+=1) {
               __pyx_v_mm = __pyx_t_18;
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":145
+              /* "pyapprox/cython/barycentric_interpolation.pyx":147
  *                         #c_persistent[:,0]+= basis * fn_vals[fn_val_index,:]
  *                         for mm in range(num_qoi):
  *                             c_persistent[mm,0] += basis * fn_vals[fn_val_index,mm]             # <<<<<<<<<<<<<<
@@ -3816,7 +3785,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             }
           }
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":148
+          /* "pyapprox/cython/barycentric_interpolation.pyx":150
  * 
  * 
  *                     for dd in range(1,num_act_dims_pt):             # <<<<<<<<<<<<<<
@@ -3828,7 +3797,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           for (__pyx_t_13 = 1; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
             __pyx_v_dd = __pyx_t_13;
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":149
+            /* "pyapprox/cython/barycentric_interpolation.pyx":151
  * 
  *                     for dd in range(1,num_act_dims_pt):
  *                         act_dim_idx = act_dim_indices_pt_persistent[dd]             # <<<<<<<<<<<<<<
@@ -3838,7 +3807,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_74 = __pyx_v_dd;
             __pyx_v_act_dim_idx = (*((long *) ( /* dim=0 */ (__pyx_v_act_dim_indices_pt_persistent.data + __pyx_t_74 * __pyx_v_act_dim_indices_pt_persistent.strides[0]) )));
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":150
+            /* "pyapprox/cython/barycentric_interpolation.pyx":152
  *                     for dd in range(1,num_act_dims_pt):
  *                         act_dim_idx = act_dim_indices_pt_persistent[dd]
  *                         basis = bases[active_abscissa_indices_1d[act_dim_idx][multi_index[act_dim_idx]],dd]             # <<<<<<<<<<<<<<
@@ -3852,7 +3821,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_79 = __pyx_v_dd;
             __pyx_v_basis = (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_bases.data + __pyx_t_78 * __pyx_v_bases.strides[0]) ) + __pyx_t_79 * __pyx_v_bases.strides[1]) )));
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":151
+            /* "pyapprox/cython/barycentric_interpolation.pyx":153
  *                         act_dim_idx = act_dim_indices_pt_persistent[dd]
  *                         basis = bases[active_abscissa_indices_1d[act_dim_idx][multi_index[act_dim_idx]],dd]
  *                         for mm in range(num_qoi):             # <<<<<<<<<<<<<<
@@ -3864,7 +3833,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             for (__pyx_t_20 = 0; __pyx_t_20 < __pyx_t_19; __pyx_t_20+=1) {
               __pyx_v_mm = __pyx_t_20;
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":152
+              /* "pyapprox/cython/barycentric_interpolation.pyx":154
  *                         basis = bases[active_abscissa_indices_1d[act_dim_idx][multi_index[act_dim_idx]],dd]
  *                         for mm in range(num_qoi):
  *                             c_persistent[mm,dd] += basis * c_persistent[mm,dd-1]             # <<<<<<<<<<<<<<
@@ -3877,7 +3846,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               __pyx_t_83 = __pyx_v_dd;
               *((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_c_persistent.data + __pyx_t_82 * __pyx_v_c_persistent.strides[0]) ) + __pyx_t_83 * __pyx_v_c_persistent.strides[1]) )) += (__pyx_v_basis * (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_c_persistent.data + __pyx_t_80 * __pyx_v_c_persistent.strides[0]) ) + __pyx_t_81 * __pyx_v_c_persistent.strides[1]) ))));
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":153
+              /* "pyapprox/cython/barycentric_interpolation.pyx":155
  *                         for mm in range(num_qoi):
  *                             c_persistent[mm,dd] += basis * c_persistent[mm,dd-1]
  *                             c_persistent[mm,dd-1] = 0.             # <<<<<<<<<<<<<<
@@ -3889,7 +3858,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               *((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_c_persistent.data + __pyx_t_84 * __pyx_v_c_persistent.strides[0]) ) + __pyx_t_85 * __pyx_v_c_persistent.strides[1]) )) = 0.;
             }
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":156
+            /* "pyapprox/cython/barycentric_interpolation.pyx":158
  *                         #c_persistent[:,dd] += basis * c_persistent[:,dd-1]
  *                         #c_persistent[:,dd-1] = 0.
  *                         if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):             # <<<<<<<<<<<<<<
@@ -3901,7 +3870,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_21 = (((*((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_86 * __pyx_v_multi_index.strides[0]) ))) < ((*((long *) ( /* dim=0 */ (__pyx_v_num_active_abscissa_1d.data + __pyx_t_87 * __pyx_v_num_active_abscissa_1d.strides[0]) ))) - 1)) != 0);
             if (__pyx_t_21) {
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":157
+              /* "pyapprox/cython/barycentric_interpolation.pyx":159
  *                         #c_persistent[:,dd-1] = 0.
  *                         if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):
  *                             fn_val_index += shifts[act_dim_idx]             # <<<<<<<<<<<<<<
@@ -3911,7 +3880,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               __pyx_t_88 = __pyx_v_act_dim_idx;
               __pyx_v_fn_val_index = (__pyx_v_fn_val_index + (*((long *) ( /* dim=0 */ (__pyx_v_shifts.data + __pyx_t_88 * __pyx_v_shifts.strides[0]) ))));
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":158
+              /* "pyapprox/cython/barycentric_interpolation.pyx":160
  *                         if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):
  *                             fn_val_index += shifts[act_dim_idx]
  *                             multi_index[act_dim_idx] += 1             # <<<<<<<<<<<<<<
@@ -3921,16 +3890,16 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               __pyx_t_89 = __pyx_v_act_dim_idx;
               *((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_89 * __pyx_v_multi_index.strides[0]) )) += 1;
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":159
+              /* "pyapprox/cython/barycentric_interpolation.pyx":161
  *                             fn_val_index += shifts[act_dim_idx]
  *                             multi_index[act_dim_idx] += 1
  *                             break             # <<<<<<<<<<<<<<
  *                         elif ( dd < num_act_dims_pt - 1 ):
  *                             fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]
  */
-              goto __pyx_L36_break;
+              goto __pyx_L35_break;
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":156
+              /* "pyapprox/cython/barycentric_interpolation.pyx":158
  *                         #c_persistent[:,dd] += basis * c_persistent[:,dd-1]
  *                         #c_persistent[:,dd-1] = 0.
  *                         if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):             # <<<<<<<<<<<<<<
@@ -3939,7 +3908,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
  */
             }
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":160
+            /* "pyapprox/cython/barycentric_interpolation.pyx":162
  *                             multi_index[act_dim_idx] += 1
  *                             break
  *                         elif ( dd < num_act_dims_pt - 1 ):             # <<<<<<<<<<<<<<
@@ -3949,7 +3918,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             __pyx_t_21 = ((__pyx_v_dd < (__pyx_v_num_act_dims_pt - 1)) != 0);
             if (__pyx_t_21) {
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":161
+              /* "pyapprox/cython/barycentric_interpolation.pyx":163
  *                             break
  *                         elif ( dd < num_act_dims_pt - 1 ):
  *                             fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]             # <<<<<<<<<<<<<<
@@ -3960,7 +3929,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               __pyx_t_91 = __pyx_v_act_dim_idx;
               __pyx_v_fn_val_index = (__pyx_v_fn_val_index - ((*((long *) ( /* dim=0 */ (__pyx_v_shifts.data + __pyx_t_90 * __pyx_v_shifts.strides[0]) ))) * (*((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_91 * __pyx_v_multi_index.strides[0]) )))));
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":162
+              /* "pyapprox/cython/barycentric_interpolation.pyx":164
  *                         elif ( dd < num_act_dims_pt - 1 ):
  *                             fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]
  *                             multi_index[act_dim_idx] = 0             # <<<<<<<<<<<<<<
@@ -3970,17 +3939,17 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
               __pyx_t_92 = __pyx_v_act_dim_idx;
               *((long *) ( /* dim=0 */ (__pyx_v_multi_index.data + __pyx_t_92 * __pyx_v_multi_index.strides[0]) )) = 0;
 
-              /* "pyapprox/cython/barycentric_interpolation.pyx":160
+              /* "pyapprox/cython/barycentric_interpolation.pyx":162
  *                             multi_index[act_dim_idx] += 1
  *                             break
  *                         elif ( dd < num_act_dims_pt - 1 ):             # <<<<<<<<<<<<<<
  *                             fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]
  *                             multi_index[act_dim_idx] = 0
  */
-              goto __pyx_L39;
+              goto __pyx_L38;
             }
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":164
+            /* "pyapprox/cython/barycentric_interpolation.pyx":166
  *                             multi_index[act_dim_idx] = 0
  *                         else:
  *                             done = True             # <<<<<<<<<<<<<<
@@ -3990,11 +3959,11 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
             /*else*/ {
               __pyx_v_done = 1;
             }
-            __pyx_L39:;
+            __pyx_L38:;
           }
-          __pyx_L36_break:;
+          __pyx_L35_break:;
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":165
+          /* "pyapprox/cython/barycentric_interpolation.pyx":167
  *                         else:
  *                             done = True
  *                     if ( done ):             # <<<<<<<<<<<<<<
@@ -4004,16 +3973,16 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           __pyx_t_21 = (__pyx_v_done != 0);
           if (__pyx_t_21) {
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":166
+            /* "pyapprox/cython/barycentric_interpolation.pyx":168
  *                             done = True
  *                     if ( done ):
  *                         break             # <<<<<<<<<<<<<<
  *                 for mm in range(num_qoi):
  *                     result_view[kk,mm]=c_persistent[mm,num_act_dims_pt-1]/denom
  */
-            goto __pyx_L30_break;
+            goto __pyx_L29_break;
 
-            /* "pyapprox/cython/barycentric_interpolation.pyx":165
+            /* "pyapprox/cython/barycentric_interpolation.pyx":167
  *                         else:
  *                             done = True
  *                     if ( done ):             # <<<<<<<<<<<<<<
@@ -4022,9 +3991,9 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
  */
           }
         }
-        __pyx_L30_break:;
+        __pyx_L29_break:;
 
-        /* "pyapprox/cython/barycentric_interpolation.pyx":167
+        /* "pyapprox/cython/barycentric_interpolation.pyx":169
  *                     if ( done ):
  *                         break
  *                 for mm in range(num_qoi):             # <<<<<<<<<<<<<<
@@ -4036,7 +4005,7 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
         for (__pyx_t_13 = 0; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
           __pyx_v_mm = __pyx_t_13;
 
-          /* "pyapprox/cython/barycentric_interpolation.pyx":168
+          /* "pyapprox/cython/barycentric_interpolation.pyx":170
  *                         break
  *                 for mm in range(num_qoi):
  *                     result_view[kk,mm]=c_persistent[mm,num_act_dims_pt-1]/denom             # <<<<<<<<<<<<<<
@@ -4050,12 +4019,12 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_55, __pyx_t_56, 1, 1, 0) < 0
           *((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_result_view.data + __pyx_t_95 * __pyx_v_result_view.strides[0]) ) + __pyx_t_96 * __pyx_v_result_view.strides[1]) )) = ((*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_c_persistent.data + __pyx_t_93 * __pyx_v_c_persistent.strides[0]) ) + __pyx_t_94 * __pyx_v_c_persistent.strides[1]) ))) / __pyx_v_denom);
         }
       }
-      __pyx_L23:;
+      __pyx_L22:;
     }
     __pyx_L17:;
   }
 
-  /* "pyapprox/cython/barycentric_interpolation.pyx":174
+  /* "pyapprox/cython/barycentric_interpolation.pyx":176
  *                 #    #print (denom)
  *                 #    raise Exception, 'Error values not finite'
  *     return result             # <<<<<<<<<<<<<<
@@ -17823,7 +17792,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_got_differing_extents_in_dimensi, __pyx_k_got_differing_extents_in_dimensi, sizeof(__pyx_k_got_differing_extents_in_dimensi), 0, 0, 1, 0},
   {&__pyx_n_s_id, __pyx_k_id, sizeof(__pyx_k_id), 0, 0, 1, 1},
   {&__pyx_n_s_import, __pyx_k_import, sizeof(__pyx_k_import), 0, 0, 1, 1},
-  {&__pyx_kp_u_interpolation_absacissa_are_not, __pyx_k_interpolation_absacissa_are_not, sizeof(__pyx_k_interpolation_absacissa_are_not), 0, 1, 0, 0},
   {&__pyx_n_s_itemsize, __pyx_k_itemsize, sizeof(__pyx_k_itemsize), 0, 0, 1, 1},
   {&__pyx_kp_s_itemsize_0_for_cython_array, __pyx_k_itemsize_0_for_cython_array, sizeof(__pyx_k_itemsize_0_for_cython_array), 0, 0, 1, 0},
   {&__pyx_n_s_main, __pyx_k_main, sizeof(__pyx_k_main), 0, 0, 1, 1},
@@ -19326,6 +19294,27 @@ static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObjec
 }
 #endif
 
+/* ArgTypeTest */
+static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact)
+{
+    if (unlikely(!type)) {
+        PyErr_SetString(PyExc_SystemError, "Missing type object");
+        return 0;
+    }
+    else if (exact) {
+        #if PY_MAJOR_VERSION == 2
+        if ((type == &PyBaseString_Type) && likely(__Pyx_PyBaseString_CheckExact(obj))) return 1;
+        #endif
+    }
+    else {
+        if (likely(__Pyx_TypeCheck(obj, type))) return 1;
+    }
+    PyErr_Format(PyExc_TypeError,
+        "Argument '%.200s' has incorrect type (expected %.200s, got %.200s)",
+        name, type->tp_name, Py_TYPE(obj)->tp_name);
+    return 0;
+}
+
 /* PyErrFetchRestore */
 #if CYTHON_FAST_THREAD_STATE
 static CYTHON_INLINE void __Pyx_ErrRestoreInState(PyThreadState *tstate, PyObject *type, PyObject *value, PyObject *tb) {
@@ -19508,27 +19497,6 @@ bad:
     return;
 }
 #endif
-
-/* ArgTypeTest */
-static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact)
-{
-    if (unlikely(!type)) {
-        PyErr_SetString(PyExc_SystemError, "Missing type object");
-        return 0;
-    }
-    else if (exact) {
-        #if PY_MAJOR_VERSION == 2
-        if ((type == &PyBaseString_Type) && likely(__Pyx_PyBaseString_CheckExact(obj))) return 1;
-        #endif
-    }
-    else {
-        if (likely(__Pyx_TypeCheck(obj, type))) return 1;
-    }
-    PyErr_Format(PyExc_TypeError,
-        "Argument '%.200s' has incorrect type (expected %.200s, got %.200s)",
-        name, type->tp_name, Py_TYPE(obj)->tp_name);
-    return 0;
-}
 
 /* BytesEquals */
 static CYTHON_INLINE int __Pyx_PyBytes_Equals(PyObject* s1, PyObject* s2, int equals) {
