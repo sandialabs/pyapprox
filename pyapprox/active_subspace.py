@@ -62,7 +62,6 @@ def get_chebyshev_center_of_inactive_subspace(W1,W2,active_sample):
     c = np.zeros((num_vars-num_active_vars+1,1))
     c[-1] = -1.0
 
-    import active_subspaces as asub
     zc = scipy_solve_linear_program_ineq(c, -A, -b)
     z0 = zc[:-1].reshape((num_vars-num_active_vars, 1))
     return z0

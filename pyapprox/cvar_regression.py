@@ -433,5 +433,120 @@ def compute_cvar_from_univariate_function(f,pdf,lbx,ubx,alpha,init_guess,
     cvar = result['fun']
     return value_at_risk, cvar
 
+def cvar_importance_sampling_biasing_density(pdf,function,beta,VaR,tau,x):
+    """
+    Evalute the biasing density used to compute CVaR of the variable
+    Y=f(X), for some function f, vector X and scalar Y.
+
+    The PDF of the biasing density is
+
+    q(x) = [ beta/alpha p(x)         if f(x)>=VaR
+           [ (1-beta)/(1-alpha) p(x) otherwise
+
+
+    See https://link.springer.com/article/10.1007/s10287-014-0225-7
+
+    Parameters
+    ==========
+    pdf: callable
+        The probability density function p(x) of x
+
+    function : callable
+        Call signature f(x), where x is a 1D np.ndarray.
+        
+
+    VaR : float
+        The value-at-risk associated above which to compute conditional value 
+        at risk
+
+    tau : float
+        The quantile of interest. 100*tau% percent of data will fall below this 
+        value
+
+    beta: float
+        Tunable parameter that controls shape of biasing density. As beta=0
+        all samples will have values above VaR. If beta=tau, then biasing density
+        will just be density of X p(x).
+
+    x : np.ndarray (nsamples)
+        The samples used to evalaute the biasing density.
+
+    Returns
+    =======
+    vals: np.ndarray (nsamples)
+        The values of the biasing density at x
+    """
+    vals = np.atleast_1d(pdf(x))
+    y = function(x)
+    I = np.where(y<VaR)[0]
+    J = np.where(y>=VaR)[0]
+    vals[I]*=beta/tau
+    vals[J]*=(1-beta)/(1-tau)
+    return vals
+
+def generate_samples_from_cvar_importance_sampling_biasing_density(
+        function,beta,VaR,generate_candidate_samples,nsamples):
+    """
+    Draw samples from the biasing density used to compute CVaR of the variable
+    Y=f(X), for some function f, vector X and scalar Y.
+
+    The PDF of the biasing density is
+
+    q(x) = [ beta/alpha p(x)         if f(x)>=VaR
+           [ (1-beta)/(1-alpha) p(x) otherwise
+
+    See https://link.springer.com/article/10.1007/s10287-014-0225-7
+
+    Parameters
+    ==========
+    function : callable
+        Call signature f(x), where x is a 1D np.ndarray.
+
+    beta: float
+        Tunable parameter that controls shape of biasing density. As beta=0
+        all samples will have values above VaR.  If beta=tau, then biasing 
+        density will just be density of X p(x). Best value of beta is problem
+        dependent, but 0.2 has often been a reasonable choice.
+
+    VaR : float
+        The value-at-risk associated above which to compute conditional value 
+        at risk
+
+    generate_candidate_samples : callable
+        Function used to draw samples of X from pdf(x)
+        Callable signature generate_canidate_samples(n) for some integer n
+
+    nsamples : integer
+        The numebr of samples desired
+
+    Returns
+    =======
+    samples: np.ndarray (nvars,nsamples)
+        Samples from the biasing density
+    """
+    samples = np.ones(nsamples)*np.nan
+    r = np.random.uniform(0,1,nsamples)
+    Ir = np.where(r<beta)[0]
+    Jr = np.where(r>=beta)[0]
+    Icnt=0
+    Jcnt=0
+    while True:
+        candidate_samples = np.random.normal(0,1,nsamples)
+        generate_candidate_samples(nsamples)
+        I = np.where(function(candidate_samples)<VaR)[0]
+        J = np.where(function(candidate_samples)>=VaR)[0]
+        Iend = min(I.shape[0],Ir.shape[0]-Icnt)
+        Jend = min(J.shape[0],Jr.shape[0]-Jcnt)
+        samples[Ir[Icnt:Icnt+Iend]]=candidate_samples[I[:Iend]]
+        samples[Jr[Jcnt:Jcnt+Jend]]=candidate_samples[J[:Jend]]
+        Icnt+=Iend
+        Jcnt+=Jend
+        if Icnt==Ir.shape[0] and Jcnt==Jr.shape[0]:
+            break
+    assert Icnt+Jcnt==nsamples
+    #print(Icnt/nsamples,1-beta)
+    #print(Jcnt/nsamples,beta)
+    return samples  
+
 #sudo yum install glpk-devel glpk
 # pip install cvxopt
