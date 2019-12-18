@@ -47,7 +47,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     index = np.arange(num_samples)[ecdf>=alpha][0]
     return xx[index],index
 
-def conditional_value_at_risk(samples,alpha,weights=None):
+def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     """
     Compute conditional value at risk of a variable Y using a set of samples.
 
@@ -80,8 +80,9 @@ def conditional_value_at_risk(samples,alpha,weights=None):
     if weights is None:
         weights = np.ones(num_samples)
     assert weights.ndim==1 or weights.shape[1]==1
-    I = np.argsort(samples)
-    xx,ww = samples[I],weights[I]
+    if not samples_sorted:
+        I = np.argsort(samples)
+        xx,ww = samples[I],weights[I]
     VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
     CVaR=VaR+1/((1-alpha)*num_samples)*np.sum((xx[index+1:]-VaR)*ww[index+1:])
     return CVaR
