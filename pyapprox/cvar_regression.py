@@ -35,6 +35,8 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)
+    assert weights.ndim==1 or weights.shape[1]==1
+    assert samples.ndim==1 or samples.shape[1]==1
     if not samples_sorted:
         I = np.argsort(samples)
         xx,ww = samples[I],weights[I]
@@ -478,10 +480,13 @@ def cvar_importance_sampling_biasing_density(pdf,function,beta,VaR,tau,x):
     vals: np.ndarray (nsamples)
         The values of the biasing density at x
     """
+    if np.isscalar(x):
+        x = np.array([[x]])
+    assert x.ndim==2
     vals = np.atleast_1d(pdf(x))
     assert vals.ndim==1 or vals.shape[1]==1
     y = function(x)
-    assert y.shape[1]==1
+    assert y.ndim==1 or y.shape[1]==1
     I = np.where(y<VaR)[0]
     J = np.where(y>=VaR)[0]
     vals[I]*=beta/tau
