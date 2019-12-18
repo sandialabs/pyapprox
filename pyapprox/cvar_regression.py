@@ -72,10 +72,12 @@ def conditional_value_at_risk(samples,alpha,weights=None):
     cvar : float
         The conditional value at risk of the random variable Y
     """
-    assert samples.ndim==1
+    assert samples.ndim==1 or samples.shape[1]==1
+    samples = samples.squeeze()
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)
+    assert weights.ndim==1 or weights.shape[1]==1
     I = np.argsort(samples)
     xx,ww = samples[I],weights[I]
     VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
@@ -477,7 +479,9 @@ def cvar_importance_sampling_biasing_density(pdf,function,beta,VaR,tau,x):
         The values of the biasing density at x
     """
     vals = np.atleast_1d(pdf(x))
+    assert vals.ndim==1 or vals.shape[1]==1
     y = function(x)
+    assert y.shape[1]==1
     I = np.where(y<VaR)[0]
     J = np.where(y>=VaR)[0]
     vals[I]*=beta/tau
@@ -524,25 +528,28 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
     samples: np.ndarray (nvars,nsamples)
         Samples from the biasing density
     """
-    samples = np.ones(nsamples)*np.nan
+    candidate_samples = generate_candidate_samples(nsamples)
+    nvars = candidate_samples.shape[0]
+    samples = np.empty((nvars,nsamples))
     r = np.random.uniform(0,1,nsamples)
     Ir = np.where(r<beta)[0]
     Jr = np.where(r>=beta)[0]
     Icnt=0
     Jcnt=0
     while True:
-        candidate_samples = np.random.normal(0,1,nsamples)
-        generate_candidate_samples(nsamples)
-        I = np.where(function(candidate_samples)<VaR)[0]
-        J = np.where(function(candidate_samples)>=VaR)[0]
+        vals = function(candidate_samples)
+        assert vals.ndim==1 or vals.shape[1]==1
+        I = np.where(vals<VaR)[0]
+        J = np.where(vals>=VaR)[0]
         Iend = min(I.shape[0],Ir.shape[0]-Icnt)
         Jend = min(J.shape[0],Jr.shape[0]-Jcnt)
-        samples[Ir[Icnt:Icnt+Iend]]=candidate_samples[I[:Iend]]
-        samples[Jr[Jcnt:Jcnt+Jend]]=candidate_samples[J[:Jend]]
+        samples[:,Ir[Icnt:Icnt+Iend]]=candidate_samples[:,I[:Iend]]
+        samples[:,Jr[Jcnt:Jcnt+Jend]]=candidate_samples[:,J[:Jend]]
         Icnt+=Iend
         Jcnt+=Jend
         if Icnt==Ir.shape[0] and Jcnt==Jr.shape[0]:
             break
+        candidate_samples = generate_candidate_samples(nsamples)
     assert Icnt+Jcnt==nsamples
     #print(Icnt/nsamples,1-beta)
     #print(Jcnt/nsamples,beta)
