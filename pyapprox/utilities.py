@@ -1169,10 +1169,12 @@ def halton_sequence(num_vars, index1, index2):
         kk+=1
     return sequence
 
-def transformed_halton_sequence(marginal_icdfs,num_vars,num_samples):
+def transformed_halton_sequence(marginal_icdfs,num_vars,num_samples,
+                                start_index=1):
+    assert start_index>0
     # sample with index 0 is [0,..0] this can cause problems for icdfs of
     # unbounded random variables so start with index 1 in halton sequence
-    samples = halton_sequence(num_vars, 1, num_samples+1)
+    samples = halton_sequence(num_vars, start_index, num_samples+start_index)
     if marginal_icdfs is None:
         return samples
         
