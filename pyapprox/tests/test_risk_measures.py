@@ -2,7 +2,31 @@ import unittest
 from pyapprox.cvar_regression import *
 from pyapprox.stochastic_dominance import *
 from scipy.special import erf, erfinv, factorial
-from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv
+from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv, \
+    lognorm as lognormal_rv
+from pyapprox.configure_plots import *
+
+from pyapprox.quantile_regression import quantile_regression
+def solve_quantile_regression(tau,samples,values,eval_basis_matrix):
+    basis_matrix = eval_basis_matrix(samples)
+    quantile_coef = quantile_regression(basis_matrix, values.squeeze(), tau=tau)
+    # assume first coefficient is for constant term
+    quantile_coef[0]=0
+    centered_approx_vals = basis_matrix.dot(quantile_coef)[:,0]
+    deviation = conditional_value_at_risk(values[:,0]-centered_approx_vals,tau)
+    quantile_coef[0]=deviation
+    return quantile_coef
+
+def solve_least_squares_regression(samples,values,eval_basis_matrix,lamda=0.):
+    basis_matrix = eval_basis_matrix(samples)
+    lstsq_coef = np.linalg.lstsq(basis_matrix,values,rcond=None)[0]
+    lstsq_coef[0] = 0
+    centered_approx_vals = basis_matrix.dot(lstsq_coef)[:,0]
+    residuals = values[:,0]-centered_approx_vals
+    deviation = residuals.mean(axis=0)+lamda*np.std(residuals,axis=0)
+    lstsq_coef[0]=deviation
+    return lstsq_coef
+
 def triangle_quantile(u,c,loc,scale):
     """
     Also known as inverse CDF
@@ -200,32 +224,35 @@ def plot_truncated_lognormal_example_exact_quantities(
     
     pgrid = np.linspace(0.01,1-1e-2,10)
     evar = np.array([value_at_risk(values,p)[0] for p in pgrid]).squeeze()
-    assert np.allclose(evar,VaR(pgrid),rtol=2e-2)
     if plot:
         axs[2].plot(pgrid,evar,'-')
         axs[2].plot(pgrid,VaR(pgrid),'--')
         axs[2].set_title('VaR')
+    else:
+        assert np.allclose(evar,VaR(pgrid),rtol=2e-2)
 
     pgrid = np.linspace(0,1-1e-2,100)
     ecvar = np.array([conditional_value_at_risk(values,p) for p in pgrid])
     # CVaR for alpha=0 should be the mean
     assert np.allclose(ecvar[0],values.mean())
-    assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=1e-2)
     if plot:
         axs[3].plot(pgrid,ecvar,'-')
         axs[3].plot(pgrid,CVaR(pgrid),'--')
         axs[3].set_xlim(pgrid.min(),pgrid.max())
         axs[3].set_title('CVaR')
+    else:
+        assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=1e-2)
     
     ygrid = np.linspace(np.exp(lb)-10,np.exp(ub)+1,100)
     essd = compute_conditional_expectations(ygrid,values,False)
-    assert np.allclose(essd.squeeze(),ssd(ygrid),rtol=2e-2)
     if plot:
         axs[4].plot(ygrid,essd,'-')
         axs[4].plot(ygrid,ssd(ygrid),'--')
         axs[4].set_xlim(ygrid.min(),ygrid.max())
         axs[4].set_title(r'$E[(\eta-Y)^+]$')
         axs[5].set_xlabel(r'$\eta$')
+    else:
+        assert np.allclose(essd.squeeze(),ssd(ygrid),rtol=2e-2)
 
     # zoom into ygrid over high probability region of -Y
     ygrid = -ygrid[::-1]
@@ -302,7 +329,10 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
     else:
         assert np.allclose(ecvar.squeeze(),CVaR(pgrid).squeeze(),rtol=4e-2)
         
-    ygrid = np.linspace(-1,10,100)
+    #ygrid = np.linspace(-1,10,100)
+    ygrid = np.linspace(
+        lognormal_rv.ppf(0.0,np.exp(mu),sigma),
+        lognormal_rv.ppf(0.9,np.exp(mu),sigma),101)
     essd = compute_conditional_expectations(ygrid,values,False)
     #print(np.linalg.norm(essd.squeeze()-ssd(ygrid),ord=np.inf))
     if plot:
@@ -458,7 +488,7 @@ class TestRiskMeasures(unittest.TestCase):
         integral = integrate.quad(
             fun2,np.log(t),ubx,epsabs=tol,epsrel=tol,full_output=True)[0]
         cvar2 = t+1./(1.-alpha)*(integral-t*(1-x_cdf(np.log(t))))
-        #fun3 = lambda x: np.absolute(f(x)-t)*normal_rv.pdf(x,loc=mu,scale=sigma)
+        #fun3=lambda x: np.absolute(f(x)-t)*normal_rv.pdf(x,loc=mu,scale=sigma)
         def fun3(x):
             x = np.atleast_1d(x)
             pdf_vals = normal_rv.pdf(x,loc=mu,scale=sigma)
@@ -475,7 +505,8 @@ class TestRiskMeasures(unittest.TestCase):
 
         lbx,ubx=-np.inf,np.inf
         value_at_risk4,cvar4 = compute_cvar_from_univariate_function(
-            f,partial(normal_rv.pdf,loc=mu,scale=sigma),lbx,ubx,alpha,5,tol=1e-7)
+            f,partial(normal_rv.pdf,loc=mu,scale=sigma),lbx,ubx,alpha,5,
+            tol=1e-7)
 
         #print(abs(cvar1-CVaR(alpha)))
         #print(abs(cvar2-CVaR(alpha)))
@@ -485,6 +516,81 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(cvar2,CVaR(alpha))
         assert np.allclose(cvar3,CVaR(alpha))
         assert np.allclose(cvar4,CVaR(alpha))
+
+    def test_stochastic_dominance(self):
+        from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
+        from pyapprox.variable_transformations import \
+            define_iid_random_variable_transformation
+        from pyapprox.indexing import compute_hyperbolic_indices
+        num_vars=1
+        mu,sigma=0,1
+        f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
+            get_lognormal_example_exact_quantities(mu,sigma)
+        disutility=True
+        #disutility=False
+
+        np.random.seed(1)
+        nsamples=10
+        degree=2
+        samples = np.random.normal(0,1,(1,nsamples))
+        values = f(samples[0,:])[:,np.newaxis]
+
+        pce = PolynomialChaosExpansion()
+        var_trans = define_iid_random_variable_transformation(
+            normal_rv(mu,sigma),num_vars) 
+        pce.configure({'poly_type':'hermite','var_trans':var_trans})
+        indices = compute_hyperbolic_indices(1,degree,1.)
+        pce.set_indices(indices)
+        
+        coef = solve_stochastic_dominance_constrained_least_squares(
+            samples,values,pce.basis_matrix,disutility_formulation=disutility)
+        pce.set_coefficients(coef)
+
+        #lb,ub = normal_rv(mu,sigma).interval(0.99)
+        lb,ub = samples.min()-abs(samples.max())*.1,\
+                samples.max()+abs(samples.max())*.1
+        xx = np.linspace(lb,ub,101)
+        fig,axs = plt.subplots(1,2,figsize=(2*8,6))
+        axs[0].plot(xx,pce(xx[np.newaxis,:]),'k')
+        axs[0].plot(samples[0,:],values[:,0],'o')
+        axs[0].plot(xx,f(xx),'-r')
+        axs[0].set_xlim(lb,ub)
+
+        from scipy.stats import lognorm as lognormal_rv
+        #ylb,yub = lognormal_rv.interval(0.9,np.exp(mu),sigma)
+        ylb,yub = values.min()-abs(values.max())*.1,\
+                  values.max()+abs(values.max())*.1
+        ygrid=np.linspace(ylb,yub,101)
+        if disutility:
+            ygrid = -ygrid[::-1]
+
+        pce_values = pce(samples)[:,0]
+        pce_cond_exp = compute_conditional_expectations(
+            ygrid,pce_values,disutility)
+        econd_exp = compute_conditional_expectations(ygrid,values[:,0],disutility)
+
+        axs[1].plot(ygrid,pce_cond_exp,'k')
+        axs[1].plot(ygrid,econd_exp,'b--')
+        if disutility:
+            axs[1].plot(ygrid,ssd_disutil(ygrid),'r')
+        else:
+            axs[1].plot(ygrid,ssd(ygrid),'r')
+        C=1
+        if disutility:
+            C*=-1
+        print(pce_values.mean())
+        print(values.mean())
+        axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k')
+        axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--')
+        ygrid = values.copy()[:,0]
+        if disutility:
+            ygrid*=-1
+        axs[1].plot(ygrid,compute_conditional_expectations(
+            ygrid,values[:,0],disutility),'bo')
+        axs[1].plot(ygrid,compute_conditional_expectations(
+            ygrid,pce_values,disutility),'ko')
+        
+        plt.show()
 
 
 if __name__== "__main__":    
