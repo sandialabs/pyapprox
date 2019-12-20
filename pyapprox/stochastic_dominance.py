@@ -4,8 +4,7 @@ from scipy.sparse import eye as speye
 from scipy.sparse import lil_matrix
 from cvxopt import matrix, solvers, spmatrix
 
-def build_inequality_contraints(Y,Yvec,basis_matrix,p,
-                                disutility_formulation=True):
+def build_inequality_contraints(Y,basis_matrix,p,eta_indices):
     """
     Construct the matrix form of the constraints of quadratic program.
        Ax<=b
@@ -42,63 +41,97 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
         v_i = E[(y_i+Y)^{+}] if disutility_formulation=True
 
     p : np.ndarray (N,1)
-       The probabilities p_k, k=1,...,M
+        The probabilities p_k, k=1,...,M
+
+    eta_indices : np.ndarray (P)
+        The elements of Y at which to enforce the dominance constraints.
 
     Returns
     -------
-    A : np.ndarray (2N**2+N,N**2+M)
+    A : np.ndarray (2N*P+P,N*P+M)
        The constraints matrix. Contains contraints that enforce s_ik >=0
-
-    A : np.ndarray (2N**2+N,1)
-       The constraints RHS. Contains contraints that enforce s_ik >=0
-    """
-    #N: number of samples
-    #M: number of unknowns
-    N,M = basis_matrix.shape    
-    Q = Yvec.shape[0] # number of points to enforce stochastic dominance
-    assert Y.shape[0]>=Q
-
-    num_opt_vars  = M  # number of polynomial coefficients
-    #num_opt_vars += N*N # number of decision vars s_{ik}
-    num_opt_vars += Q*N # number of decision vars s_{ik}
+       for i=1,..P and k=1,..N the constraints rows are ordered
+        
+       ...
+       z_{k}  + s_{i,k}   >= eta_i
+       z_{k+1}+ s_{i,k+1} >= eta_i
+       ...
+       z_{k}  + s_{i+1,k}   >= eta_i+1
+       z_{k+1}+ s_{i+1,k+1} >= eta_i+1
+       ...
+       \sum_{k=1}^N p_k s_{i,k} <= v_i   = E[(eta_{i}  -Y)^{+}]
+       \sum_{k=1}^N p_k s_{i+1,k} <= v_i = E[(eta_{i+1}-Y)^{+}]
+       ...
+       s_{i,k}   >= 0
+       s_{i,k+1} >= 0
+       ...
+       s_{i+1,k}   >= 0
+       s_{i+1,k+1} >= 0
+       ...
     
-    # num_constraints  = N*N # z_k+s_{ik} >= y_i
-    # num_constraints += N   # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
-    # num_constraints += N*N # s_ik>=0
-    # I = speye(N,N)
 
-    num_constraints  = Q*N # z_k+s_{ik} >= y_i
-    num_constraints += Q   # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
-    num_constraints += Q*N # s_ik>=0
+    b : np.ndarray (2N*P+P,1)
+       The constraints RHS. Contains contraints that enforce s_ik >=0
+       The rows of b are aranged as follows
+       b = [ c_0 ... c_M  s_{0,0} ... s_{0,k} s_{0,k+1} ... s_{P,k} s_{P,k+1} ... s_PN].T
 
-    I = speye(Q,Q)
+    """
+    assert (Y.ndim==2 and Y.shape[1]==1)
+    nsamples = Y.shape[0]
+    num_eta = eta_indices.shape[0]
+    assert num_eta<=nsamples
+    nbasis = basis_matrix.shape[1]
+    assert basis_matrix.shape[0] == nsamples
+
+    eta=Y[eta_indices,0]
+    reduced_cond_exps=compute_conditional_expectations(
+        eta,Y[:,0],False)
+    print(reduced_cond_exps)
+    
+    num_opt_vars  = nbasis           # number of polynomial coefficients
+    num_opt_vars += num_eta*nsamples # number of decision vars s_{ik}
+
+    # z_k+s_{ik} >= y_i
+    num_constraints  = num_eta*nsamples
+    # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
+    num_constraints += num_eta
+    # s_ik>=0
+    num_constraints += num_eta*nsamples
+    I = speye(nsamples,nsamples)
     
     A = lil_matrix((num_constraints,num_opt_vars))
-    b = lil_matrix((num_constraints,1))
-    for i in range(N):
-        row = i*N + i
-        col = M + i*N
-        if not disutility_formulation:
-            # s_{ik}+z_k >= y_i
-            A[row:row+N,:M]        = -basis_matrix
-            A[row:row+N,col:col+N] = -I
-            b[row:row+N]           = -Y
-            ## \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
-            A[row+N,col:col+N] = p.T
-            b[row+N]           = Yvec[i]
-        else:
-            # s_{ik}-z_k <= y_i
-            A[row:row+N,:M]        = -basis_matrix
-            A[row:row+N,col:col+N] = I
-            b[row:row+N]           = -Y
-            # \sum_{k=1}^N p_k s_{ik} >= v_i = E[(y_i+Y)^{+}]
-            A[row+N,col:col+N] = -p.T
-            b[row+N]           = -Yvec[i]
+    b = np.empty((num_constraints,1))
+    for ii in range(num_eta):
+        row = ii*nsamples
+        col = nbasis + ii*nsamples
+        # s_{ik}+z_k >= eta_i
+        #Seems to work with this line
+        #A[row:row+nsamples,:nbasis] = -basis_matrix[ii]
+        # but not this line which I think is correct
+        # Maybe order of unknowns is inconistent with Hessian
+        # and gradient function
+        A[row:row+nsamples,:nbasis] = -basis_matrix
+        
+        A[row:row+nsamples,col:col+nsamples]= -I
+        b[row:row+nsamples,0]               = -eta[ii]
+
+    # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(eta_i-Y)^{+}]
+    row=num_eta*nsamples
+    col = nbasis
+    for ii in range(num_eta):
+        A[row+ii,col:col+nsamples] = p.T
+        col+=nsamples
+    b[row:row+num_eta,0] = reduced_cond_exps
             
-        # s_ik>=0
-        row = i*N+N*N+N
-        A[row:row+N,col:col+N] = -I
-        b[row:row+N]     = 0
+    # s_ik>=0
+    idx=num_eta*nsamples
+    A[-idx:,-idx:] = -speye(num_eta*nsamples)
+    b[-idx:]     = 0
+    
+    np.set_printoptions(linewidth=500)
+    print('pyapprox')
+    print(A.todense())
+    print(b)
     return A,b
 
 
@@ -136,29 +169,41 @@ def compute_conditional_expectations(eta,samples,disutility_formulation=True):
     assert samples.ndim==1
     assert eta.ndim==1
     if disutility_formulation:
-        values = np.maximum(0,samples[:,np.newaxis]+eta[np.newaxis,:]).mean(
-            axis=0)
+        values = np.maximum(0,samples[:,np.newaxis]+eta[np.newaxis,:]).mean(axis=0)
+        values2 = [np.maximum(0,eta[ii]+samples).mean()
+                   for ii in range(eta.shape[0])]
+        assert np.allclose(values,values2)
     else:
-        values = np.maximum(0,eta[np.newaxis,:]-samples[:,np.newaxis]).mean(
-            axis=0)
+        values = np.maximum(0,eta[np.newaxis,:]-samples[:,np.newaxis]).mean(axis=0)
+        values1 = np.maximum(0,eta[:,np.newaxis]-samples[np.newaxis,:]).mean(axis=1)
+        values2 = [np.maximum(0,eta[ii]-samples).mean()
+                   for ii in range(eta.shape[0])]
+        assert np.allclose(values,values2)
+        assert np.allclose(values,values1)
     return values
 
-def gradient(coeff0,N,M):
+def gradient(coeff0,N,M,P):
     """
     gradient g of x'Hx+g'x
+
+    M : num basis terms
+    N : num samples
+    P : num eta
     """
-    #g = np.zeros((M+N*N,1))
-    #g[:M] = -coeff0
-    g = lil_matrix((M+N*N,1))
+    g = np.zeros((M+P*N,1))
     g[:M] = -coeff0
+    #g = lil_matrix((M+P*N,1))
+    #g[:M] = -coeff0
     return g
 
-def hessian(basis_matrix,use_sample_average=True):
+def hessian(basis_matrix,P,use_sample_average=True):
     """
     Hessian H of x'Hx+g'x
+
+    P : num eta
     """
     N, M = basis_matrix.shape
-    H = lil_matrix((M+N*N,M+N*N))
+    H = lil_matrix((M+P*N,M+P*N))
     if use_sample_average:
         H[:M,:M] = basis_matrix.T.dot(basis_matrix)/N
     else:
@@ -167,20 +212,20 @@ def hessian(basis_matrix,use_sample_average=True):
 
 def solve_stochastic_dominance_constrained_least_squares(
         samples,values,eval_basis_matrix,lstsq_coef=None,
-        disutility_formulation=True):
+        disutility_formulation=True,eta_indices=None):
     # Compute coefficients with second order stochastic dominance constraints
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
-    if disutility_formulation:
-        eta=-values[:,0]
-    else:
-        eta=values[:,0]
-    Yvec = compute_conditional_expectations(
-        eta,values[:,0],disutility_formulation)
-    print(np.sort(Yvec))
     probabilities = np.ones((num_samples,1))
-    [A,b]=build_inequality_contraints(
-        values,Yvec,basis_matrix,probabilities,disutility_formulation)
+    if eta_indices is None:
+        eta_indices = np.arange(0,num_samples)
+    if disutility_formulation:
+        [A_lil,b]=build_inequality_contraints(
+            -values,-basis_matrix,probabilities,eta_indices)
+
+    else:
+        [A_lil,b]=build_inequality_contraints(
+            values,basis_matrix,probabilities,eta_indices)
 
     #if lstsq_coef is None:
     #    lstsq_coef = np.linalg.lstsq(
@@ -189,20 +234,30 @@ def solve_stochastic_dominance_constrained_least_squares(
 
     num_basis_terms = basis_matrix.shape[1]
     # minimize distance between lstsq solution and ssd solution
-    g = gradient(lstsq_coef,num_samples,num_basis_terms)
-    H = hessian(basis_matrix)
+    g = gradient(lstsq_coef,num_samples,num_basis_terms,eta_indices.shape[0])
+    H = hessian(basis_matrix,eta_indices.shape[0])
 
+    # Convert scipy lil format to sparse cvxopt format
     # TODO use CVXOPT sparse matrix format
-    I,J,data = sparse.find(A)
-    A_sparse = spmatrix(data,I,J,size=A.shape)
+    I,J,data = sparse.find(A_lil)
+    A_sparse = spmatrix(data,I,J,size=A_lil.shape)
     I,J,data = sparse.find(H)
     H_sparse = spmatrix(data,I,J,size=H.shape);
 
     A = A_sparse
     H = H_sparse
     # g and b must be of type matrix and not type spmatrix
-    g = matrix(g.todense())
-    b = matrix(b.todense())
+    g = matrix(g)
+    b = matrix(b)
+
+    # solve least squares problem
+    # H = hessian(basis_matrix,eta_indices.shape[0])
+    # H = H.todense()[:num_basis_terms,:num_basis_terms]
+    # I,J,data = sparse.find(H)
+    # H = spmatrix(data,I,J,size=H.shape);
+    # g = g[:num_basis_terms]
+    # A=None
+    # b=None
 
     solvers.options['show_progress'] = False
     solvers.options['abstol'] = 1e-8

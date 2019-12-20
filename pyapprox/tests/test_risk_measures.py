@@ -526,12 +526,12 @@ class TestRiskMeasures(unittest.TestCase):
         mu,sigma=0,1
         f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
             get_lognormal_example_exact_quantities(mu,sigma)
-        disutility=True
-        #disutility=False
+        #disutility=True
+        disutility=False
 
-        np.random.seed(1)
-        nsamples=10
-        degree=2
+        np.random.seed(2)
+        nsamples=3
+        degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -541,9 +541,15 @@ class TestRiskMeasures(unittest.TestCase):
         pce.configure({'poly_type':'hermite','var_trans':var_trans})
         indices = compute_hyperbolic_indices(1,degree,1.)
         pce.set_indices(indices)
-        
+
+        eta_indices=None
+        #eta_indices=np.argsort(values[:,0])[nsamples//2:]
+        #from stochastic_dominance import solve_stochastic_dominance_constrained_least_squares
+        #coef = solve_stochastic_dominance_constrained_least_squares(
+        #    samples,values,pce.basis_matrix)
         coef = solve_stochastic_dominance_constrained_least_squares(
-            samples,values,pce.basis_matrix,disutility_formulation=disutility)
+            samples,values,pce.basis_matrix,disutility_formulation=disutility,
+            eta_indices=eta_indices)
         pce.set_coefficients(coef)
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
@@ -567,7 +573,7 @@ class TestRiskMeasures(unittest.TestCase):
         pce_values = pce(samples)[:,0]
         pce_cond_exp = compute_conditional_expectations(
             ygrid,pce_values,disutility)
-        econd_exp = compute_conditional_expectations(ygrid,values[:,0],disutility)
+        econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
 
         axs[1].plot(ygrid,pce_cond_exp,'k')
         axs[1].plot(ygrid,econd_exp,'b--')
@@ -586,9 +592,15 @@ class TestRiskMeasures(unittest.TestCase):
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
-            ygrid,values[:,0],disutility),'bo')
+            ygrid,values[:,0],disutility),'bs')
+        print(compute_conditional_expectations(
+            ygrid,values[:,0],disutility),'econd')
         axs[1].plot(ygrid,compute_conditional_expectations(
             ygrid,pce_values,disutility),'ko')
+
+        coef = solve_least_squares_regression(samples,values,pce.basis_matrix)
+        pce.set_coefficients(coef)
+        axs[0].plot(xx,pce(xx[np.newaxis,:]),'g:')
         
         plt.show()
 
