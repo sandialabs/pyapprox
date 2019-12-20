@@ -20,7 +20,7 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
     Disutility formuation
     -Y dominates -Z
 
-    s_{ik} -z_k >= -y_i, i=1,...,N, k=1,...,N
+    -s_{ik}+z_k >= -y_i, i=1,...,N, k=1,...,N
     sum_{k=1}^N p_k s_{ik} >= v_i = E[(y_i+Y)^{+}], k=1,...,N
     s_ik>=0, i=1,...,N, k=1,...,N
     
@@ -52,15 +52,27 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
     A : np.ndarray (2N**2+N,1)
        The constraints RHS. Contains contraints that enforce s_ik >=0
     """
-    N,M = basis_matrix.shape
-    I = speye(N,N)
+    #N: number of samples
+    #M: number of unknowns
+    N,M = basis_matrix.shape    
+    Q = Yvec.shape[0] # number of points to enforce stochastic dominance
+    assert Y.shape[0]>=Q
 
     num_opt_vars  = M  # number of polynomial coefficients
-    num_opt_vars += N*N # number of decision vars s_{ik}
+    #num_opt_vars += N*N # number of decision vars s_{ik}
+    num_opt_vars += Q*N # number of decision vars s_{ik}
     
-    num_constraints  = N*N # z_k+s_{ik} >= y_i
-    num_constraints += N   # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
-    num_constraints += N*N # s_ik>=0
+    # num_constraints  = N*N # z_k+s_{ik} >= y_i
+    # num_constraints += N   # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
+    # num_constraints += N*N # s_ik>=0
+    # I = speye(N,N)
+
+    num_constraints  = Q*N # z_k+s_{ik} >= y_i
+    num_constraints += Q   # \sum_{k=1}^N p_k s_{ik} <= v_i = E[(y_i-Y)^{+}]
+    num_constraints += Q*N # s_ik>=0
+
+    I = speye(Q,Q)
+    
     A = lil_matrix((num_constraints,num_opt_vars))
     b = lil_matrix((num_constraints,1))
     for i in range(N):
@@ -75,10 +87,10 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
             A[row+N,col:col+N] = p.T
             b[row+N]           = Yvec[i]
         else:
-            # s_{ik}-z_k >= -y_i
-            A[row:row+N,:M]        = basis_matrix
-            A[row:row+N,col:col+N] = -I
-            b[row:row+N]           = Y
+            # s_{ik}-z_k <= y_i
+            A[row:row+N,:M]        = -basis_matrix
+            A[row:row+N,col:col+N] = I
+            b[row:row+N]           = -Y
             # \sum_{k=1}^N p_k s_{ik} >= v_i = E[(y_i+Y)^{+}]
             A[row+N,col:col+N] = -p.T
             b[row+N]           = -Yvec[i]
@@ -91,16 +103,44 @@ def build_inequality_contraints(Y,Yvec,basis_matrix,p,
 
 
 def compute_conditional_expectations(eta,samples,disutility_formulation=True):
+    """
+    Compute the conditional expectation of :math:`Y`
+    .. math::
+      \mathbb{E}\left[\max(0,\eta-Y)\right]
+
+    or of :math:`-Y` (disutility form)
+    .. math::
+      \mathbb{E}\left[\max(0,Y-\eta)\right]
+
+    where \math:`\eta\in Y' in the domain of :math:`Y' at which to 
+
+    The conditional expectation is convex non-negative and non-decreasing.
+
+    Parameters
+    ==========
+    eta : np.ndarray (num_eta)
+        values of :math:`\eta`
+
+    samples : np.ndarray (nsamples)
+        The samples of :math:`Y`
+
+    disutility_formulation : boolean
+        True  - evaluate \mathbb{E}\left[\max(0,\eta-Y)\right]
+        False - evaluate \mathbb{E}\left[\max(0,Y-\eta)\right]
+
+    Returns
+    =======
+    values : np.ndarray (num_eta)
+        The conditional expectations
+    """
     assert samples.ndim==1
     assert eta.ndim==1
     if disutility_formulation:
-        values = np.asarray(
-            [np.maximum(eta[ii]+samples,0).mean()
-             for ii in range(eta.shape[0])])
+        values = np.maximum(0,samples[:,np.newaxis]+eta[np.newaxis,:]).mean(
+            axis=0)
     else:
-        values = np.asarray(
-            [np.maximum(eta[ii]-samples,0).mean()
-             for ii in range(eta.shape[0])])
+        values = np.maximum(0,eta[np.newaxis,:]-samples[:,np.newaxis]).mean(
+            axis=0)
     return values
 
 def gradient(coeff0,N,M):
@@ -125,14 +165,19 @@ def hessian(basis_matrix,use_sample_average=True):
         H[:M,:M] = speye(M,M)
     return H
 
-def solve_stochastic_dominance_contrained_least_squares(
+def solve_stochastic_dominance_constrained_least_squares(
         samples,values,eval_basis_matrix,lstsq_coef=None,
-        disutility_formulation=False):
+        disutility_formulation=True):
     # Compute coefficients with second order stochastic dominance constraints
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
-    Yvec    = compute_conditional_expectations(
-        values[:,0],values[:,0],disutility_formulation)
+    if disutility_formulation:
+        eta=-values[:,0]
+    else:
+        eta=values[:,0]
+    Yvec = compute_conditional_expectations(
+        eta,values[:,0],disutility_formulation)
+    print(np.sort(Yvec))
     probabilities = np.ones((num_samples,1))
     [A,b]=build_inequality_contraints(
         values,Yvec,basis_matrix,probabilities,disutility_formulation)
@@ -165,9 +210,9 @@ def solve_stochastic_dominance_contrained_least_squares(
     solvers.options['feastol'] = 1e-8
     solvers.options['maxiters'] = 1000
     # Minimize x'Hx+g'x subject to Ax <= b
-    print ("optimizing")
+    #print ("optimizing")
     result = solvers.qp(H,g,A,b,Aeq=None,beq=None)
-    print ("done")
+    #print ("done")
     ssd_solution = np.array(result['x'])
     coef = ssd_solution[:num_basis_terms]
     return coef
