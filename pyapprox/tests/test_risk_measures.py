@@ -530,7 +530,7 @@ class TestRiskMeasures(unittest.TestCase):
         disutility=False
 
         np.random.seed(2)
-        nsamples=3
+        nsamples=10
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
@@ -557,9 +557,9 @@ class TestRiskMeasures(unittest.TestCase):
                 samples.max()+abs(samples.max())*.1
         xx = np.linspace(lb,ub,101)
         fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-        axs[0].plot(xx,pce(xx[np.newaxis,:]),'k')
-        axs[0].plot(samples[0,:],values[:,0],'o')
-        axs[0].plot(xx,f(xx),'-r')
+        axs[0].plot(xx,pce(xx[np.newaxis,:]),'k',label='SSD')
+        axs[0].plot(samples[0,:],values[:,0],'or',label='Train data')
+        axs[0].plot(xx,f(xx),'-r',label='Exact')
         axs[0].set_xlim(lb,ub)
 
         from scipy.stats import lognorm as lognormal_rv
@@ -575,35 +575,113 @@ class TestRiskMeasures(unittest.TestCase):
             ygrid,pce_values,disutility)
         econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
 
-        axs[1].plot(ygrid,pce_cond_exp,'k')
-        axs[1].plot(ygrid,econd_exp,'b--')
+        axs[1].plot(ygrid,pce_cond_exp,'k-',
+                    label=r'$\mathbb{E}[\eta-X_\mathrm{SSD}]$')
+        axs[1].plot(ygrid,econd_exp,'b-',
+                    label=r'$\mathbb{E}[\eta-X_\mathrm{MC}]$')
         if disutility:
-            axs[1].plot(ygrid,ssd_disutil(ygrid),'r')
+            axs[1].plot(ygrid,ssd_disutil(ygrid),'r',
+                        label=r'$\mathbb{E}[\eta+\mu_{X_\mathrm{exact}}]$')
         else:
-            axs[1].plot(ygrid,ssd(ygrid),'r')
+            axs[1].plot(ygrid,ssd(ygrid),'r',
+                        label=r'$\mathbb{E}[\eta-\mu_{X_\mathrm{exact}}]$')
         C=1
         if disutility:
             C*=-1
         print(pce_values.mean())
         print(values.mean())
-        axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k')
-        axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--')
+        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k--',
+        #             label=r'$\eta-\mu_{X_\mathrm{SSD}}$')
+        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--',
+        #             label=r'$\eta-\mu_{X_\mathrm{MC}}$')
         ygrid = values.copy()[:,0]
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
             ygrid,values[:,0],disutility),'bs')
-        print(compute_conditional_expectations(
-            ygrid,values[:,0],disutility),'econd')
+        ygrid = pce_values
+        if disutility:
+            ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
             ygrid,pce_values,disutility),'ko')
 
         coef = solve_least_squares_regression(samples,values,pce.basis_matrix)
         pce.set_coefficients(coef)
-        axs[0].plot(xx,pce(xx[np.newaxis,:]),'g:')
+        pce_values = pce(samples)[:,0]
+        axs[0].plot(xx,pce(xx[np.newaxis,:]),'g:',label='LstSq')
+        ygrid = pce_values
+        if disutility:
+            ygrid*=-1
+        axs[1].plot(ygrid,compute_conditional_expectations(
+            ygrid,pce_values,disutility),'go')
+        ygrid=np.linspace(ylb,yub,101)
+        if disutility:
+            ygrid = -ygrid[::-1]
+
+        pce_cond_exp = compute_conditional_expectations(
+            ygrid,pce_values,disutility)
+        axs[1].plot(ygrid,pce_cond_exp,'g-',
+                    label=r'$\mathbb{E}[\eta-X_\mathrm{LstSq}]$')
+        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'g--',
+        #             label=r'$\eta-\mu_{X_\mathrm{LstSq}}$')
+        axs[0].set_xlabel('$x$')
+        axs[0].set_ylabel('$f(x)$')
+        axs[1].set_xlabel(r'$\eta$')
+        axs[0].legend()
+        axs[1].legend()
         
         plt.show()
 
+    def test_conditional_value_at_risk(self):
+        """
+        Compare value obtained via optimization and analytical formula
+        """
+        plot=False
+        num_samples = 5
+        alpha = np.array([1./3.,0.5,0.85])
+        samples = np.random.normal(0,1,(num_samples))
+        for ii in range(alpha.shape[0]):
+            ecvar,evar = conditional_value_at_risk(
+                samples,alpha[ii],return_var=True)
+
+            objective = lambda tt: np.asarray([t+1/(1-alpha[ii])*np.maximum(
+                0,samples-t).mean() for t in tt])
+
+            tol=1e-8
+            method='L-BFGS-B'; options={'disp':False,'gtol':tol,'ftol':tol}
+            init_guess = 0
+            result=minimize(objective,init_guess,method=method,
+                            options=options)
+            value_at_risk = result['x']
+            cvar = result['fun']
+            #print(value_at_risk,cvar,ecvar)
+            assert np.allclose(ecvar,cvar)
+            assert np.allclose(evar,value_at_risk)
+
+            if plot:
+                rv = normal_rv
+                lb,ub = rv.interval(.99)
+                xx = np.linspace(lb,ub,101)
+                obj_vals = objective(xx)
+                plt.plot(xx,obj_vals)
+                plt.plot(value_at_risk,cvar,'ro')
+                plt.show()
+
+    def test_compute_conditional_expectations(self):
+        num_samples = 5
+        samples = np.random.normal(0,1,(num_samples))
+        eta = samples
+
+        values = compute_conditional_expectations(eta,samples,True)
+        values1 = [np.maximum(0,eta[ii]+samples).mean()
+                   for ii in range(eta.shape[0])]
+        assert np.allclose(values,values1)
+
+        values = compute_conditional_expectations(eta,samples,False)
+        values1 = [np.maximum(0,eta[ii]-samples).mean()
+                   for ii in range(eta.shape[0])]
+        assert np.allclose(values,values1)
+            
 
 if __name__== "__main__":    
     risk_measures_test_suite = unittest.TestLoader().loadTestsFromTestCase(
