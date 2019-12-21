@@ -32,6 +32,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     cvar : float
         The conditional value at risk of the random variable Y
     """
+    assert alpha>0 and alpha<1
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)
@@ -47,7 +48,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     index = np.arange(num_samples)[ecdf>=alpha][0]
     return xx[index],index
 
-def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False):
+def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,return_var=False):
     """
     Compute conditional value at risk of a variable Y using a set of samples.
 
@@ -85,7 +86,10 @@ def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False):
         xx,ww = samples[I],weights[I]
     VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
     CVaR=VaR+1/((1-alpha)*num_samples)*np.sum((xx[index+1:]-VaR)*ww[index+1:])
-    return CVaR
+    if not return_var:
+        return CVaR
+    else:
+        return CVaR,VaR
 
 def cvar_smoothing_function_I(samples,eps):
     return (samples + eps*np.log(1+np.exp(-samples/eps)))

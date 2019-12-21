@@ -169,17 +169,11 @@ def compute_conditional_expectations(eta,samples,disutility_formulation=True):
     assert samples.ndim==1
     assert eta.ndim==1
     if disutility_formulation:
-        values = np.maximum(0,samples[:,np.newaxis]+eta[np.newaxis,:]).mean(axis=0)
-        values2 = [np.maximum(0,eta[ii]+samples).mean()
-                   for ii in range(eta.shape[0])]
-        assert np.allclose(values,values2)
+        values = np.maximum(
+            0,samples[:,np.newaxis]+eta[np.newaxis,:]).mean(axis=0)
     else:
-        values = np.maximum(0,eta[np.newaxis,:]-samples[:,np.newaxis]).mean(axis=0)
-        values1 = np.maximum(0,eta[:,np.newaxis]-samples[np.newaxis,:]).mean(axis=1)
-        values2 = [np.maximum(0,eta[ii]-samples).mean()
-                   for ii in range(eta.shape[0])]
-        assert np.allclose(values,values2)
-        assert np.allclose(values,values1)
+        values = np.maximum(
+            0,eta[np.newaxis,:]-samples[:,np.newaxis]).mean(axis=0)
     return values
 
 def gradient(coeff0,N,M,P):
