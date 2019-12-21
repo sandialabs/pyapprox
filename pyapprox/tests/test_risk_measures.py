@@ -575,10 +575,14 @@ class TestRiskMeasures(unittest.TestCase):
             ygrid,pce_values,disutility)
         econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
 
+        if disutility:
+            sign = '+'
+        else:
+            sign='-'
         axs[1].plot(ygrid,pce_cond_exp,'k-',
-                    label=r'$\mathbb{E}[\eta-X_\mathrm{SSD}]$')
+                    label=r'$\mathbb{E}[\eta%sX_\mathrm{SSD}]$'%sign)
         axs[1].plot(ygrid,econd_exp,'b-',
-                    label=r'$\mathbb{E}[\eta-X_\mathrm{MC}]$')
+                    label=r'$\mathbb{E}[\eta%sX_\mathrm{MC}]$'%sign)
         if disutility:
             axs[1].plot(ygrid,ssd_disutil(ygrid),'r',
                         label=r'$\mathbb{E}[\eta+\mu_{X_\mathrm{exact}}]$')
@@ -591,15 +595,15 @@ class TestRiskMeasures(unittest.TestCase):
         print(pce_values.mean())
         print(values.mean())
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k--',
-        #             label=r'$\eta-\mu_{X_\mathrm{SSD}}$')
+        #             label=r'$\eta%s\mu_{X_\mathrm{SSD}}$'%sign)
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--',
-        #             label=r'$\eta-\mu_{X_\mathrm{MC}}$')
+        #             label=r'$\eta%s\mu_{X_\mathrm{MC}}$'%sign)
         ygrid = values.copy()[:,0]
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
             ygrid,values[:,0],disutility),'bs')
-        ygrid = pce_values
+        ygrid = pce_values.copy()
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
@@ -609,7 +613,7 @@ class TestRiskMeasures(unittest.TestCase):
         pce.set_coefficients(coef)
         pce_values = pce(samples)[:,0]
         axs[0].plot(xx,pce(xx[np.newaxis,:]),'g:',label='LstSq')
-        ygrid = pce_values
+        ygrid = pce_values.copy()
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
@@ -621,9 +625,9 @@ class TestRiskMeasures(unittest.TestCase):
         pce_cond_exp = compute_conditional_expectations(
             ygrid,pce_values,disutility)
         axs[1].plot(ygrid,pce_cond_exp,'g-',
-                    label=r'$\mathbb{E}[\eta-X_\mathrm{LstSq}]$')
+                    label=r'$\mathbb{E}[\eta%sX_\mathrm{LstSq}]$'%sign)
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'g--',
-        #             label=r'$\eta-\mu_{X_\mathrm{LstSq}}$')
+        #             label=r'$\eta%s\mu_{X_\mathrm{LstSq}}$'%sign)
         axs[0].set_xlabel('$x$')
         axs[0].set_ylabel('$f(x)$')
         axs[1].set_xlabel(r'$\eta$')
