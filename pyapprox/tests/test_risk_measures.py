@@ -367,13 +367,13 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
 
 class TestRiskMeasures(unittest.TestCase):
 
-    def test_triangle_quantile(self):
+    def xtest_triangle_quantile(self):
         rv_1 = triangle_rv(0.5,loc=-0.5, scale=2)
 
         alpha=np.array([0.3,0.75])
         assert np.allclose(rv_1.ppf(alpha),triangle_quantile(alpha,0.5,-0.5,2))
     
-    def test_triangle_superquantile(self):
+    def xtest_triangle_superquantile(self):
         c = 0.5; loc = -0.5; scale=2
         u = np.asarray([0.3,0.75])
         cvar = triangle_superquantile(u,c,loc,scale)
@@ -382,13 +382,13 @@ class TestRiskMeasures(unittest.TestCase):
             mc_cvar = conditional_value_at_risk(samples,u[ii])
         assert abs(cvar[ii]-mc_cvar)<1e-2
 
-    def test_lognormal_example_exact_quantities(self):
+    def xtest_lognormal_example_exact_quantities(self):
         plot_lognormal_example_exact_quantities(int(2e5))
 
-    def test_truncated_lognormal_example_exact_quantities(self):
+    def xtest_truncated_lognormal_example_exact_quantities(self):
         plot_truncated_lognormal_example_exact_quantities(int(2e5))
 
-    def test_value_at_risk_normal(self):
+    def xtest_value_at_risk_normal(self):
         weights=None
         alpha=0.8
         num_samples = int(1e2)
@@ -399,7 +399,7 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(VaR_index,index)
         assert np.allclose(VaR,xx[index])
 
-    def test_value_at_risk_lognormal(self):
+    def xtest_value_at_risk_lognormal(self):
         mu,sigma=0,1
 
         f = lambda x: np.exp(x).T
@@ -417,7 +417,7 @@ class TestRiskMeasures(unittest.TestCase):
         #print(VaR(alpha),empirical_VaR)
         assert np.allclose(VaR(alpha),empirical_VaR,1e-2)
 
-    def test_weighted_value_at_risk_normal(self):
+    def xtest_weighted_value_at_risk_normal(self):
         mu,sigma=1,1
         #bias_mu,bias_sigma=1.0,1
         bias_mu,bias_sigma=mu,sigma
@@ -452,7 +452,7 @@ class TestRiskMeasures(unittest.TestCase):
         #print('CVaR',CVaR(alpha),empirical_CVaR)
         assert np.allclose(CVaR(alpha),empirical_CVaR,rtol=1e-2)
 
-    def test_equivalent_formulations_of_cvar(self):
+    def xtest_equivalent_formulations_of_cvar(self):
         mu,sigma=0,1
         f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
             get_lognormal_example_exact_quantities(mu,sigma)
@@ -526,12 +526,12 @@ class TestRiskMeasures(unittest.TestCase):
         mu,sigma=0,1
         f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
             get_lognormal_example_exact_quantities(mu,sigma)
-        #disutility=True
-        disutility=False
+        disutility=True
+        #disutility=False
 
-        np.random.seed(2)
-        nsamples=10
-        degree=1
+        np.random.seed(3)
+        nsamples=3
+        degree=2
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -547,9 +547,14 @@ class TestRiskMeasures(unittest.TestCase):
         #from stochastic_dominance import solve_stochastic_dominance_constrained_least_squares
         #coef = solve_stochastic_dominance_constrained_least_squares(
         #    samples,values,pce.basis_matrix)
-        coef = solve_stochastic_dominance_constrained_least_squares(
-            samples,values,pce.basis_matrix,disutility_formulation=disutility,
-            eta_indices=eta_indices)
+        if not disutility:
+            coef = solve_stochastic_dominance_constrained_least_squares(
+                samples,values,pce.basis_matrix,eta_indices=eta_indices)
+        else:
+            coef=\
+                solve_disutility_stochastic_dominance_constrained_least_squares(
+                    samples,values,pce.basis_matrix,eta_indices=eta_indices)
+        assert False
         pce.set_coefficients(coef)
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
@@ -585,15 +590,15 @@ class TestRiskMeasures(unittest.TestCase):
                     label=r'$\mathbb{E}[\eta%sX_\mathrm{MC}]$'%sign)
         if disutility:
             axs[1].plot(ygrid,ssd_disutil(ygrid),'r',
-                        label=r'$\mathbb{E}[\eta+\mu_{X_\mathrm{exact}}]$')
+                        label=r'$\mathbb{E}[\eta+X_\mathrm{exact}]$')
         else:
             axs[1].plot(ygrid,ssd(ygrid),'r',
-                        label=r'$\mathbb{E}[\eta-\mu_{X_\mathrm{exact}}]$')
+                        label=r'$\mathbb{E}[\eta-X_\mathrm{exact}]$')
         C=1
         if disutility:
             C*=-1
-        print(pce_values.mean())
-        print(values.mean())
+        #print(pce_values.mean())
+        #print(values.mean())
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k--',
         #             label=r'$\eta%s\mu_{X_\mathrm{SSD}}$'%sign)
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--',
@@ -636,7 +641,7 @@ class TestRiskMeasures(unittest.TestCase):
         
         plt.show()
 
-    def test_conditional_value_at_risk(self):
+    def xtest_conditional_value_at_risk(self):
         """
         Compare value obtained via optimization and analytical formula
         """
@@ -671,7 +676,7 @@ class TestRiskMeasures(unittest.TestCase):
                 plt.plot(value_at_risk,cvar,'ro')
                 plt.show()
 
-    def test_compute_conditional_expectations(self):
+    def xtest_compute_conditional_expectations(self):
         num_samples = 5
         samples = np.random.normal(0,1,(num_samples))
         eta = samples
