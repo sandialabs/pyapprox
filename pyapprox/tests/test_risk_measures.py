@@ -531,7 +531,7 @@ class TestRiskMeasures(unittest.TestCase):
 
         np.random.seed(3)
         nsamples=3
-        degree=2
+        degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -552,10 +552,17 @@ class TestRiskMeasures(unittest.TestCase):
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
             coef=\
-                solve_disutility_stochastic_dominance_constrained_least_squares(
+                solve_disutility_stochastic_dominance_constrained_least_squares_scipy(
                     samples,values,pce.basis_matrix,eta_indices=eta_indices)
-        assert False
+            print(coef)
+            coef=\
+                solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(
+                    samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            print(coef)
+            
+
         pce.set_coefficients(coef)
+        #assert False
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
         lb,ub = samples.min()-abs(samples.max())*.1,\
@@ -690,7 +697,56 @@ class TestRiskMeasures(unittest.TestCase):
         values1 = [np.maximum(0,eta[ii]-samples).mean()
                    for ii in range(eta.shape[0])]
         assert np.allclose(values,values1)
-            
+
+    def test_disutility_ssd_gradients(self):
+        from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
+        from pyapprox.variable_transformations import \
+            define_iid_random_variable_transformation
+        from pyapprox.indexing import compute_hyperbolic_indices
+        
+        num_vars=1
+        mu,sigma=0,1
+        f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
+            get_lognormal_example_exact_quantities(mu,sigma)
+        
+        nsamples=3
+        degree=1
+        samples = np.random.normal(0,1,(1,nsamples))
+        values = f(samples[0,:])[:,np.newaxis]
+
+        pce = PolynomialChaosExpansion()
+        var_trans = define_iid_random_variable_transformation(
+            normal_rv(mu,sigma),num_vars) 
+        pce.configure({'poly_type':'hermite','var_trans':var_trans})
+        indices = compute_hyperbolic_indices(1,degree,1.)
+        pce.set_indices(indices)
+        
+        basis_matrix = pce.basis_matrix(samples)
+        probabilities = np.ones((nsamples))/nsamples
+        ssd_functor = DisutilitySSDFunctor(
+            basis_matrix,values[:,0],values[:,0],probabilities)
+        constraints = build_disutility_constraints_scipy(ssd_functor)
+
+        from scipy.optimize import check_grad, approx_fprime
+        xx = np.ones(ssd_functor.nunknowns)
+        assert check_grad(ssd_functor.objective,
+                          ssd_functor.objective_gradient, xx)<5e-7
+        for con in constraints:
+            print(con['jac'](xx))
+            assert check_grad(con['fun'], con['jac'], xx)<5e-7
+
+        ssd_functor = CVXOptDisutilitySSDFunctor(
+            basis_matrix,values[:,0],values[:,0],probabilities)
+        constraints = build_disutility_constraints_scipy(ssd_functor)
+
+        from scipy.optimize import check_grad, approx_fprime
+        xx = np.ones(ssd_functor.nunknowns)
+        assert check_grad(ssd_functor.objective,
+                          ssd_functor.objective_gradient, xx)<5e-7
+        for con in constraints:
+            print(con['jac'](xx))
+            assert check_grad(con['fun'], con['jac'], xx)<5e-7
+
 
 if __name__== "__main__":    
     risk_measures_test_suite = unittest.TestLoader().loadTestsFromTestCase(
