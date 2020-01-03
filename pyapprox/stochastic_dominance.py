@@ -308,7 +308,7 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_scipy(
     coef = res.x[:basis_matrix.shape[1],np.newaxis]
     slack_variables = res.x[basis_matrix.shape[1]:]
     
-    print('t',slack_variables)
+    #print('t',slack_variables)
     if not res.success:
         raise Exception(res.message)
     
@@ -393,15 +393,23 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
 
         nslack_variables = eta.shape[0]*self.nsamples
         nlinear_constraints = 2*nslack_variables
-        self.G = cvxopt_matrix(0.0, (nlinear_constraints,self.nunknowns))
         self.h = cvxopt_matrix(0.0, (nlinear_constraints,1))
-
-        self.G[:nslack_variables,self.ncoef:]=-np.eye(nslack_variables)
-        self.G[nslack_variables:,self.ncoef:]=np.eye(nslack_variables)
         self.h[:nslack_variables]=0.
         self.h[nslack_variables:]=1.
 
-        print(np.array(self.G))
+        # self.G = cvxopt_matrix(0.0, (nlinear_constraints,self.nunknowns))
+        # self.G[:nslack_variables,self.ncoef:]=-np.eye(nslack_variables)
+        # self.G[nslack_variables:,self.ncoef:]=np.eye(nslack_variables)
+
+        data = np.ones(nlinear_constraints)
+        data[:nslack_variables] = -1
+        I = np.arange(nlinear_constraints)
+        J = np.concatenate([np.arange(self.ncoef,self.ncoef+nslack_variables),
+                            np.arange(self.ncoef,self.ncoef+nslack_variables)])
+        self.G = cvxopt_spmatrix(
+            data,I,J,size=(nlinear_constraints,self.nunknowns))
+
+        #print(np.array(self.G))
     
     def __call__(self,x=None,z=None):
         if x is None:
@@ -413,8 +421,6 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
         f = cvxopt_matrix(0.0, (self.nconstraints+1,1))
         f[0] = self.objective(x)
         f[1:] = self.constraints(x)
-        #print('f',f[0])
-        print(self.constraints(x))
 
         Df = cvxopt_matrix(0.0, (self.nconstraints+1,self.nunknowns))
         Df[0,:] = self.objective_gradient(x)
@@ -425,13 +431,9 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
 
         H = cvxopt_matrix(0.0, (self.nunknowns,self.nunknowns))
         for kk in range(self.nconstraints+1):
-            hess_kk = self.hessian(x,kk)
-            H += z[kk]*hess_kk
-            # # TODO perhaps only need to compute components of hessian using
-            # # self.hessian once. Use this check once optimizer is working
-            # if self.H[kk] is not None:
-            #     assert np.allclose(self.H[kk],hess_kk)
-            #     self.H[kk]=hess_kk
+            if self.H[kk] is None:
+                self.H[kk] = self.hessian(x,kk)
+            H += z[kk]*self.H[kk]
 
         #print('rank H ',np.linalg.matrix_rank(np.array(H)))
         #print('rank Df',np.linalg.matrix_rank(np.array(Df)))
@@ -480,18 +482,16 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(
     ssd_functor = CVXOptDisutilitySSDFunctor(
         basis_matrix,values[:,0],values[eta_indices,0],probabilities)
 
-    solvers.options['show_progress'] = True#False
+    solvers.options['show_progress'] = False
     solvers.options['abstol'] = 1e-8
     solvers.options['reltol'] = 1e-8
     solvers.options['feastol'] = 1e-8
-    solvers.options['maxiters'] = 10
+    solvers.options['maxiters'] = 1000
     result = solvers.cp(ssd_functor,G=ssd_functor.G,h=ssd_functor.h)
     #print ("done")
     ssd_solution = np.array(result['x'])
-    print(result)
     coef = ssd_solution[:ssd_functor.ncoef]
     slack_variables = ssd_solution[ssd_functor.ncoef:]
-    print(slack_variables)
     if result['status']!='optimal':
         msg = 'Failed with status: %s'%result['status']
         raise Exception(msg)

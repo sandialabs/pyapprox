@@ -551,18 +551,14 @@ class TestRiskMeasures(unittest.TestCase):
             coef = solve_stochastic_dominance_constrained_least_squares(
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
-            coef=\
-                solve_disutility_stochastic_dominance_constrained_least_squares_scipy(
-                    samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            print(coef)
-            coef=\
-                solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(
-                    samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_scipy(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #print(coef)
+            coef=solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             print(coef)
             
 
         pce.set_coefficients(coef)
-        #assert False
+        assert False
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
         lb,ub = samples.min()-abs(samples.max())*.1,\
