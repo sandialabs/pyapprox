@@ -530,8 +530,8 @@ class TestRiskMeasures(unittest.TestCase):
         #disutility=False
 
         np.random.seed(4)
-        nsamples=14
-        degree=1
+        nsamples=100
+        degree=3
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -544,21 +544,18 @@ class TestRiskMeasures(unittest.TestCase):
 
         eta_indices=None
         #eta_indices=np.argsort(values[:,0])[nsamples//2:]
-        #from stochastic_dominance import solve_stochastic_dominance_constrained_least_squares
-        #coef = solve_stochastic_dominance_constrained_least_squares(
-        #    samples,values,pce.basis_matrix)
         if not disutility:
             coef = solve_stochastic_dominance_constrained_least_squares(
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
-            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_scipy(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             #print(coef)
-            coef=solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             print(coef)
             
 
         pce.set_coefficients(coef)
-        assert False
+        #assert False
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
         lb,ub = samples.min()-abs(samples.max())*.1,\
@@ -719,7 +716,7 @@ class TestRiskMeasures(unittest.TestCase):
         
         basis_matrix = pce.basis_matrix(samples)
         probabilities = np.ones((nsamples))/nsamples
-        ssd_functor = DisutilitySSDFunctor(
+        ssd_functor = SLSQPDisutilitySSDFunctor(
             basis_matrix,values[:,0],values[:,0],probabilities)
         constraints = build_disutility_constraints_scipy(ssd_functor)
 
@@ -728,20 +725,36 @@ class TestRiskMeasures(unittest.TestCase):
         assert check_grad(ssd_functor.objective,
                           ssd_functor.objective_gradient, xx)<5e-7
         for con in constraints:
-            print(con['jac'](xx))
+            #print(con['jac'](xx))
             assert check_grad(con['fun'], con['jac'], xx)<5e-7
 
-        ssd_functor = CVXOptDisutilitySSDFunctor(
+        ssd_functor = TrustRegionDisutilitySSDFunctor(
             basis_matrix,values[:,0],values[:,0],probabilities)
-        constraints = build_disutility_constraints_scipy(ssd_functor)
 
-        from scipy.optimize import check_grad, approx_fprime
         xx = np.ones(ssd_functor.nunknowns)
         assert check_grad(ssd_functor.objective,
                           ssd_functor.objective_gradient, xx)<5e-7
-        for con in constraints:
-            print(con['jac'](xx))
-            assert check_grad(con['fun'], con['jac'], xx)<5e-7
+
+        from pyapprox.optimization import approx_jacobian
+        fd_jacobian = approx_jacobian(ssd_functor.objective,xx)
+        jacobian = ssd_functor.objective_jacobian(xx)
+        assert np.allclose(fd_jacobian,jacobian.todense())
+
+        fd_jacobian = approx_jacobian(ssd_functor.constraints,xx)
+        jacobian = ssd_functor.constraints_jacobian(xx)
+        assert np.allclose(fd_jacobian,jacobian.todense())
+
+        hessian = ssd_functor.objective_hessian(xx)
+        fd_hessian = approx_jacobian(ssd_functor.objective_gradient,xx)
+        assert np.allclose(hessian.todense(),fd_hessian)
+
+        for ii in range(ssd_functor.nconstraints):
+            fd_hessian = approx_jacobian(
+                partial(ssd_functor.constraint_gradients,constraint_indices=ii),
+                xx)
+            hessian = ssd_functor.define_constraint_hessian(xx,ii)
+            assert np.allclose(hessian.todense(),fd_hessian)
+        
 
 
 if __name__== "__main__":    
