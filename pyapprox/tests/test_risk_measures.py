@@ -529,8 +529,8 @@ class TestRiskMeasures(unittest.TestCase):
         disutility=True
         #disutility=False
 
-        np.random.seed(3)
-        nsamples=3
+        np.random.seed(4)
+        nsamples=14
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
