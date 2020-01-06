@@ -410,6 +410,44 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
             data,I,J,size=(nlinear_constraints,self.nunknowns))
 
         #print(np.array(self.G))
+
+    def jacobian(self,x):
+
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+
+        nnonzero_entries=(self.ncoef+self.nsamples)*self.nconstraints
+        data = np.empty(nnonzero_entries,dtype=float)
+        I = np.empty(nnonzero_entries,dtype=int)
+        J = np.empty_like(I)
+        kk=0
+        for ii in range(self.nconstraints):
+            lb = self.ncoef+ii*self.nsamples
+            ub = lb+self.nsamples
+            t = x[lb:ub]
+            I[kk:kk+self.ncoef] = ii+1;
+            J[kk:kk+self.ncoef]=np.arange(self.ncoef)
+            data[kk:kk+self.ncoef]=-self.basis_matrix.T.dot(self.probabilities*t)
+            kk+=self.ncoef
+            #grad[ii,:self.ncoef] = self.basis_matrix.T.dot(self.probabilities*t)
+            I[kk:kk+(ub-lb)] = ii+1;
+            J[kk:kk+(ub-lb)]=np.arange(lb,ub)
+            data[kk:kk+(ub-lb)]=-self.probabilities*(
+                approx_values-self.eta[ii])
+            #grad[ii,lb:ub]  = self.probabilities*(approx_values-self.eta[index])
+            kk+=(ub-lb)
+        assert kk==nnonzero_entries
+
+        data = np.concatenate([-self.basis_matrix.T.dot(
+            self.values-self.basis_matrix.dot(coef)),data])
+        I = np.concatenate([np.zeros(self.ncoef,dtype=int),I])
+        J = np.concatenate([np.arange(self.ncoef,dtype=int),J])
+
+        grad = cvxopt_spmatrix(
+            data,I,J,size=(self.nconstraints+1,self.nunknowns))
+        #print(np.array(grad))
+        #print(super().constraint_gradients(x,constraint_indices))
+        return grad
     
     def __call__(self,x=None,z=None):
         if x is None:
@@ -422,10 +460,10 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
         f[0] = self.objective(x)
         f[1:] = self.constraints(x)
 
-        Df = cvxopt_matrix(0.0, (self.nconstraints+1,self.nunknowns))
-        Df[0,:] = self.objective_gradient(x)
-        Df[1:,:] = self.constraint_gradients(x)
-
+        #Df = cvxopt_matrix(0.0, (self.nconstraints+1,self.nunknowns))
+        #Df[0,:] = self.objective_gradient(x)
+        #Df[1:,:] = super().constraint_gradients(x)
+        Df = self.jacobian(x)
 
         if z is None:  return f, Df
 
@@ -448,7 +486,7 @@ class CVXOptDisutilitySSDFunctor(DisutilitySSDFunctor):
         xx = np.array(x)
         if ii==0:
             fd_hess = approx_jacobian(self.objective_gradient,xx)
-            fed_hess = 0.5*(fd_hess.T+fd_hess)
+            #fed_hess = 0.5*(fd_hess.T+fd_hess)
             hessian[:self.ncoef,:self.ncoef] = self.basis_matrix.T.dot(
                 self.basis_matrix)
             #print('Ho',fd_hess,np.array(hessian))
@@ -482,11 +520,11 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_cvxopt(
     ssd_functor = CVXOptDisutilitySSDFunctor(
         basis_matrix,values[:,0],values[eta_indices,0],probabilities)
 
-    solvers.options['show_progress'] = False
-    solvers.options['abstol'] = 1e-8
-    solvers.options['reltol'] = 1e-8
-    solvers.options['feastol'] = 1e-8
-    solvers.options['maxiters'] = 1000
+    solvers.options['show_progress'] = True#False
+    solvers.options['abstol'] = 1e-6
+    solvers.options['reltol'] = 1e-6
+    solvers.options['feastol'] = 1e-6
+    solvers.options['maxiters'] = 100
     result = solvers.cp(ssd_functor,G=ssd_functor.G,h=ssd_functor.h)
     #print ("done")
     ssd_solution = np.array(result['x'])
