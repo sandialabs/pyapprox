@@ -254,10 +254,11 @@ def solve_stochastic_dominance_constrained_least_squares(
 
 def build_disutility_constraints_scipy(ssd_obj):
     constraints = []
-    for ii in range(ssd_obj.nconstraints):
-        ineq_cons_fun = partial(ssd_obj.constraints,constraint_indices=ii)
+    for ii in range(ssd_obj.nnl_constraints):
+        ineq_cons_fun = partial(
+            ssd_obj.nonlinear_constraints,constraint_indices=ii)
         ineq_cons = {'type': 'ineq', 'fun' : ineq_cons_fun}
-        ineq_cons['jac'] = partial(ssd_obj.constraint_gradients,
+        ineq_cons['jac'] = partial(ssd_obj.nonlinear_constraint_gradients,
             constraint_indices=ii)
         constraints.append(ineq_cons)
     return constraints
@@ -267,9 +268,6 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(
     """
     Disutility formuation
     -Y dominates -Z
-
-    sum_{k=1}^N p_k t_{ik} (z_k-y_i) >= v_i = E[(y_i+Y)^{+}], k=1,...,N
-    t_ik>=0, i=1,...,N, k=1,...,N
     """
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
@@ -285,6 +283,11 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(
 
     # define nonlinear inequality constraints
     constraints = build_disutility_constraints_scipy(ssd_functor)
+    ineq_cons_fun = lambda x: (ssd_functor.linear_constraint_matrix.dot(x)-ssd_functor.linear_constraint_vector)
+    ineq_cons = {'type': 'ineq', 'fun' : ineq_cons_fun}
+    ineq_cons['jac'] = lambda x: ssd_functor.linear_constraint_matrix.todense()
+    
+    constraints.append(ineq_cons)
 
     # solve ssd problem
     optim_options={'ftol': 1e-4, 'disp': True, 'maxiter':1000}
@@ -314,38 +317,58 @@ class SLSQPDisutilitySSDFunctor(object):
         assert eta.ndim==1
         assert probabilities.ndim==1
 
-        self.nconstraints = eta.shape[0]
+        #number of nonlinear constraints
+        self.nnl_constraints = eta.shape[0]
+        #number of linear constraints
+        self.nl_constaints = self.nnl_constraints
         self.nsamples,self.ncoef=basis_matrix.shape
-        self.nunknowns=basis_matrix.shape[1]+self.nconstraints*self.nsamples
+        #self.nslack_variables = self.nnl_constraints*self.nsamples
+        self.nslack_variables = 2*self.nnl_constraints*self.nsamples
+        self.nunknowns=self.ncoef+self.nslack_variables
 
         self.cond_exps = np.maximum(
             0,self.values[:,np.newaxis]-self.eta[np.newaxis,:]).mean(axis=0)
 
         # define bounds
         from scipy.optimize import Bounds
+        # lb = np.zeros(self.nunknowns)
+        # lb[:self.ncoef] = -np.inf
+        # ub = np.ones(self.nunknowns)
+        # ub[:self.ncoef] = np.inf
+        # self.bounds = Bounds(lb,ub)
+
         lb = np.zeros(self.nunknowns)
         lb[:self.ncoef] = -np.inf
         ub = np.ones(self.nunknowns)
         ub[:self.ncoef] = np.inf
+        ub[:self.ncoef+self.nslack_variables//2:] = np.inf
         self.bounds = Bounds(lb,ub)
-
+        
         # define initial guess
         self.init_guess = np.zeros((self.nunknowns))
-        self.init_guess[self.ncoef:]=1
+        #self.init_guess[self.ncoef:]=1
+        self.init_guess[self.ncoef:self.ncoef+self.nslack_variables//2]=1
+        self.init_guess[self.ncoef+self.nslack_variables//2:]=1
+
+
 
         lstsq_coef = np.linalg.lstsq(
             self.basis_matrix,self.values,rcond=None)[0]
-        lstsq_coef[0] -= min(0,self.constraints(self.init_guess).min())
+        #lstsq_coef[0]-=min(0,self.nonlinear_constraints(self.init_guess).min())
+        lstsq_coef[0]=1
         self.init_guess[:self.ncoef] = lstsq_coef
+        self.init_guess[:]=0
+
+        self.define_linear_constraints()
 
 
     def objective(self,x):
         coef = x[:self.ncoef]
         return 0.5*np.sum((self.values-self.basis_matrix.dot(coef))**2)
 
-    def constraints(self,x,constraint_indices=None):
+    def nonlinear_constraints(self,x,constraint_indices=None):
         if constraint_indices is None:
-            constraint_indices=np.arange(self.nconstraints)
+            constraint_indices=np.arange(self.nnl_constraints)
         constraint_indices = np.atleast_1d(constraint_indices)
             
         coef = x[:self.ncoef]
@@ -355,9 +378,15 @@ class SLSQPDisutilitySSDFunctor(object):
             lb = self.ncoef+index*self.nsamples
             ub = lb+self.nsamples
             t = x[lb:ub]
+            lb = self.ncoef+self.nslack_variables//2+index*self.nsamples
+            ub = lb+self.nsamples
+            s = x[lb:ub]
+            #constraint_values[ii] = np.dot(
+            #    self.probabilities*t,approx_values-self.eta[index])
+            #constraint_values[ii] -= self.cond_exps[index]
             constraint_values[ii] = np.dot(
-                self.probabilities*t,approx_values-self.eta[index])
-            constraint_values[ii] -= self.cond_exps[index]
+                self.probabilities*t,approx_values-approx_values[index])
+            constraint_values[ii] -= self.probabilities.dot(s)
         return constraint_values
 
     def objective_gradient(self,x):
@@ -367,9 +396,9 @@ class SLSQPDisutilitySSDFunctor(object):
             self.values-self.basis_matrix.dot(coef))
         return grad
 
-    def constraint_gradients(self,x,constraint_indices=None):
+    def nonlinear_constraint_gradients(self,x,constraint_indices=None):
         if constraint_indices is None:
-            constraint_indices=np.arange(self.nconstraints)
+            constraint_indices=np.arange(self.nnl_constraints)
         constraint_indices = np.atleast_1d(constraint_indices)
 
         grad = np.zeros((constraint_indices.shape[0],self.nunknowns))
@@ -379,20 +408,53 @@ class SLSQPDisutilitySSDFunctor(object):
             lb = self.ncoef+index*self.nsamples
             ub = lb+self.nsamples
             t = x[lb:ub]
-            grad[ii,:self.ncoef] = self.basis_matrix.T.dot(
-                self.probabilities*t)
+            #grad[ii,:self.ncoef] = self.basis_matrix.T.dot(
+            #    self.probabilities*t)
+            #grad[ii,lb:ub]  = self.probabilities*(
+            #    approx_values-self.eta[index])
+            grad[ii,1:self.ncoef] = (
+                self.basis_matrix[:,1:]-self.basis_matrix[index,1:]).T.dot(
+                    self.probabilities*t)
             grad[ii,lb:ub]  = self.probabilities*(
-                approx_values-self.eta[index])
+                approx_values-approx_values[index])
+            lb = self.ncoef+self.nslack_variables//2+index*self.nsamples
+            ub = lb+self.nsamples
+            s = x[lb:ub]
+            grad[ii,lb:ub]  = -self.probabilities
+            
         if grad.ndim==2 and grad.shape[0]==1:
             grad = grad[0,:]
 
         return grad
 
+    def define_linear_constraints(self):
+        self.linear_constraint_vector = np.tile(
+            self.values,self.nnl_constraints)
+
+        nnonzero_entries = (self.ncoef+1)*self.nslack_variables//2
+        data = np.empty((nnonzero_entries),dtype=float)
+        I = np.empty((nnonzero_entries),dtype=int)
+        J = np.empty_like(I)
+        kk=0
+        for ii in range(self.nnl_constraints):
+            for jj in range(self.nsamples):
+                data[kk:kk+self.ncoef]=self.basis_matrix[jj,:]
+                data[kk+self.ncoef]=1
+                I[kk:kk+self.ncoef+1]=ii*self.nsamples+jj
+                J[kk:kk+self.ncoef]=np.arange(self.ncoef)
+                J[kk+self.ncoef]=self.ncoef+self.nslack_variables//2+\
+                    ii*self.nsamples+jj
+                kk+=self.ncoef+1
+        assert kk==nnonzero_entries
+
+        self.linear_constraint_matrix = csc_matrix(
+            (data,(I,J)),shape=(self.nslack_variables//2,self.nunknowns))
+
+
 class TrustRegionDisutilitySSDFunctor(SLSQPDisutilitySSDFunctor):
     def __init__(self,basis_matrix,values,eta,probabilities):
         super().__init__(basis_matrix,values,eta,probabilities)
-        self.constraint_hessians=[None for ii in range(self.nconstraints)]
-        self.nslack_variables = eta.shape[0]*self.nsamples
+        self.constraint_hessians=[None for ii in range(self.nnl_constraints)]
 
     def objective_jacobian(self,x):
         coef = x[:self.ncoef]
@@ -405,34 +467,54 @@ class TrustRegionDisutilitySSDFunctor(SLSQPDisutilitySSDFunctor):
             (data,(I,J)),shape=(1,self.nunknowns))
         return grad
 
-    def constraints_jacobian(self,x):
+    def nonlinear_constraints_jacobian(self,x):
         coef = x[:self.ncoef]
         approx_values = self.basis_matrix.dot(coef)
 
-        nnonzero_entries=(self.ncoef+self.nsamples)*self.nconstraints
+        #nnonzero_entries=(self.ncoef+self.nsamples)*self.nnl_constraints
+        nnonzero_entries=(self.ncoef-1+2*self.nsamples)*self.nnl_constraints
         data = np.empty(nnonzero_entries,dtype=float)
         I = np.empty(nnonzero_entries,dtype=int)
         J = np.empty_like(I)
         kk=0
-        for ii in range(self.nconstraints):
+        for ii in range(self.nnl_constraints):
             lb = self.ncoef+ii*self.nsamples
             ub = lb+self.nsamples
             t = x[lb:ub]
-            I[kk:kk+self.ncoef] = ii;
-            J[kk:kk+self.ncoef]=np.arange(self.ncoef)
-            data[kk:kk+self.ncoef]=self.basis_matrix.T.dot(
-                self.probabilities*t)
-            kk+=self.ncoef
+            #I[kk:kk+self.ncoef] = ii;
+            #J[kk:kk+self.ncoef] = np.arange(self.ncoef)
+            #data[kk:kk+self.ncoef]=self.basis_matrix.T.dot(
+            #    self.probabilities*t)
+            #kk+=self.ncoef
+            I[kk:kk+self.ncoef-1] = ii;
+            J[kk:kk+self.ncoef-1] = np.arange(1,self.ncoef)
+            data[kk:kk+self.ncoef-1]=(
+                self.basis_matrix[:,1:]-self.basis_matrix[ii,1:]).T.dot(
+                    self.probabilities*t)
+            kk+=self.ncoef-1
 
             I[kk:kk+(ub-lb)] = ii;
-            J[kk:kk+(ub-lb)]=np.arange(lb,ub)
+            J[kk:kk+(ub-lb)] = np.arange(lb,ub)
+            #data[kk:kk+(ub-lb)]=self.probabilities*(
+            #    approx_values-self.eta[ii])
+            # approx_values[ii] should be approx_values[eta_indices[ii]]
+            # this change needs to occur elsewhere too
             data[kk:kk+(ub-lb)]=self.probabilities*(
-                approx_values-self.eta[ii])
+                approx_values-approx_values[ii])
             kk+=(ub-lb)
+
+            lb = self.ncoef+self.nslack_variables//2+ii*self.nsamples
+            ub = lb+self.nsamples
+            I[kk:kk+(ub-lb)] = ii;
+            J[kk:kk+(ub-lb)] = np.arange(lb,ub)
+            s = x[lb:ub]
+            data[kk:kk+(ub-lb)] = -self.probabilities
+            kk+=(ub-lb)
+
         assert kk==nnonzero_entries
 
         grad = csc_matrix(
-            (data,(I,J)),shape=(self.nconstraints,self.nunknowns))
+            (data,(I,J)),shape=(self.nnl_constraints,self.nunknowns))
         return grad
 
     def objective_hessian(self,x):
@@ -446,18 +528,28 @@ class TrustRegionDisutilitySSDFunctor(SLSQPDisutilitySSDFunctor):
             (data,(I,J)),shape=(self.nunknowns,self.nunknowns))
         return hessian
     
-    def define_constraint_hessian(self,x,ii):        
-        I = np.repeat(np.arange(self.ncoef),self.ncoef)
-        J = np.tile(np.arange(self.ncoef),self.ncoef)
-        temp = self.probabilities[:,np.newaxis]*self.basis_matrix
+    def define_nonlinear_constraint_hessian(self,x,ii):        
+        # temp = self.probabilities[:,np.newaxis]*self.basis_matrix
+        # data1 = (temp.T).flatten()
+        # I1 = np.repeat(np.arange(self.ncoef),self.nsamples)
+        # J1 = np.tile(np.arange(self.nsamples),self.ncoef)
+        # J1 += self.ncoef+self.nsamples*ii
+        # data2 = temp.flatten()
+        # I2 = np.repeat(np.arange(self.nsamples),self.ncoef)
+        # J2 = np.tile(np.arange(self.ncoef),self.nsamples)
+        # I2 += self.ncoef+self.nsamples*ii
+
+        temp = self.probabilities[:,np.newaxis]*(
+            self.basis_matrix[:,1:]-self.basis_matrix[ii,1:])
         data1 = (temp.T).flatten()
-        I1 = np.repeat(np.arange(self.ncoef),self.nsamples)
-        J1 = np.tile(np.arange(self.nsamples),self.ncoef)
+        I1 = np.repeat(np.arange(1,self.ncoef),self.nsamples)
+        J1 = np.tile(np.arange(self.nsamples),self.ncoef-1)
         J1 += self.ncoef+self.nsamples*ii
         data2 = temp.flatten()
-        I2 = np.repeat(np.arange(self.nsamples),self.ncoef)
-        J2 = np.tile(np.arange(self.ncoef),self.nsamples)
+        I2 = np.repeat(np.arange(self.nsamples),self.ncoef-1)
+        J2 = np.tile(np.arange(1,self.ncoef),self.nsamples)
         I2 += self.ncoef+self.nsamples*ii
+        
         I = np.concatenate([I1,I2])
         J = np.concatenate([J1,J2])
         data = np.concatenate([data1,data2])
@@ -466,24 +558,20 @@ class TrustRegionDisutilitySSDFunctor(SLSQPDisutilitySSDFunctor):
             (data,(I,J)),shape=(self.nunknowns,self.nunknowns))
         return hessian
 
-    def constraints_hessian(self,x,v):
-        assert v.shape[0]==self.nconstraints
+    def nonlinear_constraints_hessian(self,x,v):
+        assert v.shape[0]==self.nnl_constraints
         result = 0
         for ii in range(v.shape[0]):
             if self.constraint_hessians[ii] is None:
-                self.constraint_hessians[ii] = self.define_constraint_hessian(
-                    x,ii)
+                self.constraint_hessians[ii]=\
+                    self.define_nonlinear_constraint_hessian(x,ii)
             result += v[ii]*self.constraint_hessians[ii]
         return result
 
-def solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(
-        samples,values,eval_basis_matrix,eta_indices=None):
+def solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,eval_basis_matrix,eta_indices=None):
     """
     Disutility formuation
     -Y dominates -Z
-
-    sum_{k=1}^N p_k t_{ik} (z_k-y_i) >= v_i = E[(y_i+Y)^{+}], k=1,...,N
-    t_ik>=0, i=1,...,N, k=1,...,N
     """
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
@@ -495,26 +583,37 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_trust_region
     ssd_functor = TrustRegionDisutilitySSDFunctor(
         basis_matrix,values[:,0],values[eta_indices,0],probabilities)
 
-    from scipy.optimize import NonlinearConstraint
+    from scipy.optimize import NonlinearConstraint, LinearConstraint
+    keep_feasible=False
     nonlinear_constraint = NonlinearConstraint(
-        ssd_functor.constraints, 0, np.inf,
-        jac=ssd_functor.constraints_jacobian,
-        hess=ssd_functor.constraints_hessian)
+        ssd_functor.nonlinear_constraints, 0, np.inf,
+        jac=ssd_functor.nonlinear_constraints_jacobian,
+        hess=ssd_functor.nonlinear_constraints_hessian,
+        keep_feasible=keep_feasible)
+
+    linear_constraint = LinearConstraint(
+        ssd_functor.linear_constraint_matrix,
+        ssd_functor.linear_constraint_vector,np.inf,keep_feasible=keep_feasible)
     
     # for optimization options see
     # docs.scipy.org/doc/scipy/reference/optimize.minimize-trustconstr.html
-    tol=1e-6
+    tol=1e-3
     optim_options={'verbose': 3, 'maxiter':1000,
                    'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
 
-    if np.any(ssd_functor.constraints(ssd_functor.init_guess)<=0):
+    if keep_feasible and (np.any(ssd_functor.nonlinear_constraints(ssd_functor.init_guess)<=0) or np.any(linear_constraint_matrix.dot(ssd_functor.init_guess)<linear_constraint_vector)):
         msg = "initial_guess is infeasiable"
+        print('c',ssd_functor.nonlinear_constraints(ssd_functor.init_guess))
+        print(linear_constraint_matrix.dot(ssd_functor.init_guess)-linear_constraint_vector)
         raise Exception(msg)
 
+    #constraints = [nonlinear_constraint]
+    constraints = [linear_constraint,nonlinear_constraint]
     res = minimize(
         ssd_functor.objective, ssd_functor.init_guess, method='trust-constr',
-        jac=ssd_functor.objective_gradient, hess=ssd_functor.objective_hessian,
-        constraints=[nonlinear_constraint],options=optim_options,
+        jac=ssd_functor.objective_gradient,
+        hess=ssd_functor.objective_hessian,
+        constraints=constraints,options=optim_options,
         bounds=ssd_functor.bounds)
 
     coef = res.x[:basis_matrix.shape[1],np.newaxis]
