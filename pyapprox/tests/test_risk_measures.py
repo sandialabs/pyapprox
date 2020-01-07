@@ -531,7 +531,7 @@ class TestRiskMeasures(unittest.TestCase):
 
         np.random.seed(4)
         nsamples=100
-        degree=3
+        degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -548,10 +548,10 @@ class TestRiskMeasures(unittest.TestCase):
             coef = solve_stochastic_dominance_constrained_least_squares(
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
-            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            #print(coef)
-            coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             print(coef)
+            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #print(coef)
             
 
         pce.set_coefficients(coef)
@@ -579,6 +579,9 @@ class TestRiskMeasures(unittest.TestCase):
         pce_cond_exp = compute_conditional_expectations(
             ygrid,pce_values,disutility)
         econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
+        econd_exp1=compute_conditional_expectations(pce_values,values[:,0],disutility)
+        pce_cond_exp1 = compute_conditional_expectations(
+            pce_values,pce_values,disutility)
 
         if disutility:
             sign = '+'
@@ -603,7 +606,8 @@ class TestRiskMeasures(unittest.TestCase):
         #             label=r'$\eta%s\mu_{X_\mathrm{SSD}}$'%sign)
         # axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--',
         #             label=r'$\eta%s\mu_{X_\mathrm{MC}}$'%sign)
-        ygrid = values.copy()[:,0]
+        #ygrid = values.copy()[:,0]
+        ygrid = pce_values.copy()
         if disutility:
             ygrid*=-1
         axs[1].plot(ygrid,compute_conditional_expectations(
@@ -702,8 +706,8 @@ class TestRiskMeasures(unittest.TestCase):
         f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
             get_lognormal_example_exact_quantities(mu,sigma)
         
-        nsamples=3
-        degree=1
+        nsamples=4
+        degree=2
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
 
@@ -726,6 +730,7 @@ class TestRiskMeasures(unittest.TestCase):
                           ssd_functor.objective_gradient, xx)<5e-7
         for con in constraints:
             #print(con['jac'](xx))
+            #print(approx_fprime(xx,con['fun'],1e-7))
             assert check_grad(con['fun'], con['jac'], xx)<5e-7
 
         ssd_functor = TrustRegionDisutilitySSDFunctor(
@@ -740,19 +745,24 @@ class TestRiskMeasures(unittest.TestCase):
         jacobian = ssd_functor.objective_jacobian(xx)
         assert np.allclose(fd_jacobian,jacobian.todense())
 
-        fd_jacobian = approx_jacobian(ssd_functor.constraints,xx)
-        jacobian = ssd_functor.constraints_jacobian(xx)
+        fd_jacobian = approx_jacobian(ssd_functor.nonlinear_constraints,xx)
+        jacobian = ssd_functor.nonlinear_constraints_jacobian(xx)
+        #print(fd_jacobian)
+        #print(jacobian.todense())
         assert np.allclose(fd_jacobian,jacobian.todense())
 
         hessian = ssd_functor.objective_hessian(xx)
         fd_hessian = approx_jacobian(ssd_functor.objective_gradient,xx)
         assert np.allclose(hessian.todense(),fd_hessian)
 
-        for ii in range(ssd_functor.nconstraints):
+        for ii in range(ssd_functor.nnl_constraints):
             fd_hessian = approx_jacobian(
-                partial(ssd_functor.constraint_gradients,constraint_indices=ii),
-                xx)
-            hessian = ssd_functor.define_constraint_hessian(xx,ii)
+                partial(ssd_functor.nonlinear_constraint_gradients,
+                        constraint_indices=ii),xx)
+            hessian = ssd_functor.define_nonlinear_constraint_hessian(xx,ii)
+            np.set_printoptions(linewidth=1000)
+            #print(hessian.todense())
+            #print(fd_hessian)
             assert np.allclose(hessian.todense(),fd_hessian)
         
 
