@@ -290,7 +290,7 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(
     constraints.append(ineq_cons)
 
     # solve ssd problem
-    optim_options={'ftol': 1e-4, 'disp': True, 'maxiter':1000}
+    optim_options={'ftol': 1e-4, 'disp': True, 'maxiter':1}
     opt_method = 'SLSQP'
     res = minimize(
         objective, ssd_functor.init_guess, method=opt_method, jac=jac,
@@ -355,10 +355,7 @@ class SLSQPDisutilitySSDFunctor(object):
         lstsq_coef = np.linalg.lstsq(
             self.basis_matrix,self.values,rcond=None)[0]
         #lstsq_coef[0]-=min(0,self.nonlinear_constraints(self.init_guess).min())
-        lstsq_coef[0]=1
         self.init_guess[:self.ncoef] = lstsq_coef
-        self.init_guess[:]=0
-
         self.define_linear_constraints()
 
 
@@ -625,6 +622,133 @@ def solve_disutility_stochastic_dominance_constrained_least_squares_trust_region
     # print('slack vars',slack_variables[-ssd_functor.nsamples:])
     # print('eta',ssd_functor.eta)
     # print('cond exps',ssd_functor.cond_exps)
+    if not res.success:
+        raise Exception(res.message)
+    
+    return coef
+
+class SmoothedDisutilitySSDFunctor(TrustRegionDisutilitySSDFunctor):
+    def __init__(self,basis_matrix,values,eta,probabilities):
+        self.eps=1e-1
+
+        self.basis_matrix=basis_matrix
+        self.values=values
+        self.eta=eta
+        self.probabilities=probabilities
+
+        assert values.ndim==1
+        assert eta.ndim==1
+        assert probabilities.ndim==1
+
+        #number of nonlinear constraints
+        self.nnl_constraints = eta.shape[0]
+        #number of linear constraints
+        self.nl_constaints = self.nnl_constraints
+        self.nsamples,self.ncoef=basis_matrix.shape
+        self.nunknowns=self.ncoef
+
+        # define bounds
+        from scipy.optimize import Bounds
+        lb = np.zeros(self.nunknowns)
+        lb[:self.ncoef] = -np.inf
+        ub = np.ones(self.nunknowns)
+        ub[:self.ncoef] = np.inf
+        self.bounds = Bounds(lb,ub)
+        
+        # define initial guess
+        self.init_guess = np.zeros((self.nunknowns))
+        lstsq_coef = np.linalg.lstsq(
+            self.basis_matrix,self.values,rcond=None)[0]
+        self.init_guess[:self.ncoef] = lstsq_coef
+
+    def smoothed_max_function_I(self,x):
+        #print('x',x)
+        #print(x + self.eps*np.log(1+np.exp(-x/self.eps)))
+        return (x + self.eps*np.log(1+np.exp(-x/self.eps)))
+
+    def smooth_max_function_I_gradient(self,x):
+        return 1.-1./(1+np.exp(x/self.eps))
+
+    def nonlinear_constraints(self,x,constraint_indices=None):
+        if constraint_indices is None:
+            constraint_indices=np.arange(self.nnl_constraints)
+        constraint_indices = np.atleast_1d(constraint_indices)
+            
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+        constraint_values = np.zeros(constraint_indices.shape)
+        for ii,index in enumerate(constraint_indices):
+            constraint_values[ii] = self.probabilities.dot(
+                self.smoothed_max_function_I(
+                    approx_values-approx_values[index]))
+            constraint_values[ii] -= self.probabilities.dot(
+                self.smoothed_max_function_I(
+                    self.values-approx_values[index]))
+        return constraint_values
+
+    def nonlinear_constraints_jacobian(self,x):
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+        grad = np.empty((self.nnl_constraints,self.ncoef),dtype=float)
+        for ii in range(self.nnl_constraints):
+            tmp1 = self.smooth_max_function_I_gradient(
+                approx_values-approx_values[ii])
+            grad[ii,:] = self.probabilities.dot(
+                tmp1[:,np.newaxis]*(self.basis_matrix-self.basis_matrix[ii,:]))
+            tmp2 = self.smooth_max_function_I_gradient(
+                self.values-approx_values[ii])
+            grad[ii,:] -= self.probabilities.dot(
+                tmp2[:,np.newaxis]*(-self.basis_matrix[ii,:]))
+        return grad
+        
+
+def solve_disutility_stochastic_dominance_constrained_least_squares_smoothed(
+        samples,values,eval_basis_matrix,eta_indices=None):
+    """
+    Disutility formuation
+    -Y dominates -Z
+    """
+    num_samples = samples.shape[1]
+    basis_matrix = eval_basis_matrix(samples)
+    probabilities = np.ones((num_samples))/num_samples
+    if eta_indices is None:
+        eta_indices = np.arange(0,num_samples)
+
+    # define objective
+    ssd_functor = SmoothedDisutilitySSDFunctor(
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities)
+
+    from pyapprox.optimization import approx_jacobian
+    xx = np.ones(ssd_functor.nunknowns)
+    fd_jacobian = approx_jacobian(ssd_functor.nonlinear_constraints,xx)
+    jacobian = ssd_functor.nonlinear_constraints_jacobian(xx)
+    #print(fd_jacobian)
+    #print(jacobian)
+    #assert np.allclose(fd_jacobian,jacobian)
+
+    from scipy.optimize import NonlinearConstraint, LinearConstraint, BFGS
+    keep_feasible=False
+    nonlinear_constraint = NonlinearConstraint(
+        ssd_functor.nonlinear_constraints, 0, np.inf,
+        jac=ssd_functor.nonlinear_constraints_jacobian,#jac='2-point',
+        hess=BFGS(),
+        keep_feasible=keep_feasible)
+    
+    tol=1e-4
+    optim_options={'verbose': 3, 'maxiter':1000,
+                   'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+    constraints = [nonlinear_constraint]
+    res = minimize(
+        ssd_functor.objective, ssd_functor.init_guess, method='trust-constr',
+        jac=ssd_functor.objective_gradient,
+        hess=ssd_functor.objective_hessian,
+        constraints=constraints,options=optim_options,
+        bounds=ssd_functor.bounds)
+    
+    coef = res.x[:basis_matrix.shape[1],np.newaxis]
+    slack_variables = res.x[basis_matrix.shape[1]:]
+    
+    #print('t',slack_variables)
     if not res.success:
         raise Exception(res.message)
     

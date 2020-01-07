@@ -530,7 +530,7 @@ class TestRiskMeasures(unittest.TestCase):
         #disutility=False
 
         np.random.seed(4)
-        nsamples=100
+        nsamples=3
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
@@ -548,13 +548,16 @@ class TestRiskMeasures(unittest.TestCase):
             coef = solve_stochastic_dominance_constrained_least_squares(
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
-            coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            print(coef)
-            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             #print(coef)
+            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            coef=solve_disutility_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            
+            print(coef)
             
 
         pce.set_coefficients(coef)
+        pce_values = pce(samples)[:,0]
         #assert False
 
         #lb,ub = normal_rv(mu,sigma).interval(0.99)
@@ -572,10 +575,10 @@ class TestRiskMeasures(unittest.TestCase):
         ylb,yub = values.min()-abs(values.max())*.1,\
                   values.max()+abs(values.max())*.1
         ygrid=np.linspace(ylb,yub,101)
+        ygrid = np.sort(np.concatenate([ygrid,pce_values]))
         if disutility:
             ygrid = -ygrid[::-1]
 
-        pce_values = pce(samples)[:,0]
         pce_cond_exp = compute_conditional_expectations(
             ygrid,pce_values,disutility)
         econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
@@ -628,6 +631,7 @@ class TestRiskMeasures(unittest.TestCase):
         axs[1].plot(ygrid,compute_conditional_expectations(
             ygrid,pce_values,disutility),'go')
         ygrid=np.linspace(ylb,yub,101)
+        ygrid = np.sort(np.concatenate([ygrid,pce_values]))
         if disutility:
             ygrid = -ygrid[::-1]
 
