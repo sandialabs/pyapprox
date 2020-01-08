@@ -530,7 +530,7 @@ class TestRiskMeasures(unittest.TestCase):
         #disutility=False
 
         np.random.seed(4)
-        nsamples=10
+        nsamples=3
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
@@ -545,19 +545,22 @@ class TestRiskMeasures(unittest.TestCase):
         eta_indices=None
         #eta_indices=np.argsort(values[:,0])[nsamples//2:]
         if not disutility:
-            coef = solve_stochastic_dominance_constrained_least_squares(
+            coef = solve_2nd_order_stochastic_dominance_constrained_least_squares(
                 samples,values,pce.basis_matrix,eta_indices=eta_indices)
         else:
-            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            #print(coef)
-            coef1=solve_disutility_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            # slsqp needs more testing. Dont think it is working, e.g. try
+            # degree=1, nsamples=20
+            #coef2=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #print(coef2)
+            #coef1=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
 
-            np.set_printoptions(precision=16)
-            print(coef1)
+            #np.set_printoptions(precision=16)
+            #print(coef1)
             #coef=coef1
-            coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            print(coef)
-            #assert False
+            #coef=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            #print(coef)
+            coef = solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+            assert False
             
 
         pce.set_coefficients(coef)
