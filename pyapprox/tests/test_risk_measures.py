@@ -530,7 +530,7 @@ class TestRiskMeasures(unittest.TestCase):
         #disutility=False
 
         np.random.seed(4)
-        nsamples=3
+        nsamples=10
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
@@ -550,10 +550,14 @@ class TestRiskMeasures(unittest.TestCase):
         else:
             #coef=solve_disutility_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             #print(coef)
-            #coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            coef=solve_disutility_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            
+            coef1=solve_disutility_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
+
+            np.set_printoptions(precision=16)
+            print(coef1)
+            #coef=coef1
+            coef=solve_disutility_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
             print(coef)
+            #assert False
             
 
         pce.set_coefficients(coef)
