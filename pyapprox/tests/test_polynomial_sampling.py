@@ -1,7 +1,8 @@
 import unittest
 from functools import partial
 from pyapprox.polynomial_sampling import *
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
+from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+    define_poly_options_from_variable_transformation
 from pyapprox.variable_transformations import \
      define_iid_random_variable_transformation, RosenblattTransformation, \
      TransformationComposition
@@ -23,10 +24,9 @@ class TestPolynomialSampling(unittest.TestCase):
         beta_poly=0
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1,2),num_vars) 
-        poly.configure(
-            {'alpha_poly':alpha_poly,'beta_poly':beta_poly,
-             'var_trans':var_trans})
+            uniform(-1,2),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -57,8 +57,9 @@ class TestPolynomialSampling(unittest.TestCase):
 
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1,2),num_vars) 
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+            uniform(-1,2),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -80,8 +81,9 @@ class TestPolynomialSampling(unittest.TestCase):
 
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars) 
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+            uniform(),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -125,8 +127,9 @@ class TestPolynomialSampling(unittest.TestCase):
         
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars) 
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+            uniform(),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -179,8 +182,9 @@ class TestPolynomialSampling(unittest.TestCase):
         
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars) 
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+            uniform(),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -246,8 +250,9 @@ class TestPolynomialSampling(unittest.TestCase):
         
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars) 
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+            uniform(),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -300,10 +305,9 @@ class TestPolynomialSampling(unittest.TestCase):
         num_samples = 1000
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars) 
-        poly.configure(
-            {'alpha_poly':alpha_poly,'beta_poly':beta_poly,
-            'var_trans':var_trans})
+            uniform(),num_vars)
+        opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(opts)
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
 
@@ -353,7 +357,8 @@ class TestPolynomialSampling(unittest.TestCase):
         var_trans = TransformationComposition([var_trans_1, var_trans_2])
 
         poly = PolynomialChaosExpansion()
-        poly.configure({'alpha_poly':0.,'beta_poly':0.,'var_trans':var_trans})
+        poly.configure({'poly_type':'jacobi','alpha_poly':0.,
+                        'beta_poly':0.,'var_trans':var_trans})
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.set_indices(indices)
         
