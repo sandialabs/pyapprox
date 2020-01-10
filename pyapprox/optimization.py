@@ -42,8 +42,10 @@ def eval_function_at_multiple_design_and_random_samples(function,uq_samples,desi
     # put design samples first so that samples iterates over uq_samples fastest
     samples = get_all_sample_combinations(design_samples,uq_samples)
     for xx,zz in zip(
-            samples[:design_samples.shape[0]],samples[uq_samples.shape[0]]):
-        # flip xx,zz because functions assumed to take uq_samples then design_samples
+            samples[:design_samples.shape[0]].T,
+            samples[design_samples.shape[0]:].T):
+        # flip xx,zz because functions assumed to take uq_samples then
+        # design_samples
         vals.append(function(zz,xx))
     return np.asarray(vals)
 
@@ -61,16 +63,13 @@ def eval_mc_based_jacobian_at_multiple_design_samples(grad,stat_func,
     """
     grads = eval_function_at_multiple_design_and_random_samples(
         grad,uq_samples,design_samples)
-
+    
     ndesign_samples = design_samples.shape[1]
     nuq_samples = uq_samples.shape[1]
     jacobian = np.array(
         [stat_func(grads[ii*nuq_samples:(ii+1)*nuq_samples])
          for ii in range(ndesign_samples)])
-
     return jacobian
-
-    
 
 def check_inputs(uq_samples,design_samples):
     if design_samples.ndim==1:

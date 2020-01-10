@@ -5,6 +5,7 @@ from pyapprox.variable_transformations import map_hypercube_samples
 from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials,\
     coeffs_of_power_of_nd_linear_polynomial
 from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials
+from pyapprox.utilities import cartesian_product
 def get_random_active_subspace_eigenvecs(num_vars,num_active_vars,filename=None):
     """
     Eigenvectors will be zero for all inactive variables
@@ -400,3 +401,287 @@ def sample_based_inner_products_on_active_subspace(W1,basis_matrix_func,
     moments /= float(num_samples)
     moments = moments.reshape(as_indices.shape[1],as_indices.shape[1])
     return moments
+
+def sort_2d_vertices_by_polar_angle(vertices):
+    # compute centroid
+    cent=(sum([p[0] for p in vertices.T])/len(vertices.T),
+              sum([p[1] for p in vertices.T])/len(vertices))
+    # sort by polar angle
+    sorted_vertices=np.array(
+        sorted(vertices.T,
+               key=lambda p: np.math.atan2(p[1]-cent[1],p[0]-cent[0]))).T
+    return sorted_vertices
+
+def find_line_perpendicular_to_active_subspace(W,point):
+    """
+    Find a line perpenidicular to a one dimensional active subspace that passes
+    through a specified point in that 1d subspace and that does not extend 
+    outside the bounds of the 2d polygon defined by the original hyperbube 
+    coordinates mapped to the rorated (but not truncated) active subspace 
+    coordinate system
+
+    Assume we have hypercube on [-1,1]^d, d=2
+    W: matrix (d x d)
+       rotation matrix usually the transpose of activesubspace eigenvectors
+    point: vector (d)
+       the point on the active subspace the line must pass through
+
+    return line: list [lb,up]
+           the upper and lower limits of the line
+    """
+    W1 = W[0,:]
+    cnt = 0
+    line = np.zeros((2,2))
+    # top edge x2==1
+    x1 = (point-W1[1])/W1[0]
+    if abs(x1)<=1 and W1[0]!=0:
+        line[:,cnt] = np.array([x1,1])
+        cnt+=1
+    # bottom edge x2==-1
+    x1 = (point+W1[1])/W1[0]
+    if abs(x1)<=1 and W1[0]!=0:
+        line[:,cnt] = np.array([x1,-1])
+        cnt+=1
+    # right edge x1==1
+    x2 = (point-W1[0])/W1[1]
+    if abs(x2)<=1 and W1[1]!=0:
+        line[:,cnt] = np.array([1,x2])
+        cnt+=1
+    # left edge x1==-1
+    x2 = (point+W1[0])/W1[1]
+    if abs(x2)<=1 and W1[1]!=0:
+        line[:,cnt] = np.array([-1,x2])
+        cnt+=1
+    line = np.dot(W,line)
+    assert cnt==2
+    return line
+
+def map_m11_to_ab(x,a,b):
+    """
+    map points in [-1,1] to [a,b]
+    """
+    assert x.ndim==1
+    return 0.5*((b-a)*x+(b+a))
+
+def integrate_density_a_2d_function_long_a_line(W,line,point,density_fn,
+                                                num_quad_points=100):
+    """
+    Integrate density along line perpendicular to active subspace line
+
+    W: matrix (d x d)
+       rotation matrix usually the transpose of activesubspace eigenvectors
+    point: vector (d)
+       the point on the active subspace the line must pass through
+    line: list [lb,ub]
+       the upper and lower limits of the line
+    """
+    lb = line[1,:].min()
+    ub = line[1,:].max()
+
+    # get gauss quadrature points and weights in [-1,1]
+    x,w=np.polynomial.legendre.leggauss(num_quad_points)
+    w*=(ub-lb)/2
+    # map points from [-1,1] to [lb,ub]
+    x = map_m11_to_ab(x,lb,ub)
+
+    # 2d quadrature points along the line with the first dimesion fixed at
+    # the value of point
+    x = np.vstack((np.ones((1,x.shape[0]))*point,(x.reshape(1,x.shape[0]))))
+
+    # quadrature points in full space coordinates
+    samples = np.dot(W.T,x)  #W.T = inv(W) because W is orthogonal
+    vals = density_fn(samples)
+    integral = np.dot(vals,w)
+    return integral
+
+def plot_evaluate_active_subspace_density_1d_step(
+        line,points_for_eval_in_interval,rotated_vertices,density_fn,
+        points_for_eval,cnt_all,W,mapped_vertices,density_vals):
+    f,axs=plt.subplots(1,2,sharey=False,figsize=(16,6))
+    axs[0].plot(line[0,:],line[1,:],'^b-',ms=10)
+    axs[0].plot(points_for_eval_in_interval,0,'rs')
+    axs[0].plot(rotated_vertices[0,:],rotated_vertices[1,:],'o-k')
+    axs[0].plot(rotated_vertices[0,:],rotated_vertices[1,:],'o-k')
+    ss_samples = np.vstack(
+        (points_for_eval[:cnt_all],np.zeros(cnt_all,float)))
+    axs[0].plot(ss_samples[0,:],ss_samples[1,:],'r-')
+    I = [0,3]
+    axs[0].plot(rotated_vertices[0,I],rotated_vertices[1,I],'o-k')
+
+
+    rotated_density_fn = lambda x: density_fn(np.dot(W.T,x))
+    limits = [
+        rotated_vertices[0,:].min(),rotated_vertices[0,:].max(),
+        rotated_vertices[1,:].min(),rotated_vertices[1,:].max()]
+    X,Y,Z = get_meshgrid_function_data(
+        rotated_density_fn, limits, 51)
+    xx = np.vstack(
+        (X.flatten()[np.newaxis,:],Y.flatten()[np.newaxis,:]))
+    I = np.where(np.absolute(np.dot(W.T,xx))>1)[1]
+    Z = Z.flatten()
+    levels=np.linspace(Z.min(),Z.max(),30)
+    Z[I]=np.nan
+    cmap = plt.cm.coolwarm
+    cmap.set_bad('white',1.)
+    Z = Z.reshape(X.shape[0],X.shape[1])
+    #axs[0].imshow(Z[::-1,:],extent=limits,cmap=cmap)
+    axs[0].contourf(
+        X,Y,Z,extent=limits,cmap=cmap,levels=levels)
+    axs[1].set_xlim([mapped_vertices.min(),mapped_vertices.max()])
+    axs[1].set_ylim([0,2])
+    axs[1].plot(
+        points_for_eval[:cnt_all],density_vals[:cnt_all],'k')
+
+def evaluate_active_subspace_density_1d(W,density_fn,points_for_eval=None,
+                                        num_quad_points=100,plot_steps=True):
+    """
+    Assume we have hypercube on [-1,1]^d, d=2
+    W: matrix (d x d)
+       rotation matrix usually the transpose of activesubspace eigenvectors
+    num_quad_points: int
+       number of quadrature points used to integrate 2d density along a line
+    points_for_eval: vector (d)
+       points at which to evalute the 1d active subspace density
+
+    """
+    assert W.shape[0]==W.shape[1]==2
+
+    num_dims = 2
+    #Split rotation matrix into active subspace eigenvector
+    W1 = W[0,:]
+    # and inactive subspace eigenvector
+    W2 = W[1,:]
+
+    # define hypercube vertices
+    hypercube_vertices_1d = np.array([-1.,1.])
+    hypercube_vertices = cartesian_product([hypercube_vertices_1d]*num_dims,1)
+
+    # compute location of each hypercube vertices in the 1d active subspace.
+    # multiple vertices may map to the same point
+    mapped_vertices = np.dot(W1,hypercube_vertices).squeeze()
+    mapped_vertices = np.sort(mapped_vertices)
+
+    subspace_1d_bounds = mapped_vertices.min(),mapped_vertices.max()
+
+    # compute location of each hypercube vertices in the rotated
+    # (but still full dimensional) active subspace coordinates.
+    rotated_vertices = np.dot(W,hypercube_vertices)
+    # sort vertices for plotting
+    rotated_vertices = sort_2d_vertices_by_polar_angle(rotated_vertices)
+
+    # define points for plotting in 1d active subspace
+    if points_for_eval is None:
+        num_points_for_eval = 102
+        delta=(subspace_1d_bounds[1]-subspace_1d_bounds[0])/(
+            num_points_for_eval)
+        points_for_eval = np.linspace(
+            subspace_1d_bounds[0]+delta/2.,
+            subspace_1d_bounds[1]-delta/2.,num_points_for_eval)
+    else:
+        # map subspace eval points from [-1,1] to [lb,ub]
+        assert points_for_eval.min()>=-1 and points_for_eval.max()<=1
+        points_for_eval = map_m11_to_ab(
+            points_for_eval,subspace_1d_bounds[0],subspace_1d_bounds[1])
+
+    # Initialize memory and counters
+    cnt_all = 0
+    density_vals = np.zeros(points_for_eval.shape[0],float)
+    for i in range(mapped_vertices.shape[0]-1):
+        # Find points in 1d active subspace that map to the
+        # current edge of the two dimensional hypercube
+        I = np.where(
+            (points_for_eval>=mapped_vertices[i]) &
+            (points_for_eval<mapped_vertices[i+1]))[0]
+        points_for_eval_in_interval = points_for_eval[I]
+        num_points_for_eval_in_interval = points_for_eval_in_interval.shape[0]
+
+        # Check that no points for eval coincide with the location of
+        # the mappeed hypercube vertices. Such points will mess up search
+        # for perpendicular line
+        assert np.all(points_for_eval_in_interval!=mapped_vertices[i])
+        assert np.all(points_for_eval_in_interval!=mapped_vertices[i+1])
+
+        # integrate desity on zonotope along the line perpendicular to the
+        # active subspace that runs through the point
+        # points_for_eval_in_interval[i] and extends to edges on original
+        # hypercube. At some locations line may only touch
+        # the boundary of the hyercube on one side of the active subspace
+        for j in range(num_points_for_eval_in_interval):
+            line = find_line_perpendicular_to_active_subspace(
+                W,points_for_eval_in_interval[j])
+
+            density = integrate_density_a_2d_function_long_a_line(
+                W,line,points_for_eval_in_interval[j],density_fn,
+                num_quad_points=num_quad_points)
+
+            points_for_eval[cnt_all] = points_for_eval_in_interval[j]
+            density_vals[cnt_all] = density
+
+            cnt_all+=1
+
+            if plot_steps:
+                plot_evaluate_active_subspace_density_1d_step(
+                    line,points_for_eval_in_interval[j],rotated_vertices,
+                    density_fn,points_for_eval,cnt_all,W,mapped_vertices,
+                    density_vals)
+                plt.show()
+    assert cnt_all==points_for_eval.shape[0]
+
+    return density_vals, subspace_1d_bounds
+
+def evaluate_active_subspace_density_1d_example(density_fn,tol,test=False):
+    from pyapprox.visualization import plot_2d_polygon, \
+        get_meshgrid_function_data
+    
+    num_quad_samples=100
+    points_for_eval, quad_weights=np.polynomial.legendre.leggauss(
+        num_quad_samples)
+
+    # for varing rotations make sure density on 1d active subspace
+    # integrates to 1
+    n = 10; r=1
+    num_rotations = 23
+    angles = np.linspace(0.,np.pi*2.,num_rotations)
+    import matplotlib.pyplot as plt
+    f,axs=plt.subplots(1,2,sharey=False,figsize=(16,6))
+    for i in range(1,angles.shape[0]):
+        W = np.array([[np.cos(angles[i]),-np.sin(angles[i])],
+                      [np.sin(angles[i]),np.cos(angles[i])]])
+        density_vals, subspace_1d_bounds = \
+            evaluate_active_subspace_density_1d(
+                W,density_fn,points_for_eval,num_quad_samples,False)
+        integral_density = np.dot(density_vals,quad_weights)
+        # Gauss legendre weights must be scaled to correct for length of
+        # subspace interval. If integrating
+        # int_a^b f(t)dt but gauss points are x in [-1,1] then dt=(b-a)/2 dx
+        integral_density*=(subspace_1d_bounds[1]-subspace_1d_bounds[0])/2
+        #print abs(1-integral_density)
+        assert np.allclose(integral_density,1.,atol=tol)
+
+        if not test:
+            axs[0].plot(map_m11_to_ab(points_for_eval,subspace_1d_bounds[0],
+                                      subspace_1d_bounds[1]),
+                    density_vals,'k',lw=2)
+        hypercube_vertices_1d = np.array([-1.,1.])
+        hypercube_vertices = cartesian_product(
+            [hypercube_vertices_1d]*2,1)
+        mapped_vertices = np.dot(W,hypercube_vertices)
+        if not test:
+            plot_2d_polygon(mapped_vertices,axs[1])
+    if not test:
+        plt.show()
+
+def plot_evaluate_active_subspace_density_1d_steps():
+    #niform_density_fn = lambda x: np.ones(x.shape[1])*0.25
+    alpha = 2; beta = 5
+    def beta_density_function_1d(x):
+        return beta_rv.pdf((x+1.)/2.,alpha,beta)/2
+    beta_density_fn = lambda x: beta_density_function_1d(
+        x[0,:])*beta_density_function_1d(x[1,:])
+    angle=0.25*np.pi
+    W = np.array([[np.cos(angle),-np.sin(angle)],
+                   [np.sin(angle),np.cos(angle)]])
+    points_for_eval=np.linspace(-.99,.99,10)
+    evaluate_active_subspace_density_1d(
+        W,beta_density_fn,points_for_eval=points_for_eval,
+        num_quad_points=100,plot_steps=True)

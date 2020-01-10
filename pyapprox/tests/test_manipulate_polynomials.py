@@ -10,6 +10,8 @@ from pyapprox.multivariate_polynomials import jacobi_recurrence, \
 from pyapprox.orthonormal_polynomials_1d import \
     evaluate_orthonormal_polynomial_1d
 
+skiptest = unittest.skip("test not completely implemented")
+
 class TestManipulatePolynomials(unittest.TestCase):
 
     def test_multiply_multivariate_polynomials(self):
@@ -185,6 +187,7 @@ class TestManipulatePolynomials(unittest.TestCase):
         assert np.allclose(
             true_coeffs[true_sorted_idx],new_coeffs[new_sorted_idx])
 
+    @skiptest    
     def test_substitute_polynomial_for_variables_in_single_basis_term(self):
         """
         Substitute 

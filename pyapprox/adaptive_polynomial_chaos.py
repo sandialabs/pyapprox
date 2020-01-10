@@ -55,10 +55,7 @@ def variance_pce_refinement_indicator(
 
     # compute marginal benefit 
     indicator/=cost
-    print(subspace_index,indicator,'indicator')
-    print(I)
-    if adaptive_pce.pce.coefficients.shape[0]>5:
-        print(np.sum(adaptive_pce.pce.coefficients[[3,4]]**2,axis=0))
+    #print(subspace_index,indicator,'indicator')
     return -indicator, error[qoi_chosen]
     
 def solve_preconditioned_least_squares(basis_matrix_func,samples,values):
@@ -314,4 +311,13 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
     def get_active_unique_poly_indices(self):
         I = get_active_poly_array_indices(self)
-        return self.poly_indices[:,I]    
+        return self.poly_indices[:,I]
+
+    def build(self):
+        """
+        """
+        while (not self.active_subspace_queue.empty() or
+               self.subspace_indices.shape[1]==0):
+            self.refine()
+            self.recompute_active_subspace_priorities()
+

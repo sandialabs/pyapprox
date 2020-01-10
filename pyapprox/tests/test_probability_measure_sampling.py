@@ -79,7 +79,7 @@ class TestProbabilitySampling(unittest.TestCase):
         variable  = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
-        num_samples = int(1e6)
+        num_samples = int(5e6)
         samples = generate_independent_random_samples(
             var_trans.variable,num_samples)
         mean = samples.mean(axis=1)

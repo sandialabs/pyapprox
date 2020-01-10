@@ -4,7 +4,7 @@ from pyapprox.bayesian_inference.laplace import *
 from pyapprox.density import *
 import numpy as np
 from pyapprox.bayesian_inference.diagnostics import *
-from pyapprox.models.algebraic_models import *
+from pyapprox.bayesian_inference.test_laplace import LogUnormalizedPosterior
 
 def set_mcmc_options(negloglikelihood, prior_density, num_samples,
                      initial_sample, mcmc_method, plot, verbosity,

@@ -11,14 +11,13 @@ def check_derivative(function,num_design_pts):
     f,g = function(design_prob_measure,return_grad=True)
     dold  = g.T.dot(direction)
     #print('\n\n')
-    print(dold.shape,g.shape)
+    #print(dold.shape,g.shape)
     diff = []
     for i in range(1,13):
         fleft = function(design_prob_measure-t*direction,return_grad=False)
         fright = function(design_prob_measure+t*direction,return_grad=False)
         dnew = (fright-fleft)/(2*t)
-        #print(fnew)
-        #print(t,dold,dnew,abs(dold-dnew))
+        print(t,dold,dnew,abs(dold-dnew))
         t    = t*dt
         diff.append(abs(dold-dnew))
     #print('\n\n')

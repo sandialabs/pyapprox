@@ -352,7 +352,7 @@ class SLSQPDisutilitySSDFunctor(object):
         lstsq_coef[0]+=max(0,residual)
 
         residual = self.values[I]-self.basis_matrix[I].dot(lstsq_coef)
-        assert residual<=0, residual
+        assert residual<=2*np.finfo(float).eps, residual
 
         approx_values = self.basis_matrix.dot(lstsq_coef)
         # define initial guess
@@ -885,12 +885,12 @@ class FSDFunctor(SmoothedDisutilitySSDFunctor):
                  eps=1e-3):
         super().__init__(basis_matrix,values,eta,probabilities,smoother,eps)
 
-        def smoothed_max_function(self,x):
-            """
+    def smoothed_max_function(self,x):
+        """
             Heaviside function is approximated by the first derivative of
             the approximate postive part function
             x + self.eps*np.log(1+np.exp(-x/self.eps)
-            """
+        """
         if self.smoother==0:
             return (x + self.eps*np.log(1+np.exp(-x/self.eps)))
         elif self.smoother==1:
