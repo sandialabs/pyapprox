@@ -3,11 +3,11 @@ from __future__ import (absolute_import, division,
 import numpy as np
 from numpy.linalg import cholesky
 from pyapprox.density import NormalDensity, \
-    map_gaussian_samples_to_canonical_domain, map_from_canonical_gaussian,\
+    map_to_canonical_gaussian, map_from_canonical_gaussian,\
     plot_gaussian_contours
 from pyapprox.bayesian_inference.laplace import \
     get_laplace_covariance_sqrt_operator
-from pyapprox.models.algebraic_models import LogUnormalizedPosterior
+from pyapprox.bayesian_inference.test_laplace import LogUnormalizedPosterior
 import copy
 from pyapprox.bayesian_inference.deprecated_laplace import get_stochastic_newton_proposal_mean_and_covar_chol_factor_from_function
 from pyapprox.variable_transformations import \
@@ -122,7 +122,7 @@ def select_build_data(density, build_samples, build_values,
 
     # map the build_samples to the canonical domain
     num_samples = build_samples.shape[1]
-    canonical_build_samples = map_gaussian_samples_to_canonical_domain(
+    canonical_build_samples = map_to_canonical_gaussian(
         build_samples, density.mean, density.chol_factor)
 
     num_build_samples = build_samples.shape[1]
@@ -522,7 +522,7 @@ def select_new_build_sample_for_posterior_surrogate_from_candidates(
 
     # map the build_samples to the canonical domain
     num_samples = build_samples.shape[1]
-    canonical_build_samples = map_gaussian_samples_to_canonical_domain(
+    canonical_build_samples = map_to_canonical_gaussian(
         build_samples, proposal_density.mean,
         proposal_density.chol_factor)
 
@@ -801,7 +801,7 @@ def generate_bayes_numerator_vals_using_cross_validation(
     cv_iterator.set_num_points( num_build_samples )
     cv_iterator.set_num_equations_per_point( 1 )
 
-    canonical_build_samples = map_gaussian_samples_to_canonical_domain(
+    canonical_build_samples = map_to_canonical_gaussian(
         build_samples, prior_density.mean, prior_density.chol_factor)
 
     num_eval_samples = eval_samples.shape[1]

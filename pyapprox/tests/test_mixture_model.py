@@ -68,7 +68,7 @@ class TestMixtureModel(unittest.TestCase):
         var_trans = define_iid_random_variable_transformation(
             uniform(-1,2),num_vars) 
         poly_opts = {'alpha_poly':0,'beta_poly':0,
-                    'var_trans':var_trans}
+                     'var_trans':var_trans,'poly_type':'jacobi'}
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
         poly.configure(poly_opts)
         poly.set_indices(indices)   

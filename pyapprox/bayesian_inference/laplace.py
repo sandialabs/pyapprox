@@ -333,6 +333,10 @@ def laplace_posterior_approximation_for_linear_models(
     posterior_covariance: (num_dims x num_dims) matrix
         The covariance of the Gaussian posterior
     """
+    if prior_mean.ndim==1:
+        prior_mean = prior_mean[:,np.newaxis]
+    if obs.ndim==1:
+        obs = obs[:,np.newaxis]
     assert prior_mean.ndim==2 and prior_mean.shape[1]==1
     assert obs.ndim==2
     misfit_hessian=dot(
@@ -565,6 +569,7 @@ def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
     posterior_samples : matrix (num_dims x num_samples)
         Samples from the posterior
     """
+    assert laplace_mean.ndim==2 and laplace_mean.shape[1]==1
     std_normal_samples = np.random.normal(0.,1.,(num_dims,num_samples))
     if weights is not None:
         assert weights.ndim==1 and weights.shape[0]==num_dims
@@ -572,7 +577,7 @@ def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
 
     posterior_samples = \
       laplace_covariance_sqrt.apply(std_normal_samples,transpose=False)+\
-      laplace_mean[:,np.newaxis]
+      laplace_mean
     return posterior_samples
 
 def get_pointwise_laplace_variance(prior, laplace_covariance_sqrt):

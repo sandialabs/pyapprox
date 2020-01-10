@@ -10,8 +10,142 @@ from pyapprox.randomized_svd import randomized_svd, MatVecOperator, \
 from pyapprox.tests.test_density import helper_gradient
 from pyapprox.multivariate_gaussian import MultivariateGaussian,\
      CholeskySqrtCovarianceOperator, CovarianceOperator, get_operator_diagonal
-from pyapprox.models.algebraic_models import QuadraticMisfitModel, \
-    LogUnormalizedPosterior
+from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+
+class QuadraticMisfitModel(object):
+    def __init__(self,num_vars,rank,num_qoi,
+                 obs=None,noise_covariance=None,Amatrix=None):
+        self.num_vars = num_vars
+        self.rank=rank
+        self.num_qoi=num_qoi
+        if Amatrix is None:
+            self.Amatrix = get_low_rank_matrix(num_qoi,num_vars,rank)
+        else:
+            self.Amatrix=Amatrix
+            
+        if obs is None:
+            self.obs = np.zeros(num_qoi)
+        else:
+            self.obs=obs
+        if noise_covariance is None:
+            self.noise_covariance = np.eye(num_qoi)
+        else:
+            self.noise_covariance=noise_covariance
+            
+        self.noise_covariance_inv = np.linalg.inv(self.noise_covariance)
+
+    def value(self,sample):
+        assert sample.ndim==1
+        residual = np.dot(self.Amatrix,sample)-self.obs
+        return np.asarray(
+            [0.5*np.dot(residual.T,np.dot(self.noise_covariance_inv,residual))])
+
+    def gradient(self,sample):
+        assert sample.ndim==1
+        grad = np.dot(self.Amatrix.T,np.dot(self.noise_covariance_inv,
+                      np.dot(self.Amatrix,sample)-self.obs))
+        return grad
+
+    def gradient_set(self,samples):
+        assert samples.ndim==2
+        num_vars, num_samples = samples.shape
+        gradients = np.empty((num_vars,num_samples),dtype=float)
+        for i in range(num_samples):
+            gradients[:,i] = self.gradient(samples[:,i])
+        return gradients
+
+    def hessian(self,sample):
+        assert sample.ndim==1 or sample.shape[1]==1
+        return np.dot(
+            np.dot(self.Amatrix.T,self.noise_covariance_inv),self.Amatrix)
+
+    def __call__(self,samples,opts=dict()):
+        eval_type=opts.get('eval_type','value')
+        if eval_type=='value':
+            return evaluate_1darray_function_on_2d_array(
+                self.value,samples,opts)
+        elif eval_type=='value_grad':
+            vals = evaluate_1darray_function_on_2d_array(
+                self.value,samples,opts)
+            return np.hstack((vals,self.gradient_set(samples).T))
+        elif eval_type=='grad':
+            return self.gradient_set(samples).T
+        else:
+            raise Exception('%s is not a valid eval_type'%eval_type)
+        
+class LogUnormalizedPosterior(object):
+
+    def __init__(self, misfit, misfit_gradient, prior_pdf, prior_log_pdf,
+                 prior_log_pdf_gradient):
+        """
+        Initialize the object.
+
+        Parameters
+        ----------
+        """
+        self.misfit          = misfit
+        self.misfit_gradient = misfit_gradient
+        self.prior_pdf       = prior_pdf
+        self.prior_log_pdf   = prior_log_pdf
+        self.prior_log_pdf_gradient   = prior_log_pdf_gradient
+
+    def gradient(self,samples):
+        """
+        Evaluate the gradient of the logarithm of the unnormalized posterior
+           likelihood(x)*posterior(x)
+        at a sample x
+
+        Parameters
+        ----------
+        samples : (num_vars,num_samples) vector
+            The location at which to evalute the unnormalized posterior
+
+        Returns
+        -------
+        val : (1x1) vector
+            The logarithm of the unnormalized posterior
+        """
+        if samples.ndim==1:
+            samples=samples[:,np.newaxis]
+        grad = -self.misfit_gradient(samples) + \
+               self.prior_log_pdf_gradient(samples)
+        return grad
+
+    def __call__(self,samples,opts=dict()):
+        """
+        Evaluate the logarithm of the unnormalized posterior
+           likelihood(x)*posterior(x)
+        at samples x
+
+        Parameters
+        ----------
+        sampels : np.ndarray (num_vars, num_samples)
+            The samples at which to evalute the unnormalized posterior
+
+        Returns
+        -------
+        values : np.ndarray (num_samples,1)
+            The logarithm of the unnormalized posterior
+        """
+        if samples.ndim==1:
+            samples=samples[:,np.newaxis]
+
+        eval_type = opts.get('eval_type','value')
+        if eval_type=='value':
+            values = -self.misfit(samples)+self.prior_log_pdf(samples)
+            assert values.ndim==2
+            
+        elif eval_type=='grad':
+            values = self.gradient(samples).T
+            
+        elif eval_type=='value_grad':
+            values = -self.misfit(samples)+self.prior.log_pdf(samples)
+            grad = self.gradient(samples)
+            values = np.hstack((values,grad))
+        else:
+            raise Exception()
+            
+        return values
 
 def assert_ndarray_allclose(matrix1,matrix2,atol=1e-8,rtol=1e-5,msg=None):
     """
@@ -58,7 +192,7 @@ def setup_quadratic_misfit_problem(prior,rank,noise_sigma2=1):
 
 
 def posterior_covariance_helper(prior, rank, comparison_tol,
-                              test_sampling=False, plot=False):
+                                test_sampling=False, plot=False):
     """
     Test that the Laplace posterior approximation can be obtained using
     the action of the sqrt prior covariance computed using a PDE solve
@@ -177,7 +311,8 @@ def posterior_covariance_helper(prior, rank, comparison_tol,
         atol=1e-2*exact_laplace_covariance.max(),rtol=0.,
         msg='Comparing posterior samples covariance')
     assert_ndarray_allclose(
-        exact_laplace_mean,np.mean(posterior_samples,axis=1),atol=2e-2,rtol=0.,
+        exact_laplace_mean.squeeze(),
+        np.mean(posterior_samples,axis=1),atol=2e-2,rtol=0.,
         msg='Comparing posterior samples mean')
 
     if plot:
@@ -304,7 +439,7 @@ class TestLaplace(unittest.TestCase):
         initial_point = prior_mean
         map_point, obj_min = find_map_point(objective,initial_point)
 
-        assert np.allclose(exact_map_point, map_point)
+        assert np.allclose(exact_map_point.squeeze(), map_point)
 
         assert np.allclose(
             objective.gradient(map_point),objective.gradient(exact_map_point))
@@ -690,10 +825,10 @@ class TestGoalOrientedInference(unittest.TestCase):
         #print opt_pf_mean, exact_pf_mean
 
         # check prediction mean is exact
-        assert np.allclose(opt_pf_mean, exact_pf_mean)
+        assert np.allclose(opt_pf_mean, exact_pf_mean.squeeze())
         # check posterior mean pushed through prediction model is exact
         assert np.allclose(
-            np.dot(pred_matrix,posterior_mean), np.dot(pred_matrix,exact_post_mean))
+            np.dot(pred_matrix,posterior_mean), np.dot(pred_matrix,exact_post_mean.squeeze()))
         # check prediction covariance is exact
         #print opt_pf_cov
         #print exact_pf_cov

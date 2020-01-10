@@ -9,6 +9,9 @@ from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
 from scipy.stats import beta
 from pyapprox.configure_plots import *
+
+skiptest = unittest.skip("test not completely implemented")
+
 class TestInducedSampling(unittest.TestCase):
 
     def test_continous_induced_measure_ppf(self):
@@ -32,6 +35,7 @@ class TestInducedSampling(unittest.TestCase):
         #plt.plot(ppf_vals,cdf_vals,'r*',ms=2)
         #plt.show()
         
+    @skiptest
     def test_discrete_induced_sampling(self):
         degree=2
         

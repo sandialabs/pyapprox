@@ -17,9 +17,6 @@ from pyapprox.indexing import compute_hyperbolic_indices,\
 from pyapprox.monomial import monomial_mean_uniform_variables, \
     monomial_basis_matrix, univariate_monomial_basis_matrix
 from pyapprox.manipulate_polynomials import group_like_terms
-from pyapprox.examples.active_subspace_density import \
-    evaluate_active_subspace_density_1d_example, \
-    evaluate_active_subspace_density_1d
 
 
 class TestActiveSubspace(unittest.TestCase):
@@ -111,7 +108,7 @@ class TestActiveSubspace(unittest.TestCase):
         sorted_idx = argsort_indices_leixographically(indices)
         a,b,c = W1[:,0]; d,e,f = W1[:,1]
         true_coeffs = np.array([c*f,c*e+b*f,b*e,a*f+c*d,a*e+b*d,a*d])
-        assert np.allclose(true_coeffs,coeffs[sorted_idx])
+        assert np.allclose(true_coeffs,coeffs[sorted_idx].squeeze())
 
         #(ax+by+cz)^4
         #a^4 x^4 + 4 a^3 c x^3 z + 4 b a^3 x^3 y + 6 a^2 c^2 x^2 z^2 + 12 b a^2 c x^2 y z + 6 b^2 a^2 x^2 y^2 + 4 a c^3 x z^3 + 12 b a c^2 x y z^2 + 12 b^2 a c x y^2 z + 4 b^3 a x y^3 + c^4 z^4 + 4 b c^3 y z^3 + 6 b^2 c^2 y^2 z^2 + 4 b^3 c y^3 z + b^4 y^4

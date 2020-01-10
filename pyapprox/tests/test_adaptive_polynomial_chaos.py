@@ -27,11 +27,7 @@ class TestAdaptivePCE(unittest.TestCase):
         pce.set_refinement_functions(
             refinement_indicator,admissibility_function,
             clenshaw_curtis_rule_growth)
-        #pce.build()
-        while (not pce.active_subspace_queue.empty() or
-               pce.subspace_indices.shape[1]==0):
-            pce.refine()
-            pce.recompute_active_subspace_priorities()
+        pce.build()
         validation_samples = generate_independent_random_samples(
             var_trans.variable,int(1e3))
         validation_vals = function(validation_samples)
@@ -111,7 +107,7 @@ class TestAdaptivePCE(unittest.TestCase):
         error, samples_slow = self.helper(
             function,var_trans,pce,np.inf,error_tol)
         print('leja sampling error',error)
-        assert error < error_tol
+        assert error < 10*error_tol
 
         # assert index is additive except for [1,1] subspace terms
         subspace_num_active_vars = np.count_nonzero(pce.subspace_indices,axis=0)
@@ -119,10 +115,10 @@ class TestAdaptivePCE(unittest.TestCase):
 
         from pyapprox.sparse_grid import plot_sparse_grid_2d
         import matplotlib.pyplot as plt
-        plot_sparse_grid_2d(
-            pce.samples,np.ones(pce.samples.shape[1]),
-            pce.pce.indices, pce.subspace_indices)
-        plt.show()
+        #plot_sparse_grid_2d(
+        #    pce.samples,np.ones(pce.samples.shape[1]),
+        #    pce.pce.indices, pce.subspace_indices)
+        #plt.show()
 
     def test_adaptive_least_squares_induced_sampling(self):
         num_vars = 2; 
@@ -139,7 +135,7 @@ class TestAdaptivePCE(unittest.TestCase):
                 [beta(alph,bet,0,1)],[np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(num_vars,cond_tol=1e2)
-        error, samples = self.helper(function,var_trans,pce,2,0.)
+        error, samples = self.helper(function,var_trans,pce,4,0.)
         print('induced sampling error',error)
         assert error < 1e-14
 

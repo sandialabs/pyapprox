@@ -39,7 +39,7 @@ class TestLejaSequences(unittest.TestCase):
         var_trans = define_iid_random_variable_transformation(
             uniform(-2,1),num_vars) 
         poly_opts = {'alpha_poly':beta_stat-1,'beta_poly':alpha_stat-1,
-                     'var_trans':var_trans}
+                     'var_trans':var_trans,'poly_type':'jacobi'}
         poly.configure(poly_opts) 
 
 

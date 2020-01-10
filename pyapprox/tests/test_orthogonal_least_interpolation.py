@@ -258,7 +258,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 2
         var_trans = define_iid_random_variable_transformation(
             uniform(-1,2),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -287,7 +288,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 2
         var_trans = define_iid_random_variable_transformation(
             uniform(0,1),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -317,7 +319,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 3
         var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -347,7 +350,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 2
         var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -379,7 +383,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 2
         var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -415,7 +420,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         num_vars = 2
         var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':0,'beta_poly':0,
+                    'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -451,8 +457,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         alpha_stat = 2; beta_stat  = 5
         var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat,-1,2),num_vars)
-        pce_opts = {'alpha_poly':beta_stat-1,'beta_poly':alpha_stat-1,
-                    'var_trans':var_trans}
+        pce_opts = {'poly_type':'jacobi','alpha_poly':beta_stat-1,
+                    'beta_poly':alpha_stat-1,'var_trans':var_trans}
 
         # Set oli options
         oli_opts = {'verbosity':0,
@@ -495,7 +501,7 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat,-2,1),num_vars)
         pce_opts = {'alpha_poly':beta_stat-1,'beta_poly':alpha_stat-1,
-                    'var_trans':var_trans}
+                    'var_trans':var_trans,'poly_type':'jacobi'}
 
         pce = PolynomialChaosExpansion()
         pce.configure(pce_opts)
@@ -725,7 +731,7 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)
         pce_opts = {'alpha_poly':beta_stat-1,'beta_poly':alpha_stat-1,
-                    'var_trans':var_trans}
+                    'var_trans':var_trans,'poly_type':'jacobi',}
 
         # Set oli options
         oli_opts = {'verbosity':0,

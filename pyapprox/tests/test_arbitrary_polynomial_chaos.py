@@ -24,7 +24,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(0,1),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)
@@ -63,7 +64,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)
@@ -113,7 +115,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)
@@ -164,7 +167,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
              beta(alpha_stat,beta_stat,-1,2),num_vars)
@@ -212,7 +216,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)
@@ -264,7 +269,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
         
         pce = PolynomialChaosExpansion()
         pce.configure(pce_opts)
@@ -304,7 +310,8 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
-        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans}
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
         
         pce = PolynomialChaosExpansion()
         pce.configure(pce_opts)
@@ -350,7 +357,7 @@ class TestFramePolynomialChaos(unittest.TestCase):
         pce_var_trans = define_iid_random_variable_transformation(
             uniform(),num_vars)
         pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
-                    'truncation_tol':1e-5}
+                    'truncation_tol':1e-5,'poly_type':'jacobi'}
 
         random_var_trans = define_iid_random_variable_transformation(
             beta(alpha_stat,beta_stat),num_vars)

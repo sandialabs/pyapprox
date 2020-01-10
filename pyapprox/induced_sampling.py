@@ -137,7 +137,7 @@ def ratio_eval(a, b, x, N):
     return r
 
 def linear_modification(alph, bet, x0):
-    """
+    r"""
     linear_modification -- Modifies recurrence coefficients
 
     [a,b] = linear_modification(alph, bet, x0)
@@ -262,7 +262,7 @@ def medapprox_jacobi(alph, bet, n):
     return x0
 
 def idist_jacobi(x, n, alph, bet, M=10):
-    """
+    r"""
     idist_jacobi -- Evaluation of induced distribution
 
     F = idist_jacobi(x, n, alph, bet, {M = 10})
