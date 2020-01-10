@@ -121,6 +121,7 @@ class PolynomialChaosExpansion(object):
         self.recursion_coeffs=[]
         self.basis_type_index_map=None
         self.basis_type_var_indices=[]
+        self.numerically_generated_poly_accuracy_tolerance=None
 
     def configure(self, opts):
         self.config_opts=opts
@@ -128,6 +129,8 @@ class PolynomialChaosExpansion(object):
         if self.var_trans is None:
             raise Exception('must set var_trans')
         self.max_degree=-np.ones(self.num_vars(),dtype=int)
+        self.numerically_generated_poly_accuracy_tolerance=opts.get(
+            'numerically_generated_poly_accuracy_tolerance',1e-8)
 
     def get_recursion_coefficients(self,opts,num_coefs):
         poly_type = opts.get('poly_type',None)
@@ -178,13 +181,19 @@ class PolynomialChaosExpansion(object):
             if poly_type is None:
                 opts = opts['shapes']
             xk,pk = opts['xk'],opts['pk']
+            if num_coefs>xk.shape[0]:
+                msg = 'Number of coefs requested is larger than number of '
+                msg += 'probability masses'
+                raise Exception(msg)
             recursion_coeffs  = modified_chebyshev_orthonormal(
                 num_coefs,[xk,pk],probability=True)
             p = evaluate_orthonormal_polynomial_1d(
                 np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
-            if not np.allclose((p.T*pk).dot(p),np.eye(num_coefs)):
-                error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max() 
-                msg = f'basis created is ill conditioned. Max error: {error}'
+            error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
+            if error > self.numerically_generated_poly_accuracy_tolerance:
+                msg = f'basis created is ill conditioned. '
+                msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
+                msg += f'Terms requested: {num_coefs}'
                 raise Exception(msg)
         elif poly_type=='monomial':
             recursion_coeffs=None
