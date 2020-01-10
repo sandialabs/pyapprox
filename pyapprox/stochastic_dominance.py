@@ -656,6 +656,11 @@ class SmoothedDisutilitySSDFunctor(TrustRegionDisutilitySSDFunctor):
                  eps=1e-3):
         self.eps=eps
         self.smoother=smoother
+        if self.eps is None:
+            if self.smoother==0:
+                self.eps=0.1
+            else:
+                self.eps=1e-3
 
         self.basis_matrix=basis_matrix
         self.values=values
@@ -882,7 +887,7 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_sm
 
 class FSDFunctor(SmoothedDisutilitySSDFunctor):
     def __init__(self,basis_matrix,values,eta,probabilities,smoother=1,
-                 eps=1e-3):
+                 eps=None):
         super().__init__(basis_matrix,values,eta,probabilities,smoother,eps)
 
     def smoothed_max_function(self,x):
@@ -891,40 +896,21 @@ class FSDFunctor(SmoothedDisutilitySSDFunctor):
             the approximate postive part function
             x + self.eps*np.log(1+np.exp(-x/self.eps)
         """
-        if self.smoother==0:
-            return (x + self.eps*np.log(1+np.exp(-x/self.eps)))
-        elif self.smoother==1:
-            vals = np.zeros(x.shape)
-            I = np.where((x>0)&(x<self.eps))[0]
-            vals[I]=x[I]**3/self.eps**2*(1-x[I]/(2*self.eps))
-            J = np.where(x>=self.eps)[0]
-            vals[J]=x[J]-self.eps/2
-            return vals
-        else:
-            msg="incorrect smoother"
-            raise Exception(msg)
+        vals = super().smooth_max_function_first_derivative(x)
+        return vals
 
     def smooth_max_function_first_derivative(self,x):
-        if self.smoother==0:
-            return 1.-1./(1+np.exp(x/self.eps))
-        elif self.smoother==1:
-            vals = np.zeros(x.shape)
-            I = np.where((x>0)&(x<self.eps))[0]
-            vals[I]=(x[I]**2*(3*self.eps-2*x[I]))/self.eps**3
-            J = np.where(x>=self.eps)[0]
-            vals[J]=1
-            return vals
-        else:
-            msg="incorrect smoother"
-            raise Exception(msg)
+        vals = super().smooth_max_function_second_derivative(x)
+        return vals
 
     def smooth_max_function_second_derivative(self,x):
+        # third derivative of max function
         if self.smoother==0:
-            return np.exp(x/self.eps)/(self.eps*(1+np.exp(x/self.eps))**2)
+            return -np.exp(x/self.eps)*(np.exp(x/self.eps)-1)/(self.eps**2*(1+np.exp(x/self.eps))**3)
         elif self.smoother==1:
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))[0]
-            vals[I]=6*x[I]*(self.eps-x[I])/self.eps**3
+            vals[I]=6*(self.eps-2*x[I])/self.eps**3
             J = np.where(x>=self.eps)[0]
             vals[J]=0
             return vals
@@ -942,12 +928,13 @@ class FSDFunctor(SmoothedDisutilitySSDFunctor):
         approx_values = self.basis_matrix.dot(coef)
         constraint_values = np.zeros(constraint_indices.shape)
         for ii,index in enumerate(constraint_indices):
+            # one minus sign because using right heaviside function but want
+            # left heaviside function
             constraint_values[ii] = self.probabilities.dot(
                 self.smoothed_max_function(
-                    approx_values-approx_values[index]))
+                    -(approx_values-self.values[index])))
             constraint_values[ii] -= self.probabilities.dot(
-                self.smoothed_max_function(
-                    self.values-approx_values[index]))
+                np.maximum(0,self.values[index]-self.values))
         return constraint_values
 
     def nonlinear_constraints_jacobian(self,x):
@@ -955,14 +942,13 @@ class FSDFunctor(SmoothedDisutilitySSDFunctor):
         approx_values = self.basis_matrix.dot(coef)
         grad = np.empty((self.nnl_constraints,self.ncoef),dtype=float)
         for ii in range(self.nnl_constraints):
-            tmp1 = self.smooth_max_function_first_derivative(
-                approx_values-approx_values[ii])
-            tmp2 = self.smooth_max_function_first_derivative(
-                self.values-approx_values[ii])
+            # two minus signs because using right heaviside function but want
+            # left heaviside function
+
+            tmp1 = -self.smooth_max_function_first_derivative(
+                -(approx_values-self.values[ii]))
             grad[ii,:] = self.probabilities.dot(
-                tmp1[:,np.newaxis]*(self.basis_matrix-self.basis_matrix[ii,:]))
-            grad[ii,:] -= self.probabilities.dot(
-                tmp2[:,np.newaxis]*(-self.basis_matrix[ii,:]))
+                tmp1[:,np.newaxis]*self.basis_matrix)
         return grad
 
     def define_nonlinear_constraint_hessian(self,x,ii):
@@ -974,23 +960,20 @@ class FSDFunctor(SmoothedDisutilitySSDFunctor):
         coef = x[:self.ncoef]
         approx_values = self.basis_matrix.dot(coef)
         hessian = np.zeros((self.nunknowns,self.nunknowns))
+        # two minus signs because using right heaviside function but want
+        # left heaviside function
         tmp1 = self.smooth_max_function_second_derivative(
-            approx_values-approx_values[ii])
-        tmp2 = self.smooth_max_function_second_derivative(
-            self.values-approx_values[ii])
-        if np.all(tmp1==0) and np.all(tmp2==0):
+            -(approx_values-self.values[ii]))
+        if np.all(tmp1==0):
             # Hessian will be zero
             return None
 
-        tmp3 = self.basis_matrix-self.basis_matrix[ii,:]
-        tmp4 = -self.basis_matrix[ii,:]
+        tmp3 = self.basis_matrix
         
         for jj in range(self.nunknowns):
             for kk in range(jj,self.nunknowns):
                 hessian[jj,kk] = self.probabilities.dot(
                     tmp1*(tmp3[:,jj]*tmp3[:,kk]))
-                hessian[jj,kk] -= self.probabilities.dot(
-                    tmp2*(tmp4[jj]*tmp4[kk]))
                 hessian[kk,jj]=hessian[jj,kk]
         
         return hessian
@@ -1027,15 +1010,36 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(
 
     # define objective
     fsd_functor = FSDFunctor(
-        basis_matrix,values[:,0],values[eta_indices,0],probabilities)
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=0.1)
+
+    from scipy.optimize import approx_fprime
+    xx = np.ones(1)*0.09
+    # find point that will produce non zero grad
+    assert xx<fsd_functor.eps and xx!=fsd_functor.eps/2
+    fd_grad = approx_fprime(xx,fsd_functor.smoothed_max_function,1e-7)
+    grad = fsd_functor.smooth_max_function_first_derivative(xx)
+    #print(fd_grad,grad)
+    assert np.allclose(fd_grad,grad)
+
+    #import matplotlib.pyplot as plt
+    #yy = np.linspace(-1,1,101)
+    #plt.plot(yy,fsd_functor.smoothed_max_function(-yy))
+    #plt.show()
+
+    fd_hess = approx_fprime(
+        xx,fsd_functor.smooth_max_function_first_derivative,1e-7)
+    hess = fsd_functor.smooth_max_function_second_derivative(xx)
+    #print(fd_hess,hess)
+    assert np.allclose(fd_hess,hess)
 
     from pyapprox.optimization import approx_jacobian
     xx = np.ones(fsd_functor.nunknowns)
     fd_jacobian = approx_jacobian(fsd_functor.nonlinear_constraints,xx)
     jacobian = fsd_functor.nonlinear_constraints_jacobian(xx)
-    #print(fd_jacobian)
-    #print(jacobian)
+    print(fd_jacobian)
+    print(jacobian)
     assert np.allclose(fd_jacobian,jacobian)
+    
 
 
     for ii in range(fsd_functor.nnl_constraints):
@@ -1046,6 +1050,7 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(
             assert np.allclose(fd_hessian,hessian,rtol=1e-6,atol=1e-6)
         elif fsd_functor.eps>=1e-1:
             assert np.allclose(fd_hessian,np.zeros_like(fd_hessian))
+
 
     from scipy.optimize import NonlinearConstraint, LinearConstraint, BFGS
     keep_feasible=False
