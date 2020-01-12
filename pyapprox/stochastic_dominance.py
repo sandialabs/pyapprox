@@ -653,16 +653,19 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_tr
     
     return coef
 
-class SmoothedDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
+class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
     def __init__(self,basis_matrix,values,eta,probabilities,smoother=1,
                  eps=1e-3):
         self.eps=eps
         self.smoother=smoother
         if self.eps is None:
             if self.smoother==0:
-                self.eps=0.1
+                self.eps=1e-1
             else:
                 self.eps=1e-3
+
+        if self.smoother==0:
+            assert self.eps>=7e-3
 
         self.basis_matrix=basis_matrix
         self.values=values
@@ -696,7 +699,7 @@ class SmoothedDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
 
         self.constraint_hessians=None
 
-    def smoothed_max_function(self,x):
+    def smooth_max_function(self,x):
         if self.smoother==0:
             return (x + self.eps*np.log(1+np.exp(-x/self.eps)))
         elif self.smoother==1:
@@ -748,10 +751,10 @@ class SmoothedDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         constraint_values = np.zeros(constraint_indices.shape)
         for ii,index in enumerate(constraint_indices):
             constraint_values[ii] = self.probabilities.dot(
-                self.smoothed_max_function(
+                self.smooth_max_function(
                     approx_values-approx_values[index]))
             constraint_values[ii] -= self.probabilities.dot(
-                self.smoothed_max_function(
+                self.smooth_max_function(
                     self.values-approx_values[index]))
         return constraint_values
 
@@ -825,7 +828,7 @@ class SmoothedDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
             #else hessian is zero
         return result
 
-def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smoothed(
+def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smooth(
         samples,values,eval_basis_matrix,eta_indices=None):
     """
     Disutility formuation
@@ -838,7 +841,7 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_sm
         eta_indices = np.arange(0,num_samples)
 
     # define objective
-    ssd_opt_problem = SmoothedDisutilitySSDOptProblem(
+    ssd_opt_problem = SmoothDisutilitySSDOptProblem(
         basis_matrix,values[:,0],values[eta_indices,0],probabilities)
 
     from pyapprox.optimization import approx_jacobian
@@ -887,22 +890,26 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_sm
     
     return coef
 
-class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
-    def __init__(self,basis_matrix,values,eta,probabilities,smoother=1,
+class FSDOptProblem(SmoothDisutilitySSDOptProblem):
+    def __init__(self,basis_matrix,values,eta,probabilities,smoother=0,
                  eps=None):
         super().__init__(basis_matrix,values,eta,probabilities,smoother,eps)
 
-    def smoothed_max_function(self,x):
+    def smooth_heaviside_function(self,x):
         """
             Heaviside function is approximated by the first derivative of
             the approximate postive part function
             x + self.eps*np.log(1+np.exp(-x/self.eps)
         """
-        vals = super().smooth_max_function_first_derivative(x)
+        # one minus sign because using right heaviside function but want
+        # left heaviside function
+        vals = super().smooth_max_function_first_derivative(-x)
         return vals
 
-    def smooth_max_function_first_derivative(self,x):
-        vals = super().smooth_max_function_second_derivative(x)
+    def smooth_heaviside_function_first_derivative(self,x):
+        # two minus signs because using right heaviside function but want
+        # left heaviside function
+        vals = -super().smooth_max_function_second_derivative(-x)
         return vals
 
     def smooth_max_function_second_derivative(self,x):
@@ -911,15 +918,20 @@ class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
             return -np.exp(x/self.eps)*(np.exp(x/self.eps)-1)/(
                 self.eps**2*(1+np.exp(x/self.eps))**3)
         elif self.smoother==1:
+            print('a',x)
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))[0]
             vals[I]=6*(self.eps-2*x[I])/self.eps**3
-            J = np.where(x>=self.eps)[0]
-            vals[J]=0
+            #J = np.where(x>=self.eps)[0]
+            #vals[J]=0
+            print(vals)
             return vals
         else:
             msg="incorrect smoother"
             raise Exception(msg)
+
+    def smooth_heaviside_function_second_derivative(self,x):
+        return self.smooth_max_function_second_derivative(-x)
         
     def nonlinear_constraints(self,x,constraint_indices=None):
         if constraint_indices is None:
@@ -930,11 +942,9 @@ class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
         approx_values = self.basis_matrix.dot(coef)
         constraint_values = np.zeros(constraint_indices.shape)
         for ii,index in enumerate(constraint_indices):
-            # one minus sign because using right heaviside function but want
-            # left heaviside function
             constraint_values[ii] = self.probabilities.dot(
-                self.smoothed_max_function(
-                    -(approx_values-self.values[index])))
+                self.smooth_heaviside_function(
+                    (approx_values-self.values[index])))
             constraint_values[ii] -= self.probabilities.dot(
                 np.maximum(0,self.values[index]-self.values))
         return constraint_values
@@ -944,11 +954,8 @@ class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
         approx_values = self.basis_matrix.dot(coef)
         grad = np.empty((self.nnl_constraints,self.ncoef),dtype=float)
         for ii in range(self.nnl_constraints):
-            # two minus signs because using right heaviside function but want
-            # left heaviside function
-
-            tmp1 = -self.smooth_max_function_first_derivative(
-                -(approx_values-self.values[ii]))
+            tmp1 = self.smooth_heaviside_function_first_derivative(
+                (approx_values-self.values[ii]))
             grad[ii,:] = self.probabilities.dot(
                 tmp1[:,np.newaxis]*self.basis_matrix)
         return grad
@@ -964,8 +971,8 @@ class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
         hessian = np.zeros((self.nunknowns,self.nunknowns))
         # two minus signs because using right heaviside function but want
         # left heaviside function
-        tmp1 = self.smooth_max_function_second_derivative(
-            -(approx_values-self.values[ii]))
+        tmp1 = self.smooth_heaviside_function_second_derivative(
+            approx_values-self.values[ii])
         if np.all(tmp1==0):
             # Hessian will be zero
             return None
@@ -998,7 +1005,7 @@ class FSDOptProblem(SmoothedDisutilitySSDOptProblem):
             #else hessian is zero
         return result
     
-def solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(
+def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
         samples,values,eval_basis_matrix,eta_indices=None):
     """
     Disutility formuation
@@ -1012,7 +1019,7 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(
 
     # define objective
     fsd_opt_problem = FSDOptProblem(
-        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=1e-3)
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=7e-3)
 
     # define constraints
     from scipy.optimize import NonlinearConstraint, LinearConstraint, BFGS
@@ -1024,7 +1031,7 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(
         #hess=BFGS(),
         keep_feasible=keep_feasible)
     
-    tol=1e-5
+    tol=1e-6
     optim_options={'verbose': 3, 'maxiter':1000,
                    'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
     constraints = [nonlinear_constraint]
