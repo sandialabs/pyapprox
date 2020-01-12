@@ -6,6 +6,30 @@ from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv, \
     lognorm as lognormal_rv
 from pyapprox.configure_plots import *
 
+def plot_1d_functions_and_statistics(
+            functions,labels,samples,values,stat_function,eta):
+
+    xlb,xub = samples.min()-abs(samples.max())*.1,\
+        samples.max()+abs(samples.max())*.1
+    xx = np.linspace(xlb,xub,101)
+    fig,axs = plt.subplots(1,2,figsize=(2*8,6))
+    colors = ['k','r','b','g'][:len(functions)]
+    for function,label,color in zip(functions,labels,colors):
+        axs[0].plot(xx,function(xx[np.newaxis,:]),'-',c=color,label=label)
+    axs[0].plot(samples[0,:],values[:,0],'or',label='Train data')
+    axs[0].set_xlim(xlb,xub)
+
+    for function,label,color in zip(functions,labels,colors):
+        stats = stat_function(function(samples)[:,0])
+        axs[1].plot(eta,stats,'-',c=color,label=label)
+
+    axs[0].set_xlabel('$x$')
+    axs[0].set_ylabel('$f(x)$')
+    axs[1].set_xlabel(r'$\eta$')
+    axs[0].legend()
+    axs[1].legend()
+
+
 from pyapprox.quantile_regression import quantile_regression
 def solve_quantile_regression(tau,samples,values,eval_basis_matrix):
     basis_matrix = eval_basis_matrix(samples)
@@ -518,6 +542,23 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(cvar4,CVaR(alpha))
 
     def test_stochastic_dominance(self):
+        solver = solve_2nd_order_stochastic_dominance_constrained_least_squares
+        self.help_test_stochastic_dominance(solver)
+
+        # slsqp needs more testing. Dont think it is working, e.g. try
+        solver = solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_slsqp
+        self.help_test_stochastic_dominance(solver)
+
+        solver = solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smoothed
+        self.help_test_stochastic_dominance(solver)
+
+        solver = solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_trust_region
+        self.help_test_stochastic_dominance(solver)
+        
+        solver = solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed
+        self.help_test_stochastic_dominance(solver)
+
+    def help_test_stochastic_dominance(self,solver):
         from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
         from pyapprox.variable_transformations import \
             define_iid_random_variable_transformation
@@ -530,7 +571,7 @@ class TestRiskMeasures(unittest.TestCase):
         #disutility=False
 
         np.random.seed(4)
-        nsamples=3
+        nsamples=5
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
         values = f(samples[0,:])[:,np.newaxis]
@@ -544,117 +585,38 @@ class TestRiskMeasures(unittest.TestCase):
 
         eta_indices=None
         #eta_indices=np.argsort(values[:,0])[nsamples//2:]
-        if not disutility:
-            coef = solve_2nd_order_stochastic_dominance_constrained_least_squares(
-                samples,values,pce.basis_matrix,eta_indices=eta_indices)
-        else:
-            # slsqp needs more testing. Dont think it is working, e.g. try
-            # degree=1, nsamples=20
-            #coef2=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_slsqp(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            #print(coef2)
-            #coef1=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-
-            #np.set_printoptions(precision=16)
-            #print(coef1)
-            #coef=coef1
-            #coef=solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_trust_region(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            #print(coef)
-            coef = solve_1st_order_stochastic_dominance_constrained_least_squares_smoothed(samples,values,pce.basis_matrix,eta_indices=eta_indices)
-            assert False
-            
+        coef = solver(
+            samples,values,pce.basis_matrix,eta_indices=eta_indices)
 
         pce.set_coefficients(coef)
         pce_values = pce(samples)[:,0]
-        #assert False
 
-        #lb,ub = normal_rv(mu,sigma).interval(0.99)
-        lb,ub = samples.min()-abs(samples.max())*.1,\
-                samples.max()+abs(samples.max())*.1
-        xx = np.linspace(lb,ub,101)
-        fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-        axs[0].plot(xx,pce(xx[np.newaxis,:]),'k',label='SSD')
-        axs[0].plot(samples[0,:],values[:,0],'or',label='Train data')
-        axs[0].plot(xx,f(xx),'-r',label='Exact')
-        axs[0].set_xlim(lb,ub)
+        lstsq_pce = PolynomialChaosExpansion()
+        lstsq_pce.configure({'poly_type':'hermite','var_trans':var_trans})
+        lstsq_pce.set_indices(indices)
 
-        from scipy.stats import lognorm as lognormal_rv
-        #ylb,yub = lognormal_rv.interval(0.9,np.exp(mu),sigma)
+        coef = solve_least_squares_regression(
+            samples,values,lstsq_pce.basis_matrix)
+        lstsq_pce.set_coefficients(coef)
+
         ylb,yub = values.min()-abs(values.max())*.1,\
-                  values.max()+abs(values.max())*.1
+            values.max()+abs(values.max())*.1
         ygrid=np.linspace(ylb,yub,101)
         ygrid = np.sort(np.concatenate([ygrid,pce_values]))
         if disutility:
             ygrid = -ygrid[::-1]
-
-        pce_cond_exp = compute_conditional_expectations(
-            ygrid,pce_values,disutility)
-        econd_exp=compute_conditional_expectations(ygrid,values[:,0],disutility)
-        econd_exp1=compute_conditional_expectations(pce_values,values[:,0],disutility)
-        pce_cond_exp1 = compute_conditional_expectations(
-            pce_values,pce_values,disutility)
-
-        if disutility:
-            sign = '+'
-        else:
-            sign='-'
-        axs[1].plot(ygrid,pce_cond_exp,'k-',
-                    label=r'$\mathbb{E}[\eta%sX_\mathrm{SSD}]$'%sign)
-        axs[1].plot(ygrid,econd_exp,'b-',
-                    label=r'$\mathbb{E}[\eta%sX_\mathrm{MC}]$'%sign)
-        if disutility:
-            axs[1].plot(ygrid,ssd_disutil(ygrid),'r',
-                        label=r'$\mathbb{E}[\eta+X_\mathrm{exact}]$')
-        else:
-            axs[1].plot(ygrid,ssd(ygrid),'r',
-                        label=r'$\mathbb{E}[\eta-X_\mathrm{exact}]$')
-        C=1
-        if disutility:
-            C*=-1
-        #print(pce_values.mean())
-        #print(values.mean())
-        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'k--',
-        #             label=r'$\eta%s\mu_{X_\mathrm{SSD}}$'%sign)
-        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*values.mean()),'b--',
-        #             label=r'$\eta%s\mu_{X_\mathrm{MC}}$'%sign)
-        #ygrid = values.copy()[:,0]
-        ygrid = pce_values.copy()
-        if disutility:
-            ygrid*=-1
-        axs[1].plot(ygrid,compute_conditional_expectations(
-            ygrid,values[:,0],disutility),'bs')
-        ygrid = pce_values.copy()
-        if disutility:
-            ygrid*=-1
-        axs[1].plot(ygrid,compute_conditional_expectations(
-            ygrid,pce_values,disutility),'ko')
-
-        coef = solve_least_squares_regression(samples,values,pce.basis_matrix)
-        pce.set_coefficients(coef)
-        pce_values = pce(samples)[:,0]
-        axs[0].plot(xx,pce(xx[np.newaxis,:]),'g:',label='LstSq')
-        ygrid = pce_values.copy()
-        if disutility:
-            ygrid*=-1
-        axs[1].plot(ygrid,compute_conditional_expectations(
-            ygrid,pce_values,disutility),'go')
-        ygrid=np.linspace(ylb,yub,101)
-        ygrid = np.sort(np.concatenate([ygrid,pce_values]))
-        if disutility:
-            ygrid = -ygrid[::-1]
-
-        pce_cond_exp = compute_conditional_expectations(
-            ygrid,pce_values,disutility)
-        axs[1].plot(ygrid,pce_cond_exp,'g-',
-                    label=r'$\mathbb{E}[\eta%sX_\mathrm{LstSq}]$'%sign)
-        # axs[1].plot(ygrid,np.maximum(0,ygrid-C*pce_values.mean()),'g--',
-        #             label=r'$\eta%s\mu_{X_\mathrm{LstSq}}$'%sign)
-        axs[0].set_xlabel('$x$')
-        axs[0].set_ylabel('$f(x)$')
-        axs[1].set_xlabel(r'$\eta$')
-        axs[0].legend()
-        axs[1].legend()
+        stat_function = partial(compute_conditional_expectations,
+            ygrid,disutility_formulation=disutility)
         
-        plt.show()
+        from pyapprox.density import EmpiricalCDF
+        ygrid=np.linspace(ylb,yub,101)
+        ygrid = np.sort(np.concatenate([ygrid,values[:,0]]))
+        stat_function = lambda x: EmpiricalCDF(x)(ygrid)
+        plot_1d_functions_and_statistics(
+            [f,pce,lstsq_pce],['Exact','SSD','Lstsq'],samples,values,
+            stat_function,ygrid)
+        
+        #plt.show()
 
     def xtest_conditional_value_at_risk(self):
         """
@@ -706,7 +668,7 @@ class TestRiskMeasures(unittest.TestCase):
                    for ii in range(eta.shape[0])]
         assert np.allclose(values,values1)
 
-    def test_disutility_ssd_gradients(self):
+    def setup_sd_opt_problem(self,SDOptProblem):
         from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
         from pyapprox.variable_transformations import \
             define_iid_random_variable_transformation
@@ -731,51 +693,92 @@ class TestRiskMeasures(unittest.TestCase):
         
         basis_matrix = pce.basis_matrix(samples)
         probabilities = np.ones((nsamples))/nsamples
-        ssd_functor = SLSQPDisutilitySSDFunctor(
+        
+        sd_opt_problem = SDOptProblem(
             basis_matrix,values[:,0],values[:,0],probabilities)
-        constraints = build_disutility_constraints_scipy(ssd_functor)
+        return sd_opt_problem
 
-        from scipy.optimize import check_grad, approx_fprime
-        xx = np.ones(ssd_functor.nunknowns)
-        assert check_grad(ssd_functor.objective,
-                          ssd_functor.objective_gradient, xx)<5e-7
-        for con in constraints:
-            #print(con['jac'](xx))
-            #print(approx_fprime(xx,con['fun'],1e-7))
-            assert check_grad(con['fun'], con['jac'], xx)<5e-7
+    def help_test_stochastic_dominance_gradients(self,sd_opt_problem):
 
-        ssd_functor = TrustRegionDisutilitySSDFunctor(
-            basis_matrix,values[:,0],values[:,0],probabilities)
-
-        xx = np.ones(ssd_functor.nunknowns)
-        assert check_grad(ssd_functor.objective,
-                          ssd_functor.objective_gradient, xx)<5e-7
+        xx = np.ones(sd_opt_problem.nunknowns)
 
         from pyapprox.optimization import approx_jacobian
-        fd_jacobian = approx_jacobian(ssd_functor.objective,xx)
-        jacobian = ssd_functor.objective_jacobian(xx)
-        assert np.allclose(fd_jacobian,jacobian.todense())
+        fd_jacobian = approx_jacobian(sd_opt_problem.objective,xx)
+        jacobian = sd_opt_problem.objective_jacobian(xx)
+        assert np.allclose(fd_jacobian,jacobian)
 
-        fd_jacobian = approx_jacobian(ssd_functor.nonlinear_constraints,xx)
-        jacobian = ssd_functor.nonlinear_constraints_jacobian(xx)
+        fd_jacobian = approx_jacobian(
+            sd_opt_problem.nonlinear_constraints,xx)
+        jacobian = sd_opt_problem.nonlinear_constraints_jacobian(xx)
+        if hasattr(jacobian,'todense'):
+            jacobian = jacobian.todense()
         #print(fd_jacobian)
-        #print(jacobian.todense())
-        assert np.allclose(fd_jacobian,jacobian.todense())
+        #print(jacobian)
+        assert np.allclose(fd_jacobian,jacobian)
 
-        hessian = ssd_functor.objective_hessian(xx)
-        fd_hessian = approx_jacobian(ssd_functor.objective_gradient,xx)
-        assert np.allclose(hessian.todense(),fd_hessian)
+        if hasattr(sd_opt_problem,'objective_hessian'):
+            hessian = sd_opt_problem.objective_hessian(xx)
+            fd_hessian = approx_jacobian(sd_opt_problem.objective_jacobian,xx)
+            if hasattr(hessian,'todense'):
+                hessian = hessian.todense()
+            assert np.allclose(hessian,fd_hessian)
 
-        for ii in range(ssd_functor.nnl_constraints):
-            fd_hessian = approx_jacobian(
-                partial(ssd_functor.nonlinear_constraint_gradients,
-                        constraint_indices=ii),xx)
-            hessian = ssd_functor.define_nonlinear_constraint_hessian(xx,ii)
-            np.set_printoptions(linewidth=1000)
-            #print(hessian.todense())
-            #print(fd_hessian)
-            assert np.allclose(hessian.todense(),fd_hessian)
+        for ii in range(sd_opt_problem.nnl_constraints):
+            def grad(xx):
+                row=sd_opt_problem.nonlinear_constraints_jacobian(xx)[ii,:]
+                if hasattr(row,'todense'):
+                    row = np.asarray(row.todense())[0,:]
+                return row
+                    
+            if hasattr(sd_opt_problem,'define_nonlinear_constraint_hessian'):
+                fd_hessian = approx_jacobian(grad,xx)
+                hessian=sd_opt_problem.define_nonlinear_constraint_hessian(xx,ii)
+                #np.set_printoptions(linewidth=1000)
+                #print(hessian.todense())
+                #print(fd_hessian)
+                if hessian is None:
+                    assert np.allclose(fd_hessian,np.zeros_like(fd_hessian))
+                else:
+                    if hasattr(hessian,'todense'):
+                        hessian = hessian.todense()
+                    assert np.allclose(hessian,fd_hessian)
+        return sd_opt_problem
+
+    
+    def xtest_stochastic_second_order_dominance_gradients(self):
+        sd_opt_problem = self.setup_sd_opt_problem(
+            TrustRegionDisutilitySSDOptProblem)
+        self.help_test_stochastic_dominance_gradients(sd_opt_problem)
+
+        sd_opt_problem  = self.setup_sd_opt_problem(SLSQPDisutilitySSDOptProblem)
+        self.help_test_stochastic_dominance_gradients(sd_opt_problem)
+
+        sd_opt_problem = self.setup_sd_opt_problem(
+            SmoothedDisutilitySSDOptProblem)
+        self.help_test_stochastic_dominance_gradients(sd_opt_problem)
         
+    def xtest_fsd_gradients(self):
+        fsd_opt_problem = self.setup_sd_opt_problem(
+            FSDOptProblem)
+
+        # test gradients of smoothing function
+        fsd_opt_problem.eps=1e-1
+        from scipy.optimize import approx_fprime
+        xx = np.ones(1)*0.09
+        # make sure xx will produce non zero grad
+        assert xx<fsd_opt_problem.eps and xx!=fsd_opt_problem.eps/2
+        fd_grad = approx_fprime(xx,fsd_opt_problem.smoothed_max_function,1e-7)
+        grad = fsd_opt_problem.smooth_max_function_first_derivative(xx)
+        assert np.allclose(fd_grad,grad)
+
+        fd_hess = approx_fprime(
+            xx,fsd_opt_problem.smooth_max_function_first_derivative,1e-7)
+        hess = fsd_opt_problem.smooth_max_function_second_derivative(xx)
+        #print(fd_hess,hess)
+        assert np.allclose(fd_hess,hess)
+        
+        self.help_test_stochastic_dominance_gradients(fsd_opt_problem)
+
 
 
 if __name__== "__main__":    
