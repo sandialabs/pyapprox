@@ -29,6 +29,7 @@ def plot_1d_functions_and_statistics(
     axs[0].legend()
     axs[1].legend()
 
+    return fig,axs
 
 from pyapprox.quantile_regression import quantile_regression
 def solve_quantile_regression(tau,samples,values,eval_basis_matrix):
@@ -556,7 +557,7 @@ class TestRiskMeasures(unittest.TestCase):
         #self.help_test_stochastic_dominance(solver)
         
         solver = solve_1st_order_stochastic_dominance_constrained_least_squares_smooth
-        self.help_test_stochastic_dominance(solver)
+        #self.help_test_stochastic_dominance(solver)
 
     def help_test_stochastic_dominance(self,solver):
         from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
@@ -587,7 +588,7 @@ class TestRiskMeasures(unittest.TestCase):
 
         eta_indices=None
         #eta_indices=np.argsort(values[:,0])[nsamples//2:]
-        coef = solver(
+        coef, sd_opt_problem = solver(
             samples,values,pce.basis_matrix,eta_indices=eta_indices)
 
         pce.set_coefficients(coef)
@@ -614,9 +615,12 @@ class TestRiskMeasures(unittest.TestCase):
         ygrid=np.linspace(ylb,yub,101)
         ygrid = np.sort(np.concatenate([ygrid,values[:,0]]))
         stat_function = lambda x: EmpiricalCDF(x)(ygrid)
-        plot_1d_functions_and_statistics(
+        fig,axs=plot_1d_functions_and_statistics(
             [f,pce,lstsq_pce],['Exact','SSD','Lstsq'],samples,values,
             stat_function,ygrid)
+
+        axs[1].plot(sd_opt_problem.values,sd_opt_problem.constraint_rhs,'ro')
+        print(sd_opt_problem.probabilities)
         
         plt.show()
 
@@ -776,11 +780,13 @@ class TestRiskMeasures(unittest.TestCase):
         fsd_opt_problem = self.setup_sd_opt_problem(
             FSDOptProblem)
 
-        #print(fsd_opt_problem.eps)
-        #fsd_opt_problem.eps=5e-3
-        #xx = np.linspace(-1,1,101)
-        #plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
-        #plt.show()
+        import matplotlib.pyplot as plt
+        fsd_opt_problem.eps=1e-1
+        fsd_opt_problem.smoother=1
+        xx = np.linspace(-1,1,101)
+        plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx),'k')
+        plt.plot(xx,fsd_opt_problem.left_heaviside_function(xx),'r')
+        plt.show()
                  
         # test gradients of smoothing function
         fsd_opt_problem.eps=1e-1
@@ -798,6 +804,22 @@ class TestRiskMeasures(unittest.TestCase):
         hess = fsd_opt_problem.smooth_heaviside_function_second_derivative(xx)
         #print(fd_hess,hess)
         assert np.allclose(fd_hess,hess)
+
+        fsd_opt_problem.eps=1e-5
+        import matplotlib.pyplot as plt
+        xx = np.ones(fsd_opt_problem.nunknowns)
+        fsd_opt_problem.nonlinear_constraints(xx)
+        plt.plot(fsd_opt_problem.values,fsd_opt_problem.constraint_rhs,'rs')
+        from pyapprox.density import EmpiricalCDF
+        ecdf = EmpiricalCDF(fsd_opt_problem.values)
+        plt.plot(fsd_opt_problem.values,ecdf(fsd_opt_problem.values),'ko')
+        smooth_heaviside_ecdf_vals = np.asarray([fsd_opt_problem.smooth_heaviside_function(fsd_opt_problem.values-fsd_opt_problem.values[ii]) for ii in range(fsd_opt_problem.values.shape[0])]).mean(axis=1)
+        plt.plot(fsd_opt_problem.values,smooth_heaviside_ecdf_vals,'b*')
+        heaviside_ecdf_vals = np.asarray([fsd_opt_problem.left_heaviside_function(fsd_opt_problem.values-fsd_opt_problem.values[ii]) for ii in range(fsd_opt_problem.values.shape[0])]).mean(axis=1)
+        print(heaviside_ecdf_vals-fsd_opt_problem.constraint_rhs)
+        plt.plot(fsd_opt_problem.values,heaviside_ecdf_vals,'g+')
+        plt.show()
+
         
         self.help_test_stochastic_dominance_gradients(fsd_opt_problem)
 
