@@ -715,7 +715,10 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
 
     def smooth_max_function_first_derivative(self,x):
         if self.smoother==0:
-            return 1.-1./(1+np.exp(x/self.eps))
+            vals = 1.-1./(1+np.exp(x/self.eps))
+            #print(vals)
+            #print(x/self.eps)
+            return vals
         elif self.smoother==1:
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))[0]
@@ -932,6 +935,11 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
 
     def smooth_heaviside_function_second_derivative(self,x):
         return self.smooth_max_function_second_derivative(-x)
+
+    def left_heaviside_function(self,x):
+        vals = np.zeros_like(x)
+        vals[x<=0]=1
+        return vals
         
     def nonlinear_constraints(self,x,constraint_indices=None):
         if constraint_indices is None:
@@ -941,13 +949,16 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         coef = x[:self.ncoef]
         approx_values = self.basis_matrix.dot(coef)
         constraint_values = np.zeros(constraint_indices.shape)
+        self.constraint_rhs = np.zeros_like(constraint_values)
         for ii,index in enumerate(constraint_indices):
             constraint_values[ii] = self.probabilities.dot(
                 self.smooth_heaviside_function(
                     (approx_values-self.values[index])))
-            constraint_values[ii] -= self.probabilities.dot(
-                np.maximum(0,self.values[index]-self.values))
-        return constraint_values
+            #self.constraint_rhs[ii] = self.probabilities.dot(
+            #    np.maximum(0,self.values[index]-self.values))
+            self.constraint_rhs[ii] = self.probabilities.dot(
+                self.left_heaviside_function(self.values-self.values[index]))
+        return constraint_values - self.constraint_rhs
 
     def nonlinear_constraints_jacobian(self,x):
         coef = x[:self.ncoef]
@@ -1019,7 +1030,7 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
 
     # define objective
     fsd_opt_problem = FSDOptProblem(
-        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=7e-3)
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=0.1)#eps=7e-3)
 
     # define constraints
     from scipy.optimize import NonlinearConstraint, LinearConstraint, BFGS
@@ -1031,8 +1042,8 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
         #hess=BFGS(),
         keep_feasible=keep_feasible)
     
-    tol=1e-6
-    optim_options={'verbose': 3, 'maxiter':1000,
+    tol=1e-5
+    optim_options={'verbose': 3, 'maxiter':10000,
                    'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
     constraints = [nonlinear_constraint]
     res = minimize(
@@ -1048,4 +1059,4 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
     if not res.success:
         raise Exception(res.message)
     
-    return coef
+    return coef, fsd_opt_problem
