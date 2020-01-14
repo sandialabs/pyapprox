@@ -387,3 +387,28 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
         axs_cdf[ii].set_xlim(
             constraint_function_vals[0],constraint_function_vals[-1])
     return fig_cdf,axs_cdf
+
+def check_gradients(function,grad_function,xx,plot=False):
+    assert xx.ndim==1
+    function_val = function(xx)
+    grad_val = grad_function(xx)
+    direction = np.random.normal(0,1,xx.shape[0])
+    direction /= np.linalg.norm(direction)
+    directional_derivative = grad_val.dot(direction)
+    fd_eps = np.logspace(-13,0,14)[::-1]
+    errors = []
+    row_format = "{:<25} {:<25} {:<25}" 
+    print(row_format.format("Eps","Errors (max)","Errors (min)"))
+    for ii in range(fd_eps.shape[0]):
+        xx_perturbed = xx.copy()+fd_eps[ii]*direction
+        fd_directional_derivative = (
+            function(xx_perturbed)-function_val)/fd_eps[ii]
+        errors.append(np.absolute(
+            fd_directional_derivative-directional_derivative))
+        print(row_format.format(fd_eps[ii],errors[ii].max(),errors[ii].min()))
+
+    if plot:
+        plt.loglog(fd_eps,errors,'o-')
+        plt.ylabel(r'$\lvert\nabla_\epsilon f-\nabla f\rvert$')
+        plt.xlabel(r'$\epsilon$')
+        plt.show()
