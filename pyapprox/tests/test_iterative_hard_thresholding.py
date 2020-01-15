@@ -8,6 +8,7 @@ import copy
 class TestIHT(unittest.TestCase):
 
     def test_gaussian_matrix(self):
+        np.random.seed(3)
         num_samples=30
         sparsity=3
         num_terms=30
