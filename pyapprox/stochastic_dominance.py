@@ -196,7 +196,7 @@ def hessian(basis_matrix,P,use_sample_average=True):
         H[:M,:M] = speye(M,M)
     return H
 
-def solve_2nd_order_stochastic_dominance_constrained_least_squares(
+def solve_SSD_constrained_least_squares(
         samples,values,eval_basis_matrix,lstsq_coef=None,
         eta_indices=None):
     # Compute coefficients with second order stochastic dominance constraints
@@ -252,18 +252,6 @@ def solve_2nd_order_stochastic_dominance_constrained_least_squares(
     ssd_solution = np.array(result['x'])
     coef = ssd_solution[:num_basis_terms,0]
     return coef, None
-
-def build_disutility_constraints_scipy(ssd_obj):
-    constraints = []
-    for ii in range(ssd_obj.nnl_constraints):
-        ineq_cons_fun = partial(
-            ssd_obj.nonlinear_constraints,constraint_indices=ii)
-        ineq_cons = {'type': 'ineq', 'fun' : ineq_cons_fun}
-        ineq_cons['jac'] = partial(ssd_obj.nonlinear_constraints_jacobian,
-            constraint_indices=ii)
-        constraints.append(ineq_cons)
-    return constraints
-
 
 class SLSQPDisutilitySSDOptProblem(object):
     def __init__(self,basis_matrix,values,eta,probabilities):
@@ -426,12 +414,15 @@ class SLSQPDisutilitySSDOptProblem(object):
         jac = self.objective_jacobian
 
         # define nonlinear inequality constraints
-        constraints = build_disutility_constraints_scipy(self)
+        ineq_cons_fun = lambda x: self.nonlinear_constraints(x)
+        ineq_cons_jac = lambda x: self.nonlinear_constraints_jacobian(x)
+        ineq_cons1 = {'type': 'ineq', 'fun' : ineq_cons_fun, 'jac': ineq_cons_jac}
+        
         ineq_cons_fun = lambda x: (
             self.linear_constraint_matrix.dot(x)-self.linear_constraint_vector)
-        ineq_cons = {'type': 'ineq', 'fun' : ineq_cons_fun}
-        ineq_cons['jac'] = lambda x: self.linear_constraint_matrix.todense()
-        constraints.append(ineq_cons)
+        ineq_cons_jac = lambda x: self.linear_constraint_matrix.todense()
+        ineq_cons2 = {'type': 'ineq', 'fun' : ineq_cons_fun, 'jac': ineq_cons_jac}
+        constraints = [ineq_cons1,ineq_cons2]
 
         opt_method = 'SLSQP'
         res = minimize(
@@ -446,7 +437,7 @@ class SLSQPDisutilitySSDOptProblem(object):
 
         return coef
 
-def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_slsqp(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
+def solve_disutility_SSD_constrained_least_squares_slsqp(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
     """
     Disutility formuation
     -Y dominates -Z
@@ -643,7 +634,7 @@ class TrustRegionDisutilitySSDOptProblem(SLSQPDisutilitySSDOptProblem):
 
         return coef
 
-def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_trust_region(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
+def solve_disutility_SSD_constrained_least_squares_trust_region(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
     """
     Disutility formuation
     -Y dominates -Z
@@ -665,7 +656,7 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_tr
 
 
 class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
-    def __init__(self,basis_matrix,values,eta,probabilities,smoother_type=1,
+    def __init__(self,basis_matrix,values,eta,probabilities,smoother_type=0,
                  eps=1e-3):
         self.eps=eps
         self.smoother_type=smoother_type
@@ -724,14 +715,17 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
 
     def smooth_max_function(self,x):
         if self.smoother_type==0:
-            return (x + self.eps*np.log(1+np.exp(-x/self.eps)))
+            I = np.where(np.isfinite(np.exp(-x/self.eps)))
+            vals = np.zeros_like(x)
+            vals[I] = (x[I] + self.eps*np.log(1+np.exp(-x[I]/self.eps)))
+            assert np.all(np.isfinite(vals))
+            return vals
         elif self.smoother_type==1:
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))#[0]
             vals[I]=x[I]**3/self.eps**2*(1-x[I]/(2*self.eps))
             J = np.where(x>=self.eps)#[0]
             vals[J]=x[J]-self.eps/2
-            assert np.all(np.isfinite(vals))
             return vals
         else:
             msg="incorrect smoother_type"
@@ -756,19 +750,13 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
 
     def smooth_max_function_second_derivative(self,x):
         if self.smoother_type==0:
-            #print(-x/self.eps)
-            #print(np.exp(-x/self.eps))
-            #vals1=np.exp(-x/self.eps)/(self.eps*(1+np.exp(-x/self.eps))**2)
             vals = 1/(self.eps*(np.exp(-x/self.eps)+2+np.exp(x/self.eps)))
-            #assert np.allclose(vals,vals1)
             assert np.all(np.isfinite(vals))
             return vals
         elif self.smoother_type==1:
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))#[0]
             vals[I]=6*x[I]*(self.eps-x[I])/self.eps**3
-            #J = np.where(x>=self.eps)#[0]
-            #vals[J]=0
             return vals
         else:
             msg="incorrect smoother_type"
@@ -889,7 +877,7 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         return coef
 
 
-def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_smooth(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
+def solve_disutility_SSD_constrained_least_squares_smooth(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None,eps=None,smoother_type=0):
     """
     Disutility formuation
     -Y dominates -Z
@@ -903,7 +891,8 @@ def solve_disutility_2nd_order_stochastic_dominance_constrained_least_squares_sm
     basis_matrix = eval_basis_matrix(samples)
 
     ssd_opt_problem = SmoothDisutilitySSDOptProblem(
-        basis_matrix,values[:,0],values[eta_indices,0],probabilities)
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=eps,
+        smoother_type=smoother_type)
 
     coef = ssd_opt_problem.solve()
 
@@ -1133,8 +1122,8 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         coef = res.x[:self.ncoef]
         
         if not res.success:
-            print(res.message)
-            # raise Exception(res.message)
+            #print(res.message)
+            raise Exception(res.message)
 
         return coef
 
@@ -1207,18 +1196,18 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         # print('constr    ',res.constr)
 
         if not res.success:
-            print(res.message)
-            # raise Exception(res.message)
+            #print(res.message)
+            raise Exception(res.message)
     
         return coef
 
         
     
-def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
-        samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
+def solve_FSD_constrained_least_squares_smooth(
+        samples,values,eval_basis_matrix,eta_indices=None,probabilities=None,
+        eps=None):
     """
-    Disutility formuation
-    Z dominates Y
+    First order stochastic dominance FSD
     """
     num_samples = samples.shape[1]
     if probabilities is None:
@@ -1228,8 +1217,10 @@ def solve_1st_order_stochastic_dominance_constrained_least_squares_smooth(
 
     basis_matrix = eval_basis_matrix(samples)
 
+    smoother_type=0
     fsd_opt_problem = FSDOptProblem(
-        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=1e-6)
+        basis_matrix,values[:,0],values[eta_indices,0],probabilities,eps=eps,
+        smoother_type=smoother_type)
 
     coef = fsd_opt_problem.solve()
 
