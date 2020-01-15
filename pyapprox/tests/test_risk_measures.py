@@ -577,8 +577,8 @@ class TestRiskMeasures(unittest.TestCase):
             get_lognormal_example_exact_quantities(mu,sigma)
 
         np.random.seed(4)
-        nsamples=5
-        degree=1
+        nsamples=50
+        degree=4
         samples = np.random.normal(0,1,(1,nsamples))
         samples = np.sort(samples)
         values = f(samples[0,:])[:,np.newaxis]
@@ -748,8 +748,8 @@ class TestRiskMeasures(unittest.TestCase):
         jacobian = sd_opt_problem.nonlinear_constraints_jacobian(xx)
         if hasattr(jacobian,'todense'):
             jacobian = jacobian.todense()
-        print('jac ex',fd_jacobian)
-        print('jac fd',jacobian)
+        #print('jac ex',fd_jacobian)
+        #print('jac fd',jacobian)
         msg = 'change x, current value is not an effective test'
         check_gradients(
             sd_opt_problem.nonlinear_constraints,
@@ -777,8 +777,8 @@ class TestRiskMeasures(unittest.TestCase):
                 hessian=sd_opt_problem.define_nonlinear_constraint_hessian(
                     xx,ii)
                 #np.set_printoptions(linewidth=1000)
-                print('h',hessian)
-                print('h_fd',fd_hessian)
+                #print('h',hessian)
+                #print('h_fd',fd_hessian)
                 if hessian is None:
                     assert np.allclose(
                         fd_hessian,np.zeros_like(fd_hessian),atol=1e-7)

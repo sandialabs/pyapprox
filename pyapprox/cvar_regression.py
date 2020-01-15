@@ -32,7 +32,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     cvar : float
         The conditional value at risk of the random variable Y
     """
-    assert alpha>0 and alpha<1
+    assert alpha>=0 and alpha<1
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)
