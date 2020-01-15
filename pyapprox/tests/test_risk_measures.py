@@ -17,7 +17,7 @@ def plot_1d_functions_and_statistics(
     colors = ['k','r','b','g'][:len(functions)]
     for function,label,color in zip(functions,labels,colors):
         axs[0].plot(xx,function(xx[np.newaxis,:]),'-',c=color,label=label)
-    axs[0].plot(samples[0,:],values[:,0],'or',label='Train data')
+    axs[0].plot(samples[0,:],values[:,0],'ok',label='Train data')
     axs[0].set_xlim(xlb,xub)
 
     for function,label,color in zip(functions,labels,colors):
@@ -580,6 +580,7 @@ class TestRiskMeasures(unittest.TestCase):
         nsamples=5
         degree=1
         samples = np.random.normal(0,1,(1,nsamples))
+        samples = np.sort(samples)
         values = f(samples[0,:])[:,np.newaxis]
 
         pce = PolynomialChaosExpansion()
@@ -814,6 +815,7 @@ class TestRiskMeasures(unittest.TestCase):
         np.random.seed(3)
         fsd_opt_problem = self.setup_sd_opt_problem(
             FSDOptProblem)
+        fsd_opt_problem.smoother_type=0
 
         # import matplotlib.pyplot as plt
         # fsd_opt_problem.eps=1e-1
@@ -872,12 +874,12 @@ class TestRiskMeasures(unittest.TestCase):
         # plt.plot(fsd_opt_problem.values,heaviside_ecdf_vals,'g+')
         # plt.show()
 
-        fsd_opt_problem.smoother_type=1
-        xx = np.linspace(-fsd_opt_problem.eps,fsd_opt_problem.eps,101)
-        plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
-        fsd_opt_problem.smoother_type=2
-        plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
-        plt.show()
+        # fsd_opt_problem.smoother_type=1
+        # xx = np.linspace(-fsd_opt_problem.eps,fsd_opt_problem.eps,101)
+        # plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
+        # fsd_opt_problem.smoother_type=2
+        # plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
+        # plt.show()
         
         self.help_test_stochastic_dominance_gradients(fsd_opt_problem)
 
