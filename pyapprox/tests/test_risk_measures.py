@@ -15,15 +15,16 @@ def plot_1d_functions_and_statistics(
     xx = np.linspace(xlb,xub,101)
     fig,axs = plt.subplots(1,2,figsize=(2*8,6))
     colors = ['k','r','b','g'][:len(functions)]
-    for function,label,color in zip(functions,labels,colors):
-        axs[0].plot(xx,function(xx[np.newaxis,:]),'-',c=color,label=label)
+    linestyles = ['-',':','--','-.'][:len(functions)]
+    for function,label,color,ls in zip(functions,labels,colors,linestyles):
+        axs[0].plot(xx,function(xx[np.newaxis,:]),ls=ls,c=color,label=label)
     axs[0].plot(samples[0,:],values[:,0],'ok',label='Train data')
     axs[0].set_xlim(xlb,xub)
 
-    for function,label,color in zip(functions,labels,colors):
+    for function,label,color,ls in zip(functions,labels,colors,linestyles):
         stats = stat_function(function(samples)[:,0])
         I = stats.argmax()
-        axs[1].plot(eta,stats,'-',c=color,label=label)
+        axs[1].plot(eta,stats,ls=ls,c=color,label=label)
 
     axs[0].set_xlabel('$x$')
     axs[0].set_ylabel('$f(x)$')
@@ -572,7 +573,7 @@ class TestRiskMeasures(unittest.TestCase):
         np.random.seed(4)
         solver=partial(
             solve_FSD_constrained_least_squares_smooth,eps=1e-6)
-        self.help_test_stochastic_dominance(solver,10,2)
+        self.help_test_stochastic_dominance(solver,100,3)
 
         solver=partial(
             solve_FSD_constrained_least_squares_smooth,eps=1e-6)
@@ -645,13 +646,9 @@ class TestRiskMeasures(unittest.TestCase):
                 samples,values,lstsq_pce.basis_matrix)
             lstsq_pce.set_coefficients(lstsq_coef)
 
-            fig,axs=plot_1d_functions_and_statistics(
-                [f,pce,lstsq_pce],['Exact','SSD','Lstsq'],samples,values,
-                stat_function,ygrid)
-
-            axs[1].plot(ygrid,stat_function(values[:,0]),'ko',ms=12)
-            axs[1].plot(ygrid,stat_function(pce_values),'rs')
-            axs[1].plot(ygrid,stat_function(lstsq_pce(samples)[:,0]),'b*')
+            #axs[1].plot(ygrid,stat_function(values[:,0]),'ko',ms=12)
+            #axs[1].plot(ygrid,stat_function(pce_values),'rs')
+            #axs[1].plot(ygrid,stat_function(lstsq_pce(samples)[:,0]),'b*')
 
             ylb,yub = values.min()-abs(values.max())*.1,\
                       values.max()+abs(values.max())*.1
@@ -664,14 +661,18 @@ class TestRiskMeasures(unittest.TestCase):
                 stat_function = partial(compute_conditional_expectations,
                                         ygrid,disutility_formulation=disutility)
             else:
-                ygrid=np.linspace(ylb,yub,101)
-                ygrid = np.sort(np.concatenate([ygrid,pce_values]))
+                print('here')
+                print(ygrid)
                 def stat_function(x):
                     assert x.ndim==1
                     #vals = sd_opt_problem.smoother1(
                     #x[np.newaxis,:]-ygrid[:,np.newaxis]).mean(axis=1)
                     vals = EmpiricalCDF(x)(ygrid)
                     return vals
+
+            fig,axs=plot_1d_functions_and_statistics(
+                [f,pce,lstsq_pce],['Exact','SSD','Lstsq'],samples,values,
+                stat_function,ygrid)
 
             plt.show()
 
