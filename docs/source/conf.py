@@ -65,8 +65,11 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['modules.rst'] # temporarily do not create function documentation
+exclude_patterns = ['control_variate_monte_carlo.rst'] # temporarily do not create function documentation
 
+# only add documented functions to manual. If not used then the api of functions
+# without a docstring will be added with no information.
+autodoc_default_flags = ['members']
 
 # -- Options for HTML output -------------------------------------------------
 
