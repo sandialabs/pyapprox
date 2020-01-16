@@ -1,11 +1,3 @@
-import unittest
-from pyapprox.utilities import *
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from scipy.linalg import lu_factor, lu as scipy_lu
-
-class TestUtilities(unittest.TestCase):
-
-    def test_cartesian_product(self):
         # test when num elems = 1
         s1 = np.arange( 0, 3 )
         s2 = np.arange( 3, 5 )

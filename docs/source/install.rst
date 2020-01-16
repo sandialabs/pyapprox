@@ -46,3 +46,15 @@ A PDF of the documentation can be generated with::
     cd docs
     make latexpdf
 
+Note that sometimes the documentation of functions using numpydoc can render incorrectly when usd with sphinx_rtd_theme (see this `thread <https://github.com/numpy/numpydoc/issues/215>`_). As a workaround find the file::
+  
+  <path-to-site-packages>/sphinx_rtd_theme/static/css/theme.css
+
+add the following at the end of the file if not already present::
+
+  .classifier:before {
+      font-style: normal;
+      margin: 0.5em;
+      content: ":";
+  }
+

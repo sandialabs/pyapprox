@@ -1,4 +1,8 @@
-#!/usr/bin/env python
+"""
+Functions for estimating expectations using frequentist control-variate Monte-Carlo based methods such as multi-level Monte-Carlo, control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.
+"""
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,8 +17,8 @@ def compute_correlations_from_covariance(cov):
         is the first model, i.e its variance is cov[0,0]
 
     
-    Return
-    ------
+    Returns
+    -------
     corr : np.ndarray (nmodels,nmodels)
         The correlation matrix
     """
@@ -38,8 +42,8 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
         The sample ratios r used to specify the number of samples of the 
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
-    Return
-    ------
+    Returns
+    -------
     nhf_samples : integer
         The corrected number of samples of the high fidelity model
 
@@ -47,14 +51,15 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
         The corrected sample ratios
     """
     nsamples = [r*nhf_samples for r in nsample_ratios]
-    num_hf_samples = max(1,np.round(nhf_samples))
-    sample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
+    nhf_samples = max(1,np.round(nhf_samples))
+    nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
     return nhf_samples, nsample_ratios
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
     """
     Compute the variance reduction:
-    \gamma = 1-r^2
+    
+    .. math:: \gamma = 1-r^2
     
     Parameters
     ----------
@@ -75,11 +80,11 @@ def get_variance_reduction(get_rsquared,cov,nsample_ratios):
 
 def get_control_variate_rsquared(cov,nsample_ratios):
     """
-    Compute r^2 used to compute the variance reduction of 
-    control variate Monte Carlo:
-    \gamma = 1-r^2
+    Compute :math:`r^2` used to compute the variance reduction of 
+    control variate Monte Carlo
+
+    .. math:: \gamma = 1-r^2, \qquad     r^2 = c^TC^{-1}c
     
-    r^2 = c^TC^{-1}c
     where c is the first column of C
 
     Parameters
@@ -97,11 +102,11 @@ def get_control_variate_rsquared(cov,nsample_ratios):
     Returns
     -------
     rsquared : float
-        The value r^2
+        The value  :math:`r^2`
     """
     nmodels = cov.shape[0]
     assert len(costs)==cov
-    rsquared = self.cov[0,:1].dot(np.linalg.solve(cov[1:, 1:], cov[:1, 0]))
+    rsquared = cov[0,:1].dot(np.linalg.solve(cov[1:, 1:], cov[:1, 0]))
     rsquared /= cov[0,0]
     return rsquared
 
@@ -119,7 +124,6 @@ def get_rsquared_mfmc(cov,nsample_ratios):
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
-
 
     Returns
     -------
@@ -176,14 +180,14 @@ def get_rsquared_mlmc(cov,nsample_ratios):
     gamma += v / (rhat[-1])
     
     gamma /= cov[0, 0]
-    return -gamma #TODO check if need negative sign
+    return 1-gamma
 
 def get_mlmc_control_variate_weights(nmodels):
     """
     Get the weights used by the MLMC control variate estimator
 
-    Return
-    ------
+    Returns
+    -------
     weights : np.ndarray (nmodels-1)
         The control variate weights
     """
@@ -193,8 +197,8 @@ def get_approximate_control_variate_weights(nsample_ratios):
     """
     Get the weights used by the approximate control variate estimator
 
-    Return
-    ------
+    Returns
+    -------
     weights : np.ndarray (nmodels-1)
         The control variate weights
     """
@@ -211,18 +215,18 @@ def compute_control_variate_mean_estimate(weights,values):
     ----------
     values : list (nmodels)
         Evaluations of each model. Each model has two sets of data. 
-        [np.ndarray (num_samples_i0,num_qoi),
-         np.ndarray (num_samples_i0,num_qoi)]
 
-        The first data set is used to compute the estimator \hat{Q}_i of 
+        [np.ndarray (num_samples_i0,num_qoi), np.ndarray (num_samples_i1,num_qoi)]
+
+        The first data set is used to compute the estimator :math:`\hat{Q}_i` of 
         the model and the second one is used to compute the approximate 
-        mean \hat{\mu}_i of the model.
+        mean :math:`\hat{\mu}_i` of the model.
 
     weights : np.ndarray (nmodels-1)
         the control variate weights
 
-    Return
-    ------
+    Returns
+    -------
     est : float
         The control variate estimate of the mean
     """
@@ -235,7 +239,7 @@ def compute_control_variate_mean_estimate(weights,values):
         return est
 
 
-def allocate_samples_mfmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
+def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     """
     Determine the samples to be allocated to each model when using MFMC
 
@@ -248,27 +252,28 @@ def allocate_samples_mfmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
     costs : np.ndarray (nmodels)
         The relative costs of evaluating each model
 
-    cost_goal : float
+    target_cost : float
         The total cost budget
 
     nhf_samples_fixed : integer default=None
         If not None fix the number of high-fidelity samples and compute
         the samples assigned to the remaining models to respect this
 
-    Return
-    ------
-    The number of samples of the high fidelity model
+    Returns
+    -------
+    nhf_samples : integer 
+        The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
-    var : float
-        The ...
+    log10_variance : float
+        The base 10 logarithm of the variance of the estimator
     """
     nmodels = cov.shape[0]
     if nhf_samples_fixed is not None:
-        cost_left=cost_goal-nhf_samples_fixed*costs[0]-\
+        cost_left=target_cost-nhf_samples_fixed*costs[0]-\
             nhf_samples_fixed*costs[1]
         n2, nsample_ratios_left, var = allocate_samples_mfmc(
             cov[1:, 1:], costs[1:], cost_left)
@@ -293,17 +298,18 @@ def allocate_samples_mfmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
         r.append(np.sqrt(num / den))
 
         # Step 4 in Algorithm 2 in Peherstorfer et al 2016
-        nhf_samples = cost_goal / np.dot(costs, r)
+        nhf_samples = target_cost / np.dot(costs, r)
         nhf_samples = max(nhf_samples, 1)
         nsample_ratios = r[1:]
 
-    nhf_samples, nsample_ratios = standardize(nhf_samples, nsample_ratios)
+    nhf_samples, nsample_ratios = standardize_sample_ratios(
+        nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mfmc,cov,nsample_ratios)
-    var = np.log10(gamma) + np.log10(cov[0, 0]) - np.log10(nhf_samples)
+    log10_variance = np.log10(gamma) + np.log10(cov[0, 0]) - np.log10(nhf_samples)
 
-    return nhf_samples, nsample_ratios, var
+    return nhf_samples, nsample_ratios, log10_variance
 
-def allocate_samples_mlmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
+def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
     """
     Determine the samples to be allocated to each model when using MLMC
 
@@ -316,27 +322,28 @@ def allocate_samples_mlmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
     costs : np.ndarray (nmodels)
         The relative costs of evaluating each model
 
-    cost_goal : float
+    target_cost : float
         The total cost budget
 
     nhf_samples_fixed : integer default=None
         If not None fix the number of high-fidelity samples and compute
         the samples assigned to the remaining models to respect this
 
-    Return
-    ------
-    The number of samples of the high fidelity model
+    Returns
+    -------
+    nhf_samples : integer 
+        The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
-    var : float
-        The ...
+    log10_variance : float
+        The base 10 logarithm of the variance of the estimator
     """
     nmodels = cov.shape[0]
     if nhf_samples_fixed is not None:
-        cost_left=cost_goal-nhf_samples_fixed*costs[0]-\
+        cost_left=target_cost-nhf_samples_fixed*costs[0]-\
             nhf_samples_fixed*costs[1]
         n2, nsample_ratios_left, var = allocate_samples_mlmc(
             cov[1:, 1:], costs[1:], cost_left)
@@ -345,7 +352,8 @@ def allocate_samples_mlmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
         nsample_ratios = [None] * (nmodels-1)
         nsample_ratios[0] = (nhf_samples_fixed + n2) / nhf_samples_fixed
         nsample_ratios[1:]=[r*n2/nhf_samples_fixed for r in nsample_ratios_left]
-        nhf_samples, nsample_ratios = standardize(nhf_samples, nsample_ratios)
+        nhf_samples, nsample_ratios = standardize_sample_ratios(
+            nhf_samples, nsample_ratios)
         for ii in range(len(nsample_ratios)-1):
             if nsample_ratios[ii] == nsample_ratios[ii+1]:
                 nsample_ratios[ii+1] += 0.5
@@ -364,7 +372,7 @@ def allocate_samples_mlmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
         nsamples.append(np.sqrt(v/c))
         mu += np.sqrt(v*c)
 
-        variance = mu**2 / cost_goal
+        variance = mu**2 / target_cost
         mu /= variance
         nl = [mu * n for n in nsamples]
 
@@ -376,9 +384,29 @@ def allocate_samples_mlmc(self, cov, costs, cost_goal, nhf_samples_fixed=None):
 
         nhf_samples = max(nhf_samples, 1)
         
-    nhf_samples, nsample_ratios = standardize(nhf_samples, nsample_ratios)
+    nhf_samples, nsample_ratios = standardize_sample_ratios(
+        nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mlmc,cov,nsample_ratios)
-    var = np.log10(gamma) + np.log10(cov[0, 0]) - np.log10(nhf_samples)
-    if np.isnan(var):
+    log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
+    if np.isnan(log10_variance):
         raise Exception('MLMC variance is NAN')
-    return nhf_samples, nsample_ratios, var    
+    return nhf_samples, nsample_ratios, log10_variance
+
+def generate_mlmc_sample_sets(generate_samples, nhf_samples, nsample_ratios):
+    """
+    Parameters
+    ==========
+    generate_samples : callable
+        Function used to generate realizations of the random variables
+
+    nhf_samples : integer
+        The number of samples of the high fidelity model
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the 
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    Returns
+    =======
+    
+    """
