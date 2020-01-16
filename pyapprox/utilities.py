@@ -34,7 +34,7 @@ def sub2ind(sizes, multi_index):
        The d-dimensional index
 
     Returns
-    ------
+    -------
     scalar_index : integer 
         The scalar index
     """
@@ -77,7 +77,7 @@ def ind2sub(sizes,scalar_index,num_elems):
         The total number of elements in the d-dimensional matrix
 
     Returns
-    ------
+    -------
     multi_index : np.ndarray (len(sizes))
        The d-dimensional index
     """
@@ -108,7 +108,7 @@ def cartesian_product(input_sets, elem_size=1):
         The size of the vectors within each set.
 
     Returns
-    ------
+    -------
     result : np.ndarray (num_sets*elem_size, num_elems)
         The cartesian product. num_elems = np.prod(sizes)/elem_size,
         where sizes[ii] = len(input_sets[ii]), ii=0,..,num_sets-1.
@@ -170,7 +170,7 @@ def outer_product(input_sets):
         The sets to be used in the outer product
 
     Returns
-    ------
+    -------
     result : np.ndarray(np.prod(sizes))
        The outer product of the sets.
        result.dtype will be set to the first entry of the first input_set
@@ -222,7 +222,7 @@ def hash_array(array):
        The integer array to hash
 
     Returns
-    ------
+    -------
     key : integer
        The hash value of the array
     """
@@ -749,13 +749,15 @@ def truncated_pivoted_lu_factorization(A,max_iters,num_initial_rows=0,
     
 def add_columns_to_pivoted_lu_factorization(LU_factor,new_cols,raw_pivots):
     """
-    Given factorization PA=LU add new columns to A in unpermuted order and update
-    LU factorization
+    Given factorization PA=LU add new columns to A in unpermuted order and 
+    update LU factorization
     
+    Parameters
+    ----------
     raw_pivots : np.ndarray (num_pivots)
-    The pivots applied at each iteration of pivoted LU factorization.
-    If desired one can use get_final_pivots_from_sequential_pivots to 
-    compute final position of rows after all pivots have been applied.
+        The pivots applied at each iteration of pivoted LU factorization.
+        If desired one can use get_final_pivots_from_sequential_pivots to 
+        compute final position of rows after all pivots have been applied.
     """
     assert LU_factor.shape[0]==new_cols.shape[0]
     assert raw_pivots.shape[0]<=new_cols.shape[0]
