@@ -1,7 +1,21 @@
-from pyapprox.models.fenics.advection_diffusion import *
-from pyapprox.models.fenics.fenics_utilities import *
+from pyapprox.fenics_models.advection_diffusion import *
+from pyapprox.fenics_models.fenics_utilities import *
 import unittest
 import matplotlib.pyplot as plt
+
+def get_repeated_random_samples_with_varying_config_values(
+        num_vars,config_vars,generate_random_sample,num_samples):
+    num_config_vars=config_vars.shape[0]
+    samples=np.empty((num_vars+num_config_vars,0))
+    random_samples=generate_random_sample(num_vars,num_samples)
+    random_samples=np.vstack(
+        (random_samples,np.empty((config_vars.shape[0],num_samples))))
+    for ii in range(num_samples):
+        samples_ii=random_samples[:,ii:ii+1]
+        samples_ii=np.tile(samples_ii,(1,config_vars.shape[1]))
+        samples_ii[-num_config_vars:,:]=config_vars
+        samples=np.hstack((samples,samples_ii))
+    return samples
 
 import sympy as sp
 def get_exact_solution_sympy(steady_state):
@@ -111,24 +125,6 @@ def get_quadratic_exact_solution(alpha,beta,mesh,degree):
 def get_quadratic_solution_forcing(alpha,beta,mesh,degree):
     f = dl.Expression('beta - 2 - 2*alpha', beta=beta, alpha=alpha,degree=degree)
     return f
-
-# def myget_2d_rectangular_mesh_boundaries(xl,xr,yb,yt):
-#     left_bndry  = dl.CompiledSubDomain(
-#         "near(x[0],%e)&&!near(x[1],%e)&&on_boundary"%(xl,yt))
-#     top_bndry   = dl.CompiledSubDomain(
-#         "near(x[1],%e)&&!near(x[0],%e)&&on_boundary"%(yt,xr))
-#     right_bndry = dl.CompiledSubDomain(
-#         "near(x[0],%e)&&!near(x[1],%e)&&on_boundary"%(xr,yb))
-#     bottom_bndry= dl.CompiledSubDomain(
-#         "near(x[1],%e)&&!near(x[0],%e)&&on_boundary"%(yb,xl))
-#     return left_bndry,top_bndry,right_bndry,bottom_bndry
-
-# def myget_dirichlet_boundary_conditions_from_expression(expression,xl,xr,yb,yt):
-#     bndry_obj = myget_2d_rectangular_mesh_boundaries(xl,xr,yb,yt)
-#     boundary_conditions = [
-#         ['dirichlet',bndry_obj[ii],expression] for ii in range(len(bndry_obj))]
-#     return boundary_conditions
-    
 
 class TestTransientDiffusion(unittest.TestCase):
     def test_quadratic_solution(self):
@@ -276,22 +272,11 @@ class TestSteadyStateDiffusion(unittest.TestCase):
                 if jj!=ii:
                     boundary_conditions[jj]=[
                         'dirichlet',boundary_conditions[jj][1],0]
-                    
-            # boundaries = mark_boundaries(mesh,boundary_conditions)
-            # dirichlet_bcs = collect_dirichlet_boundaries(
-            #     function_space,boundary_conditions,boundaries)
-            # for bc in dirichlet_bcs:
-            #     test=dl.Function(function_space)
-            #     bc.apply(test.vector())
-            #     pp=dl.plot(test)
-            #     plt.colorbar(pp); plt.show()
-            
+                                
             sol = run_steady_state_model(
                 function_space,kappa,dl.Constant(0.0),
                 boundary_conditions=boundary_conditions)
             sols.append(sol)
-            #pp=dl.plot(sol)
-            #plt.colorbar(pp); plt.show()
             
         sol = run_steady_state_model(
             function_space,kappa,get_forcing(kappa,mesh,degree,True),
@@ -304,7 +289,6 @@ class TestSteadyStateDiffusion(unittest.TestCase):
         #pp=dl.plot(superposition_sol)
         #plt.colorbar(pp); plt.show()
         superposition_sol = dl.project(superposition_sol,function_space)
-
 
         boundary_conditions = get_dirichlet_boundary_conditions_from_expression(
             get_exact_solution(mesh,degree,True),xl,xr,yb,yt)
@@ -492,7 +476,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         #    for degree in degrees:
         #        print('P%d: %s' %(degree, str(rates[degree][error_type])[1:-1]))
 
-        
+    
 
 if __name__== "__main__":
     dl.set_log_level(40)

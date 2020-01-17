@@ -1442,32 +1442,6 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.function=function
             msg = 'Second save was successful'
             print(msg)
-  
-            
-class WorkTracker(object):
-    def __init__(self):
-        self.costs = dict()
-
-    def __call__(self,config_samples):
-        num_config_vars, nqueries = config_samples.shape
-        costs = np.empty((nqueries))
-        for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:,ii]])
-            assert key in self.costs, key
-            costs[ii] = np.median(self.costs[key])
-        return costs
-
-    def update(self,config_samples,costs):
-        num_config_vars, nqueries = config_samples.shape
-        assert costs.shape[0]==nqueries
-        assert costs.ndim==1
-        for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:,ii]])
-            if key in self.costs:
-                self.costs[key].append(costs[ii])
-            else:
-                self.costs[key] = [costs[ii]]
-            
     
 def plot_adaptive_sparse_grid_3d(sparse_grid,plot_grid=True):
     from pyapprox.visualization import plot_3d_indices

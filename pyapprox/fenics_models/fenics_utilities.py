@@ -648,6 +648,24 @@ def convergence_order(errors, base = 2):
                 orders[i] = math.log(ratio, base)
     return orders
 
+class RectangularMeshPeriodicBoundary(dl.SubDomain):
+    """
+    domain [0,Lx],[0,Ly]
+    y-boundary is periodic, i.e. top and bottom boundaries
+    """
+    def __init__(self,Ly,**kwargs):
+        self.Ly=Ly
+        dl.SubDomain.__init__(self,**kwargs)
+        
+    # Left boundary is "target domain" G
+    def inside(self, x, on_boundary):
+        return dl.near(x[0],0) and on_boundary
+    
+    # Map right boundary (H) to left boundary (G)
+    def map(self, x, y):
+        y[0] = x[0]
+        y[1] = x[1]-self.Ly
+
 """
 NOTES
 If we want to set Dirichlet conditions for individual components of the
