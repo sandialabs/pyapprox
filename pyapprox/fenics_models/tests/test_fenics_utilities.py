@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import dolfin as dl
-from pyapprox.models.fenics.fenics_utilities import *
+from pyapprox.fenics_models.fenics_utilities import *
 
 class TestFenicsUtilities(unittest.TestCase):
     def test_onstrained_newton_energy_solver(self):

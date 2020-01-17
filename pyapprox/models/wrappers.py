@@ -245,10 +245,119 @@ def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
         values[ii,:]=result[ii][0,:]
     return values
 
+
+import time
+def time_function_evaluations(function,samples):
+    vals = []
+    times = []
+    for ii in range(samples.shape[1]):
+        t0 = time.time()
+        val = function(samples[:,ii:ii+1])[0,:]
+        t1 = time.time()
+        vals.append(val)
+        times.append([t1-t0])
+    vals = np.asarray(vals)
+    times = np.asarray(times)
+    return np.hstack([vals,times])
+
+
+class TimerModelWrapper(object):
+    def __init__(self,function,base_model=None):
+        self.function_to_time=function
+        self.base_model=base_model
+        
+    def x__getattr__(self,name):
+        """
+        Cannot get following to work 
+
+        If defining a custom __getattr__ it seems I cannot have member
+        variables with the same name in this class and class definition
+        of function
+
+        if self.function is itself a model object allow the access of 
+        self.function.name using self.name
+
+        Note  __getattr__ 
+        will be invoked on python objects only when the requested 
+        attribute is not found in the particular object's space.
+        """
+
+        if hasattr(self.function_to_time,name):
+            attr=getattr(self.function_to_time,name)
+            return attr
+
+        raise AttributeError(
+            f" {self} or its member {self}.function has no attribute '{name}'")
+
+    def __call__(self,samples):
+        return time_function_evaluations(self.function_to_time,samples)
+
+class WorkTracker(object):
+    def __init__(self):
+        self.costs = dict()
+
+    def __call__(self,config_samples):
+        num_config_vars, nqueries = config_samples.shape
+        costs = np.empty((nqueries))
+        for ii in range(nqueries):
+            key = tuple([int(ll) for ll in config_samples[:,ii]])
+            assert key in self.costs, key
+            costs[ii] = np.median(self.costs[key])
+        return costs
+
+    def update(self,config_samples,costs):
+        num_config_vars, nqueries = config_samples.shape
+        assert costs.shape[0]==nqueries
+        assert costs.ndim==1
+        for ii in range(nqueries):
+            key = tuple([int(ll) for ll in config_samples[:,ii]])
+            if key in self.costs:
+                self.costs[key].append(costs[ii])
+            else:
+                self.costs[key] = [costs[ii]]
+
+def eval(function,samples):
+    return function(samples)
+                
+class WorkTrackingModel(object):
+    def __init__(self,function,base_model=None):
+        """
+        Assumes last qoi returned by function is the length of the simulation
+
+        If defining a custom __getattr__ it seems I cannot have member
+        variables with the same name in this class and class definition
+        of function
+        """
+        self.wt_function=function
+        self.work_tracker = WorkTracker()
+        self.base_model=base_model
+
+    def __call__(self,samples):
+        num_config_vars=self.base_model.num_config_vars
+        #data = self.wt_function(samples)
+        data = eval(self.wt_function,samples)
+        values = data[:,:-1]
+        work   = data[:,-1]
+        config_samples = samples[-num_config_vars:,:]
+        self.work_tracker.update(config_samples,work)
+        return values
+
+    def cost_function(self,config_samples):
+        return self.work_tracker(config_samples)
+
+    
+        
 class PoolModel(object):
     def __init__(self,function,max_eval_concurrency,data_basename=None,
-                 save_frequency=None,assert_omp=True):
-        self.function=function
+                 save_frequency=None,assert_omp=True, base_model=None):
+        """
+        If defining a custom __getattr__ it seems I cannot have member
+        variables with the same name in this class and class definition
+        of function
+        """
+        self.pool_function=function
+        self.base_model=base_model
+        
         self.max_eval_concurrency=max_eval_concurrency
         self.num_evaluations=0
         self.pool = Pool(self.max_eval_concurrency)
@@ -262,11 +371,12 @@ class PoolModel(object):
             print(msg)
         self.assert_omp=assert_omp
 
+
     def __call__(self,samples):
         if self.data_basename is None:
             vals = run_model_samples_in_parallel(
-                self.function,self.max_eval_concurrency,samples,pool=self.pool,
-                assert_omp=self.assert_omp)
+                self.pool_function,self.max_eval_concurrency,samples,
+                pool=self.pool,assert_omp=self.assert_omp)
         else:
             assert self.save_frequency>0
             num_batch_samples = self.max_eval_concurrency*self.save_frequency
@@ -275,7 +385,8 @@ class PoolModel(object):
             while lb<samples.shape[1]:
                 ub = min(lb+num_batch_samples,samples.shape[1])
                 batch_vals = run_model_samples_in_parallel(
-                    self.function,self.max_eval_concurrency,samples[:,lb:ub],
+                    self.pool_function,
+                    self.max_eval_concurrency,samples[:,lb:ub],
                     pool=self.pool,assert_omp=self.assert_omp)
                 data_filename = self.data_basename+'-%d-%d.npz'%(
                     self.num_evaluations+lb,self.num_evaluations+ub-1)
@@ -343,7 +454,8 @@ def default_map_to_multidimensional_index(num_config_vars,indices):
 
 class MultiLevelWrapper(object):
     """
-    Specify a one-dimension model hierachy from a multiple dimensional hierarchy
+    Specify a one-dimension model hierachy from a multiple dimensional 
+    hierarchy
     For example if model has configure variables which refine the x and y
     physical directions then one can specify a multilevel hierarchy by creating
     new indices with the mapping k=(i,i).
