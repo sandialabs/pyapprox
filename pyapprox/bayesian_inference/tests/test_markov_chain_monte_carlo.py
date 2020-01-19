@@ -1,101 +1,181 @@
 import unittest
 from pyapprox.bayesian_inference.markov_chain_monte_carlo import *
 from functools import partial
+from scipy.stats import norm, uniform
+from pyapprox.variables import IndependentMultivariateRandomVariable
 
 class LinearModel(object):
-    def __init__(self, x):
+    def __init__(self, Amatrix):
         """
         Parameters
         ----------
-        x: (np.ndarray (nstates)
-            The dependent variable (aka 'x') that our model requires
+        Amatrix : np.ndarray (nobs,nvars)
+            The Jacobian of the linear model
         """
 
-        self.x=x
+        self.Amatrix=Amatrix
 
     def __call__(self,samples):
         """
         A straight line!
         """
-        m, c = samples
-        return m*self.x + c
+        vals = self.Amatrix.dot(samples)
+        return vals
+
+from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+class ExponentialQuarticLogLikelihoodModel(object):
+    def __init__(self,modify=True):
+        self.modify = modify
+        self.a = 3.0
+        
+    def loglikelihood_function(self, x):
+        value = (0.1*x[0]**4 + 0.5*(2.*x[1]-x[0]**2)**2)
+        return -value
+
+    def gradient(self, x):
+        assert x.ndim==1
+        grad = np.array([12./5.*x[0]**3-4.*x[0]*x[1],
+                            4.*x[1]-2.*x[0]**2])
+        return -grad
+
+    def value(self, x):
+        assert x.ndim == 1
+        vals = self.loglikelihood_function(x)
+        return np.array([vals])
+    
+    def __call__(self, x):
+        if x.ndim==1:
+            x = x[:,np.newaxis]
+        # pymc only passes one sample in at a time and expects scalar to
+        # be returned. Pyapprox allows many x and returns matrix
+        return evaluate_1darray_function_on_2d_array(self.value,x,{}).squeeze()
+
 
 class TestMCMC(unittest.TestCase):
 
-    def test_linear_gaussian_model_gradient_free(self):
+    def test_linear_gaussian_inference(self):
+        # set random seed, so the data is reproducible each time
+        np.random.seed(1)  
+        
         nobs  = 10  # number of observations
-        sigma = 1.  # standard deviation of noise
+        noise_stdev = .1  # standard deviation of noise
         x = np.linspace(0., 9., nobs)
+        Amatrix = np.hstack([np.ones((nobs,1)),x[:,np.newaxis]])
+
+        univariate_variables = [norm(1,1),norm(0,4)]
+        variables = IndependentMultivariateRandomVariable(univariate_variables)
 
         mtrue = 0.4  # true gradient
         ctrue = 2.   # true y-intercept
+        true_sample = np.array([ctrue, mtrue])
 
-        m_mu,m_sigma=1,1
-        c_mu,c_sigma=0,4
-        model = LinearModel(x)
+        model = LinearModel(Amatrix)
 
         # make data
-        # set random seed, so the data is reproducible each time
-        np.random.seed(716742)  
-        data = sigma*np.random.randn(nobs) + model(np.array([mtrue, ctrue]))
+        data = noise_stdev*np.random.randn(nobs)+model(true_sample)
+        loglike = GaussianLogLike(model, data, noise_stdev)
 
-        ndraws = 300  # number of draws from the distribution
+        # number of draws from the distribution
+        ndraws = 5000
         # number of "burn-in points" (which we'll discard)
         nburn = min(1000,int(ndraws*0.1))
+        # number of parallel chains
         njobs=4
 
-        # define model
+        samples, effective_sample_size, map_sample = \
+            run_bayesian_inference_gaussian_error_model(
+                loglike,variables,ndraws,nburn,njobs,
+                use_grads=True,get_map=True,print_summary=False)
 
-        # create our Op
-        loglike = GaussianLogLike(model, data, sigma)
-        #logl = LogLike(loglike)
-        logl = LogLikeWithGrad(loglike)
-
-        # use PyMC3 to sampler from log-likelihood
-        with pm.Model():
-            # uniform priors on m and c
-            m = pm.Normal('m', mu = m_mu, sigma=m_sigma)
-            c = pm.Normal('c', mu = c_mu, sigma=c_sigma)
-
-            # convert m and c to a tensor vector
-            theta = tt.as_tensor_variable([m, c])
-
-            # use a DensityDist (use a lamdba function to "call" the Op)
-            pm.DensityDist('likelihood', lambda v: logl(v),
-                           observed={'v': theta})
-
-            trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
-                              start={'m':mtrue,'c':ctrue},cores=njobs)
-
-        print(pm.summary(trace))
-        var_names = ['c','m']
-        nvars = len(var_names)
-        samples = np.empty((nvars,(ndraws-nburn)*njobs))
-        for ii in range(nvars):
-            samples[ii,:]=trace.get_values(
-                var_names[ii],burn=nburn,chains=np.arange(njobs))
-        print('mcmc mean',samples.mean(axis=1))
-        print('mcmc cov',np.cov(samples))
-
-        Amatrix = np.hstack([np.ones((nobs,1)),x[:,np.newaxis]])
-        prior_mean = np.asarray([m_mu,c_mu])
-        prior_hessian = np.diag([1./m_sigma**2,1./c_sigma**2])
-        noise_covariance_inv = 1./sigma**2*np.eye(nobs)
+        prior_mean = np.asarray([rv.mean() for rv in variables.all_variables()])
+        prior_hessian = np.diag(
+            [1./rv.var() for rv in variables.all_variables()])
+        noise_covariance_inv = 1./noise_stdev**2*np.eye(nobs)
         
         from pyapprox.bayesian_inference.laplace import \
                 laplace_posterior_approximation_for_linear_models
-        exact_laplace_mean, exact_laplace_covariance = \
+        exact_mean, exact_covariance = \
             laplace_posterior_approximation_for_linear_models(
                 Amatrix, prior_mean, prior_hessian,
                 noise_covariance_inv, data)
 
-        print('exact mean',exact_laplace_mean.squeeze())
-        print('exact cov',exact_laplace_covariance)
+        # print('mcmc mean error',samples.mean(axis=1)-exact_mean)
+        # print('mcmc cov error',np.cov(samples)-exact_covariance)
+        # print('MAP sample',map_sample)
+        # print('exact mean',exact_mean.squeeze())
+        # print('exact cov',exact_covariance)
+        assert np.allclose(map_sample,exact_mean)
+        assert np.allclose(
+            exact_mean.squeeze(), samples.mean(axis=1),atol=1e-2)
+        assert np.allclose(exact_covariance, np.cov(samples), atol=1e-2)
 
 
         # plot the traces
-        _ = pm.traceplot(trace)
-        #plt.show()
+        # _ = pm.traceplot(trace)
+        # plt.show()
+
+    def test_exponential_quartic(self):
+        # set random seed, so the data is reproducible each time
+        np.random.seed(1)  
+        
+        univariate_variables = [uniform(-2,4),uniform(-2,4)]
+        plot_range = np.asarray([-1,1,-1,1])*2
+        variables = IndependentMultivariateRandomVariable(univariate_variables)
+
+        loglike = ExponentialQuarticLogLikelihoodModel()
+
+        # number of draws from the distribution
+        ndraws = 5000
+        # number of "burn-in points" (which we'll discard)
+        nburn = min(1000,int(ndraws*0.1))
+        # number of parallel chains
+        njobs=4
+
+        def unnormalized_posterior(x):
+            vals = np.exp(loglike(x))
+            rvs = variables.all_variables()
+            for ii in range(variables.num_vars()):
+                vals *= rvs[ii].pdf(x[ii,:])
+            return vals
+
+        from pyapprox.utilities import get_tensor_product_quadrature_rule
+        from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+        def univariate_quadrature_rule(n):
+            x,w = gauss_jacobi_pts_wts_1D(n,0,0)
+            x*=2
+            return x,w
+        x,w = get_tensor_product_quadrature_rule(
+            100,variables.num_vars(),univariate_quadrature_rule)
+        evidence = unnormalized_posterior(x).dot(w)
+        #print('evidence',evidence)
+
+        exact_mean = ((x*unnormalized_posterior(x)).dot(w)/evidence)
+        #print(exact_mean)
+
+        samples, effective_sample_size, map_sample = \
+            run_bayesian_inference_gaussian_error_model(
+                loglike,variables,ndraws,nburn,njobs,
+                use_grads=True,get_map=True,print_summary=True)
+
+        # from pyapprox.visualization import get_meshgrid_function_data
+        # import matplotlib
+        # X,Y,Z = get_meshgrid_function_data(
+        #     lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)
+        # plt.contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(),Z.max(),30),
+        #     cmap=matplotlib.cm.coolwarm)
+        # plt.plot(samples[0,:],samples[1,:],'ko')
+        # plt.show()
+        
+        # print('mcmc mean error',samples.mean(axis=1)-exact_mean)
+        # print('mcmc cov error',np.cov(samples)-exact_covariance)
+        #print('MAP sample',map_sample)
+        # print('exact mean',exact_mean.squeeze())
+        # print('exact cov',exact_covariance)
+        assert np.allclose(map_sample,np.zeros((variables.num_vars(),1)))
+        assert np.allclose(
+            exact_mean.squeeze(), samples.mean(axis=1),atol=1e-2)
+
 
 
 if __name__== "__main__":    
