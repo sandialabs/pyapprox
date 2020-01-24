@@ -60,7 +60,7 @@ def lanczos(nodes,weights,N):
     nnodes = nodes.shape[0]
     assert N<=nnodes
     assert(nnodes==weights.shape[0])
-    alpha   = nodes.copy()
+    alpha   = nodes.copy().astype(float)
     beta    = np.zeros(nnodes)
     beta[0] = weights[0]
     for n in range(nnodes-1):
