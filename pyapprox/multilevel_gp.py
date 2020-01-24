@@ -107,7 +107,6 @@ def full_multilevel_kernel_for_prediction(
             XX1,train_samples[mm],hyperparams,nsamples_per_model,mm)
         K.append(k_block)
     K = np.hstack(K)
-    print(K.shape,'k')
     return K
 
 class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
@@ -167,6 +166,7 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     "Gradient can only be evaluated when XX2 is None.")
             K = full_multilevel_kernel_for_prediction(
                 XX1,XX2,hyperparams,self.nsamples_per_model)
+        print(K.shape,'KK')
         if not eval_gradient:
             return K
             
@@ -233,6 +233,7 @@ class MultilevelGP(GaussianProcessRegressor):
         super().fit(XX_train,YY_train)
 
     def predict(self, XX_test, return_std=False, return_cov=False):
+        print('predict')
         gp_kernel = get_gp_samples_kernel(self)
         return_code = gp_kernel.return_code
         gp_kernel.return_code = 'values'

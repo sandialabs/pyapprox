@@ -259,6 +259,7 @@ class DerivGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     "Gradient can only be evaluated when XX2 is None.")
             K = full_kernel(XX1,length_scale,self.n_XX_func,XX2,
                             self.return_code)
+        print(K.shape,'KK')
         if not eval_gradient:
             return K
             
@@ -387,6 +388,7 @@ class GradientEnhancedGP(GaussianProcessRegressor):
         super(GradientEnhancedGP,self).fit(XX_train,YY_train)
 
     def predict(self, XX_test, return_std=False, return_cov=False):
+        print('predict')
         deriv_gp_kernel = get_gp_samples_kernel(self)
         #deriv_gp_kernel.length_scale=deriv_gp_kernel.length_scale*0+0.689
         return_code = deriv_gp_kernel.return_code
