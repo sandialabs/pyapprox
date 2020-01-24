@@ -219,7 +219,7 @@ class TestGradientEnhancedGP(unittest.TestCase):
         #gradient_enhanced_gp_example(1)
         #plt.show()
         gradient_enhanced_gp_example(2)
-        plt.show()
+        #plt.show()
 
 
 if __name__== "__main__":    
