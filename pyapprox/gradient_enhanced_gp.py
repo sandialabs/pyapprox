@@ -292,11 +292,6 @@ class DerivGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         return Hyperparameter(
             "length_scale", "numeric", self.length_scale_bounds)
 
-    def __repr__(self):
-        self.length_scale = np.atleast_1d(self.length_scale)
-        return "{0}(length_scale=[{1}])".format(
-                self.__class__.__name__, ", ".join(map("{0:.3g}".format,
-                                                   self.length_scale)))
 
 def plot_gp_1d(ax,predict,num_XX_test,bounds,XX_train=None,YY_train=None,
                num_stdev=1,function=None,gp_label=None,function_label=None):
