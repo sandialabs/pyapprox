@@ -65,7 +65,7 @@ def gradient_enhanced_gp_example(num_vars,plot=True):
     print (gegp.kernel_)
 
     XX_test,YY_test=gegp.get_training_derivs_data()
-    print(gegp.predict_derivatives(XX_test)-YY_test)
+    #print(gegp.predict_derivatives(XX_test)-YY_test)
     assert np.allclose(gegp.predict_derivatives(XX_test),YY_test,atol=1e-4)
 
     if plot and num_vars==2:
@@ -216,9 +216,9 @@ class TestGradientEnhancedGP(unittest.TestCase):
         # plt.show()
 
     def test_gradient_of_gp(self):
-        #gradient_enhanced_gp_example(1)
+        gradient_enhanced_gp_example(1)
         #plt.show()
-        gradient_enhanced_gp_example(2)
+        #gradient_enhanced_gp_example(2)
         #plt.show()
 
 
