@@ -58,19 +58,26 @@ def variance_pce_refinement_indicator(
     #print(subspace_index,indicator,'indicator')
     return -indicator, error[qoi_chosen]
     
-def solve_preconditioned_least_squares(basis_matrix_func,samples,values):
+def solve_preconditioned_least_squares(basis_matrix_func,samples,values,
+                                       precond_func):
     basis_matrix = basis_matrix_func(samples)
-    weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
+    #weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
+    weights = precond_func(basis_matrix,samples)
     basis_matrix = basis_matrix*weights[:,np.newaxis]
     rhs = values*weights[:,np.newaxis]
     #print(np.linalg.cond(basis_matrix))
     coef = np.linalg.lstsq(basis_matrix,rhs,rcond=None)[0]
     return coef
-    
+
+def chistoffel_preconditioning_function(basis_matrix,samples):
+    weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
+    return weights
+
 class AdaptiveInducedPCE(SubSpaceRefinementManager):
     def __init__(self,num_vars,cond_tol=1e8):
         super(AdaptiveInducedPCE,self).__init__(num_vars)
         self.cond_tol=cond_tol
+        self.precond_func = chistoffel_preconditioning_function
 
     def set_function(self,function,var_trans=None,poly_opts=None):
         super(AdaptiveInducedPCE,self).set_function(function,var_trans)
@@ -132,7 +139,8 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         # store qr factorization of basis_matrix and update the factorization
         # self.samples are in canonical domain
         coef = solve_preconditioned_least_squares(
-            self.pce.canonical_basis_matrix,self.samples,self.values)
+            self.pce.canonical_basis_matrix,self.samples,self.values,
+            self.precond_func)
         self.pce.set_coefficients(coef)
 
         return num_new_subspace_samples
@@ -143,6 +151,13 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
     def get_active_unique_poly_indices(self):
         I = get_active_poly_array_indices(self)
         return self.poly_indices[:,I]
+
+    def set_preconditioning_function(self,precond_func):
+        """
+        precond_func : callable
+            Callable function with signature precond_func(basis_matrix,samples)
+        """
+        self.precond_func=precond_func
 
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def __init__(self,num_vars,candidate_samples,factorization_type='fast'):
@@ -156,8 +171,9 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
     def precond_canonical_basis_matrix(self,samples):
         basis_matrix = self.pce.canonical_basis_matrix(samples)
-        precond_weights=np.sqrt(basis_matrix.shape[1])/np.linalg.norm(
-            basis_matrix,axis=1)#*0+1
+        #precond_weights=np.sqrt(basis_matrix.shape[1])/np.linalg.norm(
+        #    basis_matrix,axis=1)
+        precond_weights=self.precond_func(basis_matrix,samples)
         precond_basis_matrix = basis_matrix*precond_weights[:,np.newaxis]
         return precond_basis_matrix, precond_weights
 
@@ -213,9 +229,11 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
                     self.basis_matrix, max_iters, truncate_L_factor=False)
             self.pivots=get_final_pivots_from_sequential_pivots(
                 self.seq_pivots.copy())[:max_iters]
-            self.precond_weights = np.sqrt(
-                self.basis_matrix.shape[1]*christoffel_weights(
-                    self.basis_matrix))[:,np.newaxis]#*0+1
+            #self.precond_weights = np.sqrt(
+            #    self.basis_matrix.shape[1]*christoffel_weights(
+            #        self.basis_matrix))[:,np.newaxis]
+            self.precond_weights = self.precond_func(
+                self.basis_matrix,self.candidate_samples)[:,np.newaxis]
             return self.candidate_samples[
                 :,self.pivots[num_samples:self.poly_indices.shape[1]]]
 
@@ -238,9 +256,11 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         self.LU_factor = add_columns_to_pivoted_lu_factorization(
             self.LU_factor.copy(),new_cols,self.seq_pivots[:num_samples])
         
-        self.precond_weights = np.sqrt(
-            self.basis_matrix.shape[1]*christoffel_weights(
-                self.basis_matrix))[:,np.newaxis]#*0+1
+        #self.precond_weights = np.sqrt(
+        #    self.basis_matrix.shape[1]*christoffel_weights(
+        #        self.basis_matrix))[:,np.newaxis]
+        self.precond_weights = self.precond_func(
+            self.basis_matrix,self.candidate_samples)[:,np.newaxis]
         pivoted_precond_weights = pivot_rows(
             self.seq_pivots,self.precond_weights,False)
         self.LU_factor = unprecondition_LU_factor(
@@ -295,14 +315,6 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
                 lower=True)
             coef = solve_triangular(self.U_factor,temp,lower=False)
         self.pce.set_coefficients(coef)
-
-        # self.samples are in canonical domain
-        #precond_basis_matrix, precond_weights = \
-        #    self.precond_canonical_basis_matrix(self.samples)
-        #coef1 = solve_preconditioned_least_squares(
-        #    self.pce.canonical_basis_matrix,self.samples,self.values)
-        #print('C',coef1,coef)
-        #assert np.allclose(coef,coef1)
 
         return num_new_subspace_samples
 

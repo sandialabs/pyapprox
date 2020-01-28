@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 from pyapprox.indexing import \
      compute_hyperbolic_indices
@@ -206,7 +204,6 @@ class PolynomialChaosExpansion(object):
 
 
     def update_recursion_coefficients(self,num_coefs_per_var,opts):
-        print(num_coefs_per_var,'c')
         num_coefs_per_var = np.atleast_1d(num_coefs_per_var)
         initializing=False
         if self.basis_type_index_map is None:
