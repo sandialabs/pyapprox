@@ -26,7 +26,7 @@ def compute_l2_error(validation_samples,validation_values,pce,relative=True):
     
     return error
 
-def genz_example(max_num_samples):
+def genz_example(max_num_samples,precond_type):
     error_tol=1e-12
 
     univariate_variables = [
@@ -54,6 +54,19 @@ def genz_example(max_num_samples):
         np.random.uniform(0,np.pi,(var_trans.num_vars(),int(1e4))))
     pce = AdaptiveLejaPCE(
         var_trans.num_vars(),candidate_samples,factorization_type='fast')
+    if precond_type=='density':
+        def precond_function(basis_matrix,samples):
+            trans_samples = var_trans.map_from_canonical_space(samples)
+            vals = np.ones(samples.shape[1])
+            for ii in range(len(univariate_variables)):
+                rv = univariate_variables[ii]
+                vals *= np.sqrt(rv.pdf(trans_samples[ii,:]))
+            return vals
+    elif precond_type=='christoffel':
+        precond_function = chistoffel_preconditioning_function
+    else:
+        raise Exception(f'Preconditioner: {precond_type} not supported')
+    pce.set_preconditioning_function(precond_function)
 
     max_level=np.inf
     max_level_1d=[max_level]*(pce.num_vars)
@@ -88,4 +101,5 @@ def genz_example(max_num_samples):
     
  
 if __name__ == '__main__':
-    genz_example(100)
+    #genz_example(100,'christoffel')
+    genz_example(100,'density')
