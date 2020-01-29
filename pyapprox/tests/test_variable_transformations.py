@@ -257,7 +257,30 @@ class TestVariableTransformations(unittest.TestCase):
             file_var_trans = pickle.load(f)
 
         os.remove(filename)
-                           
+
+    def test_map_rv_discrete(self):
+        nvars=2
+
+        mass_locs = np.arange(5,501,step=5)
+        nmasses = mass_locs.shape[0]
+        mass_probs = np.ones(nmasses,dtype=float)/float(nmasses)
+        univariate_variables = [
+            float_rv_discrete(name='float_rv_discrete',
+                              values=(mass_locs,mass_probs))()]*nvars
+
+        variables  = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variables)
+
+        samples = np.vstack(
+            [mass_locs[np.newaxis,:],mass_locs[0]*np.ones((1,nmasses))])
+        canonical_samples = var_trans.map_to_canonical_space(samples)
+
+        assert canonical_samples.min()>=-1 and canonical_samples.max()<=1
+
+        recovered_samples = var_trans.map_from_canonical_space(
+            canonical_samples)
+        assert np.allclose(recovered_samples,samples)
+      
 
 if __name__== "__main__":    
     variable_transformations_test_suite = \

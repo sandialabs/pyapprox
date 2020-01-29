@@ -28,7 +28,12 @@ def get_distribution_info(rv):
     scale_values =  [rv.args[ii] for ii in range(len(shapes),len(rv.args))]
     scale_values += [rv.kwds[key] for key in rv.kwds if key not in shapes]
     if len(scale_values)==0:
-        scale_values = [0,1]
+        if (type(rv.dist)==float_rv_discrete and
+            rv.dist.name!='discrete_chebyshev'):
+            lb,ub=rv.dist.xk.min(),rv.dist.xk.max()
+            scale_values = [lb,ub-lb]
+        else:
+            scale_values = [0,1]
     elif len(scale_values)==1 and len(rv.args)>len(shapes):
         scale_values += [1.]
     elif len(scale_values)==1  and 'scale' not in rv.kwds:
@@ -39,7 +44,12 @@ def get_distribution_info(rv):
     scales = dict(zip(scale_names,np.atleast_1d(scale_values)))
 
     if type(rv.dist)==float_rv_discrete:
-        shapes={'xk':rv.dist.xk,'pk':rv.dist.pk}
+        #shapes={'xk':rv.dist.xk,'pk':rv.dist.pk}
+        xk = rv.dist.xk.copy()
+        if rv.dist.name!='discrete_chebyshev':
+            lb,ub=xk.min(),xk.max()
+            xk = (xk-lb)/(ub-lb)*2-1
+        shapes={'xk':xk,'pk':rv.dist.pk}
 
     return name, scales, shapes
 
@@ -144,6 +154,14 @@ class float_rv_discrete(rv_sample):
     Currently we only guarantee that overloaded functions and cdf, ppf and moment
     work and are tested
     """
+    def __init__(self, a=0, b=np.inf, name=None, badvalue=None,
+                 moment_tol=1e-8, values=None, inc=1, longname=None,
+                 shapes=None, extradoc=None, seed=None):
+        super(float_rv_discrete,self).__init__(
+            a,b,name,badvalue,moment_tol,values,inc,longname,shapes,extradoc,
+            seed)
+        self.xk = self.xk.astype(dtype=float)
+    
     def __new__(cls, *args, **kwds):
         return super(float_rv_discrete, cls).__new__(cls)
     
@@ -213,4 +231,14 @@ class float_rv_discrete(rv_sample):
         #     else:
         #         vals = vals.astype(int)
 
+        return vals
+
+    def pdf(self,x):
+        x = np.atleast_1d(x)
+        vals = np.zeros(x.shape[0])
+        for jj in range(x.shape[0]):
+            for ii in range(self.xk.shape[0]):
+                if self.xk[ii]==x[jj]:
+                    vals[jj]=self.pk[ii]
+                    break
         return vals
