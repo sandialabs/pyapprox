@@ -95,9 +95,9 @@ def hahn_recurrence(Nterms, N, alphaPoly, betaPoly):
 
     .. math:: \max(0, M-(M-n)) \le x \le \min(n, N)
 
-    which describes the probability of x successes in n draws, without 
+    which describes the probability of x successes in N draws, without 
     replacement, from a finite population of size M that contains exactly 
-    K successes.
+    n successes.
 
     Parameters
     ----------

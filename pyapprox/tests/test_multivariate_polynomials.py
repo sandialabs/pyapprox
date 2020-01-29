@@ -448,8 +448,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly.set_indices(np.arange(degree+1)[np.newaxis,:])
         p = poly.basis_matrix(xk[np.newaxis,:])
         w = pk
+        #print((np.dot(p.T*w,p),np.eye(degree+1)))
         assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
-
 
     def test_float_rv_discrete_chebyshev(self):
         N,degree=10,5

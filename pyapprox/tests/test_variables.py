@@ -190,6 +190,21 @@ class TestVariables(unittest.TestCase):
         intervals = variable.get_statistics('interval',alpha=1)
         assert np.allclose(intervals,np.array([[2,6],[-1,1],[-np.inf,np.inf]]))
 
+    def test_float_rv_discrete_pdf(self):
+        nmasses1=10
+        mass_locations1 = np.geomspace(1.0, 32.0, num=nmasses1)
+        masses1 = np.ones(nmasses1,dtype=float)/nmasses1
+        var1 = float_rv_discrete(
+            name='var1',values=(mass_locations1,masses1))()
+
+        xk = var1.dist.xk.copy()
+        I = np.random.permutation(xk.shape[0])[:3]
+        xk[I] = -1
+        pdf_vals = var1.pdf(xk)
+        assert np.allclose(pdf_vals[I],np.zeros_like(I,dtype=float))
+        assert np.allclose(np.delete(pdf_vals,I),np.delete(var1.dist.pk,I))
+        
+
 
 if __name__== "__main__":    
     variables_test_suite = unittest.TestLoader().loadTestsFromTestCase(
