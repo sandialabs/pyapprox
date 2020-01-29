@@ -3,8 +3,30 @@ from __future__ import (absolute_import, division,
 import numpy as np
 from scipy import special as sp
 
-def charlier_recurrence(N, a, probability=False):
-    """These polynomials are orthogonal with respect to the Poisson distribution
+def charlier_recurrence(N, a):
+    r"""
+    Compute the recursion coefficients of the polynomials which are 
+    orthonormal with respect to the Poisson distribution.
+
+    Parameters
+    ----------
+    N : integer 
+        The number of polynomial terms requested
+
+    a: float
+        The rate parameter of the Poisson distribution
+
+    Returns
+    -------
+    ab : np.ndarray (N,2)
+        The recursion coefficients of the N orthonormal polynomials
+
+    Notes
+    -----
+    Note as rate gets smaller the number of terms that can be accurately
+    computed will decrease because the problem gets more ill conditioned.
+    This is caused because the number of masses with significant weights
+    gets smaller as rate does 
     """
 
     if N < 1:
@@ -22,11 +44,28 @@ def charlier_recurrence(N, a, probability=False):
 
     return ab
 
-def discrete_chebyshev_recurrence(N, Ntrials, probability=False):
-    """
-    These polynomials are orthogonal with respect to the weight function
-    w(x) = \delta_i(x) where \delta_i(x) is the dirac delta function which
-    is one when x==i, i==1, Ntrials and zero otherwise
+def discrete_chebyshev_recurrence(N, Ntrials):
+    r"""
+    Compute the recursion coefficients of the polynomials which are 
+    orthonormal with respect to the probability measure
+    
+    .. math:: w(x) = \frac{\delta_i(x)}{M}
+
+    where :math:`\delta_i(x)` is the dirac delta function which is one when
+    :math:`x=i`, for :math:`i=1,\ldots,M` and zero otherwise
+
+    Parameters
+    ----------
+    N : integer 
+        The number of polynomial terms requested
+
+    Ntrials : integer
+        The number of probability masses (M)
+
+    Returns
+    -------
+    ab : np.ndarray (N,2)
+        The recursion coefficients of the N orthonormal polynomials
     """
     assert(N<=Ntrials)
 
@@ -45,37 +84,60 @@ def discrete_chebyshev_recurrence(N, Ntrials, probability=False):
 
     return ab
 
-def hahn_recurrence(N, Ntrials, alphaPoly, betaPoly, probability=False):
-    """
-    These polynomials are orthogonal with respect to the weight function 
+def hahn_recurrence(Nterms, N, alphaPoly, betaPoly):
+    r"""
+    Compute the recursion coefficients of the polynomials which are 
+    orthonormal with respect to the hypergeometric probability mass function
 
-    (K choose k)(N-K choose n-k)/( N choose n).
+    .. math:: w(x)=\frac{{n \choose x}{M-n \choose N-x}}{{ M \choose N}}.
 
-    This corresponds to the hypergeometric probability mass function, which
-    describes the probability of k successes in n draws, without 
-    replacement, from a finite population of size N that contains exactly 
+    for 
+
+    .. math:: \max(0, M-(M-n)) \le x \le \min(n, N)
+
+    which describes the probability of x successes in n draws, without 
+    replacement, from a finite population of size M that contains exactly 
     K successes.
-    """
-    assert(N<=Ntrials)
 
-    if N < 1:
+    Parameters
+    ----------
+    Nterms : integer 
+        The number of polynomial terms requested
+
+    N : integer
+        The number of draws
+
+    alphaPoly : integer
+         :math:`-n+1`
+
+    betPoly : integer
+         :math:`-M-1+n`
+
+    Returns
+    -------
+    ab : np.ndarray (Nterms,2)
+        The recursion coefficients of the Nterms orthonormal polynomials
+    """
+    assert(Nterms<=N)
+
+    if Nterms < 1:
         return np.ones((0,2))
 
-    An = np.zeros(N)
-    Cn = np.zeros(N)
-    for n in range(N):
-        numA = (alphaPoly+n+1) * (Ntrials-n) * (n+alphaPoly+betaPoly+1)
-        numC = n * (betaPoly+n) * (Ntrials+alphaPoly+betaPoly+n+1)
+    An = np.zeros(Nterms)
+    Cn = np.zeros(Nterms)
+    for n in range(Nterms):
+        numA = (alphaPoly+n+1) * (N-n) * (n+alphaPoly+betaPoly+1)
+        numC = n * (betaPoly+n) * (N+alphaPoly+betaPoly+n+1)
         denA = (alphaPoly+betaPoly+2*n+1) * (alphaPoly+betaPoly+2*n+2)
         denC = (alphaPoly+betaPoly+2*n+1) * (alphaPoly+betaPoly+2*n  )
         An[n] = numA / denA
         Cn[n] = numC / denC
 
-    if N==1:
+    if Nterms==1:
         return np.array([[An[0]+Cn[0],1]])
 
     ab = np.array(
-        [[An[0]+Cn[0],1]]+[[An[n]+Cn[n],An[n-1]*Cn[n]] for n in range(1,N)])
+        [[An[0]+Cn[0],1]]+[[An[n]+Cn[n],An[n-1]*Cn[n]] for n in range(1,Nterms)])
 
     ab[:,1] = np.sqrt(ab[:,1])
 
@@ -83,23 +145,41 @@ def hahn_recurrence(N, Ntrials, alphaPoly, betaPoly, probability=False):
 
     return ab
 
-def krawtchouk_recurrence(N, Ntrials, p, probability=False):
+def krawtchouk_recurrence(Nterms, Ntrials, p):
     """
-    These polynomials
-    are orthogonal with respect to the weight function 
-    (N choose k)*p^k*(1-p)^(n-k).
-    This corresponds to the binomial probability mass function,  
+    Compute the recursion coefficients of the polynomials which are 
+    orthonormal with respect to the binomial probability mass function
+
+    .. math:: {N \choose k} p^k (1-p)^{(n-k)}
+
     which is the probability of k successes from N trials.
+
+    Parameters
+    ----------
+    Nterms : integer 
+        The number of polynomial terms requested
+
+    Ntrials : integer
+        The number of trials
+
+    p : float
+        The probability of success :math:`p\in(0,1)`
+
+    Returns
+    -------
+    ab : np.ndarray (Nterms,2)
+        The recursion coefficients of the Nterms orthonormal polynomials
     """
     
-    assert(N<=Ntrials)
+    assert(Nterms<=Ntrials)
     assert p>0 and p<1
 
-    if N < 1:
+    if Nterms < 1:
         return np.ones((0,2))
 
     ab = np.array(
-        [[p*(Ntrials-n)+n*(1-p), p*(1-p)*n*(Ntrials-n+1)] for n in range(N)])
+        [[p*(Ntrials-n)+n*(1-p), p*(1-p)*n*(Ntrials-n+1)]
+         for n in range(Nterms)])
 
     ab[:,1] = np.sqrt(ab[:,1])
 
@@ -112,8 +192,28 @@ def krawtchouk_recurrence(N, Ntrials, p, probability=False):
     return ab
 
 def jacobi_recurrence(N, alpha=0., beta=0., probability=False):
-    # Returns the first N recurrence coefficient pairs for the Jacobi
-    # polynomial family.
+    r"""
+    Compute the recursion coefficients of Jacobi polynomials which are 
+    orthonormal with respect to the Beta random variables
+
+    Parameters
+    ----------
+    alpha : float
+        The first parameter of the Jacobi polynomials. For the Beta distribution
+        with parameters :math:`\hat{\alpha},\hat{\beta}` we have
+        :math:`\alpha=\hat{\beta}-1`
+
+    beta : float
+        The second parameter of the Jacobi polynomials
+        For the Beta distribution
+        with parameters :math:`\hat{\alpha},\hat{\beta}` we have
+        :math:`\beta=\hat{\alpha}-1`
+
+    Returns
+    -------
+    ab : np.ndarray (Nterms,2)
+        The recursion coefficients of the Nterms orthonormal polynomials
+    """
 
     if N < 1:
         return np.ones((0,2))
@@ -144,32 +244,40 @@ def jacobi_recurrence(N, alpha=0., beta=0., probability=False):
 
     return ab
 
-def hermite_recurrence(N, rho=0., probability=False):
+def hermite_recurrence(Nterms, rho=0., probability=False):
     r""" 
-    Returns the first N recurrence coefficient pairs for the Hermite
+    Compute the recursion coefficients of for the Hermite
     polynomial family.
 
-    x^{2\rho}exp(-x^2)
+    .. math:: x^{2\rho}\exp(-x^2)
 
-    and for special case of rho=0 and probability=True
+    Parameters
+    ----------
+    rho : float
+        The parameter of the hermite polynomials. The special case of
+    :math:`\rho=0` and probability=True returns the probablists 
+    Hermite polynomial
 
-    exp(-x^2/2) return the probablists hermite polynomial
+    Returns
+    -------
+    ab : np.ndarray (Nterms,2)
+        The recursion coefficients of the Nterms orthonormal polynomials
     """
     
-    if N < 1:
+    if Nterms < 1:
         return np.ones((0,2))
 
-    ab = np.zeros((N,2))
+    ab = np.zeros((Nterms,2))
     ab[0,1] = sp.gamma(rho+0.5)# = np.sqrt(np.pi) for rho=0
 
 
     if rho==0 and probability:
-        ab[1:,1] = np.arange(1., N)
+        ab[1:,1] = np.arange(1., Nterms)
     else:
-        ab[1:,1] = 0.5*np.arange(1., N)
+        ab[1:,1] = 0.5*np.arange(1., Nterms)
 
         
-    ab[np.arange(N) % 2 == 1,1] += rho
+    ab[np.arange(Nterms) % 2 == 1,1] += rho
 
     ab[:,1] = np.sqrt(ab[:,1])
 
@@ -179,6 +287,27 @@ def hermite_recurrence(N, rho=0., probability=False):
     return ab
 
 def evaluate_monic_polynomial_1d(x,nmax,ab):
+    """
+    Evaluate univariate monic polynomials using their
+    three-term recurrence coefficients. A monic polynomial is a polynomial 
+    in which the coefficient of the highest degree term is 1.
+
+    Parameters
+    ----------
+    x : np.ndarray (num_samples)
+       The samples at which to evaluate the polynomials
+
+    nmax : integer
+       The maximum degree of the polynomials to be evaluated
+
+    ab : np.ndarray (num_recusion_coeffs,2)
+       The recursion coefficients. num_recusion_coeffs>degree
+
+    Returns
+    -------
+    p : np.ndarray (num_samples, nmax+1)
+       The values of the polynomials
+    """
     p = np.zeros((x.shape[0],nmax+1),dtype=float)
 
     p[:,0] = 1/ab[0,1]
@@ -201,13 +330,13 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     the recurrence coefficients a, b (with positive leading coefficient)
     satisfy the recurrences
 
-      b_{n+1} p_{n+1} = (x - a_n) p_n - sqrt(b_n) p_{n-1}
+    .. math:: b_{n+1} p_{n+1} = (x - a_n) p_n - \sqrt{b_n} p_{n-1}
 
     This assumes that the orthonormal recursion coefficients satisfy
     
-      b_{n+1} = sqrt(\hat{b}_{n+1})
+    .. math:: b_{n+1} = \sqrt{\hat{b}_{n+1}}
 
-    where \hat{b}_{n+1} are the orthogonal recursion coefficients.
+    where :math:`\hat{b}_{n+1}` are the orthogonal recursion coefficients.
 
     Parameters
     ----------
@@ -220,8 +349,8 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     ab : np.ndarray (num_recusion_coeffs,2)
        The recursion coefficients. num_recusion_coeffs>degree
 
-    Return
-    ------
+    Returns
+    -------
     p : np.ndarray (num_samples, nmax+1)
        The values of the polynomials
     """
@@ -262,13 +391,13 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     the recurrence coefficients a, b (with positive leading coefficient)
     satisfy the recurrences
 
-      b_{n+1} p_{n+1} = (x - a_n) p_n - sqrt(b_n) p_{n-1}
+    .. math:: b_{n+1} p_{n+1} = (x - a_n) p_n - \sqrt{b_n} p_{n-1}
 
     This assumes that the orthonormal recursion coefficients satisfy
     
-      b_{n+1} = sqrt(\hat{b}_{n+1})
+    .. math:: b_{n+1} = \sqrt{\hat{b}_{n+1}}
 
-    where \hat{b}_{n+1} are the orthogonal recursion coefficients.
+    where :math:`\hat{b}_{n+1}` are the orthogonal recursion coefficients.
 
     Parameters
     ----------
@@ -284,8 +413,8 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     deriv_order : integer
        The maximum order of the derivatives to evaluate.
 
-    Return
-    ------
+    Returns
+    -------
     p : np.ndarray (num_samples, num_indices)
        The values of the s-th derivative of the polynomials
     """
@@ -326,12 +455,28 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
 
 from scipy.sparse import diags as sparse_diags
 def gauss_quadrature(recursion_coeffs,N):
-    """Computes Gauss quadrature from recurrence coefficients
-
-    x,w = gauss_quadrature(recursion+coeffs,N)
+    r"""Computes Gauss quadrature from recurrence coefficients::
+    
+       x,w = gauss_quadrature(recursion+coeffs,N)
 
     Computes N Gauss quadrature nodes (x) and weights (w) from 
     standard orthonormal recurrence coefficients. 
+
+    Parameters
+    ----------
+    recursion_coeffs : np.ndarray (num_recursion_coeffs,2)
+       The recursion coefficients
+
+    N : integer
+       Then number of quadrature points
+
+    Returns
+    -------
+    x : np.ndarray (N)
+       The quadrature points
+
+    w : np.ndarray (N)
+       The quadrature weights
     """
     assert N > 0
     assert N<=recursion_coeffs.shape[0]
@@ -349,15 +494,23 @@ def gauss_quadrature(recursion_coeffs,N):
     return x, w
 
 def convert_orthonormal_polynomials_to_monomials_1d(ab,nmax):
-    """
+    r"""
     Get the monomial expansion of each orthonormal basis up to a given
     degree.
+
+    Parameters
+    ----------
+    ab : np.ndarray (num_recursion_coeffs,2)
+       The recursion coefficients
+
+    nmax : integer
+       The maximum degree of the polynomials to be evaluated (N+1)
 
     Returns
     -------
     monomial_coefs : np.ndarray (nmax+1,nmax+1)
-        The coefficients of x**i i=0,...,nmax for each orthonormal basis p_j
-        Each row is the coefficients of a single basis p_j.
+        The coefficients of :math:`x^i, i=0,...,N` for each orthonormal basis
+        :math:`p_j` Each row is the coefficients of a single basis :math:`p_j`.
     """
     assert nmax < ab.shape[0]
     
@@ -366,7 +519,7 @@ def convert_orthonormal_polynomials_to_monomials_1d(ab,nmax):
     monomial_coefs[0,0] = 1/ab[0,1]
 
     if nmax > 0:
-        monomial_coefs[1,:2] = np.array([-ab[0,0],1])*monomial_coefs[0,0]/ab[1,1]
+        monomial_coefs[1,:2]=np.array([-ab[0,0],1])*monomial_coefs[0,0]/ab[1,1]
     
     for jj in range(2,nmax+1):
         monomial_coefs[jj,:jj]+=(
@@ -378,6 +531,27 @@ def convert_orthonormal_polynomials_to_monomials_1d(ab,nmax):
     
 
 def evaluate_three_term_recurrence_polynomial_1d(abc,nmax,x):
+    r"""
+    Evaluate an orthogonal polynomial three recursion coefficient formulation
+
+    .. math:: p_{n+1} = \tilde{a}_{n+1} x - \tilde{b}_np_n - \tilde{c}_n p_{n-1}
+
+    Parameters
+    ----------
+    abc : np.ndarray (num_recursion_coeffs,3)
+       The recursion coefficients
+
+    nmax : integer
+       The maximum degree of the polynomials to be evaluated (N+1)
+
+    x : np.ndarray (num_samples)
+       The samples at which to evaluate the polynomials
+
+    Returns
+    -------
+    p : np.ndarray (num_samples, num_indices)
+       The values of the polynomials at the samples
+    """
     assert nmax < abc.shape[0]
     
     p = np.zeros((x.shape[0],nmax+1),dtype=float)
@@ -394,6 +568,29 @@ def evaluate_three_term_recurrence_polynomial_1d(abc,nmax,x):
     
 
 def convert_orthonormal_recurence_to_three_term_recurence(recursion_coefs):
+    r"""
+    Convert two term recursion coefficients
+
+    .. math:: b_{n+1} p_{n+1} = (x - a_n) p_n - \sqrt{b_n} p_{n-1}
+
+    into the equivalent 
+    three recursion coefficients
+
+    .. math:: p_{n+1} = \tilde{a}_{n+1}x - \tilde{b_n}p_n - \tilde{c}_n p_{n-1}
+
+    Parameters
+    ----------
+    recursion_coefs : np.ndarray (num_recursion_coeffs,2)
+       The two term recursion coefficients
+       :math:`a_n,b_n`
+
+    Returns
+    -------
+    abc : np.ndarray (num_recursion_coeffs,3)
+       The three term recursion coefficients 
+       :math:`\tilde{a}_n,\tilde{b}_n,\tilde{c}_n`
+    """
+    
     num_terms = recursion_coefs.shape[0]
     abc = np.zeros((num_terms,3))
     abc[:,0] = 1./recursion_coefs[:,1]
@@ -404,6 +601,36 @@ def convert_orthonormal_recurence_to_three_term_recurence(recursion_coefs):
 from pyapprox.manipulate_polynomials import shift_momomial_expansion
 def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef,ab,
                                                            shift,scale):
+    """
+    Convert a univariate orthonormal polynomial expansion
+
+    .. math:: f(x)=\sum_{i=1}^N c_i\phi_i(x)
+
+    into the equivalent monomial expansion.
+
+    .. math:: f(x)=\sum_{i=1}^N d_ix^i
+
+    Parameters
+    ----------
+    ortho_coef : np.ndarray (N)
+        The expansion coeficients :math:`c_i`
+
+    ab : np.ndarray (num_recursion_coeffs,2)
+       The recursion coefficients of the polynomial family :math:`\phi_i`
+
+    shift : float
+       Parameter used to shift the orthonormal basis, which is defined on 
+       some canonical domain, to a desired domain
+
+    scale : float
+       Parameter used to scale the orthonormal basis, which is defined on 
+       some canonical domain, to a desired domain
+
+    Returns
+    -------
+    mono_coefs : np.ndarray (N)
+        The coefficients :math:`d_i` of the monomial basis
+    """
     assert ortho_coef.ndim==1
     # get monomial expansion of each orthonormal basis
     basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(

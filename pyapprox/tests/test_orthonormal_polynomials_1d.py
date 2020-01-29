@@ -1,7 +1,7 @@
 import unittest
 from pyapprox.orthonormal_polynomials_1d import *
 from pyapprox.monomial import univariate_monomial_basis_matrix
-from scipy.stats import binom, hypergeom
+from scipy.stats import binom, hypergeom, poisson
 from pyapprox.variables import float_rv_discrete
 
 class TestOrthonormalPolynomials1D(unittest.TestCase):
@@ -184,7 +184,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         M,n,N = 20,7,12
         apoly,bpoly = -(n+1),-M-1+n
         ab = hahn_recurrence(
-            degree+1,N,apoly,bpoly,probability=True)
+            degree+1,N,apoly,bpoly)
         x,w = gauss_quadrature(ab,degree+1)
 
         rv = hypergeom(M,n,N)
@@ -201,10 +201,25 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         N,degree=10,5
         xk,pk = np.arange(N),np.ones(N)/N
         rv = float_rv_discrete(name='discrete_chebyshev',values=(xk,pk))
-        ab = discrete_chebyshev_recurrence(degree+1, N, probability=True)
+        ab = discrete_chebyshev_recurrence(degree+1, N)
         p = evaluate_orthonormal_polynomial_1d(xk, degree, ab)
         w = rv.pmf(xk)
         assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+
+    def test_charlier(self):
+        # Note as rate gets smaller the number of terms that can be accurately
+        # computed will decrease because the problem gets more ill conditioned.
+        # This is caused because the number of masses with significant weights
+        # gets smaller as rate does 
+        degree,rate=5,2
+        rv = poisson(rate)
+        ab = charlier_recurrence(degree+1, rate)
+        lb,ub=rv.interval(1-np.finfo(float).eps)
+        x=np.linspace(lb,ub,ub-lb+1)
+        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+        w = rv.pmf(x)
+        #print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
+        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1),atol=1e-7)
 
     def test_convert_orthonormal_recurence_to_three_term_recurence(self):
         rho = 0.
