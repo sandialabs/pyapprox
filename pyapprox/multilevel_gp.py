@@ -56,10 +56,15 @@ def unpack_samples(XX,nsamples_per_model):
         samples.append(XX[lb:ub,:])
     return samples
 
-def full_multilevel_kernel(XX1,hyperparams,nsamples_per_model):
+def full_multilevel_kernel(XX1,hyperparams,nsamples_per_model,hf_only=False):
+    nrows=XX1.shape[0]
+    nmodels = len(nsamples_per_model)
+    if hf_only:
+        K=multilevel_diagonal_covariance_block(
+            XX1,hyperparams,nmodels-1)
+        return K
+        
     samples = unpack_samples(XX1,nsamples_per_model)
-    nmodels = len(samples)
-    nrows = np.sum(nsamples_per_model)
     K = np.empty((nrows,nrows),dtype=float)
     lb1,ub1=0,0
     for mm in range(nmodels):
@@ -154,12 +159,9 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         XX1 = np.atleast_2d(XX1)
         hyperparams = np.squeeze(self.length_scale).astype(float)
         if XX2 is None:
-            if self.return_code=='full':
-                K = full_multilevel_kernel(
-                    XX1,hyperparams,self.nsamples_per_model)
-            else:
-                K = full_multilevel_kernel_for_prediction(
-                    XX1,XX1,hyperparams,self.nsamples_per_model)
+            K = full_multilevel_kernel(
+                XX1,hyperparams,self.nsamples_per_model,
+                self.return_code!='full')
         else:
             if eval_gradient:
                 raise ValueError(
@@ -249,7 +251,6 @@ class MultilevelGP(GaussianProcessRegressor):
 
         # sklearn requires samples to (nsamples, nvars)
         XX_train = self.samples[model_id].T
-        print(XX_train.shape)
         YY_train = self.values[model_id]
         plot_gp_1d(
             axs,self.predict,num_XX_test,bounds,XX_train,YY_train,

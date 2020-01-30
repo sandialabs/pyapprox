@@ -303,7 +303,6 @@ def plot_gp_1d(ax,predict,num_XX_test,bounds,XX_train=None,YY_train=None,
     #gp_mean, gp_std = predict(XX_test,return_std=True)
     gp_mean, gp_cov = predict(XX_test,return_cov=True)
     gp_std = np.sqrt(np.diag(gp_cov))
-    print (gp_std.max())
     ax.plot(XX_test, gp_mean, '--k', lw=3, zorder=11, label=gp_label)
     ax.fill_between(
         XX_test[:,0], gp_mean - num_stdev*gp_std, gp_mean + num_stdev*gp_std,

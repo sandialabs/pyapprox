@@ -85,7 +85,7 @@ class TestMCMC(unittest.TestCase):
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
-                use_grads=True,get_map=True,print_summary=False)
+                algorithm='metropolis',get_map=True,print_summary=False)
 
         prior_mean = np.asarray([rv.mean() for rv in variables.all_variables()])
         prior_hessian = np.diag(
@@ -129,7 +129,7 @@ class TestMCMC(unittest.TestCase):
         # number of "burn-in points" (which we'll discard)
         nburn = min(1000,int(ndraws*0.1))
         # number of parallel chains
-        njobs=4
+        njobs=1
 
         def unnormalized_posterior(x):
             vals = np.exp(loglike(x))
@@ -155,7 +155,7 @@ class TestMCMC(unittest.TestCase):
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
-                use_grads=True,get_map=True,print_summary=True)
+                algorithm='smc',get_map=True,print_summary=True)
 
         # from pyapprox.visualization import get_meshgrid_function_data
         # import matplotlib
@@ -167,14 +167,12 @@ class TestMCMC(unittest.TestCase):
         # plt.plot(samples[0,:],samples[1,:],'ko')
         # plt.show()
         
-        # print('mcmc mean error',samples.mean(axis=1)-exact_mean)
-        # print('mcmc cov error',np.cov(samples)-exact_covariance)
+        print('mcmc mean error',samples.mean(axis=1)-exact_mean)
         #print('MAP sample',map_sample)
         # print('exact mean',exact_mean.squeeze())
-        # print('exact cov',exact_covariance)
         assert np.allclose(map_sample,np.zeros((variables.num_vars(),1)))
         assert np.allclose(
-            exact_mean.squeeze(), samples.mean(axis=1),atol=1e-2)
+            exact_mean.squeeze(), samples.mean(axis=1),atol=3e-2)
 
 
 
