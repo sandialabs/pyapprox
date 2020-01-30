@@ -111,7 +111,7 @@ class AffineBoundedVariableTransformation(object):
 
 
 from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    get_distribution_info
+    get_distribution_info, float_rv_discrete
 class AffineRandomVariableTransformation(object):
     def __init__(self,variable):
         """
@@ -129,7 +129,9 @@ class AffineRandomVariableTransformation(object):
             name,scale_dict,__ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
             loc,scale=scale_dict['loc'].copy(),scale_dict['scale'].copy()
-            if is_bounded_continuous_variable(var):
+            if (is_bounded_continuous_variable(var) or
+                (type(var.dist)==float_rv_discrete and
+                 var.dist.name!='discrete_chebyshev')):
                 lb,ub = -1,1
                 scale /= (ub-lb)
                 loc   =  loc-scale*lb

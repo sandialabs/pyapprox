@@ -13,7 +13,6 @@ from pyapprox.models.genz import GenzFunction
 from scipy.stats import beta as beta, uniform
 from pyapprox.density import tensor_product_pdf
 from pyapprox.configure_plots import *
-from pyapprox.utilities import get_tensor_product_quadrature_rule
 from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
 class TestPolynomialSampling(unittest.TestCase):
 
@@ -290,55 +289,7 @@ class TestPolynomialSampling(unittest.TestCase):
         #     samples,data_structures)
         # values_at_quad_x = values[:,0]
         # assert np.allclose(
-        #     np.dot(values_at_quad_x,quad_w),genz_function.integrate())
-        
-    def test_random_christoffel_sampling(self):
-        num_vars = 2
-        degree = 20
-
-        alpha_poly=1
-        beta_poly=1
-
-        alpha_stat = beta_poly+1
-        beta_stat  = alpha_poly+1
-
-        num_samples = 1000
-        poly = PolynomialChaosExpansion()
-        var_trans = define_iid_random_variable_transformation(
-            uniform(),num_vars)
-        opts = define_poly_options_from_variable_transformation(var_trans)
-        poly.configure(opts)
-        indices = compute_hyperbolic_indices(num_vars,degree,1.0)
-        poly.set_indices(indices)
-
-        univariate_pdf = partial(beta.pdf,a=alpha_stat,b=beta_stat)
-        probability_density = partial(
-            tensor_product_pdf, univariate_pdfs=univariate_pdf)
-
-        envelope_factor = 4e3
-        generate_proposal_samples=lambda n : np.random.uniform(
-            0.,1.,size=(num_vars,n))
-        proposal_density = lambda x: np.ones(x.shape[1])
-
-        # unlike fekete and leja sampling can and should use
-        # pce.basis_matrix here. If use canonical_basis_matrix then
-        # densities must be mapped to this space also which can be difficult
-        samples = random_induced_measure_sampling(
-            num_samples,num_vars,poly.basis_matrix, probability_density,
-            proposal_density, generate_proposal_samples,envelope_factor)
-
-        basis_matrix = poly.basis_matrix(samples)
-        weights = np.sqrt(christoffel_weights(basis_matrix))
-        #print np.linalg.cond((basis_matrix.T*weights).T)
-
-        # plt.plot(samples[0,:],samples[1,:],'o')
-        # beta_samples = np.random.beta(
-        #     alpha_stat,beta_stat,(num_vars,num_samples))
-        # basis_matrix = poly.basis_matrix(beta_samples)
-        # print np.linalg.cond(basis_matrix)
-        
-        # plt.plot(beta_samples[0,:],beta_samples[1,:],'s')
-        # plt.show()
+        #     np.dot(values_at_quad_x,quad_w),genz_function.integrate())        
 
     def test_fekete_rosenblatt_interpolation(self):
         np.random.seed(2)

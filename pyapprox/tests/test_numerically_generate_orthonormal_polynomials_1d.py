@@ -7,6 +7,7 @@ from pyapprox.orthonormal_polynomials_1d import *
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 from scipy.stats import beta as beta_rv
 from functools import partial
+from pyapprox.variables import float_rv_discrete
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
     def test_krawtchouk(self):
         num_coef=6
@@ -19,7 +20,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab_lanzcos   = lanczos(xk,pk,num_coef)
         ab_stieltjes = stieltjes(xk,pk,num_coef)
 
-        ab_exact = krawtchouk_recurrence(num_coef, ntrials, p, probability=True)
+        ab_exact = krawtchouk_recurrence(num_coef, ntrials, p)
         assert np.allclose(ab_lanzcos,ab_exact)
         assert np.allclose(ab_stieltjes,ab_exact)
 
@@ -44,8 +45,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab_lanzcos   = lanczos(xk,pk,num_coef)
         ab_stieltjes = stieltjes(xk,pk,num_coef)
 
-        ab_exact = discrete_chebyshev_recurrence(
-            num_coef,nmasses,probability=True)
+        ab_exact = discrete_chebyshev_recurrence(num_coef,nmasses)
         assert np.allclose(ab_lanzcos,ab_exact)
         assert np.allclose(ab_stieltjes,ab_exact)
 
@@ -108,6 +108,23 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
             nterms,[quad_x,quad_w],get_input_coefs=get_input_coefs,
             probability=True)
         assert np.allclose(true_ab,ab)
+
+    def test_rv_discrete_large_moments(self):
+        """
+        When Modified_chebyshev_orthonormal is used when the moments of discrete
+        variable are very large it will fail. To avoid this rescale the 
+        variables to [-1,1] like is done for continuous random variables
+        """
+        N,degree=100,5
+        xk,pk = np.arange(N),np.ones(N)/N
+        rv = float_rv_discrete(name='float_rv_discrete',values=(xk,pk))
+        xk_canonical = xk/(N-1)*2-1
+        ab  = modified_chebyshev_orthonormal(
+            degree+1,[xk_canonical,pk])
+        p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
+        w = rv.pmf(xk)
+        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+
 
 if __name__ == "__main__":
     num_gen_orthonormal_poly_1d_test_suite = \

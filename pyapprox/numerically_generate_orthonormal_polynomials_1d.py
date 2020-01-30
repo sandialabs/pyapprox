@@ -136,6 +136,7 @@ def lanczos_deprecated(mat,vec):
     # return (d,od)
 
 def convert_monic_to_orthonormal_recursion_coefficients(ab_monic,probability):
+    assert np.all(ab_monic[:,1]>=0)
     ab=ab_monic.copy()
     ab[:,1]=np.sqrt(ab[:,1])
     if probability:
@@ -200,7 +201,11 @@ def modified_chebyshev_orthonormal(nterms,quadrature_rule,
             quad_x, 2*nterms-1, input_coefs)
         moments = [basis_matrix[:,ii].dot(quad_w)
                    for ii in range(basis_matrix.shape[1])]
-    
+
+    # check if the range of moments is reasonable. If to large
+    # can cause numerical problems
+    abs_moments = np.absolute(moments)
+    assert abs_moments.max()-abs_moments.min()<1e16
     ab = modified_chebyshev(nterms,moments,input_coefs)
     return convert_monic_to_orthonormal_recursion_coefficients(ab,probability)
     
