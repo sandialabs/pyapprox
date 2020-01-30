@@ -27,15 +27,25 @@ class ExponentialQuarticLogLikelihoodModel(object):
     def __init__(self,modify=True):
         self.modify = modify
         self.a = 3.0
+        self.return_format='pyapprox'
+
+    def set_call_return_format(self,return_format):
+        self.return_format=return_format    
         
     def loglikelihood_function(self, x):
         value = (0.1*x[0]**4 + 0.5*(2.*x[1]-x[0]**2)**2)
+        if self.modify:
+            value += np.cos((x[0]+x[1]*3)/6)**2
+            value *= 3.
+            value = value**(1./self.a)+1
         return -value
 
     def gradient(self, x):
         assert x.ndim==1
         grad = np.array([12./5.*x[0]**3-4.*x[0]*x[1],
                             4.*x[1]-2.*x[0]**2])
+        if self.modify:
+            raise Exception('Gradient not implemeneted for modified function')
         return -grad
 
     def value(self, x):
@@ -45,10 +55,15 @@ class ExponentialQuarticLogLikelihoodModel(object):
     
     def __call__(self, x):
         if x.ndim==1:
-            x = x[:,np.newaxis]
+            xr = x[:,np.newaxis]
+        else:
+            xr=x
         # pymc only passes one sample in at a time and expects scalar to
         # be returned. Pyapprox allows many x and returns matrix
-        return evaluate_1darray_function_on_2d_array(self.value,x,{}).squeeze()
+        vals = evaluate_1darray_function_on_2d_array(self.value,xr,{})
+        if self.return_format=='pymc3':
+            return vals.squeeze()
+        return vals
 
 
 class TestMCMC(unittest.TestCase):
@@ -135,7 +150,7 @@ class TestMCMC(unittest.TestCase):
             vals = np.exp(loglike(x))
             rvs = variables.all_variables()
             for ii in range(variables.num_vars()):
-                vals *= rvs[ii].pdf(x[ii,:])
+                vals[:,0] *= rvs[ii].pdf(x[ii,:])
             return vals
 
         from pyapprox.utilities import get_tensor_product_quadrature_rule
@@ -146,12 +161,13 @@ class TestMCMC(unittest.TestCase):
             return x,w
         x,w = get_tensor_product_quadrature_rule(
             100,variables.num_vars(),univariate_quadrature_rule)
-        evidence = unnormalized_posterior(x).dot(w)
+        evidence = unnormalized_posterior(x)[:,0].dot(w)
         #print('evidence',evidence)
 
-        exact_mean = ((x*unnormalized_posterior(x)).dot(w)/evidence)
+        exact_mean = ((x*unnormalized_posterior(x)[:,0]).dot(w)/evidence)
         #print(exact_mean)
 
+        loglike.set_call_return_format('pymc3')
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
