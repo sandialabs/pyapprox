@@ -157,9 +157,9 @@ def get_pymc_variable(rv,pymc_var_name):
 
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
-        use_grads=True,get_map=False,print_summary=False):
+        algorithm='nuts',get_map=False,print_summary=False):
     # create our Op
-    if not use_grads:
+    if algorithm!='nuts':
         logl = LogLike(loglike)
     else:
         logl = LogLikeWithGrad(loglike)
@@ -180,12 +180,17 @@ def run_bayesian_inference_gaussian_error_model(
         if get_map:
             map_sample_dict = pm.find_MAP()
 
-        if not use_grads:
-            step=pm.Metropolis(pymc_variables)
+        if algorithm=='smc':
+            assert njobs==1 # njobs is always 1 when using smc
+            trace = pm.sample_smc(ndraws);
         else:
-            step=pm.NUTS(pymc_variables)
-        trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
-                          start=None,cores=njobs,step=step)
+            if algorithm=='metropolis':
+                step=pm.Metropolis(pymc_variables)
+            elif algorithm=='nuts':
+                step=pm.NUTS(pymc_variables)
+            
+            trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
+                              start=None,cores=njobs,step=step)
 
     if print_summary:
         print(pm.summary(trace))

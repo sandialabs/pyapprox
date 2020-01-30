@@ -321,3 +321,5 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
             self.refine()
             self.recompute_active_subspace_priorities()
 
+
+            
