@@ -144,6 +144,18 @@ class IndependentMultivariateRandomVariable(object):
                 stats = np.empty((self.num_vars(),stats_ii.shape[0]))
             stats[indices]=stats_ii
         return stats
+
+    def evaluate(self,function_name,x):
+        for ii in range(self.nunique_vars):
+            var = self.unique_variables[ii]
+            indices = self.unique_variable_indices[ii]
+            stats_ii = np.atleast_1d(getattr(var,function_name)(x[ii,:]))
+            assert stats_ii.ndim==1
+            if ii==0:
+                stats = np.empty((self.num_vars(),stats_ii.shape[0]))
+            stats[indices]=stats_ii
+        return stats
+        
      
 from scipy.stats._distn_infrastructure import rv_sample
 class float_rv_discrete(rv_sample):
