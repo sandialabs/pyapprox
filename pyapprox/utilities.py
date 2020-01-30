@@ -9,20 +9,27 @@ def sub2ind(sizes, multi_index):
     Map a d-dimensional index to the scalar index of the equivalent flat
     1D array
 
-    Example:
-    \f[
-    \begin{bmatrix}
-    1,1 & 1,2 & 1,3\\
-    2,1 & 2,2 & 2,3\\
-    3,1 & 3,2 & 3,3
-    \end{bmatrix}
-    \rightarrow
-    \begin{bmatrix}
-    1 & 4 & 7\\
-    2 & 5 & 8\\
-    3 & 6 & 9
-    \end{bmatrix}
-    \f]
+    Examples
+    --------
+
+    .. math::
+
+       \begin{bmatrix}
+       0,0 & 0,1 & 0,2\\
+       1,0 & 1,1 & 1,2\\
+       2,0 & 2,1 & 2,2
+       \end{bmatrix}
+       \rightarrow
+       \begin{bmatrix}
+       0 & 3 & 6\\
+       1 & 4 & 7\\
+       2 & 5 & 8
+       \end{bmatrix}
+
+    >>> sizes = [3,3]
+    >>> ind = sub2ind(sizes,[1,0])
+    >>> print(ind)
+    1
 
     Parameters
     ----------
@@ -37,6 +44,10 @@ def sub2ind(sizes, multi_index):
     -------
     scalar_index : integer 
         The scalar index
+
+    See Also
+    --------
+    pyapprox.utilities.sub2ind
     """
     num_sets = len(sizes)
     scalar_index = 0; shift = 1
@@ -49,20 +60,27 @@ def ind2sub(sizes,scalar_index,num_elems):
     r"""
     Map a scalar index of a flat 1D array to the equivalent d-dimensional index
 
-    Example:
-    \f[
-    \begin{bmatrix}
-    1 & 4 & 7\\
-    2 & 5 & 8\\
-    3 & 6 & 9
-    \end{bmatrix}
-    \rightarrow
-    \begin{bmatrix}
-    1,1 & 1,2 & 1,3\\
-    2,1 & 2,2 & 2,3\\
-    3,1 & 3,2 & 3,3
-    \end{bmatrix}
-    \f]
+    Examples
+    --------
+
+    .. math::
+
+        \begin{bmatrix}
+        0 & 3 & 6\\
+        1 & 4 & 7\\
+        2 & 5 & 8
+        \end{bmatrix}
+        \rightarrow
+        \begin{bmatrix}
+        0,0 & 0,1 & 0,2\\
+        1,0 & 1,1 & 1,2\\
+        2,0 & 2,1 & 2,2
+        \end{bmatrix}
+
+    >>> sizes = [3,3]
+    >>> sub = ind2sub(sizes,1,9)
+    >>> print(sub)
+    [1 0]
     
     Parameters
     ----------
@@ -80,6 +98,10 @@ def ind2sub(sizes,scalar_index,num_elems):
     -------
     multi_index : np.ndarray (len(sizes))
        The d-dimensional index
+
+    See Also
+    --------
+    pyapprox.utilities.sub2ind
     """
     denom = num_elems
     num_sets = len(sizes)
@@ -143,7 +165,7 @@ def cartesian_product(input_sets, elem_size=1):
         num_elems *= sizes[ii]
     #try:
     #    from pyapprox.weave import c_cartesian_product
-    #    # note c_cartesian_produc takes_num_elems as last arg and cython
+    #    # note c_cartesian_product takes_num_elems as last arg and cython
     #    # takes elem_size
     #    return c_cartesian_product(input_sets, elem_size, sizes, num_elems)
     #except:
