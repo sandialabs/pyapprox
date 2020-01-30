@@ -5,19 +5,28 @@ import numpy as np
 from pyapprox.utilities import truncated_pivoted_lu_factorization
 from scipy.linalg import qr as qr_factorization
 from scipy.linalg import solve_triangular
-from pyapprox.probability_measure_sampling import rejection_sampling
 from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver
 from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
     compute_hyperbolic_level_indices
-def christoffel_function(samples,basis_matrix_generator):
+def christoffel_function(samples,basis_matrix_generator,normalize=False):
     """
     Evaluate the christoffel function K(x) at a set of samples x. 
 
     Useful for preconditioning linear systems generated using 
     orthonormal polynomials
+
+    Parameters
+    ----------
+    normalize : boolean
+        True - divide function by :math:`\sqrt(N)`
+        False - Christoffel function will return Gauss quadrature weights
+                if x are Gauss quadrature points
     """
     basis_matrix = basis_matrix_generator(samples)
-    return 1./christoffel_weights(basis_matrix)
+    vals =  1./christoffel_weights(basis_matrix)
+    if normalize:
+        vals /= basis_matrix.shape[1]
+    return vals
 
 def christoffel_weights(basis_matrix):
     """
@@ -72,6 +81,12 @@ def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
     data_structures : tuple
         (Q,R,p) the QR factors and pivots. This can be useful for
         quickly building an interpolant from the samples
+
+    Notes
+    -----
+    Should use basis_generator=canonical_basis_matrix here. Thus 
+    generate_candidate_samples must generate samples in the canonical domain
+    and leja samples are returned in the canonical domain
     """
     candidate_samples = generate_candidate_samples(num_candidate_samples)
     basis_matrix = generate_basis_matrix(candidate_samples)
@@ -191,6 +206,7 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
 
     The number of samples is determined by the number of basis functions.
 
+
     Parameters
     ----------
     generate_basis_matrix : callable
@@ -220,6 +236,12 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
     data_structures : tuple
         (oli_solver,) the final state of the othogonal least interpolation 
         solver. This is useful for quickly building an interpolant
+
+    Notes
+    -----
+    Should use basis_generator=canonical_basis_matrix here. Thus 
+    generate_candidate_samples must generate samples in the canonical domain
+    and leja samples are returned in the canonical domain
     """
     oli_opts = dict()
     oli_solver = LeastInterpolationSolver()
@@ -278,22 +300,6 @@ def interpolate_lu_leja_samples(leja_samples,values,data_structures):
     temp = solve_triangular(L,(values.T*weights).T,lower=True)
     coef = solve_triangular(U,temp,lower=False)
     return coef
-
-def random_induced_measure_sampling(num_samples,num_vars,
-                                    basis_matrix_generator,
-                                    probability_density,
-                                    proposal_density, 
-                                    generate_proposal_samples,
-                                    envelope_factor):
-
-    target_density = lambda x: (probability_density(x)*
-                                christoffel_function(x,basis_matrix_generator))
-        
-    samples = rejection_sampling(
-        target_density, proposal_density, generate_proposal_samples,
-        envelope_factor, num_vars, num_samples, verbose=False)
-
-    return samples
 
 def get_quadrature_weights_from_fekete_samples(fekete_samples,data_structures):
     Q,R = data_structures[0],data_structures[1]

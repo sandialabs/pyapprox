@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 from pyapprox.indexing import \
      compute_hyperbolic_indices
@@ -130,7 +128,7 @@ class PolynomialChaosExpansion(object):
             raise Exception('must set var_trans')
         self.max_degree=-np.ones(self.num_vars(),dtype=int)
         self.numerically_generated_poly_accuracy_tolerance=opts.get(
-            'numerically_generated_poly_accuracy_tolerance',1e-8)
+            'numerically_generated_poly_accuracy_tolerance',1e-12)
 
     def get_recursion_coefficients(self,opts,num_coefs):
         poly_type = opts.get('poly_type',None)
@@ -156,7 +154,7 @@ class PolynomialChaosExpansion(object):
             n,p = opts['n'],opts['p']
             num_coefs = min(num_coefs,n)
             recursion_coeffs = krawtchouk_recurrence(
-                num_coefs,n,p,probability=True)
+                num_coefs,n,p)
         elif poly_type=='hahn' or var_type=='hypergeom':
             if poly_type is not None:
                 apoly,bpoly = opts['alpha_poly'],opts['beta_poly']
@@ -166,7 +164,7 @@ class PolynomialChaosExpansion(object):
                 apoly,bpoly = -(n+1),-M-1+n
             num_coefs = min(num_coefs,N)
             recursion_coeffs = hahn_recurrence(
-                num_coefs,N,apoly,bpoly,probability=True)
+                num_coefs,N,apoly,bpoly)
         elif poly_type=='discrete_chebyshev' or var_type=='discrete_chebyshev':
             if poly_type is not None:
                 N = opts['N']
@@ -176,7 +174,7 @@ class PolynomialChaosExpansion(object):
                 assert np.allclose(opts['shapes']['pk'],np.ones(N)/N)
             num_coefs = min(num_coefs,N)
             recursion_coeffs = discrete_chebyshev_recurrence(
-                num_coefs,N,probability=True)
+                num_coefs,N)
         elif poly_type=='discrete_numeric' or var_type=='float_rv_discrete':
             if poly_type is None:
                 opts = opts['shapes']
@@ -186,7 +184,7 @@ class PolynomialChaosExpansion(object):
                 msg += 'probability masses'
                 raise Exception(msg)
             recursion_coeffs  = modified_chebyshev_orthonormal(
-                num_coefs,[xk,pk],probability=True)
+                num_coefs,[xk,pk])
             p = evaluate_orthonormal_polynomial_1d(
                 np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
             error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()

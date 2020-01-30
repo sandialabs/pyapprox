@@ -116,18 +116,22 @@ def cartesian_product(input_sets, elem_size=1):
     """
     try:
         from pyapprox.cython.utilities import cartesian_product_pyx
-        # fused type does not work for np.in32, np.float32, np.int64
-        # so envoke cython cast
-        for ii in range(len(input_sets)-1):
-            if type(input_sets[ii][0])!=type(input_sets[ii+1][0]):
-                raise Exception('not all 1d arrays are the same type')
-        if np.issubdtype(input_sets[0][0],np.signedinteger):
-            return cartesian_product_pyx(input_sets,1,elem_size)
-        if np.issubdtype(input_sets[0][0],np.floating):
-            return cartesian_product_pyx(input_sets,1.,elem_size)
-        else:
-            return cartesian_product_pyx(
-                input_sets,input_sets[0][0],elem_size)
+        # # fused type does not work for np.in32, np.float32, np.int64
+        # # so envoke cython cast
+        # if np.issubdtype(input_sets[0][0],np.signedinteger):
+        #     return cartesian_product_pyx(input_sets,1,elem_size)
+        # if np.issubdtype(input_sets[0][0],np.floating):
+        #     return cartesian_product_pyx(input_sets,1.,elem_size)
+        # else:
+        #     return cartesian_product_pyx(
+        #         input_sets,input_sets[0][0],elem_size)
+
+        # always convert to float then cast back
+        out =  cartesian_product_pyx(input_sets,1.,elem_size)
+        for ii,o in enumerate(out):
+            out[ii] = o.astype(type(input_sets[ii][0]))
+        return out
+        
     except:
         print ('cartesian_product extension failed')
 

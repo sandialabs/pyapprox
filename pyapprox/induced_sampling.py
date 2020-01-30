@@ -10,6 +10,9 @@ from scipy.optimize import brenth
 from functools import partial
 from pyapprox.utilities import discrete_sampling
 from pyapprox.variables import is_bounded_continuous_variable
+from pyapprox.probability_measure_sampling import rejection_sampling
+from pyapprox.polynomial_sampling import christoffel_function
+
 def C_eval(a, b, x, N):
     """
     C_eval -- Evaluates Christoffel-normalized orthogonal polynomials
@@ -778,8 +781,6 @@ def discrete_inverse_transform_sampling_1d(probability_mesh,probability_masses,
     assert probability_mesh.shape[0] == probability_masses.shape[0]
     u_samples = np.random.uniform(0.,1.,(num_samples))
     sample_indices = np.searchsorted(probability_masses,u_samples)
-    #print(sample_indices,probability_mesh.shape)
-    #print(probability_masses,u_samples)
     samples = probability_mesh[sample_indices]
     return samples
 
@@ -804,7 +805,6 @@ def discrete_induced_sampling(basis_matrix_generator_1d,basis_indices,
             dd,probability_mesh_list[dd])**2
         num_indices_1d = basis_probability_masses.shape[1]
         assert num_indices_1d>=max_degree_1d[dd]
-        #print (basis_probability_masses,probability_masses_list[dd],dd,max_degree_1d)
         basis_probability_masses=(
             basis_probability_masses.T*probability_masses_list[dd]).T
         #print ('basis l2 norm', basis_probability_masses.sum(axis=0))
@@ -933,8 +933,11 @@ from scipy.stats import _continuous_distns, _discrete_distns
 def inverse_transform_sampling_1d(var,ab,ii,u_samples):
     name = var.dist.name
     if name=='float_rv_discrete':
+        xk = var.dist.xk.copy()
+        lb,ub=xk.min(),xk.max()
+        xk = (xk-lb)/(ub-lb)*2-1
         return float_rv_discrete_inverse_transform_sampling_1d(
-            var.dist.xk,var.dist.pk,ab,ii,u_samples)
+            xk,var.dist.pk,ab,ii,u_samples)
     elif name in _continuous_distns._distn_names:
         return continuous_induced_measure_ppf(var,ab,ii,u_samples)
     else:
@@ -1059,6 +1062,39 @@ def increment_induced_samples_migliorati(pce,cond_tol,samples,indices,
               samples.shape[1])
     
     return new_samples
+
+def random_induced_measure_sampling(num_samples,num_vars,
+                                    basis_matrix_generator,
+                                    probability_density,
+                                    proposal_density, 
+                                    generate_proposal_samples,
+                                    envelope_factor):
+    """
+    Draw independent samples from the induced measure.
+
+    Returns
+    -------
+    samples : np.ndarray (num_vars,num_samples)
+        Samples from the induced measure. 
+
+    Notes
+    -----
+    Unlike fekete sampling, leja sampling, discrete_induced_sampling, and 
+    generate_induced_sampling this function should use
+    basis_matrix_generator=pce.basis_matrix here. If use 
+    pce.canonical_basis_matrix then densities must be mapped to this 
+    space also which can be difficult.
+    """
+
+    target_density = lambda x: probability_density(x)*\
+        christoffel_function(x,basis_matrix_generator,normalize=True)
+        
+    samples = rejection_sampling(
+        target_density, proposal_density, generate_proposal_samples,
+        envelope_factor, num_vars, num_samples, verbose=False)
+
+    return samples
+
     
     
 if __name__=='__main__':
