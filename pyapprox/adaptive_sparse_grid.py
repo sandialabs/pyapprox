@@ -1,6 +1,7 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 from pyapprox.sparse_grid import *
+from pyapprox.models.wrappers import WorkTracker
 import copy
 from pyapprox.utilities import lists_of_lists_of_arrays_equal, \
     lists_of_arrays_equal, partial_functions_equal

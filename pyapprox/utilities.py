@@ -136,6 +136,15 @@ def cartesian_product(input_sets, elem_size=1):
         where sizes[ii] = len(input_sets[ii]), ii=0,..,num_sets-1.
         result.dtype will be set to the first entry of the first input_set
     """
+    import itertools
+    out = []
+    ## ::-1 reverse order to be backwards compatiable with old
+    ## function below
+    for r in itertools.product(*input_sets[::-1]):
+        out.append(r)
+    out = np.asarray(out).T[::-1,:]
+    return out
+   
     try:
         from pyapprox.cython.utilities import cartesian_product_pyx
         # # fused type does not work for np.in32, np.float32, np.int64
@@ -147,13 +156,11 @@ def cartesian_product(input_sets, elem_size=1):
         # else:
         #     return cartesian_product_pyx(
         #         input_sets,input_sets[0][0],elem_size)
-
         # always convert to float then cast back
-        out =  cartesian_product_pyx(input_sets,1.,elem_size)
-        for ii,o in enumerate(out):
-            out[ii] = o.astype(type(input_sets[ii][0]))
+        cast_input_sets = [np.asarray(s,dtype=float) for s in input_sets]
+        out =  cartesian_product_pyx(cast_input_sets,1.,elem_size)
+        out = np.asarray(out,dtype=input_sets[0].dtype)
         return out
-        
     except:
         print ('cartesian_product extension failed')
 
@@ -186,9 +193,13 @@ def outer_product(input_sets):
     r"""
     Construct the outer product of an arbitary number of sets.
  
-    Example:
-    \f[ \{1,2\}\times\{3,4\}=\{1\times3, 2\times3, 1\times4, 2\times4\} =
-    \{3, 6, 4, 8\} \f]
+    Examples
+    --------
+
+    .. math::
+
+        \{1,2\}\times\{3,4\}=\{1\times3, 2\times3, 1\times4, 2\times4\} =
+        \{3, 6, 4, 8\}
 
     Parameters
     ----------
@@ -201,6 +212,9 @@ def outer_product(input_sets):
        The outer product of the sets.
        result.dtype will be set to the first entry of the first input_set
     """
+    out = cartesian_product(input_sets)
+    return np.prod(out,axis=0)
+    
     try:
         from pyapprox.cython.utilities import outer_product_pyx
         # fused type does not work for np.in32, np.float32, np.int64

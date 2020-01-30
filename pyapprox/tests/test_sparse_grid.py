@@ -445,7 +445,7 @@ class TestSparseGrid(unittest.TestCase):
         num_trials,prob_success = [level+5,0.5]
         assert num_trials>=leja_growth_rule(level)
         recursion_coeffs = krawtchouk_recurrence(
-            num_trials,num_trials,prob_success,probability=True)
+            num_trials,num_trials,prob_success)
 
         def generate_candidate_samples(num_samples):
             assert num_samples==num_trials+1
