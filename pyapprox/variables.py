@@ -1,9 +1,12 @@
 from scipy.stats import _continuous_distns, _discrete_distns
 import numpy as np
 
+def is_continuous_variable(rv):
+    return rv.dist.name in _continuous_distns._distn_names
+
 def is_bounded_continuous_variable(rv):
     interval = rv.interval(1)
-    return (rv.dist.name in _continuous_distns._distn_names and
+    return (is_continuous_variable(rv) and
             np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
 def get_distribution_info(rv):
