@@ -69,6 +69,21 @@ def solve_preconditioned_least_squares(basis_matrix_func,samples,values,
     coef = np.linalg.lstsq(basis_matrix,rhs,rcond=None)[0]
     return coef
 
+from sklearn.linear_model import OrthogonalMatchingPursuit
+def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
+                                                     samples,values,
+                                                     precond_func,
+                                                     tol=1e-8):
+    basis_matrix = basis_matrix_func(samples)
+    weights = precond_func(basis_matrix,samples)
+    basis_matrix = basis_matrix*weights[:,np.newaxis]
+    rhs = values*weights[:,np.newaxis]
+    omp = OrthogonalMatchingPursuit(tol=tol)
+    omp.fit(basis_matrix, rhs)
+    coef = omp.coef_
+    print('nnz_terms',np.count_nonzero(coef))
+    return coef[:,np.newaxis]
+
 def chistoffel_preconditioning_function(basis_matrix,samples):
     weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
     return weights
@@ -78,6 +93,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         super(AdaptiveInducedPCE,self).__init__(num_vars)
         self.cond_tol=cond_tol
         self.precond_func = chistoffel_preconditioning_function
+        self.omp_tol=0
 
     def set_function(self,function,var_trans=None,poly_opts=None):
         super(AdaptiveInducedPCE,self).set_function(function,var_trans)
@@ -138,9 +154,14 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         # do to, just add columns to stored basis matrix
         # store qr factorization of basis_matrix and update the factorization
         # self.samples are in canonical domain
-        coef = solve_preconditioned_least_squares(
-            self.pce.canonical_basis_matrix,self.samples,self.values,
-            self.precond_func)
+        if self.omp_tol==0:
+            coef = solve_preconditioned_least_squares(
+                self.pce.canonical_basis_matrix,self.samples,self.values,
+                self.precond_func)
+        else:
+            coef = solve_preconditioned_orthogonal_matching_pursuit(
+                self.pce.canonical_basis_matrix,self.samples,self.values,
+                self.precond_func,self.omp_tol)
         self.pce.set_coefficients(coef)
 
         return num_new_subspace_samples

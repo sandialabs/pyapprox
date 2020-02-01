@@ -641,7 +641,8 @@ def continue_pivoted_lu_factorization(LU_factor,raw_pivots,current_iter,
                     
         # find best pivot
         if np.isscalar(num_initial_rows) and (it<num_initial_rows):
-            pivot = np.argmax(np.absolute(LU_factor[it:num_initial_rows,it]))+it
+            #pivot=np.argmax(np.absolute(LU_factor[it:num_initial_rows,it]))+it
+            pivot = it
         elif (not np.isscalar(num_initial_rows) and
               (it<num_initial_rows.shape[0])):
             pivot=num_initial_rows[it]
