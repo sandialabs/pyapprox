@@ -9,18 +9,32 @@ from pyapprox.variable_transformations import *
 from scipy.stats import norm
 from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
 def preconditioned_barycentric_weights():
-    num_samples = 2**8+1
-    samples = gauss_hermite_pts_wts_1D(num_samples)[0]
+    #num_samples = 2**8+1
+    #samples = gauss_hermite_pts_wts_1D(num_samples)[0]
+    #var_trans = define_iid_random_variable_transformation(norm(),1)
+    nmasses=20
+    xk = np.array(range(nmasses),dtype='float')
+    pk = np.ones(nmasses)/nmasses
+    var1 = float_rv_discrete(
+        name='float_rv_discrete',values=(xk,pk))()
+    univariate_variables = [var1]
+    variable  = IndependentMultivariateRandomVariable(univariate_variables)
+    var_trans = AffineRandomVariableTransformation(variable)
+    from pyapprox.univariate_quadrature import constant_increment_growth_rule,\
+        get_univariate_leja_quadrature_rule
+    growth_rule = partial(constant_increment_growth_rule, 2)
+    quad_rule = get_univariate_leja_quadrature_rule(var1,growth_rule)
+    samples = quad_rule(3)[0]
+    num_samples = samples.shape[0]
     poly = PolynomialChaosExpansion()
-    var_trans = define_iid_random_variable_transformation(
-        norm(),1) 
     poly_opts = define_poly_options_from_variable_transformation(var_trans)
+    poly_opts['numerically_generated_poly_accuracy_tolerance']=1e-5
     poly.configure(poly_opts)
     poly.set_indices(np.arange(num_samples))
 
-    precond_weights = np.sqrt(
-        (poly.basis_matrix(samples[np.newaxis,:])**2).mean(axis=1))
-    #precond_weights = np.ones(num_samples)
+    #precond_weights = np.sqrt(
+    #    (poly.basis_matrix(samples[np.newaxis,:])**2).mean(axis=1))
+    precond_weights = np.ones(num_samples)
     
     bary_weights = compute_barycentric_weights_1d(
             samples, interval_length=samples.max()-samples.min())
@@ -34,20 +48,31 @@ def preconditioned_barycentric_weights():
     function = lambda x: np.cos(2*np.pi*x)
     
     y = samples
+    print(samples)
     w = precond_weights*bary_weights
-    x = np.linspace(-3,3,301)
+    #x = np.linspace(-3,3,301)
+    x = np.linspace(-1,1,301)
     f = function(y)/precond_weights
+
+    # cannot interpolate on data
+    I = []
+    for ii,xx in enumerate(x):
+        if xx in samples:
+            I.append(ii)
+    x = np.delete(x,I)
     
     r1 = barysum(x,y,w,f)
     r2 = barysum(x,y,w,1/precond_weights)
     interp_vals = r1/r2
     import matplotlib.pyplot as plt
     plt.plot(x,interp_vals,'k')
+    plt.plot(samples,function(samples),'ro')
     plt.plot(x,function(x),'r--')
     #plt.plot(samples,function(samples),'ro')
-    print(num_samples)
+    #print(num_samples)
+    #print(precond_weights)
     print(np.linalg.norm(interp_vals-function(x)))
-    plt.show()
+    #plt.show()
 
     
 
@@ -407,7 +432,8 @@ class TestBarycentricInterpolation(unittest.TestCase):
         assert l2_error<1e-2
 
 if __name__== "__main__":
-    #preconditioned_barycentric_weights()
+    preconditioned_barycentric_weights()
+    assert False
     barycentric_interpolation_test_suite = \
      unittest.TestLoader().loadTestsFromTestCase(
         TestBarycentricInterpolation)

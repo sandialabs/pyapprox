@@ -179,6 +179,9 @@ class PolynomialChaosExpansion(object):
             if poly_type is None:
                 opts = opts['shapes']
             xk,pk = opts['xk'],opts['pk']
+            #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
+            xk = xk*2-1
+            assert xk.min()>=-1 and xk.max()<=1
             if num_coefs>xk.shape[0]:
                 msg = 'Number of coefs requested is larger than number of '
                 msg += 'probability masses'

@@ -51,7 +51,7 @@ def get_distribution_info(rv):
         xk = rv.dist.xk.copy()
         if rv.dist.name!='discrete_chebyshev':
             lb,ub=xk.min(),xk.max()
-            xk = (xk-lb)/(ub-lb)*2-1
+            xk = (xk-lb)/(ub-lb)
         shapes={'xk':xk,'pk':rv.dist.pk}
 
     return name, scales, shapes
@@ -78,7 +78,7 @@ def variables_equivalent(rv1,rv2):
         return False
     if scales1!=scales2:
         return False
-    if name1=='float_rv_discrete':
+    if name1=='float_rv_discrete' or name1=='discrete_chebyshev':
         # xk and pk shapes are list so != comparison will not work
         return np.all(shapes1['xk']==shapes2['xk']) and np.all(
             shapes1['pk']==shapes1['pk'])

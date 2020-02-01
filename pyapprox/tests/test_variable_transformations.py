@@ -261,7 +261,7 @@ class TestVariableTransformations(unittest.TestCase):
     def test_map_rv_discrete(self):
         nvars=2
 
-        mass_locs = np.arange(5,501,step=5)
+        mass_locs = np.arange(5,501,step=50)
         nmasses = mass_locs.shape[0]
         mass_probs = np.ones(nmasses,dtype=float)/float(nmasses)
         univariate_variables = [
@@ -274,8 +274,9 @@ class TestVariableTransformations(unittest.TestCase):
         samples = np.vstack(
             [mass_locs[np.newaxis,:],mass_locs[0]*np.ones((1,nmasses))])
         canonical_samples = var_trans.map_to_canonical_space(samples)
-
-        assert canonical_samples.min()>=-1 and canonical_samples.max()<=1
+        
+        assert(canonical_samples[0].min()==-1)
+        assert(canonical_samples[0].max()==1)
 
         recovered_samples = var_trans.map_from_canonical_space(
             canonical_samples)
