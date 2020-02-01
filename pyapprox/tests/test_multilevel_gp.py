@@ -1,33 +1,44 @@
 import unittest
 from pyapprox.multilevel_gp import *
 import matplotlib.pyplot as plt
+from functools import partial
 
 class TestMultilevelGP(unittest.TestCase):
     def test_multilevel_kernel(self):
-        def f1(XX1):
-            K1 = kernel_ff(XX1,XX1,length_scale=1)
-            K1_chol_factor = np.linalg.cholesky(K1)
-            nvars1 = K1.shape[0]
-            samples = K1_chol_factor.dot(np.random.normal(0,1,(nvars1,nsamples)))
-            return samples
-
-        def f2(XX1,XX2):
-            K2 = kernel_ff(XX2,XX2,length_scale=2)
-            K2_chol_factor = np.linalg.cholesky(K2)
-            nvars2 = K2.shape[0]
-            samples = f1(XX1)+K2_chol_factor.dot(
-                np.random.normal(0,1,(nvars2,nsamples)))
-            return samples
-
-        nsamples = int(1e5)
-        XX1 = np.linspace(-1,1,3)[:,np.newaxis]
-        XX2 = np.linspace(-1,1,5)[:,np.newaxis]
-
-        YY1 = f1(XX1)
-        YY2 = f2(XX1,XX2)
         
-        print(np.cov(YY1))
-        print(K1)
+        nsamples = int(1e5)
+        XX1 = np.linspace(-1,1,5)[:,np.newaxis]
+        XX2 = np.linspace(-1,1,3)[:,np.newaxis]
+
+        kernel1 = partial(kernel_ff,length_scale=1)
+        kernel2 = partial(kernel_ff,length_scale=2)
+        
+        nvars1 = XX1.shape[0]
+        nvars2 = XX2.shape[0]
+        samples1 = np.random.normal(0,1,(nvars1,nsamples))
+        samples2 = np.random.normal(0,1,(nvars2,nsamples))
+
+        #y1 = f1(x1), x1 \subseteq x2
+        #y2 = p12*f1(x2)+d2(x2)
+        p12=2
+        shared_idx = [0,2,4]
+        YY1 = np.linalg.cholesky(kernel1(XX1,XX1)).dot(samples1)
+        YY2 = np.linalg.cholesky(kernel2(XX2,XX2)).dot(samples2)+\
+            p12*np.linalg.cholesky(kernel1(XX2,XX2)).dot(samples1[shared_idx,:])
+        
+        print(YY1.mean(axis=1))
+        print(YY2.mean(axis=1))
+
+        YY1_centered = YY1-YY1.mean(axis=1)[:,np.newaxis]
+        YY2_centered = YY2-YY2.mean(axis=1)[:,np.newaxis]
+
+        cov11 = np.cov(YY1)
+        cov12 = YY1[shared_idx,:].dot(YY2.T)/nsamples
+        cov22 = np.cov(YY2)
+        print(cov11-kernel1(XX1,XX1))
+        print(kernel1(XX1,XX2))
+        print(cov12-p12*kernel1(XX1[shared_idx,:],XX2))
+        print(cov22-(kernel2(XX2,XX2)+p12**2*kernel1(XX2,XX2)))
     
     def test_2_models(self):
         nvars, nmodels = 1,2
