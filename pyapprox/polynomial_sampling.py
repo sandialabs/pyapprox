@@ -152,6 +152,7 @@ def get_lu_leja_samples(generate_basis_matrix,generate_candidate_samples,
     """
     candidate_samples = generate_candidate_samples(num_candidate_samples)
     if initial_samples is not None:
+        assert candidate_samples.shape[0]==initial_samples.shape[0]
         candidate_samples = np.hstack((initial_samples,candidate_samples))
         num_initial_rows = initial_samples.shape[1]
     else:

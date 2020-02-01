@@ -1086,7 +1086,8 @@ class SubSpaceRefinementManager(object):
     
 from pyapprox.univariate_quadrature import leja_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    beta_leja_quadrature_rule, candidate_based_leja_rule
+    beta_leja_quadrature_rule, candidate_based_leja_rule, \
+    get_univariate_leja_quadrature_rule
 def get_sparse_grid_univariate_leja_quadrature_rules(
         var_trans,growth_rules=None):
     assert var_trans is not None
@@ -1192,38 +1193,6 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         quad_rules.append(quad_rule)
 
     return quad_rules, growth_rules, unique_quadrule_indices
-
-from pyapprox.variables import get_distribution_info
-def get_univariate_leja_quadrature_rule(variable,growth_rule):
-    var_type, __, shapes = get_distribution_info(variable)
-    if var_type=='uniform':
-        quad_rule = partial(
-            beta_leja_quadrature_rule,1,1,growth_rule=growth_rule,
-            samples_filename=None)
-    elif var_type=='beta':
-        quad_rule = partial(
-            beta_leja_quadrature_rule,shapes['a'],shapes['b'],
-            growth_rule=growth_rule)
-    elif var_type=='norm':
-        quad_rule = partial(
-            gaussian_leja_quadrature_rule,growth_rule=growth_rule)
-    elif var_type=='binom':
-        num_trials = variable_parameters['num_trials']
-        prob_success = variable_parameters['prob_success']
-        def generate_candidate_samples(num_samples):
-            assert num_samples==num_trials+1
-            return np.arange(0,num_trials+1)[np.newaxis,:]
-        recursion_coeffs = krawtchouk_recurrence(
-            num_trials,num_trials,probability=True)
-        quad_rule = partial(
-            candidate_based_leja_rule,recursion_coeffs,
-            generate_candidate_samples,
-            num_trials+1,
-            initial_samples=np.atleast_2d(
-                [binomial_rv.ppf(0.5,num_trials,prob_success)]))
-    else:
-        raise Exception('var_type %s not implemented'%var_type)
-    return quad_rule
 
 class CombinationSparseGrid(SubSpaceRefinementManager):
     def __init__(self,num_vars):

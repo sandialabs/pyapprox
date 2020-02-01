@@ -3,6 +3,7 @@ from pyapprox.univariate_quadrature import *
 from scipy.special import gamma as gamma_fn
 from scipy.special import beta as beta_fn
 from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
+from pyapprox.variables import float_rv_discrete, get_distribution_info
 
 class TestUnivariateQuadrature(unittest.TestCase):
 
@@ -92,6 +93,54 @@ class TestUnivariateQuadrature(unittest.TestCase):
         exact_integral = float(
             sp.integrate(weight_function*x**3,(x,ranges[0],ranges[1])))
         assert np.allclose(exact_integral, np.dot(x_quad**3,w_quad))
+
+    def test_get_univariate_leja_rule_float_rv_discrete(self):
+        nmasses=20
+        xk = np.array(range(1,nmasses+1),dtype='float')
+        pk = np.ones(nmasses)/nmasses
+        variable = float_rv_discrete(
+               name='float_rv_discrete',values=(xk,pk))()
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(variable,growth_rule)
+        level = 3
+        scales,shapes=get_distribution_info(variable)[1:]
+        print(scales)
+
+        x,w=quad_rule(level)
+        # x in [-1,1], scales for x in [0,1]
+        loc,scale = scales['loc'],scales['scale']
+        scale /= 2
+        loc    = loc+scale
+        x=x*scale+loc
+
+        true_moment = (xk**(x.shape[0]-1)).dot(pk)
+        moment = (x**(x.shape[0]-1)).dot(w[-1])
+        
+        #print(moment)
+        #print(true_moment)
+        assert np.allclose(moment,true_moment)
+
+    def test_get_univariate_leja_rule_discrete_chebyshev(self):
+
+        nmasses=20
+        xk = np.array(range(0,nmasses),dtype='float')
+        pk = np.ones(nmasses)/nmasses
+        variable = float_rv_discrete(
+               name='discrete_chebyshev',values=(xk,pk))()
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(variable,growth_rule)
+        level = 3
+        scales,shapes=get_distribution_info(variable)[1:]
+        print(scales)
+
+        x,w=quad_rule(level)
+
+        true_moment = (xk**(x.shape[0]-1)).dot(pk)
+        moment = (x**(x.shape[0]-1)).dot(w[-1])
+        
+        #print(moment)
+        #print(true_moment)
+        assert np.allclose(moment,true_moment)
 
 
 if __name__== "__main__":    

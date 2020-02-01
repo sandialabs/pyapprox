@@ -551,11 +551,10 @@ def candidate_based_leja_rule(recursion_coeffs,
                               generate_candidate_samples,
                               num_candidate_samples,
                               level,
-                              initial_samples=None,
+                              initial_points=None,
                               growth_rule=leja_growth_rule,
                               samples_filename=None,
                               return_weights_for_all_levels=True):
-
     from pyapprox.orthonormal_polynomials_1d import \
         evaluate_orthonormal_polynomial_1d
     from pyapprox.polynomial_sampling import get_lu_leja_samples,\
@@ -568,7 +567,7 @@ def candidate_based_leja_rule(recursion_coeffs,
             generate_basis_matrix,generate_candidate_samples,
             num_candidate_samples,num_leja_samples,
             preconditioning_function=christoffel_preconditioner,
-            initial_samples=initial_samples)
+            initial_samples=initial_points)
         if samples_filename is not None:
             np.savez(samples_filename,samples=leja_sequence)
     else:
@@ -580,6 +579,72 @@ def candidate_based_leja_rule(recursion_coeffs,
     ordered_weights_1d = get_leja_sequence_quadrature_weights(
         leja_sequence,growth_rule,generate_basis_matrix,weight_function,level,
         return_weights_for_all_levels)
-    
+
     return leja_sequence[0,:], ordered_weights_1d
     
+from pyapprox.variables import get_distribution_info
+def get_univariate_leja_quadrature_rule(variable,growth_rule):
+    var_type, __, shapes = get_distribution_info(variable)
+    if var_type=='uniform':
+        quad_rule = partial(
+            beta_leja_quadrature_rule,1,1,growth_rule=growth_rule,
+            samples_filename=None)
+    elif var_type=='beta':
+        quad_rule = partial(
+            beta_leja_quadrature_rule,shapes['a'],shapes['b'],
+            growth_rule=growth_rule)
+    elif var_type=='norm':
+        quad_rule = partial(
+            gaussian_leja_quadrature_rule,growth_rule=growth_rule)
+    elif var_type=='binom':
+        num_trials = variable_parameters['num_trials']
+        prob_success = variable_parameters['prob_success']
+        def generate_candidate_samples(num_samples):
+            assert num_samples==num_trials+1
+            return np.arange(0,num_trials+1)[np.newaxis,:]
+        recursion_coeffs = krawtchouk_recurrence(
+            num_trials,num_trials,probability=True)
+        quad_rule = partial(
+            candidate_based_leja_rule,recursion_coeffs,
+            generate_candidate_samples,
+            num_trials+1,
+            growth_rule=growth_rule,
+            initial_points=np.atleast_2d(
+                [binomial_rv.ppf(0.5,num_trials,prob_success)]))
+    elif var_type=='float_rv_discrete' or var_type=='discrete_chebyshev':
+        from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
+            modified_chebyshev_orthonormal
+        from pyapprox.orthonormal_polynomials_1d import \
+            discrete_chebyshev_recurrence
+        nmasses = shapes['xk'].shape[0]
+        if var_type=='discrete_chebyshev':
+            xk = shapes['xk']#do not map discrete_chebyshev
+            assert np.allclose(shapes['xk'],np.arange(nmasses))
+            assert np.allclose(shapes['pk'],np.ones(nmasses)/nmasses)
+            num_coefs = nmasses
+            recursion_coeffs = discrete_chebyshev_recurrence(
+                num_coefs,nmasses)
+        else:
+            #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
+            xk = shapes['xk']*2-1
+            num_coefs = nmasses
+            recursion_coeffs  = modified_chebyshev_orthonormal(
+                num_coefs,[xk,shapes['pk']])
+
+        def generate_candidate_samples(num_samples):
+            assert num_samples==nmasses
+            return xk[np.newaxis,:]
+
+        # do not specify init_samples in partial or a sparse grid cannot
+        # update the samples_1d so that next level has same samples_1d
+        # TODO: add test that samples_1d[ii] and samples_1d[ii+1] subset
+        # are equal
+        #init_samples = np.atleast_2d(np.sort(xk)[nmasses//2])
+        quad_rule = partial(
+            candidate_based_leja_rule,recursion_coeffs,
+            generate_candidate_samples,nmasses,
+            growth_rule=growth_rule)
+        
+    else:
+        raise Exception('var_type %s not implemented'%var_type)
+    return quad_rule
