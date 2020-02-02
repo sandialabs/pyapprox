@@ -5,7 +5,7 @@ from pyapprox.gradient_enhanced_gp import plot_gp_1d, kernel_ff, \
 
 from sklearn.gaussian_process.kernels import StationaryKernelMixin,NormalizedKernelMixin, Kernel, Hyperparameter, _approx_fprime, ConstantKernel, WhiteKernel
 
-def multilevel_diagonal_covariance_block(XX1,hyperparams,mm):
+def multilevel_diagonal_covariance_block(XX1,XX2,hyperparams,mm):
     """
     Models assumed to be ordered by increasing fidelity. 
     Warning this is different to other multifidelity kriging approaches
@@ -22,12 +22,10 @@ def multilevel_diagonal_covariance_block(XX1,hyperparams,mm):
     nmodels = (len(hyperparams)+1)//(nvars+1)
     length_scales = np.asarray(hyperparams[:(mm+1)*nvars])
     rho = np.asarray(hyperparams[nmodels*nvars:nmodels*nvars+mm])
-    K = kernel_ff(XX1,XX1,length_scales[:nvars])
-    lb,ub=0,nvars
-    for kk in range(mm-1):
-        lb=ub
-        ub+=nvars
-        K+=np.prod(rho[kk-1])**2*kernel_ff(XX1,XX1,length_scales[lb:ub])
+    K=0
+    for kk in range(mm):
+        K+=np.prod(rho[:kk+1])**2*kernel_ff(XX1,XX2,length_scales[nvars*kk:nvars*(kk+1)])
+    K += kernel_ff(XX1,XX2,length_scales[nvars*mm:nvars*(mm+1)])
     return K
 
 def multilevel_off_diagonal_covariance_block(XXmm,XXnn,hyperparams,mm,nn):
@@ -42,8 +40,11 @@ def multilevel_off_diagonal_covariance_block(XXmm,XXnn,hyperparams,mm,nn):
         The samples of the nn the model
     """
     assert mm<nn
+    nvars = XXmm.shape[1]
+    nmodels = (len(hyperparams)+1)//(nvars+1)
     K = multilevel_diagonal_covariance_block(XXmm,XXnn,hyperparams,mm)
-    K*= np.prod(rho[mm,nn-1])
+    rho = np.asarray(hyperparams[nmodels*nvars:nmodels*nvars+nn])
+    K*= np.prod(rho[mm:nn])
     return K
 
 def unpack_samples(XX,nsamples_per_model):
@@ -61,20 +62,21 @@ def full_multilevel_kernel(XX1,hyperparams,nsamples_per_model,hf_only=False):
     nmodels = len(nsamples_per_model)
     if hf_only:
         K=multilevel_diagonal_covariance_block(
-            XX1,hyperparams,nmodels-1)
+            XX1,XX1,hyperparams,nmodels-1)
         return K
+    assert np.sum(nsamples_per_model)==XX1.shape[0]
         
     samples = unpack_samples(XX1,nsamples_per_model)
-    K = np.empty((nrows,nrows),dtype=float)
+    K = np.zeros((nrows,nrows),dtype=float)
     lb1,ub1=0,0
     for mm in range(nmodels):
         lb1=ub1
         ub1+=nsamples_per_model[mm]
         lb2,ub2=lb1,ub1
         K_block=multilevel_diagonal_covariance_block(
-            samples[mm],hyperparams,mm)
+            samples[mm],samples[mm],hyperparams,mm)
         K[lb1:ub1,lb2:ub2] = K_block
-        for nn in range(mm-1):
+        for nn in range(mm+1,nmodels):
             lb2=ub2
             ub2+=nsamples_per_model[nn] 
             K[lb1:ub1,lb2:ub2] = multilevel_off_diagonal_covariance_block(
@@ -168,7 +170,6 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     "Gradient can only be evaluated when XX2 is None.")
             K = full_multilevel_kernel_for_prediction(
                 XX1,XX2,hyperparams,self.nsamples_per_model)
-        print(K.shape,'KK')
         if not eval_gradient:
             return K
             
