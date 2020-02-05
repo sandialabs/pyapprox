@@ -88,8 +88,8 @@ class TestMultilevelGP(unittest.TestCase):
 
         np.random.seed(2)
         #np.random.seed(3)
-        n1,n2=5,3
-        #n1,n2=9,5
+        #n1,n2=5,3
+        n1,n2=9,5
         #n1,n2=10,9
         #n1,n2=17,9
         #n1,n2=32,17
@@ -104,7 +104,7 @@ class TestMultilevelGP(unittest.TestCase):
 
         rho = 0.5*np.ones(nmodels-1)
 
-        n_restarts_optimizer=3
+        n_restarts_optimizer=5
         noise_level=1e-5; 
         noise_level_bounds='fixed'
         from sklearn.gaussian_process.kernels import RBF
@@ -115,7 +115,7 @@ class TestMultilevelGP(unittest.TestCase):
             gps = []
             for ii in range(nmodels):
                 gp_kernel = RBF(
-                    length_scale=1, length_scale_bounds=(1e-1, 1e2))
+                    length_scale=.3, length_scale_bounds='fixed')#(1e-1, 1e2))
                 #gp_kernel += WhiteKernel( # optimize gp noise
                 #    noise_level=noise_level,
                 #    noise_level_bounds=noise_level_bounds)
@@ -141,9 +141,9 @@ class TestMultilevelGP(unittest.TestCase):
                 ml_mean = rho[ii-1]*ml_mean + mean
                 #print(gps[ii].kernel_.diag(xx.T))
                 #print(std[0]**2)
-                ml_var += rho[ii-1]**2*ml_var + std**2
-                prior_var = np.diag(gps[ii].kernel_(xx.T))+rho[ii-1]**2*prior_var
-            #print('prior var',prior_var)
+                ml_var = rho[ii-1]**2*ml_var + std**2
+                #prior_var = gps[ii].kernel_.diag(xx.T)+rho[ii-1]**2*prior_var
+            print('prior var',prior_var)
             return ml_mean.squeeze(), np.sqrt(ml_var).squeeze()
 
         gps = efficient_recursive_multilevel_gp(samples,values)
@@ -200,9 +200,9 @@ class TestMultilevelGP(unittest.TestCase):
            xx[0,:], emlgp_mean - num_stdev*emlgp_std,
            emlgp_mean + num_stdev*emlgp_std,alpha=0.25, color='b')
         axs[0].plot(
-            xx[0,:], emlgp_mean - num_stdev*emlgp_std,color='b')
+            xx[0,:], emlgp_mean + num_stdev*emlgp_std,color='b')
         # axs[0].plot(
-        #     xx[0,:], emlgp_mean + num_stdev*emlgp_std,color='b')
+        #     xx[0,:], emlgp_mean - num_stdev*emlgp_std,color='b')
 
         # length_scale = [1]
         # hfgp_kernel = RBF(
