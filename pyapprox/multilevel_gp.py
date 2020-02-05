@@ -89,13 +89,13 @@ def multilevel_kernel_for_prediction(XX1,train_samples_mm,hyperparams,
     nvars = XX1.shape[1]
     nmodels = len(nsamples_per_model)
     length_scales = np.asarray(hyperparams[:(mm+1)*nvars])
-    rho = np.asarray(hyperparams[nmodels*nvars:nmodels*nvars+mm])
+    rho = np.asarray(hyperparams[nmodels*nvars:nmodels*nvars+nmodels])
     lb,ub=mm*nvars,(mm+1)*nvars
-    K = np.prod(rho[mm:nmodels-1])*kernel_ff(
+    K = np.prod(rho[mm:])*kernel_ff(
         XX1,train_samples_mm,length_scales[lb:ub])
     if mm==0:
         return K
-    K += rho[mm-1]*multilevel_kernel_for_prediction(
+    K+=rho[mm-1]*multilevel_kernel_for_prediction(
         XX1,train_samples_mm,hyperparams,nsamples_per_model,mm-1)
     return K
 
@@ -133,7 +133,8 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         
         assert len(length_scale)==self.nmodels*nvars+self.nmodels-1
         self.length_scale = np.atleast_1d(length_scale)
-        assert len(length_scale_bounds)==self.nmodels*nvars+self.nmodels-1
+        if length_scale_bounds != 'fixed':
+            assert len(length_scale_bounds)==self.nmodels*nvars+self.nmodels-1
         self.length_scale_bounds = length_scale_bounds
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
@@ -184,6 +185,15 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             length_scale_gradient = _approx_fprime(length_scale, f, 1e-8)
 
         return K, length_scale_gradient
+
+    def diag(self,X):
+        """
+        Need to overide this function as base kernel.diag methods only returns
+        1. TODO add this to gradient enhanced kriging then I can remove covariance
+        hack from plot_gp_1d
+        TODO make this function more efficient by directly evaluating diagonal only
+        """
+        return np.diag(self(X)).copy()
 
     @property
     def anisotropic(self):
@@ -236,7 +246,6 @@ class MultilevelGP(GaussianProcessRegressor):
         super().fit(XX_train,YY_train)
 
     def predict(self, XX_test, return_std=False, return_cov=False):
-        print('predict')
         gp_kernel = get_gp_samples_kernel(self)
         return_code = gp_kernel.return_code
         gp_kernel.return_code = 'values'
@@ -246,9 +255,11 @@ class MultilevelGP(GaussianProcessRegressor):
 
 
     def plot_1d(self,num_XX_test,bounds,axs,num_stdev=2,function=None,
-                gp_label=None,function_label=None,model_id=0):
+                gp_label=None,function_label=None,model_id=None):
         assert self.nvars==1
         assert self.nvars == len(bounds)//2
+        if model_id is None:
+            model_id = len(self.samples)-1
 
         # sklearn requires samples to (nsamples, nvars)
         XX_train = self.samples[model_id].T

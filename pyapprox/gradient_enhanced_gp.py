@@ -329,6 +329,9 @@ def plot_2d(function,num_XX_test_1d,bounds,XX_train_values=None,ax=None):
     return ax
 
 def get_gp_samples_kernel(gp):
+    if not hasattr(gp.kernel_,'k1'):
+        return gp.kernel_
+    
     if type(gp.kernel_.k1)==Product:
         if type(gp.kernel_.k1.k1)==ConstantKernel:
             return gp.kernel_.k1.k2
