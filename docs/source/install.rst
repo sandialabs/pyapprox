@@ -34,6 +34,19 @@ To run all tests use::
   
   python setup.py test
 
+To test docstring examples use::
+  
+  pytest --doctest-modules
+  
+or in pyapprox/docs directory run::
+
+  make doctest
+
+To test all docstrings in a file use::
+  
+  python -m doctest -v file.py
+
+
 Create Documentation
 --------------------
 Creating documentation requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. Html documentation can be generated with::

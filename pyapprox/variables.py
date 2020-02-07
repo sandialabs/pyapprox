@@ -110,7 +110,25 @@ def variable_shapes_equivalent(rv1,rv2):
     return True
 
 class IndependentMultivariateRandomVariable(object):
-    def __init__(self, unique_variables, unique_variable_indices=None):
+    """
+    Class representing independent random variables
+
+    Examples
+    --------
+    >>> from pyapprox.variables import IndependentMultivariateRandomVariable
+    >>> from scipy.stats import norm, beta
+    >>> marginals = [norm(0,1),beta(0,1),norm()]
+    >>> variable = IndependentMultivariateRandomVariable(marginals)
+    >>> print(variable)
+    I.I.D. Variable
+    Number of variables: 3
+    Unique variables and global id:
+        norm(loc=0,scale=1): z0, z2
+        beta(a=0,b=1,loc=0,scale=1): z1
+    """
+    
+    def __init__(self, unique_variables, unique_variable_indices=None,
+                 variable_labels=None):
         if unique_variable_indices is None:
             self.unique_variables, self.unique_variable_indices =\
                 get_unique_variables(unique_variables)
@@ -126,6 +144,7 @@ class IndependentMultivariateRandomVariable(object):
             self.nvars += self.unique_variable_indices[ii].shape[0]
         if unique_variable_indices is None:
             assert self.nvars==len(unique_variables)
+        self.variable_labels = variable_labels
             
     def num_vars(self):
         return self.nvars
@@ -158,6 +177,34 @@ class IndependentMultivariateRandomVariable(object):
                 stats = np.empty((self.num_vars(),stats_ii.shape[0]))
             stats[indices]=stats_ii
         return stats
+
+    def __str__(self):
+        variable_labels = self.variable_labels
+        if variable_labels is None:
+            variable_labels = ['z%d'%ii for ii in range(self.num_vars())]
+        string = 'I.I.D. Variable\n'
+        string += f'Number of variables: {self.num_vars()}\n'
+        string += 'Unique variables and global id:\n'
+        for ii in range(self.nunique_vars):
+            var = self.unique_variables[ii]
+            indices = self.unique_variable_indices[ii]
+            name,scales,shapes=get_distribution_info(var)
+            shape_string = ','.join(
+                [f'{name}={val}' for name,val in shapes.items()])
+            scales_string = ','.join(
+                [f'{name}={val}' for name,val in scales.items()])
+            string += '    '+var.dist.name + '('
+            if len(shapes)>0:
+                string += ','.join([shape_string,scales_string])
+            else:
+                string += scales_string
+            string += '): '
+            string += ', '.join(
+                [variable_labels[idx] for idx in indices])
+            if ii < self.nunique_vars-1:
+                string += '\n'
+        return string 
+        
         
      
 from scipy.stats._distn_infrastructure import rv_sample
