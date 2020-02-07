@@ -1,6 +1,51 @@
 import numpy as np
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 
+def print_statistics(samples,values,sample_labels=None,value_labels=None):
+    """
+    Print statistics about a set of samples and associated values
+
+    Parameters
+    ----------
+    samples : np.ndarray (num_vars,num_samples)
+        Random samples 
+    
+    values : np.ndarray (num_samples,num_qoi)
+       Function values at samples
+
+    Examples
+    --------
+    >>> num_vars=2
+    >>> np.random.seed(1)
+    >>> samples = np.random.normal(0,1,(num_vars,100))
+    >>> values = np.array([np.sum(samples**2,axis=0),2*np.sum(samples**2,axis=0)]).T
+    >>> print_statistics(samples,values)
+                   z0          z1          y0          y1
+    count  100.000000  100.000000  100.000000  100.000000
+    mean     0.060583    0.152795    1.679132    3.358265
+    std      0.889615    0.936690    1.714470    3.428941
+    min     -2.301539   -2.434838    0.031229    0.062458
+    25%     -0.613818   -0.300010    0.437509    0.875019
+    50%      0.064074    0.236616    1.073139    2.146279
+    75%      0.637410    0.743020    2.397208    4.794417
+    max      2.185575    2.528326    9.575905   19.151810
+    """
+    from pandas import DataFrame
+    num_vars,nsamples = samples.shape
+    num_qoi = values.shape[1]
+    assert nsamples == values.shape[0]
+    if sample_labels is None:
+        sample_labels = ['z%d'%ii for ii in range(num_vars)]
+    if value_labels is None:
+        value_labels = ['y%d'%ii for ii in range(num_qoi)]
+    
+    data =  [(label,s) for s, label in zip(samples,sample_labels)]
+    data += [(label,s) for s, label in zip(values.T,value_labels)]
+    data = dict(data)
+    df = DataFrame(index=np.arange(nsamples),data=data)
+    print(df.describe())
+    
+
 def generate_canonical_univariate_random_samples(
         var_type,variable_parameters,num_samples,num_vars):
     """
