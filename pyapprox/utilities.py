@@ -1277,3 +1277,28 @@ def get_all_sample_combinations(samples1,samples2):
     for r in itertools.product(*[samples1.T,samples2.T]):
         samples.append(np.concatenate(r))
     return np.asarray(samples).T
+
+def get_correlation_from_covariance(cov):
+    """
+    Compute the correlation matrix from a covariance matrix
+
+    Parameters
+    ---------
+    cov : np.ndarray (nrows,nrows)
+        The symetric covariance matrix
+
+    Returns
+    -------
+    cor : np.ndarray (nrows,nrows)
+        The symetric correlation matrix
+    
+    Examples
+    --------
+    >>> cov = np.asarray([[2,-1],[-1,2]])
+    >>> get_correlation_from_covariance(cov)
+    array([[ 1. , -0.5],
+           [-0.5,  1. ]])
+    """
+    stdev_inv = 1/np.sqrt(np.diag(cov))
+    cor = stdev_inv[np.newaxis,:]*cov*stdev_inv[:,np.newaxis]
+    return cor

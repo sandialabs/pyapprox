@@ -1,10 +1,11 @@
 """
 Functions for estimating expectations using frequentist control-variate Monte-Carlo based methods such as multi-level Monte-Carlo, control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.
 """
-
-
 import numpy as np
-import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+#use torch to compute gradients for sample allocation optimization
+import torch
+import copy
 
 def compute_correlations_from_covariance(cov):
     """
@@ -104,9 +105,9 @@ def get_control_variate_rsquared(cov,nsample_ratios):
     rsquared : float
         The value  :math:`r^2`
     """
+    assert nsample_ratios is None
     nmodels = cov.shape[0]
-    assert len(costs)==cov
-    rsquared = cov[0,:1].dot(np.linalg.solve(cov[1:, 1:], cov[:1, 0]))
+    rsquared = cov[0,1:].dot(np.linalg.solve(cov[1:, 1:], cov[1:, 0]))
     rsquared /= cov[0,0]
     return rsquared
 
@@ -178,7 +179,7 @@ def get_rsquared_mlmc(cov,nsample_ratios):
 
     v = cov[nmodels-1, nmodels-1]
     gamma += v / (rhat[-1])
-    
+
     gamma /= cov[0, 0]
     return 1-gamma
 
@@ -305,7 +306,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     nhf_samples, nsample_ratios = standardize_sample_ratios(
         nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mfmc,cov,nsample_ratios)
-    log10_variance = np.log10(gamma) + np.log10(cov[0, 0]) - np.log10(nhf_samples)
+    log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
 
     return nhf_samples, nsample_ratios, log10_variance
 
@@ -386,8 +387,10 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
         
     nhf_samples, nsample_ratios = standardize_sample_ratios(
         nhf_samples, nsample_ratios)
+    #print(nhf_samples,nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mlmc,cov,nsample_ratios)
     log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
+    #print(log10_variance)
     if np.isnan(log10_variance):
         raise Exception('MLMC variance is NAN')
     return nhf_samples, nsample_ratios, log10_variance
@@ -410,3 +413,180 @@ def generate_mlmc_sample_sets(generate_samples, nhf_samples, nsample_ratios):
     =======
     
     """
+
+def get_rsquared_acv1(cov,nsample_ratios):
+    """
+    Compute r^2 used to compute the variance reduction  of 
+    Approximate Control Variate Algorithm 1 (ACV1)
+    
+    Parameters
+    ----------
+    cov : np.ndarray (nmodels,nmodels)
+        The covariance C between each of the models. The highest fidelity model
+        is the first model, i.e its variance is cov[0,0]
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the 
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    Returns
+    -------
+    rsquared : float
+        The value r^2
+    """
+    nmodels = cov.shape[0]
+    F = torch.zeros((nmodels-1, nmodels-1), dtype=torch.double)
+    for ii in range(nmodels-1):
+        F[ii, ii]=(nsample_ratios[ii]-1)/nsample_ratios[ii]
+        for jj in range(ii+1,nmodels-1):
+            F[ii, jj] = (nsample_ratios[ii]-1)/nsample_ratios[ii] * (
+                nsample_ratios[jj]-1)/nsample_ratios[jj]
+            F[jj, ii] = F[ii, jj]
+
+    CF = cov[1:,1:] * F
+    cf = torch.diag(F) * cov[1:, 0]
+    rs = torch.dot(cf, torch.mv(torch.inverse(CF),cf))/cov[0, 0]
+    return rs
+
+def acv_sample_allocation_sample_ratio_constraint(ratios, *args):
+    ind = args[0]
+    return ratios[ind] - ratios[ind-1]
+
+def acv_sample_allocation_cost_constraint(ratios, *args):
+    nhf, costs, target_cost = args
+    cost = nhf*(costs[0] + np.dot(ratios, costs[1:]))
+    return target_cost - cost
+
+def acv_sample_allocation_cost_constraint_all(ratios, *args):
+    costs, target_cost = args
+    # nhf, rats = standardize(ratios[0], ratios[1:])
+    nhf, rats = ratios[0], ratios[1:]
+    cost = nhf*(costs[0] + np.dot(rats, costs[1:]))
+    return target_cost - cost 
+
+def acv_sample_allocation_objective(ratios, acv_in):
+    rats = torch.tensor(ratios)
+    gamma = acv_in.gamma(rats)
+    gamma = torch.log10(gamma)
+    return gamma.item()
+
+def acv_sample_allocation_jacobian(ratios, acv_in):
+    rats = torch.tensor(ratios, dtype=torch.double)
+    rats.requires_grad=True
+    gamma = acv_in.gamma(rats)
+    gamma = torch.log10(gamma)
+    gamma.backward()
+    grad = rats.grad.numpy().copy()
+    rats.grad.zero_()
+    return grad
+
+def acv_sample_allocation_objective_all(x, acv_in):
+    xrats = torch.tensor(x, dtype=torch.double)
+    xrats.requires_grad=True
+    nhf, ratios = xrats[0], xrats[1:]
+    gamma = acv_in.gamma(ratios) * acv_in.cov[0, 0] / nhf
+    gamma = torch.log10(gamma)
+    return gamma.item()
+
+def acv_sample_allocation_jacobian_all(x, acv_in):
+    xrats = torch.tensor(x, dtype=torch.double)
+    xrats.requires_grad=True
+    nhf, ratios = xrats[0], xrats[1:]
+    gamma = acv_in.gamma(ratios) * acv_in.cov[0, 0] / nhf
+    gamma = torch.log10(gamma)
+    gamma.backward()
+    grad = xrats.grad.numpy().copy()
+    xrats.grad.zero_()
+    return grad
+
+def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
+    """
+    Determine the samples to be allocated to each model when using ACV1 or ACV2
+
+    Parameters
+    ----------
+    cov : np.ndarray (nmodels,nmodels)
+        The covariance C between each of the models. The highest fidelity model
+        is the first model, i.e its variance is cov[0,0]
+
+    costs : np.ndarray (nmodels)
+        The relative costs of evaluating each model
+
+    target_cost : float
+        The total cost budget
+
+    nhf_samples_fixed : integer default=None
+        If not None fix the number of high-fidelity samples and compute
+        the samples assigned to the remaining models to respect this
+
+    Returns
+    -------
+    nhf_samples : integer 
+        The number of samples of the high fidelity model
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the 
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    log10_variance : float
+        The base 10 logarithm of the variance of the estimator
+    """
+    cov = torch.tensor(np.copy(cov), dtype=torch.double)
+    nmodels = cov.shape[0]
+    nhf_samples, nsample_ratios =  allocate_samples_mlmc(
+        cov, costs, target_cost, nhf_samples_fixed)[1:]
+    nhf_samples_start = copy.deepcopy(nhf_samples)
+    nsample_ratios_start = copy.deepcopy(nsample_ratios)
+    if nhf_samples_fixed is not None:
+        bounds = [(2, 10**20)]*(nmodels-1)
+        cons = dict({'type':'ineq', 'fun':acv_sample_allocation_cost_constraint,
+                     'args':(nhf_samples_fixed, costs, target_cost)})
+        cons = [cons]
+        for jj in range(1,nmodels-1):
+            cons.append( dict({'type':'ineq',
+                               'fun':acv_sample_allocation_ratio_constraint,
+                               'args':[jj]}))
+        r_start = nsample_ratios            
+        opt = minimize(objective_function, r_start, acv,
+                       method='SLSQP',
+                       jac=jacobian, bounds=bounds,
+                       constraints=cons,
+                       options = {'disp':False, 'ftol':1e-8,
+                                  'maxiter':600})
+
+        ratio = opt.x
+    else:
+
+        bounds = [(1,10**20)] + [(2, 10**20)]*(nmodels-1)
+        cons = dict({'type':'ineq',
+                     'fun':acv_sample_allocation_cost_constraint_all,
+                     'args':(costs, target_cost)})
+        cons = [cons]
+
+        for jj in range(2,nmodels-1):
+            cons.append( dict({'type':'ineq',
+                               'fun':acv_sample_allocation_ratio_constraint_all,
+                               'args':[jj]}))
+
+        print (type([nhf_samples]),type(nsample_ratios))
+        r_start = [nhf_samples] + nsample_ratios
+        opt = minimize(objective_function_all, r_start, acv,
+                       method='SLSQP',
+                       jac=jacobian_all, bounds=bounds,
+                       constraints=cons,
+                       options = {'disp':False,
+                                  'ftol':1e-8,
+                                  'maxiter':400})
+
+        max_eval_total = 100000000
+        if opt.success == False or np.max(opt.x[0] * opt.x[1:])>max_eval_total:
+            raise Exception('Optimizer failed')
+        nhf_samples, ratio = opt.x[0], opt.x[1:]
+
+    nhf_samples, nsample_ratios = standardize_sample_ratios(
+        nhf_samples_fixed, ratio)
+    nsample_ratios = np.array(nsample_ratios)
+    #var = acv.gamma(nsample_ratios) * acv.cov[0, 0] / float(nhf_samples)
+    var = get_variance_reduction(get_rsquared_acv,cov,nsample_ratios)
+    var *= cov[0, 0]/float(nhf_samples)
+    return nhf_samples, nsample_ratios, np.log10(var.item())
