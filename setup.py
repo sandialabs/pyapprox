@@ -76,7 +76,12 @@ setuptools.setup(
         'numpydoc',
         'sphinx',
         'sphinx_automodapi',
-        'sphinx_rtd_theme'
+        'sphinx_rtd_theme',
+        'torch',
+        'seaborn',
+        'pillow', # required by sphinx-gallery and dependency not auto handle
+        'sphinx-gallery',
+        'jupyter'
       ],
     ext_modules = extensions,
     test_suite='nose.collector',
