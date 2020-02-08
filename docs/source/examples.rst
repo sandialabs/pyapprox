@@ -4,7 +4,7 @@ The following links provide a set of tutorials demonstrating various functionali
 
 .. toctree::
    :maxdepth: 2
-	      
+
    parameter_sweeps.rst
    tensor_product_lagrange_interpolation.rst
    isotropic_sparse_grid_quadrature_example.rst

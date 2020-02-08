@@ -51,6 +51,14 @@ extensions +=['matplotlib.sphinxext.plot_directive',
               'IPython.sphinxext.ipython_directive']
 
 extensions += ['sphinx_automodapi.automodapi']
+
+extensions += ['sphinx_gallery.gen_gallery']
+
+sphinx_gallery_conf = {
+     'examples_dirs': '../../examples',   # path to your example scripts
+     'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+}
+
 # numpydoc_show_class_members=False option is ncessary when using automodapi
 # to avoid having methods and attributes of classes being shown multiple times.
 numpydoc_show_class_members = False
