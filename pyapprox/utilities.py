@@ -1283,7 +1283,7 @@ def get_correlation_from_covariance(cov):
     Compute the correlation matrix from a covariance matrix
 
     Parameters
-    ---------
+    ----------
     cov : np.ndarray (nrows,nrows)
         The symetric covariance matrix
 
