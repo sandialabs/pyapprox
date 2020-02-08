@@ -73,7 +73,11 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['control_variate_monte_carlo.rst'] # temporarily do not create function documentation
+exclude_patterns = ['control_variate_monte_carlo.rst','adaptive_leja_sequences.rst','examples.rst','cantilever_beam.rst','parameter_sweeps.rst','tensor_product_lagrange_interpolation.rst','polynomial_chaos_interpolation.rst','isotropic_sparse_grid_quadrature_example.rst'] # temporarily do not create function documentation
+
+exclude_patterns += ['modules.rst']
+# use above to temporarily disable automod build. Also need to remove source/api directory and (possibly) build/
+
 
 # only add documented functions to manual. If not used then the api of functions
 # without a docstring will be added with no information.

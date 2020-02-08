@@ -5,12 +5,11 @@ Control Variate Monte Carlo Sampling
 ------------------------------------
 .. automodapi:: pyapprox.control_variate_monte_carlo
    :no-heading:
-
+on
 General utilities
 -----------------
 .. automodapi:: pyapprox.utilities
    :no-heading:		
-
 
 Orthonormal polynomials
 -----------------------
