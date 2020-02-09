@@ -54,10 +54,17 @@ extensions += ['sphinx_automodapi.automodapi']
 
 extensions += ['sphinx_gallery.gen_gallery']
 
+# Note sphink-gallery only runs examples in files that start with plot_
 sphinx_gallery_conf = {
      'examples_dirs': '../../examples',   # path to your example scripts
      'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
 }
+
+# silence warning created by sphinx-gallery
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning,
+                        message='Matplotlib is currently using agg, which is a'
+                                ' non-GUI backend, so cannot show the figure.')
 
 # numpydoc_show_class_members=False option is ncessary when using automodapi
 # to avoid having methods and attributes of classes being shown multiple times.
@@ -153,7 +160,8 @@ mathjax_config = {
             "rvdom":r'\Gamma',
             "coloneqq":r'\colon=',
             "norm":[r'\lVert #1 \rVert',1],
-            "argmax":[r'\operatorname{argmax}']
+            "argmax":[r'\operatorname{argmax}'],
+            "pdf":r'\rho'
             }                       
         }                           
     } 

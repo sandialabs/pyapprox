@@ -30,6 +30,8 @@ def print_statistics(samples,values,sample_labels=None,value_labels=None):
     75%      0.637410    0.743020    2.397208    4.794417
     max      2.185575    2.528326    9.575905   19.151810
     """
+    if values.ndim==1:
+        values = values[:,np.newaxis]
     from pandas import DataFrame
     num_vars,nsamples = samples.shape
     num_qoi = values.shape[1]

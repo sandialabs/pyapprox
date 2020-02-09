@@ -40,7 +40,7 @@ def mlmc_variance_reduction(pilot_samples, sample_ratios, nhf_samples):
     return var / (varhf)
 
 class TunableExample(object):
-    def __init__(self,theta1):
+    def __init__(self,theta1,shifts=None):
         """
         Parameters
         ----------
@@ -58,6 +58,10 @@ class TunableExample(object):
         self.theta1=theta1
         self.theta2=np.pi/6
         assert self.theta0>self.theta1 and self.theta1>self.theta2
+        self.shifts=shifts
+        if self.shifts is None:
+            self.shifts = [0,0]
+        assert len(self.shifts)==2
         
     def m1(self,samples):
         assert samples.shape[0]==2
@@ -67,12 +71,12 @@ class TunableExample(object):
     def m2(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
-        return self.A1*(np.cos(self.theta1) * x**3 + np.sin(self.theta1) * y**3)
+        return self.A1*(np.cos(self.theta1) * x**3 + np.sin(self.theta1) * y**3)+self.shifts[0]
     
     def m3(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
-        return self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)
+        return self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)+self.shifts[1]
 
     def get_covariance_matrix(self,npilot=None):
         if npilot is None:
