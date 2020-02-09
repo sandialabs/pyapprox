@@ -14,7 +14,6 @@ from pyapprox.manipulate_polynomials import get_indices_double_set
 from pyapprox.variable_transformations import \
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
-import sympy as sp
 
 skiptest = unittest.skip("test not completely implemented")
 
