@@ -63,17 +63,17 @@ class TunableExample(object):
             self.shifts = [0,0]
         assert len(self.shifts)==2
         
-    def m1(self,samples):
+    def m0(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
         return self.A0*(np.cos(self.theta0) * x**5 + np.sin(self.theta0) * y**5)
     
-    def m2(self,samples):
+    def m1(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
         return self.A1*(np.cos(self.theta1) * x**3 + np.sin(self.theta1) * y**3)+self.shifts[0]
     
-    def m3(self,samples):
+    def m2(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
         return self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)+self.shifts[1]
@@ -95,9 +95,9 @@ class TunableExample(object):
         else:
             samples = self.generate_samples(npilot)
             values  = np.zeros((npilot, 3))
-            values[:,0] = self.m1(samples)
-            values[:,1] = self.m2(samples)
-            values[:,2] = self.m3(samples)
+            values[:,0] = self.m0(samples)
+            values[:,1] = self.m1(samples)
+            values[:,2] = self.m2(samples)
             cov = np.cov(samples,rowvar=False)
 
             return cov, samples, values
@@ -107,7 +107,7 @@ class TunableExample(object):
 
     def __call__(self,sample_sets):
         assert len(samples_sets)==3
-        models = [self.m1,self.m2,self.m3]
+        models = [self.m0,self.m1,self.m2]
         value_sets = []
         for ii in range(len(sample_sets)):
             if samples_sets[ii] is not None:

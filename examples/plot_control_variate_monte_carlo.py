@@ -1,7 +1,7 @@
 r"""
 Control Variate Monte Carlo
 ===========================
-This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute expectations of model output from multiple models. It shows how multi-level Monte Carlo and multi-fidelity Monte Carlo are both control variate techniques. And demonstrates how this understanding can be used to improve their efficiency.
+This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute expectations of model output from two models.
 
 Let :math:`f(\rv):\reals^d\to\reals` be a function of :math:`d` random variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density :math:`\pdf(\rv)`. Our goal is to compute the expectation of an approximation :math:`f_\alpha` of the function :math:`f`, e.g.
 
@@ -13,7 +13,7 @@ The approximation :math:`f_\alpha` typically arises from the need to numerically
 
 
 Monte Carlo
-===========
+-----------
 
 We can approximate th integral :math:`Q` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}=f_\alpha(\rv^{(n)})`
 
@@ -70,14 +70,14 @@ univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 print(variable)
 shifts=[.1,.2]
-model = TunableExample(np.pi/3,shifts=shifts)
+model = TunableExample(np.pi/2*.95,shifts=shifts)
 
 #%%
 # Now let us compute the mean of :math:`f_1` using Monte Carlo
 nsamples = int(1e2)
 samples = pya.generate_independent_random_samples(
     variable,nsamples)
-values = model.m2(samples) #m2=f_1(z) above
+values = model.m1(samples)
 pya.print_statistics(samples,values)
 
 #%%
@@ -85,11 +85,11 @@ pya.print_statistics(samples,values)
 import sympy as sp
 z1,z2 = sp.Symbol('z1'),sp.Symbol('z2')
 ranges = [-1,1,-1,1]
-integrand_f1=model.A1*(sp.cos(model.theta1)*z1**3+sp.sin(model.theta1)*z2**3)+shifts[0]
+integrand_f1=model.A1*(sp.cos(model.theta1)*z1**3+sp.sin(model.theta1)*z2**3)+shifts[0]*0.25
 exact_integral_f1 = float(
     sp.integrate(integrand_f1,(z1,ranges[0],ranges[1]),(z2,ranges[2],ranges[3])))
 
-print('MSE=',(values.mean()-exact_integral_f1)**2)
+print('MC difference squared =',(values.mean()-exact_integral_f1)**2)
 
 #%%
 #Now let us compute the MSE for different sample sets of the same size and plot
@@ -100,14 +100,16 @@ means = np.empty(ntrials)
 for ii in range(ntrials):
     samples = pya.generate_independent_random_samples(
         variable,nsamples)
-    values = model.m2(samples)
+    values = model.m1(samples)
     means[ii] = values.mean()
 fig,ax = plt.subplots()
 textstr = '\n'.join([r'$E[Q_{1,N}]=\mathrm{%.2e}$'%means.mean(),
                      r'$V[Q_{1,N}]=\mathrm{%.2e}$'%means.var()])
 ax.hist(means,bins=ntrials//100,density=True)
-ax.axvline(x=shifts[0],c='k',label=r'$E[Q_1]$')
-ax.text(0.6,0.75,textstr,transform=ax.transAxes)
+ax.axvline(x=shifts[0],c='r',label=r'$E[Q_1]$')
+ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
+props = {'boxstyle':'round','facecolor':'white','alpha':1}
+ax.text(0.65,0.9,textstr,transform=ax.transAxes,bbox=props)
 _ = ax.legend(loc='upper left')
 
 #%%
@@ -117,25 +119,28 @@ _ = ax.legend(loc='upper left')
 #
 #Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
 
-integrand_f0 = model.A0*(sp.cos(model.theta0)*z1**5+sp.sin(model.theta0)*z2**5)
+integrand_f0 = model.A0*(sp.cos(model.theta0)*z1**5+
+                         sp.sin(model.theta0)*z2**5)*0.25
 exact_integral_f0 = float(
     sp.integrate(integrand_f0,(z1,ranges[0],ranges[1]),(z2,ranges[2],ranges[3])))
 bias = (exact_integral_f0-exact_integral_f1)**2
-print('bias =',bias)
+print('MC f1 bias =',bias)
+print('MC f1 variance =',means.var())
+print('MC f1 MSE =',bias+means.var())
 
 fig,ax = plt.subplots()
 X,Y,Z = pya.get_meshgrid_function_data(
-    lambda z: model.m1(z)-model.m2(z),[-1,1,-1,1],50)
+    lambda z: model.m0(z)-model.m1(z),[-1,1,-1,1],50)
 cset = ax.contourf(X, Y, Z, levels=np.linspace(Z.min(),Z.max(),20))
 _ = plt.colorbar(cset,ax=ax)
-plt.show()
+#plt.show()
 
 #%%
-#So using :math:`N>s_1` samples the bias exceeds the variance and the MSE cannot be reduced by adding more samples. To reduce the MSE we must reduce the bias. We can do this by leveraging additional models.
+#As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
 
 #%%
 #Control-variate Monte Carlo (CVMC)
-#==================================
+#----------------------------------
 #
 #Let us introduce model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via
 #
@@ -171,59 +176,61 @@ plt.show()
 #
 #   \gamma &= 1+\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}-2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\\
 #   &= 1+\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}-2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}\\
-#    &= 1-\corr{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}
+#    &= 1-\corr{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2
+
 #
 #Thus if a two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean.
+#
+#The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:`\mean{f_0}`
+
+samples = pya.generate_independent_random_samples(
+    variable,nsamples)
+values0 = model.m0(samples)
+values1 = model.m1(samples)
+cov = model.get_covariance_matrix()
+eta = -cov[0,1]/cov[0,0]
+#cov_mc = np.cov(values0,values1)
+#eta_mc = -cov_mc[0,1]/cov_mc[0,0]
+cv_mean = values0.mean()+eta*(values1.mean()-exact_integral_f1)
+print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
+print('CVMC difference squared =',(cv_mean-exact_integral_f0)**2)
 
 #%%
-#Multi-level Monte Carlo (MLMC)
-#==============================
-#
-#Total cost is
-#
-#.. math::
-#
-#   C_{\mathrm{tot}}=\sum_{l=1}^L C_lr_lN_1
-#   
-#Variance of estimator is
-#
-#.. math::
-#  
-#   \var{Q_L}=\sum_{l=1}^L \var{Y_l}r_lN_1
-#   
-#Treating :math:`r_l` as a continuous variable the variance of the MLMC estimator is minimized for a fixed budget :math:`C` by setting
-#
-#.. math::
-#
-#   N_l=r_lN_1=\sqrt{\var{Y_l}/C_l}
-#   
-#Choose L so that
-#
-#.. math::
-#   
-#   \left(\mean{Q_L}-\mean{Q}\right)^2<\frac{1}{2}\epsilon^2
-#   
-#Choose :math:`N_l` so total variance
-#
-#.. math::
-#   \var{Q_L}<\frac{1}{2}\epsilon^2
-#
-#Multi-fidelity Monte Carlo (MFMC)
-#=================================
-#
-#.. math::
-#   
-#   r_i=\left(\frac{C_1(\rho^2_{1i}-\rho^2_{1i+1})}{C_i(1-\rho^2_{12})}\right)^{\frac{1}{2}}
-#   
-#Let :math:`C=(C_1\cdots C_L)^T r=(r_1\cdots r_L)^T` then
-#
-#.. math::
-#
-#   N_1=\frac{C_{\mathrm{tot}}}{C^Tr} & & N_i=r_iN_1\\
-#
-#  
-#The control variate weights are
-#
-#.. math::
-#   
-#   \alpha_i=\frac{\rho_{1i}\sigma_1}{\sigma_i}
+# Now lets look at the statistical properties of the CVMC estimator
+
+ntrials=1000
+means = np.empty((ntrials,2))
+for ii in range(ntrials):
+    samples = pya.generate_independent_random_samples(
+        variable,nsamples)
+    values0 = model.m0(samples)
+    values1 = model.m1(samples)
+    means[ii,0] = values0.mean()
+    means[ii,1] = values0.mean()+eta*(values1.mean()-exact_integral_f1)
+
+print("Theoretical variance reduction",
+      1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
+print("Achieved variance reduction",
+      means[:,1].var(axis=0)/means[:,0].var(axis=0))
+
+#%%
+# The following plot shows that unlike :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
+
+fig,ax = plt.subplots()
+textstr = '\n'.join([r'$E[Q_{0,N}]=\mathrm{%.2e}$'%means[:,0].mean(),
+                     r'$V[Q_{0,N}]=\mathrm{%.2e}$'%means[:,0].var(),
+                     r'$E[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$'%means[:,1].mean(),
+                     r'$V[Q_{0,N}^\mathrm{CV}]=\mathrm{%.2e}$'%means[:,1].var()])
+ax.hist(means[:,0],bins=ntrials//100,density=True,alpha=0.5,
+        label=r'$Q_{0,N}$')
+ax.hist(means[:,1],bins=ntrials//100,density=True,alpha=0.5,
+        label=r'$Q_{0,N}^\mathrm{CV}$')
+ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
+props = {'boxstyle':'round','facecolor':'white','alpha':1}
+ax.text(0.6,0.75,textstr,transform=ax.transAxes,bbox=props)
+_ = ax.legend(loc='upper left')
+plt.show()
+
+#%%
+#Change :math:`\texttt{eta}` to :math:`\texttt{eta_mc}` to see how the variance reduction changes when the covariance between models is approximated
+
