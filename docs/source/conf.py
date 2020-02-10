@@ -55,6 +55,8 @@ extensions += ['sphinx_automodapi.automodapi']
 extensions += ['sphinx_gallery.gen_gallery']
 
 # Note sphink-gallery only runs examples in files that start with plot_
+# To add subfolders in examples must add README.rst to that subfoler in addition
+# to .py files
 sphinx_gallery_conf = {
     'examples_dirs': '../../examples',   # path to your example scripts
     'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
