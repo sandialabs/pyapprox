@@ -22,3 +22,4 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf source/auto_examples/
+	rm -rf source/api/
