@@ -13,7 +13,7 @@ The approximation :math:`f_\alpha` typically arises from the need to numerically
 
 
 Monte Carlo
-==========
+===========
 
 We can approximate th integral :math:`Q` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}=f_\alpha(\rv^{(n)})`
 
@@ -103,8 +103,8 @@ for ii in range(ntrials):
     values = model.m2(samples)
     means[ii] = values.mean()
 fig,ax = plt.subplots()
-textstr = '\n'.join([r'$E[Q_{1,N}]=\textrm{%.2e}$'%means.mean(),
-                     r'$V[Q_{1,N}]=\textrm{%.2e}$'%means.var()])
+textstr = '\n'.join([r'$E[Q_{1,N}]=\mathrm{%.2e}$'%means.mean(),
+                     r'$V[Q_{1,N}]=\mathrm{%.2e}$'%means.var()])
 ax.hist(means,bins=ntrials//100,density=True)
 ax.axvline(x=shifts[0],c='k',label=r'$E[Q_1]$')
 ax.text(0.6,0.75,textstr,transform=ax.transAxes)
@@ -209,7 +209,7 @@ plt.show()
 #   \var{Q_L}<\frac{1}{2}\epsilon^2
 #
 #Multi-fidelity Monte Carlo (MFMC)
-#================================
+#=================================
 #
 #.. math::
 #   
