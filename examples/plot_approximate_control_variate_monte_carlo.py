@@ -1,7 +1,7 @@
 r"""
 Approximate Control Variate Monte Carlo
 =======================================
-This tutorial describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
+This tutorial builds upon :ref:`sphx_glr_auto_examples_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
 This tutorial also demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
 
@@ -24,8 +24,6 @@ The cost of computing the ACV estimator is
 
    C_\mathrm{cv} = N + (1+r_\V{\kappa})N
 
-where for ease of notation we write :math:`r_\V{\kappa}N` and :math:`\lfloor r_\V{\kappa}N\rfloor` interchangibly
-
 With this sampling scheme we have
 
 .. math::
@@ -34,7 +32,8 @@ With this sampling scheme we have
   &=\frac{1}{N}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=1}^{N}f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\\
   &=\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\\
 
-Thus
+where for ease of notation we write :math:`r_\V{\kappa}N` and :math:`\lfloor r_\V{\kappa}N\rfloor` interchangibly.
+Using the above expression yields
 
 .. math::
    \var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}&=\mean{\left(\frac{r-1}{rN}\sum_{i=1}^N f_\V{\kappa}^{(i)}-\frac{1}{rN}\sum_{i=N}^{rN}f_\V{\kappa}^{(i)}\right)^2}\\
@@ -64,7 +63,7 @@ Recalling the variance reduction of the CV estimator using the optimal :math:`\e
    &=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}N^{-1}\var{f_\V{\alpha}}}\\
    &=1-\frac{r-1}{r}\corr{f_\V{\alpha}}{f_\V{\kappa}}^2
 
-which is found when :math:`\eta=-(1-\gamma)\var{f_\V{\alpha}}`
+which is found when :math:`\eta=(\gamma-1)\var{f_\V{\alpha}}`
 """
 #%%
 # Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
@@ -77,7 +76,6 @@ from scipy.stats import uniform
 np.random.seed(1)
 univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-print(variable)
 shifts=[.1,.2]
 model = TunableExample(np.pi/2*.95,shifts=shifts)
 exact_integral_f0=0
@@ -94,7 +92,7 @@ values1_lf_only = model.m1(samples_lf_only)
 
 cov = model.get_covariance_matrix()
 gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-eta = -(1-gamma)*cov[0,0]
+eta = (gamma-1)*cov[0,0]
 acv_mean = values0.mean()+eta*(values1_shared.mean()-values1_lf_only.mean())
 print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
@@ -113,8 +111,8 @@ def compute_acv_two_model_variance_reduction(nsample_ratio):
         values1_shared = model.m1(samples_shared)
         values1_lf_only = model.m1(samples_lf_only)
         means[ii,0]= values0.mean()
-        gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-        eta = -(1-gamma)*cov[0,0]
+        gamma=1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
+        eta = (gamma-1)*cov[0,0]
         means[ii,1]=values0.mean()+eta*(
             values1_shared.mean()-values1_lf_only.mean())
 
@@ -131,7 +129,32 @@ compute_acv_two_model_variance_reduction(200)
 print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 
 #%%
-#Control variate Monte Carlo can be easily extended and applied to more than two models. 
+#Control variate Monte Carlo can be easily extended and applied to more than two models. Consider :math:`M` lower fidelity models with sample ratios :math:`r_\alpha>=1`, for :math:`\alpha=1,\ldots,M`. The approximate control variate estimator of the mean of the high-fidelity model :math:`Q_0=\mean{f_0}` is
+#
+#.. math::
+#   Q^{\text{ACV}} &= Q_{0,\mathcal{Z}_{0,1}} + \sum_{\alpha=1}^M \eta_\alpha \left( Q_{\alpha,\mathcal{Z}_{\alpha,1}} - \mu_{\alpha,\mathcal{Z}_{\alpha,2}} \right) =Q_{0,\mathcal{Z}_{0,1}} + \sum_{\alpha=1}^M \eta_\alpha \Delta_{\alpha,\mathcal{Z}_{\alpha,1},\mathcal{Z}_{\alpha,2}}\\&=Q_{0,N}+\V{\eta}\V{\Delta}
+#
+#Here :math:`\V{\eta}=[\eta_1,\ldots,\eta_M]^T`, :math:`\V{\Delta}=[\Delta_1,\ldots,\Delta_M]^T`, and :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}` are sample sets that may or may not be disjoint. Specifying the exact nature of these sets, including their cardinality, can be used to design different ACV estimators which will discuss later.
+#
+#The variance of the ACV estimator is
+#
+#.. math::
+#
+#   \var{Q^{\text{ACV}}} = \var{Q_{0}}\left(1+\V{\eta}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}}{\var{Q_0}}\V{\eta}+2\V{\eta}^T\frac{\covar{\V{\Delta}}{Q_0}}{\var{Q_0}}\right)
+#
+#The control variate weights that produce the minimum variance are given by
+#
+#.. math::
+#
+#   \V{\eta} = -\covar{\V{\Delta}}{\V{\Delta}}^{-1}\covar{\V{\Delta}}{Q_0}
+#
+#The resulting variance reduction is
+#
+#.. math::
+#
+#   \gamma =1-\covar{\V{\Delta}}{Q_0}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}}{\var{Q_0}}\covar{\V{\Delta}}{Q_0}
+#
+#
 
 #%%
 #Multi-level Monte Carlo (MLMC)
@@ -185,3 +208,12 @@ print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 #.. math::
 #   
 #   \alpha_i=\frac{\rho_{1i}\sigma_1}{\sigma_i}
+
+#%%
+#References
+#^^^^^^^^^^
+#.. [PWGSIAM2016] `B. Peherstorfer, K. Willcox, M. Gunzburger, Optimal model management for multifidelity Monte Carlo estimation, SIAM J. Sci. Comput. 38 (2016) 59 A3163–A3194. <https://doi.org/10.1137/15M1046472>`_
+#
+#.. [CGSTCVS2011] `K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci. 14 (2011) <https://doi.org/10.1007/s00791-011-0160-x>`_
+#
+#.. [GilesOR2008] `M.B. Giles, Multilevel Monte Carlo path simulation, Oper. Res. 56 (2008) 607–617. <https://doi.org/10.1287/opre.1070.0496>`_

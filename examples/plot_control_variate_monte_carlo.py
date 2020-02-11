@@ -142,7 +142,7 @@ _ = plt.colorbar(cset,ax=ax)
 #Control-variate Monte Carlo (CVMC)
 #----------------------------------
 #
-#Let us introduce model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via
+#Let us introduce a model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via [LMWOR1982]_
 #
 #.. math::
 #
@@ -234,3 +234,7 @@ plt.show()
 #%%
 #Change :math:`\texttt{eta}` to :math:`\texttt{eta_mc}` to see how the variance reduction changes when the covariance between models is approximated
 
+#%%
+#References
+#^^^^^^^^^^
+#.. [LMWOR1982] `S.S. Lavenberg, T.L. Moeller, P.D. Welch, Statistical results on control variables with application to queueing network simulation, Oper. Res. 30 (1982) 45 182–202. <https://doi.org/10.1287/opre.30.1.182>`_
