@@ -54,6 +54,17 @@ extensions += ['sphinx_automodapi.automodapi']
 
 extensions += ['sphinx_gallery.gen_gallery']
 
+from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
+example_filenames_in_order = [
+    'plot_control_variate_monte_carlo.py',
+    'plot_approximate_control_variate_monte_carlo.py',
+    'plot_adaptive_leja_interpolation.py']
+class ExamplesExplicitOrder(_SortKey):
+    
+    def __call__(self, filename):
+        #src_file = os.path.normpath(os.path.join(self.src_dir, filename))
+        return example_filenames_in_order.index(filename)
+    
 # Note sphink-gallery only runs examples in files that start with plot_
 # To add subfolders in examples must add README.rst to that subfoler in addition
 # to .py files
@@ -61,6 +72,7 @@ sphinx_gallery_conf = {
     'examples_dirs': '../../examples',   # path to your example scripts
     'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
     #'first_notebook_cell' : "%matplotlib inline",
+     'within_subsection_order': ExamplesExplicitOrder,
 }
 #If want to specify user latex macrors to jupyter using sphinx-gallery go to
 #/miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
