@@ -58,6 +58,7 @@ from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
+    'plot_recursive_control_variate_monte_carlo.py',
     'plot_adaptive_leja_interpolation.py']
 class ExamplesExplicitOrder(_SortKey):
     
