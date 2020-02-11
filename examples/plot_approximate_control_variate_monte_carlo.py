@@ -3,7 +3,8 @@ Approximate Control Variate Monte Carlo
 =======================================
 This tutorial builds upon :ref:`sphx_glr_auto_examples_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
-This tutorial also demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
+Two models
+^^^^^^^^^^
 
 Let the cost of the high fidelity model per sample be 1 and let the cost of the low fidelity model be :math:`r_\V{\kappa}\ge1`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`rN` samples to estimate :math:`\mu_{\V{\kappa}}` so that
 
@@ -63,7 +64,13 @@ Recalling the variance reduction of the CV estimator using the optimal :math:`\e
    &=1-\frac{N^{-2}\frac{(r-1)^2}{r^2}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}N^{-1}\var{f_\V{\alpha}}}\\
    &=1-\frac{r-1}{r}\corr{f_\V{\alpha}}{f_\V{\kappa}}^2
 
-which is found when :math:`\eta=(\gamma-1)\var{f_\V{\alpha}}`
+which is found when
+
+.. math::
+
+   \eta&=\frac{r(\gamma-1)\var{f_\V{\alpha}}}{(r-1)\covar{f_\V{\alpha}}{f_\V{\kappa}}}\\
+   &=\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{\var{f_\V{\alpha}}}
+
 """
 #%%
 # Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
@@ -76,8 +83,8 @@ from scipy.stats import uniform
 np.random.seed(1)
 univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-shifts=[.1,.2]
-model = TunableExample(np.pi/2*.95,shifts=shifts)
+shifts= [.1,.2]
+model = TunableExample(1,shifts=shifts)
 exact_integral_f0=0
 
 nhf_samples = int(1e1)
@@ -92,43 +99,85 @@ values1_lf_only = model.m1(samples_lf_only)
 
 cov = model.get_covariance_matrix()
 gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-eta = (gamma-1)*cov[0,0]
+eta = -cov[0,1]/cov[0,0]
 acv_mean = values0.mean()+eta*(values1_shared.mean()-values1_lf_only.mean())
 print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
 
 #%%
+#The high-fidelity model is only evaluated on the red dots.
+#
+#Now lets plot the samples assigned to each model
+
+fig,ax = plt.subplots()
+ax.plot(samples_shared[0,:],samples_shared[1,:],'ro',ms=12,
+        label=r'$\mathrm{Low\ and\  high\  fidelity\  models}$')
+ax.plot(samples_lf_only[0,:],samples_lf_only[1,:],'ks',
+        label=r'$\mathrm{Low\  fidelity\  model\ only}$')
+ax.set_xlabel(r'$z_1$')
+ax.set_ylabel(r'$z_2$',rotation=0)
+_ = ax.legend(loc='upper left')
+
+#%%
 #Now lets compute the variance reduction for different sample sizes
-def compute_acv_two_model_variance_reduction(nsample_ratio):
+def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
+    M = len(nsample_ratios) # number of lower fidelity models
+    assert len(functions)==M+1
+    
     ntrials=1000
     means = np.empty((ntrials,2))
     for ii in range(ntrials):
         samples_shared = pya.generate_independent_random_samples(
             variable,nhf_samples)
-        samples_lf_only = pya.generate_independent_random_samples(
-            variable,nhf_samples*nsample_ratio)
-        values0 = model.m0(samples_shared)
-        values1_shared = model.m1(samples_shared)
-        values1_lf_only = model.m1(samples_lf_only)
-        means[ii,0]= values0.mean()
-        gamma=1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-        eta = (gamma-1)*cov[0,0]
-        means[ii,1]=values0.mean()+eta*(
-            values1_shared.mean()-values1_lf_only.mean())
+        # length M
+        samples_lf_only =[
+            pya.generate_independent_random_samples(variable,nhf_samples*r)
+            for r in nsample_ratios]
+        values_lf_only  =  [
+            f(s) for f,s in zip(functions[1:],samples_lf_only)]
+        # length M+1
+        values_shared  = [f(samples_shared) for f in functions]
+        #cov_mc  = np.cov(values_shared,rowvar=False)
+        # compute mean using only hf data
+        hf_mean = values_shared[0].mean()
+        means[ii,0]= hf_mean
+        # compute ACV mean
+        gamma=1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
+            cov[0,0]*cov[1,1])
+        eta = -cov[0,1]/cov[0,0]
+        means[ii,1]=hf_mean+eta*(
+            values_shared[1].mean()-values_lf_only[0].mean())
 
     print("Theoretical ACV variance reduction",
-          1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1]))
+          1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
+              cov[0,0]*cov[1,1]))
     print("Achieved ACV variance reduction",
-          means[:,1].var(axis=0)/means[:,0].var(axis=0))
+         means[:,1].var(axis=0)/means[:,0].var(axis=0))
+    return means
 
-compute_acv_two_model_variance_reduction(10)
-compute_acv_two_model_variance_reduction(200)
+r1,r2=10,100
+means1 = compute_acv_two_model_variance_reduction([r1],[model.m0,model.m1])
+means2 = compute_acv_two_model_variance_reduction([r2],[model.m0,model.m1])
+print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
+
+ntrials = means1.shape[0]
+fig,ax = plt.subplots()
+ax.hist(means1[:,0],bins=ntrials//100,density=True,alpha=0.5,
+        label=r'$Q_{0,N}$')
+ax.hist(means1[:,1],bins=ntrials//100,density=True,alpha=0.5,
+        label=r'$Q_{0,N,%d}^\mathrm{CV}$'%r1)
+ax.hist(means2[:,1],bins=ntrials//100,density=True,alpha=0.5,
+        label=r'$Q_{0,N,%d}^\mathrm{CV}$'%r2)
+ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
+_ = ax.legend(loc='upper left')
+
 #%%
 #For a fixed number of high-fidelity evaluations :math:`N` the ACVMC variance reduction will converge to the CVMC variance reduction. Try changing :math:`N`.
 
-print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
-
 #%%
+#Two or more models
+#^^^^^^^^^^^^^^^^^^
+#
 #Control variate Monte Carlo can be easily extended and applied to more than two models. Consider :math:`M` lower fidelity models with sample ratios :math:`r_\alpha>=1`, for :math:`\alpha=1,\ldots,M`. The approximate control variate estimator of the mean of the high-fidelity model :math:`Q_0=\mean{f_0}` is
 #
 #.. math::
@@ -152,9 +201,89 @@ print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 #
 #.. math::
 #
-#   \gamma =1-\covar{\V{\Delta}}{Q_0}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}}{\var{Q_0}}\covar{\V{\Delta}}{Q_0}
+#   \gamma =1-\covar{\V{\Delta}}{Q_0}^T\frac{\covar{\V{\Delta}}{\V{\Delta}}^{-1}}{\var{Q_0}}\covar{\V{\Delta}}{Q_0}
 #
+#The previous formulae require evaluating covarices with the discrepancies :math:`\Delta`. To avoid this we write
 #
+#.. math::
+#
+#   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
+#   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ\mathrm{diag}\left(F\right)\right)\\
+#
+#where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme here [GGEJJCP2020]_.
+#
+#The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0,1}\;\forall\alpha>0` and :math:`\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}=\emptyset\;\forall\kappa\neq\alpha`.
+
+#Lets apply ACV to three models and this time use some helper functions
+# to reduce the amount of code we have to write
+def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
+    M = len(nsample_ratios) # number of lower fidelity models
+    assert len(functions)==M+1
+    
+    ntrials=1000
+    means = np.empty((ntrials,2))
+    for ii in range(ntrials):
+        samples1,samples2,values1,values2 =\
+            pya.generate_samples_and_values_acv_IS(
+                nhf_samples,nsample_ratios,functions,variable)
+        #cov_mc  = np.cov(values1,rowvar=False)
+        # compute mean using only hf data
+        hf_mean = values1[0].mean()
+        means[ii,0]= hf_mean
+        # compute ACV mean
+        eta = pya.get_approximate_control_variate_weights(
+            cov[:M+1,:M+1],nsample_ratios,pya.get_discrepancy_covariances_IS)
+        means[ii:,1] = pya.compute_control_variate_mean_estimate(
+            eta,values1,values2)
+
+    print("Theoretical ACV variance reduction",
+          1-pya.get_rsquared_acv1(
+              cov[:M+1,:M+1],nsample_ratios,pya.get_discrepancy_covariances_IS))
+    print("Achieved ACV variance reduction",
+          means[:,1].var(axis=0)/means[:,0].var(axis=0))
+    return means
+print('Two models')
+means1 = compute_acv_many_model_variance_reduction([10],[model.m0,model.m1])
+print('Three models')
+means2 = compute_acv_many_model_variance_reduction([10,10],[model.m0,model.m1,model.m2])
+
+#%%
+#The benefit of using three models over two models depends on the correlation between each low fidelity model and the high-fidelity model. The benefit on using more models also depends on the relative cost of evaluating each model, however here we will just investigate the effect of changing correlation. The following code shows the variance reduction (relative to standard Monte Carlo) obtained using CVMC (not approximate CVMC) using 2 (OCV1) and three models (OCV). ACVMC will achieve these variance reductions in the limit as the number of samples of the low fidelity models goes to infinity.
+
+theta1 = np.linspace(model.theta2*1.05,model.theta0*0.95,5)
+covs = []
+var_reds = []
+for th1 in theta1:
+    model.theta1=th1
+    covs.append(model.get_covariance_matrix())
+    OCV_var_red = pya.get_variance_reduction(
+        pya.get_control_variate_rsquared,covs[-1],None)
+    # use model with largest covariance with high fidelity model
+    idx = [0,np.argmax(covs[-1][0,1:])+1]
+    assert idx == [0,1] #it will always be the first model
+    OCV1_var_red = pya.get_variance_reduction(
+        pya.get_control_variate_rsquared,covs[-1][np.ix_(idx,idx)],None)
+    var_reds.append([OCV_var_red,OCV1_var_red])
+covs = np.array(covs)
+var_reds = np.array(var_reds)
+
+fig,axs = plt.subplots(1,2,figsize=(2*8,6))
+for ii,jj, in [[0,1],[0,2],[1,2]]:
+    axs[0].plot(theta1,covs[:,ii,jj],'o-',
+                label=r'$\rho_{%d%d}$'%(ii,jj))
+axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\textrm{OCV}$')
+axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\textrm{OCV1}$')
+axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
+            label=r'$\textrm{OCV/OCV1}$')
+axs[0].set_xlabel(r'$\theta_1$')
+axs[0].set_ylabel(r'$\textrm{Correlation}$')
+axs[1].set_xlabel(r'$\theta_1$')
+axs[1].set_ylabel(r'$\textrm{Variance reduction ratio} \ \gamma$')
+axs[0].legend()
+_ = axs[1].legend()
+
+#%%
+#The variance reduction clearly depends on the correlation between all the models.
 
 #%%
 #Multi-level Monte Carlo (MLMC)
@@ -212,8 +341,4 @@ print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 #%%
 #References
 #^^^^^^^^^^
-#.. [PWGSIAM2016] `B. Peherstorfer, K. Willcox, M. Gunzburger, Optimal model management for multifidelity Monte Carlo estimation, SIAM J. Sci. Comput. 38 (2016) 59 A3163–A3194. <https://doi.org/10.1137/15M1046472>`_
-#
-#.. [CGSTCVS2011] `K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup, Multilevel Monte Carlo methods and applications to elliptic PDEs with random coefficients, Comput. Vis. Sci. 14 (2011) <https://doi.org/10.1007/s00791-011-0160-x>`_
-#
-#.. [GilesOR2008] `M.B. Giles, Multilevel Monte Carlo path simulation, Oper. Res. 56 (2008) 607–617. <https://doi.org/10.1287/opre.1070.0496>`_
+#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, In press, (2020) <https://doi.org/10.1016/j.jcp.2020.109257>`_
