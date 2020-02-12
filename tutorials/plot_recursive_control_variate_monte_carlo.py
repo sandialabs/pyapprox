@@ -1,7 +1,7 @@
 r"""
 Recursive Approximate Control Variate Monte Carlo
 =======================================
-This tutorial builds upon :ref:`sphx_glr_auto_examples_plot_approximate_control_variate_monte_carlo.py` and demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_approximate_control_variate_monte_carlo.py` and demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
 
 
 Multi-level Monte Carlo (MLMC)

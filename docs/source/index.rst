@@ -9,6 +9,7 @@ The following links document the functionality of the PyApprox module.
 
    intro
    install
+   auto_tutorials/index
    auto_examples/index
 ..   examples
 ..   modules

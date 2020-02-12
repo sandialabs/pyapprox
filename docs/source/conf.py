@@ -70,8 +70,10 @@ class ExamplesExplicitOrder(_SortKey):
 # To add subfolders in examples must add README.rst to that subfoler in addition
 # to .py files
 sphinx_gallery_conf = {
-    'examples_dirs': '../../examples',   # path to your example scripts
-    'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+    # path to your example scripts
+    'examples_dirs': ['../../examples','../../tutorials'],
+    # path to where to save gallery generated output
+    'gallery_dirs': ['auto_examples','auto_tutorials'],
     #'first_notebook_cell' : "%matplotlib inline",
      'within_subsection_order': ExamplesExplicitOrder,
 }
