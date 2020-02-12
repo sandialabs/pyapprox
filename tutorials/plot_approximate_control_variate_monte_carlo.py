@@ -1,7 +1,7 @@
 r"""
 Approximate Control Variate Monte Carlo
 =======================================
-This tutorial builds upon :ref:`sphx_glr_auto_examples_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
 Two models
 ^^^^^^^^^^
@@ -271,14 +271,14 @@ fig,axs = plt.subplots(1,2,figsize=(2*8,6))
 for ii,jj, in [[0,1],[0,2],[1,2]]:
     axs[0].plot(theta1,covs[:,ii,jj],'o-',
                 label=r'$\rho_{%d%d}$'%(ii,jj))
-axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\textrm{OCV}$')
-axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\textrm{OCV1}$')
+axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\mathrm{OCV}$')
+axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\mathrm{OCV1}$')
 axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
-            label=r'$\textrm{OCV/OCV1}$')
+            label=r'$\mathrm{OCV/OCV1}$')
 axs[0].set_xlabel(r'$\theta_1$')
-axs[0].set_ylabel(r'$\textrm{Correlation}$')
+axs[0].set_ylabel(r'$\mathrm{Correlation}$')
 axs[1].set_xlabel(r'$\theta_1$')
-axs[1].set_ylabel(r'$\textrm{Variance reduction ratio} \ \gamma$')
+axs[1].set_ylabel(r'$\mathrm{Variance reduction ratio} \ \gamma$')
 axs[0].legend()
 _ = axs[1].legend()
 
