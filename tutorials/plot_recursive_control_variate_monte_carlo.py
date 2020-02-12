@@ -12,35 +12,26 @@ The multi-level (MLMC) estimator based on :math:`M+1` models :math:`f_0,\ldots,f
 
 Similarly to ACV we approximate each expectation using Monte Carlo sampling such that
 
-.. math::Q_{0,N,\V{r}}^\mathrm{ML}=\sum_{n=1}^{\hat{r}_MN}f_M^{(n)}(\hat{\mathcal{Z}}_{M})+\sum_{\alpha=1}^M\left(\sum_{n=1}^{\hat{r}_{\alpha-1} N}\left(f_{\alpha-1}^{(n)}(\hat{\mathcal{Z}}_{\alpha-1})-f_\alpha^{(n)}(\hat{\mathcal{Z}}_{\alpha-1})\right)\right)
+.. math::  Q_{0,N,\mathcal{Z}}^\mathrm{ML}=Q_{M,\hat{\mathcal{Z}}_{M}}+\sum_{\alpha=1}^M\left(Q_{\alpha-1,\hat{\mathcal{Z}}_{\alpha-1}}-Q_{\alpha,\hat{\mathcal{Z}}_{\alpha-1}}\right),
 
-The 2 model MLMC estimator is
+for some sampling sets :math:`\mathcal{Z}=\cup_{\alpha=0}^M\hat{\mathcal{Z}}_{\alpha}`.
 
-.. math::
+The three model MLMC estimator is
 
-   Q_{0,N,\V{r}}^\mathrm{ML}  &=Q_{1,\mathcal{Z}_{1,2}}+\left(Q_{0,\mathcal{Z}_{0,2}}-Q_{1,\mathcal{Z}_{1,1}}\right)\\
-   &=\sum_{n=1}^{\hat{r}_1N}f_1^{(n)}(\hat{\mathcal{Z}}_1)+\sum_{n=1}^{N}\left(f_{0}^{(n)}(\hat{\mathcal{Z}}_0)-f_1^{(n)}(\hat{\mathcal{Z}}_0)\right)
-
+.. math:: Q_{0,\mathcal{Z}}^\mathrm{ML}=Q_{2,\hat{\mathcal{Z}_{2}}}+\left(Q_{1,\hat{\mathcal{Z}}_{1}}-Q_{2,\hat{\mathcal{Z}}_{1}}\right)+\left(Q_{0,\hat{\mathcal{Z}}_{0}}-Q_{1,\hat{\mathcal{Z}}_{0}}\right)
 
 By rearranging terms it is clear that this is just a control variate estimator
 
 .. math::
 
-   Q_{0,N,\V{r}}^\mathrm{ML}&=Q_{0,\mathcal{Z}_{0,2}}-\left(Q_{1,\mathcal{Z}_{1,1}}-Q_{1,\mathcal{Z}_{1,2}}\right)\\
-  &=\sum_{n=1}^{N}f_0^{(n)}(\mathcal{Z}_{0,2}) -\left(\sum_{n=1}^{N}f_1^{(n)}(\mathcal{Z}_{1,1})-\sum_{n=1}^{\hat{r}_1N}f_{1}^{(n)}(\mathcal{Z}_{1,2})\right)\\
-  &=\sum_{n=1}^{N}f_0^{(n)}(\mathcal{Z}_{0,2}) -\left(\sum_{n=1}^{N}f_1^{(n)}(\mathcal{Z}_{1,1})-\mu_{1,N,r_1}\right)
+    Q_{0,\mathcal{Z}}^\mathrm{ML}&=Q_{0,\hat{\mathcal{Z}}_{0}} - \left(Q_{1,\hat{\mathcal{Z}}_{0}}-Q_{1,\hat{\mathcal{Z}}_{1}}\right)-\left(Q_{2,\hat{\mathcal{Z}}_{1}}-Q_{2,\hat{\mathcal{Z}}_{2}}\right)\\
+   &=Q_{0,\mathcal{Z}_{0}} - \left(Q_{1,\mathcal{Z}_{1,1}}-Q_{1,\mathcal{Z}_{1,2}}\right)-\left(Q_{2,\mathcal{Z}_{2,1}}-Q_{2,\mathcal{Z}_{2,2}}\right)
 
-is just an approximate control variate estimator with the control variate weight :math:`\eta=-1` and :math:`\mathcal{Z}_{0,2}=\mathcal{Z}_{1,1}=\hat{\mathcal{Z}}_0`, :math:`\mathcal{Z}_{1,2}=\hat{\mathcal{Z}}_1`, and :math:`\mathcal{Z}_{0,1}=\emptyset`, . But unlike before the values of the low-fidelity model obtained at the samples used by the high-fidelity model as well are not used to approxixmate the low-fidelity mean :math:`\mu_{1,N,r_1}` so  in the ACV notation :math:`r_1=\hat{r}_1+N`
+where in the last line we have used the general ACV notation for sample partitioning. The control variate weights in this case are just $\eta_1=\eta_2=-1$.
 
-When using more than two models, MLMC just introduces more expectations of differences. For three models we have
+The MLMC and ACV sample sets are depicted in ref:`mlmc-sample_allocation` and :ref:`acv-sample_allocation`, respectively
 
-.. math:: Q_{0,N,\V{r}}^\mathrm{ML}=Q_{2,\mathcal{Z}_{2,2}}+\left(Q_{1,\mathcal{Z}_{1,2}}-Q_{2,\mathcal{Z}_{2,1}}\right)+\left(Q_{0,\mathcal{Z}_{0,2}}-Q_{1,\mathcal{Z}_{1,1}}\right)
-
-Which we can then rearrange into a control variate estimator
-
-.. math:: Q_{0,N,\V{r}}^\mathrm{ML}=Q_{0,\mathcal{Z}_{0,2}} - \left(Q_{1,\mathcal{Z}_{1,1}}-Q_{1,\mathcal{Z}_{1,2}}\right)-\left(Q_{2,\mathcal{Z}_{2,1}}-Q_{2,\mathcal{Z}_{2,2}}\right)
-
-and by inductive reasoning we get the M model ACV version of the MLMC estimator
+By inductive reasoning we get the :math:`M` model ACV version of the MLMC estimator.
 
 .. math:: Q_{0,N,\V{r}^\mathrm{ML}}=Q_{0,\mathcal{Z}_{0,1}} +\sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha-1,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha,2}}\right)
 
@@ -48,13 +39,20 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
  
 .. list-table::
 
-   * - .. figure:: ../figures/mlmc.png
+   * - 
+       .. _mlmc-sample-allocation:
+
+       .. figure:: ../figures/mlmc.png
           :width: 100%
           :align: center
 
           MLMC sampling strategy
 
-     - .. figure:: ../figures/acv_is.png
+
+     - 
+       .. _acv-sample-allocation:
+
+       .. figure:: ../figures/acv_is.png
           :width: 100%
           :align: center
 
@@ -95,6 +93,74 @@ Choose :math:`N_l` so total variance
 .. math::
    \var{Q_L}<\frac{1}{2}\epsilon^2
 """
+#%%
+# Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
+import pyapprox as pya
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.tests.test_control_variate_monte_carlo import TunableExample
+from scipy.stats import uniform
+
+np.random.seed(1)
+univariate_variables = [uniform(-1,2),uniform(-1,2)]
+variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+shifts= [.1,.2]
+model = TunableExample(1,shifts=shifts)
+model.theta1 = np.pi/2
+model.theta2=np.pi
+exact_integral_f0=0
+cov = model.get_covariance_matrix()
+print(cov)
+assert False
+
+from functools import partial
+def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,
+                                              functions):
+    M = len(nsample_ratios) # number of lower fidelity models
+    assert len(functions)==M+1
+    
+    ntrials=1000
+    means = np.empty((ntrials,2))
+    generate_samples=partial(
+        pya.generate_independent_random_samples,variable)
+    for ii in range(ntrials):
+        samples,values =\
+            pya.generate_samples_and_values_mlmc(
+                nhf_samples,nsample_ratios,functions,generate_samples)
+        # compute mean using only hf data
+        hf_mean = values[0][0].mean()
+        means[ii,0]= hf_mean
+        # compute ACV mean
+        eta = pya.get_mlmc_control_variate_weights(M+1)
+        means[ii:,1] = pya.compute_control_variate_mean_estimate(
+            eta,values)
+
+    print("Theoretical ACV variance reduction",
+          1-pya.get_rsquared_mlmc(cov[:M+1,:M+1],nsample_ratios))
+    print("Achieved ACV variance reduction",
+          means[:,1].var(axis=0)/means[:,0].var(axis=0))
+    return means
+
+print('Two models')
+nsample_ratios = [10]
+target_cost = int(1e3)
+costs = [1,1,1]
+nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+    cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
+print('target cost',target_cost)
+print('sample_cost',np.sum(nsample_ratios*nhf_samples)+nhf_samples)
+means1 = compute_acv_many_model_variance_reduction(
+    10,nsample_ratios,[model.m0,model.m1])
+
+print('Three models')
+nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+    cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+print('target cost',target_cost)
+print('sample_cost',np.sum(nsample_ratios*nhf_samples)+nhf_samples)
+means2 = compute_acv_many_model_variance_reduction(
+    10,nsample_ratios,[model.m0,model.m1,model.m2])
+print("Theoretical CV variance reduction",
+      1-max(cov[0,1],cov[0,2])**2/(cov[0,0]*cov[1,1]))
 
 #%%
 #

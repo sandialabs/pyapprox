@@ -6,8 +6,6 @@ from scipy.optimize import minimize
 #use torch to compute gradients for sample allocation optimization
 import torch
 import copy
-from pyapprox.probability_measure_sampling import \
-    generate_independent_random_samples
 
 def compute_correlations_from_covariance(cov):
     """
@@ -155,12 +153,13 @@ def get_rsquared_mlmc(cov,nsample_ratios):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity model
-        is the first model, i.e its variance is cov[0,0]
+        The covariance C between each of the models. The highest fidelity 
+        model is the first model, i.e its variance is cov[0,0]
 
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1.
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        i=1,...,nmodels-1.
         The values r_i correspond to eta_i in Equation 2.24
 
     Returns
@@ -196,19 +195,22 @@ def get_mlmc_control_variate_weights(nmodels):
     """
     return -np.ones(nmodels-1)
 
-def compute_control_variate_mean_estimate(weights,values0,values1):
+def compute_control_variate_mean_estimate(weights,values):
     """
     Use control variate Monte Carlo to estimate the mean of high-fidelity data.
 
     Parameters
     ----------
-    values0 : list (nmodels)
-        Evaluations np.ndarray (num_samples_i0,num_qoi) of each model
-        used to compute the estimator :math:`Q_{i,N}` of 
+    values : list (nmodels)
+        Each entry of the list contains
 
-    values1: list (nmodels)
-        Evaluations (num_samples_i1,num_qoi) used compute the approximate 
-        mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of 
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate 
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
 
     weights : np.ndarray (nmodels-1)
         the control variate weights
@@ -218,12 +220,12 @@ def compute_control_variate_mean_estimate(weights,values0,values1):
     est : float
         The control variate estimate of the mean
     """
-    nmodels = len(values0)
-    assert len(values1)==nmodels
+    nmodels = len(values)
+    assert len(values)==nmodels
     # high fidelity monte carlo estimate of mean
-    est = values0[0].mean()
+    est = values[0][0].mean()
     for ii in range(nmodels-1):
-        est += weights[ii]*(values0[ii+1].mean()-values1[ii+1].mean())
+        est += weights[ii]*(values[ii+1][0].mean()-values[ii+1][1].mean())
     return est
 
 
@@ -368,38 +370,22 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
         nsample_ratios = []
         for ii in range(1, nmodels-1):
             nsample_ratios.append((nl[ii-1] + nl[ii])/nl[0])
-        nsample_ratios.append((nl[-2]+nl[-1])/nl[0])
+        if nmodels>1:
+            nsample_ratios.append((nl[-2]+nl[-1])/nl[0])
 
         nhf_samples = max(nhf_samples, 1)
-        
+
+    #print('target cost',target_cost)
+    #print('sample_cost',
+    #      np.sum(np.asarray(nsample_ratios)*nhf_samples)+nhf_samples)
     nhf_samples, nsample_ratios = standardize_sample_ratios(
         nhf_samples, nsample_ratios)
-    #print(nhf_samples,nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mlmc,cov,nsample_ratios)
     log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
     #print(log10_variance)
     if np.isnan(log10_variance):
         raise Exception('MLMC variance is NAN')
-    return nhf_samples, nsample_ratios, log10_variance
-
-def generate_mlmc_sample_sets(generate_samples, nhf_samples, nsample_ratios):
-    """
-    Parameters
-    ==========
-    generate_samples : callable
-        Function used to generate realizations of the random variables
-
-    nhf_samples : integer
-        The number of samples of the high fidelity model
-
-    nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
-
-    Returns
-    =======
-    
-    """
+    return nhf_samples, np.asarray(nsample_ratios), log10_variance
 
 def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
     """
@@ -502,17 +488,68 @@ def acv_sample_allocation_sample_ratio_constraint(ratios, *args):
     return ratios[ind] - ratios[ind-1]
 
 def generate_samples_and_values_acv_IS(nhf_samples,nsample_ratios,functions,
-                                       variable):
-    samples1 = generate_independent_random_samples(
-        variable,nhf_samples)
-    # length M
-    samples2 = [None]+[
-        generate_independent_random_samples(variable,nhf_samples*r)
-        for r in nsample_ratios]
-    values1  = [f(samples1) for f in functions]
+                                       generate_samples):
+    nmodels = len(functions)
+    samples1 = [generate_samples(nhf_samples)]*nmodels
+    samples2 = [None]+[generate_samples(nhf_samples*r)
+                       for r in nsample_ratios]
+    values1  = [f(s) for f,s in zip(functions,samples1)]
     values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
-    return samples1,samples2,values1,values2
+    samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
+    values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
+    return samples,values
 
+def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
+                                     generate_samples):
+    """
+    Parameters
+    ==========
+    nhf_samples : integer
+        The number of samples of the high fidelity model
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the 
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    functions : list of callables
+        The functions used to evaluate each model
+
+    generate_samples : callable
+        Function used to generate realizations of the random variables
+
+    Returns
+    =======
+    
+    """
+    
+    nmodels = len(functions)
+    sample_sets = [None for ii in range(nmodels)]
+    sample_sets[0] = (generate_samples(nhf_samples),None)
+    prev_nsamples = nhf_samples
+    prev_samples = sample_sets[0][0]
+    for ii in range(nmodels-1):
+        total_samples = int(np.ceil(nsample_ratios[ii] * nhf_samples))
+        samples1 = prev_samples
+        prev_nsamples = total_samples - prev_nsamples
+        samples2 = generate_samples(prev_nsamples)
+        sample_sets[ii+1] = (samples1, samples2)
+        prev_samples = samples2
+        
+
+    values = []
+    for ii in range(nmodels):
+        samples1 = sample_sets[ii][0]
+        if samples1 is not None:
+            values1 = functions[ii](samples1)
+        else:
+            values2=None
+        samples2 = sample_sets[ii][1]
+        if samples2 is not None:
+            values2 = functions[ii](samples2)
+        else:
+            values2=None
+        values.append([values1,values2])
+    return sample_sets, values
 
 def acv_sample_allocation_cost_constraint(ratios, *args):
     nhf, costs, target_cost = args
