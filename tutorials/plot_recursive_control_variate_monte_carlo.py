@@ -14,12 +14,13 @@ Similarly to ACV we approximate each expectation using Monte Carlo sampling such
 
 .. math::Q_{0,N,\V{r}}^\mathrm{ML}=\sum_{n=1}^{\hat{r}_MN}f_M^{(n)}(\hat{\mathcal{Z}}_{M})+\sum_{\alpha=1}^M\left(\sum_{n=1}^{\hat{r}_{\alpha-1} N}\left(f_{\alpha-1}^{(n)}(\hat{\mathcal{Z}}_{\alpha-1})-f_\alpha^{(n)}(\hat{\mathcal{Z}}_{\alpha-1})\right)\right)
 
-where :math:`\hat{\mathcal{Z}}_{\alpha}\cap\hat{\mathcal{Z}}_{\kappa}=\emptyset`, if :math:`\alpha\neq\kappa` and  :math:`\hat{r}_0=1`.
 The 2 model MLMC estimator is
 
 .. math::
-   Q_{0,N,\V{r}}^\mathrm{ML}&=\sum_{n=1}^{\hat{r}_1N}f_1^{(n)}(\hat{\mathcal{Z}}_1)+\sum_{n=1}^{N}\left(f_{0}^{(n)}(\hat{\mathcal{Z}}_0)-f_1^{(n)}(\hat{\mathcal{Z}}_0)\right)\\
-   &=Q_{1,\mathcal{Z}_{1,2}}+\left(Q_{0,\mathcal{Z}_{0,2}}-Q_{1,\mathcal{Z}_{1,1}}\right)
+
+   Q_{0,N,\V{r}}^\mathrm{ML}  &=Q_{1,\mathcal{Z}_{1,2}}+\left(Q_{0,\mathcal{Z}_{0,2}}-Q_{1,\mathcal{Z}_{1,1}}\right)\\
+   &=\sum_{n=1}^{\hat{r}_1N}f_1^{(n)}(\hat{\mathcal{Z}}_1)+\sum_{n=1}^{N}\left(f_{0}^{(n)}(\hat{\mathcal{Z}}_0)-f_1^{(n)}(\hat{\mathcal{Z}}_0)\right)
+
 
 By rearranging terms it is clear that this is just a control variate estimator
 

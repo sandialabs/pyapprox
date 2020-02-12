@@ -10,13 +10,13 @@ Let the cost of the high fidelity model per sample be 1 and let the cost of the 
 
 .. math::
 
-   \mu_{\V{\kappa},N,r}=\frac{1}{rN}\sum_{i=1}^{rN}Q_\V{\kappa}
+   Q_{\V{\alpha},N,r}^{\text{ACV}}=Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r} \right)
 
-and
+and 
 
 .. math::
 
-   Q_{\V{\alpha},N,r}^{\text{ACV}}=Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r} \right)
+   \mu_{\V{\kappa},N,r}=\frac{1}{rN}\sum_{i=1}^{rN}Q_\V{\kappa}
 
 
 The cost of computing the ACV estimator is
@@ -87,6 +87,27 @@ shifts= [.1,.2]
 model = TunableExample(1,shifts=shifts)
 exact_integral_f0=0
 
+#%%
+#Before proceeding to estimate the mean using ACVMV we must first define how to generate samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`\mu_{\V{\kappa},N,r}`. To do so clearly we must first introduce some additional notation. Let :math:`\mathcal{Z}_0` be the set of samples used to evaluate the high-fidelity model and let :math:`\mathcal{Z}_\alpha=\mathcal{Z}_{\alpha,1}\cup\mathcal{Z}_{\alpha,2}` be the samples used to evaluate the low fidelity model. Using this notation we can rewrite the ACV estimator as
+#
+#.. math::
+#
+#   Q_{\V{\alpha},\mathcal{Z}}^{\text{ACV}}=Q_{\V{\alpha},\mathcal{Z}_0} + \eta \left( Q_{\V{\kappa},\mathcal{Z}_{\alpha,1}} - \mu_{\V{\kappa},\mathcal{Z}_{\alpha,2}} \right)
+#
+#where :math:`\mathcal{Z}=\bigcup_{\alpha=0}^M Z_\alpha`. The nature of these samples can be changed to produce different ACV estimators. Here we choose  :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z_0}`. That is we use the set a common set of samples to compute the covariance between all the models and a second independent set to estimate the lower fidelity mean. The sample partitioning for :math:`M` models is  shown in the following Figure
+#
+#.. list-table::
+#
+#   * - .. _acv-sample-allocation:
+#
+#       .. figure:: ../figures/mlmc.png
+#          :width: 50%
+#          :align: center
+#
+#          MLMC sampling strategy
+#
+#The following samples according to this strategy
+
 nhf_samples = int(1e1)
 nsample_ratio = 10
 samples_shared = pya.generate_independent_random_samples(
@@ -97,17 +118,8 @@ values0 = model.m0(samples_shared)
 values1_shared = model.m1(samples_shared)
 values1_lf_only = model.m1(samples_lf_only)
 
-cov = model.get_covariance_matrix()
-gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-eta = -cov[0,1]/cov[0,0]
-acv_mean = values0.mean()+eta*(values1_shared.mean()-values1_lf_only.mean())
-print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
-print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
-
 #%%
-#The high-fidelity model is only evaluated on the red dots.
-#
-#Now lets plot the samples assigned to each model
+#Now lets plot the samples assigned to each model.
 
 fig,ax = plt.subplots()
 ax.plot(samples_shared[0,:],samples_shared[1,:],'ro',ms=12,
@@ -117,6 +129,17 @@ ax.plot(samples_lf_only[0,:],samples_lf_only[1,:],'ks',
 ax.set_xlabel(r'$z_1$')
 ax.set_ylabel(r'$z_2$',rotation=0)
 _ = ax.legend(loc='upper left')
+
+#%%
+#The high-fidelity model is only evaluated on the red dots. Now lets use these samples to estimate the mean of :math:`f_0`.
+
+
+cov = model.get_covariance_matrix()
+gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
+eta = -cov[0,1]/cov[0,0]
+acv_mean = values0.mean()+eta*(values1_shared.mean()-values1_lf_only.mean())
+print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
+print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
 
 #%%
 #Now lets compute the variance reduction for different sample sizes
@@ -159,6 +182,9 @@ r1,r2=10,100
 means1 = compute_acv_two_model_variance_reduction([r1],[model.m0,model.m1])
 means2 = compute_acv_two_model_variance_reduction([r2],[model.m0,model.m1])
 print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
+
+#%%
+#Let us also plot the distribution of these estimators
 
 ntrials = means1.shape[0]
 fig,ax = plt.subplots()
@@ -212,10 +238,10 @@ _ = ax.legend(loc='upper left')
 #
 #where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme here [GGEJJCP2020]_.
 #
-#The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0,1}\;\forall\alpha>0` and :math:`\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}=\emptyset\;\forall\kappa\neq\alpha`.
+#The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-sample-allocation` for a visual depiction of the sample sets.
 
-#Lets apply ACV to three models and this time use some helper functions
-# to reduce the amount of code we have to write
+#%%
+#Lets apply ACV to three models and this time use some helper functions to reduce the amount of code we have to write
 def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
@@ -284,59 +310,6 @@ _ = axs[1].legend()
 
 #%%
 #The variance reduction clearly depends on the correlation between all the models.
-
-#%%
-#Multi-level Monte Carlo (MLMC)
-#------------------------------
-#
-#Total cost is
-#
-#.. math::
-#
-#   C_{\mathrm{tot}}=\sum_{l=1}^L C_lr_lN_1
-#   
-#Variance of estimator is
-#
-#.. math::
-#  
-#   \var{Q_L}=\sum_{l=1}^L \var{Y_l}r_lN_1
-#   
-#Treating :math:`r_l` as a continuous variable the variance of the MLMC estimator is minimized for a fixed budget :math:`C` by setting
-#
-#.. math::
-#
-#   N_l=r_lN_1=\sqrt{\var{Y_l}/C_l}
-#   
-#Choose L so that
-#
-#.. math::
-#   
-#   \left(\mean{Q_L}-\mean{Q}\right)^2<\frac{1}{2}\epsilon^2
-#   
-#Choose :math:`N_l` so total variance
-#
-#.. math::
-#   \var{Q_L}<\frac{1}{2}\epsilon^2
-#
-#Multi-fidelity Monte Carlo (MFMC)
-#---------------------------------
-#
-#.. math::
-#   
-#   r_i=\left(\frac{C_1(\rho^2_{1i}-\rho^2_{1i+1})}{C_i(1-\rho^2_{12})}\right)^{\frac{1}{2}}
-#   
-#Let :math:`C=(C_1\cdots C_L)^T r=(r_1\cdots r_L)^T` then
-#
-#.. math::
-#
-#   N_1=\frac{C_{\mathrm{tot}}}{C^Tr} & & N_i=r_iN_1\\
-#
-#  
-#The control variate weights are
-#
-#.. math::
-#   
-#   \alpha_i=\frac{\rho_{1i}\sigma_1}{\sigma_i}
 
 #%%
 #References
