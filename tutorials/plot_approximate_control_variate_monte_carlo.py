@@ -168,8 +168,8 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
         gamma=1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
             cov[0,0]*cov[1,1])
         eta = -cov[0,1]/cov[0,0]
-        means[ii,1]=hf_mean+eta*(
-            values_shared[1].mean()-values_lf_only[0].mean())
+        means[ii,1]=hf_mean+eta*(values_shared[1].mean()-
+            np.hstack([values_shared[0],values_lf_only[0]]).mean())
 
     print("Theoretical ACV variance reduction",
           1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
@@ -242,25 +242,28 @@ _ = ax.legend(loc='upper left')
 
 #%%
 #Lets apply ACV to three models and this time use some helper functions to reduce the amount of code we have to write
+from functools import partial
 def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
     
     ntrials=1000
     means = np.empty((ntrials,2))
+    generate_samples=partial(
+        pya.generate_independent_random_samples,variable)
     for ii in range(ntrials):
-        samples1,samples2,values1,values2 =\
+        samples,values =\
             pya.generate_samples_and_values_acv_IS(
-                nhf_samples,nsample_ratios,functions,variable)
-        #cov_mc  = np.cov(values1,rowvar=False)
+                nhf_samples,nsample_ratios,functions,generate_samples)
         # compute mean using only hf data
-        hf_mean = values1[0].mean()
+        hf_mean = values[0][0].mean()
         means[ii,0]= hf_mean
         # compute ACV mean
         eta = pya.get_approximate_control_variate_weights(
-            cov[:M+1,:M+1],nsample_ratios,pya.get_discrepancy_covariances_IS)
+            cov[:M+1,:M+1],nsample_ratios,
+            pya.get_discrepancy_covariances_IS)
         means[ii:,1] = pya.compute_control_variate_mean_estimate(
-            eta,values1,values2)
+            eta,values)
 
     print("Theoretical ACV variance reduction",
           1-pya.get_rsquared_acv1(
