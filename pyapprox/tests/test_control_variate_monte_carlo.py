@@ -227,6 +227,35 @@ class TestCVMC(unittest.TestCase):
             values,nsample_ratios,nhf_samples)*covariance[0,0]/nhf_samples
         assert np.allclose(mlmc_variance,10**log10_variance)
 
+    def test_mlmc_sample_allocation(self):
+        # The following will give mlmc with unit variance
+        # and discrepancy variances 1,4,4
+        target_cost = 81
+        cov = np.asarray([[1.00,0.50,0.25],
+                          [0.50,1.00,0.50],
+                          [0.25,0.50,4.00]])
+        # ensure cov is positive definite
+        np.linalg.cholesky(cov)
+        #print(np.linalg.inv(cov))
+        costs = [6,3,1]
+        nmodels = len(costs)
+        nhf_samples,nsample_ratios, log10_var = pya.allocate_samples_mlmc(
+            cov, costs, target_cost)
+        assert np.allclose(10**log10_var,1)
+        nsamples = np.concatenate([[1],nsample_ratios])*nhf_samples
+        lamda = 9
+        nsamples_discrepancy = 9*np.sqrt(np.asarray([1/(6+3),4/(3+1),4]))
+        nsamples_true = [
+            nsamples_discrepancy[0],nsamples_discrepancy[:2].sum(),
+            nsamples_discrepancy[1:3].sum()]
+        assert np.allclose(nsamples,nsamples_true)
+
+    def test_standardize_sample_ratios(self):
+        nhf_samples,nsample_ratios = 10,[2.19,3.32]
+        std_nhf_samples, std_nsample_ratios = pya.standardize_sample_ratios(
+            nhf_samples,nsample_ratios)
+        assert np.allclose(std_nsample_ratios,[2.1,3.3])
+
     def test_CVMC(self):
         pass
 
