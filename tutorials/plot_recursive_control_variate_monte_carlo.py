@@ -27,7 +27,7 @@ By rearranging terms it is clear that this is just a control variate estimator
     Q_{0,\mathcal{Z}}^\mathrm{ML}&=Q_{0,\hat{\mathcal{Z}}_{0}} - \left(Q_{1,\hat{\mathcal{Z}}_{0}}-Q_{1,\hat{\mathcal{Z}}_{1}}\right)-\left(Q_{2,\hat{\mathcal{Z}}_{1}}-Q_{2,\hat{\mathcal{Z}}_{2}}\right)\\
    &=Q_{0,\mathcal{Z}_{0}} - \left(Q_{1,\mathcal{Z}_{1,1}}-Q_{1,\mathcal{Z}_{1,2}}\right)-\left(Q_{2,\mathcal{Z}_{2,1}}-Q_{2,\mathcal{Z}_{2,2}}\right)
 
-where in the last line we have used the general ACV notation for sample partitioning. The control variate weights in this case are just $\eta_1=\eta_2=-1$.
+where in the last line we have used the general ACV notation for sample partitioning. The control variate weights in this case are just :math:`\eta_1=\eta_2=-1$`.
 
 The MLMC and ACV sample sets are depicted in ref:`mlmc-sample_allocation` and :ref:`acv-sample_allocation`, respectively
 
@@ -64,34 +64,40 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
 
 where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`. Thus we can see that the variance reduction is bounded by the CV estimator using the lowest fidelity model with the highest correlation with :math:`f_0`
 
-Total cost is
+Let :math:`C_\alpha` be the cost of evaluating the function :math:`f_\alpha` at a single sample, then the total cost of the MLMC estimator is
 
 .. math::
 
-   C_{\mathrm{tot}}=\sum_{l=1}^L C_lr_lN_1
+   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha r_\alpha N
    
 Variance of estimator is
 
 .. math::
   
-   \var{Q_L}=\sum_{l=1}^L \var{Y_l}r_lN_1
+   \var{Q_0^\mathrm{ML}}=\sum_{\alpha=0}^M \var{Y_\alpha}r_\alpha N
    
-Treating :math:`r_l` as a continuous variable the variance of the MLMC estimator is minimized for a fixed budget :math:`C` by setting
+Treating :math:`r_\alpha` as a continuous variable the variance of the MLMC estimator is minimized can be minimized by choosing :math:`r_\alpha` to minimize
 
 .. math::
 
-   N_l=r_lN_1=\sqrt{\var{Y_l}/C_l}
-   
-Choose L so that
+   \sum_{\alpha=0}^M\left(r_\alpha NC_\alpha+\lambda^2(r_\alpha N)^{-1}\var{Y_\alpha}\right)
+
+for some Lagrange multiplier :math:`\lambda^2`. Thus for a fixed budget the minimum variance is obtained by setting
+
+.. math::
+
+   N_\alpha=r_\alpha N=\lambda\sqrt{\var{Y_\alpha}/C_\alpha}
+
+If the desired MSE in the highest fidelity is :math:`2\epsilon^2` and the bias is
 
 .. math::
    
-   \left(\mean{Q_L}-\mean{Q}\right)^2<\frac{1}{2}\epsilon^2
+   \left(\mean{Q_0}-\mean{Q}\right)^2=\epsilon^2
    
-Choose :math:`N_l` so total variance
+We must choose :math:`\lambda=\epsilon^{-2}\sum_{\alpha=0}^M \sqrt{\var{Y_\alpha}C_\alpha}` such that the total variance satisfies   :math:`\var{Q_0^\mathrm{ML}}=\epsilon^2`.
+The total cost is then 
 
-.. math::
-   \var{Q_L}<\frac{1}{2}\epsilon^2
+.. math:: C_\mathrm{tot}=\epsilon^{-2}\left(\sum_{\alpha=0}^M \sqrt{\var{Y_\alpha}C_\alpha}\right)^2
 """
 #%%
 # Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
