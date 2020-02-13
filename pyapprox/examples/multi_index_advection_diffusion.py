@@ -7,8 +7,8 @@ import multiprocessing
 from pyapprox.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
     qoi_functional_misc
 from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
-def setup_model():
-    num_vars,corr_len,num_levels,periodic_boundary=10,1/2,6,False
+def setup_model(num_vars,max_eval_concurrency):
+    corr_len,num_levels,periodic_boundary=1/2,6,False
     second_order_timestepping=False
 
     qoi_functional=qoi_functional_misc
@@ -163,13 +163,14 @@ def plot_error_vs_cost(data,cost_type='ndof'):
     
 if __name__ == '__main__':
     from pyapprox.configure_plots import *
+    num_vars = 10
     #max_eval_concurrency = multiprocessing.cpu_count()-2
     max_eval_concurrency = 10
     def generate_random_samples(m,n):
         samples = halton_sequence(m,0,n)
         samples = samples*2*np.sqrt(3)-np.sqrt(3)
         return samples
-    model = setup_model()
+    model = setup_model(num_vars,max_eval_concurrency)
     #model.cost_function = WorkTracker()
     #from pyapprox.models.wrappers import MultiLevelWrapper
     #multilevel_model=MultiLevelWrapper(
