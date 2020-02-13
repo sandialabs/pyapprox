@@ -112,12 +112,8 @@ univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 shifts= [.1,.2]
 model = TunableExample(1,shifts=shifts)
-model.theta1 = np.pi/2
-model.theta2=np.pi
 exact_integral_f0=0
 cov = model.get_covariance_matrix()
-print(cov)
-assert False
 
 from functools import partial
 def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,

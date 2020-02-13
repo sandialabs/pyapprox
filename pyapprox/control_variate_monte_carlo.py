@@ -30,9 +30,10 @@ def compute_correlations_from_covariance(cov):
 def standardize_sample_ratios(nhf_samples,nsample_ratios):
     """
     Ensure num high fidelity samples is positive (>0) and then recompute 
-    sample ratios. This is useful when num high fidelity samples and sample 
-    ratios are computed by an optimization process. This function is useful for
-    optimization problems with a numerical or analytical solution.
+    sample ratios. This is useful when num high fidelity samples and 
+    sample ratios are computed by an optimization process. This function 
+    is useful for optimization problems with a numerical or analytical 
+    solution.
 
     Parameters
     ----------
@@ -41,7 +42,8 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
 
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        i=1,...,nmodels-1
 
     Returns
     -------
@@ -51,9 +53,10 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
     nsample_ratios : np.ndarray (nmodels-1)
         The corrected sample ratios
     """
-    nsamples = [r*nhf_samples for r in nsample_ratios]
+    nsamples = np.array([r*nhf_samples for r in nsample_ratios])
     nhf_samples = max(1,np.round(nhf_samples))
-    nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
+    nsample_ratios = np.floor(nsamples)/nhf_samples
+    #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
     return nhf_samples, nsample_ratios
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
@@ -295,7 +298,8 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     nhf_samples, nsample_ratios = standardize_sample_ratios(
         nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mfmc,cov,nsample_ratios)
-    log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
+    log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(
+        nhf_samples)
 
     return nhf_samples, nsample_ratios, log10_variance
 
@@ -306,8 +310,8 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity model
-        is the first model, i.e its variance is cov[0,0]
+        The covariance C between each of the models. The highest fidelity 
+        model is the first model, i.e its variance is cov[0,0]
 
     costs : np.ndarray (nmodels)
         The relative costs of evaluating each model
@@ -326,7 +330,10 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
 
     nsample_ratios : np.ndarray (nmodels-1)
         The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
+        the number of samples in the two different discrepancies involving
+        the ith model.
 
     log10_variance : float
         The base 10 logarithm of the variance of the estimator
@@ -341,31 +348,44 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
         nhf_samples = nhf_samples_fixed
         nsample_ratios = [None] * (nmodels-1)
         nsample_ratios[0] = (nhf_samples_fixed + n2) / nhf_samples_fixed
-        nsample_ratios[1:]=[r*n2/nhf_samples_fixed for r in nsample_ratios_left]
+        nsample_ratios[1:]=[
+            r*n2/nhf_samples_fixed for r in nsample_ratios_left]
         nhf_samples, nsample_ratios = standardize_sample_ratios(
             nhf_samples, nsample_ratios)
         for ii in range(len(nsample_ratios)-1):
             if nsample_ratios[ii] == nsample_ratios[ii+1]:
                 nsample_ratios[ii+1] += 0.5
     else:
-        mu = 0.0
+        sum1 = 0.0
         nsamples = []
         for ii in range(nmodels-1):
+            # compute the variance of the discrepancy 
             vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+            # compute the variance * cost
             vc = vardelta * (costs[ii] + costs[ii+1])
+            # compute the unnormalized number of samples\
+            # these values will be normalized by lamda later
             nsamp = np.sqrt(vardelta / (costs[ii] + costs[ii+1]))
             nsamples.append(nsamp)
-            mu += np.sqrt(vc)
+            sum1 += np.sqrt(vc)
 
+        # compute information for lowest fidelity model
         v = cov[nmodels-1, nmodels-1]
-        c = costs[-1]
+        c = costs[nmodels-1]
         nsamples.append(np.sqrt(v/c))
-        mu += np.sqrt(v*c)
+        sum1 += np.sqrt(v*c)
 
-        variance = mu**2 / target_cost
-        mu /= variance
-        nl = [mu * n for n in nsamples]
+        # compute the ML estimator variance from the target cost
+        variance = sum1**2 / target_cost
+        # compute the lagrangian parameter
+        lamda = sum1/variance
+        # compute the number of samples allocated to resolving each
+        # discrepancy.
+        nl = [lamda * n for n in nsamples]
 
+        # compute the number of samples allocated to each model. For
+        # all but the highest fidelity model we need to collect samples
+        # from two discrepancies.
         nhf_samples = nl[0]
         nsample_ratios = []
         for ii in range(1, nmodels-1):
@@ -374,14 +394,13 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
             nsample_ratios.append((nl[-2]+nl[-1])/nl[0])
 
         nhf_samples = max(nhf_samples, 1)
+    nsample_ratios = np.asarray(nsample_ratios)
 
-    #print('target cost',target_cost)
-    #print('sample_cost',
-    #      np.sum(np.asarray(nsample_ratios)*nhf_samples)+nhf_samples)
     nhf_samples, nsample_ratios = standardize_sample_ratios(
         nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mlmc,cov,nsample_ratios)
-    log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(nhf_samples)
+    log10_variance=np.log10(gamma)+np.log10(cov[0, 0])-np.log10(
+        nhf_samples)
     #print(log10_variance)
     if np.isnan(log10_variance):
         raise Exception('MLMC variance is NAN')
