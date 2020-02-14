@@ -233,7 +233,7 @@ def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
     persist once each __call__ to pool completes.
     """
     num_samples = samples.shape[1]
-    if assert_omp:
+    if assert_omp and max_eval_concurrency>1:
         assert int(os.environ['OMP_NUM_THREADS'])==1
     if pool is None:
         pool = Pool(max_eval_concurrency)

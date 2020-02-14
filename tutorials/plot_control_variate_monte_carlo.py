@@ -234,7 +234,7 @@ _ = ax.legend(loc='upper left')
 plt.show()
 
 #%%
-#Change :math:`\texttt{eta}` to :math:`\texttt{eta_mc}` to see how the variance reduction changes when the covariance between models is approximated
+#Change :math:`\texttt{eta}` to :math:`\texttt{eta\_mc}` to see how the variance reduction changes when the covariance between models is approximated
 
 #%%
 #References

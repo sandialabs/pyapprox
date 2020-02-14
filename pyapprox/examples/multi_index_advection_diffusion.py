@@ -14,11 +14,13 @@ def setup_model(num_vars,max_eval_concurrency):
     qoi_functional=qoi_functional_misc
     degree=1
     base_model = AdvectionDiffusionModel(
-        num_vars,corr_len,1.0e-0,degree,qoi_functional,add_work_to_qoi=False,
+        num_vars,corr_len,1.0e-0,degree,qoi_functional,
+        add_work_to_qoi=False,
         periodic_boundary=periodic_boundary,
         second_order_timestepping=second_order_timestepping)
     timer_model = TimerModelWrapper(base_model,base_model)
-    model = PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    model = PoolModel(timer_model,max_eval_concurrency,
+                      base_model=base_model)
     model=WorkTrackingModel(model,model.base_model)
     return model
 
