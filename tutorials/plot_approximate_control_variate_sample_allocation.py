@@ -68,7 +68,7 @@ allows us to determine the total cost
 #from pyapprox.fenics_models import advection_diffusion, qoi_functional_misc
 nmodels  = 3
 num_vars = 100
-max_eval_concurrency = 4
+max_eval_concurrency = 1
 from pyapprox.examples.multi_index_advection_diffusion import *
 base_model = setup_model(num_vars,max_eval_concurrency)
 from pyapprox.models.wrappers import MultiLevelWrapper

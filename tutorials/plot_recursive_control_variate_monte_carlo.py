@@ -144,7 +144,7 @@ means2 = compute_acv_many_model_variance_reduction(
 #
 #.. math::
 #
-#   N_1=\frac{C_{\mathrm{tot}}}{C^Tr} & & N_i=r_iN_1\\
+#   N_1=\frac{C_{\mathrm{tot}}}{C^Tr} \qquad\qquad N_i=r_iN_1
 #
 #  
 #The control variate weights are

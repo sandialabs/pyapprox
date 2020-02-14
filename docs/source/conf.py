@@ -174,6 +174,18 @@ SOFTWARE.\par
 \usepackage{amsmath,amssymb}
 \DeclareMathOperator*{\argmin}{argmin}
 \newcommand{\V}[1]{{\boldsymbol{V}}}
+\newcommand{\mean}[1]{\mathbb{E}\left[#1\right]}
+\newcommand{\var}[1]{\mathbb{V}\left[#1\right]}
+\newcommand{\covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}
+\newcommand{\corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}
+\def\argmin{\mathrm{argmin}}
+\def\rv{z}
+\def\reals{\mathbb{R}}
+\def\pdf{\rho}
+\def\rvdom{Gamma}
+\def\coloneqq{\colon=}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\def\argmax{\operatorname{argmax}}
 ''',
 }
 
@@ -192,7 +204,6 @@ mathjax_config = {
             "coloneqq":r'\colon=',
             "norm":[r'\lVert #1 \rVert',1],
             "argmax":[r'\operatorname{argmax}'],
-            "pdf":r'\rho',
             "covar":[r'\mathbb{C}\text{ov}\left[#1,#2\right]',2],
             "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2]
             }                       

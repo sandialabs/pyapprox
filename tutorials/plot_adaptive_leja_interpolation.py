@@ -51,7 +51,6 @@ model = GenzFunction(
 # .. math::
 #
 #   \begin{align*}
-#   \label{eq:pce-multi-index}
 #   f(\V{\rv}) &\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), & |\Lambda| &= N.
 #   \end{align*}
 #
