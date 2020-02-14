@@ -8,7 +8,7 @@ from pyapprox.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
     qoi_functional_misc
 from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
 def setup_model(num_vars,max_eval_concurrency):
-    corr_len,num_levels,periodic_boundary=1/2,6,False
+    corr_len,periodic_boundary=1/10,False
     second_order_timestepping=False
 
     qoi_functional=qoi_functional_misc
@@ -19,6 +19,7 @@ def setup_model(num_vars,max_eval_concurrency):
         second_order_timestepping=second_order_timestepping)
     timer_model = TimerModelWrapper(base_model,base_model)
     model = PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    model=WorkTrackingModel(model,model.base_model)
     return model
 
 from pyapprox.utilities import cartesian_product
@@ -26,7 +27,7 @@ from functools import partial
 def error_vs_cost(model,generate_random_samples,validation_levels):
     #import sys
     #sys.setrecursionlimit(10) 
-    model=WorkTrackingModel(model,model.base_model)
+    #model=WorkTrackingModel(model,model.base_model)
     num_samples=10
     validation_levels = np.asarray(validation_levels)
     assert len(validation_levels)==model.base_model.num_config_vars
@@ -175,8 +176,8 @@ if __name__ == '__main__':
     #from pyapprox.models.wrappers import MultiLevelWrapper
     #multilevel_model=MultiLevelWrapper(
     #    model,base_model.num_config_vars,model.cost_function)
-    validation_levels = [5,5,5]
-    #validation_levels = [3]*3
+    #validation_levels = [5,5,5]
+    validation_levels = [3]*3
     data = error_vs_cost(
         model,partial(generate_random_samples,model.base_model.num_vars),
         validation_levels)

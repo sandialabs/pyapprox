@@ -301,6 +301,7 @@ class WorkTracker(object):
         costs = np.empty((nqueries))
         for ii in range(nqueries):
             key = tuple([int(ll) for ll in config_samples[:,ii]])
+            print(key,self.costs)
             assert key in self.costs, key
             costs[ii] = np.median(self.costs[key])
         return costs
@@ -333,6 +334,7 @@ class WorkTrackingModel(object):
         self.base_model=base_model
 
     def __call__(self,samples):
+        print('s')
         num_config_vars=self.base_model.num_config_vars
         #data = self.wt_function(samples)
         data = eval(self.wt_function,samples)
@@ -340,6 +342,9 @@ class WorkTrackingModel(object):
         work   = data[:,-1]
         config_samples = samples[-num_config_vars:,:]
         self.work_tracker.update(config_samples,work)
+        print(values)
+        print(work)
+        print(self.work_tracker.costs)
         return values
 
     def cost_function(self,config_samples):

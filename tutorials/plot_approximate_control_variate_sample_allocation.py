@@ -67,11 +67,10 @@ allows us to determine the total cost
 
 #from pyapprox.fenics_models import advection_diffusion, qoi_functional_misc
 nmodels  = 3
-num_vars = 2
-max_eval_concurrency = 2
+num_vars = 100
+max_eval_concurrency = 4
 from pyapprox.examples.multi_index_advection_diffusion import *
 base_model = setup_model(num_vars,max_eval_concurrency)
-base_model.cost_function = WorkTracker()
 from pyapprox.models.wrappers import MultiLevelWrapper
 multilevel_model=MultiLevelWrapper(
     base_model,base_model.base_model.num_config_vars,
@@ -79,18 +78,40 @@ multilevel_model=MultiLevelWrapper(
 from scipy.stats import uniform
 import pyapprox as pya
 variable = pya.IndependentMultivariateRandomVariable(
-    [uniform(-1,2)],[np.arange(num_vars)])
+    [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(num_vars)])
 
 npilot_samples = 10
 pilot_samples = pya.generate_independent_random_samples(
     variable,npilot_samples)
 config_vars = np.arange(nmodels)[np.newaxis,:]
 pilot_samples = pya.get_all_sample_combinations(pilot_samples,config_vars)
-print(pilot_samples.T,pilot_samples.shape)
 pilot_values = multilevel_model(pilot_samples)
-print(pilot_values.shape)
-assert pilot_values.shape==1
+assert pilot_values.shape[1]==1
 pilot_values = np.reshape(pilot_values,(npilot_samples,nmodels))
+# mlmc requires model accuracy to decrease with index
+# but model assumes the opposite. so reverse order here
+pilot_values = pilot_values[:,::-1]
 cov = np.cov(pilot_values,rowvar=False)
-print(cov.shape)
-print(pilot_samples.shape)
+print(pya.get_correlation_from_covariance(cov))
+for ii in range(nmodels-1):
+    vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+    print(vardelta)
+
+target_cost = 10
+# mlmc requires model accuracy to decrease with index
+# but model assumes the opposite. so reverse order here
+costs = [multilevel_model.cost_function(ii) for ii in range(nmodels)][::-1]
+print(costs)
+nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+    cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+
+import seaborn as sns
+from pandas import DataFrame
+df = DataFrame(
+    index=np.arange(pilot_values.shape[0]),
+    data=dict([(r'$f_%d$'%ii,pilot_values[:,ii])
+               for ii in range(pilot_values.shape[1])]))
+# heatmap does not currently work with matplotlib 3.1.1 downgrade to
+# 3.1.0 using pip install matplotlib==3.1.0
+#sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
+#plt.show()
