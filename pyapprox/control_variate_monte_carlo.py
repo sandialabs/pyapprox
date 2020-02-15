@@ -509,10 +509,18 @@ def acv_sample_allocation_sample_ratio_constraint(ratios, *args):
 
 def generate_samples_and_values_acv_IS(nhf_samples,nsample_ratios,functions,
                                        generate_samples):
+    """
+    WARNING: A function may be evaluated at the same sample twice. To avoid
+    this pass in a function that does a look up before evaluating a sample
+    and returns the pecomputed value if it is found.
+    TODO: Create a version of this function that avoids redundant computations
+    and evaluates all samples at once so something pool wrapper can be used.
+    """
     nmodels = len(functions)
     samples1 = [generate_samples(nhf_samples)]*nmodels
-    samples2 = [None]+[generate_samples(nhf_samples*r)
-                       for r in nsample_ratios]
+    samples2 = [None]+[np.hstack(
+        [generate_samples(nhf_samples*r-nhf_samples),samples1[ii+1]])
+                       for ii,r in enumerate(nsample_ratios)]
     values1  = [f(s) for f,s in zip(functions,samples1)]
     values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
     samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
