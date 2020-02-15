@@ -84,12 +84,12 @@ exact_integral_f0=0
 cov = model.get_covariance_matrix()
 
 from functools import partial
-def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,
+def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
                                               functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
     
-    ntrials=10000
+    ntrials=1000
     means = np.empty((ntrials,2))
     generate_samples=partial(
         pya.generate_independent_random_samples,variable)
@@ -117,7 +117,7 @@ target_cost = int(1e2)
 costs = [1,1,1]
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
     cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
-means1 = compute_acv_many_model_variance_reduction(
+means1 = compute_mlmc_many_model_variance_reduction(
     10,nsample_ratios,[model.m0,model.m1])
 print("Theoretical CV variance reduction",
       1-max(cov[0,1],cov[0,2])**2/(cov[0,0]*cov[1,1]))
@@ -128,7 +128,7 @@ print("Theoretical CV variance reduction",
 print('Three models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
     cov, costs, target_cost, nhf_samples_fixed=10)[:2]
-means2 = compute_acv_many_model_variance_reduction(
+means2 = compute_mlmc_many_model_variance_reduction(
     10,nsample_ratios,[model.m0,model.m1,model.m2])
 
 #%%
@@ -154,6 +154,18 @@ means2 = compute_acv_many_model_variance_reduction(
 #
 #.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
 #
+#.. list-table::
+#
+#   * - 
+#       .. _mfmc-sample-allocation:
+#
+#       .. figure:: ../figures/mfmc.png
+#          :width: 100%
+#          :align: center
+#
+#          MFMC sampling strategy
+#
+#
 #The optimal weights for the MFMC estimator are
 #
 #.. math:: \eta_\alpha = \frac{\covar{Q_0}{Q_\alpha}}{\var{Q_\alpha}}
@@ -165,7 +177,7 @@ means2 = compute_acv_many_model_variance_reduction(
 #Similarly to MLMC Using multiple models only helps increase the speed to which we converge to the 2 model CV estimator
 
 from functools import partial
-def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,
+def compute_mfmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
                                               functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
@@ -182,13 +194,13 @@ def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,
         hf_mean = values[0][0].mean()
         means[ii,0]= hf_mean
         # compute ACV mean
-        eta = pya.get_mfmc_control_variate_weights(M+1)
+        eta = pya.get_mfmc_control_variate_weights(cov)
         means[ii:,1] = pya.compute_control_variate_mean_estimate(
             eta,values)
 
-    print("Theoretical ACV variance reduction",
+    print("Theoretical MFMC variance reduction",
           1-pya.get_rsquared_mfmc(cov[:M+1,:M+1],nsample_ratios))
-    print("Achieved ACV variance reduction",
+    print("Achieved MFMC variance reduction",
           means[:,1].var(axis=0)/means[:,0].var(axis=0))
     return means
 
@@ -198,10 +210,17 @@ def compute_acv_many_model_variance_reduction(nhf_samples,nsample_ratios,
 # costs = [1,1,1]
 # nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
 #     cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
-# means1 = compute_acv_many_model_variance_reduction(
+# means1 = compute_mfmc_many_model_variance_reduction(
 #     10,nsample_ratios,[model.m0,model.m1])
 # print("Theoretical CV variance reduction",
 #       1-max(cov[0,1],cov[0,2])**2/(cov[0,0]*cov[1,1]))
+
+print('Three models')
+nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+    cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+means2 = compute_mfmc_many_model_variance_reduction(
+    10,nsample_ratios,[model.m0,model.m1,model.m2])
+
 
 #%%
 #The optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically. Let :math:`C_\mathrm{tot}` be the total budget then the optimal number of high fidelity samples is

@@ -277,18 +277,18 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
         nsample_ratios[1:]=[r*n2/nhf_samples_fixed for r in nsample_ratios_left]
         nhf_samples = max(nhf_samples, 1)
     else:
-        corr = compute_correlations_from_covariance(cov)        
+        corr = compute_correlations_from_covariance(cov)
         r = []
         for ii in range(nmodels-1):
             # Step 3 in Algorithm 2 in Peherstorfer et al 2016
             num = costs[0] * (corr[0, ii]**2 - corr[0, ii+1]**2)
             den = costs[ii] * ( 1 - corr[0, 1]**2)
             r.append(np.sqrt(num / den))
-            
-        num = costs[0]*corr[0,-1]**2
-        if nmodels>1:
-            den = costs[-1] * (1 - corr[0, 1]**2)
 
+
+        print(len(costs),corr)
+        num = costs[0]*corr[0,-1]**2
+        den = costs[-1] * (1 - corr[0, 1]**2)
         r.append(np.sqrt(num / den))
 
         # Step 4 in Algorithm 2 in Peherstorfer et al 2016
@@ -570,6 +570,60 @@ def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
             values2=None
         values.append([values1,values2])
     return sample_sets, values
+
+def get_mfmc_control_variate_weights(cov):
+    nmodels = cov.shape[0]
+    weights = -cov[0,1:]/np.diag(cov[1:,1:])
+    return weights
+
+
+def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
+                                     generate_samples):
+    """
+    Parameters
+    ==========
+    nhf_samples : integer
+        The number of samples of the high fidelity model
+
+    nsample_ratios : np.ndarray (nmodels-1)
+        The sample ratios r used to specify the number of samples of the 
+        lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
+
+    functions : list of callables
+        The functions used to evaluate each model
+
+    generate_samples : callable
+        Function used to generate realizations of the random variables
+
+    Returns
+    =======
+    
+    """
+    nmodels = len(functions)
+    assert len(nsample_ratios)==nmodels-1
+    
+    samples1 = [generate_samples(nhf_samples)]*nmodels
+    samples2 = [None]
+    
+    nprev_samples = nhf_samples
+
+    for ii in range(1,nmodels):
+        if ii==1:
+            prev_samples  = samples1[0].copy()
+        else:
+            prev_samples  = samples2[-1].copy()
+        nprev_samples = prev_samples.shape[1]
+        nnew_samples  = nhf_samples*nsample_ratios[ii-1]-nprev_samples
+        assert nnew_samples.is_integer()
+        new_samples   = generate_samples(int(nnew_samples))
+        samples1.append(prev_samples)
+        samples2.append(np.hstack([prev_samples,new_samples]))
+        
+    values1  = [f(s) for f,s in zip(functions,samples1)]
+    values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
+    samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
+    values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
+    return samples,values
 
 def acv_sample_allocation_cost_constraint(ratios, *args):
     nhf, costs, target_cost = args
