@@ -286,7 +286,8 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
             r.append(np.sqrt(num / den))
             
         num = costs[0]*corr[0,-1]**2
-        den = costs[-1] * (1 - corr[0, 1]**2)
+        if nmodels>1:
+            den = costs[-1] * (1 - corr[0, 1]**2)
 
         r.append(np.sqrt(num / den))
 
