@@ -168,7 +168,7 @@ means2 = compute_mlmc_many_model_variance_reduction(
 #
 #The optimal weights for the MFMC estimator are
 #
-#.. math:: \eta_\alpha = \frac{\covar{Q_0}{Q_\alpha}}{\var{Q_\alpha}}
+#.. math:: \eta_\alpha = -\frac{\covar{Q_0}{Q_\alpha}}{\var{Q_\alpha}}
 #
 #which result in the variance reduction
 #

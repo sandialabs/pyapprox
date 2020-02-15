@@ -6,7 +6,7 @@ This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_control_variate_mon
 Two models
 ^^^^^^^^^^
 
-Let the cost of the high fidelity model per sample be 1 and let the cost of the low fidelity model be :math:`r_\V{\kappa}\ge1`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`rN` samples to estimate :math:`\mu_{\V{\kappa}}` so that
+Let the cost of the high fidelity model per sample be 1 and let the cost of the low fidelity model be :math:`r_\V{\kappa}\ge1`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`(r-1)N` samples to estimate :math:`\mu_{\V{\kappa}}` so that
 
 .. math::
 
@@ -100,11 +100,11 @@ exact_integral_f0=0
 #
 #   * - .. _acv-sample-allocation:
 #
-#       .. figure:: ../figures/mlmc.png
+#       .. figure:: ../figures/acv_is.png
 #          :width: 50%
 #          :align: center
 #
-#          MLMC sampling strategy
+#          ACV sampling strategy
 #
 #The following samples according to this strategy
 
@@ -113,7 +113,7 @@ nsample_ratio = 10
 samples_shared = pya.generate_independent_random_samples(
     variable,nhf_samples)
 samples_lf_only = pya.generate_independent_random_samples(
-    variable,nhf_samples*nsample_ratio)
+    variable,nhf_samples*nsample_ratio-nhf_samples)
 values0 = model.m0(samples_shared)
 values1_shared = model.m1(samples_shared)
 values1_lf_only = model.m1(samples_lf_only)
@@ -137,7 +137,8 @@ _ = ax.legend(loc='upper left')
 cov = model.get_covariance_matrix()
 gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
 eta = -cov[0,1]/cov[0,0]
-acv_mean = values0.mean()+eta*(values1_shared.mean()-values1_lf_only.mean())
+acv_mean = values0.mean()+eta*(values1_shared.mean()-np.hstack(
+    [values1_shared,values1_lf_only]).mean())
 print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
 
@@ -147,15 +148,15 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
     
-    ntrials=1000
+    ntrials=int(1e3)
     means = np.empty((ntrials,2))
     for ii in range(ntrials):
         samples_shared = pya.generate_independent_random_samples(
             variable,nhf_samples)
         # length M
         samples_lf_only =[
-            pya.generate_independent_random_samples(variable,nhf_samples*r)
-            for r in nsample_ratios]
+            pya.generate_independent_random_samples(
+                variable,nhf_samples*r-nhf_samples) for r in nsample_ratios]
         values_lf_only  =  [
             f(s) for f,s in zip(functions[1:],samples_lf_only)]
         # length M+1
@@ -169,7 +170,7 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
             cov[0,0]*cov[1,1])
         eta = -cov[0,1]/cov[0,0]
         means[ii,1]=hf_mean+eta*(values_shared[1].mean()-
-            np.hstack([values_shared[0],values_lf_only[0]]).mean())
+            np.hstack([values_shared[1],values_lf_only[0]]).mean())
 
     print("Theoretical ACV variance reduction",
           1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
@@ -179,7 +180,9 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
     return means
 
 r1,r2=10,100
+print(f'Two model: r={r1}')
 means1 = compute_acv_two_model_variance_reduction([r1],[model.m0,model.m1])
+print(f'Three model: r={r2}')
 means2 = compute_acv_two_model_variance_reduction([r2],[model.m0,model.m1])
 print("Theoretical CV variance reduction",1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 
@@ -247,7 +250,7 @@ def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
     M = len(nsample_ratios) # number of lower fidelity models
     assert len(functions)==M+1
     
-    ntrials=1000
+    ntrials=int(1e3)
     means = np.empty((ntrials,2))
     generate_samples=partial(
         pya.generate_independent_random_samples,variable)
