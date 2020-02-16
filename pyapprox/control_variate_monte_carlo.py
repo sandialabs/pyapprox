@@ -16,14 +16,13 @@ def compute_correlations_from_covariance(cov):
     cov : np.ndarray (nmodels,nmodels)
         The covariance C between each of the models. The highest fidelity model
         is the first model, i.e its variance is cov[0,0]
-
     
     Returns
     -------
     corr : np.ndarray (nmodels,nmodels)
         The correlation matrix
     """
-    corr_sqrt = np.diag(np.sqrt((np.diag(cov)))**-1)        
+    corr_sqrt = np.diag(1/np.sqrt((np.diag(cov))))
     corr = np.dot(corr_sqrt, np.dot(cov, corr_sqrt))
     return corr
 
@@ -57,7 +56,7 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
     nhf_samples = max(1,np.round(nhf_samples))
     nsample_ratios = np.floor(nsamples)/nhf_samples
     #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
-    return nhf_samples, nsample_ratios
+    return int(nhf_samples), nsample_ratios
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
     """
@@ -134,15 +133,20 @@ def get_rsquared_mfmc(cov,nsample_ratios):
     rsquared : float
         The value r^2
     """
-    corr = compute_correlations_from_covariance(cov)
+    # Do not need entire correlation matrix so just compute corr for necessary
+    # entries
+    # corr = compute_correlations_from_covariance(cov)
     
     nmodels = cov.shape[0]
     assert len(nsample_ratios)==nmodels-1
-    rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0]+1e-20)*corr[0, 1]**2
+    #rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0])*corr[0, 1]**2
+    rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0])*cov[0, 1]**2/(
+        cov[0,0]*cov[1,1])
     for ii in range(1, nmodels-1):
         p1 = (nsample_ratios[ii]-nsample_ratios[ii-1])/(
-            nsample_ratios[ii]*nsample_ratios[ii-1] + 1e-20)
-        p1 *= corr[0, ii]**2
+            nsample_ratios[ii]*nsample_ratios[ii-1])
+        #p1 *= corr[0, ii]**2
+        p1 *= cov[0,ii]**2/(cov[0,0]*cov[ii,ii])
         rsquared += p1
     return rsquared
 
@@ -266,6 +270,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     """
     nmodels = cov.shape[0]
     if nhf_samples_fixed is not None:
+        assert nmodels>2 # remove this assumption
         cost_left=target_cost-nhf_samples_fixed*costs[0]-\
             nhf_samples_fixed*costs[1]
         n2, nsample_ratios_left, var = allocate_samples_mfmc(
@@ -277,6 +282,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
         nsample_ratios[1:]=[r*n2/nhf_samples_fixed for r in nsample_ratios_left]
         nhf_samples = max(nhf_samples, 1)
     else:
+        # this can be used for two models
         corr = compute_correlations_from_covariance(cov)
         r = []
         for ii in range(nmodels-1):
@@ -580,10 +586,8 @@ def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
     return sample_sets, values
 
 def get_mfmc_control_variate_weights(cov):
-    nmodels = cov.shape[0]
     weights = -cov[0,1:]/np.diag(cov[1:,1:])
     return weights
-
 
 def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
                                      generate_samples):
@@ -610,7 +614,7 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     nmodels = len(functions)
     assert len(nsample_ratios)==nmodels-1
     
-    samples1 = [generate_samples(nhf_samples)]*nmodels
+    samples1 = [generate_samples(nhf_samples)]
     samples2 = [None]
     
     nprev_samples = nhf_samples
