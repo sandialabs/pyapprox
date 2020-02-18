@@ -39,7 +39,7 @@ def mlmc_variance_reduction(pilot_samples, sample_ratios, nhf_samples):
 
     return var / (varhf)
 
-class TunableExample(object):
+class TunableModelEnsemble(object):
     def __init__(self,theta1,shifts=None):
         """
         Parameters
@@ -62,21 +62,22 @@ class TunableExample(object):
         if self.shifts is None:
             self.shifts = [0,0]
         assert len(self.shifts)==2
+        self.models = [self.m0,self.m1,self.m2]
         
     def m0(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
-        return self.A0*(np.cos(self.theta0) * x**5 + np.sin(self.theta0) * y**5)
+        return (self.A0*(np.cos(self.theta0) * x**5 + np.sin(self.theta0) * y**5))[:,np.newaxis]
     
     def m1(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
-        return self.A1*(np.cos(self.theta1) * x**3 + np.sin(self.theta1) * y**3)+self.shifts[0]
+        return (self.A1*(np.cos(self.theta1) * x**3 + np.sin(self.theta1) * y**3)+self.shifts[0])[:,np.newaxis]
     
     def m2(self,samples):
         assert samples.shape[0]==2
         x,y=samples[0,:],samples[1,:]
-        return self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)+self.shifts[1]
+        return (self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)+self.shifts[1])[:,np.newaxis]
 
     def get_covariance_matrix(self,npilot=None):
         if npilot is None:
@@ -102,29 +103,15 @@ class TunableExample(object):
 
             return cov, samples, values
 
-    def generate_samples(self,nsamples):
-        return np.random.uniform(-1,1,(2,nsamples))
-
-    def __call__(self,sample_sets):
-        assert len(samples_sets)==3
-        models = [self.m0,self.m1,self.m2]
-        value_sets = []
-        for ii in range(len(sample_sets)):
-            if samples_sets[ii] is not None:
-                value_sets.append(models[ii](samples))
-        return value_sets
 
 class ShortColumnModelEnsemble(object):
-    def __init__(self,model_ids=np.arange(5)):
-        nmodels = len(model_ids)
-        assert nmodels<=5
-        self.model_ids = np.asarray(model_ids)
-        self.nmodels=nmodels
+    def __init__(self):
+        self.nmodels=5
         self.nvars=5
         self.functions = [self.m0,self.m1,self.m2,self.m3,self.m4]
-        self.functions = [self.functions[ii] for ii in self.model_ids]
     
     def extract_variables(self,samples):
+        assert samples.shape[0]==5
         b = samples[0,:]
         h = samples[1,:]
         P = samples[2,:]
@@ -134,37 +121,23 @@ class ShortColumnModelEnsemble(object):
 
     def m0(self,samples):
         b,h,P,M,Y = self.extract_variables(samples)
-        return 1 - 4*M/(b*(h**2)*Y) - (P/(b*h*Y))**2
+        return (1 - 4*M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:,np.newaxis]
     
     def m1(self,samples):
         b,h,P,M,Y = self.extract_variables(samples)
-        return 1 - 3.8*M/(b*(h**2)*Y) - ((P*(1 + (M-2000)/4000))/(b*h*Y))**2
+        return (1 - 3.8*M/(b*(h**2)*Y) - ((P*(1 + (M-2000)/4000))/(b*h*Y))**2)[:,np.newaxis]
 
     def m2(self,samples):
         b,h,P,M,Y = self.extract_variables(samples)
-        return 1 - M/(b*(h**2)*Y) - (P/(b*h*Y))**2
+        return (1 - M/(b*(h**2)*Y) - (P/(b*h*Y))**2)[:,np.newaxis]
 
     def m3(self,samples):
         b,h,P,M,Y = self.extract_variables(samples)
-        return 1 - M/(b*(h**2)*Y) - (P*(1 + M)/(b*h*Y))**2
+        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(b*h*Y))**2)[:,np.newaxis]
 
     def m4(self,samples):
         b,h,P,M,Y = self.extract_variables(samples)
-        return 1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2
-
-    def __call__(self,samples):
-        # model index is index into self.functions not into m0,..m4
-        # E.g. if self.model_ids = [1,2,4]
-        # model_ids.max()<3=self.nmodels
-        assert samples.shape[0]==6
-        model_ids = samples[-1,:]
-        assert model_ids.max()<self.nmodels
-        values = np.empty((samples.shape[1],1))
-        for ii,f in enumerate(self.functions):
-            I = np.where(model_ids==ii)[0]
-            values[I,0] = f(samples[:self.nvars,I])
-        return values
-                    
+        return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
 class TestCVMC(unittest.TestCase):
 
@@ -176,7 +149,7 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(nsample_ratios_std,[2])
 
     def test_MLMC_tunable_example(self):
-        example = TunableExample(np.pi/4)
+        example = TunableModelEnsemble(np.pi/4)
         #costs = np.array([1.0, 1.0/100, 1.0/100/100])
         cov, samples , values= example.get_covariance_matrix(int(1e3))
         import seaborn as sns
