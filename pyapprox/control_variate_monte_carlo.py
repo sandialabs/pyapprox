@@ -902,4 +902,4 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
         pilot_values,(npilot_samples,model_ensemble.nmodels))
     # compute covariance
     cov = np.cov(pilot_values,rowvar=False)
-    return cov
+    return cov, pilot_samples, pilot_values

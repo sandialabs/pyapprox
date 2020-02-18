@@ -79,29 +79,19 @@ class TunableModelEnsemble(object):
         x,y=samples[0,:],samples[1,:]
         return (self.A2*(np.cos(self.theta2) * x + np.sin(self.theta2) * y)+self.shifts[1])[:,np.newaxis]
 
-    def get_covariance_matrix(self,npilot=None):
-        if npilot is None:
-            cov = np.eye(self.nmodels)
-            cov[0, 1] = self.A0*self.A1/9*(np.sin(self.theta0)*np.sin(
-                self.theta1)+np.cos(self.theta0)*np.cos(self.theta1))
-            cov[1, 0] = cov[0,1]
-            cov[0, 2] = self.A0*self.A2/7*(np.sin(self.theta0)*np.sin(
-                self.theta2)+np.cos(self.theta0)*np.cos(self.theta2))
-            cov[2, 0] = cov[0, 2]
-            cov[1, 2] = self.A1*self.A2/5*(
-                np.sin(self.theta1)*np.sin(self.theta2)+np.cos(
+    def get_covariance_matrix(self):
+        cov = np.eye(self.nmodels)
+        cov[0, 1] = self.A0*self.A1/9*(np.sin(self.theta0)*np.sin(
+            self.theta1)+np.cos(self.theta0)*np.cos(self.theta1))
+        cov[1, 0] = cov[0,1]
+        cov[0, 2] = self.A0*self.A2/7*(np.sin(self.theta0)*np.sin(
+            self.theta2)+np.cos(self.theta0)*np.cos(self.theta2))
+        cov[2, 0] = cov[0, 2]
+        cov[1, 2] = self.A1*self.A2/5*(
+            np.sin(self.theta1)*np.sin(self.theta2)+np.cos(
                 self.theta1)*np.cos(self.theta2))
-            cov[2, 1] = cov[1,2]
-            return cov
-        else:
-            samples = self.generate_samples(npilot)
-            values  = np.zeros((npilot, 3))
-            values[:,0] = self.m0(samples)
-            values[:,1] = self.m1(samples)
-            values[:,2] = self.m2(samples)
-            cov = np.cov(samples,rowvar=False)
-
-            return cov, samples, values
+        cov[2, 1] = cov[1,2]
+        return cov
 
 
 class ShortColumnModelEnsemble(object):
@@ -150,8 +140,11 @@ class TestCVMC(unittest.TestCase):
 
     def test_MLMC_tunable_example(self):
         example = TunableModelEnsemble(np.pi/4)
+        generate_samples = lambda nn: np.random.uniform(-1,1,(2,nn))
+        model_emsemble = pya.ModelEnsemble([example.m0,example.m1,example.m2])
         #costs = np.array([1.0, 1.0/100, 1.0/100/100])
-        cov, samples , values= example.get_covariance_matrix(int(1e3))
+        cov, samples , values= pya.estimate_model_ensemble_covariance(
+            int(1e3),generate_samples,model_emsemble)
         import seaborn as sns
         from pandas import DataFrame
         df = DataFrame(
@@ -224,32 +217,6 @@ class TestCVMC(unittest.TestCase):
             assert np.allclose(var_red,(10**log10_var)/cov[0,0]*nhf_samples)
             print(var_red)
             assert False
-    
-    def test_MLMC_variance_reduction(self):
-        np.random.seed(1)
-        matr = np.random.randn(2,2)
-        exact_covariance = np.dot(matr, matr.T)
-        chol_factor = np.linalg.cholesky(exact_covariance)
-        
-        samples = np.random.normal(0,1,(100000,2))
-        values = np.dot(samples,chol_factor.T)
-        covariance = np.cov(values, rowvar=False)
-        costs = [1, 1e-1]
-
-        target_cost=10
-        nhf_samples, nsample_ratios, log10_variance = pya.allocate_samples_mlmc(
-            covariance, costs, target_cost, nhf_samples_fixed=None)
-        
-        actual_cost=costs[0]*nhf_samples+\
-            costs[1]*(nsample_ratios[0]*nhf_samples)
-
-        assert actual_cost==10.4
-        assert np.allclose(nsample_ratios,[3])
-        assert nhf_samples==8
-
-        mlmc_variance = mlmc_variance_reduction(
-            values,nsample_ratios,nhf_samples)*covariance[0,0]/nhf_samples
-        assert np.allclose(mlmc_variance,10**log10_variance)
 
     def test_mlmc_sample_allocation(self):
         # The following will give mlmc with unit variance
@@ -283,7 +250,9 @@ class TestCVMC(unittest.TestCase):
     def test_generate_samples_and_values_mfmc(self):
         from scipy.stats import uniform,norm,lognorm
         from functools import partial
-        functions = ShortColumnModelEnsemble([0,1,2])
+        functions = ShortColumnModelEnsemble()
+        model_ensemble = pya.ModelEnsemble(
+            [functions.m0,functions.m1,functions.m2])
         univariate_variables = [
             uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
             lognorm(s=0.5,scale=np.exp(5))]
@@ -295,10 +264,10 @@ class TestCVMC(unittest.TestCase):
         nsample_ratios = [2,4]
         samples,values =\
             pya.generate_samples_and_values_mfmc(
-                nhf_samples,nsample_ratios,functions,generate_samples)
+                nhf_samples,nsample_ratios,model_ensemble,generate_samples)
     
         # move following checks to test_control_variate_monte_carlo.py
-        for jj in range(1,functions.nmodels):
+        for jj in range(1,len(samples)):
             assert samples[jj][1].shape[1]==nsample_ratios[jj-1]*nhf_samples
             idx=1
             if jj==1:
@@ -308,7 +277,9 @@ class TestCVMC(unittest.TestCase):
     def test_rsquared_mfmc(self):
         from scipy.stats import uniform,norm,lognorm
         from functools import partial
-        model_ensemble = ShortColumnModelEnsemble([0,3,4])
+        functions = ShortColumnModelEnsemble()
+        model_ensemble = pya.ModelEnsemble(
+            [functions.m0,functions.m3,functions.m4])
         univariate_variables = [
             uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
             lognorm(s=0.5,scale=np.exp(5))]
