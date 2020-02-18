@@ -53,10 +53,11 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
         The corrected sample ratios
     """
     nsamples = np.array([r*nhf_samples for r in nsample_ratios])
-    nhf_samples = max(1,np.round(nhf_samples))
+    #nhf_samples = int(max(1,np.round(nhf_samples)))
+    nhf_samples = int(max(1,np.floor(nhf_samples)))
     nsample_ratios = np.floor(nsamples)/nhf_samples
     #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
-    return int(nhf_samples), nsample_ratios
+    return nhf_samples, nsample_ratios
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
     """
@@ -133,20 +134,14 @@ def get_rsquared_mfmc(cov,nsample_ratios):
     rsquared : float
         The value r^2
     """
-    # Do not need entire correlation matrix so just compute corr for necessary
-    # entries
-    # corr = compute_correlations_from_covariance(cov)
-    
     nmodels = cov.shape[0]
     assert len(nsample_ratios)==nmodels-1
-    #rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0])*corr[0, 1]**2
-    rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0])*cov[0, 1]**2/(
-        cov[0,0]*cov[1,1])
-    for ii in range(1, nmodels-1):
+    rsquared=(nsample_ratios[0]-1)/(nsample_ratios[0])*cov[0,1]/(
+        cov[0,0]*cov[1,1])*cov[0,1]
+    for ii in range(1,nmodels-1):
         p1 = (nsample_ratios[ii]-nsample_ratios[ii-1])/(
             nsample_ratios[ii]*nsample_ratios[ii-1])
-        #p1 *= corr[0, ii]**2
-        p1 *= cov[0,ii]**2/(cov[0,0]*cov[ii,ii])
+        p1 *= cov[0,ii+1]/(cov[0,0]*cov[ii+1,ii+1])*cov[0,ii+1]
         rsquared += p1
     return rsquared
 
@@ -292,7 +287,6 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
             r.append(np.sqrt(num / den))
 
 
-        print(len(costs),corr)
         num = costs[0]*corr[0,-1]**2
         den = costs[-1] * (1 - corr[0, 1]**2)
         r.append(np.sqrt(num / den))
@@ -611,30 +605,60 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     =======
     
     """
-    nmodels = len(functions)
-    assert len(nsample_ratios)==nmodels-1
-    
-    samples1 = [generate_samples(nhf_samples)]
-    samples2 = [None]
-    
-    nprev_samples = nhf_samples
+    nsample_ratios = np.asarray(nsample_ratios)
+    nmodels = len(nsample_ratios)+1
+    if not callable(functions):
+        assert len(functions)==nmodels
+    # check nhf_samples is an integer
+    assert nhf_samples/int(nhf_samples)==1.0
+    # convert to int if a float because numpy random assumes nsamples is an int
+    nhf_samples = int(nhf_samples)
+    nlf_samples = nhf_samples*nsample_ratios
+    for ii in range(nmodels-1):
+        assert nlf_samples[ii]/int(nlf_samples[ii])==1.0
+    nlf_samples = np.asarray(nlf_samples,dtype=int)
 
+    max_nsamples = nlf_samples.max()
+    samples = generate_samples(max_nsamples)
+    samples1 = [samples[:,:nhf_samples]]
+    samples2 = [None]
+    nprev_samples = nhf_samples
     for ii in range(1,nmodels):
-        if ii==1:
-            prev_samples  = samples1[0].copy()
-        else:
-            prev_samples  = samples2[-1].copy()
-        nprev_samples = prev_samples.shape[1]
-        nnew_samples  = nhf_samples*nsample_ratios[ii-1]-nprev_samples
-        assert nnew_samples.is_integer()
-        new_samples   = generate_samples(int(nnew_samples))
-        samples1.append(prev_samples)
-        samples2.append(np.hstack([prev_samples,new_samples]))
-        
-    values1  = [f(s) for f,s in zip(functions,samples1)]
-    values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
+        samples1.append(samples[:,:nprev_samples])
+        samples2.append(samples[:,:nlf_samples[ii-1]])
+        nprev_samples = samples2[ii].shape[1]
+
+    if not callable(functions):
+        values1 = [functions[0](samples1[0])]
+        values2 = [None]
+        for ii in range(1,nmodels):
+            values_ii = functions[ii](samples2[ii])
+            values1.append(values_ii[:samples1[ii].shape[1]])
+            values2.append(values_ii)
+    else:
+        # collect all samples assign an id and then evaluate in one batch
+        # this can be faster if functions is something like a pool model
+        samples_with_id = np.vstack([samples1[0],np.zeros((1,nhf_samples))])
+        for ii in range(1,nmodels):
+            samples_with_id = np.hstack([
+                samples_with_id,
+                np.vstack(
+                    [samples2[ii],ii*np.ones((1,samples2[ii].shape[1]))])])
+        values_flattened = functions(samples_with_id)
+        values1 = [values_flattened[:nhf_samples]]
+        values2 = [None]
+        nprev_samples = nhf_samples
+        cnt = nhf_samples
+        for ii in range(1,nmodels):
+            values1.append(values_flattened[cnt:cnt+nprev_samples])
+            values2.append(values_flattened[cnt:cnt+nlf_samples[ii-1]])
+            cnt += nlf_samples[ii-1]
+            nprev_samples = samples2[ii].shape[1]
+            
     samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
     values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
+        
+                        
     return samples,values
 
 def acv_sample_allocation_cost_constraint(ratios, *args):

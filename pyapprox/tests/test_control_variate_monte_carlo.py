@@ -113,6 +113,57 @@ class TunableExample(object):
             if samples_sets[ii] is not None:
                 value_sets.append(models[ii](samples))
         return value_sets
+
+class ShortColumnModelEnsemble(object):
+    def __init__(self,model_ids=np.arange(5)):
+        nmodels = len(model_ids)
+        assert nmodels<=5
+        self.model_ids = np.asarray(model_ids)
+        self.nmodels=nmodels
+        self.nvars=5
+        self.functions = [self.m0,self.m1,self.m2,self.m3,self.m4]
+        self.functions = [self.functions[ii] for ii in self.model_ids]
+    
+    def extract_variables(self,samples):
+        b = samples[0,:]
+        h = samples[1,:]
+        P = samples[2,:]
+        M = samples[3,:]
+        Y = samples[4,:]
+        return b,h,P,M,Y
+
+    def m0(self,samples):
+        b,h,P,M,Y = self.extract_variables(samples)
+        return 1 - 4*M/(b*(h**2)*Y) - (P/(b*h*Y))**2
+    
+    def m1(self,samples):
+        b,h,P,M,Y = self.extract_variables(samples)
+        return 1 - 3.8*M/(b*(h**2)*Y) - ((P*(1 + (M-2000)/4000))/(b*h*Y))**2
+
+    def m2(self,samples):
+        b,h,P,M,Y = self.extract_variables(samples)
+        return 1 - M/(b*(h**2)*Y) - (P/(b*h*Y))**2
+
+    def m3(self,samples):
+        b,h,P,M,Y = self.extract_variables(samples)
+        return 1 - M/(b*(h**2)*Y) - (P*(1 + M)/(b*h*Y))**2
+
+    def m4(self,samples):
+        b,h,P,M,Y = self.extract_variables(samples)
+        return 1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2
+
+    def __call__(self,samples):
+        # model index is index into self.functions not into m0,..m4
+        # E.g. if self.model_ids = [1,2,4]
+        # model_ids.max()<3=self.nmodels
+        assert samples.shape[0]==6
+        model_ids = samples[-1,:]
+        assert model_ids.max()<self.nmodels
+        values = np.empty((samples.shape[1],1))
+        for ii,f in enumerate(self.functions):
+            I = np.where(model_ids==ii)[0]
+            values[I,0] = f(samples[:self.nvars,I])
+        return values
                     
 
 class TestCVMC(unittest.TestCase):
@@ -255,6 +306,71 @@ class TestCVMC(unittest.TestCase):
         std_nhf_samples, std_nsample_ratios = pya.standardize_sample_ratios(
             nhf_samples,nsample_ratios)
         assert np.allclose(std_nsample_ratios,[2.1,3.3])
+
+    def test_generate_samples_and_values_mfmc(self):
+        from scipy.stats import uniform,norm,lognorm
+        from functools import partial
+        functions = ShortColumnModelEnsemble([0,1,2])
+        univariate_variables = [
+            uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+            lognorm(s=0.5,scale=np.exp(5))]
+        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        generate_samples=partial(
+            pya.generate_independent_random_samples,variable)
+        
+        nhf_samples = 10
+        nsample_ratios = [2,4]
+        samples,values =\
+            pya.generate_samples_and_values_mfmc(
+                nhf_samples,nsample_ratios,functions,generate_samples)
+    
+        # move following checks to test_control_variate_monte_carlo.py
+        for jj in range(1,functions.nmodels):
+            assert samples[jj][1].shape[1]==nsample_ratios[jj-1]*nhf_samples
+            idx=1
+            if jj==1:
+                idx=0
+            assert np.allclose(samples[jj][0],samples[jj-1][idx])
+
+    def test_rsquared_mfmc(self):
+        from scipy.stats import uniform,norm,lognorm
+        from functools import partial
+        model_ensemble = ShortColumnModelEnsemble([0,3,4])
+        univariate_variables = [
+            uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+            lognorm(s=0.5,scale=np.exp(5))]
+        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        generate_samples=partial(
+            pya.generate_independent_random_samples,variable)
+        npilot_samples = int(1e4)
+        pilot_samples = generate_samples(npilot_samples)
+        config_vars = np.arange(model_ensemble.nmodels)[np.newaxis,:]
+        pilot_samples = pya.get_all_sample_combinations(
+            pilot_samples,config_vars)
+        pilot_values = model_ensemble(pilot_samples)
+        pilot_values = np.reshape(
+            pilot_values,(npilot_samples,model_ensemble.nmodels))
+        cov = np.cov(pilot_values,rowvar=False)
+        
+        nhf_samples = 10
+        nsample_ratios = np.asarray([2,4])
+
+        nsamples_per_model = np.concatenate(
+            [[nhf_samples],nsample_ratios*nhf_samples])
+
+        eta = pya.get_mfmc_control_variate_weights(cov)
+        cor = pya.get_correlation_from_covariance(cov)
+        var_mfmc = cov[0,0]/nsamples_per_model[0]
+        for k in range(1,model_ensemble.nmodels):
+            var_mfmc += (1/nsamples_per_model[k-1]-1/nsamples_per_model[k])*(
+                eta[k-1]**2*cov[k,k]+2*eta[k-1]*cor[0,k]*np.sqrt(
+                    cov[0,0]*cov[k,k]))
+            
+        assert np.allclose(var_mfmc/cov[0,0]*nhf_samples,
+                           1-pya.get_rsquared_mfmc(cov,nsample_ratios))
+        
+
+
 
     def test_CVMC(self):
         pass
