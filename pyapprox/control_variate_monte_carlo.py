@@ -6,6 +6,7 @@ from scipy.optimize import minimize
 #use torch to compute gradients for sample allocation optimization
 import torch
 import copy
+from pyapprox.utilities import get_all_sample_combinations
 
 def compute_correlations_from_covariance(cov):
     """
@@ -550,34 +551,55 @@ def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
     
     """
     
-    nmodels = len(functions)
-    sample_sets = [None for ii in range(nmodels)]
-    sample_sets[0] = (generate_samples(nhf_samples),None)
-    prev_nsamples = nhf_samples
-    prev_samples = sample_sets[0][0]
+    nmodels = len(nsample_ratios)+1
+    if not callable:
+        assert nmodels==len(functions)
+    assert np.all(nsample_ratios>=1)
+    samples1 = [generate_samples(nhf_samples)]
+    samples2 = [None]
+    prev_samples = samples1[0]
     for ii in range(nmodels-1):
-        total_samples = int(np.ceil(nsample_ratios[ii] * nhf_samples))
-        samples1 = prev_samples
-        prev_nsamples = total_samples - prev_nsamples
-        samples2 = generate_samples(prev_nsamples)
-        sample_sets[ii+1] = (samples1, samples2)
-        prev_samples = samples2
-        
+        total_samples = nsample_ratios[ii] * nhf_samples
+        assert total_samples/int(total_samples)==1.0
+        total_samples = int(total_samples)
+        samples1.append(prev_samples)
+        nnew_samples = total_samples - prev_samples.shape[1]
+        samples2.append(generate_samples(nnew_samples))
+        prev_samples = samples2[-1]
 
-    values = []
-    for ii in range(nmodels):
-        samples1 = sample_sets[ii][0]
-        if samples1 is not None:
-            values1 = functions[ii](samples1)
-        else:
-            values2=None
-        samples2 = sample_sets[ii][1]
-        if samples2 is not None:
-            values2 = functions[ii](samples2)
-        else:
-            values2=None
-        values.append([values1,values2])
-    return sample_sets, values
+    if not callable(functions):
+        values1 = [functions[0](samples1[0])]
+        values2 = [None]
+        for ii in range(1,nmodels):
+            values1.append(functions[ii](samples1[ii]))
+            values2.append(functions[ii](samples2[ii]))
+    else:
+        samples_with_id = np.vstack([samples1[0],np.zeros((1,nhf_samples))])
+        nsamples1 = [nhf_samples]
+        nsamples2 = [0]
+        for ii in range(1,nmodels):
+            samples1_ii = np.vstack(
+                [samples1[ii],ii*np.ones((1,samples1[ii].shape[1]))])
+            samples2_ii = np.vstack(
+                [samples2[ii],ii*np.ones((1,samples2[ii].shape[1]))])
+            nsamples1.append(samples1[ii].shape[1])
+            nsamples2.append(samples2[ii].shape[1])
+            samples_with_id = np.hstack([
+                samples_with_id,samples1_ii,samples2_ii])
+        values_flattened = functions(samples_with_id)
+        values1 = [values_flattened[:nsamples1[0]]]
+        values2 = [None]
+        cnt = nsamples1[0]
+        for ii in range(1,nmodels):
+            values1.append(values_flattened[cnt:cnt+nsamples1[ii]])
+            cnt += nsamples1[ii]
+            values2.append(values_flattened[cnt:cnt+nsamples2[ii]])
+            cnt += nsamples2[ii]
+
+    samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
+    values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
+    
+    return samples, values
 
 def get_mfmc_control_variate_weights(cov):
     weights = -cov[0,1:]/np.diag(cov[1:,1:])
@@ -609,6 +631,7 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     nmodels = len(nsample_ratios)+1
     if not callable(functions):
         assert len(functions)==nmodels
+    assert np.all(nsample_ratios>=1)
     # check nhf_samples is an integer
     assert nhf_samples/int(nhf_samples)==1.0
     # convert to int if a float because numpy random assumes nsamples is an int
@@ -799,3 +822,84 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
     var = get_variance_reduction(get_rsquared_acv,cov,nsample_ratios)
     var *= cov[0, 0]/float(nhf_samples)
     return nhf_samples, nsample_ratios, np.log10(var.item())
+
+class ModelEnsemble(object):
+    """
+    Wrapper class to allow easy one-dimensional 
+    indexing of models in an ensemble.
+    """
+    def __init__(self,functions):
+        """
+        Parameters
+        ----------
+        functions : list of callable
+            A list of functions defining the model ensemble. The functions must
+            have the call signature values=function(samples)
+        """
+        self.functions=functions
+        self.nmodels = len(self.functions)
+    
+    def __call__(self,samples):
+        """
+        Evaluate a set of models at a set of samples
+
+        Parameters
+        ----------
+        samples : np.ndarray (nvars+1,nsamples)
+            Realizations of a multivariate random variable each with an 
+            additional scalar model id indicating which model to evaluate.
+
+        Returns
+        -------
+        values : np.ndarray (nsamples,nqoi)
+            The values of the models at samples
+        """
+        model_ids = samples[-1,:]
+        assert model_ids.max()<self.nmodels
+        I = np.where(model_ids==0)[0]
+        values_0 = self.functions[0](samples[:-1,I])
+        assert values_0.ndim==2
+        nqoi = values_0.shape[1]
+        values = np.empty((samples.shape[1],nqoi))
+        values[I,:]=values_0
+        for ii,f in enumerate(self.functions[1:]):
+            I = np.where(model_ids==ii+1)[0]
+            values[I] = f(samples[:-1,I])
+        return values
+
+def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
+                                       model_ensemble):
+    """
+    Estimate the covariance of a model ensemble from a set of pilot samples
+
+    Parameters
+    ----------
+    npilot_samples : integer
+        The number of samples used to estimate the covariance
+
+    generate_samples : callable
+        Function used to generate realizations of the random variables with 
+        call signature samples = generate_samples(npilot_samples)
+
+    model_emsemble : callable
+        Function that takes a set of samples and models ids and evaluates
+        a set of models. See ModelEnsemble.
+        call signature values = model_emsemble(samples)
+
+    Returns
+    -------
+    cov : np.ndarray(nqoi,nqoi)
+        The covariance between the model qoi
+    """
+    # generate pilot samples
+    pilot_samples = generate_samples(npilot_samples)
+    config_vars = np.arange(model_ensemble.nmodels)[np.newaxis,:]
+    # append model ids to pilot smaples
+    pilot_samples = get_all_sample_combinations(pilot_samples,config_vars)
+    # evaluate models at pilot samples
+    pilot_values = model_ensemble(pilot_samples)
+    pilot_values = np.reshape(
+        pilot_values,(npilot_samples,model_ensemble.nmodels))
+    # compute covariance
+    cov = np.cov(pilot_values,rowvar=False)
+    return cov

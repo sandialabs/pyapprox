@@ -65,29 +65,39 @@ By viewing MLMC as a control variate we can derive its variance reduction GGEJJC
 
 where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`. 
 
-From the above expression we can see that the variance reduction is bounded by the CV estimator using the lowest fidelity model with the highest correlation with :math:`f_0`. Using multiple models only helps increase the speed to which we converge to the 2 model CV  estimator. The following demonstrates this numerically.
+From the above expression we can see that the variance reduction is bounded by the CV estimator using the lowest fidelity model with the highest correlation with :math:`f_0`. Using multiple models only helps increase the speed to which we converge to the 2 model CV  estimator. The following demonstrates this numerically. Try the different models (commented out) to see how peformance changes.
 """
 #%%
 # Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
 import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import TunableExample, \
-    ShortColumnModelEnsemble
+from pyapprox.tests.test_control_variate_monte_carlo import \
+    TunableModelEnsemble, ShortColumnModelEnsemble
 from scipy.stats import uniform
 from functools import partial
-
-
 from scipy.stats import uniform,norm,lognorm
 np.random.seed(1)
-univariate_variables = [uniform(-1,2),uniform(-1,2)]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-shifts= [.1,.2]
-model_ensemble = TunableExample(1,shifts=shifts)
-exact_integral_f0=0
-#cov = model_ensemble.get_covariance_matrix()
 
-model_ensemble = ShortColumnModelEnsemble([0,3,4])
+# univariate_variables = [uniform(-1,2),uniform(-1,2)]
+# variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+# shifts= [.1,.2]
+# tunable_model = TunableModelEnsemble(1,shifts=shifts)
+# model_ensemble = pya.ModelEnsemble(
+#     [tunable_model.m0,tunable_model.m1,tunable_model.m2])
+# exact_integral_f0=0
+# cov = tunable_model.get_covariance_matrix()
+# costs = [100,10,1]
+
+short_column_model = ShortColumnModelEnsemble()
+model_ensemble = pya.ModelEnsemble(
+    [short_column_model.m0,short_column_model.m1,short_column_model.m2])
+costs = np.asarray([100, 50, 5])
+# MLMC will perform poorly with the following combination of models
+#model_ensemble = pya.ModelEnsemble(
+#    [short_column_model.m0,short_column_model.m3,short_column_model.m4])
+#costs = np.asarray([100, 20, 10])
+
 
 univariate_variables = [
    uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
@@ -98,55 +108,14 @@ variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 npilot_samples = int(1e4)
 generate_samples=partial(
     pya.generate_independent_random_samples,variable)
-pilot_samples = generate_samples(npilot_samples)
-config_vars = np.arange(model_ensemble.nmodels)[np.newaxis,:]
-pilot_samples = pya.get_all_sample_combinations(pilot_samples,config_vars)
-pilot_values = model_ensemble(pilot_samples)
-pilot_values = np.reshape(pilot_values,(npilot_samples,model_ensemble.nmodels))
-#cov = np.cov(pilot_values,rowvar=False)
-cov = np.loadtxt('/Users/jdjakem/Desktop/mfmc/cov.csv',delimiter=',')
-
-#Define costs. For actual application replace with measured wall time
-costs = np.asarray([100, 50, 5]) # model_ids = [0,1,2]
-costs = np.asarray([100, 20, 10])# model_ids = [0,3,4]
-
-target_cost = int(1e4)
-# nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
-#     cov, costs, target_cost, nhf_samples_fixed=None)[:2]
-# print(nhf_samples)
-
-# samples = np.loadtxt('/Users/jdjakem/Desktop/mfmc/samples.csv',delimiter=',').T
-# values = [None for ii in range(model_ensemble.nmodels)]
-# nsamples_ii = nhf_samples
-# values[0] = model_ensemble(
-#     np.vstack([samples[:,:nsamples_ii],0*np.ones((1,nsamples_ii))]))
-# values0 = np.loadtxt('/Users/jdjakem/Desktop/mfmc/values0.csv',delimiter=',')
-# assert np.allclose(values0,values[0][:,0])
-# mean_mfmc = values[0].mean()
-# eta = pya.get_mfmc_control_variate_weights(cov)
-# weights = np.loadtxt('/Users/jdjakem/Desktop/mfmc/eta.csv',delimiter=',')
-# assert np.allclose(eta,-weights[1:])
-# for ii in range(1,model_ensemble.nmodels):
-#     nsamples_ii = int(nhf_samples*nsample_ratios[ii-1])
-#     values[ii] = model_ensemble(
-#         np.vstack([samples[:,:nsamples_ii],ii*np.ones((1,nsamples_ii))]))
-#     valuesii = np.loadtxt('/Users/jdjakem/Desktop/mfmc/values%d.csv'%ii,delimiter=',')
-#     assert np.allclose(valuesii,values[ii][:,0])
-
-#     if ii>1:
-#         nsamples_iim1 = int(nhf_samples*nsample_ratios[ii-2])
-#     else:
-#         nsamples_iim1=nhf_samples
-#     mean_mfmc += eta[ii-1]*(values[ii][:nsamples_iim1].mean()-values[ii].mean())
-# print (mean_mfmc)
-# mean = np.loadtxt('/Users/jdjakem/Desktop/mfmc/mean.csv',delimiter=',')
-# assert np.allclose(mean_mfmc,mean)
-
+cov = pya.estimate_model_ensemble_covariance(
+    npilot_samples,generate_samples,model_ensemble)
 
 def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
                                               functions):
     M = len(nsample_ratios) # number of lower fidelity models
-    assert len(functions)==M+1
+    if not callable(functions):
+        assert len(functions)==M+1
     
     ntrials=1000
     means = np.empty((ntrials,2))
@@ -164,9 +133,9 @@ def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
         means[ii:,1] = pya.compute_control_variate_mean_estimate(
             eta,values)
 
-    print("Theoretical ACV variance reduction",
+    print("Theoretical MLMC variance reduction",
           1-pya.get_rsquared_mlmc(cov[:M+1,:M+1],nsample_ratios))
-    print("Achieved ACV variance reduction",
+    print("Achieved MLMC variance reduction",
           means[:,1].var(axis=0)/means[:,0].var(axis=0))
     return means
 
@@ -176,9 +145,9 @@ target_cost = int(1e4)
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
     cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
 means1 = compute_mlmc_many_model_variance_reduction(
-    10,nsample_ratios,[model_ensemble.m0,model_ensemble.m1])
+    10,nsample_ratios,model_ensemble)
 idx = np.argmax([max(cov[0,1],cov[0,2])])+1
-print("Theoretical CV variance reduction",
+print("Theoretical two model CV variance reduction",
       1-cov[0,idx]**2/(cov[0,0]*cov[idx,idx]))
 
 #%%
@@ -188,7 +157,7 @@ print('Three models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
     cov, costs, target_cost, nhf_samples_fixed=10)[:2]
 means2 = compute_mlmc_many_model_variance_reduction(
-    10,nsample_ratios,[model_ensemble.m0,model_ensemble.m1,model_ensemble.m2])
+    10,nsample_ratios,model_ensemble)
 
 #%%
 #
@@ -240,7 +209,6 @@ def compute_mfmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
     M = len(nsample_ratios) # number of lower fidelity models
     if not callable(functions):
         assert len(functions)==M+1
-    np.random.seed(1337)
 
     ntrials=int(1e3)
     means = np.empty((ntrials,2))
@@ -264,16 +232,13 @@ def compute_mfmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
           means[:,1].var(axis=0)/means[:,0].var(axis=0))
     return means
 
-# print('Two models')
-# nsample_ratios = [10]
-# target_cost = int(1e2)
-# costs = [1,1,1]
-# nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
-#     cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=None)[:2]
-# means1 = compute_mfmc_many_model_variance_reduction(
-#     nhf_samples,nsample_ratios,[model_ensemble.m0,model_ensemble.m1])
-# print("Theoretical CV variance reduction",
-#       1-max(cov[0,1],cov[0,2])**2/(cov[0,0]*cov[1,1]))
+print('Two models')
+nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
+    cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=None)[:2]
+means1 = compute_mfmc_many_model_variance_reduction(
+    nhf_samples,nsample_ratios,model_ensemble)
+print("Theoretical two model CV variance reduction",
+      1-cov[0,1]**2/(cov[0,0]*cov[1,1]))
 
 print('Three models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
@@ -281,7 +246,7 @@ nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
 print(nhf_samples,nsample_ratios*nhf_samples)
 functions = model_ensemble
 #functions = [model_ensemble.m0,model_ensemble.m1,model_ensemble.m2]
-functions = [model_ensemble.m0,model_ensemble.m3,model_ensemble.m4]
+#functions = [model_ensemble.m0,model_ensemble.m3,model_ensemble.m4]
 means2 = compute_mfmc_many_model_variance_reduction(
     nhf_samples,nsample_ratios,functions)
 
