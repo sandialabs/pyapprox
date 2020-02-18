@@ -550,7 +550,6 @@ def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
     =======
     
     """
-    
     nmodels = len(nsample_ratios)+1
     if not callable:
         assert nmodels==len(functions)
@@ -888,18 +887,25 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
 
     Returns
     -------
-    cov : np.ndarray(nqoi,nqoi)
+    cov : np.ndarray (nqoi,nqoi)
         The covariance between the model qoi
+    
+    pilot_random_samples : np.ndarray (nvars,npilot_samples)
+        The random samples used to compute the covariance. These samples DO NOT
+        have a model id
+
+    pilot_values : np.ndaray (npilot_samples,nmodels)
+        The values of each model at the pilot samples
     """
     # generate pilot samples
-    pilot_samples = generate_samples(npilot_samples)
+    pilot_random_samples = generate_samples(npilot_samples)
     config_vars = np.arange(model_ensemble.nmodels)[np.newaxis,:]
     # append model ids to pilot smaples
-    pilot_samples = get_all_sample_combinations(pilot_samples,config_vars)
+    pilot_samples = get_all_sample_combinations(pilot_random_samples,config_vars)
     # evaluate models at pilot samples
     pilot_values = model_ensemble(pilot_samples)
     pilot_values = np.reshape(
         pilot_values,(npilot_samples,model_ensemble.nmodels))
     # compute covariance
     cov = np.cov(pilot_values,rowvar=False)
-    return cov, pilot_samples, pilot_values
+    return cov, pilot_random_samples, pilot_values

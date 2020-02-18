@@ -232,7 +232,6 @@ class TestCVMC(unittest.TestCase):
             pya.generate_samples_and_values_mfmc(
                 nhf_samples,nsample_ratios,model_ensemble,generate_samples)
     
-        # move following checks to test_control_variate_monte_carlo.py
         for jj in range(1,len(samples)):
             assert samples[jj][1].shape[1]==nsample_ratios[jj-1]*nhf_samples
             idx=1
@@ -240,8 +239,11 @@ class TestCVMC(unittest.TestCase):
                 idx=0
             assert np.allclose(samples[jj][0],samples[jj-1][idx])
 
+        npilot_samples = int(1e4)
+        cov, samples, weights = pya.estimate_model_ensemble_covariance(
+            npilot_samples,generate_samples,model_ensemble)
+            
         M = len(nsample_ratios) # number of lower fidelity models
-
         ntrials=int(1e3)
         means = np.empty((ntrials,2))
         generate_samples=partial(
@@ -258,10 +260,10 @@ class TestCVMC(unittest.TestCase):
             means[ii:,1] = compute_control_variate_mean_estimate(
                 eta,values)
 
-        print("Theoretical MFMC variance reduction",
-              1-pya.get_rsquared_mfmc(cov[:M+1,:M+1],nsample_ratios))
-        print("Achieved MFMC variance reduction",
-              means[:,1].var(axis=0)/means[:,0].var(axis=0))
+        true_var_reduction = 1-pya.get_rsquared_mfmc(
+            cov[:M+1,:M+1],nsample_ratios)
+        numerical_var_reduction = means[:,1].var(axis=0)/means[:,0].var(axis=0)
+        assert np.allclose(true_var_reduction,numerical_var_reduction,atol=4e-2)
 
     def test_rsquared_mfmc(self):
         from scipy.stats import uniform,norm,lognorm
@@ -302,7 +304,49 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(var_mfmc/cov[0,0]*nhf_samples,
                            1-pya.get_rsquared_mfmc(cov,nsample_ratios))
         
-    
+    def test_generate_samples_and_values_mlmc(self):
+        from scipy.stats import uniform,norm,lognorm
+        from functools import partial
+        functions = ShortColumnModelEnsemble()
+        model_ensemble = pya.ModelEnsemble(
+            [functions.m0,functions.m1,functions.m2])
+        univariate_variables = [
+            uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+            lognorm(s=0.5,scale=np.exp(5))]
+        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        generate_samples=partial(
+            pya.generate_independent_random_samples,variable)
+            
+        npilot_samples = int(1e4)
+        cov, samples, weights = pya.estimate_model_ensemble_covariance(
+            npilot_samples,generate_samples,model_ensemble)
+
+        target_cost = int(1e4)
+        costs = np.asarray([100, 50, 5])
+        nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+            cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+            
+        M = len(nsample_ratios) # number of lower fidelity models
+        ntrials=int(1e3)
+        means = np.empty((ntrials,2))
+        generate_samples=partial(
+            pya.generate_independent_random_samples,variable)
+        for ii in range(ntrials):
+            samples,values =\
+               generate_samples_and_values_mlmc(
+                    nhf_samples,nsample_ratios,model_ensemble,generate_samples)
+            # compute mean using only hf data
+            hf_mean = values[0][0].mean()
+            means[ii,0]= hf_mean
+            # compute ACV mean
+            eta = get_mlmc_control_variate_weights(M+1)
+            means[ii:,1] = compute_control_variate_mean_estimate(
+                eta,values)
+
+        true_var_reduction = 1-pya.get_rsquared_mlmc(
+            cov[:M+1,:M+1],nsample_ratios)
+        numerical_var_reduction = means[:,1].var(axis=0)/means[:,0].var(axis=0)
+        assert np.allclose(true_var_reduction,numerical_var_reduction,atol=1e-2)    
 
 
     def test_CVMC(self):
