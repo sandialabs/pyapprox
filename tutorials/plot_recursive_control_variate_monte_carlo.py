@@ -140,7 +140,6 @@ def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
     return means
 
 print('Two models')
-nsample_ratios = [10]
 target_cost = int(1e4)
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
     cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
