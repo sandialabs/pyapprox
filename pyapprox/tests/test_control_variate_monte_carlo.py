@@ -3,41 +3,7 @@ import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.configure_plots import *
-
-def mlmc_variance_reduction(pilot_samples, sample_ratios, nhf_samples):
-    """
-    Parameters
-    ----------
-    pilot_samples : np.ndarray (npilot_samples,nlevel)
-        Pilot samples of the quantitiy of interest at all levels in 
-        decending order. The highest fidelity model is the first model.
-
-    sample_ratios : np.ndarray (nlevel-1)
-        The list of ratios (LF/HF) of the number of samples that will be used
-        in final study. This will be different to npilot_samples
-
-    nhf_samples : integer
-        The number of high-fidelity samples to be used in final study 
-        (not in the pilot sample)
-
-    Returns
-    -------
-    variance_ratio : float 
-        The variance ratio (MLMC / MC)
-    """
-    nmodels = pilot_samples.shape[1]
-    assert len(sample_ratios)==nmodels-1
-    var = 0.0
-    nruns = nhf_samples
-    for ii in range(nmodels-1):
-        var += np.var(pilot_samples[:,ii]-pilot_samples[:,ii+1])/nruns
-        nruns = sample_ratios[ii] * nhf_samples - nruns
-
-    var += np.var(pilot_samples[:,-1]) / nruns
-
-    varhf = np.var(pilot_samples[:,0]) / nhf_samples
-
-    return var / (varhf)
+from pyapprox.control_variate_monte_carlo import *
 
 class TunableModelEnsemble(object):
     def __init__(self,theta1,shifts=None):
@@ -274,6 +240,29 @@ class TestCVMC(unittest.TestCase):
                 idx=0
             assert np.allclose(samples[jj][0],samples[jj-1][idx])
 
+        M = len(nsample_ratios) # number of lower fidelity models
+
+        ntrials=int(1e3)
+        means = np.empty((ntrials,2))
+        generate_samples=partial(
+            pya.generate_independent_random_samples,variable)
+        for ii in range(ntrials):
+            samples,values =\
+               generate_samples_and_values_mfmc(
+                    nhf_samples,nsample_ratios,model_ensemble,generate_samples)
+            # compute mean using only hf data
+            hf_mean = values[0][0].mean()
+            means[ii,0]= hf_mean
+            # compute ACV mean
+            eta = get_mfmc_control_variate_weights(cov)
+            means[ii:,1] = compute_control_variate_mean_estimate(
+                eta,values)
+
+        print("Theoretical MFMC variance reduction",
+              1-pya.get_rsquared_mfmc(cov[:M+1,:M+1],nsample_ratios))
+        print("Achieved MFMC variance reduction",
+              means[:,1].var(axis=0)/means[:,0].var(axis=0))
+
     def test_rsquared_mfmc(self):
         from scipy.stats import uniform,norm,lognorm
         from functools import partial
@@ -313,7 +302,7 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(var_mfmc/cov[0,0]*nhf_samples,
                            1-pya.get_rsquared_mfmc(cov,nsample_ratios))
         
-
+    
 
 
     def test_CVMC(self):
