@@ -55,10 +55,10 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
         The corrected sample ratios
     """
     nsamples = np.array([r*nhf_samples for r in nsample_ratios])
-    #nhf_samples = int(max(1,np.round(nhf_samples)))
-    nhf_samples = int(max(1,np.floor(nhf_samples)))
-    nsample_ratios = np.floor(nsamples)/nhf_samples
-    #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
+    #nhf_samples = int(max(1,np.floor(nhf_samples)))
+    #nsample_ratios = np.floor(nsamples)/nhf_samples
+    nhf_samples = int(max(1,np.round(nhf_samples)))
+    nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
     return nhf_samples, nsample_ratios
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
@@ -396,7 +396,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
         if nmodels>1:
             nsample_ratios.append((nl[-2]+nl[-1])/nl[0])
 
-        nhf_samples = max(nhf_samples, 1)
+    nhf_samples = max(nhf_samples, 1)
     nsample_ratios = np.asarray(nsample_ratios)
 
     nhf_samples, nsample_ratios = standardize_sample_ratios(
@@ -451,6 +451,44 @@ def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
     cf = pkg.diag(F) * cov[1:, 0]
     return CF,cf
 
+
+def get_discrepancy_covariances_MF(cov,nsample_ratios,pkg=np):
+    """
+    Get the covariances of the discrepancies :math:`\delta` 
+    between each low-fidelity model and its estimated mean using the MFMC
+    sampling strategy.
+
+    Parameters
+    ----------
+    cov : np.ndarray (nmodels,nmodels)
+        The estimated covariance between each model.
+
+    nsample_ratios : iterable (nmodels-1)
+        The sample ratioss :math:`r_\alpha>1` for each low-fidelity model
+
+    pkg : package (optional)
+        A python package (numpy or torch) used to store the covariances.
+
+    Results
+    -------
+    CF : np.ndarray (nmodels-1,nmodels-1)
+        The matrix of covariances between the discrepancies :math:`\delta`
+
+    cf : np.ndarray (nmodels-1)
+        The vector of covariances between the discrepancies and the 
+        high-fidelity model.
+    """
+    nmodels = cov.shape[0]
+    F = pkg.zeros((nmodels-1, nmodels-1), dtype=pkg.double)
+    for ii in range(nmodels-1):
+        for jj in range(nmodels-1):
+            rr = min(nsample_ratios[ii],nsample_ratios[jj])
+            F[ii, jj] = (rr - 1) / rr
+
+    CF = cov[1:,1:] * F
+    cf = pkg.diag(F) * cov[1:, 0]
+    return CF,cf
+
 def get_approximate_control_variate_weights(cov,nsample_ratios,
                                             get_discrepancy_covariances):
     """
@@ -477,11 +515,11 @@ def get_approximate_control_variate_weights(cov,nsample_ratios,
     CF,cf = get_discrepancy_covariances(cov,nsample_ratios)
     weights = -np.linalg.solve(CF, cf)
     return weights
-    
-def get_rsquared_acv1(cov,nsample_ratios,get_discrepancy_covariances):
+
+def get_rsquared_acv(cov,nsample_ratios,get_discrepancy_covariances):
     """
     Compute r^2 used to compute the variance reduction  of 
-    Approximate Control Variate Algorithm 1 (ACV1)
+    Approximate Control Variate Algorithms 
     
     Parameters
     ----------
@@ -493,6 +531,11 @@ def get_rsquared_acv1(cov,nsample_ratios,get_discrepancy_covariances):
         The sample ratios r used to specify the number of samples of the 
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
+    get_discrepancy_covariances : callable
+        Function that returns the covariances of the control variate 
+        discrepancies. Functions must have the signature 
+        CF,cf = get_discrepancy_covariances(cov,nsample_ratios)
+
     Returns
     -------
     rsquared : float
@@ -500,10 +543,11 @@ def get_rsquared_acv1(cov,nsample_ratios,get_discrepancy_covariances):
     """
     CF,cf = get_discrepancy_covariances(cov,nsample_ratios)
     if type(cov)==np.ndarray:
-        rs = np.dot(cf,np.linalg.solve(CF,cf))/cov[0, 0]
+        rsquared = np.dot(cf,np.linalg.solve(CF,cf))/cov[0, 0]
     else:
-        rs = torch.dot(cf, torch.mv(torch.inverse(CF),cf))/cov[0, 0]
-    return rs
+        rsquared = torch.dot(cf, torch.mv(torch.inverse(CF),cf))/cov[0, 0]
+    return rsquared
+
 
 def acv_sample_allocation_sample_ratio_constraint(ratios, *args):
     ind = args[0]
@@ -712,19 +756,21 @@ def acv_sample_allocation_jacobian(estimator, nsample_ratios):
     ratios.grad.zero_()
     return grad
 
-def acv_sample_allocation_objective_all(x, acv_in):
+def acv_sample_allocation_objective_all(estimator, x):
     xrats = torch.tensor(x, dtype=torch.double)
     xrats.requires_grad=True
     nhf, ratios = xrats[0], xrats[1:]
-    gamma = acv_in.gamma(ratios) * acv_in.cov[0, 0] / nhf
+    #TODO make this consistent with other objective which does not use
+    #variance as is used below
+    gamma = estimator.variance_reduction(ratios) * estimator.cov[0, 0] / nhf
     gamma = torch.log10(gamma)
     return gamma.item()
 
-def acv_sample_allocation_jacobian_all(x, acv_in):
+def acv_sample_allocation_jacobian_all(estimator,x):
     xrats = torch.tensor(x, dtype=torch.double)
     xrats.requires_grad=True
     nhf, ratios = xrats[0], xrats[1:]
-    gamma = acv_in.gamma(ratios) * acv_in.cov[0, 0] / nhf
+    gamma = estimator.variance_reduction(ratios) * estimator.cov[0, 0] / nhf
     gamma = torch.log10(gamma)
     gamma.backward()
     grad = xrats.grad.numpy().copy()
@@ -763,7 +809,7 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
     log10_variance : float
         The base 10 logarithm of the variance of the estimator
     """
-    cov = torch.tensor(np.copy(cov), dtype=torch.double)
+    estimator = ACV2(cov)
     nmodels = cov.shape[0]
     nhf_samples, nsample_ratios =  allocate_samples_mlmc(
         cov, costs, target_cost, nhf_samples_fixed)[:2]
@@ -779,17 +825,13 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
                 dict({'type':'ineq',
                       'fun':acv_sample_allocation_sample_ratio_constraint,
                       'args':[jj]}))
-        r_start = nsample_ratios
-        print(nsample_ratios)
-        from functools import partial
-        args = partial(get_variance_reduction,get_rsquared_acv1,cov)
         jacobian = partial(
-            acv_sample_allocation_jacobian,variance_reduction=args)
+            acv_sample_allocation_jacobian,estimator)
+        objective = partial(acv_sample_allocation_objective,estimator)
         opt = minimize(
-            acv_sample_allocation_objective, r_start, args, method='SLSQP',
+            objective, nsample_ratios_start, args=(), method='SLSQP',
             jac=jacobian, bounds=bounds,constraints=cons,
             options = {'disp':False, 'ftol':1e-8,'maxiter':600})
-
         ratio = opt.x
     else:
 
@@ -804,11 +846,12 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
                                'fun':acv_sample_allocation_ratio_constraint_all,
                                'args':[jj]}))
 
-        print (type([nhf_samples]),type(nsample_ratios))
-        r_start = [nhf_samples] + nsample_ratios
-        opt = minimize(acv_sample_allocation_objective_all, r_start, acv,
-                       method='SLSQP',
-                       jac=jacobian_all, bounds=bounds,
+        r_start = np.concatenate([[nhf_samples],nsample_ratios])
+        jacobian = partial(
+            acv_sample_allocation_jacobian_all,estimator)
+        objective = partial(acv_sample_allocation_objective_all,estimator)
+        opt = minimize(objective, r_start,
+                       method='SLSQP',jac=jacobian, bounds=bounds,
                        constraints=cons,
                        options = {'disp':False,
                                   'ftol':1e-8,
@@ -820,12 +863,12 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
         nhf_samples, ratio = opt.x[0], opt.x[1:]
 
     nhf_samples, nsample_ratios = standardize_sample_ratios(
-        nhf_samples_fixed, ratio)
+        nhf_samples, ratio)
     nsample_ratios = np.array(nsample_ratios)
-    #var = acv.gamma(nsample_ratios) * acv.cov[0, 0] / float(nhf_samples)
-    var = get_variance_reduction(get_rsquared_acv1,cov,nsample_ratios)
+    var = estimator.variance_reduction(nsample_ratios)
     var *= cov[0, 0]/float(nhf_samples)
-    return nhf_samples, nsample_ratios, np.log10(var.item())
+    log10_var = np.log10(var.item())
+    return nhf_samples, nsample_ratios, log10_var
 
 class ModelEnsemble(object):
     """
@@ -916,14 +959,14 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
     cov = np.cov(pilot_values,rowvar=False)
     return cov, pilot_random_samples, pilot_values
 
-class ACV1(object):
+class ACV2(object):
     def __init__(self,cov):
         self.cov=torch.tensor(np.copy(cov), dtype=torch.double)
     
     def get_rsquared(self,nsample_ratios):
-        return get_rsquared_acv1(
+        return get_rsquared_acv(
             self.cov,nsample_ratios,
-            partial(get_discrepancy_covariances_IS,pkg=torch))
+            partial(get_discrepancy_covariances_MF,pkg=torch))
 
     def variance_reduction(self,nsample_ratios):
         return 1-self.get_rsquared(nsample_ratios)
