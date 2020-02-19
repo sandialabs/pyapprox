@@ -406,9 +406,12 @@ def check_gradients(function,grad_function,xx,plot=False):
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
         print(row_format.format(fd_eps[ii],errors[ii].max(),errors[ii].min()))
+        print(fd_directional_derivative,directional_derivative)
 
     if plot:
         plt.loglog(fd_eps,errors,'o-')
         plt.ylabel(r'$\lvert\nabla_\epsilon f-\nabla f\rvert$')
         plt.xlabel(r'$\epsilon$')
         plt.show()
+
+    return np.asarray(errors)

@@ -8,3 +8,4 @@ from pyapprox.probability_measure_sampling import *
 from pyapprox.adaptive_sparse_grid import * 
 from pyapprox.univariate_quadrature import * 
 from pyapprox.visualization import *
+from pyapprox.optimization import *
