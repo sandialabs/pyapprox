@@ -172,7 +172,7 @@ class TestCVMC(unittest.TestCase):
         #allocate = pya.allocate_samples_mfmc
         #get_rsquared = pya.get_rsquared_mfmc
         allocate = pya.allocate_samples_acv
-        get_rsquared = pya.get_rsquared_acv1
+        get_rsquared = pya.get_rsquared_acv
         for th1 in theta1:
             example.theta1=th1
             cov = example.get_covariance_matrix()
@@ -350,6 +350,7 @@ class TestCVMC(unittest.TestCase):
 
     def test_MFMC_fixed_nhf_samples(self):
         msg = 'Add test where compute opitmal num samples without fixing nhf_samples. Then compute the optimal num samples when fixing nhf_samples t0 the value previously computed and check the values for the low fidelity models returned are the same as when nhf_samples wass not fixed. Also repeat for MLMC'
+        msg += '\nAlso add tests using ACV2 optimizer to find optima for MLMC and MFMC and compare solution to known exact answer.'
         raise Exception(msg)
 
     def test_CVMC(self):
@@ -374,6 +375,10 @@ class TestCVMC(unittest.TestCase):
             cov, costs, target_cost, nhf_samples_fixed=nhf)
         print("opt = ", nhf, ratios, var)
 
+        nhf,ratios,var=allocate_samples_acv(
+            cov, costs, target_cost, nhf_samples_fixed=None)
+        print("opt = ", nhf, ratios, var)
+
 
     def test_ACVMC_objective_jacobian(self):
         
@@ -393,7 +398,7 @@ class TestCVMC(unittest.TestCase):
             cov, costs, target_cost, nhf_samples_fixed=2)[:2]
         print(nsample_ratios)
         from functools import partial
-        estimator = ACV1(cov)
+        estimator = ACV2(cov)
         errors = pya.check_gradients(
             partial(acv_sample_allocation_objective,estimator),
             partial(acv_sample_allocation_jacobian,estimator),
