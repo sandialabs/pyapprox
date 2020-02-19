@@ -7,6 +7,7 @@ from scipy.optimize import minimize
 import torch
 import copy
 from pyapprox.utilities import get_all_sample_combinations
+from functools import partial
 
 def compute_correlations_from_covariance(cov):
     """
@@ -303,7 +304,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(
         nhf_samples)
 
-    return nhf_samples, nsample_ratios, log10_variance
+    return nhf_samples, np.atleast_1d(nsample_ratios), log10_variance
 
 def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
     """
@@ -406,7 +407,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
     #print(log10_variance)
     if np.isnan(log10_variance):
         raise Exception('MLMC variance is NAN')
-    return nhf_samples, np.asarray(nsample_ratios), log10_variance
+    return nhf_samples, np.atleast_1d(nsample_ratios), log10_variance
 
 def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
     """
@@ -695,20 +696,20 @@ def acv_sample_allocation_cost_constraint_all(ratios, *args):
     cost = nhf*(costs[0] + np.dot(rats, costs[1:]))
     return target_cost - cost 
 
-def acv_sample_allocation_objective(ratios, acv_in):
-    rats = torch.tensor(ratios)
-    gamma = acv_in.gamma(rats)
+def acv_sample_allocation_objective(estimator, nsample_ratios):
+    ratios = torch.tensor(nsample_ratios)
+    gamma = estimator.variance_reduction(ratios)
     gamma = torch.log10(gamma)
     return gamma.item()
 
-def acv_sample_allocation_jacobian(ratios, acv_in):
-    rats = torch.tensor(ratios, dtype=torch.double)
-    rats.requires_grad=True
-    gamma = acv_in.gamma(rats)
+def acv_sample_allocation_jacobian(estimator, nsample_ratios):
+    ratios = torch.tensor(nsample_ratios, dtype=torch.double)
+    ratios.requires_grad=True
+    gamma = estimator.variance_reduction(ratios)
     gamma = torch.log10(gamma)
     gamma.backward()
-    grad = rats.grad.numpy().copy()
-    rats.grad.zero_()
+    grad = ratios.grad.numpy().copy()
+    ratios.grad.zero_()
     return grad
 
 def acv_sample_allocation_objective_all(x, acv_in):
@@ -765,7 +766,7 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
     cov = torch.tensor(np.copy(cov), dtype=torch.double)
     nmodels = cov.shape[0]
     nhf_samples, nsample_ratios =  allocate_samples_mlmc(
-        cov, costs, target_cost, nhf_samples_fixed)[1:]
+        cov, costs, target_cost, nhf_samples_fixed)[:2]
     nhf_samples_start = copy.deepcopy(nhf_samples)
     nsample_ratios_start = copy.deepcopy(nsample_ratios)
     if nhf_samples_fixed is not None:
@@ -774,16 +775,20 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
                      'args':(nhf_samples_fixed, costs, target_cost)})
         cons = [cons]
         for jj in range(1,nmodels-1):
-            cons.append( dict({'type':'ineq',
-                               'fun':acv_sample_allocation_ratio_constraint,
-                               'args':[jj]}))
-        r_start = nsample_ratios            
-        opt = minimize(objective_function, r_start, acv,
-                       method='SLSQP',
-                       jac=jacobian, bounds=bounds,
-                       constraints=cons,
-                       options = {'disp':False, 'ftol':1e-8,
-                                  'maxiter':600})
+            cons.append(
+                dict({'type':'ineq',
+                      'fun':acv_sample_allocation_sample_ratio_constraint,
+                      'args':[jj]}))
+        r_start = nsample_ratios
+        print(nsample_ratios)
+        from functools import partial
+        args = partial(get_variance_reduction,get_rsquared_acv1,cov)
+        jacobian = partial(
+            acv_sample_allocation_jacobian,variance_reduction=args)
+        opt = minimize(
+            acv_sample_allocation_objective, r_start, args, method='SLSQP',
+            jac=jacobian, bounds=bounds,constraints=cons,
+            options = {'disp':False, 'ftol':1e-8,'maxiter':600})
 
         ratio = opt.x
     else:
@@ -801,7 +806,7 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
 
         print (type([nhf_samples]),type(nsample_ratios))
         r_start = [nhf_samples] + nsample_ratios
-        opt = minimize(objective_function_all, r_start, acv,
+        opt = minimize(acv_sample_allocation_objective_all, r_start, acv,
                        method='SLSQP',
                        jac=jacobian_all, bounds=bounds,
                        constraints=cons,
@@ -818,7 +823,7 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
         nhf_samples_fixed, ratio)
     nsample_ratios = np.array(nsample_ratios)
     #var = acv.gamma(nsample_ratios) * acv.cov[0, 0] / float(nhf_samples)
-    var = get_variance_reduction(get_rsquared_acv,cov,nsample_ratios)
+    var = get_variance_reduction(get_rsquared_acv1,cov,nsample_ratios)
     var *= cov[0, 0]/float(nhf_samples)
     return nhf_samples, nsample_ratios, np.log10(var.item())
 
@@ -901,7 +906,8 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
     pilot_random_samples = generate_samples(npilot_samples)
     config_vars = np.arange(model_ensemble.nmodels)[np.newaxis,:]
     # append model ids to pilot smaples
-    pilot_samples = get_all_sample_combinations(pilot_random_samples,config_vars)
+    pilot_samples = get_all_sample_combinations(
+        pilot_random_samples,config_vars)
     # evaluate models at pilot samples
     pilot_values = model_ensemble(pilot_samples)
     pilot_values = np.reshape(
@@ -909,3 +915,15 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
     # compute covariance
     cov = np.cov(pilot_values,rowvar=False)
     return cov, pilot_random_samples, pilot_values
+
+class ACV1(object):
+    def __init__(self,cov):
+        self.cov=torch.tensor(np.copy(cov), dtype=torch.double)
+    
+    def get_rsquared(self,nsample_ratios):
+        return get_rsquared_acv1(
+            self.cov,nsample_ratios,
+            partial(get_discrepancy_covariances_IS,pkg=torch))
+
+    def variance_reduction(self,nsample_ratios):
+        return 1-self.get_rsquared(nsample_ratios)

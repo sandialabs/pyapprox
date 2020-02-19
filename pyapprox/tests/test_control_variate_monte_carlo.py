@@ -346,14 +346,63 @@ class TestCVMC(unittest.TestCase):
         true_var_reduction = 1-pya.get_rsquared_mlmc(
             cov[:M+1,:M+1],nsample_ratios)
         numerical_var_reduction = means[:,1].var(axis=0)/means[:,0].var(axis=0)
-        assert np.allclose(true_var_reduction,numerical_var_reduction,atol=1e-2)    
+        assert np.allclose(true_var_reduction,numerical_var_reduction,atol=1e-2)
 
+    def test_MFMC_fixed_nhf_samples(self):
+        msg = 'Add test where compute opitmal num samples without fixing nhf_samples. Then compute the optimal num samples when fixing nhf_samples t0 the value previously computed and check the values for the low fidelity models returned are the same as when nhf_samples wass not fixed. Also repeat for MLMC'
+        raise Exception(msg)
 
     def test_CVMC(self):
         pass
 
-    def test_ACVMC(self):
-        pass
+    def test_ACVMC_sample_allocation(self):
+        np.random.seed(1)
+        ncv = 2
+        matr = np.random.randn(3,3)
+        cov_should = np.dot(matr, matr.T)
+        L = np.linalg.cholesky(cov_should)
+        samp = np.dot(np.random.randn(100000, 3),L.T)
+        cov = np.cov(samp, rowvar=False)
+        cor = torch.tensor(np.corrcoef(samp, rowvar=False), dtype=torch.float)
+        
+        costs = [4, 2, 1]
+        
+        target_cost = 20
+
+        nhf = 2
+        nhf,ratios,var=allocate_samples_acv(
+            cov, costs, target_cost, nhf_samples_fixed=nhf)
+        print("opt = ", nhf, ratios, var)
+
+
+    def test_ACVMC_objective_jacobian(self):
+        
+        ncv = 2
+        matr = np.random.randn(3,3)
+        cov_should = np.dot(matr, matr.T)
+        L = np.linalg.cholesky(cov_should)
+        samp = np.dot(np.random.randn(100000, 3),L.T)
+        cov = np.cov(samp, rowvar=False)
+        cor = torch.tensor(np.corrcoef(samp, rowvar=False), dtype=torch.float)
+        
+        costs = [4, 2, 1]
+        
+        target_cost = 20
+
+        nhf_samples, nsample_ratios =  pya.allocate_samples_mlmc(
+            cov, costs, target_cost, nhf_samples_fixed=2)[:2]
+        print(nsample_ratios)
+        from functools import partial
+        estimator = ACV1(cov)
+        errors = pya.check_gradients(
+            partial(acv_sample_allocation_objective,estimator),
+            partial(acv_sample_allocation_jacobian,estimator),
+            nsample_ratios)
+        print(errors.min())
+        assert errors.min()<1e-8
+
+    
+        
     
 if __name__== "__main__":    
     cvmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
