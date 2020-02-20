@@ -147,7 +147,7 @@ def get_rsquared_mfmc(cov,nsample_ratios):
         rsquared += p1
     return rsquared
 
-def get_rsquared_mlmc(cov,nsample_ratios):
+def get_rsquared_mlmc(cov,nsample_ratios,pkg=np):
     """
     Compute r^2 used to compute the variance reduction of 
     Multilevel Monte Carlo (MLMC)
@@ -174,7 +174,7 @@ def get_rsquared_mlmc(cov,nsample_ratios):
     nmodels = cov.shape[0]
     assert len(nsample_ratios)==nmodels-1
     gamma = 0.0
-    rhat = np.ones(nmodels)
+    rhat = pkg.ones(nmodels)
     for ii in range(1, nmodels):
         rhat[ii] = nsample_ratios[ii-1] - rhat[ii-1]
         
@@ -233,7 +233,8 @@ def compute_control_variate_mean_estimate(weights,values):
     return est
 
 
-def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
+def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None,
+                          standardize=True):
     """
     Determine the samples to be allocated to each model when using MFMC
 
@@ -252,6 +253,11 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
     nhf_samples_fixed : integer default=None
         If not None fix the number of high-fidelity samples and compute
         the samples assigned to the remaining models to respect this
+
+    standardize : boolean
+        If true make sure that nhf_samples is an integer and that 
+        nhf_samples*nsamples_ratios are integers. False is only ever used for 
+        testing.
 
     Returns
     -------
@@ -298,15 +304,17 @@ def allocate_samples_mfmc(cov, costs, target_cost, nhf_samples_fixed=None):
         nhf_samples = max(nhf_samples, 1)
         nsample_ratios = r[1:]
 
-    nhf_samples, nsample_ratios = standardize_sample_ratios(
-        nhf_samples, nsample_ratios)
+    if standardize:
+        nhf_samples, nsample_ratios = standardize_sample_ratios(
+            nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mfmc,cov,nsample_ratios)
     log10_variance = np.log10(gamma)+np.log10(cov[0, 0])-np.log10(
         nhf_samples)
 
     return nhf_samples, np.atleast_1d(nsample_ratios), log10_variance
 
-def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
+def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None,
+                          standardize=True):
     """
     Determine the samples to be allocated to each model when using MLMC
 
@@ -325,6 +333,12 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
     nhf_samples_fixed : integer default=None
         If not None fix the number of high-fidelity samples and compute
         the samples assigned to the remaining models to respect this
+
+    standardize : boolean
+        If true make sure that nhf_samples is an integer and that 
+        nhf_samples*nsamples_ratios are integers. False is only ever used for 
+        testing.
+
 
     Returns
     -------
@@ -396,11 +410,12 @@ def allocate_samples_mlmc(cov, costs, target_cost, nhf_samples_fixed=None):
         if nmodels>1:
             nsample_ratios.append((nl[-2]+nl[-1])/nl[0])
 
-    nhf_samples = max(nhf_samples, 1)
     nsample_ratios = np.asarray(nsample_ratios)
 
-    nhf_samples, nsample_ratios = standardize_sample_ratios(
-        nhf_samples, nsample_ratios)
+    if standardize:
+        nhf_samples = max(nhf_samples, 1)
+        nhf_samples, nsample_ratios = standardize_sample_ratios(
+            nhf_samples, nsample_ratios)
     gamma = get_variance_reduction(get_rsquared_mlmc,cov,nsample_ratios)
     log10_variance=np.log10(gamma)+np.log10(cov[0, 0])-np.log10(
         nhf_samples)
@@ -761,7 +776,8 @@ def acv_sample_allocation_objective_all(estimator, x):
     xrats.requires_grad=True
     nhf, ratios = xrats[0], xrats[1:]
     #TODO make this consistent with other objective which does not use
-    #variance as is used below
+    #variance as is used below. It is necessary here because need to include
+    #the impact of nhf on objective
     gamma = estimator.variance_reduction(ratios) * estimator.cov[0, 0] / nhf
     gamma = torch.log10(gamma)
     return gamma.item()
@@ -777,7 +793,8 @@ def acv_sample_allocation_jacobian_all(estimator,x):
     xrats.grad.zero_()
     return grad
 
-def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
+def allocate_samples_acv(cov, costs, target_cost, estimator,
+                         nhf_samples_fixed=None):
     """
     Determine the samples to be allocated to each model when using ACV1 or ACV2
 
@@ -809,9 +826,8 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
     log10_variance : float
         The base 10 logarithm of the variance of the estimator
     """
-    estimator = ACV2(cov)
     nmodels = cov.shape[0]
-    nhf_samples, nsample_ratios =  allocate_samples_mlmc(
+    nhf_samples, nsample_ratios =  allocate_samples_mfmc(
         cov, costs, target_cost, nhf_samples_fixed)[:2]
     nhf_samples_start = copy.deepcopy(nhf_samples)
     nsample_ratios_start = copy.deepcopy(nsample_ratios)
@@ -853,7 +869,7 @@ def allocate_samples_acv(cov, costs, target_cost, nhf_samples_fixed=None):
         opt = minimize(objective, r_start,
                        method='SLSQP',jac=jacobian, bounds=bounds,
                        constraints=cons,
-                       options = {'disp':False,
+                       options = {'disp':True,
                                   'ftol':1e-8,
                                   'maxiter':400})
 
@@ -970,3 +986,13 @@ class ACV2(object):
 
     def variance_reduction(self,nsample_ratios):
         return 1-self.get_rsquared(nsample_ratios)
+
+
+class MFMC(ACV2):
+    def get_rsquared(self,nsample_ratios):
+        return get_rsquared_mfmc(self.cov,nsample_ratios)
+
+
+class MLMC(ACV2):
+    def get_rsquared(self,nsample_ratios):
+        return get_rsquared_mlmc(self.cov,nsample_ratios,torch)
