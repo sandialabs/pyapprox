@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.configure_plots import *
 from pyapprox.control_variate_monte_carlo import *
+from scipy.stats import uniform,norm,lognorm
+from functools import partial
 
 class TunableModelEnsemble(object):
     def __init__(self,theta1,shifts=None):
@@ -214,8 +216,6 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(std_nsample_ratios,[2.1,3.3])
 
     def test_generate_samples_and_values_mfmc(self):
-        from scipy.stats import uniform,norm,lognorm
-        from functools import partial
         functions = ShortColumnModelEnsemble()
         model_ensemble = pya.ModelEnsemble(
             [functions.m0,functions.m1,functions.m2])
@@ -266,8 +266,6 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(true_var_reduction,numerical_var_reduction,atol=4e-2)
 
     def test_rsquared_mfmc(self):
-        from scipy.stats import uniform,norm,lognorm
-        from functools import partial
         functions = ShortColumnModelEnsemble()
         model_ensemble = pya.ModelEnsemble(
             [functions.m0,functions.m3,functions.m4])
@@ -305,8 +303,6 @@ class TestCVMC(unittest.TestCase):
                            1-pya.get_rsquared_mfmc(cov,nsample_ratios))
         
     def test_generate_samples_and_values_mlmc(self):
-        from scipy.stats import uniform,norm,lognorm
-        from functools import partial
         functions = ShortColumnModelEnsemble()
         model_ensemble = pya.ModelEnsemble(
             [functions.m0,functions.m1,functions.m2])
@@ -355,6 +351,58 @@ class TestCVMC(unittest.TestCase):
 
     def test_CVMC(self):
         pass
+
+    def test_allocate_samples_acv(self):
+        cov = np.asarray([[1.00,0.50,0.25],
+                          [0.50,1.00,0.50],
+                          [0.25,0.50,4.00]])
+        
+        costs = np.array([4, 2, 1])
+        
+        target_cost = 200
+
+        #estimator = ACV2(cov)
+        #estimator = MFMC(cov)
+        estimator = MLMC(cov)
+
+        nhf_samples_exact, nsample_ratios_exact =  allocate_samples_mlmc(
+            cov, costs,target_cost,nhf_samples_fixed=None,standardize=False)[:2]
+        
+        assert np.allclose(nhf_samples_exact*costs[0]+(nsample_ratios_exact*nhf_samples_exact).dot(costs[1:]),target_cost,rtol=1e-12)
+
+        # NOTE check my hypothesis that gradient may not be zero at exact optima because I am using an approximate covariance
+        
+        #print(cov)
+        jacobian = partial(
+            acv_sample_allocation_jacobian_all,estimator)
+        x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact])
+        print('optimal x',x0)
+        jac = jacobian(x0)
+        print('jac',jac)
+        objective = partial(acv_sample_allocation_objective_all,estimator)
+        errors = pya.check_gradients(
+            objective,jacobian,x0)
+        from scipy.optimize import approx_fprime
+        print(approx_fprime(x0,objective,1e-9))
+        # for mlmc ( and perhaps other estimators) need to include a lagrangian in objective
+        
+        assert np.allclose(jac,0*jac)
+        
+        assert False
+
+        
+        nhf_samples,nsample_ratios,var=allocate_samples_acv(
+            cov, costs, target_cost, estimator, nhf_samples_fixed=None)
+
+        print(estimator.variance_reduction(nsample_ratios).item())
+        print(estimator.variance_reduction(nsample_ratios_exact).item())
+
+        
+
+        print(nhf_samples_exact,nhf_samples)
+        print(nsample_ratios_exact,nsample_ratios)
+
+        
 
     def test_ACVMC_sample_allocation(self):
         np.random.seed(1)
