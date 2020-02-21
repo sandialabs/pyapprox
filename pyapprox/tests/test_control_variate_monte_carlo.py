@@ -8,6 +8,7 @@ from scipy.stats import uniform,norm,lognorm
 from functools import partial
 
 class TunableModelEnsemble(object):
+    
     def __init__(self,theta1,shifts=None):
         """
         Parameters
@@ -98,6 +99,8 @@ class ShortColumnModelEnsemble(object):
         return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
 class TestCVMC(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_standardize_sample_ratios(self):
         nhf_samples, nsample_ratios = 9.8, [2.1]
@@ -352,57 +355,57 @@ class TestCVMC(unittest.TestCase):
     def test_CVMC(self):
         pass
 
-    def test_allocate_samples_acv(self):
+    def test_allocate_samples_mlmc_lagrange_formulation(self):
         cov = np.asarray([[1.00,0.50,0.25],
                           [0.50,1.00,0.50],
                           [0.25,0.50,4.00]])
         
-        costs = np.array([4, 2, 1])
+        costs = np.array([6, 3, 1])
         
-        target_cost = 200
+        target_cost = 81
 
-        #estimator = ACV2(cov)
-        #estimator = MFMC(cov)
-        estimator = MLMC(cov)
+        estimator = MLMC(cov,costs,target_cost)
+        estimator.use_lagrange_formulation(True)
 
-        nhf_samples_exact, nsample_ratios_exact =  allocate_samples_mlmc(
-            cov, costs,target_cost,nhf_samples_fixed=None,standardize=False)[:2]
+        nhf_samples_exact, nsample_ratios_exact = allocate_samples_mlmc(
+            cov,costs,target_cost,nhf_samples_fixed=None,
+            standardize=False)[:2]
+
+        estimator_cost = nhf_samples_exact*costs[0]+(
+            nsample_ratios_exact*nhf_samples_exact).dot(costs[1:])
+        assert np.allclose(estimator_cost,target_cost,rtol=1e-12)
         
-        assert np.allclose(nhf_samples_exact*costs[0]+(nsample_ratios_exact*nhf_samples_exact).dot(costs[1:]),target_cost,rtol=1e-12)
+        lagrange_mult = pya.get_lagrange_multiplier_mlmc(
+            cov,costs,nhf_samples_exact)
+        #print('lagrange_mult',lagrange_mult)
 
-        # NOTE check my hypothesis that gradient may not be zero at exact optima because I am using an approximate covariance
-        
-        #print(cov)
-        lagrange_param = 0
-        for ii in range(nmodels-1):
-            vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
-            lagrange_param += 
-        x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact,[lagrange_param]])
-        print('optimal x',x0)
+        x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact,
+                             [lagrange_mult]])
         estimator.set_nhf_samples_fixed(False)
         jac = estimator.jacobian(x0)
-        print('jac',jac)
-        errors = pya.check_gradients(
-            estimator.objective,estimator.jacobian,x0)
-        from scipy.optimize import approx_fprime
-        print(approx_fprime(x0,estimator.objective,1e-9))
-        # for mlmc ( and perhaps other estimators) need to include a lagrangian in objective
+        # objective does not have lagrangian shift so account for it
+        # missing here
+        mlmc_var = estimator.variance_reduction(
+            nsample_ratios_exact).item()*cov[0,0]/nhf_samples_exact
+        jac[-1]-=mlmc_var
         
-        assert np.allclose(jac,0*jac)
-        
-        assert False
+        estimator.use_lagrange_formulation(False)
 
-        
+        optim_method='SLSQP'
+        #optim_method='trust-constr'
+        factor=1-0.1
+        initial_guess = np.concatenate([
+            [x0[0]*np.random.uniform(factor,1/factor)],
+            x0[1:-1]*np.random.uniform(factor,1/factor,x0.shape[0]-2)])
         nhf_samples,nsample_ratios,var=allocate_samples_acv(
-            cov, costs, target_cost, estimator, nhf_samples_fixed=None)
+            cov, costs, target_cost, estimator, nhf_samples_fixed=None,
+            standardize=False,initial_guess=initial_guess,
+            optim_method=optim_method)
 
-        print(estimator.variance_reduction(nsample_ratios).item())
-        print(estimator.variance_reduction(nsample_ratios_exact).item())
-
-        
-
-        print(nhf_samples_exact,nhf_samples)
-        print(nsample_ratios_exact,nsample_ratios)
+        #print(nhf_samples,nhf_samples_exact)
+        #print(nsample_ratios_exact,nsample_ratios)
+        assert np.allclose(nhf_samples_exact,nhf_samples)
+        assert np.allclose(nsample_ratios_exact,nsample_ratios)
 
         
 

@@ -24,16 +24,22 @@ Then the variance of the MLMC estimator can be written as
 
 For a fixed variance :math:`\epsilon^2` the cost of the MLMC estimator can be minimized, by minimizing
 
-.. math:: \var{Q_{0,\mathcal{Z}}^\mathrm{ML}}=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha+\lambda^2N_\alpha^{-1}\var{Y_\alpha}\right)
+.. math:: 
+
+   \mathcal{J}(N_0,\ldots,N_M,\lambda)&=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha\right)+\lambda^2\left(\sum_{\alpha=0}^M\left(N_\alpha^{-1}\var{Y_\alpha}\right)-\epsilon^2\right)\\
+   &=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha+\lambda^2N_\alpha^{-1}\var{Y_\alpha}\right)-\lambda^2\epsilon^2
 
 for some Lagrange multiplier :math:`\lambda`. To find the minimum we set the gradient of this expression to zero:
 
 .. math::
 
-  \frac{\partial \var{Q_{0,\mathcal{Z}}^\mathrm{ML}}}{N_\alpha}&=C_\alpha-\lambda^2N_\alpha^{-2}\var{Y_\alpha}=0\\
+  \frac{\partial \mathcal{J}^\mathrm{ML}}{N_\alpha}&=C_\alpha-\lambda^2N_\alpha^{-2}\var{Y_\alpha}=0\\
   \implies C_\alpha&=\lambda^2N_\alpha^{-2}\var{Y_\alpha}\\
   \implies N_\alpha&=\lambda\sqrt{\var{Y_\alpha}C_\alpha^{-1}}
 
+and 
+
+.. math:: \frac{\partial \mathcal{J}}{\lambda^2}=\sum_{\alpha=0}^M N_\alpha^{-1}\var{Y_\alpha}-\epsilon^2=0
 
 The total variance is
 
@@ -42,7 +48,7 @@ The total variance is
   \var{Q_{0,\mathcal{Z}}^\mathrm{ML}}&=\sum_{\alpha=0}^M N_\alpha^{-1} \var{Y_\alpha}\\
   &=\sum_{\alpha=0}^M \lambda^{-1}\var{Y_\alpha}^{-\frac{1}{2}}C_\alpha^{\frac{1}{2}}\var{Y_\alpha}\\
   &=\lambda^{-1}\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}=\epsilon^2\\
-  \implies \lambda &= \epsilon^{-2}\sum_{\kappa=0}^M\sqrt{\var{Y_\kappa}C_\kappa}
+  \implies \lambda &= \epsilon^{-2}\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}
 
 
 Now substituting :math:`\lambda` into the following
