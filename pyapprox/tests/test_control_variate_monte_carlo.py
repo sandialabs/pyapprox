@@ -373,17 +373,19 @@ class TestCVMC(unittest.TestCase):
         # NOTE check my hypothesis that gradient may not be zero at exact optima because I am using an approximate covariance
         
         #print(cov)
-        jacobian = partial(
-            acv_sample_allocation_jacobian_all,estimator)
-        x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact])
+        lagrange_param = 0
+        for ii in range(nmodels-1):
+            vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+            lagrange_param += 
+        x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact,[lagrange_param]])
         print('optimal x',x0)
-        jac = jacobian(x0)
+        estimator.set_nhf_samples_fixed(False)
+        jac = estimator.jacobian(x0)
         print('jac',jac)
-        objective = partial(acv_sample_allocation_objective_all,estimator)
         errors = pya.check_gradients(
-            objective,jacobian,x0)
+            estimator.objective,estimator.jacobian,x0)
         from scipy.optimize import approx_fprime
-        print(approx_fprime(x0,objective,1e-9))
+        print(approx_fprime(x0,estimator.objective,1e-9))
         # for mlmc ( and perhaps other estimators) need to include a lagrangian in objective
         
         assert np.allclose(jac,0*jac)
