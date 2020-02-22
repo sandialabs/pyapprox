@@ -225,7 +225,8 @@ class TestCVMC(unittest.TestCase):
         univariate_variables = [
             uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
             lognorm(s=0.5,scale=np.exp(5))]
-        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        variable=pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
         generate_samples=partial(
             pya.generate_independent_random_samples,variable)
         
@@ -254,7 +255,8 @@ class TestCVMC(unittest.TestCase):
         for ii in range(ntrials):
             samples,values =\
                generate_samples_and_values_mfmc(
-                    nhf_samples,nsample_ratios,model_ensemble,generate_samples)
+                   nhf_samples,nsample_ratios,model_ensemble,
+                   generate_samples)
             # compute mean using only hf data
             hf_mean = values[0][0].mean()
             means[ii,0]= hf_mean
@@ -298,7 +300,7 @@ class TestCVMC(unittest.TestCase):
         cor = pya.get_correlation_from_covariance(cov)
         var_mfmc = cov[0,0]/nsamples_per_model[0]
         for k in range(1,model_ensemble.nmodels):
-            var_mfmc += (1/nsamples_per_model[k-1]-1/nsamples_per_model[k])*(
+            var_mfmc+=(1/nsamples_per_model[k-1]-1/nsamples_per_model[k])*(
                 eta[k-1]**2*cov[k,k]+2*eta[k-1]*cor[0,k]*np.sqrt(
                     cov[0,0]*cov[k,k]))
             
@@ -323,7 +325,7 @@ class TestCVMC(unittest.TestCase):
         target_cost = int(1e4)
         costs = np.asarray([100, 50, 5])
         nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-            cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+            cov, costs, target_cost)[:2]
             
         M = len(nsample_ratios) # number of lower fidelity models
         ntrials=int(1e3)
@@ -344,13 +346,10 @@ class TestCVMC(unittest.TestCase):
 
         true_var_reduction = 1-pya.get_rsquared_mlmc(
             cov[:M+1,:M+1],nsample_ratios)
-        numerical_var_reduction = means[:,1].var(axis=0)/means[:,0].var(axis=0)
-        assert np.allclose(true_var_reduction,numerical_var_reduction,atol=1e-2)
-
-    def test_MFMC_fixed_nhf_samples(self):
-        msg = 'Add test where compute opitmal num samples without fixing nhf_samples. Then compute the optimal num samples when fixing nhf_samples t0 the value previously computed and check the values for the low fidelity models returned are the same as when nhf_samples wass not fixed. Also repeat for MLMC'
-        msg += '\nAlso add tests using ACV2 optimizer to find optima for MLMC and MFMC and compare solution to known exact answer.'
-        raise Exception(msg)
+        numerical_var_reduction=means[:,1].var(axis=0)/means[:,0].var(
+            axis=0)
+        assert np.allclose(true_var_reduction,numerical_var_reduction,
+                           atol=1e-2)
 
     def test_CVMC(self):
         pass
@@ -368,8 +367,7 @@ class TestCVMC(unittest.TestCase):
         estimator.use_lagrange_formulation(True)
 
         nhf_samples_exact, nsample_ratios_exact = allocate_samples_mlmc(
-            cov,costs,target_cost,nhf_samples_fixed=None,
-            standardize=False)[:2]
+            cov,costs,target_cost,standardize=False)[:2]
 
         estimator_cost = nhf_samples_exact*costs[0]+(
             nsample_ratios_exact*nhf_samples_exact).dot(costs[1:])
@@ -381,7 +379,6 @@ class TestCVMC(unittest.TestCase):
 
         x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact,
                              [lagrange_mult]])
-        estimator.set_nhf_samples_fixed(False)
         jac = estimator.jacobian(x0)
         # objective does not have lagrangian shift so account for it
         # missing here
@@ -397,8 +394,9 @@ class TestCVMC(unittest.TestCase):
         initial_guess = np.concatenate([
             [x0[0]*np.random.uniform(factor,1/factor)],
             x0[1:-1]*np.random.uniform(factor,1/factor,x0.shape[0]-2)])
+
         nhf_samples,nsample_ratios,var=allocate_samples_acv(
-            cov, costs, target_cost, estimator, nhf_samples_fixed=None,
+            cov, costs, target_cost, estimator,
             standardize=False,initial_guess=initial_guess,
             optim_method=optim_method)
 
@@ -407,11 +405,8 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(nhf_samples_exact,nhf_samples)
         assert np.allclose(nsample_ratios_exact,nsample_ratios)
 
-        
-
     def test_ACVMC_sample_allocation(self):
         np.random.seed(1)
-        ncv = 2
         matr = np.random.randn(3,3)
         cov_should = np.dot(matr, matr.T)
         L = np.linalg.cholesky(cov_should)
@@ -420,43 +415,40 @@ class TestCVMC(unittest.TestCase):
         cor = torch.tensor(np.corrcoef(samp, rowvar=False), dtype=torch.float)
         
         costs = [4, 2, 1]
-        
         target_cost = 20
 
-        nhf = 2
-        nhf,ratios,var=allocate_samples_acv(
-            cov, costs, target_cost, nhf_samples_fixed=nhf)
+        #estimator = ACV2(cov,costs,target_cost)
+        # estimator = ACV2KL(cov,costs,target_cost,4,1)
+        # nhf,ratios,var=allocate_samples_acv(
+        #     cov, costs, target_cost, estimator)
+        # print("opt = ", nhf, ratios, var)
+
+        nhf,ratios,var=allocate_samples_acv_best_kl(
+            cov,costs,target_cost,standardize=True)
         print("opt = ", nhf, ratios, var)
 
-        nhf,ratios,var=allocate_samples_acv(
-            cov, costs, target_cost, nhf_samples_fixed=None)
-        print("opt = ", nhf, ratios, var)
+        raise Exception('warning currently log transform is turned off in optimization and standardization is alexs not correct one and initial guess is mlmc with standardize=True')
 
 
     def test_ACVMC_objective_jacobian(self):
         
-        ncv = 2
-        matr = np.random.randn(3,3)
-        cov_should = np.dot(matr, matr.T)
-        L = np.linalg.cholesky(cov_should)
-        samp = np.dot(np.random.randn(100000, 3),L.T)
-        cov = np.cov(samp, rowvar=False)
-        cor = torch.tensor(np.corrcoef(samp, rowvar=False), dtype=torch.float)
-        
+        cov = np.asarray([[1.00,0.50,0.25],
+                          [0.50,1.00,0.50],
+                          [0.25,0.50,4.00]])
+
         costs = [4, 2, 1]
         
         target_cost = 20
 
         nhf_samples, nsample_ratios =  pya.allocate_samples_mlmc(
-            cov, costs, target_cost, nhf_samples_fixed=2)[:2]
-        print(nsample_ratios)
-        from functools import partial
-        estimator = ACV2(cov)
+            cov, costs, target_cost)[:2]
+
+        estimator = ACV2(cov,costs,target_cost)
         errors = pya.check_gradients(
             partial(acv_sample_allocation_objective,estimator),
             partial(acv_sample_allocation_jacobian,estimator),
-            nsample_ratios)
-        print(errors.min())
+            nsample_ratios,disp=False)
+        #print(errors.min())
         assert errors.min()<1e-8
 
     
