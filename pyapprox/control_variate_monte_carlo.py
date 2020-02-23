@@ -623,21 +623,35 @@ def acv_sample_allocation_sample_ratio_constraint(ratios, *args):
 
 def generate_samples_and_values_acv_IS(nhf_samples,nsample_ratios,
                                        functions,generate_samples):
-    """
-    WARNING: A function may be evaluated at the same sample twice. To avoid
-    this pass in a function that does a look up before evaluating a sample
-    and returns the pecomputed value if it is found.
-    TODO: Create a version of this function that avoids redundant 
-    computations and evaluates all samples at once so something pool 
-    wrapper can be used.
-    """
-    nmodels = len(functions)
+    nmodels = len(nsample_ratios)+1
+    if not callable(functions):
+        assert len(functions)==nmodels
     samples1 = [generate_samples(nhf_samples)]*nmodels
     samples2 = [None]+[np.hstack(
-        [generate_samples(nhf_samples*r-nhf_samples),samples1[ii+1]])
+        [samples1[ii+1],generate_samples(int(nhf_samples*r-nhf_samples))])
                        for ii,r in enumerate(nsample_ratios)]
-    values1  = [f(s) for f,s in zip(functions,samples1)]
-    values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
+    if not callable(functions):
+        values2  = [None]+[f(s) for f,s in zip(functions[1:],samples2[1:])]
+        values1  = [functions[0](samples1[0])]
+        values1 += [values2[ii][:nhf_samples] for ii in range(1,nmodels)]
+    else:
+        nsamples2 = [0]
+        samples_with_id = np.vstack([samples1[0],np.zeros((1,nhf_samples))])
+        for ii in range(1,nmodels):
+            samples2_ii = np.vstack(
+                [samples2[ii],ii*np.ones((1,samples2[ii].shape[1]))])
+            nsamples2.append(samples2[ii].shape[1])
+            samples_with_id = np.hstack([
+                samples_with_id,samples2_ii])
+        values_flattened = functions(samples_with_id)
+        values1 = [values_flattened[:nhf_samples]]
+        values2 = [None]
+        cnt = nhf_samples
+        for ii in range(1,nmodels):
+            values1.append(values_flattened[cnt:cnt+nhf_samples])
+            values2.append(values_flattened[cnt:cnt+nsamples2[ii]])
+            cnt += nsamples2[ii]
+        
     samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
     values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
     return samples,values
