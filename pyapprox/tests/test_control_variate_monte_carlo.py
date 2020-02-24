@@ -328,7 +328,7 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(var_mfmc/cov[0,0]*nhf_samples,
                            1-pya.get_rsquared_mfmc(cov,nsample_ratios))
 
-    def test_variance_redunction_acv_IS(self):
+    def test_variance_reduction_acv_IS(self):
         
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = generate_samples_and_values_acv_IS
@@ -342,10 +342,11 @@ class TestCVMC(unittest.TestCase):
             allocate_samples, generate_samples_and_values,
             get_cv_weights, get_rsquared)
 
-    def test_variance_redunction_acv_MF(self):
+    def test_variance_reduction_acv_MF(self):
         
         allocate_samples = pya.allocate_samples_mfmc
-        generate_samples_and_values = generate_samples_and_values_mfmc
+        generate_samples_and_values = partial(
+            generate_samples_and_values_mfmc, acv_modification=True)
         get_cv_weights = partial(
             get_approximate_control_variate_weights,
             get_discrepancy_covariances=get_discrepancy_covariances_MF)
@@ -355,8 +356,27 @@ class TestCVMC(unittest.TestCase):
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
             get_cv_weights, get_rsquared)
+        
+    def test_variance_reduction_acv_KL(self):
+        KL = [[1,1],[0,0]]
+        K,L = KL[0]
+        allocate_samples = pya.allocate_samples_mfmc
+        generate_samples_and_values = partial(
+            generate_samples_and_values_mfmc, acv_modification=True)
+        get_discrepancy_covariances =  partial(
+            get_discrepancy_covariances_KL,K=K,L=L)
+        get_cv_weights = partial(
+            get_approximate_control_variate_weights,
+            get_discrepancy_covariances=get_discrepancy_covariances)
+        get_rsquared = partial(
+            get_rsquared_acv,
+            get_discrepancy_covariances=get_discrepancy_covariances)
+        check_variance_reduction(
+            allocate_samples, generate_samples_and_values,
+            get_cv_weights, get_rsquared)
+        raise Exception('currently different values of K,L produce same variance reduction')
 
-    def test_variance_redunction_mfmc(self):
+    def test_variance_reduction_mfmc(self):
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = generate_samples_and_values_mfmc
         get_cv_weights = lambda cov,nsample_ratios: \
@@ -366,7 +386,7 @@ class TestCVMC(unittest.TestCase):
             allocate_samples, generate_samples_and_values,
             get_cv_weights, get_rsquared)
 
-    def test_variance_redunction_mlmc(self):
+    def test_variance_reduction_mlmc(self):
         allocate_samples = pya.allocate_samples_mlmc
         generate_samples_and_values = generate_samples_and_values_mlmc
         get_cv_weights = lambda cov,nsample_ratios: \
