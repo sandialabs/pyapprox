@@ -524,6 +524,7 @@ def get_discrepancy_covariances_KL(cov,nsample_ratios,K,L,pkg=np):
         high-fidelity model.
     """
     nmodels = cov.shape[0]
+    assert L<=K and L>=0 and K<nmodels
     F = pkg.zeros((nmodels-1, nmodels-1), dtype=pkg.double)
     rs = nsample_ratios
     for ii in range(nmodels-1):
@@ -733,7 +734,7 @@ def get_mfmc_control_variate_weights(cov):
     return weights
 
 def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
-                                     generate_samples):
+                                     generate_samples,acv_modification=False):
     """
     Parameters
     ==========
@@ -776,7 +777,10 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     for ii in range(1,nmodels):
         samples1.append(samples[:,:nprev_samples])
         samples2.append(samples[:,:nlf_samples[ii-1]])
-        nprev_samples = samples2[ii].shape[1]
+        if acv_modification:
+            nprev_samples = nhf_samples
+        else:
+            nprev_samples = samples2[ii].shape[1]
 
     if not callable(functions):
         values1 = [functions[0](samples1[0])]
@@ -803,7 +807,10 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
             values1.append(values_flattened[cnt:cnt+nprev_samples])
             values2.append(values_flattened[cnt:cnt+nlf_samples[ii-1]])
             cnt += nlf_samples[ii-1]
-            nprev_samples = samples2[ii].shape[1]
+            if acv_modification:
+                nprev_samples = nhf_samples
+            else:
+                nprev_samples = samples2[ii].shape[1]
             
     samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
     values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
