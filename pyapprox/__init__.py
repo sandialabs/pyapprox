@@ -10,3 +10,4 @@ from pyapprox.univariate_quadrature import *
 from pyapprox.visualization import *
 from pyapprox.optimization import *
 from pyapprox.random_variable_algebra import *
+from pyapprox.numerically_generate_orthonormal_polynomials_1d import *

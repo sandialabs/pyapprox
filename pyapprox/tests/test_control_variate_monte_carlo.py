@@ -71,6 +71,7 @@ class ShortColumnModelEnsemble(object):
         self.nmodels=5
         self.nvars=5
         self.models = [self.m0,self.m1,self.m2,self.m3,self.m4]
+        self.apply_lognormal=False
     
     def extract_variables(self,samples):
         assert samples.shape[0]==5
@@ -79,6 +80,8 @@ class ShortColumnModelEnsemble(object):
         P = samples[2,:]
         M = samples[3,:]
         Y = samples[4,:]
+        if self.apply_lognormal:
+            Y = np.exp(Y)
         return b,h,P,M,Y
 
     def m0(self,samples):
@@ -102,10 +105,38 @@ class ShortColumnModelEnsemble(object):
         b,h,P,M,Y = self.extract_variables(samples)
         return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
+    def get_covariance_matrix(self,variable):
+        nvars = variable.num_vars()
+        degrees=[10]*nvars
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        gauss_legendre = partial(
+            pya.gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0)
+        univariate_quadrature_rules = [
+            gauss_legendre,gauss_legendre,pya.gauss_hermite_pts_wts_1D,
+            pya.gauss_hermite_pts_wts_1D,pya.gauss_hermite_pts_wts_1D]
+        x,w = pya.get_tensor_product_quadrature_rule(
+            degrees,variable.num_vars(),univariate_quadrature_rules,
+            var_trans.map_from_canonical_space)
+
+        nsamples = x.shape[1]
+        nqoi = len(self.models)
+        cov = np.empty((nqoi,nqoi))
+        means = np.empty(nqoi)
+        vals = np.empty((nsamples,nqoi))
+        for ii in range(nqoi):
+            vals[:,ii] = self.models[ii](x)[:,0]
+        means = vals.T.dot(w)
+        for ii in range(nqoi):
+            cov[ii,ii] = (vals[:,ii]**2).dot(w)-means[ii]**2
+            for jj in range(ii+1,nqoi):
+                cov[ii,jj] = (vals[:,ii]*vals[:,jj]).dot(w)-means[ii]*means[jj]
+                cov[jj,ii] = cov[ii,jj]
+        return cov        
+
 def setup_check_variance_reduction_model_ensemble_short_column(nmodels=5,npilot_samples=int(1e6)):
-    model_ensemble = ShortColumnModelEnsemble()
+    example = ShortColumnModelEnsemble()
     model_ensemble = pya.ModelEnsemble(
-        [model_ensemble.models[ii] for ii in range(nmodels)])
+        [example.models[ii] for ii in range(nmodels)])
     univariate_variables = [
         uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
         lognorm(s=0.5,scale=np.exp(5))]
@@ -115,8 +146,17 @@ def setup_check_variance_reduction_model_ensemble_short_column(nmodels=5,npilot_
 
     # number of pilot samples effects ability of numerical estimate
     # of variance reduction to match theoretical value
-    cov, samples, weights = pya.estimate_model_ensemble_covariance(
-        npilot_samples,generate_samples,model_ensemble)
+    #cov, samples, weights = pya.estimate_model_ensemble_covariance(
+    #    npilot_samples,generate_samples,model_ensemble)
+    #print(cov)
+    univariate_variables = [
+        uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+        norm(loc=5,scale=0.5)]
+    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+
+    example.apply_lognormal=True
+    cov = example.get_covariance_matrix(variable)[:nmodels,:nmodels]
+    example.apply_lognormal=False
     return model_ensemble, cov, generate_samples
 
 
@@ -380,8 +420,10 @@ class TestCVMC(unittest.TestCase):
         # as acv_mf
         KL = KL_sets[0]
         K,L = KL
+        KL=None
         setup_model = partial(
-            setup_check_variance_reduction_model_ensemble_short_column,npilot_samples=int(1e4))
+            setup_check_variance_reduction_model_ensemble_short_column,
+            npilot_samples=int(1e6))
         #setup_model = \
         #    setup_check_variance_reduction_model_ensemble_tunable
         allocate_samples = pya.allocate_samples_mfmc
@@ -397,7 +439,7 @@ class TestCVMC(unittest.TestCase):
             get_discrepancy_covariances=get_discrepancy_covariances)
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared, setup_model, ntrials=1e4)
+            get_cv_weights, get_rsquared, setup_model, ntrials=1e5)
         #raise Exception('currently different values of K,L produce same variance reduction')
 
     def test_variance_reduction_mfmc(self):
