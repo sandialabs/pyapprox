@@ -147,7 +147,8 @@ def generate_independent_random_samples_deprecated(var_trans,num_samples):
     return var_trans.map_from_canonical_space(canonical_samples)
 
 from pyapprox.variables import IndependentMultivariateRandomVariable
-def generate_independent_random_samples(variable,num_samples):
+def generate_independent_random_samples(variable,num_samples,
+                                        random_state=None):
     """
     Generate samples from a tensor-product probability measure.
 
@@ -168,7 +169,8 @@ def generate_independent_random_samples(variable,num_samples):
     for ii in range(variable.nunique_vars):
         var = variable.unique_variables[ii]
         indices = variable.unique_variable_indices[ii]
-        samples[indices,:] = var.rvs(size=(indices.shape[0],num_samples))
+        samples[indices,:] = var.rvs(
+            size=(indices.shape[0],num_samples),random_state=random_state)
         
     return samples
 
