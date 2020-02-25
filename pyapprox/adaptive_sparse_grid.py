@@ -1088,29 +1088,6 @@ from pyapprox.univariate_quadrature import leja_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
     beta_leja_quadrature_rule, candidate_based_leja_rule, \
     get_univariate_leja_quadrature_rule
-def get_sparse_grid_univariate_leja_quadrature_rules(
-        var_trans,growth_rules=None):
-    assert var_trans is not None
-    
-    if growth_rules is None:
-        growth_rules = leja_growth_rule
-    if callable(growth_rules):
-        growth_rules = [growth_rules]*var_trans.num_vars()
-        
-    assert var_trans is not None
-    quad_rules = [[] for ii in range(var_trans.num_vars())]
-    for var_type in var_trans.variables.unique_var_types:
-        ii = var_trans.variables.unique_var_types[var_type]
-        unique_quadrule_parameters = []
-        for jj in range(len(var_trans.variables.unique_var_indices[ii])):
-            var_index = var_trans.variables.unique_var_indices[ii][jj]
-            var_parameters=var_trans.variables.unique_var_parameters[ii][jj]
-            quad_rule = get_univariate_leja_quadrature_rule(
-                var_type,var_parameters,growth_rules[var_index])
-            quad_rules[var_index]=quad_rule
-    
-    return quad_rules, growth_rules#, None
-
 from pyapprox.variables import variable_shapes_equivalent
 def get_unique_quadrule_variables(var_trans):
     """
@@ -1137,37 +1114,6 @@ def get_unique_quadrule_variables(var_trans):
 
     return unique_quadrule_variables, unique_quadrule_indices
 
-def get_unique_quadrule_parameters_deprecated(var_trans):
-    unique_quadrule_indices = []
-    unique_quadrule_parameters = []
-    var_types = []
-    for var_type in var_trans.variables.unique_var_types:
-        ii = var_trans.variables.unique_var_types[var_type]
-        var_type_unique_quadrule_parameters = []
-        for jj in range(len(var_trans.variables.unique_var_indices[ii])):
-            var_parameters=var_trans.variables.unique_var_parameters[ii][jj]
-            # make copy so not alter incoming dictionary
-            var_parameters = copy.deepcopy(var_parameters)
-            var_index = var_trans.variables.unique_var_indices[ii][jj]
-            if 'range' in var_parameters:
-                del var_parameters['range']
-            elif var_type=='gaussian':
-                del var_parameters['mean']
-                del var_parameters['variance']
-            index = -1
-            for kk in range(len(var_type_unique_quadrule_parameters)):
-                if var_parameters==var_type_unique_quadrule_parameters[kk]:
-                    index = kk
-                    break
-            if index<0:
-                var_type_unique_quadrule_parameters.append(var_parameters)
-                unique_quadrule_parameters.append(var_parameters)
-                unique_quadrule_indices.append([var_index])
-                var_types.append(var_type)
-            else:
-                unique_quadrule_indices[ii+kk].append(var_index)
-    return var_types, unique_quadrule_parameters, unique_quadrule_indices
-
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         var_trans,growth_rules=None):       
     assert var_trans is not None
@@ -1193,6 +1139,20 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         quad_rules.append(quad_rule)
 
     return quad_rules, growth_rules, unique_quadrule_indices
+
+def get_sparse_grid_univariate_leja_quadrature_rules_economical(
+        var_trans,growth_rules=None):       
+    unique_quad_rules, unique_growth_rules, unique_quadrule_indices = \
+        pya.get_sparse_grid_univariate_leja_quadrature_rules_economical(
+            var_trans,growth_rules=None)
+    quad_rules = [None for ii in var_trans.num_vars()]
+    growth_rules = [None for ii in var_trans.num_vars()]
+    for quad_rule,growth_rule,indices, in zip(
+            unique_quad_rules, unique_growth_rules,unique_quadrule_indices):
+        quad_rules[indices] = quad_rule
+        qrowth_rules[indices] = growth_rule
+    return quad_rules, growth_rules
+
 
 class CombinationSparseGrid(SubSpaceRefinementManager):
     def __init__(self,num_vars):

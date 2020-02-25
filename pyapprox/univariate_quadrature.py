@@ -643,8 +643,7 @@ def get_univariate_leja_quadrature_rule(variable,growth_rule):
         quad_rule = partial(
             candidate_based_leja_rule,recursion_coeffs,
             generate_candidate_samples,nmasses,
-            growth_rule=growth_rule)
-        
+            growth_rule=growth_rule)        
     else:
         raise Exception('var_type %s not implemented'%var_type)
     return quad_rule
