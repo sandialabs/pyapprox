@@ -265,7 +265,7 @@ def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
         eta = pya.get_approximate_control_variate_weights(
             cov[:M+1,:M+1],nsample_ratios,
             pya.get_discrepancy_covariances_IS)
-        means[ii:,1] = pya.compute_control_variate_mean_estimate(
+        means[ii:,1] = pya.compute_approximate_control_variate_mean_estimate(
             eta,values)
 
     print("Theoretical ACV variance reduction",

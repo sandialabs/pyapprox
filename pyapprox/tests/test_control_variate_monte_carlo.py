@@ -6,6 +6,56 @@ from pyapprox.configure_plots import *
 from pyapprox.control_variate_monte_carlo import *
 from scipy.stats import uniform,norm,lognorm
 from functools import partial
+import os
+
+class PolynomialModelEnsemble(object):
+    def __init__(self):
+        self.nmodels=5
+        self.nvars=1
+        self.models = [self.m0,self.m1,self.m2,self.m3,self.m4]
+
+    def m0(self,samples):
+        return samples.T**5
+    
+    def m1(self,samples):
+        return samples.T**4
+    
+    def m2(self,samples):
+        return samples.T**3
+    
+    def m3(self,samples):
+        return samples.T**2
+    
+    def m4(self,samples):
+        return samples.T**1
+
+    def get_means(self):
+        gauss_legendre = partial(
+            pya.gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0)
+        x,w = gauss_legendre(10)
+        #scale to [0,1]
+        x = (x[np.newaxis,:]+1)/2
+        nsamples = x.shape[1]
+        nqoi = len(self.models)
+        vals = np.empty((nsamples,nqoi))
+        for ii in range(nqoi):
+            vals[:,ii] = self.models[ii](x)[:,0]
+        means = vals.T.dot(w)
+        return means
+
+    def get_covariance_matrix(self):
+        gauss_legendre = partial(
+            pya.gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0)
+        x,w = gauss_legendre(10)
+        #scale to [0,1]
+        x = (x[np.newaxis,:]+1)/2
+        nsamples = x.shape[1]
+        nqoi = len(self.models)
+        vals = np.empty((nsamples,nqoi))
+        for ii in range(nqoi):
+            vals[:,ii] = self.models[ii](x)[:,0]
+        cov = np.cov(vals,aweights=w,rowvar=False,ddof=0)
+        return cov
 
 class TunableModelEnsemble(object):
     
@@ -120,20 +170,14 @@ class ShortColumnModelEnsemble(object):
 
         nsamples = x.shape[1]
         nqoi = len(self.models)
-        cov = np.empty((nqoi,nqoi))
-        means = np.empty(nqoi)
         vals = np.empty((nsamples,nqoi))
         for ii in range(nqoi):
             vals[:,ii] = self.models[ii](x)[:,0]
-        means = vals.T.dot(w)
-        for ii in range(nqoi):
-            cov[ii,ii] = (vals[:,ii]**2).dot(w)-means[ii]**2
-            for jj in range(ii+1,nqoi):
-                cov[ii,jj] = (vals[:,ii]*vals[:,jj]).dot(w)-means[ii]*means[jj]
-                cov[jj,ii] = cov[ii,jj]
+        cov = np.cov(vals,aweights=w,rowvar=False,ddof=0)
         return cov        
 
-def setup_check_variance_reduction_model_ensemble_short_column(nmodels=5,npilot_samples=int(1e6)):
+def setup_check_variance_reduction_model_ensemble_short_column(
+        nmodels=5,npilot_samples=None):
     example = ShortColumnModelEnsemble()
     model_ensemble = pya.ModelEnsemble(
         [example.models[ii] for ii in range(nmodels)])
@@ -144,19 +188,25 @@ def setup_check_variance_reduction_model_ensemble_short_column(nmodels=5,npilot_
     generate_samples=partial(
         pya.generate_independent_random_samples,variable)
 
-    # number of pilot samples effects ability of numerical estimate
-    # of variance reduction to match theoretical value
-    #cov, samples, weights = pya.estimate_model_ensemble_covariance(
-    #    npilot_samples,generate_samples,model_ensemble)
-    #print(cov)
-    univariate_variables = [
-        uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
-        norm(loc=5,scale=0.5)]
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    if npilot_samples is not None:
+        # The number of pilot samples effects ability of numerical estimate
+        # of variance reduction to match theoretical value
+        cov, samples, weights = pya.estimate_model_ensemble_covariance(
+            npilot_samples,generate_samples,model_ensemble)
+    else:
+        # it is difficult to create a quadrature rule for the lognormal
+        # distribution so instead define the variable as normal and then
+        # apply log transform
+        univariate_variables = [
+            uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+            norm(loc=5,scale=0.5)]
+        variable=pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
 
-    example.apply_lognormal=True
-    cov = example.get_covariance_matrix(variable)[:nmodels,:nmodels]
-    example.apply_lognormal=False
+        example.apply_lognormal=True
+        cov = example.get_covariance_matrix(variable)[:nmodels,:nmodels]
+        example.apply_lognormal=False
+        
     return model_ensemble, cov, generate_samples
 
 
@@ -170,9 +220,67 @@ def setup_check_variance_reduction_model_ensemble_tunable():
     cov = example.get_covariance_matrix()
     return model_ensemble, cov, generate_samples
 
+def setup_check_variance_reduction_model_ensemble_polynomial():
+    example = PolynomialModelEnsemble()
+    model_ensemble = pya.ModelEnsemble(example.models)
+    univariate_variables = [uniform(0,1)]
+    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    generate_samples=partial(
+        pya.generate_independent_random_samples,variable)
+    cov = example.get_covariance_matrix()
+    #npilot_samples=int(1e6)
+    #cov, samples, weights = pya.estimate_model_ensemble_covariance(
+    #    npilot_samples,generate_samples,model_ensemble)
+    return model_ensemble, cov, generate_samples
+
+def get_mfmc_control_variate_weights_pool_wrapper(cov,nsamples):
+    """
+    Create interface that adhears to assumed api for variance reduction check
+    cannot be defined as a lambda locally in a test when using with 
+    multiprocessing pool because python cannot pickle such lambda functions
+    """
+    return get_mfmc_control_variate_weights(cov)
+
+def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
+    """
+    Create interface that adhears to assumed api for variance reduction check
+    cannot be defined as a lambda locally in a test when using with 
+    multiprocessing pool because python cannot pickle such lambda functions
+    """
+    return get_mlmc_control_variate_weights(cov.shape[0])
+
+def compute_mean_for_variance_reduction_check(nhf_samples,nsample_ratios,
+                                              model_ensemble,generate_samples,
+                                              generate_samples_and_values,cov,
+                                              get_cv_weights,seed):
+    random_state = np.random.RandomState(seed)
+    #To create reproducible results when running numpy.random in parallel
+    # must use RandomState. If not the results will be non-deterministic.
+    # This is happens because of a race condition. numpy.random.* uses only
+    # one global PRNG that is shared across all the threads without
+    # synchronization. Since the threads are running in parallel, at the same
+    # time, and their access to this global PRNG is not synchronized between
+    # them, they are all racing to access the PRNG state (so that the PRNG's
+    # state might change behind other threads' backs). Giving each thread its
+    # own PRNG (RandomState) solves this problem because there is no longer
+    # any state that's shared by multiple threads without synchronization.
+    # Also see new features
+    #https://docs.scipy.org/doc/numpy/reference/random/parallel.html
+    #https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
+    local_generate_samples = partial(
+        generate_samples, random_state=random_state)
+    samples,values =generate_samples_and_values(
+        nhf_samples,nsample_ratios,model_ensemble,local_generate_samples)
+    # compute mean using only hf data
+    hf_mean = values[0][0].mean()
+    # compute ACV mean
+    eta = get_cv_weights(cov,nsample_ratios)
+    acv_mean = compute_approximate_control_variate_mean_estimate(eta,values)
+    return hf_mean, acv_mean
+
 def check_variance_reduction(allocate_samples,generate_samples_and_values,
                              get_cv_weights,get_rsquared,setup_model,
-                             rtol=1e-2,ntrials=1e3):
+                             rtol=1e-2,ntrials=1e3,max_eval_concurrency=1):
 
     model_ensemble, cov, generate_samples = setup_model()
         
@@ -185,23 +293,23 @@ def check_variance_reduction(allocate_samples,generate_samples_and_values,
         cov, costs, target_cost)[:2]
 
     ntrials = int(ntrials)
-    means = np.empty((ntrials,2))
-    for ii in range(ntrials):
-        samples,values =\
-           generate_samples_and_values(
-                nhf_samples,nsample_ratios,model_ensemble,generate_samples)
-        # compute mean using only hf data
-        hf_mean = values[0][0].mean()
-        means[ii,0]= hf_mean
-        # compute ACV mean
-        eta = get_cv_weights(cov,nsample_ratios)
-        means[ii:,1] = compute_control_variate_mean_estimate(
-            eta,values)
+    from multiprocessing import Pool
+    pool = Pool(max_eval_concurrency)
+    func = partial(compute_mean_for_variance_reduction_check,
+                   nhf_samples,nsample_ratios,model_ensemble,generate_samples,
+                   generate_samples_and_values,cov,get_cv_weights)
+    if max_eval_concurrency>1:
+        assert int(os.environ['OMP_NUM_THREADS'])==1
+        means = np.asarray(pool.map(func,[ii for ii in range(ntrials)]))
+    else:
+        means = np.empty((ntrials,2))
+        for ii in range(ntrials):
+            means[ii,:] = func(ii)
 
     true_var_reduction = 1-get_rsquared(cov[:M+1,:M+1],nsample_ratios)
     numerical_var_reduction=means[:,1].var(axis=0)/means[:,0].var(
         axis=0)
-    print('t',true_var_reduction,'n',numerical_var_reduction)
+    print('true',true_var_reduction,'numerical',numerical_var_reduction)
     print(np.absolute(true_var_reduction-numerical_var_reduction),rtol*np.absolute(true_var_reduction))
     assert np.allclose(numerical_var_reduction,true_var_reduction,
                        rtol=rtol)
@@ -229,8 +337,8 @@ class TestCVMC(unittest.TestCase):
         #sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
         exact_cov = example.get_covariance_matrix()
         exact_cor = pya.get_correlation_from_covariance(exact_cov)
-        print(exact_cor)
-        print(df.corr())
+        #print(exact_cor)
+        #print(df.corr())
         #plt.tight_layout()
         #plt.show()
 
@@ -352,7 +460,8 @@ class TestCVMC(unittest.TestCase):
         univariate_variables = [
             uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
             lognorm(s=0.5,scale=np.exp(5))]
-        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        variable=pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
         generate_samples=partial(
             pya.generate_independent_random_samples,variable)
         npilot_samples = int(1e4)
@@ -394,7 +503,7 @@ class TestCVMC(unittest.TestCase):
             get_discrepancy_covariances=get_discrepancy_covariances_IS)
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared, setup_model, rtol=1e-2)
+            get_cv_weights, get_rsquared, setup_model, rtol=1e-2, ntrials=4e3)
 
     def test_variance_reduction_acv_MF(self):
         setup_model = \
@@ -415,60 +524,104 @@ class TestCVMC(unittest.TestCase):
             rtol=1e-2)
         
     def test_variance_reduction_acv_KL(self):
-        KL_sets = [[4,0],[2,1]]
-        # KL=[nmodels-1,0], e.g. [4,0] here, will give same resulting
-        # as acv_mf
-        KL = KL_sets[0]
-        K,L = KL
-        KL=None
-        setup_model = partial(
-            setup_check_variance_reduction_model_ensemble_short_column,
-            npilot_samples=int(1e6))
-        #setup_model = \
-        #    setup_check_variance_reduction_model_ensemble_tunable
-        allocate_samples = pya.allocate_samples_mfmc
-        generate_samples_and_values = partial(
-            generate_samples_and_values_mfmc, acv_modification=True, KL=KL)
-        get_discrepancy_covariances =  partial(
-            get_discrepancy_covariances_KL,K=K,L=L)
-        get_cv_weights = partial(
-            get_approximate_control_variate_weights,
-            get_discrepancy_covariances=get_discrepancy_covariances)
-        get_rsquared = partial(
-            get_rsquared_acv,
-            get_discrepancy_covariances=get_discrepancy_covariances)
-        check_variance_reduction(
-            allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared, setup_model, ntrials=1e5)
-        #raise Exception('currently different values of K,L produce same variance reduction')
+        KL_sets = [[4,1],[3,1],[3,2],[3,3],[2,1],[2,2]]
+        # Note K,L=[nmodels-1,i], for all i<=nmodels-1, e.g. [4,0],
+        # will give same result as acv_mf
+        for K,L in KL_sets:
+            #print(K,L)
+            setup_model = \
+                setup_check_variance_reduction_model_ensemble_polynomial
+            allocate_samples = pya.allocate_samples_mfmc
+            generate_samples_and_values = partial(
+                generate_samples_and_values_acv_KL,K=K,L=L)
+            get_discrepancy_covariances =  partial(
+                get_discrepancy_covariances_KL,K=K,L=L)
+            get_cv_weights = partial(
+                get_approximate_control_variate_weights,
+                get_discrepancy_covariances=get_discrepancy_covariances)
+            get_rsquared = partial(
+                get_rsquared_acv,
+                get_discrepancy_covariances=get_discrepancy_covariances)
+
+            # Check sizes of samples allocated to each model are correct
+            model_ensemble, cov, generate_samples = setup_model()
+            nmodels = cov.shape[0]
+            target_cost = int(1e4)
+            costs = np.asarray([100//2**ii for ii in range(nmodels)])
+            nhf_samples, nsample_ratios = allocate_samples(
+                cov, costs, target_cost)[:2]
+
+            samples,values = generate_samples_and_values(
+                nhf_samples,nsample_ratios,model_ensemble,generate_samples)
+            for ii in range(0,K+1):
+                assert samples[ii][0].shape[1]==nhf_samples
+                assert values[ii][0].shape[0]==nhf_samples
+            for ii in range(K+1,nmodels):
+                assert samples[ii][0].shape[1]==samples[L][1].shape[1]
+                assert values[ii][0].shape[0]==samples[L][1].shape[1]
+            for ii in range(1,K+1):
+                assert samples[ii][1].shape[1]==\
+                    nsample_ratios[ii-1]*nhf_samples
+                assert values[ii][1].shape[0]==\
+                    nsample_ratios[ii-1]*nhf_samples
+            for ii in range(K+1,nmodels):
+                assert samples[ii][1].shape[1]==\
+                    nsample_ratios[ii-1]*nhf_samples
+                assert values[ii][1].shape[0]==samples[ii][1].shape[1]
+
+            check_variance_reduction(
+                allocate_samples, generate_samples_and_values,
+                get_cv_weights, get_rsquared, setup_model, ntrials=int(3e4),
+                max_eval_concurrency=1)
 
     def test_variance_reduction_mfmc(self):
         setup_model = \
             setup_check_variance_reduction_model_ensemble_tunable
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = generate_samples_and_values_mfmc
-        get_cv_weights = lambda cov,nsample_ratios: \
-            get_mfmc_control_variate_weights(cov)
+        get_cv_weights = get_mfmc_control_variate_weights_pool_wrapper
         get_rsquared = get_rsquared_mfmc
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
             get_cv_weights, get_rsquared, setup_model, rtol=1e-2,
-            ntrials=1e4)
+            ntrials=int(1e4),max_eval_concurrency=1)
 
     def test_variance_reduction_mlmc(self):
-        setup_model = partial(
-            setup_check_variance_reduction_model_ensemble_short_column,3)
+        setup_model = \
+            setup_check_variance_reduction_model_ensemble_polynomial 
         allocate_samples = pya.allocate_samples_mlmc
         generate_samples_and_values = generate_samples_and_values_mlmc
-        get_cv_weights = lambda cov,nsample_ratios: \
-            get_mlmc_control_variate_weights(cov.shape[0])
+        get_cv_weights = get_mlmc_control_variate_weights_pool_wrapper
         get_rsquared = get_rsquared_mlmc
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared, setup_model, ntrials=1e4)
+            get_cv_weights, get_rsquared, setup_model, ntrials=5e4,
+            max_eval_concurrency=1)
 
     def test_CVMC(self):
-        raise Exception('not yet implemented')
+        nhf_samples = 10
+        model_ensemble, cov, generate_samples = \
+            setup_check_variance_reduction_model_ensemble_polynomial()
+        lf_means = PolynomialModelEnsemble().get_means()[1:]
+        true_gamma = 1-get_control_variate_rsquared(cov)
+        eta = get_control_variate_weights(cov)
+        ntrials = int(5e3)
+        means = np.empty((ntrials,2))
+        for ii in range(ntrials):
+            samples = generate_samples(nhf_samples)
+            values  = [f(samples) for f in model_ensemble.functions] 
+            # compute mean using only hf data
+            hf_mean = values[0].mean()
+            # compute ACV mean
+            acv_mean = compute_control_variate_mean_estimate(
+                eta,values,lf_means)
+            means[ii,:] = hf_mean,acv_mean
+        numerical_gamma=means[:,1].var(axis=0)/means[:,0].var(axis=0)
+        rtol=1e-2
+        #print('true',true_gamma,'numerical',numerical_gamma)
+        #print(np.absolute(true_gamma-numerical_gamma),
+        #      rtol*np.absolute(true_gamma))
+        assert np.allclose(true_gamma,numerical_gamma,rtol=4e-2)
 
     def test_allocate_samples_mlmc_lagrange_formulation(self):
         cov = np.asarray([[1.00,0.50,0.25],
@@ -528,22 +681,34 @@ class TestCVMC(unittest.TestCase):
         L = np.linalg.cholesky(cov_should)
         samp = np.dot(np.random.randn(100000, 3),L.T)
         cov = np.cov(samp, rowvar=False)
-        cor = torch.tensor(np.corrcoef(samp, rowvar=False), dtype=torch.float)
+
+        #model_ensemble, cov, generate_samples = \
+        #    setup_check_variance_reduction_model_ensemble_polynomial()
         
         costs = [4, 2, 1]
         target_cost = 20
+        
+        nhf_samples_init, nsample_ratios_init =  allocate_samples_mlmc(
+            cov, costs, target_cost, standardize=True)[:2]
+        initial_guess = np.concatenate(
+            [[nhf_samples_init],nsample_ratios_init])
+         
+        nhf_samples,nsample_ratios,log10_var=allocate_samples_acv_best_kl(
+            cov,costs,target_cost,standardize=True,
+            initial_guess=initial_guess)
+        print("opt = ", nhf_samples, nsample_ratios, log10_var)
 
-        #estimator = ACV2(cov,costs,target_cost)
-        # estimator = ACV2KL(cov,costs,target_cost,4,1)
-        # nhf,ratios,var=allocate_samples_acv(
-        #     cov, costs, target_cost, estimator)
-        # print("opt = ", nhf, ratios, var)
+        # this is a regression test to make sure optimization produces
+        # answer consistently. It is hard to determine and exact solution
+        regression_log10_var = np.asarray([
+            0.5159013235987686,-0.2153434757601942,-0.2153434757601942])
+        assert np.allclose(log10_var,regression_log10_var.min())
 
-        nhf,ratios,var=allocate_samples_acv_best_kl(
-            cov,costs,target_cost,standardize=True)
-        print("opt = ", nhf, ratios, var)
+        gamma = 1-get_rsquared_acv_KL_best(cov,nsample_ratios)
+        print(gamma)
 
-        raise Exception('warning currently log transform is turned off in optimization and standardization is alexs not correct one and initial guess is mlmc with standardize=True')
+        # To recover alexs answer use his standardization and initial guess
+        # is mlmc with standardize=True')
 
 
     def test_ACVMC_objective_jacobian(self):

@@ -130,7 +130,7 @@ def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
         means[ii,0]= hf_mean
         # compute ACV mean
         eta = pya.get_mlmc_control_variate_weights(M+1)
-        means[ii:,1] = pya.compute_control_variate_mean_estimate(
+        means[ii:,1] = pya.compute_approximate_control_variate_mean_estimate(
             eta,values)
 
     print("Theoretical MLMC variance reduction",
@@ -222,7 +222,7 @@ def compute_mfmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
         means[ii,0]= hf_mean
         # compute ACV mean
         eta = pya.get_mfmc_control_variate_weights(cov)
-        means[ii:,1] = pya.compute_control_variate_mean_estimate(
+        means[ii:,1] = pya.compute_approximate_control_variate_mean_estimate(
             eta,values)
 
     print("Theoretical MFMC variance reduction",
