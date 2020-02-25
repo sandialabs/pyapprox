@@ -70,7 +70,7 @@ class ShortColumnModelEnsemble(object):
     def __init__(self):
         self.nmodels=5
         self.nvars=5
-        self.functions = [self.m0,self.m1,self.m2,self.m3,self.m4]
+        self.models = [self.m0,self.m1,self.m2,self.m3,self.m4]
     
     def extract_variables(self,samples):
         assert samples.shape[0]==5
@@ -102,10 +102,10 @@ class ShortColumnModelEnsemble(object):
         b,h,P,M,Y = self.extract_variables(samples)
         return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
-def setup_check_variance_reduction_model_ensemble_short_column():
+def setup_check_variance_reduction_model_ensemble_short_column(nmodels=5,npilot_samples=int(1e6)):
     model_ensemble = ShortColumnModelEnsemble()
     model_ensemble = pya.ModelEnsemble(
-        [model_ensemble.m0,model_ensemble.m1,model_ensemble.m2])
+        [model_ensemble.models[ii] for ii in range(nmodels)])
     univariate_variables = [
         uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
         lognorm(s=0.5,scale=np.exp(5))]
@@ -113,25 +113,38 @@ def setup_check_variance_reduction_model_ensemble_short_column():
     generate_samples=partial(
         pya.generate_independent_random_samples,variable)
 
-    npilot_samples = int(1e4)
+    # number of pilot samples effects ability of numerical estimate
+    # of variance reduction to match theoretical value
     cov, samples, weights = pya.estimate_model_ensemble_covariance(
         npilot_samples,generate_samples,model_ensemble)
     return model_ensemble, cov, generate_samples
 
+
+def setup_check_variance_reduction_model_ensemble_tunable():
+    example = TunableModelEnsemble(np.pi/4)
+    model_ensemble = pya.ModelEnsemble(example.models)
+    univariate_variables = [uniform(-1,2),uniform(-1,2)]
+    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    generate_samples=partial(
+        pya.generate_independent_random_samples,variable)
+    cov = example.get_covariance_matrix()
+    return model_ensemble, cov, generate_samples
+
 def check_variance_reduction(allocate_samples,generate_samples_and_values,
-                             get_cv_weights,get_rsquared):
+                             get_cv_weights,get_rsquared,setup_model,
+                             rtol=1e-2,ntrials=1e3):
 
-    model_ensemble, cov, generate_samples = \
-        setup_check_variance_reduction_model_ensemble_short_column()
+    model_ensemble, cov, generate_samples = setup_model()
+        
 
+    M = cov.shape[0]-1 # number of lower fidelity models
     target_cost = int(1e4)
-    costs = np.asarray([100, 50, 5])
+    costs = np.asarray([100//2**ii for ii in range(M+1)])
 
     nhf_samples,nsample_ratios = allocate_samples(
         cov, costs, target_cost)[:2]
 
-    M = len(nsample_ratios) # number of lower fidelity models
-    ntrials=int(1e3)
+    ntrials = int(ntrials)
     means = np.empty((ntrials,2))
     for ii in range(ntrials):
         samples,values =\
@@ -148,9 +161,10 @@ def check_variance_reduction(allocate_samples,generate_samples_and_values,
     true_var_reduction = 1-get_rsquared(cov[:M+1,:M+1],nsample_ratios)
     numerical_var_reduction=means[:,1].var(axis=0)/means[:,0].var(
         axis=0)
-    print(true_var_reduction,numerical_var_reduction)
-    assert np.allclose(true_var_reduction,numerical_var_reduction,
-                       atol=1e-2)
+    print('t',true_var_reduction,'n',numerical_var_reduction)
+    print(np.absolute(true_var_reduction-numerical_var_reduction),rtol*np.absolute(true_var_reduction))
+    assert np.allclose(numerical_var_reduction,true_var_reduction,
+                       rtol=rtol)
 
 
 class TestCVMC(unittest.TestCase):
@@ -329,7 +343,7 @@ class TestCVMC(unittest.TestCase):
                            1-pya.get_rsquared_mfmc(cov,nsample_ratios))
 
     def test_variance_reduction_acv_IS(self):
-        
+        setup_model = setup_check_variance_reduction_model_ensemble_tunable
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = generate_samples_and_values_acv_IS
         get_cv_weights = partial(
@@ -340,9 +354,11 @@ class TestCVMC(unittest.TestCase):
             get_discrepancy_covariances=get_discrepancy_covariances_IS)
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared)
+            get_cv_weights, get_rsquared, setup_model, rtol=1e-2)
 
     def test_variance_reduction_acv_MF(self):
+        setup_model = \
+            setup_check_variance_reduction_model_ensemble_tunable
         
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = partial(
@@ -355,14 +371,22 @@ class TestCVMC(unittest.TestCase):
             get_discrepancy_covariances=get_discrepancy_covariances_MF)
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared)
+            get_cv_weights, get_rsquared, setup_model, ntrials=1e4,
+            rtol=1e-2)
         
     def test_variance_reduction_acv_KL(self):
-        KL = [[1,1],[0,0]]
-        K,L = KL[0]
+        KL_sets = [[4,0],[2,1]]
+        # KL=[nmodels-1,0], e.g. [4,0] here, will give same resulting
+        # as acv_mf
+        KL = KL_sets[0]
+        K,L = KL
+        setup_model = partial(
+            setup_check_variance_reduction_model_ensemble_short_column,npilot_samples=int(1e4))
+        #setup_model = \
+        #    setup_check_variance_reduction_model_ensemble_tunable
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = partial(
-            generate_samples_and_values_mfmc, acv_modification=True)
+            generate_samples_and_values_mfmc, acv_modification=True, KL=KL)
         get_discrepancy_covariances =  partial(
             get_discrepancy_covariances_KL,K=K,L=L)
         get_cv_weights = partial(
@@ -373,10 +397,12 @@ class TestCVMC(unittest.TestCase):
             get_discrepancy_covariances=get_discrepancy_covariances)
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared)
-        raise Exception('currently different values of K,L produce same variance reduction')
+            get_cv_weights, get_rsquared, setup_model, ntrials=1e4)
+        #raise Exception('currently different values of K,L produce same variance reduction')
 
     def test_variance_reduction_mfmc(self):
+        setup_model = \
+            setup_check_variance_reduction_model_ensemble_tunable
         allocate_samples = pya.allocate_samples_mfmc
         generate_samples_and_values = generate_samples_and_values_mfmc
         get_cv_weights = lambda cov,nsample_ratios: \
@@ -384,9 +410,12 @@ class TestCVMC(unittest.TestCase):
         get_rsquared = get_rsquared_mfmc
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared)
+            get_cv_weights, get_rsquared, setup_model, rtol=1e-2,
+            ntrials=1e4)
 
     def test_variance_reduction_mlmc(self):
+        setup_model = partial(
+            setup_check_variance_reduction_model_ensemble_short_column,3)
         allocate_samples = pya.allocate_samples_mlmc
         generate_samples_and_values = generate_samples_and_values_mlmc
         get_cv_weights = lambda cov,nsample_ratios: \
@@ -394,10 +423,10 @@ class TestCVMC(unittest.TestCase):
         get_rsquared = get_rsquared_mlmc
         check_variance_reduction(
             allocate_samples, generate_samples_and_values,
-            get_cv_weights, get_rsquared)
+            get_cv_weights, get_rsquared, setup_model, ntrials=1e4)
 
     def test_CVMC(self):
-        pass
+        raise Exception('not yet implemented')
 
     def test_allocate_samples_mlmc_lagrange_formulation(self):
         cov = np.asarray([[1.00,0.50,0.25],
