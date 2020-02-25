@@ -55,11 +55,11 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
         The corrected sample ratios
     """
     nsamples = np.array([r*nhf_samples for r in nsample_ratios])
-    #nhf_samples = int(max(1,np.floor(nhf_samples)))
-    #nsample_ratios = np.floor(nsamples)/nhf_samples
-    nhf_samples = int(max(1,np.round(nhf_samples)))
-    nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
-    return nhf_samples, nsample_ratios
+    nhf_samples = int(max(1,np.floor(nhf_samples)))
+    nsample_ratios = np.floor(nsamples)/nhf_samples
+    #nhf_samples = int(max(1,np.round(nhf_samples)))
+    #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
+    return nhf_samples, np.asarray(nsample_ratios)
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
     """
@@ -233,8 +233,7 @@ def compute_control_variate_mean_estimate(weights,values):
     return est
 
 
-def allocate_samples_mfmc(cov, costs, target_cost,
-                          standardize=True):
+def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
     """
     Determine the samples to be allocated to each model when using MFMC
 
@@ -269,13 +268,13 @@ def allocate_samples_mfmc(cov, costs, target_cost,
     """
 
     nmodels = cov.shape[0]
-    I = np.argsort(np.absolute(cov[0,1:]))[::-1]
+    corr = compute_correlations_from_covariance(cov)
+    I = np.argsort(np.absolute(corr[0,1:]))[::-1]
     if not np.allclose(I, np.arange(nmodels-1)):
         msg = 'Models must be ordered with decreasing correlation with '
         msg += 'high-fidelity model'
         raise Exception(msg)
 
-    corr = compute_correlations_from_covariance(cov)
     r = []
     for ii in range(nmodels-1):
         # Step 3 in Algorithm 2 in Peherstorfer et al 2016
@@ -343,9 +342,11 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
     nmodels = cov.shape[0]
     sum1 = 0.0
     nsamples = []
+    vardeltas=[]
     for ii in range(nmodels-1):
         # compute the variance of the discrepancy 
         vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+        vardeltas.append(vardelta)
         # compute the variance * cost
         vc = vardelta * (costs[ii] + costs[ii+1])
         # compute the unnormalized number of samples\
@@ -353,6 +354,8 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
         nsamp = np.sqrt(vardelta / (costs[ii] + costs[ii+1]))
         nsamples.append(nsamp)
         sum1 += np.sqrt(vc)
+    I = np.argsort(vardeltas)
+    assert np.allclose(I,np.arange(nmodels-1))
 
     # compute information for lowest fidelity model
     v = cov[nmodels-1, nmodels-1]
@@ -407,8 +410,8 @@ def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
     """
     Get the covariances of the discrepancies :math:`\delta` 
     between each low-fidelity model and its estimated mean when the same 
-    :math:`N` samples are used to compute the covariance between each models and
-    :math:`N-r_\alpha` samples are allocated to 
+    :math:`N` samples are used to compute the covariance between each models 
+    and :math:`N-r_\alpha` samples are allocated to 
     estimate the low-fidelity means, and each of these sets are drawn
     independently from one another.
 
@@ -734,7 +737,8 @@ def get_mfmc_control_variate_weights(cov):
     return weights
 
 def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
-                                     generate_samples,acv_modification=False):
+                                     generate_samples,
+                                     acv_modification=False, KL=None):
     """
     Parameters
     ==========
@@ -762,12 +766,19 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     assert np.all(nsample_ratios>=1)
     # check nhf_samples is an integer
     assert nhf_samples/int(nhf_samples)==1.0
-    # convert to int if a float because numpy random assumes nsamples is an int
+    # convert to int if a float because numpy random assumes nsamples
+    # is an int
     nhf_samples = int(nhf_samples)
     nlf_samples = nhf_samples*nsample_ratios
     for ii in range(nmodels-1):
         assert nlf_samples[ii]/int(nlf_samples[ii])==1.0
     nlf_samples = np.asarray(nlf_samples,dtype=int)
+
+    if KL is not None:
+        assert acv_modification
+        K,L = KL
+    if acv_modification and KL is None:
+        K,L = nmodels-1,0
 
     max_nsamples = nlf_samples.max()
     samples = generate_samples(max_nsamples)
@@ -777,8 +788,10 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     for ii in range(1,nmodels):
         samples1.append(samples[:,:nprev_samples])
         samples2.append(samples[:,:nlf_samples[ii-1]])
-        if acv_modification:
+        if acv_modification and ((ii < K+1) or L==0):
             nprev_samples = nhf_samples
+        elif acv_modification and ii>=K+1:
+            nprev_samples = nlf_samples[L-1]
         else:
             nprev_samples = samples2[ii].shape[1]
 
@@ -814,8 +827,12 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
             
     samples = [[s1,s2] for s1,s2 in zip(samples1,samples2)]
     values  = [[v1,v2] for v1,v2 in zip(values1,values2)]
-        
-                        
+
+    for ii in range(0,nmodels):
+       print('s1',samples[ii][0].shape)
+    for ii in range(1,nmodels):
+       print('s2',samples[ii][1].shape)
+    #assert False                   
     return samples,values
 
 def acv_sample_allocation_cost_constraint(ratios, nhf, costs, target_cost):
