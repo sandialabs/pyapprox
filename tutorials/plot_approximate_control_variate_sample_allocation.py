@@ -109,7 +109,7 @@ target_cost = 10
 costs = [multilevel_model.cost_function(ii) for ii in range(nmodels)][::-1]
 print(costs)
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-    cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+    cov, costs, target_cost)[:2]
 
 import seaborn as sns
 from pandas import DataFrame

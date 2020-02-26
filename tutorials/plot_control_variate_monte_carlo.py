@@ -1,7 +1,7 @@
 r"""
 Control Variate Monte Carlo
 ===========================
-This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute expectations of model output from two models.
+This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean.
 
 Let :math:`f(\rv):\reals^d\to\reals` be a function of :math:`d` random variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density :math:`\pdf(\rv)`. Our goal is to compute the expectation of an approximation :math:`f_\alpha` of the function :math:`f`, e.g.
 
@@ -15,7 +15,7 @@ The approximation :math:`f_\alpha` typically arises from the need to numerically
 Monte Carlo
 -----------
 
-We can approximate th integral :math:`Q` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}=f_\alpha(\rv^{(n)})`
+We can approximate th integral :math:`Q_\alpha` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}_\alpha=f_\alpha(\rv^{(n)})`
 
 .. math::
 
@@ -43,7 +43,7 @@ yields
    \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}=\underbrace{N^{-1}\var{Q_\alpha}}_{I}+\underbrace{\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2}_{II}
 
 From this expression we can see that the MSE can be decomposed into two terms;
-a so called stochastic error (I) and a deterministic bias (II). The first term is the error between the variance in the Monte Carlo estimator due to using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model $f_\alpha$ is used and the choice of $\alpha$, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance. 
+a so called stochastic error (I) and a deterministic bias (II). The first term is the variance of the Monte Carlo estimator which comes from using a finite number of samples. The second term is due to using an approximation of :math:`f`. These two errors should be balanced, however in the vast majority of all MC analyses a single model :math:`f_\alpha` is used and the choice of :math:`\alpha`, e.g. mesh resolution, is made a priori without much concern for the balancing bias and variance. 
 
 Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is to reduce the variance of the estimator. In the following we plot the variance of the MC estimate of a simple algebraic function :math:`f_1` which belongs to an ensemble of models
 
@@ -62,7 +62,7 @@ where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\the
 import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import TunableExample
+from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
 from scipy.stats import uniform
 
 np.random.seed(1)
@@ -70,7 +70,7 @@ univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 print(variable)
 shifts=[.1,.2]
-model = TunableExample(np.pi/2*.95,shifts=shifts)
+model = TunableModelEnsemble(np.pi/2*.95,shifts=shifts)
 
 #%%
 # Now let us compute the mean of :math:`f_1` using Monte Carlo
@@ -148,21 +148,23 @@ _ = plt.colorbar(cset,ax=ax)
 #
 #   Q_{\V{\alpha},N}^{\text{CV}} = Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}} \right) 
 #
-#Where :math:`\eta` is a free parameter which can be optimized to the reduce the variance of this so called control variate estimator
+#Here :math:`\eta` is a free parameter which can be optimized to the reduce the variance of this so called control variate estimator, which is given by
 #
 #.. math::
 #
 #   \var{Q_{\V{\alpha},N}^{\text{CV}}} &= \var{Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
 #    &=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta^2\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
-#    &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta^2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right)
+#    &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta^2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).
 #
-#where the first line follows from the variance of sums of random variables. The variance reduction ratio is
+#The first line follows from the variance of sums of random variables.
+#
+#We can measure the change in MSE bys using the control variate estimator, by looking at the ratio of the CVMC and MC estimator variances. The variance reduction ratio is
 #
 #.. math::
 #
 #   \gamma=\frac{\var{Q_{\V{\alpha},N}^{\text{CV}}}}{\var{Q_{\V{\alpha},N}}}=\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right)
 # 
-#The variance reduction is minimized by setting its gradient to zero, i.e.
+#The variance reduction can be minimized by setting its gradient to zero and solving for :math:`\eta`, i.e.
 #
 #.. math::
 #
@@ -179,7 +181,7 @@ _ = plt.colorbar(cset,ax=ax)
 #   &= 1+\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}-2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\var{Q_{\V{\alpha},N}}}\\
 #    &= 1-\corr{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}^2\\
 #    &= 1-\corr{Q_{\V{\alpha},N}}{Q_{\V{\kappa},N}}^2
-
+#
 #
 #Thus if a two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean.
 #

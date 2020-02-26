@@ -1,12 +1,14 @@
 r"""
 Approximate Control Variate Monte Carlo
 =======================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple models. CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}` is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple low-fidelity models with unknown means. 
+
+CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}`, is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
 Two models
 ^^^^^^^^^^
 
-Let the cost of the high fidelity model per sample be 1 and let the cost of the low fidelity model be :math:`r_\V{\kappa}\ge1`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`(r-1)N` samples to estimate :math:`\mu_{\V{\kappa}}` so that
+Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`(r-1)N` samples to estimate :math:`\mu_{\V{\kappa}}` so that
 
 .. math::
 
@@ -17,13 +19,6 @@ and
 .. math::
 
    \mu_{\V{\kappa},N,r}=\frac{1}{rN}\sum_{i=1}^{rN}Q_\V{\kappa}
-
-
-The cost of computing the ACV estimator is
-
-.. math::
-
-   C_\mathrm{cv} = N + (1+r_\V{\kappa})N
 
 With this sampling scheme we have
 
@@ -77,14 +72,14 @@ which is found when
 import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import TunableExample
+from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
 from scipy.stats import uniform
 
 np.random.seed(1)
 univariate_variables = [uniform(-1,2),uniform(-1,2)]
 variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 shifts= [.1,.2]
-model = TunableExample(1,shifts=shifts)
+model = TunableModelEnsemble(1,shifts=shifts)
 exact_integral_f0=0
 
 #%%
@@ -106,7 +101,7 @@ exact_integral_f0=0
 #
 #          ACV sampling strategy
 #
-#The following samples according to this strategy
+#The following code generates samples according to this strategy
 
 nhf_samples = int(1e1)
 nsample_ratio = 10
@@ -137,10 +132,19 @@ _ = ax.legend(loc='upper left')
 cov = model.get_covariance_matrix()
 gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
 eta = -cov[0,1]/cov[0,0]
-acv_mean = values0.mean()+eta*(values1_shared.mean()-np.hstack(
-    [values1_shared,values1_lf_only]).mean())
+print(values1_shared.shape,values1_lf_only.shape)
+acv_mean = values0.mean()+eta*(values1_shared.mean()-np.concatenate(
+    [values1_shared[:,0],values1_lf_only[:,0]]).mean())
 print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
+
+#%%
+#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance)with the smallest computational cost. Note the cost of computing the two model ACV estimator is
+#
+#.. math::
+#
+#   C_\mathrm{cv} = NC_\alpha + r_\V{\kappa}NC_\kappa
+#
 
 #%%
 #Now lets compute the variance reduction for different sample sizes
@@ -170,7 +174,7 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
             cov[0,0]*cov[1,1])
         eta = -cov[0,1]/cov[0,0]
         means[ii,1]=hf_mean+eta*(values_shared[1].mean()-
-            np.hstack([values_shared[1],values_lf_only[0]]).mean())
+            np.concatenate([values_shared[1],values_lf_only[0]]).mean())
 
     print("Theoretical ACV variance reduction",
           1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
@@ -239,7 +243,7 @@ _ = ax.legend(loc='upper left')
 #   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
 #   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ\mathrm{diag}\left(F\right)\right)\\
 #
-#where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme here [GGEJJCP2020]_.
+#where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme found in [GGEJJCP2020]_ here.
 #
 #The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-sample-allocation` for a visual depiction of the sample sets.
 
@@ -269,7 +273,7 @@ def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
             eta,values)
 
     print("Theoretical ACV variance reduction",
-          1-pya.get_rsquared_acv1(
+          1-pya.get_rsquared_acv(
               cov[:M+1,:M+1],nsample_ratios,pya.get_discrepancy_covariances_IS))
     print("Achieved ACV variance reduction",
           means[:,1].var(axis=0)/means[:,0].var(axis=0))
@@ -288,13 +292,11 @@ var_reds = []
 for th1 in theta1:
     model.theta1=th1
     covs.append(model.get_covariance_matrix())
-    OCV_var_red = pya.get_variance_reduction(
-        pya.get_control_variate_rsquared,covs[-1],None)
+    OCV_var_red = 1-pya.get_control_variate_rsquared(covs[-1])
     # use model with largest covariance with high fidelity model
     idx = [0,np.argmax(covs[-1][0,1:])+1]
     assert idx == [0,1] #it will always be the first model
-    OCV1_var_red = pya.get_variance_reduction(
-        pya.get_control_variate_rsquared,covs[-1][np.ix_(idx,idx)],None)
+    OCV1_var_red = pya.get_control_variate_rsquared(covs[-1][np.ix_(idx,idx)])
     var_reds.append([OCV_var_red,OCV1_var_red])
 covs = np.array(covs)
 var_reds = np.array(var_reds)
