@@ -1,9 +1,8 @@
 r"""
 Control Variate Monte Carlo
 ===========================
-This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean.
+This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
 
-#
 Let us introduce a model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via [LMWOR1982]_
 
 .. math::
@@ -74,7 +73,7 @@ cov = model.get_covariance_matrix()
 eta = -cov[0,1]/cov[0,0]
 #cov_mc = np.cov(values0,values1)
 #eta_mc = -cov_mc[0,1]/cov_mc[0,0]
-exact_integral_f0,exact_integral_f1=0,0
+exact_integral_f0,exact_integral_f1=0,shifts[0]
 cv_mean = values0.mean()+eta*(values1.mean()-exact_integral_f1)
 print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('CVMC difference squared =',(cv_mean-exact_integral_f0)**2)
@@ -98,7 +97,7 @@ print("Achieved variance reduction",
       means[:,1].var(axis=0)/means[:,0].var(axis=0))
 
 #%%
-# The following plot shows that unlike :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
+# The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-histogram>`. :math:`\mean{f_1}` the CVMC estimator is unbiased and has a smaller variance.
 
 fig,ax = plt.subplots()
 textstr = '\n'.join([r'$E[Q_{0,N}]=\mathrm{%.2e}$'%means[:,0].mean(),
@@ -116,7 +115,7 @@ _ = ax.legend(loc='upper left')
 plt.show()
 
 #%%
-#Change :math:`\texttt{eta}` to :math:`\texttt{eta\_mc}` to see how the variance reduction changes when the covariance between models is approximated
+#Change :math:`\texttt{eta}` to :math:`\texttt{eta_mc}` to see how the variance reduction changes when the covariance between models is approximated
 
 #%%
 #References

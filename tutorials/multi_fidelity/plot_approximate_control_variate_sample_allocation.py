@@ -1,7 +1,7 @@
 r"""
 Sampling Allocation for Approximate Control Variate Monte Carlo Methods
 =======================================================================
-This tutorial builds upon the tutorials :ref:`sphx_glr_auto_tutorials_plot_approximate_control_variate_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_plot_recursive_control_variate_monte_carlo.py`.
+This tutorial builds upon the tutorials :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_recursive_control_variate_monte_carlo.py`.
 
 
 Let :math:`C_\alpha` be the cost of evaluating the function :math:`f_\alpha` at a single sample, then the total cost of the MLMC estimator is
@@ -121,3 +121,18 @@ df = DataFrame(
 # 3.1.0 using pip install matplotlib==3.1.0
 #sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
 #plt.show()
+
+#%%
+#The optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically. Let :math:`C_\mathrm{tot}` be the total budget then the optimal number of high fidelity samples is
+#
+#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
+#
+#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
+#
+#.. math::
+#   
+#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
+#
+#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
+#
+

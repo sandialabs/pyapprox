@@ -1,7 +1,7 @@
 r"""
 Recursive Approximate Control Variate Monte Carlo
 =================================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_approximate_control_variate_monte_carlo.py` and demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and demonstrates that multi-level Monte Carlo and multi-fidelity Monte Carlo are both approximate control variate techniques and how this understanding can be used to improve their efficiency.
 
 
 Multi-level Monte Carlo (MLMC)
@@ -248,20 +248,6 @@ functions = model_ensemble
 #functions = [model_ensemble.m0,model_ensemble.m3,model_ensemble.m4]
 means2 = compute_mfmc_many_model_variance_reduction(
     nhf_samples,nsample_ratios,functions)
-
-#%%
-#The optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically. Let :math:`C_\mathrm{tot}` be the total budget then the optimal number of high fidelity samples is
-#
-#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
-#
-#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
-#
-#.. math::
-#   
-#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
-#
-#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
-#
 
 #%%
 #References
