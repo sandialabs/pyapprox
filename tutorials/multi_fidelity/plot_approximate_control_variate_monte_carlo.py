@@ -95,7 +95,7 @@ exact_integral_f0=0
 #
 #   * - .. _acv-sample-allocation:
 #
-#       .. figure:: ../figures/acv_is.png
+#       .. figure:: ../../figures/acv_is.png
 #          :width: 50%
 #          :align: center
 #

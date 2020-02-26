@@ -710,7 +710,6 @@ class TestCVMC(unittest.TestCase):
         # To recover alexs answer use his standardization and initial guess
         # is mlmc with standardize=True')
 
-
     def test_ACVMC_objective_jacobian(self):
         
         cov = np.asarray([[1.00,0.50,0.25],
