@@ -42,7 +42,7 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
    * - 
        .. _mlmc-sample-allocation:
 
-       .. figure:: ../figures/mlmc.png
+       .. figure:: ../../figures/mlmc.png
           :width: 100%
           :align: center
 
@@ -52,7 +52,7 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
      - 
        .. _acv-sample-allocation:
 
-       .. figure:: ../figures/acv_is.png
+       .. figure:: ../../figures/acv_is.png
           :width: 100%
           :align: center
 
@@ -186,7 +186,7 @@ means2 = compute_mlmc_many_model_variance_reduction(
 #   * - 
 #       .. _mfmc-sample-allocation:
 #
-#       .. figure:: ../figures/mfmc.png
+#       .. figure:: ../../figures/mfmc.png
 #          :width: 100%
 #          :align: center
 #

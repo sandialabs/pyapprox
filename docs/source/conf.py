@@ -56,6 +56,7 @@ extensions += ['sphinx_gallery.gen_gallery']
 
 from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
+    'plot_monte_carlo.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
     'plot_recursive_control_variate_monte_carlo.py',
@@ -68,15 +69,15 @@ class ExamplesExplicitOrder(_SortKey):
         return example_filenames_in_order.index(filename)
     
 # Note sphink-gallery only runs examples in files that start with plot_
-# To add subfolders in examples must add README.rst to that subfoler in addition
-# to .py files
+# To add subfolders in examples must add README.rst to that subfolder in
+# addition to .py files
 sphinx_gallery_conf = {
     # path to your example scripts
     'examples_dirs': ['../../examples','../../tutorials'],
     # path to where to save gallery generated output
     'gallery_dirs': ['auto_examples','auto_tutorials'],
     #'first_notebook_cell' : "%matplotlib inline",
-     'within_subsection_order': ExamplesExplicitOrder,
+    'within_subsection_order': ExamplesExplicitOrder,
 }
 #If want to specify user latex macrors to jupyter using sphinx-gallery go to
 #/miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
@@ -133,7 +134,7 @@ html_theme = 'sphinx_rtd_theme'
 
 html_theme_options = {
     'logo_only': False,
-    'navigation_depth': 2
+#    'navigation_depth': 5 # if this is set it seems to overide maxdepth set in .rst files such as index.rst
 }
 html_logo='./figures/pyapprox-logo.png'
 
