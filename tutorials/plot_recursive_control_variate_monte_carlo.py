@@ -109,7 +109,7 @@ npilot_samples = int(1e4)
 generate_samples=partial(
     pya.generate_independent_random_samples,variable)
 cov = pya.estimate_model_ensemble_covariance(
-    npilot_samples,generate_samples,model_ensemble)
+    npilot_samples,generate_samples,model_ensemble)[0]
 
 def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
                                               functions):
@@ -142,9 +142,9 @@ def compute_mlmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
 print('Two models')
 target_cost = int(1e4)
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-    cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=10)[:2]
+    cov[:2,:2], costs[:2], target_cost)[:2]
 means1 = compute_mlmc_many_model_variance_reduction(
-    10,nsample_ratios,model_ensemble)
+    nhf_samples,nsample_ratios,model_ensemble)
 idx = np.argmax([max(cov[0,1],cov[0,2])])+1
 print("Theoretical two model CV variance reduction",
       1-cov[0,idx]**2/(cov[0,0]*cov[idx,idx]))
@@ -154,9 +154,9 @@ print("Theoretical two model CV variance reduction",
 
 print('Three models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-    cov, costs, target_cost, nhf_samples_fixed=10)[:2]
+    cov, costs, target_cost)[:2]
 means2 = compute_mlmc_many_model_variance_reduction(
-    10,nsample_ratios,model_ensemble)
+    nhf_samples,nsample_ratios,model_ensemble)
 
 #%%
 #
@@ -233,7 +233,7 @@ def compute_mfmc_many_model_variance_reduction(nhf_samples,nsample_ratios,
 
 print('Two models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
-    cov[:2,:2], costs[:2], target_cost, nhf_samples_fixed=None)[:2]
+    cov[:2,:2], costs[:2], target_cost)[:2]
 means1 = compute_mfmc_many_model_variance_reduction(
     nhf_samples,nsample_ratios,model_ensemble)
 print("Theoretical two model CV variance reduction",
@@ -241,7 +241,7 @@ print("Theoretical two model CV variance reduction",
 
 print('Three models')
 nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
-    cov, costs, target_cost, nhf_samples_fixed=None)[:2]
+    cov, costs, target_cost)[:2]
 print(nhf_samples,nsample_ratios*nhf_samples)
 functions = model_ensemble
 #functions = [model_ensemble.m0,model_ensemble.m1,model_ensemble.m2]
