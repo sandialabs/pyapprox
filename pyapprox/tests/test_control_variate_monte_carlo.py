@@ -232,22 +232,6 @@ def setup_check_variance_reduction_model_ensemble_polynomial():
     #    npilot_samples,generate_samples,model_ensemble)
     return model_ensemble, cov, generate_samples
 
-def get_mfmc_control_variate_weights_pool_wrapper(cov,nsamples):
-    """
-    Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with 
-    multiprocessing pool because python cannot pickle such lambda functions
-    """
-    return get_mfmc_control_variate_weights(cov)
-
-def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
-    """
-    Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with 
-    multiprocessing pool because python cannot pickle such lambda functions
-    """
-    return get_mlmc_control_variate_weights(cov.shape[0])
-
 def check_variance_reduction(allocate_samples,generate_samples_and_values,
                              get_cv_weights,get_rsquared,setup_model,
                              rtol=1e-2,ntrials=1e3,max_eval_concurrency=1):

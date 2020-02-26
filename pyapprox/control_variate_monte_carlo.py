@@ -1160,7 +1160,7 @@ def get_rsquared_acv_KL_best(cov, nsample_ratios):
     """ 
     """
     nmodels = cov.shape[1]
-    opt_rsquared = None
+    opt_rsquared = -1
     KL = None
     for K in range(1, nmodels):
         for L in range(1, K+1):
@@ -1170,21 +1170,17 @@ def get_rsquared_acv_KL_best(cov, nsample_ratios):
                 get_rsquared_acv,
                 get_discrepancy_covariances=get_discrepancy_covariances)
             rsquared = get_rsquared(cov, nsample_ratios)
-            if opt_rsquared is not None:
-                if rsquared < opt_rsquared:
-                    opt_rsquared = rsquared
-                    KL = (K, L)
-            else:
+            #print(K,L,rsquared)
+            if rsquared > opt_rsquared:
                 opt_rsquared = rsquared
                 KL = (K, L)
-
-    return rsquared
+    return opt_rsquared
 
 def allocate_samples_acv_best_kl(cov,costs,target_cost,standardize=True,
                                  initial_guess=None,optim_options=None,
                                  optim_method='SLSQP'):
     nmodels = len(costs)
-    sol, KL, opt_log10_var = None, None, None
+    sol, KL, opt_log10_var = None, None, np.inf
 
     for K in range(1,nmodels):
         for L in range(1, K+1):
@@ -1192,14 +1188,9 @@ def allocate_samples_acv_best_kl(cov,costs,target_cost,standardize=True,
             nhf_samples, nsample_ratios, log10_var = allocate_samples_acv(
                 cov, costs, target_cost, estimator,standardize,
                 initial_guess,optim_options,optim_method)
-            print("K, L = ", K, L)
-            print("\t ", log10_var)
-            if opt_log10_var is not None:
-                if log10_var < opt_log10_var:
-                    opt_log10_var = log10_var
-                    sol = (nhf_samples, nsample_ratios)
-                    KL  = (K, L)
-            else:
+            #print("K, L = ", K, L)
+            #print("\t ", log10_var)
+            if log10_var < opt_log10_var:
                 opt_log10_var = log10_var
                 sol = (nhf_samples, nsample_ratios)
                 KL  = (K, L)
@@ -1403,7 +1394,8 @@ def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
 def estimate_variance_reduction(model_ensemble, cov, generate_samples,
                                 allocate_samples,generate_samples_and_values,
                                 get_cv_weights,get_rsquared=None,
-                                ntrials=1e3,max_eval_concurrency=1):
+                                ntrials=1e3,max_eval_concurrency=1,
+                                target_cost=None, costs=None):
     """
     Numerically estimate the variance of an approximate control variate estimator
     and compare its value to the estimator using only the high-fidelity data.
@@ -1420,8 +1412,10 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
     """
     
     M = cov.shape[0]-1 # number of lower fidelity models
-    target_cost = int(1e4)
-    costs = np.asarray([100//2**ii for ii in range(M+1)])
+    if costs is None:
+        costs = np.asarray([100//2**ii for ii in range(M+1)])
+    if target_cost is None:
+        target_cost = int(1e4)
 
     nhf_samples,nsample_ratios = allocate_samples(
         cov, costs, target_cost)[:2]
@@ -1447,3 +1441,19 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
         return means, numerical_var_reduction, true_var_reduction
 
     return means, numerical_var_reduction
+
+def get_mfmc_control_variate_weights_pool_wrapper(cov,nsamples):
+    """
+    Create interface that adhears to assumed api for variance reduction check
+    cannot be defined as a lambda locally in a test when using with 
+    multiprocessing pool because python cannot pickle such lambda functions
+    """
+    return get_mfmc_control_variate_weights(cov)
+
+def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
+    """
+    Create interface that adhears to assumed api for variance reduction check
+    cannot be defined as a lambda locally in a test when using with 
+    multiprocessing pool because python cannot pickle such lambda functions
+    """
+    return get_mlmc_control_variate_weights(cov.shape[0])
