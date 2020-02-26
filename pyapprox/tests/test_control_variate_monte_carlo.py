@@ -6,7 +6,6 @@ from pyapprox.configure_plots import *
 from pyapprox.control_variate_monte_carlo import *
 from scipy.stats import uniform,norm,lognorm
 from functools import partial
-import os
 
 class PolynomialModelEnsemble(object):
     def __init__(self):
@@ -249,70 +248,24 @@ def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
     """
     return get_mlmc_control_variate_weights(cov.shape[0])
 
-def compute_mean_for_variance_reduction_check(nhf_samples,nsample_ratios,
-                                              model_ensemble,generate_samples,
-                                              generate_samples_and_values,cov,
-                                              get_cv_weights,seed):
-    random_state = np.random.RandomState(seed)
-    #To create reproducible results when running numpy.random in parallel
-    # must use RandomState. If not the results will be non-deterministic.
-    # This is happens because of a race condition. numpy.random.* uses only
-    # one global PRNG that is shared across all the threads without
-    # synchronization. Since the threads are running in parallel, at the same
-    # time, and their access to this global PRNG is not synchronized between
-    # them, they are all racing to access the PRNG state (so that the PRNG's
-    # state might change behind other threads' backs). Giving each thread its
-    # own PRNG (RandomState) solves this problem because there is no longer
-    # any state that's shared by multiple threads without synchronization.
-    # Also see new features
-    #https://docs.scipy.org/doc/numpy/reference/random/parallel.html
-    #https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
-    local_generate_samples = partial(
-        generate_samples, random_state=random_state)
-    samples,values =generate_samples_and_values(
-        nhf_samples,nsample_ratios,model_ensemble,local_generate_samples)
-    # compute mean using only hf data
-    hf_mean = values[0][0].mean()
-    # compute ACV mean
-    eta = get_cv_weights(cov,nsample_ratios)
-    acv_mean = compute_approximate_control_variate_mean_estimate(eta,values)
-    return hf_mean, acv_mean
-
 def check_variance_reduction(allocate_samples,generate_samples_and_values,
                              get_cv_weights,get_rsquared,setup_model,
                              rtol=1e-2,ntrials=1e3,max_eval_concurrency=1):
 
+    assert get_rsquared is not None
     model_ensemble, cov, generate_samples = setup_model()
-        
+    means, numerical_var_reduction, true_var_reduction = \
+        estimate_variance_reduction(
+            model_ensemble, cov, generate_samples,
+            allocate_samples,generate_samples_and_values,
+            get_cv_weights,get_rsquared,ntrials,max_eval_concurrency)
 
-    M = cov.shape[0]-1 # number of lower fidelity models
-    target_cost = int(1e4)
-    costs = np.asarray([100//2**ii for ii in range(M+1)])
 
-    nhf_samples,nsample_ratios = allocate_samples(
-        cov, costs, target_cost)[:2]
-
-    ntrials = int(ntrials)
-    from multiprocessing import Pool
-    pool = Pool(max_eval_concurrency)
-    func = partial(compute_mean_for_variance_reduction_check,
-                   nhf_samples,nsample_ratios,model_ensemble,generate_samples,
-                   generate_samples_and_values,cov,get_cv_weights)
-    if max_eval_concurrency>1:
-        assert int(os.environ['OMP_NUM_THREADS'])==1
-        means = np.asarray(pool.map(func,[ii for ii in range(ntrials)]))
-    else:
-        means = np.empty((ntrials,2))
-        for ii in range(ntrials):
-            means[ii,:] = func(ii)
-
-    true_var_reduction = 1-get_rsquared(cov[:M+1,:M+1],nsample_ratios)
-    numerical_var_reduction=means[:,1].var(axis=0)/means[:,0].var(
-        axis=0)
-    print('true',true_var_reduction,'numerical',numerical_var_reduction)
-    print(np.absolute(true_var_reduction-numerical_var_reduction),rtol*np.absolute(true_var_reduction))
-    assert np.allclose(numerical_var_reduction,true_var_reduction,
-                       rtol=rtol)
+    #print('true',true_var_reduction,'numerical',numerical_var_reduction)
+    #print(np.absolute(true_var_reduction-numerical_var_reduction),rtol*np.absolute(true_var_reduction))
+    if rtol is not None:
+        assert np.allclose(numerical_var_reduction,true_var_reduction,
+                           rtol=rtol)
 
 
 class TestCVMC(unittest.TestCase):

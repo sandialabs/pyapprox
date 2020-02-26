@@ -1,7 +1,7 @@
 """
 Functions for estimating expectations using frequentist control-variate Monte-Carlo based methods such as multi-level Monte-Carlo, control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.
 """
-import numpy as np
+import numpy as np, os
 from scipy.optimize import minimize
 #use torch to compute gradients for sample allocation optimization
 import torch
@@ -1360,3 +1360,90 @@ class MLMC(ACV2):
             
     def get_rsquared(self,nsample_ratios):
         return get_rsquared_mlmc(self.cov,nsample_ratios,torch)
+
+def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
+        nhf_samples,nsample_ratios,
+        model_ensemble,generate_samples,
+        generate_samples_and_values,cov,
+        get_cv_weights,seed):
+    """
+    Compute the approximate control variate estimate of a high-fidelity
+    model from using it and a set of lower fidelity models. 
+    Also compute the single fidelity Monte Carlo estimate of the mean from
+    only the high-fidelity data.
+
+    Notes
+    -----
+    To create reproducible results when running numpy.random in parallel
+    must use RandomState. If not the results will be non-deterministic.
+    This is happens because of a race condition. numpy.random.* uses only
+    one global PRNG that is shared across all the threads without
+    synchronization. Since the threads are running in parallel, at the same
+    time, and their access to this global PRNG is not synchronized between
+    them, they are all racing to access the PRNG state (so that the PRNG's
+    state might change behind other threads' backs). Giving each thread its
+    own PRNG (RandomState) solves this problem because there is no longer
+    any state that's shared by multiple threads without synchronization.
+    Also see new features
+    https://docs.scipy.org/doc/numpy/reference/random/parallel.html
+    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
+    """
+    random_state = np.random.RandomState(seed)
+    local_generate_samples = partial(
+        generate_samples, random_state=random_state)
+    samples,values =generate_samples_and_values(
+        nhf_samples,nsample_ratios,model_ensemble,local_generate_samples)
+    # compute mean using only hf data
+    hf_mean = values[0][0].mean()
+    # compute ACV mean
+    eta = get_cv_weights(cov,nsample_ratios)
+    acv_mean = compute_approximate_control_variate_mean_estimate(eta,values)
+    return hf_mean, acv_mean
+
+def estimate_variance_reduction(model_ensemble, cov, generate_samples,
+                                allocate_samples,generate_samples_and_values,
+                                get_cv_weights,get_rsquared=None,
+                                ntrials=1e3,max_eval_concurrency=1):
+    """
+    Numerically estimate the variance of an approximate control variate estimator
+    and compare its value to the estimator using only the high-fidelity data.
+
+    Parameters
+    ----------
+    ntrials : integer
+        The number of times to compute estimator using different randomly 
+        generated set of samples
+
+    max_eval_concurrency : integer
+        The number of processors used to compute realizations of the estimators,
+        which can be run independently and in parallel.
+    """
+    
+    M = cov.shape[0]-1 # number of lower fidelity models
+    target_cost = int(1e4)
+    costs = np.asarray([100//2**ii for ii in range(M+1)])
+
+    nhf_samples,nsample_ratios = allocate_samples(
+        cov, costs, target_cost)[:2]
+
+    ntrials = int(ntrials)
+    from multiprocessing import Pool
+    pool = Pool(max_eval_concurrency)
+    func = partial(
+        compute_single_fidelity_and_approximate_control_variate_mean_estimates,
+        nhf_samples,nsample_ratios,model_ensemble,generate_samples,
+        generate_samples_and_values,cov,get_cv_weights)
+    if max_eval_concurrency>1:
+        assert int(os.environ['OMP_NUM_THREADS'])==1
+        means = np.asarray(pool.map(func,[ii for ii in range(ntrials)]))
+    else:
+        means = np.empty((ntrials,2))
+        for ii in range(ntrials):
+            means[ii,:] = func(ii)
+
+    numerical_var_reduction=means[:,1].var(axis=0)/means[:,0].var(axis=0)
+    if get_rsquared is not None:
+        true_var_reduction = 1-get_rsquared(cov[:M+1,:M+1],nsample_ratios)
+        return means, numerical_var_reduction, true_var_reduction
+
+    return means, numerical_var_reduction

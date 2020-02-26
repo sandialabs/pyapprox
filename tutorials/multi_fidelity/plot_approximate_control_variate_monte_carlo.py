@@ -38,7 +38,7 @@ Using the above expression yields
   %&=\left(\frac{(r-1)^2}{r^2N}+\frac{(r-1)}{r^2N}\right)\var{f_\V{\kappa}}\\
   &=\frac{r-1}{r}\frac{\var{f_\V{\kappa}}}{N}
 
-where we have used the fact that since the samples between the first and second term on the first line are not shared the covariance is zero. Also we have
+where we have used the fact that since the samples used in the first and second term on the first line are not shared, the covariance between these terms is zero. Also we have
 
 .. math::
 
@@ -63,8 +63,9 @@ which is found when
 
 .. math::
 
-   \eta&=\frac{r(\gamma-1)\var{f_\V{\alpha}}}{(r-1)\covar{f_\V{\alpha}}{f_\V{\kappa}}}\\
-   &=\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{\var{f_\V{\alpha}}}
+   \eta&=-\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}\\
+  &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}}\\
+  &=-\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{\var{f_\V{\kappa}}}
 
 """
 #%%
@@ -89,17 +90,17 @@ exact_integral_f0=0
 #
 #   Q_{\V{\alpha},\mathcal{Z}}^{\text{ACV}}=Q_{\V{\alpha},\mathcal{Z}_0} + \eta \left( Q_{\V{\kappa},\mathcal{Z}_{\alpha,1}} - \mu_{\V{\kappa},\mathcal{Z}_{\alpha,2}} \right)
 #
-#where :math:`\mathcal{Z}=\bigcup_{\alpha=0}^M Z_\alpha`. The nature of these samples can be changed to produce different ACV estimators. Here we choose  :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z_0}`. That is we use the set a common set of samples to compute the covariance between all the models and a second independent set to estimate the lower fidelity mean. The sample partitioning for :math:`M` models is  shown in the following Figure
+#where :math:`\mathcal{Z}=\bigcup_{\alpha=0}^M Z_\alpha`. The nature of these samples can be changed to produce different ACV estimators. Here we choose  :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset` and :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z_0}`. That is we use the set a common set of samples to compute the covariance between all the models and a second independent set to estimate the lower fidelity mean. The sample partitioning for :math:`M` models is  shown in the following Figure. We call this scheme the ACV IS sampling stratecy where IS indicates that the second sample set :math:`\mathcal{Z}_{\alpha,2}` assigned to each model are not shared.
 #
 #.. list-table::
 #
-#   * - .. _acv-sample-allocation:
+#   * - .. _acv-is-sample-allocation:
 #
 #       .. figure:: ../../figures/acv_is.png
 #          :width: 50%
 #          :align: center
 #
-#          ACV sampling strategy
+#          ACV IS sampling strategy
 #
 #The following code generates samples according to this strategy
 
@@ -131,7 +132,7 @@ _ = ax.legend(loc='upper left')
 
 cov = model.get_covariance_matrix()
 gamma = 1-(nsample_ratio-1)/nsample_ratio*cov[0,1]**2/(cov[0,0]*cov[1,1])
-eta = -cov[0,1]/cov[0,0]
+eta = -cov[0,1]/cov[1,1]
 print(values1_shared.shape,values1_lf_only.shape)
 acv_mean = values0.mean()+eta*(values1_shared.mean()-np.concatenate(
     [values1_shared[:,0],values1_lf_only[:,0]]).mean())
@@ -172,7 +173,7 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
         # compute ACV mean
         gamma=1-(nsample_ratios[0]-1)/nsample_ratios[0]*cov[0,1]**2/(
             cov[0,0]*cov[1,1])
-        eta = -cov[0,1]/cov[0,0]
+        eta = -cov[0,1]/cov[1,1]
         means[ii,1]=hf_mean+eta*(values_shared[1].mean()-
             np.concatenate([values_shared[1],values_lf_only[0]]).mean())
 
@@ -245,46 +246,55 @@ _ = ax.legend(loc='upper left')
 #
 #where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme found in [GGEJJCP2020]_ here.
 #
-#The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-sample-allocation` for a visual depiction of the sample sets.
+#The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation` for a visual depiction of the sample sets.
 
 #%%
 #Lets apply ACV to three models and this time use some helper functions to reduce the amount of code we have to write
 from functools import partial
-def compute_acv_many_model_variance_reduction(nsample_ratios,functions):
-    M = len(nsample_ratios) # number of lower fidelity models
-    assert len(functions)==M+1
-    
-    ntrials=int(1e3)
-    means = np.empty((ntrials,2))
-    generate_samples=partial(
-        pya.generate_independent_random_samples,variable)
-    for ii in range(ntrials):
-        samples,values =\
-            pya.generate_samples_and_values_acv_IS(
-                nhf_samples,nsample_ratios,functions,generate_samples)
-        # compute mean using only hf data
-        hf_mean = values[0][0].mean()
-        means[ii,0]= hf_mean
-        # compute ACV mean
-        eta = pya.get_approximate_control_variate_weights(
-            cov[:M+1,:M+1],nsample_ratios,
-            pya.get_discrepancy_covariances_IS)
-        means[ii:,1] = pya.compute_approximate_control_variate_mean_estimate(
-            eta,values)
-
-    print("Theoretical ACV variance reduction",
-          1-pya.get_rsquared_acv(
-              cov[:M+1,:M+1],nsample_ratios,pya.get_discrepancy_covariances_IS))
-    print("Achieved ACV variance reduction",
-          means[:,1].var(axis=0)/means[:,0].var(axis=0))
-    return means
-print('Two models')
-means1 = compute_acv_many_model_variance_reduction([10],[model.m0,model.m1])
-print('Three models')
-means2 = compute_acv_many_model_variance_reduction([10,10],[model.m0,model.m1,model.m2])
+generate_samples=partial(
+    pya.generate_independent_random_samples,variable)
+generate_samples_and_values = pya.generate_samples_and_values_acv_IS
+get_cv_weights = partial(
+    pya.get_approximate_control_variate_weights,
+    get_discrepancy_covariances=pya.get_discrepancy_covariances_IS)
+get_rsquared = partial(
+    pya.get_rsquared_acv,
+    get_discrepancy_covariances=pya.get_discrepancy_covariances_IS)
 
 #%%
-#The benefit of using three models over two models depends on the correlation between each low fidelity model and the high-fidelity model. The benefit on using more models also depends on the relative cost of evaluating each model, however here we will just investigate the effect of changing correlation. The following code shows the variance reduction (relative to standard Monte Carlo) obtained using CVMC (not approximate CVMC) using 2 (OCV1) and three models (OCV). ACVMC will achieve these variance reductions in the limit as the number of samples of the low fidelity models goes to infinity.
+# First using 2 models
+
+print('Two models')
+model_ensemble = pya.ModelEnsemble(model.models[:2])
+nsample_ratios = [10]
+allocate_samples = \
+    lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
+means1, numerical_var_reduction1, true_var_reduction1 = \
+    pya.estimate_variance_reduction(
+        model_ensemble, cov[:2,:2], generate_samples, allocate_samples,
+        generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
+        max_eval_concurrency=1)
+print("Theoretical ACV variance reduction",true_var_reduction1)
+print("Achieved ACV variance reduction",numerical_var_reduction1)
+
+#%%
+# Now using 3 models
+
+print('Three models')
+model_ensemble = pya.ModelEnsemble(model.models)
+nsample_ratios = [10,10]
+allocate_samples = \
+    lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
+means2, numerical_var_reduction2, true_var_reduction2 = \
+    pya.estimate_variance_reduction(
+        model_ensemble, cov, generate_samples, allocate_samples,
+        generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
+        max_eval_concurrency=1)
+print("Theoretical ACV variance reduction",true_var_reduction2)
+print("Achieved ACV variance reduction",numerical_var_reduction2)
+
+#%%
+#The benefit of using three models over two models depends on the correlation between each low fidelity model and the high-fidelity model. The benefit on using more models also depends on the relative cost of evaluating each model, however here we will just investigate the effect of changing correlation. The following code shows the variance reduction (relative to standard Monte Carlo) obtained using CVMC (not approximate CVMC) using 2 (OCV1) and three models (OCV2). ACVMC will achieve these variance reductions in the limit as the number of samples of the low fidelity models goes to infinity.
 
 theta1 = np.linspace(model.theta2*1.05,model.theta0*0.95,5)
 covs = []
@@ -292,12 +302,12 @@ var_reds = []
 for th1 in theta1:
     model.theta1=th1
     covs.append(model.get_covariance_matrix())
-    OCV_var_red = 1-pya.get_control_variate_rsquared(covs[-1])
+    OCV2_var_red = 1-pya.get_control_variate_rsquared(covs[-1])
     # use model with largest covariance with high fidelity model
     idx = [0,np.argmax(covs[-1][0,1:])+1]
     assert idx == [0,1] #it will always be the first model
     OCV1_var_red = pya.get_control_variate_rsquared(covs[-1][np.ix_(idx,idx)])
-    var_reds.append([OCV_var_red,OCV1_var_red])
+    var_reds.append([OCV2_var_red,OCV1_var_red])
 covs = np.array(covs)
 var_reds = np.array(var_reds)
 
@@ -305,10 +315,10 @@ fig,axs = plt.subplots(1,2,figsize=(2*8,6))
 for ii,jj, in [[0,1],[0,2],[1,2]]:
     axs[0].plot(theta1,covs[:,ii,jj],'o-',
                 label=r'$\rho_{%d%d}$'%(ii,jj))
-axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\mathrm{OCV}$')
+axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\mathrm{OCV2}$')
 axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\mathrm{OCV1}$')
 axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
-            label=r'$\mathrm{OCV/OCV1}$')
+            label=r'$\mathrm{OCV2/OCV1}$')
 axs[0].set_xlabel(r'$\theta_1$')
 axs[0].set_ylabel(r'$\mathrm{Correlation}$')
 axs[1].set_xlabel(r'$\theta_1$')
