@@ -1,12 +1,12 @@
 r"""
 Approximate Control Variate Monte Carlo
 =======================================
-This tutorial builds upon :ref:`sphx_glr_auto_tutorials_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple low-fidelity models with unknown means. 
+This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how to implement and deploy *approximate* control variate Monte Carlo (ACVMC) sampling to compute expectations of model output from multiple low-fidelity models with unknown means. 
 
 CVMC is often not useful for practical analysis of numerical models because typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}`, is unknown and the cost of the lower fidelity model is non trivial. These two issues can be overcome by using approximate control variate Monte Carlo.
 
 Two models
-^^^^^^^^^^
+----------
 
 Let the cost of the high fidelity model per sample be :math:`C_\alpha` and let the cost of the low fidelity model be :math:`C_\kappa`. Now lets use :math:`N` samples to estimate :math:`Q_{\V{\alpha},N}` and :math:`Q_{\V{\kappa},N}` and these  :math:`N` samples plus another :math:`(r-1)N` samples to estimate :math:`\mu_{\V{\kappa}}` so that
 
@@ -209,7 +209,7 @@ _ = ax.legend(loc='upper left')
 
 #%%
 #Two or more models
-#^^^^^^^^^^^^^^^^^^
+#------------------
 #
 #Control variate Monte Carlo can be easily extended and applied to more than two models. Consider :math:`M` lower fidelity models with sample ratios :math:`r_\alpha>=1`, for :math:`\alpha=1,\ldots,M`. The approximate control variate estimator of the mean of the high-fidelity model :math:`Q_0=\mean{f_0}` is
 #
