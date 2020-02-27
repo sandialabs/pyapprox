@@ -383,7 +383,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
         nsamples.append(nsamp)
         sum1 += np.sqrt(vc)
     I = np.argsort(vardeltas)
-    assert np.allclose(I,np.arange(nmodels-1))
+    #assert np.allclose(I,np.arange(nmodels-1))
 
     # compute information for lowest fidelity model
     v = cov[nmodels-1, nmodels-1]
@@ -428,7 +428,7 @@ def get_lagrange_multiplier_mlmc(cov,costs,nhf_samples):
     Given an optimal sample allocation recover the optimal value of the 
     Lagrange multiplier. This is only used for testing
     """
-    ii=0 # 0th discepancy
+    ii=0 # 0th discrepancy
     var_delta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
     cost_delta = (costs[ii] + costs[ii+1])
     lagrange_mult=nhf_samples**2/(var_delta/cost_delta)
@@ -1184,7 +1184,7 @@ def allocate_samples_acv_best_kl(cov,costs,target_cost,standardize=True,
 
     for K in range(1,nmodels):
         for L in range(1, K+1):
-            estimator = ACV2KL(cov, costs,target_cost, K, L)
+            estimator = ACVMFKL(cov, costs,target_cost, K, L)
             nhf_samples, nsample_ratios, log10_var = allocate_samples_acv(
                 cov, costs, target_cost, estimator,standardize,
                 initial_guess,optim_options,optim_method)
@@ -1286,7 +1286,7 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
     cov = np.cov(pilot_values,rowvar=False)
     return cov, pilot_random_samples, pilot_values
 
-class ACV2(object):
+class ACVMF(object):
     def __init__(self,cov,costs,target_cost):
         self.cov=torch.tensor(np.copy(cov), dtype=torch.double)
         self.costs=torch.tensor(np.copy(costs), dtype=torch.double)
@@ -1316,7 +1316,7 @@ class ACV2(object):
         return self.jacobian_fun_all(x)
         
 
-class ACV2KL(ACV2):
+class ACVMFKL(ACVMF):
     def __init__(self,cov,costs,target_cost,K,L):
         self.K, self.L = K, L
         super().__init__(cov, costs, target_cost)
@@ -1327,12 +1327,12 @@ class ACV2KL(ACV2):
             partial(get_discrepancy_covariances_KL,K=self.K,L=self.L,
                     pkg=torch))
 
-class MFMC(ACV2):
+class MFMC(ACVMF):
     def get_rsquared(self,nsample_ratios):
         return get_rsquared_mfmc(self.cov,nsample_ratios)
 
 
-class MLMC(ACV2):
+class MLMC(ACVMF):
     def __init__(self,cov,costs,target_cost):
         super().__init__(cov,costs,target_cost)
 
@@ -1457,3 +1457,33 @@ def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
     multiprocessing pool because python cannot pickle such lambda functions
     """
     return get_mlmc_control_variate_weights(cov.shape[0])
+
+def plot_acv_sample_allocation(nsamples_history,costs,labels,ax):
+    def autolabel(ax,rects,labels):
+        #Attach a text label in each bar in *rects*
+        for rect,label in zip(rects,labels):
+            ax.annotate(label,
+                        xy=(rect.get_x() + rect.get_width()/2,
+                            rect.get_y() + rect.get_height()/2),
+                        xytext=(0, -10),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+
+    nsamples_history = np.asarray(nsamples_history)
+    xlocs = np.arange(nsamples_history.shape[0])
+    nmodels = nsamples_history.shape[1]
+    
+    cnt = 0
+    total_costs = nsamples_history.dot(costs)
+    for ii in range(nmodels):
+        rel_cost = nsamples_history[:,ii]*costs[ii]
+        rel_cost /= total_costs
+        rects = ax.bar(xlocs,rel_cost,bottom=cnt,edgecolor='white',
+                       label=labels[ii])
+        autolabel(ax,rects,['$%d$'%int(n) for n in nsamples_history[:,ii]])
+        cnt+=rel_cost
+    ax.set_xticks(xlocs)
+    ax.set_xticklabels(['$%d$'%t for t in total_costs])
+    ax.set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
+    ax.set_ylabel(r'$\mathrm{Percentage}\;\mathrm{of}\;\mathrm{Total}\;\mathrm{Cost}$ / $N_\alpha$')
+    ax.legend(loc=[0.925,0.25])

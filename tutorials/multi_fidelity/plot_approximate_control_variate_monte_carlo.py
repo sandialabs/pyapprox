@@ -243,7 +243,7 @@ _ = ax.legend(loc='upper left')
 #
 #The most straightforward way to obtain an ACV estimator with the same covariance structure of an CV estimator is to evaluate each model (including the high-fidelity model) at a set of :math:`N` samples  :math:`\mathcal{Z}_{\alpha,1}`. We then evaluate each low fidelity model at an additional :math:`N(1-r_\alpha)` samples :math:`\mathcal{Z}_{\alpha,2}`. That is the sample sets satisfy :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{0}\;\forall\alpha>0` and :math:`\left(\mathcal{Z}_{\alpha,2}\setminus\mathcal{Z}_{\alpha,1}\right)\cap\left(\mathcal{Z}_{\kappa,2}\setminus\mathcal{Z}_{\kappa,1}\right)=\emptyset\;\forall\kappa\neq\alpha`. See :ref:`acv-is-sample-allocation` for a visual depiction of the sample sets.
 #
-#The matrix :math:`` corresponding to this sample scheme is
+#The matrix :math:`F` corresponding to this sample scheme is
 #
 #.. math::
 #
@@ -253,7 +253,7 @@ _ = ax.legend(loc='upper left')
 #
 
 #%%
-#Lets apply ACV to three models and this time use some helper functions to reduce the amount of code we have to write
+#Lets apply ACV to the tunable model ensemble using some helper functions to reduce the amount of code we have to write
 from functools import partial
 generate_samples_and_values = pya.generate_samples_and_values_acv_IS
 get_cv_weights = partial(
@@ -264,7 +264,7 @@ get_rsquared = partial(
     get_discrepancy_covariances=pya.get_discrepancy_covariances_IS)
 
 #%%
-# First using 2 models
+# First let us just use 2 models
 
 print('Two models')
 model_ensemble = pya.ModelEnsemble(model.models[:2])
@@ -280,7 +280,7 @@ print("Theoretical ACV variance reduction",true_var_reduction1)
 print("Achieved ACV variance reduction",numerical_var_reduction1)
 
 #%%
-# Now using 3 models
+# Now let us use 3 models
 
 print('Three models')
 model_ensemble = pya.ModelEnsemble(model.models)
