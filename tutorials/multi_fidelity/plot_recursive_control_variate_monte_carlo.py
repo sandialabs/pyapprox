@@ -48,7 +48,6 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
 
           MLMC sampling strategy
 
-
      - 
        .. _acv-is-sample-allocation-mlmc-comparison:
 
@@ -58,17 +57,9 @@ where :math:`\eta_\alpha=-1,\forall\alpha` and :math:`\mathcal{Z}_{\alpha,1}=\ma
 
           ACV IS sampling strategy
 
-By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
 
-.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{1=2}^M \frac{1}{\hat{r}_{i-1}}
-                                                          \left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
-
-where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`. 
-
-From the above expression we can see that the variance reduction is bounded by the CV estimator using the lowest fidelity model with the highest correlation with :math:`f_0`. Using multiple models only helps increase the speed to which we converge to the 2 model CV  estimator. The following demonstrates this numerically. Try the different models (commented out) to see how peformance changes.
+Lets setup a problem to compute an MLMC estimate of :math:`\mean{f_0}`
 """
-#%%
-# Lets setup a problem to compute an ACV estimate of :math:`\mean{f_0}`
 import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
@@ -79,81 +70,84 @@ from functools import partial
 from scipy.stats import uniform,norm,lognorm
 np.random.seed(1)
 
-# univariate_variables = [uniform(-1,2),uniform(-1,2)]
-# variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-# shifts= [.1,.2]
-# tunable_model = TunableModelEnsemble(1,shifts=shifts)
-# model_ensemble = pya.ModelEnsemble(
-#     [tunable_model.m0,tunable_model.m1,tunable_model.m2])
-# exact_integral_f0=0
-# cov = tunable_model.get_covariance_matrix()
-# costs = [100,10,1]
-
 short_column_model = ShortColumnModelEnsemble()
 model_ensemble = pya.ModelEnsemble(
     [short_column_model.m0,short_column_model.m1,short_column_model.m2])
+
 costs = np.asarray([100, 50, 5])
 target_cost = int(1e4)
-
-
-univariate_variables = [
-   uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
-   lognorm(s=0.5,scale=np.exp(5))]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-
-# generate pilot samples to estimate correlation
-npilot_samples = int(1e4)
-generate_samples=partial(
-    pya.generate_independent_random_samples,variable)
 idx = [0,1,2]
-cov = short_column_model.get_covariance_matrix(variable)[np.ix_(idx,idx)]
-#cov = pya.estimate_model_ensemble_covariance(
-#    npilot_samples,generate_samples,model_ensemble)[0]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
+# generate pilot samples to estimate correlation
+# npilot_samples = int(1e4)
+# cov = pya.estimate_model_ensemble_covariance(
+#    npilot_samples,short_column_model.generate_samples,model_ensemble)[0]
 
-generate_samples=partial(
-    pya.generate_independent_random_samples,variable)
-get_cv_weights_mlmc = pya.get_mlmc_control_variate_weights_pool_wrapper
+# define the sample allocation
+nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+    cov, costs, target_cost)[:2]
+# generate sample sets
+samples,values =pya.generate_samples_and_values_mlmc(
+    nhf_samples,nsample_ratios,model_ensemble,
+    short_column_model.generate_samples)
+# compute mean using only hf data
+hf_mean = values[0][0].mean()
+# compute mlmc control variate weights
+eta = pya.get_mlmc_control_variate_weights(cov.shape[0])
+# compute MLMC mean
+mlmc_mean = pya.compute_approximate_control_variate_mean_estimate(eta,values)
+
+# get the true mean of the high-fidelity model
+true_mean = short_column_model.get_means()[0]
+print('MLMC error',abs(mlmc_mean-true_mean))
+print('MC error',abs(hf_mean-true_mean))
+
+
 #%%
-# First let us use 2 models
+#These errors are comparable. However these errors are only for one realiation of the samples sets. To obtain a clearer picture on the benefits of MLMC we need to look at the variance of the estimator.
+#
+#By viewing MLMC as a control variate we can derive its variance reduction [GGEJJCP2020]_
+#
+#.. math::  \gamma+1 = - \eta_1^2 \tau_{1}^2 - 2 \eta_1 \rho_{1} \tau_{1} - \eta_M^2 \frac{\tau_{M}}{\hat{r}_{M}} - \sum_{1=2}^M \frac{1}{\hat{r}_{i-1}}\left( \eta_i^2 \tau_{i}^2 + \tau_{i-1}^2 \tau_{i-1}^2 - 2 \eta_i \eta_{i-1} \rho_{i,i-1} \tau_{i} \tau_{i-1} \right),
+#   :label: mlmc-variance-reduction
+#
+#where  :math:`\tau_\alpha=\left(\frac{\var{Q_\alpha}}{\var{Q_0}}\right)^{\frac{1}{2}}`. Recall that and :math:`\hat{r}_\alpha=\lvert\mathcal{Z}_{\alpha,2}\rvert/N` is the ratio of the cardinality of the sets :math:`\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{0,2}`. 
+#
+#First let us use 2 models. The following code computes the variance reuduction of the estimator by computing the MLMC repeatedly with different realizations of the sample sets. If a :math:`\texttt{get_rsquared_mlmc}` function is available then it also returns the theoretical variance reduction
 ntrials=1e1
+get_cv_weights_mlmc = pya.get_mlmc_control_variate_weights_pool_wrapper
 means1, numerical_var_reduction1, true_var_reduction1 = \
     pya.estimate_variance_reduction(
-        model_ensemble, cov[:2,:2], generate_samples, pya.allocate_samples_mlmc,
+        model_ensemble, cov[:2,:2], short_column_model.generate_samples,
+        pya.allocate_samples_mlmc,
         pya.generate_samples_and_values_mlmc, get_cv_weights_mlmc,
         pya.get_rsquared_mlmc,ntrials=ntrials,max_eval_concurrency=1,
         costs=costs[:2],target_cost=target_cost)
-print("Theoretical MLMC variance reduction",true_var_reduction1)
-print("Achieved MLMC variance reduction",numerical_var_reduction1)
+print("Theoretical 2 model MLMC variance reduction",true_var_reduction1)
+print("Achieved 2 model MLMC variance reduction",numerical_var_reduction1)
 
 
 #%%
-# Now use 3 models
+# The numerical estimate of the variance reduction is consistent with the theory.
+# Now let us compute the theoretical variance reduction using 3 models
 
-means2, numerical_var_reduction2, true_var_reduction2 = \
-    pya.estimate_variance_reduction(
-        model_ensemble, cov, generate_samples, pya.allocate_samples_mlmc,
-        pya.generate_samples_and_values_mlmc, get_cv_weights_mlmc,
-        pya.get_rsquared_mlmc,ntrials=ntrials,max_eval_concurrency=1,
-        costs=costs,target_cost=target_cost)
-print("Theoretical MLMC variance reduction",true_var_reduction2)
-print("Achieved MLMC variance reduction",numerical_var_reduction2)
-
+true_var_reduction2 = 1-pya.get_rsquared_mlmc(cov,nsample_ratios)
+print("Theoretical 3 model MLMC variance reduction",true_var_reduction2)
 
 #%%
+#The variance reduction obtained using three models is only slightly better than when using two models. The difference in variance reduction is dependent on the correlations between the models and the number of samples assigned to each model. However by looking at :eq:`mlmc-variance-reduction` we can see that the variance reduction is bounded by the CV estimator using the lowest fidelity model with the highest correlation with :math:`f_0`. 
+#
 #It is also worth empahsizing the MLMC only works when the variance between the model discrepancies decay. One needs to be careful that the variance between discrepancies does indeed decay. Sometimes when the models correspond to different mesh discretizations. Increasing the mesh resolution does not always produce a smaller discrepancy. The following example shows that, for this example, adding a third model actually increases the variance of the MLMC estimator. 
 
 model_ensemble = pya.ModelEnsemble(
     [short_column_model.m0,short_column_model.m3,short_column_model.m4])
 idx = [0,3,4]
-cov3 = short_column_model.get_covariance_matrix(variable)[np.ix_(idx,idx)]
-means3, numerical_var_reduction3, true_var_reduction3 = \
-    pya.estimate_variance_reduction(
-        model_ensemble, cov3, generate_samples, pya.allocate_samples_mlmc,
-        pya.generate_samples_and_values_mlmc, get_cv_weights_mlmc,
-        pya.get_rsquared_mlmc,ntrials=ntrials,max_eval_concurrency=1,
-        costs=costs,target_cost=target_cost)
-print("Theoretical MLMC variance reduction",true_var_reduction3)
-print("Achieved MLMC variance reduction",numerical_var_reduction3)
+cov3 = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
+true_var_reduction3 = 1-pya.get_rsquared_mlmc(cov3,nsample_ratios)
+print("Theoretical 3 model MLMC variance reduction for a pathalogical example",true_var_reduction3)
+
+#%%
+#Using MLMC for this ensemble of models creates an estimate with a variance orders of magnitude larger than just using the high-fidelity model.
 
 #%%
 #
@@ -164,18 +158,7 @@ print("Achieved MLMC variance reduction",numerical_var_reduction3)
 #.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \eta\left(Q_{1,\mathcal{Z}_{0}}-\mu_{1,\mathcal{Z}_{1}}\right)
 #
 #The MFMC estimator can be derived with the following recursive argument. Partition the samples assigned to each model such that
-#:math:`\mathcal{Z}_\alpha=\mathcal{Z}_{\alpha,1}\cup\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset`. That is the samples at the next lowest fidelity model are the samples used at all previous levels plus an additional independent set, i.e. :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{\alpha-1}`. See :ref:`mfmc-sample-allocation`
-#
-#Starting from two models we introduce the next low fidelity model in a way that reduces the variance of the estimate :math:`\mu_{\alpha}`, i.e.
-#
-#.. math::
-#
-#   Q_{0,\mathcal{Z}}^\mathrm{MF}&=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\left(\mu_{1,\mathcal{Z}_{1}}+\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\right)\right)\\
-#   &=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\\
-#
-#We repeat this process for all low fidelity models to obtain
-#
-#.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+#:math:`\mathcal{Z}_\alpha=\mathcal{Z}_{\alpha,1}\cup\mathcal{Z}_{\alpha,2}` and :math:`\mathcal{Z}_{\alpha,1}\cap\mathcal{Z}_{\alpha,2}=\emptyset`. That is the samples at the next lowest fidelity model are the samples used at all previous levels plus an additional independent set, i.e. :math:`\mathcal{Z}_{\alpha,1}=\mathcal{Z}_{\alpha-1}`. See :ref:`mfmc-sample-allocation`. Note the differences between this scheme and the MLMC scheme.
 #
 #.. list-table::
 #
@@ -188,6 +171,25 @@ print("Achieved MLMC variance reduction",numerical_var_reduction3)
 #
 #          MFMC sampling strategy
 #
+#     -
+#       .. _mlmc-sample-allocation-mfmc-comparison:
+#
+#       .. figure:: ../../figures/mlmc.png
+#          :width: 100%
+#          :align: center
+#
+#          MLMC sampling strategy
+#
+#Starting from two models we introduce the next low fidelity model in a way that reduces the variance of the estimate :math:`\mu_{\alpha}`, i.e.
+#
+#.. math::
+#
+#   Q_{0,\mathcal{Z}}^\mathrm{MF}&=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\left(\mu_{1,\mathcal{Z}_{1}}+\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\right)\right)\\
+#   &=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\\
+#
+#We repeat this process for all low fidelity models to obtain
+#
+#.. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
 #
 #The optimal weights for the MFMC estimator are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 #
@@ -197,9 +199,31 @@ print("Achieved MLMC variance reduction",numerical_var_reduction3)
 #
 #.. math:: \gamma = 1-\rho_1^2\left(\frac{r_1-1}{r_1}+\sum_{\alpha=2}^M \frac{r_\alpha-r_{\alpha-1}}{r_\alpha r_{\alpha-1}}\frac{\rho_\alpha^2}{\rho_1^2}\right)
 #
-#Similarly to MLMC Using multiple models only helps increase the speed to which we converge to the 2 model CV estimator.
+#Let us use MFMC to estimate the mean of our high-fidelity model.
+
+# define the sample allocation
+nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
+    cov, costs, target_cost)[:2]
+# generate sample sets
+samples,values =pya.generate_samples_and_values_mfmc(
+    nhf_samples,nsample_ratios,model_ensemble,
+    short_column_model.generate_samples)
+# compute mean using only hf data
+hf_mean = values[0][0].mean()
+# compute mlmc control variate weights
+eta = pya.get_mfmc_control_variate_weights(cov)
+# compute MLMC mean
+mfmc_mean = pya.compute_approximate_control_variate_mean_estimate(eta,values)
+
+# get the true mean of the high-fidelity model
+true_mean = short_column_model.get_means()[0]
+print('MLMC error',abs(mfmc_mean-true_mean))
+print('MC error',abs(hf_mean-true_mean))
+
+#%%
+#Similarly to MLMC, using multiple models with MFMC only helps increase the speed to which the variance of the MFMC estimator converges to that of the 2 model CV estimator.
 #
-#Let us compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed
+#Let us compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed.
 
 poly_model = PolynomialModelEnsemble()
 cov = poly_model.get_covariance_matrix()
@@ -234,9 +258,9 @@ plt.xlabel(r'$\log_2(r_i)-i$')
 _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
 
 #%%
-#As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the 2 model CV estimator. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction. We can modify the ACV estimator to improve its variance for smaller low-fidelity sample sizes.
+#As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the 2 model CV estimator. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction. 
 #
-#Before moving on we not that typically we want to choose both the number of low fidelity samples and the number of high-fidelity samples to minimize variance for a fixed budget. We will cover this in the next tutorial.
+#Before moving on, note that typically we want to choose both the number of low fidelity samples and the number of high-fidelity samples to minimize variance for a fixed budget. We will cover this in the next tutorial.
 #
 #Accelerated Approximate Control Variate Monte Carlo
 #------------------------------------------------------
@@ -281,7 +305,7 @@ _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gam
 #
 #can be found in  [GGEJJCP2020]_.
 #
-#Lets create the previous plot but now add the ACV KL estimator
+#Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators.
 
 cv_labels = [r'$\mathrm{OCV1}$',r'$\mathrm{OCV2}$',r'$\mathrm{OCV4}$']
 cv_rsquared_funcs=[
@@ -314,6 +338,10 @@ plt.legend()
 plt.xlabel(r'$\log_2(r_i)-i$')
 _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
 
+#%%
+#The variance of the best ACV-KL still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.
+#
+#Make note about how this scheme is useful when one model may have multiple discretizations.!!!!
 
 #%%
 #References

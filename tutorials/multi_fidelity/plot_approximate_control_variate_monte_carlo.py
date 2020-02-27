@@ -77,8 +77,6 @@ from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
 from scipy.stats import uniform
 
 np.random.seed(1)
-univariate_variables = [uniform(-1,2),uniform(-1,2)]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 shifts= [.1,.2]
 model = TunableModelEnsemble(1,shifts=shifts)
 exact_integral_f0=0
@@ -106,10 +104,8 @@ exact_integral_f0=0
 
 nhf_samples = int(1e1)
 nsample_ratio = 10
-samples_shared = pya.generate_independent_random_samples(
-    variable,nhf_samples)
-samples_lf_only = pya.generate_independent_random_samples(
-    variable,nhf_samples*nsample_ratio-nhf_samples)
+samples_shared = model.generate_samples(nhf_samples)
+samples_lf_only =  model.generate_samples(nhf_samples*nsample_ratio-nhf_samples)
 values0 = model.m0(samples_shared)
 values1_shared = model.m1(samples_shared)
 values1_lf_only = model.m1(samples_lf_only)
@@ -156,12 +152,11 @@ def compute_acv_two_model_variance_reduction(nsample_ratios,functions):
     ntrials=int(1e3)
     means = np.empty((ntrials,2))
     for ii in range(ntrials):
-        samples_shared = pya.generate_independent_random_samples(
-            variable,nhf_samples)
+        samples_shared = model.generate_samples(nhf_samples)
         # length M
         samples_lf_only =[
-            pya.generate_independent_random_samples(
-                variable,nhf_samples*r-nhf_samples) for r in nsample_ratios]
+            model.generate_samples(nhf_samples*r-nhf_samples)
+            for r in nsample_ratios]
         values_lf_only  =  [
             f(s) for f,s in zip(functions[1:],samples_lf_only)]
         # length M+1
@@ -260,8 +255,6 @@ _ = ax.legend(loc='upper left')
 #%%
 #Lets apply ACV to three models and this time use some helper functions to reduce the amount of code we have to write
 from functools import partial
-generate_samples=partial(
-    pya.generate_independent_random_samples,variable)
 generate_samples_and_values = pya.generate_samples_and_values_acv_IS
 get_cv_weights = partial(
     pya.get_approximate_control_variate_weights,
@@ -280,7 +273,7 @@ allocate_samples = \
     lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
 means1, numerical_var_reduction1, true_var_reduction1 = \
     pya.estimate_variance_reduction(
-        model_ensemble, cov[:2,:2], generate_samples, allocate_samples,
+        model_ensemble, cov[:2,:2], model.generate_samples, allocate_samples,
         generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
         max_eval_concurrency=1)
 print("Theoretical ACV variance reduction",true_var_reduction1)
@@ -296,7 +289,7 @@ allocate_samples = \
     lambda cov, costs, target_cost : [nhf_samples, nsample_ratios, None]
 means2, numerical_var_reduction2, true_var_reduction2 = \
     pya.estimate_variance_reduction(
-        model_ensemble, cov, generate_samples, allocate_samples,
+        model_ensemble, cov, model.generate_samples, allocate_samples,
         generate_samples_and_values, get_cv_weights, get_rsquared, ntrials=1e3,
         max_eval_concurrency=1)
 print("Theoretical ACV variance reduction",true_var_reduction2)
