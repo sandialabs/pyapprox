@@ -58,15 +58,11 @@ from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
 from scipy.stats import uniform
 
 np.random.seed(1)
-univariate_variables = [uniform(-1,2),uniform(-1,2)]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-print(variable)
 shifts=[.1,.2]
 model = TunableModelEnsemble(np.pi/2*.95,shifts=shifts)
 
 nsamples = int(1e2)
-samples = pya.generate_independent_random_samples(
-    variable,nsamples)
+samples = model.generate_samples(nsamples)
 values0 = model.m0(samples)
 values1 = model.m1(samples)
 cov = model.get_covariance_matrix()
@@ -84,8 +80,7 @@ print('CVMC difference squared =',(cv_mean-exact_integral_f0)**2)
 ntrials=1000
 means = np.empty((ntrials,2))
 for ii in range(ntrials):
-    samples = pya.generate_independent_random_samples(
-        variable,nsamples)
+    samples = model.generate_samples(nsamples)
     values0 = model.m0(samples)
     values1 = model.m1(samples)
     means[ii,0] = values0.mean()

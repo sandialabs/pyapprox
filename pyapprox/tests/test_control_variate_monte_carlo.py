@@ -12,6 +12,13 @@ class PolynomialModelEnsemble(object):
         self.nmodels=5
         self.nvars=1
         self.models = [self.m0,self.m1,self.m2,self.m3,self.m4]
+        
+        univariate_variables = [uniform(0,1)]
+        self.variable=pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        self.generate_samples=partial(
+            pya.generate_independent_random_samples,self.variable)
+
 
     def m0(self,samples):
         return samples.T**5
@@ -81,6 +88,13 @@ class TunableModelEnsemble(object):
             self.shifts = [0,0]
         assert len(self.shifts)==2
         self.models = [self.m0,self.m1,self.m2]
+
+        univariate_variables = [uniform(-1,2),uniform(-1,2)]
+        self.variable=pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        self.generate_samples=partial(
+            pya.generate_independent_random_samples,self.variable)
+
         
     def m0(self,samples):
         assert samples.shape[0]==2
@@ -121,6 +135,14 @@ class ShortColumnModelEnsemble(object):
         self.nvars=5
         self.models = [self.m0,self.m1,self.m2,self.m3,self.m4]
         self.apply_lognormal=False
+
+        univariate_variables = [
+            uniform(5,10),uniform(15,10),norm(500,100),norm(2000,400),
+            lognorm(s=0.5,scale=np.exp(5))]
+        self.variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        self.generate_samples=partial(
+            pya.generate_independent_random_samples,self.variable)
     
     def extract_variables(self,samples):
         assert samples.shape[0]==5
@@ -154,18 +176,22 @@ class ShortColumnModelEnsemble(object):
         b,h,P,M,Y = self.extract_variables(samples)
         return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
-    def get_covariance_matrix(self,variable):
-        nvars = variable.num_vars()
+    def get_quadrature_rule(self):
+        nvars = self.variable.num_vars()
         degrees=[10]*nvars
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = pya.AffineRandomVariableTransformation(self.variable)
         gauss_legendre = partial(
             pya.gauss_jacobi_pts_wts_1D,alpha_poly=0,beta_poly=0)
         univariate_quadrature_rules = [
             gauss_legendre,gauss_legendre,pya.gauss_hermite_pts_wts_1D,
             pya.gauss_hermite_pts_wts_1D,pya.gauss_hermite_pts_wts_1D]
         x,w = pya.get_tensor_product_quadrature_rule(
-            degrees,variable.num_vars(),univariate_quadrature_rules,
+            degrees,self.variable.num_vars(),univariate_quadrature_rules,
             var_trans.map_from_canonical_space)
+        return x,w
+
+    def get_covariance_matrix(self):
+        x,w = self.get_quadrature_rule()
 
         nsamples = x.shape[1]
         nqoi = len(self.models)
@@ -173,7 +199,16 @@ class ShortColumnModelEnsemble(object):
         for ii in range(nqoi):
             vals[:,ii] = self.models[ii](x)[:,0]
         cov = np.cov(vals,aweights=w,rowvar=False,ddof=0)
-        return cov        
+        return cov
+
+    def get_means(self):
+        x,w = self.get_quadrature_rule()
+        nsamples = x.shape[1]
+        nqoi = len(self.models)
+        vals = np.empty((nsamples,nqoi))
+        for ii in range(nqoi):
+            vals[:,ii] = self.models[ii](x)[:,0]
+        return vals.T.dot(w).squeeze()
 
 def setup_check_variance_reduction_model_ensemble_short_column(
         nmodels=5,npilot_samples=None):
@@ -212,25 +247,17 @@ def setup_check_variance_reduction_model_ensemble_short_column(
 def setup_check_variance_reduction_model_ensemble_tunable():
     example = TunableModelEnsemble(np.pi/4)
     model_ensemble = pya.ModelEnsemble(example.models)
-    univariate_variables = [uniform(-1,2),uniform(-1,2)]
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
-    generate_samples=partial(
-        pya.generate_independent_random_samples,variable)
     cov = example.get_covariance_matrix()
-    return model_ensemble, cov, generate_samples
+    return model_ensemble, cov, example.generate_samples
 
 def setup_check_variance_reduction_model_ensemble_polynomial():
     example = PolynomialModelEnsemble()
     model_ensemble = pya.ModelEnsemble(example.models)
-    univariate_variables = [uniform(0,1)]
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
-    generate_samples=partial(
-        pya.generate_independent_random_samples,variable)
     cov = example.get_covariance_matrix()
     #npilot_samples=int(1e6)
     #cov, samples, weights = pya.estimate_model_ensemble_covariance(
     #    npilot_samples,generate_samples,model_ensemble)
-    return model_ensemble, cov, generate_samples
+    return model_ensemble, cov, example.generate_samples
 
 def check_variance_reduction(allocate_samples,generate_samples_and_values,
                              get_cv_weights,get_rsquared,setup_model,
@@ -255,86 +282,6 @@ def check_variance_reduction(allocate_samples,generate_samples_and_values,
 class TestCVMC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
-
-    def test_MLMC_tunable_example(self):
-        example = TunableModelEnsemble(np.pi/4)
-        generate_samples = lambda nn: np.random.uniform(-1,1,(2,nn))
-        model_emsemble = pya.ModelEnsemble([example.m0,example.m1,example.m2])
-        #costs = np.array([1.0, 1.0/100, 1.0/100/100])
-        cov, samples , values= pya.estimate_model_ensemble_covariance(
-            int(1e3),generate_samples,model_emsemble)
-        import seaborn as sns
-        from pandas import DataFrame
-        df = DataFrame(
-            index=np.arange(values.shape[0]),
-            data=dict([(r'$z_%d$'%ii,values[:,ii])
-                       for ii in range(values.shape[1])]))
-        # heatmap does not currently work with matplotlib 3.1.1 downgrade to
-        # 3.1.0 using pip install matplotlib==3.1.0
-        #sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
-        exact_cov = example.get_covariance_matrix()
-        exact_cor = pya.get_correlation_from_covariance(exact_cov)
-        #print(exact_cor)
-        #print(df.corr())
-        #plt.tight_layout()
-        #plt.show()
-
-        theta1 = np.linspace(example.theta2*1.05,example.theta0*0.95,5)
-        covs = []
-        var_reds = []
-        for th1 in theta1:
-            example.theta1=th1
-            covs.append(example.get_covariance_matrix())
-            OCV_var_red = pya.get_variance_reduction(
-                pya.get_control_variate_rsquared,covs[-1],None)
-            # use model with largest covariance with high fidelity model
-            idx = [0,np.argmax(covs[-1][0,1:])+1]
-            assert idx == [0,1] #it will always be the first model
-            OCV1_var_red = pya.get_variance_reduction(
-                pya.get_control_variate_rsquared,covs[-1][np.ix_(idx,idx)],None)
-            var_reds.append([OCV_var_red,OCV1_var_red])
-        covs = np.array(covs)
-        var_reds = np.array(var_reds)
-
-        fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-        for ii,jj, in [[0,1],[0,2],[1,2]]:
-            axs[0].plot(theta1,covs[:,ii,jj],'o-',
-                        label=r'$\rho_{%d%d}$'%(ii,jj))
-        axs[1].plot(theta1,var_reds[:,0],'o-',label=r'$\textrm{OCV}$')
-        axs[1].plot(theta1,var_reds[:,1],'o-',label=r'$\textrm{OCV1}$')
-        axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
-                    label=r'$\textrm{OCV/OCV1}$')
-        axs[0].set_xlabel(r'$\theta_1$')
-        axs[0].set_ylabel(r'$\textrm{Correlation}$')
-        axs[1].set_xlabel(r'$\theta_1$')
-        axs[1].set_ylabel(r'$\textrm{Variance reduction ratio} \ \gamma$')
-        axs[0].legend()
-        axs[1].legend()
-        #plt.show()
-
-        print('####')
-        target_cost = 100
-        cost_ratio = 10
-        costs = np.array([1,1/cost_ratio,1/cost_ratio**2])
-        example.theta0=1.4/0.95
-        example.theta2=0.6/1.05
-        theta1 = np.linspace(example.theta2*1.05,example.theta0*0.95,5)
-        #allocate = pya.allocate_samples_mlmc
-        #get_rsquared = pya.get_rsquared_mlmc
-        #allocate = pya.allocate_samples_mfmc
-        #get_rsquared = pya.get_rsquared_mfmc
-        allocate = pya.allocate_samples_acv
-        get_rsquared = pya.get_rsquared_acv
-        for th1 in theta1:
-            example.theta1=th1
-            cov = example.get_covariance_matrix()
-            nhf_samples, nsample_ratios, log10_var = allocate(
-                cov,costs,target_cost)
-            var_red = pya.get_variance_reduction(
-                get_rsquared,cov,nsample_ratios)
-            assert np.allclose(var_red,(10**log10_var)/cov[0,0]*nhf_samples)
-            print(var_red)
-            assert False
 
     def test_mlmc_sample_allocation(self):
         # The following will give mlmc with unit variance
