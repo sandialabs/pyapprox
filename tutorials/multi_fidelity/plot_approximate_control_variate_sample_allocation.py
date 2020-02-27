@@ -3,33 +3,44 @@ Sampling Allocation for Approximate Control Variate Monte Carlo Methods
 =======================================================================
 This tutorial builds upon the tutorials :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_recursive_control_variate_monte_carlo.py`.
 
+In the previous tutorials we investigated the peformance of different estimators when the number of high-fidelity samples is fixed. This can be useful when one has no ability to generate more high-fidelity data. However in situations when such data can be generated we should choose the number of low fidelity samples and the number of high-fidelity samples in one of two ways: 
 
+1. Minimze the variance of the estimator for a fixed budget; or 
+2. Minimize the computational cost of an estimator with a fixed variance.
+
+In the following we define demonstrate how to determine the optimal sample allocations that satisfy these goals, for a number of different ACV estimators.
+
+Multilevel Monte Carlo
+----------------------
 Let :math:`C_\alpha` be the cost of evaluating the function :math:`f_\alpha` at a single sample, then the total cost of the MLMC estimator is
 
 .. math::
 
-   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha r_\alpha N
+   C_{\mathrm{tot}}=\sum_{l=0}^M C_\alpha N_\alpha
    
-Variance of estimator is
+and the variance of the estimator is
 
 .. math::
   
-   \var{Q_0^\mathrm{ML}}=\sum_{\alpha=0}^M \var{Y_\alpha}r_\alpha N
+   \var{Q_0^\mathrm{ML}}=\sum_{\alpha=0}^M \var{Y_\alpha}N_\alpha,
    
-Let :math:`Y_\alpha` be the disrepancy between two consecutive models, e.g. :math:`f_{\alpha-1}-f_\alpha` and let :math:`N_\alpha` be the number of samples allocated to resolving the discrepancy, i.e. :math:`N_\alpha=\lvert\hat{\mathcal{Z}}_\alpha\rvert`
+where :math:`Y_\alpha` is the disrepancy between two consecutive models, e.g. :math:`f_{\alpha-1}-f_\alpha` and :math:`N_\alpha` be the number of samples allocated to resolving the discrepancy, i.e. :math:`N_\alpha=\lvert\hat{\mathcal{Z}}_\alpha\rvert`
 
-Then the variance of the MLMC estimator can be written as
+For a fixed variance :math:`\epsilon^2` the cost of the MLMC estimator can be minimized, by solving
 
-.. math:: \var{Q_{0,\mathcal{Z}}^\mathrm{ML}}=\sum_{\alpha=0}^M N_\alpha^{-1} \var{Y_\alpha}
+.. math::
 
-For a fixed variance :math:`\epsilon^2` the cost of the MLMC estimator can be minimized, by minimizing
+  \min_{N_0,\ldots,N_M} & \sum_{\alpha=0}^M\left(N_\alpha C_\alpha\right)\\
+  \mathrm{subject}\; \mathrm{to} &\sum_{\alpha=0}^M\left(N_\alpha^{-1}\var{Y_\alpha}\right)=\epsilon^2
+
+or alternatively by introducing the lagrange multiplier :math:`\lambda^2` we can minimize
 
 .. math:: 
 
    \mathcal{J}(N_0,\ldots,N_M,\lambda)&=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha\right)+\lambda^2\left(\sum_{\alpha=0}^M\left(N_\alpha^{-1}\var{Y_\alpha}\right)-\epsilon^2\right)\\
    &=\sum_{\alpha=0}^M\left(N_\alpha C_\alpha+\lambda^2N_\alpha^{-1}\var{Y_\alpha}\right)-\lambda^2\epsilon^2
 
-for some Lagrange multiplier :math:`\lambda`. To find the minimum we set the gradient of this expression to zero:
+To find the minimum we set the gradient of this expression to zero:
 
 .. math::
 
@@ -37,11 +48,11 @@ for some Lagrange multiplier :math:`\lambda`. To find the minimum we set the gra
   \implies C_\alpha&=\lambda^2N_\alpha^{-2}\var{Y_\alpha}\\
   \implies N_\alpha&=\lambda\sqrt{\var{Y_\alpha}C_\alpha^{-1}}
 
-and 
+The constraint is satisifed by noting 
 
 .. math:: \frac{\partial \mathcal{J}}{\lambda^2}=\sum_{\alpha=0}^M N_\alpha^{-1}\var{Y_\alpha}-\epsilon^2=0
 
-The total variance is
+Recalling that we can write the total variance as
 
 .. math::
 
@@ -50,8 +61,7 @@ The total variance is
   &=\lambda^{-1}\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}=\epsilon^2\\
   \implies \lambda &= \epsilon^{-2}\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}
 
-
-Now substituting :math:`\lambda` into the following
+Then substituting :math:`\lambda` into the following
 
 .. math::
 
@@ -61,7 +71,7 @@ Now substituting :math:`\lambda` into the following
 
 
 
-allows us to determine the total cost
+allows us to determine the smallest total cost that generates and estimator with the desired variance.
 
 .. math::
 
@@ -69,9 +79,114 @@ allows us to determine the total cost
   &=\sum_{\alpha=0}^M \epsilon^{-2}\left(\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}\right)\sqrt{\var{Y_\alpha}C_\alpha}\\
   &=\epsilon^{-2}\left(\sum_{\alpha=0}^M\sqrt{\var{Y_\alpha}C_\alpha}\right)^2
 
+Again consider the model ensemble
+
+.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
+
+where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
+
+The following code computes the variance of the MLMC estimator for different target costs using the optimal sample allocation using an exact estimate of the covariance between models and an approximation.
 """
 
-#from pyapprox.fenics_models import advection_diffusion, qoi_functional_misc
+import numpy as np
+import pyapprox as pya
+import matplotlib.pyplot as plt
+from pyapprox.tests.test_control_variate_monte_carlo import \
+    PolynomialModelEnsemble
+np.random.seed(1)
+
+poly_model = PolynomialModelEnsemble()
+model_ensemble = pya.ModelEnsemble(poly_model.models)
+cov = poly_model.get_covariance_matrix()
+target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
+costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
+
+mlmc_variances, approx_cov_mlmc_variances, hf_variances = [],[],[]
+nsamples_history, approx_cov_nsamples_history = [],[]
+npilot_samples = 5
+for target_cost in target_costs:
+    # compute variance  using exact covariance for sample allocation
+    nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+        cov, costs, target_cost)[:2]
+    var=(1-pya.get_rsquared_mlmc(cov,nsample_ratios))*cov[0,0]/nhf_samples
+    mlmc_variances.append(var)
+    nsamples = np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
+    nsamples_history.append(nsamples)
+    # compute single fidelity Monte Carlo variance
+    total_cost = nsamples.dot(costs)
+    hf_variances.append(cov[0,0]/int(total_cost/costs[0]))
+    # compute variance using approx covariance for sample allocation
+    # use nhf_samples from previous target_cost as npilot_samples.
+    # This way the pilot samples are only an additional cost at the first
+    # step. This code does not do this though for simplicity
+    cov_approx = pya.estimate_model_ensemble_covariance(
+        npilot_samples,poly_model.generate_samples,model_ensemble)[0]
+    nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+        cov_approx, costs, target_cost)[:2]
+    var=(1-pya.get_rsquared_mlmc(cov,nsample_ratios))*cov[0,0]/nhf_samples
+    approx_cov_mlmc_variances.append(var)
+    nsamples = np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
+    approx_cov_nsamples_history.append(nsamples)
+    npilot_samples = nhf_samples
+    
+fig,axs=plt.subplots(1,2,figsize=(2*8,6))
+model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
+pya.plot_acv_sample_allocation(nsamples_history,costs,model_labels,axs[1])
+total_costs = np.array(nsamples_history).dot(costs)
+axs[0].loglog(total_costs,mlmc_variances,label=r'$\mathrm{MLMC}$')
+mc_line = axs[0].loglog(total_costs,hf_variances,label=r'$\mathrm{MC}$')
+total_costs = np.array(approx_cov_nsamples_history).dot(costs)
+axs[0].loglog(total_costs,approx_cov_mlmc_variances,'--',
+              label=r'$\mathrm{MLMC^\dagger}$')
+axs[0].set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
+axs[0].set_ylabel(r'$\mathrm{Variance}$')
+_ = axs[0].legend()
+
+#%%
+#The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. Note that the use of the approximate covariance only makes a minor difference.
+#
+#The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50\% of the total cost.
+#
+#Now lets us compare MLMC with ACV-MF, MFMC and ACV-KL.
+mfmc_variances, acvmf_variances, acv_kl_variances = [],[],[]
+mfmc_nsamples_history,acvmf_nsamples_history,acv_kl_nsamples_history = [],[],[]
+nsamples_history = []
+npilot_samples = 5
+for target_cost in target_costs:
+    # compute mfmc variance using exact covariance for sample allocation
+    nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
+        cov, costs, target_cost)[:2]
+    var=(1-pya.get_rsquared_mfmc(cov,nsample_ratios))*cov[0,0]/nhf_samples
+    mfmc_variances.append(var)
+    nsamples = np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
+    mfmc_nsamples_history.append(nsamples)
+    # compute acv variance using exact covariance for sample allocation
+    acvmf = pya.ACVMF(cov,costs,target_cost)
+    nhf_samples,nsample_ratios = pya.allocate_samples_acv(
+        cov, costs, target_cost, acvmf)[:2]
+    var=(1-acvmf.get_rsquared(nsample_ratios))*cov[0,0]/nhf_samples
+    print(var)
+    acvmf_variances.append(var)
+    nsamples = np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
+    acvmf_nsamples_history.append(nsamples)
+
+del axs[0].lines[1] # delete single MC curve
+del axs[0].lines[1] # delete single MLMC approx cov curve
+total_costs = np.array(mfmc_nsamples_history).dot(costs)
+axs[0].loglog(total_costs,mfmc_variances,':',label=r'$\mathrm{MFMC}$')
+axs[0].loglog(total_costs,acvmf_variances,label=r'$\mathrm{ACV}-\mathrm{MF}$')
+axs[0].set_ylim(axs[0].get_ylim()[0],1e-3)
+axs[0].legend()
+fig # necessary for notebook to reshow plot in new cell
+plt.show()
+assert False
+
+#%%
+#In this example ACV-KL is a more efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more.
+
+#%%
+#Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.
+
 nmodels  = 3
 num_vars = 100
 max_eval_concurrency = 1
@@ -123,6 +238,8 @@ df = DataFrame(
 #plt.show()
 
 #%%
+#Multi-fidelity Monte Carlo
+#--------------------------
 #The optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically. Let :math:`C_\mathrm{tot}` be the total budget then the optimal number of high fidelity samples is
 #
 #.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}

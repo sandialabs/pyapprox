@@ -607,7 +607,7 @@ class TestCVMC(unittest.TestCase):
         nhf_samples, nsample_ratios =  pya.allocate_samples_mlmc(
             cov, costs, target_cost)[:2]
 
-        estimator = ACV2(cov,costs,target_cost)
+        estimator = ACVMF(cov,costs,target_cost)
         errors = pya.check_gradients(
             partial(acv_sample_allocation_objective,estimator),
             partial(acv_sample_allocation_jacobian,estimator),

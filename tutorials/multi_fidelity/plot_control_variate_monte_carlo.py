@@ -46,11 +46,11 @@ With this choice
 
 Thus if a two highly correlated models (one with a known mean) are available then we can drastically reduce the MSE of our estimate of the unknown mean.
 
-The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:`\mean{f_0}`
+Again consider the tunable model ensemble. The correlation between the models :math:`f_0` and :math:`f_1` can be tuned by varying :math:`\theta_1`. For a given choice of theta lets compute a single relization of the CVMC estimate of :math:`\mean{f_0}`
 """
 
 #%%
-# Lets setup the problem
+# First let us setup the problem and compute a single estimate using CVMC
 import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
