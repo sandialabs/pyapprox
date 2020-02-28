@@ -81,7 +81,7 @@ sphinx_gallery_conf = {
 }
 #If want to specify user latex macrors to jupyter using sphinx-gallery go to
 #/miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
-#in function jupyternotebook replace        
+#in function jupyter_notebook replace        
 #     add_code_cell(work_notebook, first_cell)
 #with       
 #     add_markdown_cell(work_notebook, first_cell)#jdj

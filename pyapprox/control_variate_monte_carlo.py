@@ -1091,7 +1091,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
                          'maxiter':1000,'iprint':0}
         #set iprint=2 to printing iteration info
     
-    bounds = [(1,np.inf)] + [(1, np.inf)]*(nmodels-1)
+    bounds = [(1,np.inf)] + [(1.1, np.inf)]*(nmodels-1)
     cons = [{'type':'eq',
                'fun':acv_sample_allocation_cost_constraint_all,
                'jac':acv_sample_allocation_cost_constraint_jacobian_all,
@@ -1150,9 +1150,7 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     if standardize:
         nhf_samples, nsample_ratios = standardize_sample_ratios(
             nhf_samples, nsample_ratios)
-    nsample_ratios = np.array(nsample_ratios)
-    var = estimator.variance_reduction(nsample_ratios)
-    var *= cov[0, 0]/float(nhf_samples)
+    var = estimator.get_variance(nhf_samples,nsample_ratios)
     log10_var = np.log10(var.item())
     return nhf_samples, nsample_ratios, log10_var
 
@@ -1287,10 +1285,9 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
     return cov, pilot_random_samples, pilot_values
 
 class ACVMF(object):
-    def __init__(self,cov,costs,target_cost):
+    def __init__(self,cov,costs):
         self.cov=torch.tensor(np.copy(cov), dtype=torch.double)
         self.costs=torch.tensor(np.copy(costs), dtype=torch.double)
-        self.target_cost = target_cost
         
         #self.objective_fun = partial(
         #    acv_sample_allocation_objective,self)
@@ -1314,6 +1311,22 @@ class ACVMF(object):
 
     def jacobian(self,x):
         return self.jacobian_fun_all(x)
+
+    def allocate_samples(self,target_cost,**kwargs):
+        return allocate_samples_acv(self.cov, self.costs, target_cost, self,
+                                    **kwargs)
+
+    def get_nsamples(self,nhf_samples,nsample_ratios):
+        return np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
+
+    def get_variance(self,nhf_samples,nsample_ratios):
+        gamma = (1-self.get_rsquared(nsample_ratios))
+        return gamma*self.cov[0,0]/nhf_samples
+
+class MC():
+    def get_variance(self,nhf_samples):
+        self.cov[0,0]/nhf_samples
+    
         
 
 class ACVMFKL(ACVMF):
@@ -1331,11 +1344,11 @@ class MFMC(ACVMF):
     def get_rsquared(self,nsample_ratios):
         return get_rsquared_mfmc(self.cov,nsample_ratios)
 
+    def allocate_samples(self,target_cost):
+        return allocate_samples_mfmc(self.cov, self.costs, target_cost)
+
 
 class MLMC(ACVMF):
-    def __init__(self,cov,costs,target_cost):
-        super().__init__(cov,costs,target_cost)
-
     def use_lagrange_formulation(self,flag):
         """For testing purposes only"""
         if flag:
@@ -1351,6 +1364,9 @@ class MLMC(ACVMF):
             
     def get_rsquared(self,nsample_ratios):
         return get_rsquared_mlmc(self.cov,nsample_ratios,torch)
+
+    def allocate_samples(self,target_cost):
+        return allocate_samples_mlmc(self.cov, self.costs, target_cost)
 
 def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
         nhf_samples,nsample_ratios,
