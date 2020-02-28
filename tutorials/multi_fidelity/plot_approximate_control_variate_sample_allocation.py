@@ -12,6 +12,8 @@ In the following we define demonstrate how to determine the optimal sample alloc
 
 Multilevel Monte Carlo
 ----------------------
+In this section we follow [GAN2015]_ and show how to determine the optimal number of samples assigned to each model used in a MLMC estimator.
+
 Let :math:`C_\alpha` be the cost of evaluating the function :math:`f_\alpha` at a single sample, then the total cost of the MLMC estimator is
 
 .. math::
@@ -153,6 +155,23 @@ fig,axs = plot_mlmc_error()
 #The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.
 #
 #The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50\% of the total cost.
+
+#%%
+#Multi-fidelity Monte Carlo
+#--------------------------
+#Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_). Recalling that :math:`C_\mathrm{tot}` is the total budget then the optimal number of high fidelity samples is
+#
+#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
+#
+#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
+#
+#.. math::
+#   
+#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
+#
+#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
+#
+
 #
 #Now lets us compare MLMC with ACV-MF, MFMC and ACV-KL.
 variances, nsamples_history = [],[]
@@ -240,18 +259,8 @@ df = DataFrame(
 #plt.show()
 
 #%%
-#Multi-fidelity Monte Carlo
-#--------------------------
-#The optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically. Let :math:`C_\mathrm{tot}` be the total budget then the optimal number of high fidelity samples is
+#References
+#^^^^^^^^^^
+#.. [PWGSIAM2016] `B. Peherstorfer, K. Willcox, M. Gunzburger, Optimal model management for multifidelity Monte Carlo estimation, SIAM J. Sci. Comput., 38(5), A3163–A3194, 2016. <https://doi.org/10.1137/15M1046472>`_
 #
-#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
-#
-#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
-#
-#.. math::
-#   
-#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
-#
-#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
-#
-
+#.. [GAN2015] `M. Giles, Multilevel Monte Carlo methods, Acta Numerica, 24, 259-328, 2015. <https://doi.org/10.1017/S096249291500001X>`_
