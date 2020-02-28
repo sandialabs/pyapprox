@@ -136,7 +136,7 @@ print('MC difference squared =',(values0.mean()-exact_integral_f0)**2)
 print('ACVMC difference squared =',(acv_mean-exact_integral_f0)**2)
 
 #%%
-#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance)with the smallest computational cost. Note the cost of computing the two model ACV estimator is
+#Note here we have arbitrarily set the number of high fidelity samples :math:`N` and the ratio :math:`r`. In practice one should choose these in one of two ways: (i) for a fixed budget choose the free parameters to minimize the variance of the estimator; or (ii) choose the free parameters to achieve a desired MSE (variance) with the smallest computational cost. Note the cost of computing the two model ACV estimator is
 #
 #.. math::
 #
@@ -237,7 +237,7 @@ _ = ax.legend(loc='upper left')
 #.. math::
 #
 #   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
-#   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ\mathrm{diag}\left(F\right)\right)\\
+#   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F \right)\\
 #
 #where :math:`\V{Q}_\mathrm{LF}=[Q_1,\ldots,Q_M]^T` and :math:`\circ` is the Hadamard  (element-wise) product. The matrix :math:`F` is dependent on the sampling scheme used to generate the sets :math:`\mathcal{Z}_{\alpha,1}`, :math:`\mathcal{Z}_{\alpha,2}`. We discuss one useful sampling scheme found in [GGEJJCP2020]_ here.
 #
@@ -334,4 +334,4 @@ _ = axs[1].legend()
 #%%
 #References
 #^^^^^^^^^^
-#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, In press, (2020) <https://doi.org/10.1016/j.jcp.2020.109257>`_
+#.. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, In press, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_

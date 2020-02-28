@@ -7,7 +7,7 @@ Let us introduce a model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\ka
 
 .. math::
 
-  Q_{\V{\alpha},N}^{\text{CV}} = Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}} \right) 
+  Q_{\V{\alpha},N}^{\text{CV}} &= Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}} \right) \\
 
 Here :math:`\eta` is a free parameter which can be optimized to the reduce the variance of this so called control variate estimator, which is given by
 
@@ -115,4 +115,4 @@ plt.show()
 #%%
 #References
 #^^^^^^^^^^
-#.. [LMWOR1982] `S.S. Lavenberg, T.L. Moeller, P.D. Welch, Statistical results on control variables with application to queueing network simulation, Oper. Res. 30 (1982) 45 182–202. <https://doi.org/10.1287/opre.30.1.182>`_
+#.. [LMWOR1982] `S.S. Lavenberg, T.L. Moeller, P.D. Welch, Statistical results on control variables with application to queueing network simulation, Oper. Res., 30, 45, 182-202, 1982. <https://doi.org/10.1287/opre.30.1.182>`_
