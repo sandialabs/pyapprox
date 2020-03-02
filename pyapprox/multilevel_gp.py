@@ -15,7 +15,7 @@ def multilevel_diagonal_covariance_block(XX1,XX2,hyperparams,mm):
     ==========
     hyperparams : np.ndarray (nvars*nmodels+nmodels-1)
         The nvars length_scales of each kernel and then the correlation (rho)
-        of each model (except lowest fidelit model)
+        of each model (except lowest fidelity model)
     """
 
     nvars = XX1.shape[1]
@@ -189,9 +189,10 @@ class MultilevelGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     def diag(self,X):
         """
         Need to overide this function as base kernel.diag methods only returns
-        1. TODO add this to gradient enhanced kriging then I can remove covariance
-        hack from plot_gp_1d
-        TODO make this function more efficient by directly evaluating diagonal only
+        1. TODO add this to gradient enhanced kriging then I can remove 
+        covariance hack from plot_gp_1d
+        TODO make this function more efficient by directly evaluating diagonal 
+        only
         """
         return np.diag(self(X)).copy()
 

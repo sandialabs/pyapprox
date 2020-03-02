@@ -79,12 +79,11 @@ class TestMultilevelGP(unittest.TestCase):
         
     
     def test_2_models(self):
-        # TODO Add Test which builds gp on two models data separately when data2 is subset data1
-        # and hyperparameters are fixed. Then Gp should just be sum of separate GPs. 
+        # TODO Add Test which builds gp on two models data separately when
+        # data2 is subset data and hyperparameters are fixed.
+        # Then Gp should just be sum of separate GPs. 
         
         nvars, nmodels = 1,2
-        f1 = lambda x: (1*f2(x)+x.T**2)# change 1* to some non unitary rho
-        f2 = lambda x: np.cos(2*np.pi*x).T
 
         np.random.seed(2)
         #np.random.seed(3)
@@ -95,14 +94,28 @@ class TestMultilevelGP(unittest.TestCase):
         #n1,n2=32,17
         lb,ub=-1,1
         x1 = np.atleast_2d(np.linspace(lb,ub,n1))
-        #x2 = np.atleast_2d(np.linspace(lb,ub,n2))
         x2 = x1[:,np.random.permutation(n1)[:n2]]
-        print(x1,x2)
+
+        
+        f1 = lambda x: (1*f2(x)+x.T**2) # change 1* to some non unitary rho
+        f2 = lambda x: np.cos(2*np.pi*x).T
+
+        def f1(x):
+            return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
+        def f2(x):
+            return 0.5*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*10. - 5
+
+        x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
+        x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
+                       [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
+        lb,ub=0,1
+        
         samples = [x1,x2]
+        print(samples[0].shape)
         values = [f(x) for f,x in zip([f1,f2],samples)]
         nsamples_per_model = [s.shape[1] for s in samples]
 
-        rho = 0.5*np.ones(nmodels-1)
+        rho = np.ones(nmodels-1)
 
         n_restarts_optimizer=5
         noise_level=1e-5; 
@@ -151,8 +164,8 @@ class TestMultilevelGP(unittest.TestCase):
         #length_scale=[1]*(nmodels*(nvars+1)-1);
         length_scale = [gp.kernel_.length_scale for gp in gps]+list(rho)
         #print(length_scale)
-        #length_scale_bounds=[(1e-1,10)]*(nmodels*nvars)+[(1e-1,1)]*(nmodels-1)
-        length_scale_bounds='fixed'
+        length_scale_bounds=[(1e-1,10)]*(nmodels*nvars)+[(1e-1,10)]*(nmodels-1)
+        #length_scale_bounds='fixed'
         mlgp_kernel  = MultilevelGPKernel(
             nvars, nsamples_per_model, length_scale=length_scale,
             length_scale_bounds=length_scale_bounds)
@@ -168,12 +181,13 @@ class TestMultilevelGP(unittest.TestCase):
         gp.fit()
 
         print('ml',gp.kernel_)
+        #assert False
 
         
         fig,axs = plt.subplots(1,1); axs=[axs]
-        gp.plot_1d(2**8+1,[-1,1],axs[0])
-        #xx = np.linspace(-1,1,2**8+1)[np.newaxis,:]
-        xx = np.linspace(-1,1,2**8+1)[np.newaxis,:]
+        gp.plot_1d(2**8+1,[lb,ub],axs[0])
+        #xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
+        xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
         axs[0].plot(xx[0,:],f2(xx),'r')
         #axs[0].plot(xx[0,:],f1(xx),'g--')
         axs[0].plot(x1[0,:],f1(x1),'gs')
