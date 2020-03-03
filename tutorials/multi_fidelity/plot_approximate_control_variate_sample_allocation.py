@@ -208,55 +208,57 @@ _ = axs[0].legend()
 #%%
 #Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.
 
-nmodels  = 3
-num_vars = 100
-max_eval_concurrency = 1
-from pyapprox.examples.multi_index_advection_diffusion import *
-base_model = setup_model(num_vars,max_eval_concurrency)
-from pyapprox.models.wrappers import MultiLevelWrapper
-multilevel_model=MultiLevelWrapper(
-    base_model,base_model.base_model.num_config_vars,
-    base_model.cost_function)
-from scipy.stats import uniform
-import pyapprox as pya
-variable = pya.IndependentMultivariateRandomVariable(
-    [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(num_vars)])
-
-npilot_samples = 10
-pilot_samples = pya.generate_independent_random_samples(
-    variable,npilot_samples)
-config_vars = np.arange(nmodels)[np.newaxis,:]
-pilot_samples = pya.get_all_sample_combinations(pilot_samples,config_vars)
-pilot_values = multilevel_model(pilot_samples)
-assert pilot_values.shape[1]==1
-pilot_values = np.reshape(pilot_values,(npilot_samples,nmodels))
-# mlmc requires model accuracy to decrease with index
-# but model assumes the opposite. so reverse order here
-pilot_values = pilot_values[:,::-1]
-cov = np.cov(pilot_values,rowvar=False)
-print(pya.get_correlation_from_covariance(cov))
-for ii in range(nmodels-1):
-    vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
-    print(vardelta)
-
-target_cost = 10
-# mlmc requires model accuracy to decrease with index
-# but model assumes the opposite. so reverse order here
-costs = [multilevel_model.cost_function(ii) for ii in range(nmodels)][::-1]
-print(costs)
-nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
-    cov, costs, target_cost)[:2]
-
-import seaborn as sns
-from pandas import DataFrame
-df = DataFrame(
-    index=np.arange(pilot_values.shape[0]),
-    data=dict([(r'$f_%d$'%ii,pilot_values[:,ii])
-               for ii in range(pilot_values.shape[1])]))
-# heatmap does not currently work with matplotlib 3.1.1 downgrade to
-# 3.1.0 using pip install matplotlib==3.1.0
-#sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
-#plt.show()
+#%%
+#..
+# nmodels  = 3
+# num_vars = 100
+# max_eval_concurrency = 1
+# from pyapprox.examples.multi_index_advection_diffusion import *
+# base_model = setup_model(num_vars,max_eval_concurrency)
+# from pyapprox.models.wrappers import MultiLevelWrapper
+# multilevel_model=MultiLevelWrapper(
+#     base_model,base_model.base_model.num_config_vars,
+#     base_model.cost_function)
+# from scipy.stats import uniform
+# import pyapprox as pya
+# variable = pya.IndependentMultivariateRandomVariable(
+#     [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(num_vars)])
+#
+# npilot_samples = 10
+# pilot_samples = pya.generate_independent_random_samples(
+#     variable,npilot_samples)
+# config_vars = np.arange(nmodels)[np.newaxis,:]
+# pilot_samples = pya.get_all_sample_combinations(pilot_samples,config_vars)
+# pilot_values = multilevel_model(pilot_samples)
+# assert pilot_values.shape[1]==1
+# pilot_values = np.reshape(pilot_values,(npilot_samples,nmodels))
+# # mlmc requires model accuracy to decrease with index
+# # but model assumes the opposite. so reverse order here
+# pilot_values = pilot_values[:,::-1]
+# cov = np.cov(pilot_values,rowvar=False)
+# print(pya.get_correlation_from_covariance(cov))
+# for ii in range(nmodels-1):
+#     vardelta = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
+#     print(vardelta)
+#
+# target_cost = 10
+# # mlmc requires model accuracy to decrease with index
+# # but model assumes the opposite. so reverse order here
+# costs = [multilevel_model.cost_function(ii) for ii in range(nmodels)][::-1]
+# print(costs)
+# nhf_samples,nsample_ratios = pya.allocate_samples_mlmc(
+#     cov, costs, target_cost)[:2]
+#
+# import seaborn as sns
+# from pandas import DataFrame
+# df = DataFrame(
+#     index=np.arange(pilot_values.shape[0]),
+#     data=dict([(r'$f_%d$'%ii,pilot_values[:,ii])
+#                for ii in range(pilot_values.shape[1])]))
+# # heatmap does not currently work with matplotlib 3.1.1 downgrade to
+# # 3.1.0 using pip install matplotlib==3.1.0
+# #sns.heatmap(df.corr(),annot=True,fmt='.2f',linewidth=0.5)
+# #plt.show()
 
 #%%
 #References
