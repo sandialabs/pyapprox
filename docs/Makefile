@@ -19,6 +19,12 @@ help:
 %: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
+# build your gallery without running examples first 
+html-noplot:
+	@$(SPHINXBUILD) -D plot_gallery=0 -b html $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
 clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf source/auto_examples/

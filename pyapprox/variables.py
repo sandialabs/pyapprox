@@ -157,6 +157,36 @@ class IndependentMultivariateRandomVariable(object):
         return all_variables
 
     def get_statistics(self,function_name,**kwargs):
+        """
+        Get a statistic from each univariate random variable.
+
+        Parameters
+        ----------
+        function_name : string
+            The function name of the scipy random variable statistic of interest
+
+        kwargs : kwargs
+            The arguments to the scipy statistic function
+
+        Returns
+        -------
+        stat : 
+            The output of the stat function
+
+        Examples
+        --------
+        >>> import pyapprox as pya
+        >>> from scipy.stats import uniform
+        >>> num_vars = 2
+        >>> variable = pya.IndependentMultivariateRandomVariable([uniform(-2,3)],[np.arange(num_vars)])
+        >>> variable.get_statistics('interval',alpha=1)
+        array([[-2.,  1.],
+               [-2.,  1.]])
+        >>> variable.get_statistics('pdf',x=np.linspace(-2,1,3))
+        array([[0.33333333, 0.33333333, 0.33333333],
+               [0.33333333, 0.33333333, 0.33333333]])
+        
+        """
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]

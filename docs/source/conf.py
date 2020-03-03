@@ -56,13 +56,16 @@ extensions += ['sphinx_gallery.gen_gallery']
 
 from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
+    'plot_advection_diffusion_model.py',
     'plot_monte_carlo.py',
+    'plot_tensor_product_interpolation.py',
+    'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_multi_level_monte_carlo.py',
     'plot_recursive_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_sample_allocation.py',
-    'plot_adaptive_leja_interpolation.py']
+    'plot_multi_index_collocation.py' ]
 class ExamplesExplicitOrder(_SortKey):
     
     def __call__(self, filename):
@@ -188,6 +191,8 @@ SOFTWARE.\par
 \def\coloneqq{\colon=}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
 \def\argmax{\operatorname{argmax}}
+\def\ai{\alpha}
+\def\bi{\beta}
 ''',
 }
 
@@ -207,7 +212,9 @@ mathjax_config = {
             "norm":[r'\lVert #1 \rVert',1],
             "argmax":[r'\operatorname{argmax}'],
             "covar":[r'\mathbb{C}\text{ov}\left[#1,#2\right]',2],
-            "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2]
+            "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2],
+            "ai":r'\alpha',
+            "bi":r'\beta',
             }                       
         }                           
     } 

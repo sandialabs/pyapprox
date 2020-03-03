@@ -100,15 +100,23 @@ class TestMultilevelGP(unittest.TestCase):
         f1 = lambda x: (1*f2(x)+x.T**2) # change 1* to some non unitary rho
         f2 = lambda x: np.cos(2*np.pi*x).T
 
+        true_rho=2
         def f1(x):
             return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
         def f2(x):
-            return 0.5*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*10. - 5
+            return true_rho*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
+
+        # def f2(x):
+        #     return ((x.T*6-2)**2)*np.sin((x.T*6-2)*2)
+        # def f1(x):
+        #     return 1/true_rho*((x.T*6-2)**2)*np.sin((x.T*6-2)*2)+(x.T-0.5)*1. - 5
 
         x2 = np.array([[0.0], [0.4], [0.6], [1.0]]).T
         x1 = np.array([[0.1], [0.2], [0.3], [0.5], [0.7],
                        [0.8], [0.9], [0.0], [0.4], [0.6], [1.0]]).T
         lb,ub=0,1
+        #x1 = np.linspace(lb,ub,31)[np.newaxis,:]
+        print(x1)
         
         samples = [x1,x2]
         print(samples[0].shape)
@@ -117,7 +125,7 @@ class TestMultilevelGP(unittest.TestCase):
 
         rho = np.ones(nmodels-1)
 
-        n_restarts_optimizer=5
+        n_restarts_optimizer=10
         noise_level=1e-5; 
         noise_level_bounds='fixed'
         from sklearn.gaussian_process.kernels import RBF
@@ -128,7 +136,7 @@ class TestMultilevelGP(unittest.TestCase):
             gps = []
             for ii in range(nmodels):
                 gp_kernel = RBF(
-                    length_scale=.3, length_scale_bounds='fixed')#(1e-1, 1e2))
+                    length_scale=.1, length_scale_bounds='fixed')#(1e-1, 1e2))
                 #gp_kernel += WhiteKernel( # optimize gp noise
                 #    noise_level=noise_level,
                 #    noise_level_bounds=noise_level_bounds)
@@ -181,8 +189,8 @@ class TestMultilevelGP(unittest.TestCase):
         gp.fit()
 
         print('ml',gp.kernel_)
-        #assert False
-
+        print(gp.kernel_.length_scale[-1],true_rho)
+        assert np.allclose(gp.kernel_.length_scale[-1],true_rho)
         
         fig,axs = plt.subplots(1,1); axs=[axs]
         gp.plot_1d(2**8+1,[lb,ub],axs[0])
