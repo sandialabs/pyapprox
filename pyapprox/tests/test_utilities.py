@@ -544,13 +544,13 @@ class TestUtilities(unittest.TestCase):
         nrows, npivots = 4, 4
         A = np.random.normal(0.,1.,(nrows,nrows))
         A = A.T.dot(A)
-        L, pivots, error = pivoted_cholesky_decomposition(A,npivots)
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots)
         assert np.allclose(L.dot(L.T),A)
 
         nrows, npivots = 4, 2
         A = np.random.normal(0.,1.,(npivots,nrows))
         A = A.T.dot(A)
-        L, pivots, error = pivoted_cholesky_decomposition(A,npivots)
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots)
         assert L.shape == (nrows,npivots)
         assert pivots.shape[0]==npivots
         assert np.allclose(L.dot(L.T),A)
@@ -559,8 +559,8 @@ class TestUtilities(unittest.TestCase):
         nrows, npivots = 4, 2
         A = np.random.normal(0.,1.,(npivots+1,nrows))
         A = A.T.dot(A)
-        L, pivots, error = pivoted_cholesky_decomposition(A,npivots+1)
-        L, new_pivots, error = pivoted_cholesky_decomposition(
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots+1)
+        L, new_pivots, error, flag = pivoted_cholesky_decomposition(
             A,npivots+1,init_pivots=pivots[1:2])
         assert np.allclose(new_pivots[:npivots+1],pivots[[1,0,2]])
 
@@ -571,7 +571,7 @@ class TestUtilities(unittest.TestCase):
         assert np.allclose(P.dot(A).dot(P.T),L.dot(L.T))
 
         A = np.array([[4,12,-16],[12,37,-43],[-16,-43,98.]])
-        L, pivots, error = pivoted_cholesky_decomposition(A,A.shape[0])
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A,A.shape[0])
 
         # reorder entries of A so that cholesky requires pivoting
         true_pivots = np.array([2,1,0])
@@ -583,7 +583,7 @@ class TestUtilities(unittest.TestCase):
         A = np.array([[4,12,-16],[12,37,-43],[-16,-43,98.]])
         true_pivots = np.array([1,0,2])
         A = A[true_pivots,:][:,true_pivots]
-        L, pivots, error = pivoted_cholesky_decomposition(A,A.shape[0])
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A,A.shape[0])
         assert np.allclose(L[pivots,:],L_np)
 
     def test_beta_pdf_on_ab(self):
