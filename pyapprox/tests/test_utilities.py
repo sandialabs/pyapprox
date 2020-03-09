@@ -632,6 +632,46 @@ class TestUtilities(unittest.TestCase):
                     beta_pdf_on_ab(alpha_stat,beta_stat,-1,1,x-eps))/eps
         assert np.allclose(deriv,fd_deriv)
 
+    def test_compute_f_divergence(self):
+        # KL divergence
+        from scipy.stats import multivariate_normal
+        nvars=1
+        mean = np.random.uniform(-0.1,0.1,nvars)
+        cov  = np.diag(np.random.uniform(.5,1,nvars))
+        rv1 = multivariate_normal(mean,cov)
+        rv2 = multivariate_normal(np.zeros(nvars),np.eye(nvars))
+        density1 = lambda x: rv1.pdf(x.T)
+        density2 = lambda x: rv2.pdf(x.T)
+
+        # Integrate on [-radius,radius]
+        # Note this induces small error by truncating domain
+        radius=10
+        from pyapprox import get_tensor_product_quadrature_rule
+        x,w=get_tensor_product_quadrature_rule(
+            400,nvars,np.polynomial.legendre.leggauss,
+            transform_samples=lambda x: x*radius,
+            density_function=lambda x: radius*np.ones(x.shape[1]))
+        quad_rule=x,w
+        div = compute_f_divergence(density1,density2,quad_rule,'KL',
+                                   normalize=False)
+        true_div = 0.5*(np.diag(cov)+mean**2-np.log(np.diag(cov))-1).sum()
+        assert np.allclose(div,true_div,rtol=1e-12)
+
+        # Hellinger divergence
+        from scipy.stats import beta
+        a1,b1,a2,b2=1,1,2,3
+        rv1,rv2 = beta(a1,b1),beta(a2,b2)
+        true_div = 2*(1-beta_fn((a1+a2)/2,(b1+b2)/2)/np.sqrt(
+            beta_fn(a1,b1)*beta_fn(a2,b2)))
+        
+        x,w=get_tensor_product_quadrature_rule(
+            500,nvars,np.polynomial.legendre.leggauss,
+            transform_samples=lambda x: (x+1)/2,
+            density_function=lambda x: 0.5*np.ones(x.shape[1]))
+        quad_rule=x,w
+        div = compute_f_divergence(rv1.pdf,rv2.pdf,quad_rule,'hellinger',
+                                   normalize=False)
+        assert np.allclose(div,true_div,rtol=1e-10)
         
 
 if __name__== "__main__":    
