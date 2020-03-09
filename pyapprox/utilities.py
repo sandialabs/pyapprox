@@ -1096,7 +1096,8 @@ def cholesky_decomposition(Amat):
     return L
 
 def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
-                                   error_on_small_tol=False):
+                                   error_on_small_tol=False,
+                                   pivot_weights=None):
     """
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
@@ -1111,6 +1112,7 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
     where P is the standrad pivot matrix which can be obtained from the pivot 
     vector using the function 
     """
+    chol_flag = 0
     Amat = A.copy()
     nrows = Amat.shape[0]
     assert Amat.shape[1]==nrows
@@ -1122,14 +1124,25 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
     init_error = np.absolute(diag).sum()
     for ii in range(npivots):
         if init_pivots is None or ii>=len(init_pivots):
-            pivot = np.argmax(diag[pivots[ii:]])+ii
+            if pivot_weights is None:
+                pivot = np.argmax(diag[pivots[ii:]])+ii
+            else:
+                pivot = np.argmax(
+                    pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
         else:
             pivot = pivots[init_pivots[ii]]
         #print(pivot)
             
         swap_rows(pivots,ii,pivot)
         if diag[pivots[ii]] <= 0:
-            raise Exception ('matrix is not positive definite')
+            msg = 'matrix is not positive definite'
+            if error_on_small_tol:
+                raise Exception (msg)
+            else:
+                print(msg)
+                chol_flag=1
+                break
+            
         L[pivots[ii],ii] = np.sqrt(diag[pivots[ii]])
 
         L[pivots[ii+1:],ii]=(Amat[pivots[ii+1:],pivots[ii]]-
@@ -1143,18 +1156,20 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
         error = diag[pivots[ii+1:]].sum()/init_error
         #print(ii,'error',error)
         if error<tol:
-            msg = 'Tolerance reached at iteration %d. Tol=%1.2e'%(ii,error)
+            msg = 'Tolerance reached. ' 
+            msg += f'Iteration:{ii}. Tol={tol}. Error={error}'
             # If matrix is rank r then then error will be machine precision
             # In such a case exiting without an error is the right thing to do
             if error_on_small_tol:
                 raise Exception(msg)
             else:
+                chol_flag = 1
                 print(msg)
-            break
+                break
         
     pivots = pivots[:ii+1]
     
-    return L, pivots, error
+    return L, pivots, error, chol_flag
 
 def get_pivot_matrix_from_vector(pivots,nrows):
     P = np.eye(nrows)
@@ -1371,7 +1386,7 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
         raise Exception(f'Divergence type {div_type} not supported')
 
     d1_vals,d2_vals = d1(x),d2(x)
-    I = np.where(d2_vals>0)[0]
+    I = np.where(d2_vals>1e-15)[0]
     ratios = np.zeros_like(d2_vals)
     ratios[I] = d1_vals[I]/d2_vals[I]
     if not np.all(np.isfinite(ratios)):
