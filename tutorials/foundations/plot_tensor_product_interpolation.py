@@ -9,7 +9,7 @@ Reduced order models (e.g. [SFIJNME2017]_) can also be used to construct surroga
 
 
 Example: Tensor-product Lagrange interpolation
--------------------------------------
+----------------------------------------------
 This tutorial demonstrates how to build an approximation of an expensive model
 using tensor-product Lagrange interpolation.
 

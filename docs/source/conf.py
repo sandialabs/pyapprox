@@ -58,6 +58,7 @@ from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
     'plot_advection_diffusion_model.py',
     'plot_monte_carlo.py',
+    'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',

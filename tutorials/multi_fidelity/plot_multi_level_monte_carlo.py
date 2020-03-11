@@ -1,6 +1,6 @@
 r"""
 Multi-level Monte Carlo
-======================
+=======================
 This tutorial builds upon :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` and describes how the pioneering work of Multi-level Monte Carlo can be used to estimate the mean of a high-fidelity model using multiple low fidelity models. CVMC can be extended to multiple models however it is often not useful for practical analysis of numerical models. CVMC requires the means of the low fidelity models to be known a priori, but typically the mean of the lower fidelity model, i.e. :math:`\mu_\V{\kappa}`, is unknown and the cost of the lower fidelity model is non trivial. 
 
 Let :math:`f_0,\ldots,f_M` be an ensemble of :math:`M+1` models ordered by decreasing fidelity and cost (note typically MLMC literature reverses this order). MLMC provides a way to estimate the Before introducing many model MLMC estimator let us first discuss how to use MLMC with two models. 

@@ -71,3 +71,9 @@ add the following at the end of the file if not already present::
       content: ":";
   }
 
+..
+  On windows may need to install visual studio. See https://docs.microsoft.com/en-us/cpp/build/vscpp-step-0-installation?view=vs-2019
+  On windows not sure how to set proxy for pip so use
+  pip install --proxy https://proxy.address <package>
+  numpy include path is not working with cython on windows. Need to figure out
+  how to set it.
