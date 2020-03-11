@@ -12,3 +12,4 @@ from pyapprox.optimization import *
 from pyapprox.random_variable_algebra import *
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import *
 from pyapprox.models.wrappers import *
+from pyapprox.density import *
