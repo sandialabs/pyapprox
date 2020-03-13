@@ -78,13 +78,7 @@ def variables_equivalent(rv1,rv2):
         return False
     if scales1!=scales2:
         return False
-    if name1=='float_rv_discrete' or name1=='discrete_chebyshev':
-        # xk and pk shapes are list so != comparison will not work
-        return np.all(shapes1['xk']==shapes2['xk']) and np.all(
-            shapes1['pk']==shapes1['pk'])
-    else:
-        return shapes1==shapes2
-
+    return variable_shapes_equivalent(rv1,rv2)
 
 def get_unique_variables(variables):
     nvars = len(variables)
@@ -105,8 +99,14 @@ def get_unique_variables(variables):
 def variable_shapes_equivalent(rv1,rv2):
     name1, __, shapes1 = get_distribution_info(rv1)
     name2, __, shapes2 = get_distribution_info(rv2)
-    if name1!=name2 or shapes1!=shapes2:
-        return False
+    assert name1==name2
+    if name1=='float_rv_discrete' or name1=='discrete_chebyshev':
+        # xk and pk shapes are list so != comparison will not work
+        not_equiv = np.any(shapes1['xk']!=shapes2['xk']) or np.any(
+            shapes1['pk']!=shapes2['pk'])
+        return not not_equiv
+    else:
+        return shapes1==shapes2
     return True
 
 class IndependentMultivariateRandomVariable(object):
