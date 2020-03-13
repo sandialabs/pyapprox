@@ -80,8 +80,9 @@ def variables_equivalent(rv1,rv2):
         return False
     if name1=='float_rv_discrete' or name1=='discrete_chebyshev':
         # xk and pk shapes are list so != comparison will not work
-        return np.all(shapes1['xk']==shapes2['xk']) and np.all(
-            shapes1['pk']==shapes1['pk'])
+        flag = np.all(shapes1['xk']==shapes2['xk']) and np.all(
+            shapes1['pk']==shapes2['pk'])
+        return flag
     else:
         return shapes1==shapes2
 
