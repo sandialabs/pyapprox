@@ -57,27 +57,26 @@ plot_tensor_product_lagrange_basis_2d(level,ii,jj,ax)
 ax=fig.add_subplot(1,2,2,projection='3d')
 level = 2; ii=1; jj=3
 plot_tensor_product_lagrange_basis_2d(level,ii,jj,ax)
-plt.show()
 
 #%%
 #To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
 #
 #.. math:: f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2
 
-f = lambda z : np.cos(2*np.pi*z[0,:])*np.cos(2*np.pi*z[1,:])
+f = lambda z : (np.cos(2*np.pi*z[0,:])*np.cos(2*np.pi*z[1,:]))[:,np.newaxis]
 def get_interpolant(function,level):
     level = np.asarray(level)
-    univariate_samples_func = lambda l: clenshaw_curtis_pts_wts_1D(l)[0]
+    univariate_samples_func = lambda l: pya.clenshaw_curtis_pts_wts_1D(l)[0]
     abscissa_1d = [univariate_samples_func(level[0]),
                    univariate_samples_func(level[1])]
 
     
     samples_1d = pya.get_1d_samples_weights(
-        pya.clenshaw_curtis_in_polynomial_order,clenshaw_curtis_rule_growth,
-        level.max())[0]
+        [pya.clenshaw_curtis_in_polynomial_order]*2,
+        [pya.clenshaw_curtis_rule_growth]*2,level)[0]
 
     poly_indices = pya.get_subspace_polynomial_indices(
-        level,pya.clenshaw_curtis_rule_growth,config_variables_idx=None)
+        level,[pya.clenshaw_curtis_rule_growth]*2,config_variables_idx=None)
     samples = pya.get_subspace_samples(level,poly_indices,samples_1d)
     fn_vals = function(samples)
 
@@ -93,6 +92,9 @@ import pyapprox as pya
 level = [2,3]
 interp,samples,_ = get_interpolant(f,level)[:3]
 
+marker_color='k'
+alpha=1.0
+fig,axs = plt.subplots(1,1,figsize=(8,6))
 axs.plot(samples[0,:],samples[1,:],'o',color=marker_color,ms=10,alpha=alpha)
 
 plot_limits = [-1,1,-1,1]
@@ -100,9 +102,12 @@ num_pts_1d = 101
 X,Y,Z = get_meshgrid_function_data(
     interp, plot_limits, num_pts_1d)
 
-levels = np.linspace(diff.min(),diff.max(),num_contour_levels)
+num_contour_levels=10
+import matplotlib as mpl
+cmap = mpl.cm.coolwarm
+levels = np.linspace(Z.min(),Z.max(),num_contour_levels)
 cset = axs.contourf(
-    X, Y, diff, levels=levels,cmap=cmap,alpha=alpha)
+    X, Y, Z, levels=levels,cmap=cmap,alpha=alpha)
 plt.show()
 
 #%%
