@@ -203,7 +203,21 @@ class TestVariables(unittest.TestCase):
         pdf_vals = var1.pdf(xk)
         assert np.allclose(pdf_vals[I],np.zeros_like(I,dtype=float))
         assert np.allclose(np.delete(pdf_vals,I),np.delete(var1.dist.pk,I))
-        
+
+    def test_variables_equivalent(self):
+        nmasses=10
+        xk = np.array(range(nmasses),dtype='float')
+        pk = np.ones(nmasses)/nmasses
+        xk2 = np.array(range(nmasses),dtype='float')
+        # pk2 = np.ones(nmasses)/(nmasses)
+        pk2 = np.geomspace(1.0, 512.0, num=nmasses)
+        pk2 /= pk2.sum()
+        var1 = float_rv_discrete(
+               name='float_rv_discrete',values=(xk,pk))()
+        var2 = float_rv_discrete(
+               name='float_rv_discrete',values=(xk2,pk2))()
+        univariate_variables = [var1,var2]
+        assert variables_equivalent(var1,var2)==False
 
 
 if __name__== "__main__":    
