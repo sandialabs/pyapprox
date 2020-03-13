@@ -1150,7 +1150,7 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
     Return a list of quadrature rules for every variable
     """
     unique_quad_rules, unique_growth_rules, unique_quadrule_indices = \
-        pya.get_sparse_grid_univariate_leja_quadrature_rules_economical(
+        get_sparse_grid_univariate_leja_quadrature_rules_economical(
             var_trans,growth_rules=None)
     quad_rules = [None for ii in var_trans.num_vars()]
     growth_rules = [None for ii in var_trans.num_vars()]
