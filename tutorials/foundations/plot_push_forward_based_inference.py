@@ -137,7 +137,7 @@ prior_prob_at_samples_for_posterior_eval = prior_pdf(
 
 # Evaluate the model at the samples used to evaluate
 # the posterior
-
+response_vals_at_samples_for_posterior_eval = model(samples_for_posterior_eval)
 
 # Evaluate the distribution on the observable data
 obs_prob_at_samples_for_posterior_eval=obs_pdf(
