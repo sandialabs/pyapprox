@@ -3,11 +3,13 @@ Push Forward Based Inference
 ============================
 This tutorial describes push forward based inference (PFI) [BJWSISC2018]_.
 
-We want to compute 
+PFI solves the inverse problem of inferring parameters :math:`\rv` of a deterministic model :math:`f(\rv)` from stochastic observational data on quantities of interest.  The solution is a posterior probability measure that when propagated through the deterministic model produces a push-forward measure that exactly matches a given observed probability measure on available data.  
+
+The solution to the PFI inverse problem is given by
 
 .. math:: \pi_\text{post}(\rv)=\pi_\text{pr}(\rv)\frac{\pi_\text{obs}(f(\rv))}{\pi_\text{model}(f(\rv))}
 
-The prior density :math:`\pi_\text{pr}(\rv)` and the density on the observations :math:`\pi_\text{obs}(f(\rv))` we want to match are assumed given. We define them here as
+where :math:`\pi_\text{pr}(\rv)` is a prior density which captures any initial knowledge, :math:`\pi_\text{obs}(f(\rv))` is the density on the observations, and :math:`\pi_\text{model}(f(\rv))` is the push-forward of the prior density trough the forward model.
 """
 
 import pyapprox as pya
@@ -17,7 +19,14 @@ import matplotlib as mpl
 from scipy.stats import uniform,norm, gaussian_kde as kde
 
 #%%
-#Define the forward model
+#First we must define the forward model. We will use a functional of solution to the following system of non-linear equations
+#
+#.. math::
+#
+#   \rv_1 x_1^2+x_2^2&=1\\
+#   x_1^2-\rv_2x_2^2&=1
+#
+#Specifically we choose :math:`f(\rv)=x_2(\rv)`.
 class TimsModel(object):
     def __init__( self ):
         self.qoi = 1
@@ -128,8 +137,7 @@ prior_prob_at_samples_for_posterior_eval = prior_pdf(
 
 # Evaluate the model at the samples used to evaluate
 # the posterior
-response_vals_at_samples_for_posterior_eval = model(
-    samples_for_posterior_eval)
+
 
 # Evaluate the distribution on the observable data
 obs_prob_at_samples_for_posterior_eval=obs_pdf(
@@ -177,8 +185,7 @@ print (acceptance_ratio)
 # plot the accepted samples
 plt.plot(posterior_samples[0,:],posterior_samples[1,:],'ok')
 plt.xlim(model.ranges[:2])
-plt.ylim(model.ranges[2:])
-#plt.show()
+_ = plt.ylim(model.ranges[2:])
 
 #%%
 #The goal of inverse problem was to define the posterior density that when push forward through the forward model exactly matches the observed PDF. Lets check that by pushing forward our samples from the posterior.

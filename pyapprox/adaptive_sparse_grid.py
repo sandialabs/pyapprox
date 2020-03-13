@@ -1115,7 +1115,11 @@ def get_unique_quadrule_variables(var_trans):
     return unique_quadrule_variables, unique_quadrule_indices
 
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans,growth_rules=None):       
+        var_trans,growth_rules=None):
+    """
+    Return a list of unique quadrature rules. If each dimension has the same
+    rule then list will only have one entry.
+    """
     assert var_trans is not None
     
     if growth_rules is None:
@@ -1140,8 +1144,11 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
 
     return quad_rules, growth_rules, unique_quadrule_indices
 
-def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans,growth_rules=None):       
+def get_sparse_grid_univariate_leja_quadrature_rules(
+        var_trans,growth_rules=None):
+    """
+    Return a list of quadrature rules for every variable
+    """
     unique_quad_rules, unique_growth_rules, unique_quadrule_indices = \
         pya.get_sparse_grid_univariate_leja_quadrature_rules_economical(
             var_trans,growth_rules=None)
