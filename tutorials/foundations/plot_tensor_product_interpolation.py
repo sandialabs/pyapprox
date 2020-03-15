@@ -7,11 +7,14 @@ Generally speaking surrogates are built using a ``small'' number of model simula
 
 Reduced order models (e.g. [SFIJNME2017]_) can also be used to construct surrogates and have been applied successfully for UQ on many applications. These methods do not construct response surface approximations, but rather solve the governing equations on a reduced basis. PyApprox does not currently implement reduced order modeling, however the modeling analyis tools found in PyApprox can easily be applied to assess or design systems based on reduced order models.
 
+The use of surrogates for model analysis consists of two phases: (1) construction; and (2) post-processing.
 
-Example: Tensor-product Lagrange interpolation
-----------------------------------------------
-This tutorial demonstrates how to build an approximation of an expensive model
-using tensor-product Lagrange interpolation.
+Construction
+------------
+In this section we show how to construct a surrogate using tensor-product Lagrange interpolation.
+
+Tensor-product Lagrange interpolation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Let :math:`\hat{f}_{\boldsymbol{\alpha},\boldsymbol{\beta}}(\mathbf{z})` be an M-point tensor-product interpolant of the function :math:`\hat{f}_{\boldsymbol{\alpha}}`. This interpolant is a weighted linear combination of tensor-product of univariate Lagrange polynomials
 
@@ -112,9 +115,47 @@ plt.show()
 
 #%%
 # The error in the tensor product interpolant is given by
+#
 #.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}
-
-
+#
+#Post-processing
+#---------------
+#Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.
+#
+#To use the surrogate for computing moments we simply draw realizations of the input random variables :math:`\rv` and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.
+#
+#We know from :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
+#
+#.. math::
+#   \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
+#   &\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}
+#
+#Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than \frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.
+#
+#Note that moments can be estimated without using Monte-Carlo sampling by levaraging properties of the univariate interpolation rules used to build the multi-variate interpolant. Specifically, the expectation of a tensor product interpolant can be computed without explicitly forming the interpolant and is given by
+#
+#.. math::
+#
+#   \mu_{\bi}=\int_{\rvdom} \sum_{\V{j}\le\bi}f_\ai(\rv^{(\V{j})})\prod_{i=1}^d\phi_{i,j_i}(\rv_i) w(\rv)\,d\rv=\sum_{\V{j}\le\bi} f_\ai(\rv^{(\V{j})}) v_{\V{j}}.
+#
+#The expectation is simply the weighted sum of the Cartesian-product of the univariate quadrature weights
+#
+#.. math:: v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),
+#
+#which can be computed analytically.
+x,w=pya.get_tensor_product_quadrature_rule(
+    level,2,pya.clenshaw_curtis_pts_wts_1D)
+surrogate_mean = f(x)[:,0].dot(w)
+print('Quadrature mean',surrogate_mean)
+#%%
+#Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
+#
+#Now let us compare the quadrature mean with the MC mean computed using the surrogate
+num_samples = int(1e6)
+samples = np.random.uniform(-1,1,(2,num_samples))
+values = interp(samples)
+mc_mean = values.mean()
+print('Monte Carlo surrogate mean',mc_mean)
 #%%
 #References
 #^^^^^^^^^^
