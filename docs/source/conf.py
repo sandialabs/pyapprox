@@ -61,6 +61,7 @@ example_filenames_in_order = [
     'plot_bayesian_inference.py',
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
+    'plot_sensitivity_analysis.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_multi_level_monte_carlo.py',
@@ -195,6 +196,7 @@ SOFTWARE.\par
 \def\argmax{\operatorname{argmax}}
 \def\ai{\alpha}
 \def\bi{\beta}
+\newcommand{\dx}[1]{\;\mathrm{d}#1}
 ''',
 }
 
@@ -217,6 +219,7 @@ mathjax_config = {
             "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2],
             "ai":r'\alpha',
             "bi":r'\beta',
+            "dx":[r'\;\mathrm{d}#1',1],
             }                       
         }                           
     } 
