@@ -347,7 +347,7 @@ def compute_grammian_matrix_using_combination_sparse_grid(
     sparse_grid = CombinationSparseGrid(num_vars)
     admissibility_function = partial(
         max_level_admissibility_function,np.inf,[np.inf]*num_vars,
-        max_num_samples,error_tol)
+        max_num_samples,error_tol,verbose=True)
     if quad_rule_opts is None:
         quad_rules, growth_rules, unique_quadrule_indices = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(

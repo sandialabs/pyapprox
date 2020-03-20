@@ -130,6 +130,7 @@ def max_level_admissibility_function(max_level,max_level_1d,
                     sparse_grid.error.sum())
                 msg += "\nNo. active subspaces remaining %d"%len(
                     sparse_grid.active_subspace_queue.list)
+                msg += f'\nNo. samples {sparse_grid.samples.shape[1]}'
                 if verbose:
                     print(msg)
             #else:
@@ -151,7 +152,8 @@ def max_level_admissibility_function(max_level,max_level_1d,
         (sparse_grid.num_equivalent_function_evaluations>
          max_num_sparse_grid_samples)):
         if verbose:
-            print ('Max num evaluations reached')
+            print(f'Max num evaluations ({max_num_sparse_grid_samples}) reached')
+            print(f'Error {sparse_grid.error.sum()}')
         return False
     return True
         
