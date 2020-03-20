@@ -132,10 +132,9 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
             return x,w
 
         
-        def univariate_quadrature_rule(n):
-            x,w=gauss_jacobi_pts_wts_1D(n,beta_stat-1,alpha_stat-1)
-            x = (x+1.)/2.
-            return x,w
+        true_univariate_quadrature_rule = partial(
+            gauss_jacobi_pts_wts_1D,alpha_poly=beta_stat-1,
+            beta_poly=alpha_stat-1)
 
         compute_moment_matrix_function = partial(
             compute_moment_matrix_using_tensor_product_quadrature,
@@ -143,19 +142,82 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
             univariate_quadrature_rule=uniform_univariate_quadrature_rule,
             density_function=density_function)
 
-        pce = APC(compute_moment_matrix_function)
-        pce.configure(pce_opts)
-        indices = compute_hyperbolic_indices(num_vars,degree,1.0)
-        pce.set_indices(indices)
-
         samples,weights = get_tensor_product_quadrature_rule(
-            degree+1,num_vars,univariate_quadrature_rule)
+            degree+1,num_vars,true_univariate_quadrature_rule,
+            transform_samples=random_var_trans.map_from_canonical_space)
 
-        basis_matrix = pce.basis_matrix(samples)
-        #print np.dot(basis_matrix.T*weights,basis_matrix)
+        indices = compute_hyperbolic_indices(num_vars,degree,1.0)
+
+        apc = APC(compute_moment_matrix_function)
+        apc.configure(pce_opts)
+        apc.set_indices(indices)
+
+        apc_basis_matrix = apc.basis_matrix(samples)
+
+        #print(np.dot(apc_basis_matrix.T*weights,apc_basis_matrix))
         assert np.allclose(
-            np.dot(basis_matrix.T*weights,basis_matrix),
-            np.eye(basis_matrix.shape[1]))
+            np.dot(apc_basis_matrix.T*weights,apc_basis_matrix),
+            np.eye(apc_basis_matrix.shape[1]))
+
+    def test_compute_moment_matrix_combination_sparse_grid(self):
+        """
+        Test use of density_function in 
+        compute_moment_matrix_using_tensor_product_quadrature()
+        """
+        num_vars = 2;
+        alpha_stat=2; beta_stat=5;
+        degree=2
+
+        pce_var_trans = define_iid_random_variable_transformation(
+            uniform(),num_vars)
+        pce_opts = {'alpha_poly':0,'beta_poly':0,'var_trans':pce_var_trans,
+                    'poly_type':'jacobi'}
+        
+        random_var_trans = define_iid_random_variable_transformation(
+            beta(alpha_stat,beta_stat),num_vars)
+
+        univariate_pdf = lambda x: beta.pdf(x,a=alpha_stat,b=beta_stat)
+        density_function = partial(
+            tensor_product_pdf,univariate_pdfs=univariate_pdf)
+        
+        true_univariate_quadrature_rule = partial(
+            gauss_jacobi_pts_wts_1D,alpha_poly=beta_stat-1,
+            beta_poly=alpha_stat-1)
+
+        from pyapprox.univariate_quadrature import \
+            clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth
+        quad_rule_opts = {'quad_rules':clenshaw_curtis_in_polynomial_order,
+                          'growth_rules':clenshaw_curtis_rule_growth,
+                          'unique_quadrule_indices':None}
+
+        compute_grammian_function = partial(
+            compute_grammian_matrix_using_combination_sparse_grid,
+            var_trans=pce_var_trans,max_num_samples=100,
+            density_function=density_function,quad_rule_opts=quad_rule_opts)
+
+        samples, weights = get_tensor_product_quadrature_rule(
+            degree+1,num_vars,true_univariate_quadrature_rule,
+            transform_samples=random_var_trans.map_from_canonical_space)
+
+        indices = compute_hyperbolic_indices(num_vars,degree,1.0)
+
+        pce = PolynomialChaosExpansion()
+        pce.configure(pce_opts)
+        pce.set_indices(indices)
+        basis_matrix = pce.basis_matrix(samples)
+        assert np.allclose(np.dot(basis_matrix.T*weights,basis_matrix),
+                           compute_grammian_function(pce.basis_matrix,None))
+
+        apc = APC(compute_grammian_function=compute_grammian_function)
+        apc.configure(pce_opts)
+        apc.set_indices(indices)
+
+        apc_basis_matrix = apc.basis_matrix(samples)
+
+        #print(np.dot(apc_basis_matrix.T*weights,apc_basis_matrix))
+        assert np.allclose(
+            np.dot(apc_basis_matrix.T*weights,apc_basis_matrix),
+            np.eye(apc_basis_matrix.shape[1]))
 
     def test_compute_grammian_using_sparse_grid_quadrature(self):
         """

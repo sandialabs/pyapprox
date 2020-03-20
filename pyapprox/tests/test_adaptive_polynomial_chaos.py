@@ -139,7 +139,6 @@ class TestAdaptivePCE(unittest.TestCase):
         print('induced sampling error',error)
         assert error < 1e-14
 
-
         
 
 if __name__ == '__main__':

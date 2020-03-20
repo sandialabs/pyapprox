@@ -46,8 +46,8 @@ class APC(PolynomialChaosExpansion):
             assert self.moments is None
             assert self.compute_moment_matrix_function is None
 
-            grammian = self.compute_grammian_function(self.unrotated_basis_matrix,
-                                                      self.indices)
+            grammian=self.compute_grammian_function(self.unrotated_basis_matrix,
+                                                    self.indices)
             # cholesky requires moment_matrix function to return grammian
             # A'*A not basis matrix A
             assert grammian.shape[0]==grammian.shape[1]
@@ -181,6 +181,7 @@ def compute_moment_matrix_using_tensor_product_quadrature(
         num_samples,num_vars,univariate_quadrature_rule,None,density_function)
     basis_matrix = basis_matrix_func(samples)
     moment_matrix = np.dot(np.diag(np.sqrt(weights)),basis_matrix)
+    print(moment_matrix.shape,'p')
     return moment_matrix
 
 def compute_coefficients_of_unrotated_basis(coefficients,R_inv):
@@ -335,4 +336,58 @@ def compute_polynomial_moments_using_tensor_product_quadrature(
             poly_moments[jj,ii]=poly_moments[ii,jj]
     return poly_moments
 
+from pyapprox.adaptive_sparse_grid import CombinationSparseGrid, \
+    max_level_admissibility_function, variance_refinement_indicator, \
+    get_sparse_grid_univariate_leja_quadrature_rules_economical
+from functools import partial
+def compute_grammian_matrix_using_combination_sparse_grid(
+        basis_matrix_function,dummy_indices,var_trans,max_num_samples,
+        error_tol=0,
+        density_function=None,quad_rule_opts=None):
+    num_vars = var_trans.num_vars()
+    sparse_grid = CombinationSparseGrid(num_vars)
+    admissibility_function = partial(
+        max_level_admissibility_function,np.inf,[np.inf]*num_vars,
+        max_num_samples,error_tol)
+    if quad_rule_opts is None:
+        quad_rules, growth_rules, unique_quadrule_indices = \
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans)
+    else:
+        quad_rules = quad_rule_opts['quad_rules']
+        growth_rules = quad_rule_opts['growth_rules']
+        unique_quadrule_indices = quad_rule_opts.get(
+            'unique_quadrule_indices')
+    if density_function is None:
+        density_function = lambda samples: np.ones(samples.shape[1])
+    def function(samples):
+        #need to make sure that basis_matrix_function takes
+        #points in user domain and not canonical domain
+        basis_matrix = basis_matrix_function(samples)
+        pdf_vals = density_function(samples)
+        vals = []
+        for ii in range(basis_matrix.shape[1]):
+            for jj in range(ii,basis_matrix.shape[1]):
+               vals.append(
+                    basis_matrix[:,ii]*basis_matrix[:,jj]*pdf_vals)
+        return np.asarray(vals).T
+    
+    sparse_grid.setup(function, None,
+                      partial(variance_refinement_indicator),
+                      admissibility_function, growth_rules, quad_rules,
+                      var_trans,
+                      unique_quadrule_indices=unique_quadrule_indices)
+    sparse_grid.build()
+    #todo allow level to be passed in per dimension so I can base it on
+    #sparse_grid.subspace_indices.max(axis=1)
+    from pyapprox.sparse_grid import get_sparse_grid_samples_and_weights
+    samples, weights = get_sparse_grid_samples_and_weights(
+        num_vars,sparse_grid.subspace_indices.max(),
+        sparse_grid.univariate_quad_rule,
+        sparse_grid.univariate_growth_rule,sparse_grid.subspace_indices)[:2]
+    samples = var_trans.map_from_canonical_space(samples)
+    weights *= density_function(samples)
+    basis_matrix = basis_matrix_function(samples)
+    moment_matrix = np.dot(basis_matrix.T*weights,basis_matrix)
+    return moment_matrix
     
