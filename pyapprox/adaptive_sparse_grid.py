@@ -1086,7 +1086,7 @@ class SubSpaceRefinementManager(object):
             #print(num_subspace_samples,subspace_index)
             # compute priority and error for subspace
             priority, error = self.refinement_indicator(
-                    subspace_index, num_subspace_samples, self)
+                subspace_index, num_subspace_samples, self)
             new_item = (priority, error, count)
             self.active_subspace_queue.put(new_item)
             self.error[count] = error
