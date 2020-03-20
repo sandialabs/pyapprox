@@ -95,14 +95,18 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         self.precond_func = chistoffel_preconditioning_function
         self.omp_tol=0
 
-    def set_function(self,function,var_trans=None,poly_opts=None):
+    def set_function(self,function,var_trans=None,pce=None):
         super(AdaptiveInducedPCE,self).set_function(function,var_trans)
-        
-        self.pce = PolynomialChaosExpansion()
-        if poly_opts is None:
+        self.set_polynomial_chaos_expansion(pce)
+
+    def set_polynomial_chaos_expansion(self,pce=None):
+        if pce is None:
             poly_opts=define_poly_options_from_variable_transformation(
                 self.variable_transformation)
-        self.pce.configure(poly_opts)
+            self.pce = PolynomialChaosExpansion()
+            self.pce.configure(poly_opts)
+        else:
+            self.pce=pce
 
     def create_new_subspaces_data(self,new_subspace_indices):
         num_current_subspaces = self.subspace_indices.shape[1]
@@ -355,4 +359,4 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
             self.recompute_active_subspace_priorities()
 
 
-            
+

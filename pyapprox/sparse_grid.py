@@ -416,8 +416,8 @@ def get_sparse_grid_samples_and_weights(num_vars,level,
     weights : np.ndarray (num_sparse_grid_samples)
         The quadrature weights of the sparse grid.
     """
-    subspace_indices = []
-    subspace_coefficients = []
+    #subspace_indices = []
+    #subspace_coefficients = []
 
     if callable(quad_rules):
         quad_rules = [quad_rules]*num_vars

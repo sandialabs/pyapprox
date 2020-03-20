@@ -181,7 +181,7 @@ SOFTWARE.\par
 \usepackage{xcolor}
 \usepackage{amsmath,amssymb}
 \DeclareMathOperator*{\argmin}{argmin}
-\newcommand{\V}[1]{{\boldsymbol{V}}}
+\newcommand{\V}[1]{{\boldsymbol{#1}}}
 \newcommand{\mean}[1]{\mathbb{E}\left[#1\right]}
 \newcommand{\var}[1]{\mathbb{V}\left[#1\right]}
 \newcommand{\covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}
@@ -190,7 +190,7 @@ SOFTWARE.\par
 \def\rv{z}
 \def\reals{\mathbb{R}}
 \def\pdf{\rho}
-\def\rvdom{Gamma}
+\def\rvdom{\Gamma}
 \def\coloneqq{\colon=}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
 \def\argmax{\operatorname{argmax}}

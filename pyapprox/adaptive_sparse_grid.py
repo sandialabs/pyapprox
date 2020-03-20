@@ -142,7 +142,10 @@ def max_level_admissibility_function(max_level,max_level_1d,
         for dd in range(subspace_index.shape[0]):
             if subspace_index[dd]>max_level_1d[dd]:
                 if verbose:
-                    print ('Max level reached in variable dd')
+                    msg = f'Cannot add subspace {subspace_index}\n'
+                    msg += f'Max level of {max_level_1d[dd]} reached in '
+                    msg += f'variable {dd}'
+                    print (msg)
                 return False
     if (max_num_sparse_grid_samples is not None and
         (sparse_grid.num_equivalent_function_evaluations>
@@ -315,7 +318,8 @@ def variance_refinement_indicator_old(subspace_index,num_new_subspace_samples,
 
 
 def variance_refinement_indicator(subspace_index,num_new_subspace_samples,
-                                  sparse_grid,normalize=True,mean_only=False):
+                                  sparse_grid,normalize=True,
+                                  mean_only=False):
     """
     when config index is increased but the other indices are 0 the
     subspace will only have one random sample. Thus the variance
@@ -339,10 +343,14 @@ def variance_refinement_indicator(subspace_index,num_new_subspace_samples,
 
     indicator=error.copy()
                 
-    # relative error will not work if value at first grid point is close to zero
     if normalize:
-        assert np.all(np.absolute(sparse_grid.values[0,:])>1e-6)
-        indicator/=np.absolute(sparse_grid.values[0,:])**2
+        # relative error will not work if value at first grid point is
+        # close to zero
+        #assert np.all(np.absolute(sparse_grid.values[0,:])>1e-6)
+        denom = np.absolute(sparse_grid.values[0,:])
+        I = np.where(denom<1e-6)[0]
+        denom[I]=1
+        indicator/=denom**2
 
     qoi_chosen = np.argmax(indicator)
     #print (qoi_chosen)
