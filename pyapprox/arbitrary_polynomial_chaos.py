@@ -181,7 +181,6 @@ def compute_moment_matrix_using_tensor_product_quadrature(
         num_samples,num_vars,univariate_quadrature_rule,None,density_function)
     basis_matrix = basis_matrix_func(samples)
     moment_matrix = np.dot(np.diag(np.sqrt(weights)),basis_matrix)
-    print(moment_matrix.shape,'p')
     return moment_matrix
 
 def compute_coefficients_of_unrotated_basis(coefficients,R_inv):

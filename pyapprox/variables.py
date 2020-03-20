@@ -208,6 +208,10 @@ class IndependentMultivariateRandomVariable(object):
             stats[indices]=stats_ii
         return stats
 
+    def pdf(self,x):
+        marginal_vals = self.evaluate('pdf',x)
+        return np.prod(marginal_vals,axis=0)
+
     def __str__(self):
         variable_labels = self.variable_labels
         if variable_labels is None:

@@ -214,6 +214,14 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
             num_new_subspace_samples[ii] = I.shape[0]
         return num_new_subspace_samples
 
+    def condition_number(self):
+        if self.factorization_type=='slow':
+            return np.linalg.cond(self.L_factor.dot(self.U_factor))
+        else:
+            L,U = split_lu_factorization_matrix(
+                LU_factor,num_pivots=self.samples.shape[1])
+            return np.linalg.cond(L.dot(U))
+
     def update_leja_sequence_slow(self,new_subspace_indices):
         num_samples = self.samples.shape[1]
         # There will be two copies of self.samples in candidate_samples
@@ -357,6 +365,3 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
                self.subspace_indices.shape[1]==0):
             self.refine()
             self.recompute_active_subspace_priorities()
-
-
-
