@@ -205,3 +205,29 @@ def run_bayesian_inference_gaussian_error_model(
         map_samples = None
         
     return samples, effective_sample_size, map_sample
+
+class PYMC3LogLikeWrapper():
+    """
+    Turn pyapprox model in to one which can be used by PYMC3.
+    Main difference is that PYMC3 often passes 1d arrays where as
+    Pyapprox assumes 2d arrays. Also Pyapprox works on negative log likelihood
+    whereas PYMC works with positive log likelihood.
+    """
+    def __init__(self,negloglike):
+        self.negloglike=negloglike
+        self.set_call_return_format('pyapprox')
+
+    def set_call_return_format(self,return_format):
+        self.return_format=return_format    
+
+    def __call__(self,x):
+        if x.ndim==1:
+            xr = x[:,np.newaxis]
+        else:
+            xr=x
+            # pymc only passes one sample in at a time and expects scalar to
+            # be returned. Pyapprox allows many x and returns matrix
+        vals = - self.negloglike(xr)
+        if self.return_format=='pymc3':
+            return vals.squeeze()
+        return vals
