@@ -219,7 +219,7 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
             return np.linalg.cond(self.L_factor.dot(self.U_factor))
         else:
             L,U = split_lu_factorization_matrix(
-                LU_factor,num_pivots=self.samples.shape[1])
+                self.LU_factor,num_pivots=self.samples.shape[1])
             return np.linalg.cond(L.dot(U))
 
     def update_leja_sequence_slow(self,new_subspace_indices):
@@ -358,10 +358,13 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         I = get_active_poly_array_indices(self)
         return self.poly_indices[:,I]
 
-    def build(self):
+    def build(self,callback):
         """
         """
         while (not self.active_subspace_queue.empty() or
                self.subspace_indices.shape[1]==0):
             self.refine()
             self.recompute_active_subspace_priorities()
+            
+            if callback is not None:
+                callback(self)
