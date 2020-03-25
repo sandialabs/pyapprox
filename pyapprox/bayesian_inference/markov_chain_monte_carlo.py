@@ -31,10 +31,15 @@ class GaussianLogLike(object):
         self.model=model
         self.data=data
         self.noise_stdev=noise_stdev
+        assert self.data.ndim==1
 
     def __call__(self,samples):
         model_vals = self.model(samples)
-        return -(0.5/self.noise_stdev**2)*np.sum((self.data - model_vals)**2)
+        assert model_vals.ndim==2
+        assert model_vals.shape[1]==self.data.shape[0]
+        vals  = -(0.5/self.noise_stdev**2)*np.sum(
+            (self.data[np.newaxis,:] - model_vals)**2,axis=1)
+        return vals
 
 class LogLike(tt.Op):
     """
