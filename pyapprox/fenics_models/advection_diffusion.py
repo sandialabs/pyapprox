@@ -112,10 +112,11 @@ def run_model(function_space,kappa,forcing,init_condition,dt,final_time,
     else:
         solver=None
 
+
     u_2=dl.Function(function_space)
     u_2.assign(u_1)
     t=0.0
-    
+
     dt_tol=1e-12
     n_time_steps=0
     while t < final_time-dt_tol:
@@ -166,15 +167,15 @@ def run_model(function_space,kappa,forcing,init_condition,dt,final_time,
             
         # Update previous solution
         u_1.assign(u_2)
-        #import matplotlib.pyplot as plt
+        # import matplotlib.pyplot as plt
         # plt.subplot(131)
-        #pp=dl.plot(u_1)
+        # pp=dl.plot(u_1)
         # plt.subplot(132)
         # dl.plot(forcing,mesh=mesh)
         # plt.subplot(133)
         # dl.plot(forcing_1,mesh=mesh)
-        #plt.colorbar(pp)
-        #plt.show()
+        # plt.colorbar(pp)
+        # plt.show()
 
         # compute error
         if exact_sol is not None:
@@ -281,7 +282,8 @@ class Diffusivity(dl.UserExpression):
 class AdvectionDiffusionModel(object):
     def __init__(self,num_vars,corr_len,final_time,degree,qoi_functional,
                  add_work_to_qoi=False, periodic_boundary=False,
-                 num_phys_dims=2,second_order_timestepping=True):
+                 num_phys_dims=2,second_order_timestepping=True,
+                 parameterized_forcing=False,velocity=None):
 
         self.num_phys_dims=num_phys_dims
         self.num_config_vars=3
@@ -293,6 +295,11 @@ class AdvectionDiffusionModel(object):
         self.add_work_to_qoi=add_work_to_qoi
         self.periodic_boundary=periodic_boundary
         self.second_order_timestepping=second_order_timestepping
+        # forcing is gaussian bump with random location. The forcing
+        # is steady state so after 1 timestep with implicit timestepping
+        # the answer should not change
+        self.parameterized_forcing = parameterized_forcing
+        self.velocity=velocity
 
         path = os.path.abspath(os.path.dirname(__file__))
         if '2017' in dl.__version__:
@@ -330,10 +337,15 @@ class AdvectionDiffusionModel(object):
     def __call__(self,samples):
         # have to have dl objects in call otherwise model cannot be pickled
         # and used with multiprocessing.Pool
-        if self.num_phys_dims==2:
+        if self.velocity is None and self.num_phys_dims==2:
             beta = dl.Expression(('1.0','1.0'),degree=self.degree)
-        else:
+        elif self.velocity is None:
             beta = dl.Constant(1.0)
+        elif self.num_phys_dims==2:
+            beta = dl.Expression(
+                (str(self.velocity[0]),str(self.velocity[1])),degree=self.degree)
+        else:
+            beta = dl.Constant(self.velocity)
             
         if '2017' in dl.__version__:
             kappa = dl.UserExpression(self.kappa_code,degree=self.degree)
@@ -342,10 +354,16 @@ class AdvectionDiffusionModel(object):
                 dl.compile_cpp_code(
                     self.kappa_code).NobileDiffusivityExpression(),
                 degree=self.degree)
-        kappa.initialize_kle(self.num_vars,self.corr_len)
-        
-        forcing = dl.Expression(
-           '(1.5+cos(2*pi*t))*cos(x[0])',degree=self.degree,t=0)
+        if not self.parameterized_forcing:
+            kappa.initialize_kle(self.num_vars,self.corr_len)
+        else:
+            kappa.initialize_kle(max(1,self.num_vars-2),self.corr_len)
+            
+
+        if not self.parameterized_forcing:
+            forcing = dl.Expression(
+                '(1.5+cos(2*pi*t))*cos(x[0])',degree=self.degree,t=0)
+            
         initial_condition=dl.Constant(0.0)
         
         assert samples.ndim==2
@@ -369,6 +387,15 @@ class AdvectionDiffusionModel(object):
                 boundary_conditions = None
 
             random_sample = samples[:-3,ii]
+
+            if self.parameterized_forcing:
+                #assert dt==self.final_time
+                forcing = dl.Expression(
+                    '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',xk=random_sample[0],yk=random_sample[1],sigma=0.16,degree=self.degree)
+                random_sample = random_sample[2:]
+                if random_sample.shape[0]==0:
+                    random_sample = np.array([0.])
+            
             if '2017' in dl.__version__:
                 for ii in range(random_sample.shape[0]):
                     kappa.set_random_sample(random_sample[ii],ii)
