@@ -281,7 +281,7 @@ class Diffusivity(dl.UserExpression):
 
 class AdvectionDiffusionModel(object):
     def __init__(self,num_vars,corr_len,final_time,degree,qoi_functional,
-                 add_work_to_qoi=False, periodic_boundary=False,
+                 add_work_to_qoi=False, boundary_condition_type=False,
                  num_phys_dims=2,second_order_timestepping=True,
                  parameterized_forcing=False,velocity=None):
 
@@ -293,7 +293,7 @@ class AdvectionDiffusionModel(object):
         self.qoi_functional=qoi_functional
         self.degree=degree
         self.add_work_to_qoi=add_work_to_qoi
-        self.periodic_boundary=periodic_boundary
+        self.boundary_condition_type=boundary_condition_type
         self.second_order_timestepping=second_order_timestepping
         # forcing is gaussian bump with random location. The forcing
         # is steady state so after 1 timestep with implicit timestepping
@@ -358,6 +358,7 @@ class AdvectionDiffusionModel(object):
             kappa.initialize_kle(self.num_vars,self.corr_len)
         else:
             kappa.initialize_kle(max(1,self.num_vars-2),self.corr_len)
+            kappa.set_mean_field(-np.exp(1)+1)
             
 
         if not self.parameterized_forcing:
@@ -375,13 +376,21 @@ class AdvectionDiffusionModel(object):
                 mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
             else:
                 mesh = dl.UnitIntervalMesh(nx)
-            if self.periodic_boundary:
+            if self.boundary_condition_type=='periodic':
                 pbc =  RectangularMeshPeriodicBoundary(1)
                 function_space = dl.FunctionSpace(
                     mesh, "CG", self.degree, constrained_domain=pbc)
                 bndry_obj = dl.CompiledSubDomain(
                     "on_boundary&&(near(x[0],0)||near(x[0],1))")
                 boundary_conditions = [['dirichlet',bndry_obj,dl.Constant(0)]]
+            elif self.boundary_condition_type=='neumann':
+                function_space = dl.FunctionSpace(mesh, "CG", self.degree)
+                bndry_objs = get_2d_rectangular_mesh_boundaries(0,1,0,1)
+                boundary_conditions = [
+                    ['neumann',  bndry_objs[0],dl.Constant(0)],
+                    ['neumann',  bndry_objs[1],dl.Constant(0)],
+                    ['neumann',  bndry_objs[2],dl.Constant(0)],
+                    ['neumann',  bndry_objs[3],dl.Constant(0)]]
             else:
                 function_space = dl.FunctionSpace(mesh, "CG", self.degree)
                 boundary_conditions = None
@@ -391,7 +400,7 @@ class AdvectionDiffusionModel(object):
             if self.parameterized_forcing:
                 #assert dt==self.final_time
                 forcing = dl.Expression(
-                    '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',xk=random_sample[0],yk=random_sample[1],sigma=0.16,degree=self.degree)
+                    'A/(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sigma*sigma))',xk=random_sample[0],yk=random_sample[1],sigma=0.05,A=2.,degree=self.degree)
                 random_sample = random_sample[2:]
                 if random_sample.shape[0]==0:
                     random_sample = np.array([0.])
@@ -434,8 +443,13 @@ def qoi_functional_2(u):
     return [u]
 
 def qoi_functional_misc(u):
+    #To reproduce adaptive multi index results use following
+    #expr = dl.Expression(
+    #    '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',
+    #    xk=0.3,yk=0.5,sigma=0.16,degree=2)
+    
     expr = dl.Expression(
-        '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',
+        '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(sigma*sigma))',
         xk=0.3,yk=0.5,sigma=0.16,degree=2)
     qoi = dl.assemble(u*expr*dl.dx(u.function_space().mesh()))
     return np.asarray([qoi])

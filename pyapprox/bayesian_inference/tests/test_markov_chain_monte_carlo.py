@@ -12,59 +12,38 @@ class LinearModel(object):
         Amatrix : np.ndarray (nobs,nvars)
             The Jacobian of the linear model
         """
-
         self.Amatrix=Amatrix
 
     def __call__(self,samples):
         """
-        A straight line!
+        Evaluate the model
         """
-        vals = self.Amatrix.dot(samples)
+        assert samples.ndim==2
+        vals = self.Amatrix.dot(samples).T
         return vals
 
 from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
 class ExponentialQuarticLogLikelihoodModel(object):
-    def __init__(self,modify=True):
-        self.modify = modify
+    def __init__(self):
         self.a = 3.0
-        self.return_format='pyapprox'
 
-    def set_call_return_format(self,return_format):
-        self.return_format=return_format    
-        
     def loglikelihood_function(self, x):
-        value = (0.1*x[0]**4 + 0.5*(2.*x[1]-x[0]**2)**2)
-        if self.modify:
-            value += np.cos((x[0]+x[1]*3)/6)**2
-            value *= 3.
-            value = value**(1./self.a)+1
-        return -value
+        value = -(0.1*x[0]**4 + 0.5*(2.*x[1]-x[0]**2)**2)
+        return value
 
     def gradient(self, x):
         assert x.ndim==1
-        grad = np.array([12./5.*x[0]**3-4.*x[0]*x[1],
-                            4.*x[1]-2.*x[0]**2])
-        if self.modify:
-            raise Exception('Gradient not implemeneted for modified function')
-        return -grad
+        grad = -np.array([12./5.*x[0]**3-4.*x[0]*x[1],
+                          4.*x[1]-2.*x[0]**2])
+        return grad
 
     def value(self, x):
         assert x.ndim == 1
         vals = self.loglikelihood_function(x)
         return np.array([vals])
-    
-    def __call__(self, x):
-        if x.ndim==1:
-            xr = x[:,np.newaxis]
-        else:
-            xr=x
-        # pymc only passes one sample in at a time and expects scalar to
-        # be returned. Pyapprox allows many x and returns matrix
-        vals = evaluate_1darray_function_on_2d_array(self.value,xr,{})
-        if self.return_format=='pymc3':
-            return vals.squeeze()
-        return vals
 
+    def __call__(self,x):
+        return np.array([self.loglikelihood_function(x)]).T
 
 class TestMCMC(unittest.TestCase):
 
@@ -82,13 +61,14 @@ class TestMCMC(unittest.TestCase):
 
         mtrue = 0.4  # true gradient
         ctrue = 2.   # true y-intercept
-        true_sample = np.array([ctrue, mtrue])
+        true_sample = np.array([[ctrue, mtrue]]).T
 
         model = LinearModel(Amatrix)
 
         # make data
-        data = noise_stdev*np.random.randn(nobs)+model(true_sample)
-        loglike = GaussianLogLike(model, data, noise_stdev)
+        data = noise_stdev*np.random.randn(nobs)+model(true_sample)[0,:]
+        loglike = GaussianLogLike(model, data, noise_stdev**2)
+        loglike = PYMC3LogLikeWrapper(loglike)
 
         # number of draws from the distribution
         ndraws = 5000
@@ -97,10 +77,12 @@ class TestMCMC(unittest.TestCase):
         # number of parallel chains
         njobs=4
 
+        #algorithm='nuts'
+        algorithm='metropolis'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
-                algorithm='metropolis',get_map=True,print_summary=False)
+                algorithm=algorithm,get_map=True,print_summary=False)
 
         prior_mean = np.asarray([rv.mean() for rv in variables.all_variables()])
         prior_hessian = np.diag(
@@ -114,11 +96,11 @@ class TestMCMC(unittest.TestCase):
                 Amatrix, prior_mean, prior_hessian,
                 noise_covariance_inv, data)
 
-        # print('mcmc mean error',samples.mean(axis=1)-exact_mean)
-        # print('mcmc cov error',np.cov(samples)-exact_covariance)
-        # print('MAP sample',map_sample)
-        # print('exact mean',exact_mean.squeeze())
-        # print('exact cov',exact_covariance)
+        print('mcmc mean error',samples.mean(axis=1)-exact_mean)
+        print('mcmc cov error',np.cov(samples)-exact_covariance)
+        print('MAP sample',map_sample)
+        print('exact mean',exact_mean.squeeze())
+        print('exact cov',exact_covariance)
         assert np.allclose(map_sample,exact_mean)
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1),atol=1e-2)
@@ -138,6 +120,7 @@ class TestMCMC(unittest.TestCase):
         variables = IndependentMultivariateRandomVariable(univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
+        loglike = PYMC3LogLikeWrapper(loglike)
 
         # number of draws from the distribution
         ndraws = 5000
@@ -147,7 +130,9 @@ class TestMCMC(unittest.TestCase):
         njobs=1
 
         def unnormalized_posterior(x):
-            vals = np.exp(loglike(x))
+            # avoid use of pymc3 wrapper which only evaluates samples 1 at
+            # a time
+            vals = np.exp(loglike.loglike(x))
             rvs = variables.all_variables()
             for ii in range(variables.num_vars()):
                 vals[:,0] *= rvs[ii].pdf(x[ii,:])
@@ -167,11 +152,12 @@ class TestMCMC(unittest.TestCase):
         exact_mean = ((x*unnormalized_posterior(x)[:,0]).dot(w)/evidence)
         #print(exact_mean)
 
-        loglike.set_call_return_format('pymc3')
+        #algorithm = 'nuts'
+        algorithm = 'smc'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
-                algorithm='smc',get_map=True,print_summary=True)
+                algorithm=algorithm,get_map=True,print_summary=True)
 
         # from pyapprox.visualization import get_meshgrid_function_data
         # import matplotlib
@@ -184,8 +170,9 @@ class TestMCMC(unittest.TestCase):
         # plt.show()
         
         print('mcmc mean error',samples.mean(axis=1)-exact_mean)
-        #print('MAP sample',map_sample)
-        # print('exact mean',exact_mean.squeeze())
+        print('MAP sample',map_sample)
+        print('exact mean',exact_mean.squeeze())
+        print('MCMC mean',samples.mean(axis=1))
         assert np.allclose(map_sample,np.zeros((variables.num_vars(),1)))
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1),atol=3e-2)

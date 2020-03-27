@@ -11,7 +11,7 @@ class GaussianLogLike(object):
     A Gaussian log-likelihood function for a model with parameters given in 
     sample
     """
-    def __init__(self,model,data,noise_stdev):
+    def __init__(self,model,data,noise_covar):
         """
         Initialise the Op with various things that our log-likelihood function
         requires. Below are the things that are needed in this particular
@@ -23,22 +23,52 @@ class GaussianLogLike(object):
             The model relating the data and noise 
 
         data : np.ndarray (nobs)
-            The "observed" data that our log-likelihood function takes in
+            The "observed" data
 
-        noise_stdev : float
-            The noise standard deviation that our function requires.
+        noise_covar : float
+            The noise covariance
         """
         self.model=model
         self.data=data
-        self.noise_stdev=noise_stdev
         assert self.data.ndim==1
+        self.ndata = data.shape[0]
+        self.noise_covar_inv = self.noise_covariance_inverse(noise_covar)
+
+    def noise_covariance_inverse(self,noise_covar):
+        if np.isscalar(noise_covar):
+            inv_covar = 1/noise_covar
+        elif noise_covar.ndim==1:
+            assert noise_covar.shape[0]==self.data.shape[0]
+            inv_covar = 1/noise_covar
+        elif noise_covar.ndim==2:
+            assert noise_covar.shape==[self.ndata,self.ndata]
+            inv_covar = np.linalg.inv(noise_covar)
+        return inv_covar
+
+    # def noise_covariance_determinant(self, noise_covar):
+    #     """The determinant is only necessary in log likelihood if the noise 
+    #     covariance has a hyper-parameter which is being inferred which is
+    #     not currently supported"""
+    #     if np.isscalar(noise_covar):
+    #         determinant = noise_covar**self.ndata
+    #     elif noise_covar.ndim==1:
+    #         determinant = np.prod(noise_covar)
+    #     else:
+    #         determinant = np.linalg.det(noise_covar)
+    #     return determinant
 
     def __call__(self,samples):
         model_vals = self.model(samples)
         assert model_vals.ndim==2
-        assert model_vals.shape[1]==self.data.shape[0]
-        vals  = -(0.5/self.noise_stdev**2)*np.sum(
-            (self.data[np.newaxis,:] - model_vals)**2,axis=1)
+        assert model_vals.shape[1]==self.ndata
+        vals = np.empty((model_vals.shape[0],1))
+        for ii in range(model_vals.shape[0]):
+            residual = self.data - model_vals[ii,:]
+            if np.isscalar(self.noise_covar_inv) or self.noise_covar_inv.ndim==1:
+                vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+            else:
+                vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+        vals *= -0.5
         return vals
 
 class LogLike(tt.Op):
@@ -215,24 +245,15 @@ class PYMC3LogLikeWrapper():
     """
     Turn pyapprox model in to one which can be used by PYMC3.
     Main difference is that PYMC3 often passes 1d arrays where as
-    Pyapprox assumes 2d arrays. Also Pyapprox works on negative log likelihood
-    whereas PYMC works with positive log likelihood.
+    Pyapprox assumes 2d arrays.
     """
-    def __init__(self,negloglike):
-        self.negloglike=negloglike
-        self.set_call_return_format('pyapprox')
-
-    def set_call_return_format(self,return_format):
-        self.return_format=return_format    
+    def __init__(self,loglike):
+        self.loglike=loglike
 
     def __call__(self,x):
         if x.ndim==1:
             xr = x[:,np.newaxis]
         else:
             xr=x
-            # pymc only passes one sample in at a time and expects scalar to
-            # be returned. Pyapprox allows many x and returns matrix
-        vals = - self.negloglike(xr)
-        if self.return_format=='pymc3':
-            return vals.squeeze()
-        return vals
+        vals = self.loglike(xr)
+        return vals.squeeze()
