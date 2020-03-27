@@ -99,7 +99,6 @@ The following function can be used to setup the numerical approximation of the a
 import pyapprox as pya
 import numpy as np
 def setup_model(num_vars,corr_len,max_eval_concurrency):
-    periodic_boundary=False
     second_order_timestepping=False
     final_time = 1.0
 
@@ -111,7 +110,6 @@ def setup_model(num_vars,corr_len,max_eval_concurrency):
     base_model = AdvectionDiffusionModel(
         num_vars,corr_len,final_time,degree,qoi_functional,
         add_work_to_qoi=False,
-        periodic_boundary=periodic_boundary,
         second_order_timestepping=second_order_timestepping)
     # add wrapper to allow execution times to be captured
     timer_model = pya.TimerModelWrapper(base_model,base_model)
