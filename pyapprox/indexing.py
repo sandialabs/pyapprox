@@ -31,6 +31,10 @@ def compute_next_combination(num_vars, level, extend, h, t, index):
     extend = ( index[num_vars-1] != level )
     return index, extend, h, t
 
+def num_total_degree_indices(num_vars,degree):
+    num_indices = nchoosek(num_vars + degree, num_vars)
+    return num_indices
+
 def compute_combinations(num_vars, level):
     if ( level > 0 ):
         num_indices = nchoosek(num_vars + level, num_vars) -\
@@ -135,7 +139,7 @@ from scipy.special import comb as scipy_comb
 def nchoosek(nn,kk):
     return int(np.round(scipy_comb(nn, kk)))
     
-def compute_hyperbolic_indices(num_vars, level, p):
+def compute_hyperbolic_indices(num_vars, level, p=1):
     assert level>=0
     indices = compute_hyperbolic_level_indices( num_vars, 0, p)
     for ll in range(1,level+1):
