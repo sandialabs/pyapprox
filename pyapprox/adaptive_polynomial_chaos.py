@@ -78,10 +78,11 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     weights = precond_func(basis_matrix,samples)
     basis_matrix = basis_matrix*weights[:,np.newaxis]
     rhs = values*weights[:,np.newaxis]
-    omp = OrthogonalMatchingPursuit(tol=tol)
+    omp = OrthogonalMatchingPursuit(tol=tol,fit_intercept=False)
     omp.fit(basis_matrix, rhs)
     coef = omp.coef_
     print('nnz_terms',np.count_nonzero(coef))
+    #coef[0] = omp.intercept_
     return coef[:,np.newaxis]
 
 def chistoffel_preconditioning_function(basis_matrix,samples):
