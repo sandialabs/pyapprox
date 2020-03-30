@@ -69,11 +69,11 @@ def solve_preconditioned_least_squares(basis_matrix_func,samples,values,
     coef = np.linalg.lstsq(basis_matrix,rhs,rcond=None)[0]
     return coef
 
-from sklearn.linear_model import OrthogonalMatchingPursuit
 def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
                                                      samples,values,
                                                      precond_func,
                                                      tol=1e-8):
+    from sklearn.linear_model import OrthogonalMatchingPursuit
     basis_matrix = basis_matrix_func(samples)
     weights = precond_func(basis_matrix,samples)
     basis_matrix = basis_matrix*weights[:,np.newaxis]
@@ -82,7 +82,6 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     omp.fit(basis_matrix, rhs)
     coef = omp.coef_
     print('nnz_terms',np.count_nonzero(coef))
-    #coef[0] = omp.intercept_
     return coef[:,np.newaxis]
 
 def chistoffel_preconditioning_function(basis_matrix,samples):

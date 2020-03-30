@@ -3,8 +3,12 @@ Functions for estimating expectations using frequentist control-variate Monte-Ca
 """
 import numpy as np, os
 from scipy.optimize import minimize
-#use torch to compute gradients for sample allocation optimization
-import torch
+try:
+    #use torch to compute gradients for sample allocation optimization
+    import torch
+except:
+    msg = 'Could not import Torch'
+    print(msg)
 import copy
 from pyapprox.utilities import get_all_sample_combinations
 from functools import partial

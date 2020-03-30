@@ -82,6 +82,32 @@ class TestIndexing(unittest.TestCase):
         assert np.allclose(sort_indices_lexiographically(anisotropic_indices),
                            sort_indices_lexiographically(downward_closed_indices))
 
+    def test_get_upper_triangular_matrix_scalar_index(self):
+        ii,jj,nn=0,1,3
+        index = get_upper_triangular_matrix_scalar_index(ii,jj,nn)
+        assert index==0
+
+        ii,jj,nn=0,2,3
+        index = get_upper_triangular_matrix_scalar_index(ii,jj,nn)
+        assert index==1
+
+
+        ii,jj,nn=1,2,3
+        index = get_upper_triangular_matrix_scalar_index(ii,jj,nn)
+        assert index==2
+
+    def test_get_upper_triangular_matrix_indices(self):
+        kk,nn=0,3
+        ii,jj = get_upper_triangular_matrix_indices(kk,nn)
+        assert (ii,jj)==(0,1)
+
+        kk,nn=1,3
+        ii,jj = get_upper_triangular_matrix_indices(kk,nn)
+        assert (ii,jj)==(0,2)
+
+        kk,nn=2,3
+        ii,jj = get_upper_triangular_matrix_indices(kk,nn)
+        assert (ii,jj)==(1,2)  
 
 
 if __name__=='__main__':

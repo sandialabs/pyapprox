@@ -343,3 +343,50 @@ def compute_anisotropic_indices(num_vars,level,anisotropic_weights):
 
     subspace_indices = subspace_indices[:,indices_to_keep]
     return subspace_indices
+
+
+def get_upper_triangular_matrix_scalar_index(ii,jj,nn):
+    """
+    Get the scalar index kk of the (ii,jj) etnry of an upper triangular matrix 
+    (excluding diagonal) stored in a 1D array
+
+    For example
+    .. math:: 
+
+       \begin{bmatrix} 
+       0 & a_0 & a_1 & a_2\\
+       0 & 0   & a_3 & a_4\\
+       0 & 0   & 0   & a_5\\
+       0 & 0   & 0   & 0
+       \end{bmatrix}
+
+    is stored as 
+
+    .. math::  \begin{bmatrix} [a_0,a_1,a_2,a_3,a_4,a_5]\end{bmatrix}
+    """
+    assert ii<jj
+    kk = (nn*(nn-1)//2) - (nn-ii)*((nn-ii)-1)//2 + jj - ii - 1
+    return int(kk)
+
+def get_upper_triangular_matrix_indices(kk,nn):
+    """
+    Get the index tuple (ii,jj) entry kk of an upper triangular matrix 
+    (excluding diagonal) stored in a 1D array
+
+    For example
+    .. math:: 
+
+       \begin{bmatrix} 
+       0 & a_0 & a_1 & a_2\\
+       0 & 0   & a_3 & a_4\\
+       0 & 0   & 0   & a_5\\
+       0 & 0   & 0   & 0
+       \end{bmatrix}
+
+    is stored as 
+
+    .. math::  \begin{bmatrix} [a_0,a_1,a_2,a_3,a_4,a_5]\end{bmatrix}
+    """
+    ii = nn - 2 - np.floor(np.sqrt(-8*kk + 4*nn*(nn-1)-7)/2.0 - 0.5)
+    jj = kk + ii + 1 - nn*(nn-1)/2 + (nn-ii)*((nn-ii)-1)/2
+    return int(ii),int(jj)
