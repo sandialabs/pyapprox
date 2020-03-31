@@ -99,7 +99,8 @@ def get_unique_variables(variables):
 def variable_shapes_equivalent(rv1,rv2):
     name1, __, shapes1 = get_distribution_info(rv1)
     name2, __, shapes2 = get_distribution_info(rv2)
-    assert name1==name2
+    if name1!=name2:
+        return False
     if name1=='float_rv_discrete' or name1=='discrete_chebyshev':
         # xk and pk shapes are list so != comparison will not work
         not_equiv = np.any(shapes1['xk']!=shapes2['xk']) or np.any(
