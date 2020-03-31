@@ -14,6 +14,7 @@ from pyapprox.manipulate_polynomials import get_indices_double_set
 from pyapprox.variable_transformations import \
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
+import sympy as sp
 
 skiptest = unittest.skip("test not completely implemented")
 
@@ -410,7 +411,6 @@ class TestSparseGrid(unittest.TestCase):
         J = np.arange(poly_indices.shape[1])
         coeffs = np.random.normal(0.0,1.0,(J.shape[0]))
 
-
         x,y = sp.Symbol('x'),sp.Symbol('y')
         monomial_expansion = 0
         for ii in range(poly_indices.shape[1]):
@@ -427,7 +427,7 @@ class TestSparseGrid(unittest.TestCase):
 
         values = evaluate_monomial(poly_indices[:,J],coeffs,samples)
         assert np.allclose(np.dot(values[:,0],weights),exact_mean)
-
+        
     def test_sparse_grid_integration_binomial_leja(self):
         num_vars = 2; level = 5
 
@@ -454,7 +454,7 @@ class TestSparseGrid(unittest.TestCase):
             candidate_based_leja_rule,recursion_coeffs,
             generate_candidate_samples,
             num_trials+1,
-            initial_samples=np.atleast_2d(
+            initial_points=np.atleast_2d(
                 [binomial_rv.ppf(0.5,num_trials,prob_success)]),
             samples_filename=samples_filename,
             return_weights_for_all_levels=True)
