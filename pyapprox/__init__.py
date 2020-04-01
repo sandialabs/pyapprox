@@ -15,3 +15,5 @@ from pyapprox.models.wrappers import *
 from pyapprox.density import *
 from pyapprox.arbitrary_polynomial_chaos import *
 from pyapprox.indexing import *
+from pyapprox.multivariate_polynomials import *
+from pyapprox.sensitivity_analysis import *

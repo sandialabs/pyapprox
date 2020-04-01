@@ -448,3 +448,13 @@ def remove_variables_from_polynomial_chaos_expansion(poly,inactive_idx):
     pce.set_indices(reduced_indices)
     assert pce.coefficients is None
     return fixed_pce
+
+from pyapprox.variable_transformations import \
+    AffineRandomVariableTransformation
+def get_polynomial_from_variable(variable):
+    var_trans = AffineRandomVariableTransformation(
+        variable)
+    poly = PolynomialChaosExpansion()
+    poly_opts = define_poly_options_from_variable_transformation(var_trans)
+    poly.configure(poly_opts)
+    return poly
