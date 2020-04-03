@@ -64,9 +64,11 @@ example_filenames_in_order = [
     'plot_sensitivity_analysis.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
-    'plot_multi_level_monte_carlo.py',
-    'plot_recursive_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
+    'plot_multi_level_monte_carlo.py',
+    'plot_multi_fidelity_monte_carlo.py',
+    'plot_many_model_approximate_control_variate_monte_carlo.py',
+    'plot_recursive_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_sample_allocation.py',
     'plot_multi_index_collocation.py' ]
 class ExamplesExplicitOrder(_SortKey):
@@ -94,7 +96,7 @@ sphinx_gallery_conf = {
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell']=r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}$$"
+sphinx_gallery_conf['first_notebook_cell']=r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\mathrm{d}#1}$$"
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
@@ -181,19 +183,20 @@ SOFTWARE.\par
 \usepackage{xcolor}
 \usepackage{amsmath,amssymb}
 \DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\argmax}{argmax}
 \newcommand{\V}[1]{{\boldsymbol{#1}}}
 \newcommand{\mean}[1]{\mathbb{E}\left[#1\right]}
 \newcommand{\var}[1]{\mathbb{V}\left[#1\right]}
 \newcommand{\covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}
 \newcommand{\corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}
-\def\argmin{\mathrm{argmin}}
+%\def\argmin{\mathrm{argmin}}
 \def\rv{z}
 \def\reals{\mathbb{R}}
 \def\pdf{\rho}
 \def\rvdom{\Gamma}
 \def\coloneqq{\colon=}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
-\def\argmax{\operatorname{argmax}}
+%\def\argmax{\operatorname{argmax}}
 \def\ai{\alpha}
 \def\bi{\beta}
 \newcommand{\dx}[1]{\;\mathrm{d}#1}

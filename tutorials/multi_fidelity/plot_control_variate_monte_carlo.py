@@ -1,7 +1,7 @@
 r"""
 Control Variate Monte Carlo
 ===========================
-This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
+This tutorial describes how to implement and deploy control variate Monte Carlo sampling to compute the expectations of the output of a high-fidelity model using a lower-fidelity model with a known mean. The information presented here builds upon the tutorial :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py`.
 
 Let us introduce a model :math:`Q_\V{\kappa}` with known mean :math:`\mu_{\V{\kappa}}`. We can use this model to estimate the mean of :math:`Q_{\V{\alpha}}` via [LMWOR1982]_
 
@@ -110,7 +110,7 @@ _ = ax.legend(loc='upper left')
 plt.show()
 
 #%%
-#Change :math:`\texttt{eta}` to :math:`\texttt{eta_mc}` to see how the variance reduction changes when the covariance between models is approximated
+#Change ``eta`` to ``eta_mc`` to see how the variance reduction changes when the covariance between models is approximated
 
 #%%
 #References

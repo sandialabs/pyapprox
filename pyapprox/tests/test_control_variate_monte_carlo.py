@@ -516,7 +516,7 @@ class TestCVMC(unittest.TestCase):
         
         target_cost = 81
 
-        estimator = MLMC(cov,costs,target_cost)
+        estimator = MLMC(cov,costs)
         estimator.use_lagrange_formulation(True)
 
         nhf_samples_exact, nsample_ratios_exact = allocate_samples_mlmc(
@@ -607,7 +607,7 @@ class TestCVMC(unittest.TestCase):
         nhf_samples, nsample_ratios =  pya.allocate_samples_mlmc(
             cov, costs, target_cost)[:2]
 
-        estimator = ACVMF(cov,costs,target_cost)
+        estimator = ACVMF(cov,costs)
         errors = pya.check_gradients(
             partial(acv_sample_allocation_objective,estimator),
             partial(acv_sample_allocation_jacobian,estimator),

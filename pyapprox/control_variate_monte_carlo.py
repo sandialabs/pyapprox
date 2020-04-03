@@ -1336,7 +1336,7 @@ class MC():
 class ACVMFKL(ACVMF):
     def __init__(self,cov,costs,target_cost,K,L):
         self.K, self.L = K, L
-        super().__init__(cov, costs, target_cost)
+        super().__init__(cov, costs)
     
     def get_rsquared(self,nsample_ratios):
         return get_rsquared_acv(

@@ -25,6 +25,13 @@ html-noplot:
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
+# build your gallery without running examples first 
+latexpdf-noplot:
+	@$(SPHINXBUILD) -D plot_gallery=0 -b latex $(SOURCEDIR) $(BUILDDIR)/latex $(SPHINXOPTS)
+	@$(MAKE) -C $(BUILDDIR)/latex all-pdf
+	@echo
+	@echo "Build finished. The PDF file is in $(BUILDDIR)/latex."
+
 clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf source/auto_examples/

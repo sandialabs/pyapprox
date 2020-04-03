@@ -358,7 +358,7 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         I = get_active_poly_array_indices(self)
         return self.poly_indices[:,I]
 
-    def build(self,callback):
+    def build(self,callback=None):
         """
         """
         while (not self.active_subspace_queue.empty() or

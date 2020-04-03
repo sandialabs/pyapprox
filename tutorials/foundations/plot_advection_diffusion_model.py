@@ -10,7 +10,8 @@ Let :math:`D\subset\mathbb{R}^\ell`, for :math:`\ell=1,2,` or :math:`3` and :mat
 \mathbb{R}^{d}`, for :math:`d\geq 1` and :math:`\text{dim}(\rvdom)=d`, be the stochastic space. The PDE is defined as 
 
 .. math::
-   \left\{
+
+  \left\{
    \begin{array} {ll}
    u_t(x,t,\rv) = \mathcal{L}(u), &\\
   \mathcal{B}(u(x, t, \rv)) = 0, & \\
@@ -31,9 +32,8 @@ In this tutorial we will consider the following model of advection-diffusion
 
 .. math::
 
-   \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] = g(x,t)& &
-   (x,t,\rv)\in D\times [0,1]\times\rvdom\\
-   u(x,t,\rv)=0 & & (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
+   \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad\qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+   u(x,t,\rv)&=0 \qquad\qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
 
 with forcing :math:`g(x,t)=(1.5+\cos(2\pi t))\cos(x_1)`, and subject to the initial condition :math:`u(x,0,\rv)=0`. Following [NTWSIAMNA2008]_, we model the diffusivity :math:`k` as a random field represented by the
 Karhunen-Loeve (like) expansion (KLE)
@@ -46,7 +46,7 @@ with
 
 .. math::
 
-  \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  & &  \phi(x)=
+   \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
     \begin{cases}
       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
@@ -253,7 +253,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 num_vars = 2
 model = setup_model(num_vars,corr_len=0.1,max_eval_concurrency=1)
-validation_levels = [5]*3
+validation_levels = [2]*3
 data = error_vs_cost(
     model,partial(generate_random_samples,model.base_model.num_vars),
     validation_levels)
