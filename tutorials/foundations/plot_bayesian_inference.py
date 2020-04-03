@@ -271,7 +271,7 @@ axhline=axs[1].axhline(y=data_obs,color='k')
 axplot=axs[1].plot(x_truth,data_obs,'ok',ms=10)
 
 #%%
-#As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity.
+#As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing ``num_obs1`` to see what happens.
 
 #%%
 #Inexact Inference using Markov Chain Monte Carlo
@@ -292,14 +292,15 @@ from scipy.stats import uniform
 from pyapprox.bayesian_inference.tests.test_markov_chain_monte_carlo import \
     ExponentialQuarticLogLikelihoodModel
 from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
-    run_bayesian_inference_gaussian_error_model
+    run_bayesian_inference_gaussian_error_model, PYMC3LogLikeWrapper
 np.random.seed(1)  
 
 univariate_variables = [uniform(-2,4),uniform(-2,4)]
 plot_range = np.asarray([-1,1,-1,1])*2
 variables = pya.IndependentMultivariateRandomVariable(univariate_variables)
 
-loglike = ExponentialQuarticLogLikelihoodModel(False)
+loglike = ExponentialQuarticLogLikelihoodModel()
+loglike = PYMC3LogLikeWrapper(loglike)
 
 # number of draws from the distribution
 ndraws = 500
@@ -307,12 +308,10 @@ ndraws = 500
 nburn = min(1000,int(ndraws*0.1))
 # number of parallel chains
 njobs=1
-loglike.set_call_return_format('pymc3')
 samples, effective_sample_size, map_sample = \
     run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
         algorithm='smc',get_map=True,print_summary=True)
-loglike.set_call_return_format('pyapprox')
 
 print('MAP sample',map_sample.squeeze())
 
@@ -321,7 +320,7 @@ print('MAP sample',map_sample.squeeze())
 #
 #Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 def unnormalized_posterior(x):
-    vals = np.exp(loglike(x))
+    vals = np.exp(loglike.loglike(x))
     rvs = variables.all_variables()
     for ii in range(variables.num_vars()):
         vals[:,0] *= rvs[ii].pdf(x[ii,:])
@@ -336,6 +335,7 @@ x,w = pya.get_tensor_product_quadrature_rule(
 evidence = unnormalized_posterior(x)[:,0].dot(w)
 print('evidence',evidence)
 
+plt.figure()
 X,Y,Z = pya.get_meshgrid_function_data(
     lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)
 plt.contourf(
