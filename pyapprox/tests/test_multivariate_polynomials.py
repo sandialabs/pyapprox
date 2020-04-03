@@ -458,6 +458,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly_opts['numerically_generated_poly_accuracy_tolerance']=1e-9
         poly.configure(poly_opts)
         poly.set_indices(np.arange(degree+1)[np.newaxis,:])
         p = poly.basis_matrix(xk[np.newaxis,:])

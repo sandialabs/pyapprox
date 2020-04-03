@@ -228,7 +228,7 @@ mfmc_mean = pya.compute_approximate_control_variate_mean_estimate(eta,values)
 
 # get the true mean of the high-fidelity model
 true_mean = short_column_model.get_means()[0]
-print('MLMC error',abs(mfmc_mean-true_mean))
+print('MFMC error',abs(mfmc_mean-true_mean))
 print('MC error',abs(hf_mean-true_mean))
 
 #%%

@@ -308,6 +308,7 @@ def plot_mlmc_error():
     return fig,axs
 
 fig,axs = plot_mlmc_error()
+plt.show()
     
 #%%
 #The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.
