@@ -1,7 +1,10 @@
 r"""
 Multi-fidelity Monte Carlo
---------------------------
+==========================
 This tutorial builds on from :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` and :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` and introduces an approximate control variate estimator called Multi-fidelity Monte Carlo (MFMC). Unlike MLMC this method does not assume a strict ordering of models.
+
+Many Model MFMC
+---------------
 
 To derive the MFMC estimator first recall the two model ACV estimator
 
@@ -35,13 +38,13 @@ Starting from two models we introduce the next low fidelity model in a way that 
 .. math::
 
    Q_{0,\mathcal{Z}}^\mathrm{MF}&=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\left(\mu_{1,\mathcal{Z}_{1}}+\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\right)\right)\\
-   &=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)\\
+   &=Q_{0,\mathcal{Z}_{0}} + \eta_1\left(Q_{1,\mathcal{Z}_{1}}-\mu_{1,\mathcal{Z}_{1}}\right)+\eta_1\eta_2\left(Q_{2,\mathcal{Z}_1}-\mu_{2,\mathcal{Z}_2}\right)
 
 We repeat this process for all low fidelity models to obtain
 
 .. math:: Q_{0,\mathcal{Z}}^\mathrm{MF}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{\alpha,1}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
 
- The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
+The optimal control variate weights for the MFMC estimator, which minimize the variance of the estimator, are :math:`\eta=(\eta_1,\ldots,\eta_M)^T`, where for :math:`\alpha=1\ldots,M`
 
 .. math:: \eta_\alpha = -\frac{\covar{Q_0}{Q_\alpha}}{\var{Q_\alpha}}
 
@@ -51,6 +54,23 @@ With this choice of weights the variance reduction obtained is given by
 
 Let us use MFMC to estimate the mean of our high-fidelity model.
 """
+import numpy as np
+import matplotlib.pyplot as plt
+import pyapprox as pya
+from functools import partial
+from pyapprox.tests.test_control_variate_monte_carlo import \
+    TunableModelEnsemble, ShortColumnModelEnsemble, PolynomialModelEnsemble
+np.random.seed(1)
+
+
+short_column_model = ShortColumnModelEnsemble()
+model_ensemble = pya.ModelEnsemble(
+    [short_column_model.m0,short_column_model.m1,short_column_model.m2])
+
+costs = np.asarray([100, 50, 5])
+target_cost = int(1e4)
+idx = [0,1,2]
+cov = short_column_model.get_covariance_matrix()[np.ix_(idx,idx)]
 
 # define the sample allocation
 nhf_samples,nsample_ratios = pya.allocate_samples_mfmc(
@@ -72,49 +92,51 @@ print('MLMC error',abs(mfmc_mean-true_mean))
 print('MC error',abs(hf_mean-true_mean))
 
 #%%
-#Similarly to MLMC, using multiple models with MFMC only helps increase the speed to which the variance of the MFMC estimator converges to that of the 2 model CVMC estimator that uses the low-fidelity model that has the highest correlation with the high-fidelity model. In this and following tutorials we refer to the optimal CV estimator using K low-fidelity models with known means (in this case 1) as OCV-K.
+#Optimal Sample Allocation
+#-------------------------
+#Similarly to MLMC, the optimal number of samples that minimize the variance of the MFMC estimator can be determined analytically (see [PWGSIAM2016]_). Recalling that :math:`C_\mathrm{tot}` is the total budget then the optimal number of high fidelity samples is
 #
-#Let us compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble
+#.. math:: N_0 = \frac{C_\mathrm{tot}}{\V{w}^T\V{r}}
 #
-#.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
+#where :math:`\V{r}=[r_0,\ldots,r_M]^T` are the sample ratios defining the number of samples assigned to each level, i.e. :math:`N_\alpha=r_\alpha N_0`. The sample ratios are
 #
-#where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
-
+#.. math::
+#   
+#   r_\alpha=\left(\frac{w_0(\rho^2_{0,\alpha}-\rho^2_{0,\alpha+1})}{w_\alpha(1-\rho^2_{0,1})}\right)^{\frac{1}{2}}
+#
+#where :math:`\V{w}=[w_0,w_M]^T` are the relative costs of each model, and :math:`\rho_{j,k}` is the correlation between models :math:`j` and :math:`k`.
+#
+#Now lets us compare MC with MFMC using optimal sample allocations
 poly_model = PolynomialModelEnsemble()
+model_ensemble = pya.ModelEnsemble(poly_model.models)
 cov = poly_model.get_covariance_matrix()
-nhf_samples = 10
-nsample_ratios_base = [2, 4, 8, 16]
-cv_labels = [r'$\mathrm{OCV-1}$',r'$\mathrm{OCV-2}$',r'$\mathrm{OCV-4}$']
-cv_rsquared_funcs=[
-    lambda cov: pya.get_control_variate_rsquared(cov[:2,:2]),
-    lambda cov: pya.get_control_variate_rsquared(cov[:3,:3]),
-    lambda cov: pya.get_control_variate_rsquared(cov)]
-cv_gammas = [1-f(cov) for f in cv_rsquared_funcs]
-for ii in range(len(cv_gammas)):
-    plt.axhline(y=cv_gammas[ii],linestyle='--',c='k')
-    xloc = -.35
-    plt.text(xloc, cv_gammas[ii]*1.1, cv_labels[ii],fontsize=16)
-plt.axhline(y=1,linestyle='--',c='k')
-plt.text(xloc,1,r'$\mathrm{MC}$',fontsize=16)
+target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
+costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
+model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
+print(pya.compute_correlations_from_covariance(cov))
+variances, nsamples_history = [],[]
+npilot_samples = 5
+estimators = [pya.MC,pya.MFMC]
+for target_cost in target_costs:
+    for estimator in estimators:
+        est = estimator(cov,costs)
+        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
+        variances.append(est.get_variance(nhf_samples,nsample_ratios))
+        nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
+        print(nsamples_history[-1])
+variances = np.asarray(variances)
+nsamples_history = np.asarray(nsamples_history)
 
-acv_labels = [r'$\mathrm{MLMC}$',r'$\mathrm{MFMC}$',r'$\mathrm{ACV}$-$\mathrm{MF}$']
-acv_rsquared_funcs = [
-    pya.get_rsquared_mlmc,pya.get_rsquared_mfmc,
-    partial(pya.get_rsquared_acv,
-            get_discrepancy_covariances=pya.get_discrepancy_covariances_MF)]
-
-nplot_points = 20
-acv_gammas = np.empty((nplot_points,len(acv_rsquared_funcs)))
-for ii in range(nplot_points):
-    nsample_ratios = [r*(2**ii) for r in nsample_ratios_base]
-    acv_gammas[ii,:] = [1-f(cov,nsample_ratios) for f in acv_rsquared_funcs]
-for ii in range(len(acv_labels)):
-    plt.semilogy(np.arange(nplot_points),acv_gammas[:,ii],label=acv_labels[ii])
-plt.legend()
-plt.xlabel(r'$\log_2(r_i)-i$')
-_ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gamma$')
-
-#%%
-#As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the optimal 2 model CV estimator OCV-2. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction. 
-#
-#Before moving on, note that typically we want to choose both the number of low fidelity samples and the number of high-fidelity samples to minimize variance for a fixed budget. We will cover this in the next tutorial entitled :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_sample_allocation.py`.
+fig,axs=plt.subplots(1,2,figsize=(2*8,6))
+# plot sample allocation
+pya.plot_acv_sample_allocation(nsamples_history[1::2],costs,model_labels,axs[1])
+mfmc_total_costs = np.array(nsamples_history[1::2]).dot(costs)
+mfmc_variances = variances[1::2]
+axs[0].loglog(mfmc_total_costs,mfmc_variances,':',label=r'$\mathrm{MFMC}$')
+mc_total_costs = np.array(nsamples_history[::2]).dot(costs)
+mc_variances = variances[::2]
+axs[0].loglog(mc_total_costs,mc_variances,label=r'$\mathrm{MC}$')
+axs[0].set_ylim(axs[0].get_ylim()[0],1e-2)
+_ = axs[0].legend()
+#plt.show()
+#fig # necessary for jupyter notebook to reshow plot in new cell

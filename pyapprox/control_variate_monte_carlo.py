@@ -1327,9 +1327,19 @@ class ACVMF(object):
         gamma = (1-self.get_rsquared(nsample_ratios))
         return gamma*self.cov[0,0]/nhf_samples
 
-class MC():
-    def get_variance(self,nhf_samples):
-        self.cov[0,0]/nhf_samples
+class MC(object):
+    def __init__(self,cov,costs):
+        self.costs=costs
+        self.cov=cov
+    
+    def get_variance(self,nhf_samples,nsample_ratios):
+        return self.cov[0,0]/nhf_samples
+
+    def allocate_samples(self,target_cost):
+        return np.floor(target_cost/self.costs[0]),None,None
+
+    def get_nsamples(self,nhf_samples,nsample_ratios):
+        return np.concatenate([[nhf_samples],np.zeros(self.cov.shape[0]-1)])
     
         
 
