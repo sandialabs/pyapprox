@@ -9,9 +9,8 @@ Leveraging an ensemble of models can facilitate significant reductions in the ov
 
 .. math::
 
-   \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] = g(x,t)& &
-   (x,t,\rv)\in D\times [0,1]\times\rvdom\\
-   u(x,t,\rv)=0 & & (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
+   \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &= g(x,t) \qquad\qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+   u(x,t,\rv)&=0 \qquad\qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
 
 with forcing :math:`g(x,t)=(1.5+\cos(2\pi t))\cos(x_1)`, and subject to the initial condition :math:`u(x,0,\rv)=0`. Following [NTWSIAMNA2008]_, we model the diffusivity :math:`k` as a random field represented by the
 Karhunen-Loeve (like) expansion (KLE)
@@ -24,7 +23,7 @@ with
 
 .. math::
 
-  \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  & &  \phi(x)=
+  \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
     \begin{cases}
       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.

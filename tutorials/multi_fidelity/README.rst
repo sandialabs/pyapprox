@@ -7,8 +7,6 @@ The relationships among models within a model ensemble vary greatly, and most ex
 
 This gallery of tutorials discusses the most popular multi-fidelity methods for quantifying uncertainty in complex models.
 
-References
-^^^^^^^^^^
 .. [NGXSISC2014] `Narayan, A. and Gittelson, C. and Xiu, D. A Stochastic Collocation Algorithm with Multifidelity Models. SIAM Journal on Scientific Computing 36(2), A495-A521, 2014. <https://doi.org/10.1137/130929461>`_
 		 
 .. [LGIJUQ2014]	`L. Le Gratiet and J. Garnier Recursive co-kriging model for design of computer experiments with multiple levels of fidelity. International Journal for Uncertainty Quantification, 4(5), 365--386, 2014 <http://dx.doi.org/10.1615/Int.J.UncertaintyQuantification.2014006914>`_
