@@ -8,7 +8,7 @@ from pyapprox.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
     qoi_functional_misc
 from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
 def setup_model(num_vars,max_eval_concurrency):
-    corr_len,periodic_boundary=1/10,False
+    corr_len=1/10
     second_order_timestepping=False
 
     qoi_functional=qoi_functional_misc
@@ -16,7 +16,7 @@ def setup_model(num_vars,max_eval_concurrency):
     base_model = AdvectionDiffusionModel(
         num_vars,corr_len,1.0e-0,degree,qoi_functional,
         add_work_to_qoi=False,
-        periodic_boundary=periodic_boundary,
+        boundary_condition_type=None,
         second_order_timestepping=second_order_timestepping)
     timer_model = TimerModelWrapper(base_model,base_model)
     model = PoolModel(timer_model,max_eval_concurrency,
