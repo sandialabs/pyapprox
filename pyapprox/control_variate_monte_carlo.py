@@ -6,9 +6,12 @@ from scipy.optimize import minimize
 try:
     #use torch to compute gradients for sample allocation optimization
     import torch
+    use_torch=True
 except:
     msg = 'Could not import Torch'
     print(msg)
+    use_torch=False
+    
 import copy
 from pyapprox.utilities import get_all_sample_combinations
 from functools import partial
@@ -664,7 +667,10 @@ def get_rsquared_acv(cov,nsample_ratios,get_discrepancy_covariances):
     """
     CF,cf = get_discrepancy_covariances(cov,nsample_ratios)
     if type(cov)==np.ndarray:
-        rsquared = np.dot(cf,np.linalg.solve(CF,cf))/cov[0, 0]
+        try:
+            rsquared = np.dot(cf,np.linalg.solve(CF,cf))/cov[0, 0]
+        except:
+            return np.array([0.0])*nsample_ratios[0]
     else:
         try:
             rsquared = torch.dot(cf, torch.mv(torch.inverse(CF),cf))/cov[0, 0]
@@ -981,12 +987,18 @@ def acv_sample_allocation_cost_constraint_jacobian_all(ratios, costs,
     return -jac
 
 def acv_sample_allocation_objective(estimator, nsample_ratios):
-    ratios = torch.tensor(nsample_ratios)
-    gamma = estimator.variance_reduction(ratios)
-    gamma = torch.log10(gamma)
-    return gamma.item()
+    if use_torch:
+        ratios = torch.tensor(nsample_ratios)
+        gamma = estimator.variance_reduction(ratios)
+        gamma = torch.log10(gamma)
+        return gamma.item()
+    else:
+        gamma = estimator.variance_reduction(ratios)
+        gamma = np.log10(gamma)
+        return gamma
+        
 
-def acv_sample_allocation_jacobian(estimator, nsample_ratios):
+def acv_sample_allocation_jacobian_torch(estimator, nsample_ratios):
     ratios = torch.tensor(nsample_ratios, dtype=torch.double)
     ratios.requires_grad=True
     gamma = estimator.variance_reduction(ratios)
@@ -997,17 +1009,22 @@ def acv_sample_allocation_jacobian(estimator, nsample_ratios):
     return grad
 
 def acv_sample_allocation_objective_all(estimator, x):
-    xrats = torch.tensor(x, dtype=torch.double)
-    xrats.requires_grad=True
+    if use_torch:
+        xrats = torch.tensor(x, dtype=torch.double)
+        xrats.requires_grad=True
+    else:
+        xrats=x
     nhf, ratios = xrats[0], xrats[1:]
     #TODO make this consistent with other objective which does not use
     #variance as is used below. It is necessary here because need to include
     #the impact of nhf on objective
     gamma = estimator.variance_reduction(ratios) * estimator.cov[0, 0] / nhf
-    gamma = torch.log10(gamma)
-    return gamma.item()
+    if use_torch:
+        gamma = torch.log10(gamma)
+        return gamma.item()
+    return np.log10(gamma)
 
-def acv_sample_allocation_jacobian_all(estimator,x):
+def acv_sample_allocation_jacobian_all_torch(estimator,x):
     xrats = torch.tensor(x, dtype=torch.double)
     xrats.requires_grad=True
     nhf, ratios = xrats[0], xrats[1:]
@@ -1019,17 +1036,21 @@ def acv_sample_allocation_jacobian_all(estimator,x):
     return grad
 
 def acv_sample_allocation_objective_all_lagrange(estimator, x):
-    xrats = torch.tensor(x, dtype=torch.double)
-    xrats.requires_grad=True
+    if use_torch:
+        xrats = torch.tensor(x, dtype=torch.double)
+        xrats.requires_grad=True
     nhf, ratios, lagrange_mult = xrats[0], xrats[1:-1], xrats[-1]
     gamma = estimator.variance_reduction(ratios)*estimator.cov[0, 0]/nhf
     total_cost = estimator.costs[0]*nhf + estimator.costs[1:].dot(
         ratios*nhf)
     obj = lagrange_mult*gamma+total_cost
-    obj = torch.log10(obj)
-    return obj.item()
+    if use_torch:
+        obj = torch.log10(obj)
+        return obj.item()
+    else:
+        return np.log10(obj)
 
-def acv_sample_allocation_jacobian_all_lagrange(estimator,x):
+def acv_sample_allocation_jacobian_all_lagrange_torch(estimator,x):
     xrats = torch.tensor(x, dtype=torch.double)
     xrats.requires_grad=True
     nhf, ratios, lagrange_mult = xrats[0], xrats[1:-1], xrats[-1]
@@ -1062,8 +1083,11 @@ def solve_allocate_samples_acv_trust_region_optimization(
     from scipy.optimize import Bounds
     lbs,ubs = [1]*nmodels,[np.inf]*nmodels
     bounds = Bounds(lbs,ubs)
+    jac = None
+    if use_torch:
+        jac=estimator.jacobian
     opt = minimize(estimator.objective,initial_guess,method='trust-constr',
-        jac=estimator.jacobian,#hess=self.objective_hessian,
+        jac=jac,#hess=self.objective_hessian,
         constraints=constraints,options=optim_options,
         bounds=bounds)
     if opt.success == False:
@@ -1101,9 +1125,12 @@ def solve_allocate_samples_acv_slsqp_optimization(
                'jac':acv_sample_allocation_cost_constraint_jacobian_all,
                'args':(np.asarray(costs), target_cost)}]
 
+    jac = None
+    if use_torch:
+        jac=estimator.jacobian
     opt = minimize(
         estimator.objective, initial_guess,
-        method='SLSQP',jac=estimator.jacobian, bounds=bounds,
+        method='SLSQP',jac=jac, bounds=bounds,
         constraints=cons,
         options = optim_options)
     if opt.success == False:
@@ -1290,8 +1317,11 @@ def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
 
 class ACVMF(object):
     def __init__(self,cov,costs):
-        self.cov=torch.tensor(np.copy(cov), dtype=torch.double)
-        self.costs=torch.tensor(np.copy(costs), dtype=torch.double)
+        self.cov=cov
+        self.costs=costs
+        if use_torch:
+            self.cov=torch.tensor(np.copy(self.cov), dtype=torch.double)
+            self.costs=torch.tensor(np.copy(self.costs), dtype=torch.double)
         
         #self.objective_fun = partial(
         #    acv_sample_allocation_objective,self)
@@ -1299,13 +1329,20 @@ class ACVMF(object):
         #    acv_sample_allocation_jacobian,self)
         self.objective_fun_all = partial(
             acv_sample_allocation_objective_all,self)
-        self.jacobian_fun_all = partial(
-            acv_sample_allocation_jacobian_all,self)
+        if use_torch:
+            self.jacobian_fun_all = partial(
+                acv_sample_allocation_jacobian_all_torch,self)
+        else:
+            self.jacobian_fun_all = None
     
     def get_rsquared(self,nsample_ratios):
+        if use_torch:
+            pkg=torch
+        else:
+            pkg=np
         return get_rsquared_acv(
             self.cov,nsample_ratios,
-            partial(get_discrepancy_covariances_MF,pkg=torch))
+            partial(get_discrepancy_covariances_MF,pkg=pkg))
 
     def variance_reduction(self,nsample_ratios):
         return 1-self.get_rsquared(nsample_ratios)
@@ -1349,10 +1386,26 @@ class ACVMFKL(ACVMF):
         super().__init__(cov, costs)
     
     def get_rsquared(self,nsample_ratios):
+        if use_torch:
+            pkg=torch
+        else:
+            pkg=np
         return get_rsquared_acv(
             self.cov,nsample_ratios,
             partial(get_discrepancy_covariances_KL,K=self.K,L=self.L,
-                    pkg=torch))
+                    pkg=pkg))
+    
+class ACVMFKLBest(ACVMF):
+    
+    def get_rsquared(self,nsample_ratios):
+        return get_rsquared_acv_KL_best(self.cov, nsample_ratios)
+
+    def allocate_samples(self,target_cost):
+        return allocate_samples_acv_best_kl(
+            self.cov,self.costs,target_cost,standardize=True,
+            initial_guess=None,optim_options=None,
+            optim_method='SLSQP')
+
 
 class MFMC(ACVMF):
     def get_rsquared(self,nsample_ratios):
@@ -1369,15 +1422,22 @@ class MLMC(ACVMF):
             self.objective_fun_all = partial(
                 acv_sample_allocation_objective_all_lagrange,self)
             self.jacobian_fun_all = partial(
-                acv_sample_allocation_jacobian_all_lagrange,self)
+                acv_sample_allocation_jacobian_all_lagrange_torch,self)
         else:
             self.objective_fun_all = partial(
                 acv_sample_allocation_objective_all,self)
             self.jacobian_fun_all = partial(
-                acv_sample_allocation_jacobian_all,self)
+                acv_sample_allocation_jacobian_all_torch,self)
+
+        if not use_torch:
+            self.jacobian_fun_all = None
             
     def get_rsquared(self,nsample_ratios):
-        return get_rsquared_mlmc(self.cov,nsample_ratios,torch)
+        if use_torch:
+            pkg=torch
+        else:
+            pkg=np
+        return get_rsquared_mlmc(self.cov,nsample_ratios,pkg)
 
     def allocate_samples(self,target_cost):
         return allocate_samples_mlmc(self.cov, self.costs, target_cost)

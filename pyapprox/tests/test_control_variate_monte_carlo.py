@@ -7,6 +7,10 @@ from pyapprox.control_variate_monte_carlo import *
 from scipy.stats import uniform,norm,lognorm
 from functools import partial
 
+skiptest = unittest.skipIf(
+    not use_torch, reason="active_subspace package missing")
+
+
 class PolynomialModelEnsemble(object):
     def __init__(self):
         self.nmodels=5
@@ -532,12 +536,15 @@ class TestCVMC(unittest.TestCase):
 
         x0 = np.concatenate([[nhf_samples_exact],nsample_ratios_exact,
                              [lagrange_mult]])
-        jac = estimator.jacobian(x0)
-        # objective does not have lagrangian shift so account for it
-        # missing here
-        mlmc_var = estimator.variance_reduction(
-            nsample_ratios_exact).item()*cov[0,0]/nhf_samples_exact
-        jac[-1]-=mlmc_var
+        if use_torch:
+            jac = estimator.jacobian(x0)
+            # objective does not have lagrangian shift so account for it
+            # missing here
+            mlmc_var = estimator.variance_reduction(
+                nsample_ratios_exact).item()*cov[0,0]/nhf_samples_exact
+            jac[-1]-=mlmc_var
+        else:
+            jac=None
         
         estimator.use_lagrange_formulation(False)
 
@@ -594,6 +601,7 @@ class TestCVMC(unittest.TestCase):
         # To recover alexs answer use his standardization and initial guess
         # is mlmc with standardize=True')
 
+    @skiptest
     def test_ACVMC_objective_jacobian(self):
         
         cov = np.asarray([[1.00,0.50,0.25],

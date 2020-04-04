@@ -361,8 +361,8 @@ _ = plt.ylabel(r'$\mathrm{Variance}$ $\mathrm{reduction}$ $\mathrm{ratio}$ $\gam
 #The previous results compared MLMC with MFMC and ACV-KL when the number of high-fidelity samples were fixed. In the following we compare these methods when the number of samples are optimized to minimize the variance of each estimator.
 variances, nsamples_history = [],[]
 npilot_samples = 5
-estimators = [pya.MFMC,pya.MLMC,pya.MC]#pya.ACVMFKL]
-est_labels = [r'$\mathrm{MFMC}$',r'$\mathrm{MLMC}$',r'$\mathrm{MC}$',r'$\mathrm{ACV}-\mathrm{MF}$'][:3]
+estimators = [pya.MFMC,pya.MLMC,pya.MC,pya.ACVMF]
+est_labels = [r'$\mathrm{MFMC}$',r'$\mathrm{MLMC}$',r'$\mathrm{MC}$',r'$\mathrm{ACV}-\mathrm{MF}$']
 linestyles=['-','--',':','-.']
 target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
 model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
@@ -380,7 +380,7 @@ fig,axs=plt.subplots(1,1,figsize=(8,6))
 for ii in range(len(estimators)):
     est_total_costs = np.array(nsamples_history[ii::len(estimators)]).dot(costs)
     est_variances = variances[ii::len(estimators)]
-    axs.loglog(est_total_costs,est_variances,':',label=r'$\mathrm{MFMC}$',
+    axs.loglog(est_total_costs,est_variances,':',label=est_labels[ii],
                ls=linestyles[ii])
     
 axs.set_ylim(axs.get_ylim()[0],1e-3)
