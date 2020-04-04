@@ -106,7 +106,7 @@ def select_nodes(V, N, weights=None, order=None):
 def select_nodes_cholesky(V, npivots, weights=None, order=None):
     print(V.shape)
     L, P, error, chol_flag = pivoted_cholesky_decomposition(
-        V,npivots,init_pivots=order)
+        V.T.dot(V),npivots,init_pivots=order)
     # pivoted_cholesky_decomposition returns unpivoted L so change to pivoted
     # L
     L = L[P,:]
