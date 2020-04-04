@@ -1,0 +1,22 @@
+
+:orphan:
+
+.. _sphx_glr_auto_tutorials_foundations_sg_execution_times:
+
+Computation times
+=================
+**04:06.785** total execution time for **auto_tutorials_foundations** files:
+
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_advection_diffusion_model.py` (``plot_advection_diffusion_model.py``)       | 03:29.561 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py` (``plot_bayesian_inference.py``)                     | 00:31.345 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:02.441 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_push_forward_based_inference.py` (``plot_push_forward_based_inference.py``) | 00:02.253 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` (``plot_monte_carlo.py``)                                   | 00:01.185 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_foundations_plot_sensitivity_analysis.py` (``plot_sensitivity_analysis.py``)                 | 00:00.000 | 0.0 MB |
++----------------------------------------------------------------------------------------------------------------------------+-----------+--------+

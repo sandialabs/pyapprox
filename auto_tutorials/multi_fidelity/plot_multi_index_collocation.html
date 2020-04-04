@@ -1,0 +1,332 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Multi-index Stochastic Collocation &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Adaptive Leja Sequences" href="../polynomial_chaos/plot_adaptive_leja_interpolation.html" />
+    <link rel="prev" title="Generalized Approximate Control Variate Monte Carlo" href="plot_many_model_approximate_control_variate_monte_carlo.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> PyApprox
+          
+
+          
+            
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#foundations">Foundations</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-monte-carlo-methods">Multi-Fidelity Monte Carlo Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Multi-index Stochastic Collocation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
+        
+      <li>Multi-index Stochastic Collocation</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_multi_index_collocation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-index-collocation-py"><span class="std std-ref">here</span></a> to download the full example code</p>
+</div>
+<div class="sphx-glr-example-title section" id="multi-index-stochastic-collocation">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multi-index-collocation-py"></span><h1>Multi-index Stochastic Collocation<a class="headerlink" href="#multi-index-stochastic-collocation" title="Permalink to this headline">¶</a></h1>
+<p>This tutorial describes how to implement and deploy multi-index collocation to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost.</p>
+<p>Despite the improved efficiency of surrogate methods relative to MC sampling, building a surrogate can still be prohibitively expensive for high-fidelity simulation models. Fortunately, a selection of models of varying fidelity and computational cost are typically available for many applications. For example, aerospace models span fluid dynamics, structural and thermal response, control systems, etc.</p>
+<p>Leveraging an ensemble of models can facilitate significant reductions in the overall computational cost of UQ, by integrating the predictions of quantities of interest (QoI) from multiple sources.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;= g(x,t) \qquad\qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+u(x,t,\rv)&amp;=0 \qquad\qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\end{split}\]</div>
+<p>with forcing <span class="math notranslate nohighlight">\(g(x,t)=(1.5+\cos(2\pi t))\cos(x_1)\)</span>, and subject to the initial condition <span class="math notranslate nohighlight">\(u(x,0,\rv)=0\)</span>. Following <a class="reference internal" href="../foundations/plot_advection_diffusion_model.html#ntwsiamna2008" id="id1"><span>[NTWSIAMNA2008]</span></a>, we model the diffusivity <span class="math notranslate nohighlight">\(k\)</span> as a random field represented by the
+Karhunen-Loeve (like) expansion (KLE)</p>
+<div class="math notranslate nohighlight">
+\[\log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,\]</div>
+<p>with</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k&gt;1,  \qquad\qquad  \phi(x)=
+  \begin{cases}
+    \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ even}\,,\\
+    \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ odd}\,.
+  \end{cases}\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(L_p=\max(1,2L_c)\)</span>, <span class="math notranslate nohighlight">\(L=\frac{L_c}{L_p}\)</span> and <span class="math notranslate nohighlight">\(L_c=0.5\)</span>.</p>
+<p>We choose a random field which is effectively one-dimensional so that the error in the finite element solution is more sensitive to refinement of the mesh in the <span class="math notranslate nohighlight">\(x_1\)</span>-direction than to refinement in the <span class="math notranslate nohighlight">\(x_2\)</span>-direction.</p>
+<p>The advection diffusion equation eqref{eq:advection-diffusion} is solved using linear finite elements and implicit backward-Euler timestepping implemented using <a class="reference external" href="https://fenicsproject.org/">Fenics</a>. In the following we will show how solving the PDE with varying numbers of finite elements and timesteps can reduce the cost of approximating the quantity of interest</p>
+<div class="math notranslate nohighlight">
+\[f(\rv)=\int_D u(\rv)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x^\star \rVert_2^2}{\sigma^2}\right)\,dx,\]</div>
+<p>where <span class="math notranslate nohighlight">\(x^\star=(0.3,0.5)\)</span> and <span class="math notranslate nohighlight">\(\sigma=0.16\)</span>.
+The advection diffusion model, defined here, can be inexpensively evaluated and therefore allows for exhaustive exploration of the behavior of our proposed multi-index collocation approach.</p>
+<p>Lets first consider a simple 1D example. The following sets up the problem</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
+<span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span>
+<span class="kn">from</span> <span class="nn">pyapprox.examples.multi_index_advection_diffusion</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">MultiLevelWrapper</span>
+
+<span class="n">nmodels</span>  <span class="o">=</span> <span class="mi">3</span>
+<span class="n">num_vars</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">max_eval_concurrency</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">base_model</span> <span class="o">=</span> <span class="n">setup_model</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
+<span class="n">multilevel_model</span><span class="o">=</span><span class="n">MultiLevelWrapper</span><span class="p">(</span>
+    <span class="n">base_model</span><span class="p">,</span><span class="n">base_model</span><span class="o">.</span><span class="n">base_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">,</span>
+    <span class="n">base_model</span><span class="o">.</span><span class="n">cost_function</span><span class="p">)</span>
+<span class="n">variable</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">))],[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_vars</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>Now lets us plot each model as a function of the random variable</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">get_statistics</span><span class="p">(</span><span class="s1">&#39;interval&#39;</span><span class="p">,</span><span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">nsamples</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">random_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span><span class="n">ub</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:]</span>
+<span class="n">config_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:]</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">get_all_sample_combinations</span><span class="p">(</span><span class="n">random_samples</span><span class="p">,</span><span class="n">config_vars</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">multilevel_model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">values</span><span class="p">,(</span><span class="n">nsamples</span><span class="p">,</span><span class="n">nmodels</span><span class="p">))</span>
+
+<span class="kn">import</span> <span class="nn">dolfin</span> <span class="k">as</span> <span class="nn">dl</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="n">nmodels</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">config_samples</span> <span class="o">=</span> <span class="n">multilevel_model</span><span class="o">.</span><span class="n">map_to_multidimensional_index</span><span class="p">(</span><span class="n">config_vars</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">):</span>
+    <span class="n">nx</span><span class="p">,</span><span class="n">ny</span><span class="p">,</span><span class="n">dt</span> <span class="o">=</span> <span class="n">base_model</span><span class="o">.</span><span class="n">base_model</span><span class="o">.</span><span class="n">get_degrees_of_freedom_and_timestep</span><span class="p">(</span>
+        <span class="n">config_samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">])</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">RectangleMesh</span><span class="p">(</span><span class="n">dl</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">dl</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+    <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_</span><span class="si">%d</span><span class="s1">$&#39;</span><span class="o">%</span><span class="n">ii</span>
+    <span class="k">if</span> <span class="n">ii</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">nmodels</span><span class="o">+</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">nmodels</span><span class="o">+</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">sharey</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">random_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">values</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span><span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ii</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_</span><span class="si">%d</span><span class="s1">-f_</span><span class="si">%d</span><span class="s1">$&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">random_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">values</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">values</span><span class="p">[:,</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span><span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="../../_images/sphx_glr_plot_multi_index_collocation_001.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_multi_index_collocation_001.png" />
+<p>The first row shows the spatial mesh of each model and the second row depicts the model response and the discrepancy between two consecutive models. The difference between the model output decreases as the resolution of the mesh is increased. Thus as the cost of the model increases (with increasing resolution) we need less samples to resolve</p>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<dl class="citation">
+<dt class="label" id="tjwgsiamuq2015"><span class="brackets">TJWGSIAMUQ2015</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/140969002">Teckentrup, A. and Jantsch, P. and Webster, C. and Gunzburger, M. A Multilevel Stochastic Collocation Method for Partial Differential Equations with Random Input Data. SIAM/ASA Journal on Uncertainty Quantification, 3(1), 1046-1074, 2015.</a></p>
+</dd>
+<dt class="label" id="hnttcmame2016"><span class="brackets">HNTTCMAME2016</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.cma.2016.03.029">Haji-Ali, A. and Nobile, F. and Tamellini, L. and Tempone, R. Multi-Index Stochastic Collocation for random PDEs. Computer Methods in Applied Mechanics and Engineering, 306, 95-122, 2016.</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.766 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-index-collocation-py">
+<div class="sphx-glr-download docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/7f6408b3010a7d1f0a18c8e6a78a18a4/plot_multi_index_collocation.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_index_collocation.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/d6c461d3db721c0060c0a52c6cf417fd/plot_multi_index_collocation.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_multi_index_collocation.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../polynomial_chaos/plot_adaptive_leja_interpolation.html" class="btn btn-neutral float-right" title="Adaptive Leja Sequences" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="plot_many_model_approximate_control_variate_monte_carlo.html" class="btn btn-neutral float-left" title="Generalized Approximate Control Variate Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

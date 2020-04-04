@@ -14,7 +14,7 @@ BUILDDIR      = build
 %: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-GH_PAGES_SOURCES=source source/figures ../pyapprox
+GH_PAGES_SOURCES=source source/figures ../pyapprox ../tutorials ../examples
 gh-pages:
 	rm -rf build _sources _static
 	git checkout master $(GH_PAGES_SOURCES)
