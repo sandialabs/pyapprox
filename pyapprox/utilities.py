@@ -3,6 +3,7 @@ from __future__ import (absolute_import, division,
 import numpy as np
 from scipy.special import beta as beta_fn
 from functools import partial
+from scipy.linalg import solve_triangular
 
 def sub2ind(sizes, multi_index):
     r"""
@@ -1109,8 +1110,8 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
 
     Then P.T.dot(A).P == L.dot(L.T)
 
-    where P is the standrad pivot matrix which can be obtained from the pivot 
-    vector using the function 
+    where P is the standard pivot matrix which can be obtained from the 
+    pivot vector using the function 
     """
     chol_flag = 0
     Amat = A.copy()
@@ -1397,3 +1398,13 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
     divergence_integrand = f(ratios)*d2_vals
 
     return divergence_integrand.dot(w)
+
+def cholesky_solve_linear_system(L,rhs):
+    """
+    Solve LL'x = b using forwards and backwards substitution
+    """
+    # Use forward subsitution to solve Ly = b
+    y = solve_triangular(L,rhs,lower=True)
+    # Use backwards subsitution to solve L'x = y
+    y = solve_triangular(L.T,y,lower=False)
+    return x

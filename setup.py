@@ -81,7 +81,8 @@ setuptools.setup(
         'seaborn',
         'pillow', # required by sphinx-gallery and dependency not auto handle
         'sphinx-gallery',
-        'jupyter'
+        'jupyter',
+        'pymc3'
       ],
     ext_modules = extensions,
     test_suite='nose.collector',

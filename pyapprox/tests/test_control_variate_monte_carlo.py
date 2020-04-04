@@ -23,7 +23,6 @@ class PolynomialModelEnsemble(object):
         self.generate_samples=partial(
             pya.generate_independent_random_samples,self.variable)
 
-
     def m0(self,samples):
         return samples.T**5
     
