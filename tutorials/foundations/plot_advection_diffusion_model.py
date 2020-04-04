@@ -253,7 +253,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 num_vars = 2
 model = setup_model(num_vars,corr_len=0.1,max_eval_concurrency=1)
-validation_levels = [2]*3
+validation_levels = [5]*3
 data = error_vs_cost(
     model,partial(generate_random_samples,model.base_model.num_vars),
     validation_levels)
