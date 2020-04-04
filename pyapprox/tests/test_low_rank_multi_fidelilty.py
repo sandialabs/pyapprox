@@ -6,7 +6,7 @@ from scipy.stats import uniform
 import pyapprox as pya
 
 from scipy.special import jv as bessel_function
-class OscillatoryLowFidelityModel(object):
+class OscillatoryPolyLowFidelityModel(object):
     def __init__( self, mesh_dof=100, num_terms=35 ):
         self.mesh = np.linspace( -1.,1., mesh_dof )
         self.num_terms = num_terms
@@ -17,7 +17,15 @@ class OscillatoryLowFidelityModel(object):
         poly_opts = pya.define_poly_options_from_variable_transformation(
             var_trans)
         self.poly.configure(poly_opts)
-        self.poly.set_indices(pya.compute_hyperbolic_indices(1,self.num_terms-1))
+        self.poly.set_indices(pya.compute_hyperbolic_indices(
+            1,self.num_terms-1))
+
+    def basis_matrix(self):
+        # compute vandermonde matrix, i.e. all legendre polynomials up
+        # at most degree self.num_terms
+        basis_matrix = self.poly.basis_matrix( 
+            self.mesh.reshape(1,self.mesh.shape[0]))
+        return basis_matrix
 
     def compute_abs_z(self,z):
         abs_z = np.absolute(z)
@@ -27,10 +35,7 @@ class OscillatoryLowFidelityModel(object):
         z = samples[0,:]
         # z in [0,10*pi]
 
-        # compute vandermonde matrix, i.e. all legendre polynomials up
-        # at most degree self.num_terms
-        basis_matrix = self.poly.basis_matrix( 
-            self.mesh.reshape(1,self.mesh.shape[0]))
+        basis_matrix = self.basis_matrix()
 
         coeffs = np.zeros((self.num_terms,samples.shape[1]) ,float )
         abs_z = self.compute_abs_z(z)
@@ -41,8 +46,9 @@ class OscillatoryLowFidelityModel(object):
                 bessel_function( k+.5, abs_z )
             # gk not defined for z=0
             coeffs[k,:] = gk
-            # must divide by sqrt(2), due to using orthonormal basis with respect
-            # to w=1/2, but needing orthonormal basis with respect to w=1???
+            # must divide by sqrt(2), due to using orthonormal basis with
+            # respect to w=1/2, but needing orthonormal basis with respect
+            # to w=1
             coeffs[k,:] /= np.sqrt(2) 
 
         result = np.dot(basis_matrix, coeffs).T
@@ -50,10 +56,10 @@ class OscillatoryLowFidelityModel(object):
 
     def generate_samples(self,num_samples):
         num_vars = 1
-        return np.random.uniform(0.1,10.*np.pi,(num_vars,num_samples))
+        return np.random.uniform(0,10.*np.pi,(num_vars,num_samples))
 
 
-class OscillatoryHighFidelityModel(OscillatoryLowFidelityModel):
+class OscillatoryHighFidelityModel(OscillatoryPolyLowFidelityModel):
     def __init__(self,mesh_dof=100,num_terms=35,eps=1e-3):
         super().__init__(mesh_dof,num_terms)
         self.eps = eps
@@ -61,6 +67,16 @@ class OscillatoryHighFidelityModel(OscillatoryLowFidelityModel):
     def compute_abs_z(self,z):
         abs_z = np.absolute(z+self.eps*z**2)
         return abs_z
+
+class OscillatorySinLowFidelityModel(OscillatoryPolyLowFidelityModel):
+    def __init__(self,mesh_dof=100,num_terms=35,eps=1e-3):
+        super().__init__(mesh_dof,num_terms)
+        self.eps = eps
+
+    def basis_matrix(self):
+        kk = np.arange(self.num_terms)[np.newaxis,:]
+        basis_matrix = np.sin(np.pi*(kk+1)*self.mesh[:,np.newaxis])
+        return basis_matrix
 
 class TestLowRankMultiFidelity(unittest.TestCase):
     def setUp(self):
@@ -71,9 +87,7 @@ class TestLowRankMultiFidelity(unittest.TestCase):
         A = np.random.normal(0,1,(3,3))
         G = numpy.dot( A.T, A )
         pivots, L = select_nodes( A.copy(), A.shape[1] )
-        #pivots, L = select_nodes_cholesky( G.copy(), G.shape[0] )
         numpy_L = numpy.linalg.cholesky( G )
-        #L*L' = P*A*P'
         P = numpy.eye(pivots.shape[0])[pivots,:]
         assert numpy.allclose( numpy.dot(P,numpy.dot(G,P.T)),
                                    numpy.dot(L,L.T))
@@ -92,14 +106,14 @@ class TestLowRankMultiFidelity(unittest.TestCase):
         A = numpy.array([[1.,1.,1 ],[1.,2.,5.5],[1.,3.,13.]])
         A = np.random.normal(0,1,(3,3))
         G = numpy.dot( A.T, A )
-        pivots, L = select_nodes_cholesky( G.copy(), G.shape[0] )
+        pivots, L = select_nodes_cholesky( A, A.shape[1] )
         numpy_L = numpy.linalg.cholesky( G )
         P = pya.get_pivot_matrix_from_vector(pivots,G.shape[0])
         assert np.allclose(P.dot(G).dot(P.T),L.dot(L.T))
 
-        A = numpy.random.normal( 0.,1., (4, 4) )
+        A = numpy.random.normal( 0.,1., (4, 3) )
         G = numpy.dot( A.T, A )
-        pivots, L = select_nodes_cholesky( G.copy(), G.shape[0] )
+        pivots, L = select_nodes_cholesky( A, A.shape[1] )
         numpy_L = numpy.linalg.cholesky( G )
         P = pya.get_pivot_matrix_from_vector(pivots,G.shape[0])
         assert np.allclose(P.dot(G).dot(P.T),L.dot(L.T))
@@ -120,8 +134,31 @@ class TestLowRankMultiFidelity(unittest.TestCase):
         eps = 1.e-3
         mesh_dof=100
         K=35
-        lf_model = OscillatoryLowFidelityModel(mesh_dof,K)
-        hf_model = OscillatoryHighFidelityModel(mesh_dof,100,eps)
+        lf_model1 = OscillatoryPolyLowFidelityModel(mesh_dof,K)
+        lf_model2 = OscillatorySinLowFidelityModel(mesh_dof,K)
+        hf_model  = OscillatoryHighFidelityModel(mesh_dof,100,eps)
+        lf_model  = lf_model2
+
+        # for tutorial
+        # samples = np.array([[5]])
+        # import matplotlib.pyplot as plt
+        # fig,axs=plt.subplots(1,2,figsize=(2*8,6))
+        # hf_model.eps=1e-2
+        # axs[0].plot(hf_model.mesh,hf_model(samples)[0,:],label='$u_0$')
+        # hf_model.eps=1e-3
+        # axs[0].plot(hf_model.mesh,lf_model1(samples)[0,:],label='$u_1$')
+        # axs[0].plot(hf_model.mesh,lf_model2(samples)[0,:],label='$u_2$')
+        # axs[0].legend()
+
+        # samples = np.linspace(0.01,np.pi*10-0.1,101)[np.newaxis,:]
+        # hf_model.eps=1e-2
+        # axs[1].plot(samples[0,:],hf_model(samples)[:,50],label='$u_0$')
+        # hf_model.eps=1e-3
+        # axs[1].plot(samples[0,:],lf_model1(samples)[:,50],label='$u_1$')
+        # axs[1].plot(samples[0,:],lf_model2(samples)[:,50],label='$u_2$')
+
+        # plt.show()
+        # assert False
         
         # number of quantities of interest/outputs
         num_QOI = mesh_dof
@@ -141,6 +178,15 @@ class TestLowRankMultiFidelity(unittest.TestCase):
         mf_model.build(num_hf_runs,hf_model.generate_samples,
                        num_lf_candidates)
 
+        # regression test. To difficult to compute a unit test
+        mf_test_values = mf_model( test_samples )
+
+        error_mf = compute_mean_l2_error(hf_test_values,
+                                         mf_test_values)[1]
+        assert np.allclose(error_mf,3.0401959914364483e-05)
+        
+        # for tutorial
+        return
         hf_runs = [i*2 for i in range(1,11)]
         error_mf = numpy.empty((len(hf_runs)))
         error_lf = numpy.empty((len(hf_runs)))
@@ -156,7 +202,6 @@ class TestLowRankMultiFidelity(unittest.TestCase):
 
             mf_test_values = mf_model( test_samples )
 
-            print(mf_test_values.shape,hf_test_values.shape)
             error_mf[j] = compute_mean_l2_error(hf_test_values,
                                                 mf_test_values)[1]
             error_lf[j] = compute_mean_l2_error(hf_test_values,
@@ -164,7 +209,7 @@ class TestLowRankMultiFidelity(unittest.TestCase):
             print ("|hf-lf|", error_lf[j])
             print ("|hf-mf|", error_mf[j])
 
-        import matplotlib.pyplot as plt
+        
         plt.semilogy(hf_runs,error_mf,label=f'$K={K}$')
         plt.show()
         
