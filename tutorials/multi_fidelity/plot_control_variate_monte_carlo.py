@@ -14,8 +14,8 @@ Here :math:`\eta` is a free parameter which can be optimized to the reduce the v
 .. math::
 
   \var{Q_{\V{\alpha},N}^{\text{CV}}} &= \var{Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
-   &=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta^2\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
-   &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta^2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).
+   &=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
+   &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).
 
 The first line follows from the variance of sums of random variables.
 

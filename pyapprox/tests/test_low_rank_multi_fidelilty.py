@@ -185,8 +185,8 @@ class TestLowRankMultiFidelity(unittest.TestCase):
                                          mf_test_values)[1]
         assert np.allclose(error_mf,3.0401959914364483e-05)
         
-        # for tutorial
         return
+        # for tutorial
         hf_runs = [i*2 for i in range(1,11)]
         error_mf = numpy.empty((len(hf_runs)))
         error_lf = numpy.empty((len(hf_runs)))
