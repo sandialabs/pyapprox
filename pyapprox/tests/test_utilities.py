@@ -697,12 +697,15 @@ class TestUtilities(unittest.TestCase):
         A=np.arange(M*N).reshape([M,N]); L = np.tril(A);
         tril_indices = np.tril_indices(M,m=N)
         tril_entries = A[tril_indices]
+        #print(A)
+        #print(tril_indices)
+        #print(tril_entries)
         for nn in range(tril_indices[0].shape[0]):
             ii,jj=tril_indices[0][nn],tril_indices[1][nn]
             #print('#',ii,jj)
             kk = flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N)
             #print('kk',kk,tril_entries[nn])
-            assert kk==tril_entries[nn]
+            assert kk==nn
         
 
 if __name__== "__main__":    
