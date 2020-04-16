@@ -679,14 +679,17 @@ def plot_3d_indices(indices,ax,other_indices=None):
     ax.view_init(30, angle)
     ax.set_axis_off()
 
-def pya_colorbar(mappable):
+def pya_colorbar(mappable,ax_in=None):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    import matplotlib.pyplot as plt
-    last_axes = plt.gca()
-    ax = mappable.axes
+    if ax_in is None:
+        last_axes = plt.gca()
+        ax = mappable.axes
+    else:
+        ax=ax_in
     fig = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(mappable, cax=cax)
-    plt.sca(last_axes)
+    if ax_in is None:
+        plt.sca(last_axes)
     return cbar

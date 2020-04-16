@@ -866,7 +866,7 @@ def convert_univariate_lagrange_basis_to_orthonormal_polynomials(
             compute_barycentric_weights_1d(samples_1d[ll])]
         values = np.eye((num_terms),dtype=float)
         # Sometimes the following function will cause the erro
-        # interpolation absacissa are not unique. This can be due to x_quad
+        # interpolation abscissa are not unique. This can be due to x_quad
         # not abscissa. E.g. x_quad may have points far enough outside
         # range of abscissa, e.g. abscissa are clenshaw curtis points and
         # x_quad points are Gauss-Hermite quadrature points

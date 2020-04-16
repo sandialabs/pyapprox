@@ -644,9 +644,11 @@ class SubSpaceRefinementManager(object):
         self.samples = np.zeros((self.num_vars,0))
         self.add_new_subspaces(np.zeros((self.num_vars,1),dtype=int))
         self.error=np.zeros((0))
-        self.prioritize_active_subspaces(
-            self.subspace_indices, np.asarray([self.samples.shape[1]]))
-        self.active_subspace_queue.list[0] = (np.inf,self.error[0],0)
+        #self.prioritize_active_subspaces(
+        #    self.subspace_indices, np.asarray([self.samples.shape[1]]))
+        #self.active_subspace_queue.list[0] = (np.inf,self.error[0],0)
+        self.error = np.concatenate([self.error,[np.inf]])
+        self.active_subspace_queue.put((np.inf,self.error[0],0))
         
     def refine(self):
         if self.subspace_indices.shape[1]==0:
@@ -664,6 +666,9 @@ class SubSpaceRefinementManager(object):
         self.error[best_subspace_idx]=0.0
 
     def postpone_subspace_refinement(self,new_active_subspace_indices):
+        """
+        used to enforce variable ordering
+        """
         if not hasattr(self,'postponed_subspace_indices'):
             self.postponed_subspace_indices=dict()
 
@@ -673,8 +678,8 @@ class SubSpaceRefinementManager(object):
 
         # get maximum level of subspace_indices in sparse grid
         # self.subspace_indices contains active indices as well so exclude
-        # by only considering index front for which non-zero smolyak coefficients
-        # is a proxy
+        # by only considering index front for which non-zero smolyak
+        # coefficients is a proxy
         I = np.where(np.abs(self.smolyak_coefficients)>np.finfo(float).eps)[0]
         if I.shape[0]>0:
             max_level_1d = np.max(self.subspace_indices[:,I],axis=1)

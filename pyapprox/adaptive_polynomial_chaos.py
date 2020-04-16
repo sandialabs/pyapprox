@@ -92,8 +92,9 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
     def __init__(self,num_vars,cond_tol=1e8):
         super(AdaptiveInducedPCE,self).__init__(num_vars)
         self.cond_tol=cond_tol
-        self.precond_func = chistoffel_preconditioning_function
-        self.omp_tol=0
+        self.fit_opts = {'omp_tol':0}
+        self.set_preconditioning_function(chistoffel_preconditioning_function)
+        self.fit_function = self._fit
 
     def set_function(self,function,var_trans=None,pce=None):
         super(AdaptiveInducedPCE,self).set_function(function,var_trans)
@@ -149,24 +150,31 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             new_subspace_indices.shape[1])//new_subspace_indices.shape[1]
         return unique_subspace_samples, num_new_subspace_samples
 
+    def _fit(self,canonical_basis_matrix,samples,values,
+             precond_func=None,omp_tol=0):
+        # do to, just add columns to stored basis matrix
+        # store qr factorization of basis_matrix and update the factorization
+        # self.samples are in canonical domain
+        if omp_tol==0:
+            coef = solve_preconditioned_least_squares(
+                canonical_basis_matrix,samples,values,precond_func)
+        else:
+            coef = solve_preconditioned_orthogonal_matching_pursuit(
+                canonical_basis_matrix,samples,values,precond_func,omp_tol)
+        self.pce.set_coefficients(coef)
+        
+    def fit(self):
+        return self.fit_function(
+            self.pce.canonical_basis_matrix,self.samples,self.values,
+            **self.fit_opts)
+
     def add_new_subspaces(self,new_subspace_indices):
         num_new_subspaces = new_subspace_indices.shape[1]
         num_current_subspaces = self.subspace_indices.shape[1]
         num_new_subspace_samples = super(
             AdaptiveInducedPCE,self).add_new_subspaces(new_subspace_indices)
 
-        # do to, just add columns to stored basis matrix
-        # store qr factorization of basis_matrix and update the factorization
-        # self.samples are in canonical domain
-        if self.omp_tol==0:
-            coef = solve_preconditioned_least_squares(
-                self.pce.canonical_basis_matrix,self.samples,self.values,
-                self.precond_func)
-        else:
-            coef = solve_preconditioned_orthogonal_matching_pursuit(
-                self.pce.canonical_basis_matrix,self.samples,self.values,
-                self.precond_func,self.omp_tol)
-        self.pce.set_coefficients(coef)
+        self.fit()
 
         return num_new_subspace_samples
 
@@ -183,6 +191,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             Callable function with signature precond_func(basis_matrix,samples)
         """
         self.precond_func=precond_func
+        self.fit_opts['precond_func']=self.precond_func
 
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def __init__(self,num_vars,candidate_samples,factorization_type='fast'):
