@@ -672,6 +672,37 @@ class TestUtilities(unittest.TestCase):
         div = compute_f_divergence(rv1.pdf,rv2.pdf,quad_rule,'hellinger',
                                    normalize=False)
         assert np.allclose(div,true_div,rtol=1e-10)
+
+    def test_num_entries_triangular_matrix(self):
+        M=4
+        A=np.ones([M,M]); L = np.tril(A); 
+        nentries = num_entries_square_triangular_matrix(
+            M,include_diagonal=True)
+        assert nentries == np.count_nonzero(L)
+
+        M,N=4,3
+        A=np.ones([M,N]); L = np.tril(A);
+        nentries = num_entries_rectangular_triangular_matrix(
+            M,N,upper=False)
+        assert nentries == np.count_nonzero(L)
+
+        A=np.ones([M,N]); U = np.triu(A);
+        nentries = num_entries_rectangular_triangular_matrix(
+            M,N,upper=True)
+        assert nentries == np.count_nonzero(U)
+
+    def test_flattened_rectangular_lower_triangular_matrix_index(self):
+
+        M,N=4,3
+        A=np.arange(M*N).reshape([M,N]); L = np.tril(A);
+        tril_indices = np.tril_indices(M,m=N)
+        tril_entries = A[tril_indices]
+        for nn in range(tril_indices[0].shape[0]):
+            ii,jj=tril_indices[0][nn],tril_indices[1][nn]
+            #print('#',ii,jj)
+            kk = flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N)
+            #print('kk',kk,tril_entries[nn])
+            assert kk==tril_entries[nn]
         
 
 if __name__== "__main__":    

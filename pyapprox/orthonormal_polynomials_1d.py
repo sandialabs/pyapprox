@@ -366,7 +366,7 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
         # from pyapprox.weave import c_evaluate_orthonormal_polynomial
         # return c_evaluate_orthonormal_polynomial_1d(x, nmax, ab)
     except Exception as e:
-        print ('evalaute_orthornormal_polynomial_1d extension failed')
+        print ('evaluate_orthornormal_polynomial_1d extension failed')
 
     p = np.zeros((x.shape[0],nmax+1),dtype=float)
 

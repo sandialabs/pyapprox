@@ -1408,3 +1408,43 @@ def cholesky_solve_linear_system(L,rhs):
     # Use backwards subsitution to solve L'x = y
     y = solve_triangular(L.T,y,lower=False)
     return x
+
+def num_entries_square_triangular_matrix(N,include_diagonal=True):
+    """Num entries in upper (or lower) NxN traingular matrix"""
+    if include_diagonal:
+        return int(N*(N+1)/2)
+    else:
+        return int(N*(N-1)/2)
+
+def num_entries_rectangular_triangular_matrix(M,N,upper=True):
+    """Num entries in upper (or lower) MxN traingular matrix.
+    This is useful for nested for loops like
+
+    (upper=True)
+    
+    for ii in range(M):
+        for jj in range(ii+1):
+
+    (upper=False)
+
+    for jj in range(N):
+        for ii in range(jj+1):
+
+    """
+    assert M>=N
+    if upper:
+        return num_entries_square_triangular_matrix(N)
+    else:
+        return num_entries_square_triangular_matrix(M)-\
+            num_entries_square_triangular_matrix(M-N)
+
+def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
+    """
+    Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
+    """
+    assert M>=N
+    if ii==0:
+        return 0
+    T = num_entries_rectangular_triangular_matrix(ii+1,min(ii+1,N),upper=False)
+    kk = T+jj
+    return kk
