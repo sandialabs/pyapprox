@@ -1443,8 +1443,9 @@ def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
     Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
     """
     assert M>=N
+    assert ii>=jj
     if ii==0:
         return 0
-    T = num_entries_rectangular_triangular_matrix(ii+1,min(ii+1,N),upper=False)
+    T = num_entries_rectangular_triangular_matrix(ii,min(ii,N),upper=False)
     kk = T+jj
     return kk
