@@ -577,11 +577,11 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree1))
-        poly1.set_coefficients(np.ones((poly1.indices.shape[1],1)))
+        poly1.set_coefficients(np.random.normal(0,1,(poly1.indices.shape[1],1)))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree2))
-        poly2.set_coefficients(np.ones((poly2.indices.shape[1],1)))
+        poly2.set_coefficients(np.random.normal(0,1,(poly2.indices.shape[1],1)))
 
         max_degrees1 = poly1.indices.max(axis=1)
         max_degrees2 = poly2.indices.max(axis=1)
@@ -601,33 +601,41 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(poly3(samples),poly1(samples)*poly2(samples))
 
     def test_multiply_pce(self):
+        np.random.seed(1)
+        np.set_printoptions(precision=16)
         univariate_variables = [norm(),uniform()]
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        degree1,degree2=2,3
+        degree1,degree2=1,2
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree1))
-        poly1.set_coefficients(np.ones((poly1.indices.shape[1],1)))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree2))
-        poly2.set_coefficients(np.ones((poly2.indices.shape[1],1)))
+
+        #coef1 = np.random.normal(0,1,(poly1.indices.shape[1],1))
+        #coef2 = np.random.normal(0,1,(poly2.indices.shape[1],1))
+        coef1 = np.arange(poly1.indices.shape[1])[:,np.newaxis]
+        coef2 = np.arange(poly2.indices.shape[1])[:,np.newaxis]
+        poly1.set_coefficients(coef1)
+        poly2.set_coefficients(coef2)
 
         poly3 = poly1*poly2
         samples = generate_independent_random_samples(variable,10)
-        #print(poly3(samples),poly1(samples)*poly2(samples))
         assert np.allclose(poly3(samples),poly1(samples)*poly2(samples))
 
-        poly4 = poly1**0
-        assert np.allclose(poly4(samples),poly1(samples)*0)
+        # for order in range(4):
+        #     print(order)
+        #     poly = poly1**order
+        #     assert np.allclose(poly(samples),poly1(samples)**order)
 
-        for order in range(1,4):
-            print(order)
-            poly4 = poly1**order
-            assert np.allclose(poly4(samples),poly1(samples)**order)
-
-
+        #something going wrong with index ordering. If i always sort
+        # this tests passes, but if i dont sort it fails
+        tmp=poly1*poly1*poly1
+        # print(tmp(samples),poly1(samples)**3)
+        assert np.allclose(tmp(samples),poly1(samples)**3)
+        
     def test_add_pce(self):
         univariate_variables = [norm(),uniform()]
         variable = IndependentMultivariateRandomVariable(
@@ -636,16 +644,16 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree1))
-        poly1.set_coefficients(np.ones((poly1.indices.shape[1],1)))
+        poly1.set_coefficients(np.random.normal(0,1,(poly1.indices.shape[1],1)))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
             variable.num_vars(),degree2))
-        poly2.set_coefficients(np.ones((poly2.indices.shape[1],1)))
+        poly2.set_coefficients(np.random.normal(0,1,(poly2.indices.shape[1],1)))
 
-        poly3 = poly1+poly2
+        poly3 = poly1+poly2+poly2
         samples = generate_independent_random_samples(variable,10)
         #print(poly3(samples),poly1(samples)*poly2(samples))
-        assert np.allclose(poly3(samples),poly1(samples)+poly2(samples))
+        assert np.allclose(poly3(samples),poly1(samples)+2*poly2(samples))
 
         poly4 = poly1-poly2
         samples = generate_independent_random_samples(variable,10)
