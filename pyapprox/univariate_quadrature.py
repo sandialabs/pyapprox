@@ -303,9 +303,6 @@ def constant_increment_growth_rule(increment,level):
     """
     return increment*level+1
 
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
-from pyapprox.leja_sequences import get_leja_sequence_1d,\
-    get_quadrature_weights_from_samples
 from functools import partial
 from pyapprox.utilities import evaluate_tensor_product_function,\
      gradient_of_tensor_product_function
@@ -343,6 +340,9 @@ def beta_leja_quadrature_rule(alpha_stat,beta_stat,level,
     ordered_weights_1d : np.ndarray (num_samples_1d)
         The reordered weights.
     """
+    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
+    from pyapprox.leja_sequences import get_leja_sequence_1d,\
+        get_quadrature_weights_from_samples
     num_vars = 1
     num_leja_samples = growth_rule(level)
     #print(('num_leja_samples',num_leja_samples))
@@ -436,6 +436,9 @@ def gaussian_leja_quadrature_rule(level,
     ordered_weights_1d : np.ndarray (num_samples_1d)
         The reordered weights.
     """
+    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
+    from pyapprox.leja_sequences import get_leja_sequence_1d,\
+        get_quadrature_weights_from_samples
     num_vars = 1
     num_leja_samples = growth_rule(level)
 
