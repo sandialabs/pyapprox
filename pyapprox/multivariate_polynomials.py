@@ -13,6 +13,7 @@ from pyapprox.utilities import \
     flattened_rectangular_lower_triangular_matrix_index
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
+from pyapprox.manipulate_polynomials import add_polynomials
 def evaluate_multivariate_orthonormal_polynomial(
         samples,indices,recursion_coeffs,deriv_order=0,
         basis_type_index_map=None):
@@ -124,6 +125,62 @@ class PolynomialChaosExpansion(object):
         self.basis_type_var_indices=[]
         self.numerically_generated_poly_accuracy_tolerance=None
 
+    def __mul__(self,other):
+        if self.indices.shape[1]>other.indices.shape[1]:
+            poly1=self
+            poly2=other
+        else:
+            poly1=other
+            poly2=self
+        max_degrees1 = poly1.indices.max(axis=1)
+        max_degrees2 = poly2.indices.max(axis=1)
+        product_coefs_1d = compute_product_coeffs_1d_for_each_variable(
+            poly1,max_degrees1,max_degrees2)
+        
+        indices,coefs=multiply_multivariate_orthonormal_polynomial_expansions(
+            product_coefs_1d,poly1.get_indices(),poly1.get_coefficients(),
+            poly2.get_indices(),poly2.get_coefficients())
+        poly = get_polynomial_from_variable(self.var_trans.variable)
+        poly.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def __add__(self,other):
+        indices_list = [self.indices,other.indices]
+        coefs_list = [self.coefficients,other.coefficients]
+        indices, coefs = add_polynomials(indices_list, coefs_list)
+        poly = get_polynomial_from_variable(self.var_trans.variable)
+        poly.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def __sub__(self,other):
+        indices_list = [self.indices,other.indices]
+        coefs_list = [self.coefficients,-other.coefficients]
+        indices, coefs = add_polynomials(indices_list, coefs_list)
+        poly = get_polynomial_from_variable(self.var_trans.variable)
+        poly.set_indices(indices)
+        poly.set_coefficients(coefs)
+        return poly
+
+    def __pow__(self,order):
+        if order==1:
+            return self
+        poly = get_polynomial_from_variable(self.var_trans.variable)
+        if order==0:
+            poly.set_indices(np.zeros([self.num_vars(),1],dtype=int))
+            poly.set_coefficients(np.zeros([1,self.coefficients.shape[1]]))
+            return poly            
+
+        poly = get_polynomial_from_variable(self.var_trans.variable)
+        poly_prev = self*self
+        for ii in range(3,order+1):
+            print(ii)
+            poly=poly_prev*self
+            #poly_prev=poly
+        #poly=poly_prev
+        return poly
+    
     def configure(self, opts):
         self.config_opts=opts
         self.var_trans = opts.get('var_trans',None)
@@ -581,6 +638,5 @@ def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,pol
                 basis_coefs.append(product_coefs_jjii)
                 basis_indices.append(product_indices)
 
-    from pyapprox.manipulate_polynomials import add_polynomials
     indices, coefs = add_polynomials(basis_indices,basis_coefs)                
     return indices, coefs
