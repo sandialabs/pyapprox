@@ -625,16 +625,9 @@ class TestMultivariatePolynomials(unittest.TestCase):
         samples = generate_independent_random_samples(variable,10)
         assert np.allclose(poly3(samples),poly1(samples)*poly2(samples))
 
-        # for order in range(4):
-        #     print(order)
-        #     poly = poly1**order
-        #     assert np.allclose(poly(samples),poly1(samples)**order)
-
-        #something going wrong with index ordering. If i always sort
-        # this tests passes, but if i dont sort it fails
-        tmp=poly1*poly1*poly1
-        # print(tmp(samples),poly1(samples)**3)
-        assert np.allclose(tmp(samples),poly1(samples)**3)
+        for order in range(4):
+            poly = poly1**order
+            assert np.allclose(poly(samples),poly1(samples)**order)
         
     def test_add_pce(self):
         univariate_variables = [norm(),uniform()]

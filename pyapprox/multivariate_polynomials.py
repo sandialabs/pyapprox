@@ -170,21 +170,16 @@ class PolynomialChaosExpansion(object):
         return poly
 
     def __pow__(self,order):
-        if order==1:
-            return self
         poly = get_polynomial_from_variable(self.var_trans.variable)
         if order==0:
             poly.set_indices(np.zeros([self.num_vars(),1],dtype=int))
             poly.set_coefficients(np.ones([1,self.coefficients.shape[1]]))
             return poly            
 
-        poly = get_polynomial_from_variable(self.var_trans.variable)
-        poly_prev = self*self
-        for ii in range(3,order+1):
-            print(ii)
-            poly=poly_prev*self
-            #poly_prev=poly
-        poly=poly_prev
+        import copy
+        poly = copy.deepcopy(self)
+        for ii in range(2,order+1):
+            poly=poly*self
         return poly
     
     def configure(self, opts):
@@ -314,10 +309,6 @@ class PolynomialChaosExpansion(object):
         #assert indices.dtype==int
         if indices.ndim==1:
             indices = indices.reshape((1,indices.shape[0]))
-        from pyapprox.indexing import argsort_indices_leixographically
-        I = argsort_indices_leixographically(indices)
-        indices = indices[:,I]
-
             
         self.indices=indices
         assert indices.shape[0]==self.num_vars()
@@ -626,7 +617,7 @@ def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,pol
     for ii in range(num_indices1):
         poly_index_ii = poly_indices1[:,ii]
         active_vars_ii = np.where(poly_index_ii>0)[0]
-        for jj in range(min(ii+1,num_indices2)):
+        for jj in range(num_indices2):
             poly_index_jj = poly_indices2[:,jj]
             product_indices, product_coefs = \
                 compute_multivariate_orthonormal_basis_product(
@@ -638,21 +629,10 @@ def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,pol
             # sorted active indices and look up to reuse computations
             product_coefs_iijj = product_coefs*poly_coefficients1[ii,:]*\
                 poly_coefficients2[jj,:]
-            #todo only add indices when abs(coeffs)>tol, e.g. tol=mach_eps
             basis_coefs.append(product_coefs_iijj)
             basis_indices.append(product_indices)
-            #print(product_coefs_iijj,product_indices)
 
             assert basis_coefs[-1].shape[0]==basis_indices[-1].shape[1]
-            if ii<num_indices2 and ii!=jj:
-                product_coefs_jjii=product_coefs*poly_coefficients1[jj,:]*\
-                    poly_coefficients2[ii,:]
-                basis_coefs.append(product_coefs_jjii)
-                basis_indices.append(product_indices)
 
     indices, coefs = add_polynomials(basis_indices,basis_coefs)
-    from pyapprox.indexing import argsort_indices_leixographically
-    I = argsort_indices_leixographically(indices)
-    indices = indices[:,I]
-    coefs = coefs[I]
     return indices, coefs
