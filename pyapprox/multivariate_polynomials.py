@@ -9,7 +9,10 @@ from pyapprox.orthonormal_polynomials_1d import \
 from pyapprox.monomial import monomial_basis_matrix
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import lanczos, \
     modified_chebyshev_orthonormal
-
+from pyapprox.utilities import \
+    flattened_rectangular_lower_triangular_matrix_index
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
 def evaluate_multivariate_orthonormal_polynomial(
         samples,indices,recursion_coeffs,deriv_order=0,
         basis_type_index_map=None):
@@ -458,3 +461,126 @@ def get_polynomial_from_variable(variable):
     poly_opts = define_poly_options_from_variable_transformation(var_trans)
     poly.configure(poly_opts)
     return poly
+
+def compute_univariate_orthonormal_basis_products(get_recursion_coefficients,
+                                                  max_degree1,max_degree2):
+    """
+    Compute all the products of univariate orthonormal bases and re-express 
+    them as expansions using the orthnormal basis.
+    """
+    assert max_degree1>=max_degree2
+    max_degree = max_degree1+max_degree2
+    num_quad_points = max_degree+1
+    
+    recursion_coefs = get_recursion_coefficients(num_quad_points)
+    x_quad,w_quad = gauss_quadrature(recursion_coefs,num_quad_points)
+    w_quad = w_quad[:,np.newaxis]
+
+    # evaluate the orthonormal basis at the quadrature points. This can
+    # be computed once for all degrees up to the maximum degree
+    ortho_basis_matrix = evaluate_orthonormal_polynomial_1d(
+        x_quad, max_degree, recursion_coefs)
+
+    # compute coefficients of orthonormal basis using pseudo
+    # spectral projection
+    product_coefs = []
+    for d1 in range(max_degree1+1):
+        for d2 in range(min(d1+1,max_degree2+1)):
+            product_vals = ortho_basis_matrix[:,d1]*ortho_basis_matrix[:,d2]
+            coefs = w_quad.T.dot(
+                product_vals[:,np.newaxis]*ortho_basis_matrix[:,:d1+d2+1]).T
+            product_coefs.append(coefs)
+    return product_coefs
+
+def compute_product_coeffs_1d_for_each_variable(poly,max_degrees1,max_degrees2):
+    # must ensure that poly1 and poly2 have the same basis types
+    # in each dimension
+    num_vars = poly.num_vars()
+    def get_recursion_coefficients(N,dd):
+        poly.update_recursion_coefficients([N]*num_vars,poly.config_opts)
+        return poly.recursion_coeffs[poly.basis_type_index_map[dd]].copy()
+
+    # change this to only compute this for unique 1d polys
+    product_coefs_1d=[
+        compute_univariate_orthonormal_basis_products(
+            partial(get_recursion_coefficients,dd=dd),
+            max_degrees1[dd],max_degrees2[dd])
+        for dd in range(num_vars)]
+
+    return product_coefs_1d
+
+def compute_multivariate_orthonormal_basis_product(product_coefs_1d,poly_index_ii,poly_index_jj,max_degrees1,max_degrees2,tol=2*np.finfo(float).eps):
+    """
+    Compute the product of two multivariate orthonormal bases and re-express 
+    as an expansion using the orthnormal basis.
+    """
+    num_vars = poly_index_ii.shape[0]
+    poly_index= poly_index_ii+poly_index_jj
+    active_vars = np.where(poly_index>0)[0]
+    if active_vars.shape[0]>0:
+        coefs_1d = []
+        for dd in active_vars:
+            pii,pjj=poly_index_ii[dd],poly_index_jj[dd]
+            if pii<pjj:
+                tmp=pjj; pjj=pii; pii=tmp
+            kk = flattened_rectangular_lower_triangular_matrix_index(
+                pii,pjj,max_degrees1[dd]+1,max_degrees2[dd]+1)
+            coefs_1d.append(product_coefs_1d[dd][kk][:,0])
+        indices_1d = [np.arange(poly_index[dd]+1) 
+                      for dd in active_vars]
+        product_coefs = outer_product(coefs_1d)[:,np.newaxis]
+        active_product_indices = cartesian_product(indices_1d)
+        II = np.where(np.absolute(product_coefs)>tol)[0]
+        active_product_indices = active_product_indices[:,II]
+        product_coefs = product_coefs[II]
+        product_indices = np.zeros(
+            (num_vars,active_product_indices.shape[1]),dtype=int)
+        product_indices[active_vars]=active_product_indices
+    else:
+        product_coefs = np.ones((1,1))
+        product_indices = np.zeros([num_vars,1],dtype=int)
+
+    return product_indices, product_coefs
+
+def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,poly_indices1,poly_coefficients1,poly_indices2,poly_coefficients2):    
+    num_indices1 = poly_indices1.shape[1]
+    num_indices2 = poly_indices2.shape[1]
+    assert num_indices2<=num_indices1
+    assert poly_coefficients1.shape[0]==num_indices1
+    assert poly_coefficients2.shape[0]==num_indices2
+    
+    num_vars = poly_indices1.shape[0]
+    num_qoi = poly_coefficients1.shape[1]
+    #following assumes the max degrees were used to create product_coefs_1d
+    max_degrees1 = poly_indices1.max(axis=1)
+    max_degrees2 = poly_indices2.max(axis=1)
+    basis_coefs,basis_indices = [],[]
+    for ii in range(num_indices1):
+        poly_index_ii = poly_indices1[:,ii]
+        active_vars_ii = np.where(poly_index_ii>0)[0]
+        for jj in range(min(ii+1,num_indices2)):
+            poly_index_jj = poly_indices2[:,jj]
+            product_indices, product_coefs = \
+                compute_multivariate_orthonormal_basis_product(
+                    product_coefs_1d,poly_index_ii,poly_index_jj,
+                    max_degrees1,max_degrees2)
+            #TODO for unique polynomials the product_coefs and indices
+            # of [0,1,2] is the same as [2,1,0] so perhaps store
+            # sorted active indices and look up to reuse computations
+            product_coefs_iijj = product_coefs*poly_coefficients1[ii,:]*\
+                poly_coefficients2[jj,:]
+            #todo only add indices when abs(coeffs)>tol, e.g. tol=mach_eps
+            basis_coefs.append(product_coefs_iijj)
+            basis_indices.append(product_indices)
+            #print(product_coefs_iijj,product_indices)
+
+            assert basis_coefs[-1].shape[0]==basis_indices[-1].shape[1]
+            if ii<num_indices2 and ii!=jj:
+                product_coefs_jjii=product_coefs*poly_coefficients1[jj,:]*\
+                    poly_coefficients2[ii,:]
+                basis_coefs.append(product_coefs_jjii)
+                basis_indices.append(product_indices)
+
+    from pyapprox.manipulate_polynomials import add_polynomials
+    indices, coefs = add_polynomials(basis_indices,basis_coefs)                
+    return indices, coefs
