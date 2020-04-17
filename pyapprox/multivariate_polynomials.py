@@ -124,7 +124,7 @@ class PolynomialChaosExpansion(object):
         self.basis_type_index_map=None
         self.basis_type_var_indices=[]
         self.numerically_generated_poly_accuracy_tolerance=None
-
+    
     def __mul__(self,other):
         if self.indices.shape[1]>other.indices.shape[1]:
             poly1=self
@@ -132,15 +132,21 @@ class PolynomialChaosExpansion(object):
         else:
             poly1=other
             poly2=self
+        import copy
+        poly1=copy.deepcopy(poly1)
+        poly2=copy.deepcopy(poly2)
         max_degrees1 = poly1.indices.max(axis=1)
         max_degrees2 = poly2.indices.max(axis=1)
+        #print('###')
+        #print(max_degrees1,max_degrees2)
         product_coefs_1d = compute_product_coeffs_1d_for_each_variable(
             poly1,max_degrees1,max_degrees2)
+        #print(product_coefs_1d)
         
         indices,coefs=multiply_multivariate_orthonormal_polynomial_expansions(
             product_coefs_1d,poly1.get_indices(),poly1.get_coefficients(),
             poly2.get_indices(),poly2.get_coefficients())
-        poly = get_polynomial_from_variable(self.var_trans.variable)
+        poly = copy.deepcopy(self)#get_polynomial_from_variable(self.var_trans.variable)
         poly.set_indices(indices)
         poly.set_coefficients(coefs)
         return poly
@@ -169,7 +175,7 @@ class PolynomialChaosExpansion(object):
         poly = get_polynomial_from_variable(self.var_trans.variable)
         if order==0:
             poly.set_indices(np.zeros([self.num_vars(),1],dtype=int))
-            poly.set_coefficients(np.zeros([1,self.coefficients.shape[1]]))
+            poly.set_coefficients(np.ones([1,self.coefficients.shape[1]]))
             return poly            
 
         poly = get_polynomial_from_variable(self.var_trans.variable)
@@ -178,7 +184,7 @@ class PolynomialChaosExpansion(object):
             print(ii)
             poly=poly_prev*self
             #poly_prev=poly
-        #poly=poly_prev
+        poly=poly_prev
         return poly
     
     def configure(self, opts):
@@ -308,6 +314,11 @@ class PolynomialChaosExpansion(object):
         #assert indices.dtype==int
         if indices.ndim==1:
             indices = indices.reshape((1,indices.shape[0]))
+        from pyapprox.indexing import argsort_indices_leixographically
+        I = argsort_indices_leixographically(indices)
+        indices = indices[:,I]
+
+            
         self.indices=indices
         assert indices.shape[0]==self.num_vars()
         max_degree = indices.max(axis=1)
@@ -621,6 +632,7 @@ def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,pol
                 compute_multivariate_orthonormal_basis_product(
                     product_coefs_1d,poly_index_ii,poly_index_jj,
                     max_degrees1,max_degrees2)
+            #print(ii,jj,product_coefs,poly_index_ii,poly_index_jj)
             #TODO for unique polynomials the product_coefs and indices
             # of [0,1,2] is the same as [2,1,0] so perhaps store
             # sorted active indices and look up to reuse computations
@@ -638,5 +650,9 @@ def multiply_multivariate_orthonormal_polynomial_expansions(product_coefs_1d,pol
                 basis_coefs.append(product_coefs_jjii)
                 basis_indices.append(product_indices)
 
-    indices, coefs = add_polynomials(basis_indices,basis_coefs)                
+    indices, coefs = add_polynomials(basis_indices,basis_coefs)
+    from pyapprox.indexing import argsort_indices_leixographically
+    I = argsort_indices_leixographically(indices)
+    indices = indices[:,I]
+    coefs = coefs[I]
     return indices, coefs
