@@ -9,7 +9,7 @@ from pyapprox.utilities import add_columns_to_pivoted_lu_factorization, \
     continue_pivoted_lu_factorization, get_final_pivots_from_sequential_pivots,\
     split_lu_factorization_matrix, pivot_rows, hash_array, \
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
-
+from pyapprox.probability_measure_sampling import generate_independent_random_samples
 def get_subspace_active_poly_array_indices(adaptive_pce,ii):
     idx1=adaptive_pce.unique_poly_indices_idx[ii]
     if ii < adaptive_pce.unique_poly_indices_idx.shape[0]-1:
@@ -53,7 +53,7 @@ def variance_pce_refinement_indicator(
         subspace_index[:,np.newaxis])
     cost = cost_per_sample*num_new_subspace_samples
 
-    # compute marginal benefit 
+    # compute marginal benefit
     indicator/=cost
     #print(subspace_index,indicator,'indicator')
     return -indicator, error[qoi_chosen]
@@ -89,12 +89,19 @@ def chistoffel_preconditioning_function(basis_matrix,samples):
     return weights
 
 class AdaptiveInducedPCE(SubSpaceRefinementManager):
-    def __init__(self,num_vars,cond_tol=1e8):
+    def __init__(self,num_vars,cond_tol=1e2):
         super(AdaptiveInducedPCE,self).__init__(num_vars)
         self.cond_tol=cond_tol
         self.fit_opts = {'omp_tol':0}
         self.set_preconditioning_function(chistoffel_preconditioning_function)
         self.fit_function = self._fit
+        if cond_tol<1:
+            self.induced_sampling=False
+            self.set_preconditioning_function(precond_func = lambda m,x: np.ones(x.shape[1]))
+            self.sample_ratio=5
+        else:
+            self.induced_sampling=True
+            self.sample_ratio=None
 
     def set_function(self,function,var_trans=None,pce=None):
         super(AdaptiveInducedPCE,self).set_function(function,var_trans)
@@ -109,15 +116,30 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         else:
             self.pce=pce
 
+    def increment_samples(self,current_poly_indices,unique_poly_indices):
+        if self.induced_sampling:
+            samples = increment_induced_samples_migliorati(
+                self.pce,self.cond_tol,self.samples,
+                current_poly_indices, unique_poly_indices)
+        else:
+            samples = generate_independent_random_samples(self.pce.var_trans.variable,self.sample_ratio*unique_poly_indices.shape[1])
+            samples = self.pce.var_trans.map_to_canonical_space(samples)
+            samples = np.hstack([self.samples,samples])
+        return samples
+
+    def allocate_initial_samples(self):
+        if self.induced_sampling:
+            return generate_induced_samples_migliorati_tolerance(self.pce,self.cond_tol)
+        else:
+            return generate_independent_random_samples(self.pce.var_trans.variable,self.sample_ratio*self.pce.num_terms())
+        
     def create_new_subspaces_data(self,new_subspace_indices):
         num_current_subspaces = self.subspace_indices.shape[1]
         self.initialize_subspaces(new_subspace_indices)
 
         self.pce.set_indices(self.poly_indices)
         if self.samples.shape[1]==0:
-            unique_subspace_samples = \
-                generate_induced_samples_migliorati_tolerance(
-                    self.pce,self.cond_tol)
+            unique_subspace_samples = self.allocate_initial_samples()
             return unique_subspace_samples, np.array(
                 [unique_subspace_samples.shape[1]])
 
@@ -138,9 +160,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         current_poly_indices = self.poly_indices[
             :,:self.unique_poly_indices_idx[num_current_subspaces]]
         num_samples = self.samples.shape[1]
-        samples = increment_induced_samples_migliorati(
-            self.pce,self.cond_tol,self.samples,
-            current_poly_indices, unique_poly_indices)
+        samples = self.increment_samples(current_poly_indices,unique_poly_indices)
         unique_subspace_samples = samples[:,num_samples:]
 
         # warning num_new_subspace_samples does not really make sense for
@@ -150,7 +170,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             new_subspace_indices.shape[1])//new_subspace_indices.shape[1]
         return unique_subspace_samples, num_new_subspace_samples
 
-    def _fit(self,canonical_basis_matrix,samples,values,
+    def _fit(self,pce,canonical_basis_matrix,samples,values,
              precond_func=None,omp_tol=0):
         # do to, just add columns to stored basis matrix
         # store qr factorization of basis_matrix and update the factorization
@@ -165,7 +185,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         
     def fit(self):
         return self.fit_function(
-            self.pce.canonical_basis_matrix,self.samples,self.values,
+            self.pce,self.pce.canonical_basis_matrix,self.samples,self.values,
             **self.fit_opts)
 
     def add_new_subspaces(self,new_subspace_indices):
