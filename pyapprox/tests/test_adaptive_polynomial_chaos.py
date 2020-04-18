@@ -104,7 +104,7 @@ class TestAdaptivePCE(unittest.TestCase):
             np.random.uniform(0,np.pi,(num_vars,int(1e4))))
         pce = AdaptiveLejaPCE(
             num_vars,candidate_samples,factorization_type='fast')
-        error, samples_slow = self.helper(
+        error, pce_slow = self.helper(
             function,var_trans,pce,np.inf,error_tol)
         print('leja sampling error',error)
         assert error < 10*error_tol
@@ -135,9 +135,32 @@ class TestAdaptivePCE(unittest.TestCase):
                 [beta(alph,bet,0,1)],[np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(num_vars,cond_tol=1e2)
-        error, samples = self.helper(function,var_trans,pce,4,0.)
+        error, pce = self.helper(function,var_trans,pce,4,0.)
+
         print('induced sampling error',error)
         assert error < 1e-14
+
+    def test_adaptive_least_squares_proability_measure_sampling(self):
+        #set cond <1 to use random samples from probaility measure
+        num_vars = 2; 
+        alph=5; bet=5.
+
+        def function(x):
+            vals = [np.cos(np.pi*x[ii,:]) for ii in range(x.shape[0])]
+            vals = np.array(vals).sum(axis=0)[:,np.newaxis]
+            return vals
+        #function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
+        
+        var_trans = AffineRandomVariableTransformation(
+            IndependentMultivariateRandomVariable(
+                [beta(alph,bet,0,1)],[np.arange(num_vars)]))
+
+        pce = AdaptiveInducedPCE(num_vars,cond_tol=0)
+        pce.sample_ratio=2
+        error, pce = self.helper(function,var_trans,pce,4,0.)
+
+        print('probability sampling error',error)
+        assert error < 1e-10
 
         
 

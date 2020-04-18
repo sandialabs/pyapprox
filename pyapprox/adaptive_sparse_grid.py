@@ -37,6 +37,9 @@ class mypriorityqueue():
 
     def __repr__(self):
         return str(self.list)
+
+    def __len__(self):
+        return len(self.list)
     
 def extract_items_from_priority_queue(pqueue):
     """
@@ -120,7 +123,7 @@ def max_level_admissibility_function(max_level,max_level_1d,
                                      sparse_grid, subspace_index,verbose=False):
     if subspace_index.sum()>max_level:
         return False
-    
+
     if error_tol is not None:
         if sparse_grid.error.sum()<error_tol*np.absolute(
                 sparse_grid.values[0,0]):
@@ -133,10 +136,12 @@ def max_level_admissibility_function(max_level,max_level_1d,
                 msg += f'\nNo. samples {sparse_grid.samples.shape[1]}'
                 if verbose:
                     print(msg)
-            #else:
-            #msg='Accuracy misleadingly appears reached because admissibility '
-            #msg+='criterion is preventing new subspaces from being added '
-            #msg+='to the active set'
+            else:
+                print(subspace_index)
+                msg='Accuracy misleadingly appears reached because '
+                msg +='admissibility  criterion is preventing new subspaces '
+                msg+='from being added to the active set'
+                print(msg)
             return False
         
     if max_level_1d is not None:
@@ -148,6 +153,7 @@ def max_level_admissibility_function(max_level,max_level_1d,
                     msg += f'variable {dd}'
                     print (msg)
                 return False
+            
     if (max_num_sparse_grid_samples is not None and
         (sparse_grid.num_equivalent_function_evaluations>
          max_num_sparse_grid_samples)):
@@ -159,7 +165,8 @@ def max_level_admissibility_function(max_level,max_level_1d,
         
 def default_combination_sparse_grid_cost_function(x):
     return np.ones(x.shape[1])
-        
+
+
 def get_active_subspace_indices(active_subspace_indices_dict,
                                 sparse_grid_subspace_indices):
     I = []
@@ -648,7 +655,7 @@ class SubSpaceRefinementManager(object):
         #    self.subspace_indices, np.asarray([self.samples.shape[1]]))
         #self.active_subspace_queue.list[0] = (np.inf,self.error[0],0)
         self.error = np.concatenate([self.error,[np.inf]])
-        self.active_subspace_queue.put((np.inf,self.error[0],0))
+        self.active_subspace_queue.put((-np.inf,self.error[0],0))
         
     def refine(self):
         if self.subspace_indices.shape[1]==0:
@@ -656,6 +663,7 @@ class SubSpaceRefinementManager(object):
 
         priority,error,best_subspace_idx = self.active_subspace_queue.get()
         best_active_subspace_index = self.subspace_indices[:,best_subspace_idx]
+        print('refining index',best_active_subspace_index, f'of model {self.name}')
 
         new_active_subspace_indices, num_new_subspace_samples = \
             self.refine_and_add_new_subspaces(best_active_subspace_index)
@@ -772,7 +780,6 @@ class SubSpaceRefinementManager(object):
         while (not self.active_subspace_queue.empty() or
                self.subspace_indices.shape[1]==0):
             self.refine()
-        
 
     def refine_and_add_new_subspaces(self,best_active_subspace_index):
         key = hash_array(best_active_subspace_index)
