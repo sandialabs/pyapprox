@@ -69,19 +69,21 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
             hetero_outer_prods=hetero_outer_prods,
             noise_multiplier=noise_multiplier)
-        
+  
+        # Test hetroscedastic API gradients are correct        
+        diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-7,diffs
+      
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
         pp=np.random.uniform(0,1,(num_design_pts,1))
         assert np.allclose(
             ioptimality_criterion_wrapper(pp,return_grad=False),
-            ioptimality_criterion(homog_outer_prods,design_factors,pred_factors,
-                                  pp,return_grad=False))
+            ioptimality_criterion(
+                homog_outer_prods,design_factors,pred_factors,
+                pp,return_grad=False,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier*0+1))
         
-        # Test hetroscedastic API gradients are correct        
-        diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7,diffs
-
     def test_hetroscedastic_coptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 101
@@ -99,6 +101,16 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<4e-7,diffs
+
+        # Test homoscedastic and hetroscedastic API produce same value
+        # when noise is homoscedastic
+        pp=np.random.uniform(0,1,(num_design_pts,1))
+        assert np.allclose(
+            coptimality_criterion_wrapper(pp,return_grad=False),
+            coptimality_criterion(
+                homog_outer_prods,design_factors,
+                pp,return_grad=False,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier*0+1))
 
     def test_homoscedastic_coptimality_criterion(self):
         poly_degree = 10;
