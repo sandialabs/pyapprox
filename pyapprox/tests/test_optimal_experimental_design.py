@@ -133,13 +133,41 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
-        pred_factors=None
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         doptimality_criterion_wrapper = partial(
-            doptimality_criterion,homog_outer_prods,design_factors,pred_factors)
+            doptimality_criterion,homog_outer_prods,design_factors)
         diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<5e-7,diffs
+
+    def test_hetroscedastic_doptimality_criterion(self):
+        poly_degree = 10
+        num_design_pts = 101
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier =design_samples**2
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        hetero_outer_prods = compute_heteroscedastic_outer_products(
+            design_factors,noise_multiplier)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        doptimality_criterion_wrapper = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,
+            hetero_outer_prods=hetero_outer_prods,
+            noise_multiplier=noise_multiplier)
+        diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
+        #print (diffs)
+
+        assert diffs[np.isfinite(diffs)].min()<4e-7,diffs
+
+        # Test homoscedastic and hetroscedastic API produce same value
+        # when noise is homoscedastic
+        pp=np.random.uniform(0,1,(num_design_pts,1))
+        assert np.allclose(
+            doptimality_criterion_wrapper(pp,return_grad=False),
+            doptimality_criterion(
+                homog_outer_prods,design_factors,
+                pp,return_grad=False,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier*0+1))
 
     def test_gradient_log_determinant(self):
         """
