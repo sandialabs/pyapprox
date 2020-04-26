@@ -62,7 +62,7 @@ model = TunableModelEnsemble(np.pi/2*.95,shifts=shifts)
 
 #%%
 # Now let us compute the mean of :math:`f_1` using Monte Carlo
-nsamples = int(1e2)
+nsamples = int(1e3)
 samples = pya.generate_independent_random_samples(
     variable,nsamples)
 values = model.m1(samples)
@@ -82,24 +82,29 @@ print('MC difference squared =',(values.mean()-exact_integral_f1)**2)
 #%%
 #.. _estimator-histogram:
 #
-#Now let us compute the MSE for different sample sets of the same size and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
+#Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
 #
 
 ntrials=1000
-means = np.empty(ntrials)
+means = np.empty((ntrials,2))
 for ii in range(ntrials):
     samples = pya.generate_independent_random_samples(
         variable,nsamples)
     values = model.m1(samples)
-    means[ii] = values.mean()
+    means[ii] = values[:100].mean(),values.mean()
 fig,ax = plt.subplots()
-textstr = '\n'.join([r'$E[Q_{1,N}]=\mathrm{%.2e}$'%means.mean(),
-                     r'$V[Q_{1,N}]=\mathrm{%.2e}$'%means.var()])
-ax.hist(means,bins=ntrials//100,density=True)
-ax.axvline(x=shifts[0],c='r',label=r'$E[Q_1]$')
-ax.axvline(x=0,c='k',label=r'$E[Q_0]$')
+textstr = '\n'.join([r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$'%means[:,0].mean(),
+                     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$'%means[:,0].var(),
+                     r'$\mathbb{E}[Q_{1,1000}]=\mathrm{%.2e}$'%means[:,1].mean(),
+                     r'$\mathbb{V}[Q_{1,1000}]=\mathrm{%.2e}$'%means[:,1].var()])
+ax.hist(means[:,0],bins=ntrials//100,density=True)
+ax.hist(means[:,1],bins=ntrials//100,density=True,alpha=0.5)
+ax.axvline(x=shifts[0],c='r',label=r'$\mathbb{E}[Q_1]$')
+ax.axvline(x=0,c='k',label=r'$\mathbb{E}[Q_0]$')
 props = {'boxstyle':'round','facecolor':'white','alpha':1}
-ax.text(0.65,0.9,textstr,transform=ax.transAxes,bbox=props)
+ax.text(0.65,0.8,textstr,transform=ax.transAxes,bbox=props)
+ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
+ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
 _ = ax.legend(loc='upper left')
 
 #%%
