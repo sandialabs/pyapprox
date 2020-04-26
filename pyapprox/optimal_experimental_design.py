@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import solve as scipy_solve
+from scipy.linalg import solve_triangular
 
 def compute_heteroscedastic_outer_products(factors,noise_multiplier):
     """
@@ -127,12 +127,12 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         # [:,:,0] just changes shape from (N,N,1) to (N,N)
         M0 = hetero_outer_prods.dot(design_prob_measure)[:,:,0]
         Q,R = np.linalg.qr(M1)
-        u = scipy_solve(R,Q.T.dot(pred_factors.T))
+        u = solve_triangular(R,Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
         value = np.sum(u*M0u) / num_pred_factors;
         if (return_grad):
             assert noise_multiplier is not None
-            gamma   = -scipy_solve(R,(Q.T.dot(M0u)))
+            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
@@ -212,12 +212,12 @@ def coptimality_criterion(homog_outer_prods,design_factors,
         # [:,:,0] just changes shape from (N,N,1) to (N,N)
         M0 = hetero_outer_prods.dot(design_prob_measure)[:,:,0]
         Q,R = np.linalg.qr(M1)
-        u = scipy_solve(R,Q.T.dot(c))
+        u = solve_triangular(R,Q.T.dot(c))
         M0u = M0.dot(u)
         value = u.T.dot(M0u)
         if (return_grad):
             assert noise_multiplier is not None
-            gamma   = -scipy_solve(R,(Q.T.dot(M0u)))
+            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
@@ -238,7 +238,7 @@ def coptimality_criterion(homog_outer_prods,design_factors,
 
         
 def doptimality_criterion(homog_outer_prods,design_factors,
-                          pred_factors,design_prob_measure,return_grad=True,
+                          design_prob_measure,return_grad=True,
                           hetero_outer_prods=None,
                           noise_multiplier=None):
     r"""
@@ -270,9 +270,6 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     design_factors : np.ndarray (num_design_pts,num_design_factors)
        The design factors evaluated at each of the design points
 
-    pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
-       The prediction factors g evaluated at each of the prediction points
-
     return_grad : boolean
        True  - return the value and gradient of the criterion
        False - return only the value of the criterion
@@ -291,21 +288,20 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
     M1_inv = np.linalg.inv(M1)
     if hetero_outer_prods is not None:
-        assert False # not yet implemented
-        #print(homog_outer_prods.shape)
-        print(hetero_outer_prods.shape)
         # [:,:,0] just changes shape from (N,N,1) to (N,N)
         M0 =  hetero_outer_prods.dot(design_prob_measure)[:,:,0]
-        u = M1_inv
-        gamma = M0.dot(u)
-        value = np.log(np.linalg.det(gamma))
+        gamma = M0.dot(M1_inv)
+        value = np.log(np.linalg.det(M1_inv.dot(gamma)))
         if (return_grad):
-            gamma   = -scipy_solve(R,(Q.T.dot(M0u)))
-            assert noise_multiplier is not None
-            Fu    = design_factors.dot(u)
-            t   = noise_multiplier * Fu
-            Fgamma  = design_factors.dot(gamma)
-            gradient = 2*Fu*Fgamma + t**2;
+            ident = np.eye(gamma.shape[0])
+            M0_inv = np.linalg.inv(M0)
+            kappa  = M1.dot(M0_inv)
+            gradient = np.zeros(num_design_pts)
+            for ii in range(num_design_pts):
+                #gradient[ii]=np.trace(kappa.dot(homog_outer_prods[:,:,ii]).dot(
+                #    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+                    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
             return value, gradient
         else:
             return value
