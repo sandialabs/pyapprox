@@ -57,7 +57,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 10;
         num_design_pts = 101
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier = 0*design_samples**2+1#homoscedastic noise
+        noise_multiplier = design_samples**2+1
         pred_samples = np.random.uniform(-1,1,51)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
@@ -117,6 +117,64 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<4e-7,diffs
+
+    def test_homoscedastic_doptimality_criterion(self):
+        poly_degree = 10;
+        num_design_pts = 101
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier = None
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=None
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        doptimality_criterion_wrapper = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,pred_factors)
+        diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
+        #print (diffs)
+        assert diffs.min()<5e-7,diffs
+
+    def test_gradient_log_determinant(self):
+        """
+        Test the identities 
+        -log (det(Y)) = log(det(inv(Y)))
+        d/dw_i X.T.dot(diag(w)).dot(X)=X.T.dot(diag(e_i)).dot(X)
+        where e_i is unit vector with 1 in ith entry
+        d/dw_i log(Y) = trace(inv(Y)*dY/dw_i) 
+        """
+        X = np.random.normal(0,1,(3,3))
+        w = np.arange(1,4,dtype=float)[:,np.newaxis]
+        homog_outer_prods = compute_homoscedastic_outer_products(X)
+        get_Y = lambda w: homog_outer_prods.dot(w)[:,:,0]
+        Y = get_Y(w)
+
+        assert np.allclose(
+            -np.log(np.linalg.det(Y)),np.log(np.linalg.det(np.linalg.inv(Y))))
+        
+        log_det = np.log(np.linalg.det(Y))
+        eps=1e-7
+        grad_Y    = np.zeros((3,Y.shape[0],Y.shape[1]))
+        fd_grad_Y = np.zeros((3,Y.shape[0],Y.shape[1]))
+        for ii in range(3):
+            w_eps = w.copy(); w_eps[ii]+=eps
+            Y_eps = get_Y(w_eps)
+            fd_grad_Y[ii] = (Y_eps-Y)/eps
+            dw = np.zeros((3,1)); dw[ii]=1
+            grad_Y[ii] = get_Y(dw)
+            assert np.allclose(grad_Y[ii],homog_outer_prods[:,:,ii])
+        assert np.allclose(fd_grad_Y,grad_Y)
+
+        eps=1e-7
+        grad_log_det = np.zeros(3)
+        fd_grad_log_det = np.zeros(3)
+        Y_inv = np.linalg.inv(Y)
+        for ii in range(3):
+            grad_log_det[ii] = np.trace(Y_inv.dot(grad_Y[ii]))
+            w_eps = w.copy(); w_eps[ii]+=eps
+            Y_eps = get_Y(w_eps)
+            log_det_eps = np.log(np.linalg.det(Y_eps))
+            fd_grad_log_det[ii] = (log_det_eps-log_det)/eps
+
+        assert np.allclose(grad_log_det,fd_grad_log_det)
 
 
 if __name__== "__main__":    

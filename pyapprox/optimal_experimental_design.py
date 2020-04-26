@@ -220,7 +220,7 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     Evaluate the D-optimality criterion for a given design probability measure.
 
     The criteria is
-    determinant [ C(\mu) ]
+    log determinant [ C(\mu) ]
 
     where
     C(\mu) = M_1^{-1} M_0 M^{-1}
@@ -262,18 +262,18 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     """
 
     num_design_pts, num_design_factors = design_factors.shape
-    c  = np.ones((num_design_factors),dtype=float)
     # [:,:,0] just changes shape from (N,N,1) to (N,N)
     M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
     M1_inv = np.linalg.inv(M1)
     if hetero_outer_prods is not None:
+        assert False # not yet implemented
         #print(homog_outer_prods.shape)
         print(hetero_outer_prods.shape)
         # [:,:,0] just changes shape from (N,N,1) to (N,N)
         M0 =  hetero_outer_prods.dot(design_prob_measure)[:,:,0]
         u = M1_inv
         gamma = M0.dot(u)
-        value = np.linalg.det(gamma)
+        value = np.log(np.linalg.det(gamma))
         if (return_grad):
             gamma   = -scipy_solve(R,(Q.T.dot(M0u)))
             assert noise_multiplier is not None
@@ -285,12 +285,11 @@ def doptimality_criterion(homog_outer_prods,design_factors,
         else:
             return value
     else:
-        value  = np.linalg.det(M1_inv)
-        assert False # gradient not yet derived
+        value  = np.log(np.linalg.det(M1_inv))
         # Gradient
         if (return_grad):
-            FM1_inv = design_factors.dot(M1_inv)
-            gradient = 2*value M1 
+            gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii])) for ii in range(homog_outer_prods.shape[2])])
+            #gradient = 28*(design_factors.T.dot(design_factors)*M1_inv).sum()
             return value, gradient
         else:
             return value
