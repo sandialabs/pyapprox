@@ -1258,6 +1258,7 @@ class ModelEnsemble(object):
             The values of the models at samples
         """
         model_ids = samples[-1,:]
+        #print(model_ids,self.nmodels)
         assert model_ids.max()<self.nmodels
         I = np.where(model_ids==0)[0]
         values_0 = self.functions[0](samples[:-1,I])

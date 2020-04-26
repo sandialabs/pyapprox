@@ -12,6 +12,7 @@ def check_derivative(function,num_design_pts):
     dold  = g.T.dot(direction)
     #print('\n\n')
     #print(dold.shape,g.shape)
+    print('eps','dfun','dfd','error')
     diff = []
     for i in range(1,13):
         fleft = function(design_prob_measure-t*direction,return_grad=False)
@@ -24,17 +25,25 @@ def check_derivative(function,num_design_pts):
     return np.array(diff)
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+    
     def test_homoscedastic_ioptimality_criterion(self):
         poly_degree = 10;
         num_design_pts = 101
+        num_pred_pts = 51
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        # TODO check if design factors may have to be a subset of pred_factors
+        #pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        #assert num_design_pts<=pred_factors.shape[0]
+        #design_factors = pred_factors[:num_design_pts,:]
         design_samples = np.linspace(-1,1,num_design_pts)
-        pred_samples = np.random.uniform(-1,1,51)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        error_hessians = compute_error_hessians(design_factors)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion,error_hessians,design_factors,pred_factors)
+            ioptimality_criterion,homog_outer_prods,design_factors,pred_factors)
         diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
         assert diffs.min()<6e-7, diffs
 
@@ -42,6 +51,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         """
         Test homoscedastic and hetroscedastic API produce same value
         when noise is homoscedastic
+
+        WARING current test is just homoscedastic noise but it is still wront
         """
         poly_degree = 10;
         num_design_pts = 101
@@ -51,12 +62,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        error_hessians = compute_error_hessians(design_factors)
-        subgradient_covariances = compute_subgradient_covariances(
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        hetero_outer_prods = compute_heteroscedastic_outer_products(
             design_factors,noise_multiplier)
         ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion,error_hessians,design_factors,pred_factors,
-            subgradient_covariances=subgradient_covariances,
+            ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            hetero_outer_prods=hetero_outer_prods,
             noise_multiplier=noise_multiplier)
         
         # Test homoscedastic and hetroscedastic API produce same value
@@ -64,7 +75,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         pp=np.random.uniform(0,1,(num_design_pts,1))
         assert np.allclose(
             ioptimality_criterion_wrapper(pp,return_grad=False),
-            ioptimality_criterion(error_hessians,design_factors,pred_factors,
+            ioptimality_criterion(homog_outer_prods,design_factors,pred_factors,
                                   pp,return_grad=False))
         
         # Test hetroscedastic API gradients are correct        
@@ -72,20 +83,20 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert diffs.min()<6e-7,diffs
 
     def test_hetroscedastic_coptimality_criterion(self):
-        poly_degree = 10;
-        num_design_pts = 101
+        poly_degree = 5
+        num_design_pts = 11#101
         design_samples = np.linspace(-1,1,num_design_pts)
         noise_multiplier = design_samples**2
-        pred_samples = np.random.uniform(-1,1,51)
+        pred_samples = np.random.uniform(-1,1,5)#51
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        subgradient_covariances = compute_subgradient_covariances(
+        hetero_outer_prods = compute_heteroscedastic_outer_products(
             design_factors,noise_multiplier)
-        error_hessians = compute_error_hessians(design_factors)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         coptimality_criterion_wrapper = partial(
-            coptimality_criterion,error_hessians,design_factors,pred_factors,
-            subgradient_covariances=subgradient_covariances,
+            coptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            hetero_outer_prods=hetero_outer_prods,
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
@@ -100,9 +111,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        error_hessians = compute_error_hessians(design_factors)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         coptimality_criterion_wrapper = partial(
-            coptimality_criterion,error_hessians,design_factors,pred_factors)
+            coptimality_criterion,homog_outer_prods,design_factors,pred_factors)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<4e-7,diffs

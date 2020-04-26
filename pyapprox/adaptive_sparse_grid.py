@@ -663,7 +663,7 @@ class SubSpaceRefinementManager(object):
 
         priority,error,best_subspace_idx = self.active_subspace_queue.get()
         best_active_subspace_index = self.subspace_indices[:,best_subspace_idx]
-        print('refining index',best_active_subspace_index, f'of model {self.name}')
+        #print('refining index',best_active_subspace_index, f'of model {self.name}')
 
         new_active_subspace_indices, num_new_subspace_samples = \
             self.refine_and_add_new_subspaces(best_active_subspace_index)
