@@ -83,19 +83,17 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert diffs.min()<6e-7,diffs
 
     def test_hetroscedastic_coptimality_criterion(self):
-        poly_degree = 5
-        num_design_pts = 11#101
+        poly_degree = 10
+        num_design_pts = 101
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier = design_samples**2
-        pred_samples = np.random.uniform(-1,1,5)#51
+        noise_multiplier =design_samples**2
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
-        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
         hetero_outer_prods = compute_heteroscedastic_outer_products(
             design_factors,noise_multiplier)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         coptimality_criterion_wrapper = partial(
-            coptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            coptimality_criterion,homog_outer_prods,design_factors,
             hetero_outer_prods=hetero_outer_prods,
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
@@ -106,14 +104,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 10;
         num_design_pts = 101
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier = design_samples**2
-        pred_samples = np.random.uniform(-1,1,51)
+        noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
-        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         coptimality_criterion_wrapper = partial(
-            coptimality_criterion,homog_outer_prods,design_factors,pred_factors)
+            coptimality_criterion,homog_outer_prods,design_factors)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<4e-7,diffs

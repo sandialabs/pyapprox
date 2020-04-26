@@ -159,7 +159,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
 
 
 def coptimality_criterion(homog_outer_prods,design_factors,
-                          pred_factors,design_prob_measure,return_grad=True,
+                          design_prob_measure,return_grad=True,
                           hetero_outer_prods=None,
                           noise_multiplier=None):
     r"""
@@ -192,9 +192,6 @@ def coptimality_criterion(homog_outer_prods,design_factors,
     design_factors : np.ndarray (num_design_pts,num_design_factors)
        The design factors evaluated at each of the design points
 
-    pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
-       The prediction factors g evaluated at each of the prediction points
-
     return_grad : boolean
        True  - return the value and gradient of the criterion
        False - return only the value of the criterion
@@ -207,8 +204,36 @@ def coptimality_criterion(homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-        
-    
+    num_design_pts, num_design_factors = design_factors.shape
+    c = np.ones((num_design_factors,1))
+    # [:,:,0] just changes shape from (N,N,1) to (N,N)
+    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    if hetero_outer_prods is not None:
+        # [:,:,0] just changes shape from (N,N,1) to (N,N)
+        M0 = hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        Q,R = np.linalg.qr(M1)
+        u = scipy_solve(R,Q.T.dot(c))
+        M0u = M0.dot(u)
+        value = u.T.dot(M0u)
+        if (return_grad):
+            assert noise_multiplier is not None
+            gamma   = -scipy_solve(R,(Q.T.dot(M0u)))
+            Fu  = design_factors.dot(u)
+            t   = noise_multiplier[:,np.newaxis] * Fu
+            Fgamma  = design_factors.dot(gamma)
+            gradient = 2*Fu*Fgamma + t**2
+            return value, gradient
+        else:
+            return value
+    else:
+        u = np.linalg.solve(M1,c)
+        value    = c.T.dot(u);
+        if (not return_grad):
+            return value
+        # Gradient
+        F_M1_inv_c = design_factors.dot(u);
+        gradient   = -F_M1_inv_c**2
+        return value, gradient
 
 
         
@@ -288,8 +313,8 @@ def doptimality_criterion(homog_outer_prods,design_factors,
         value  = np.log(np.linalg.det(M1_inv))
         # Gradient
         if (return_grad):
-            gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii])) for ii in range(homog_outer_prods.shape[2])])
-            #gradient = 28*(design_factors.T.dot(design_factors)*M1_inv).sum()
+            #gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii])) for ii in range(homog_outer_prods.shape[2])])
+            gradient = -np.array([(homog_outer_prods[:,:,ii]*M1_inv).sum() for ii in range(homog_outer_prods.shape[2])])
             return value, gradient
         else:
             return value
