@@ -121,11 +121,12 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
 
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors   = pred_factors.shape
-    # [:,:,0] just changes shape from (N,N,1) to (N,N)
-    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
     if hetero_outer_prods is not None:
-        # [:,:,0] just changes shape from (N,N,1) to (N,N)
-        M0 = hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        M0 = hetero_outer_prods.dot(design_prob_measure)
         Q,R = np.linalg.qr(M1)
         u = solve_triangular(R,Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
@@ -206,11 +207,12 @@ def coptimality_criterion(homog_outer_prods,design_factors,
     """
     num_design_pts, num_design_factors = design_factors.shape
     c = np.ones((num_design_factors,1))
-    # [:,:,0] just changes shape from (N,N,1) to (N,N)
-    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
     if hetero_outer_prods is not None:
-        # [:,:,0] just changes shape from (N,N,1) to (N,N)
-        M0 = hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        M0 = hetero_outer_prods.dot(design_prob_measure)
         Q,R = np.linalg.qr(M1)
         u = solve_triangular(R,Q.T.dot(c))
         M0u = M0.dot(u)
@@ -284,12 +286,13 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     """
 
     num_design_pts, num_design_factors = design_factors.shape
-    # [:,:,0] just changes shape from (N,N,1) to (N,N)
-    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
     M1_inv = np.linalg.inv(M1)
     if hetero_outer_prods is not None:
-        # [:,:,0] just changes shape from (N,N,1) to (N,N)
-        M0 =  hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        M0 =  hetero_outer_prods.dot(design_prob_measure)
         gamma = M0.dot(M1_inv)
         value = np.log(np.linalg.det(M1_inv.dot(gamma)))
         if (return_grad):

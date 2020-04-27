@@ -255,6 +255,85 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         assert np.allclose(grad_log_det,fd_grad_log_det)
 
+    def test_doptimal_design(self):
+        """
+        Create D-optimal desings and compare to known analytical solutions.
+        See Section 5 of Wenjie Z, Computing Optimal Designs for Regression 
+        Modelsvia Convex Programming, Ph.D. Thesis, 2012
+        """
+        poly_degree = 2;
+        num_design_pts = 7
+        design_samples = np.linspace(-1,1,num_design_pts)
+        print(design_samples)
+        noise_multiplier = None
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        objective = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,
+            return_grad=False)
+
+        from scipy.optimize import Bounds, minimize, LinearConstraint
+        bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
+        # lb<=Ax<=ub
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts))
+        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+
+        jac = lambda r: doptimality_criterion(
+            homog_outer_prods,design_factors,r,return_grad=True)[1]
+        hess = None # compute hessian using quasi newton approximations
+        # Even though we may get the warning
+        # UserWarning: delta_grad == 0.0. Check if the approximated function is
+        # linear. If the function is linear better results can be obtained by
+        # defining the Hessian as zero instead of using quasi-Newton
+        # approximations.
+        # The Hessian is not zero.
+
+        x0 = 0.5*np.ones(num_design_pts)
+        res = minimize(objective, x0, method='trust-constr',
+                       jac=jac, hess=hess, constraints=[linear_constraint],
+                       options={'verbose': 1, 'gtol':1e-15}, bounds=bounds)
+
+        mu = res.x
+        I= np.where(mu>1e-5)[0]
+        assert np.allclose(I,[0,3,6])
+        assert np.allclose(np.ones(3)/3,mu[I])
+
+        poly_degree = 3;
+        num_design_pts = 30
+        design_samples = np.linspace(-1,1,num_design_pts)
+        print(design_samples)
+        noise_multiplier = None
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        objective = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,
+            return_grad=False)
+
+        bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
+        # lb<=Ax<=ub
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts))
+        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+
+        jac = lambda r: doptimality_criterion(
+            homog_outer_prods,design_factors,r,return_grad=True)[1]
+        hess = None
+
+        tol=1e-12
+        x0 = 0.5*np.ones(num_design_pts)
+        res = minimize(objective, x0, method='trust-constr',
+                       jac=jac, hess=hess,constraints=[linear_constraint],
+                       options={'verbose': 1, 'gtol':tol, 'xtol':tol},
+                       bounds=bounds)
+
+        mu = res.x
+        I= np.where(mu>1e-5)[0]
+        assert np.allclose(I,[0,8,21,29])
+        assert np.allclose(0.25*np.ones(4),mu[I])
+
 
 if __name__== "__main__":    
     oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(
