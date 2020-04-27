@@ -280,7 +280,7 @@ def doptimality_criterion(homog_outer_prods,design_factors,
         The value of the objective function
 
     grad : np.ndarray (num_design_pts)
-        The gradient of the objective function. Only if re
+        The gradient of the objective function. Only if return_grad is True.
     """
 
     num_design_pts, num_design_factors = design_factors.shape
@@ -300,6 +300,9 @@ def doptimality_criterion(homog_outer_prods,design_factors,
             for ii in range(num_design_pts):
                 #gradient[ii]=np.trace(kappa.dot(homog_outer_prods[:,:,ii]).dot(
                 #    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                #TODO order multiplications to be most efficient. Probably
+                # need to work on f_i rather than stored outer product
+                # f_i.dot(f_i.T)
                 gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
                     -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
             return value, gradient
@@ -310,7 +313,93 @@ def doptimality_criterion(homog_outer_prods,design_factors,
         # Gradient
         if (return_grad):
             #gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii])) for ii in range(homog_outer_prods.shape[2])])
+            #TODO order multiplications to be most efficient. Probably need to
+            # work on f_i rather than stored outer product f_i.dot(f_i.T)
             gradient = -np.array([(homog_outer_prods[:,:,ii]*M1_inv).sum() for ii in range(homog_outer_prods.shape[2])])
+            return value, gradient
+        else:
+            return value
+
+
+def aoptimality_criterion(homog_outer_prods,design_factors,
+                          design_prob_measure,return_grad=True,
+                          hetero_outer_prods=None,
+                          noise_multiplier=None):
+    r"""
+    Evaluate the A-optimality criterion for a given design probability measure.
+
+    The criteria is
+    Trace [ C(\mu) ]
+
+    where
+    C(\mu) = M_1^{-1} M_0 M^{-1}
+
+    For Homoscedastic noise M_0=M_1 and
+    C(\mu) = M_1^{-1}
+
+    Parameters
+    ----------
+    design_prob_measure : np.ndarray (num_design_pts)
+       The prob measure \mu on the design points
+
+    homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                 num_design_pts)
+       The hessian M_1 of the error for each design point
+
+    hetero_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                          num_design_pts)
+       The asymptotic covariance M_0 of the subgradient of the model for 
+       each design point. If None homoscedastic noise is assumed.
+
+    design_factors : np.ndarray (num_design_pts,num_design_factors)
+       The design factors evaluated at each of the design points
+
+    return_grad : boolean
+       True  - return the value and gradient of the criterion
+       False - return only the value of the criterion
+
+    Returns
+    -------
+    value : float
+        The value of the objective function
+
+    grad : np.ndarray (num_design_pts)
+        The gradient of the objective function. Only if return_grad is True.
+    """
+
+    num_design_pts, num_design_factors = design_factors.shape
+    # [:,:,0] just changes shape from (N,N,1) to (N,N)
+    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    M1_inv = np.linalg.inv(M1)
+    if hetero_outer_prods is not None:
+        # [:,:,0] just changes shape from (N,N,1) to (N,N)
+        M0 =  hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        gamma = M0.dot(M1_inv)
+        value = np.trace(M1_inv.dot(gamma))
+        if (return_grad):
+            ident = np.eye(gamma.shape[0])
+            M0_inv = np.linalg.inv(M0)
+            kappa  = M1.dot(M0_inv)
+            gradient = np.zeros(num_design_pts)
+            for ii in range(num_design_pts):
+                gradient[ii]=np.trace(M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
+                    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                #TODO order multiplications to be most efficient. Probably
+                # need to work on f_i rather than stored outer product
+                # f_i.dot(f_i.T)
+                #gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+                #    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+            return value, gradient
+        else:
+            return value
+    else:
+        value  = np.trace(M1_inv)
+        # Gradient
+        if (return_grad):
+            #gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii]).dot(M1_inv)) for ii in range(homog_outer_prods.shape[2])])
+            #TODO order multiplications to be most efficient. Probably need to
+            # work on f_i rather than stored outer product f_i.dot(f_i.T)
+            gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
             return value, gradient
         else:
             return value
