@@ -409,6 +409,34 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(poly.mean(),true_mean)
         assert np.allclose(poly.variance(),true_variance)
 
+    def test_pce_jacobian(self):
+        degree = 2;
+
+        alpha_stat,beta_stat=2,3
+        univariate_variables = [beta(alpha_stat,beta_stat,0,1),norm(-1,2)]
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+        num_vars = len(univariate_variables)
+
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
+        
+        indices = compute_hyperbolic_indices(num_vars,degree,1.0)
+        poly.set_indices(indices)
+
+        sample = generate_independent_random_samples(variable,1)
+
+        coef = np.ones((indices.shape[1],2))
+        coef[:,1]*=2
+        poly.set_coefficients(coef)
+
+        jac = poly.jacobian(sample)
+        from pyapprox.optimization import approx_jacobian
+        fd_jac = approx_jacobian(
+            lambda x: poly(x[:,np.newaxis])[0,:],sample[:,0])
+        assert np.allclose(jac,fd_jac)
+
     def test_hahn_hypergeometric(self):
         degree = 4;
         M,n,N = 20,7,12
