@@ -255,9 +255,10 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         assert np.allclose(grad_log_det,fd_grad_log_det)
 
-    def test_doptimal_design(self):
+    def test_homoscedastic_least_squares_doptimal_design(self):
         """
-        Create D-optimal desings and compare to known analytical solutions.
+        Create D-optimal designs, for least squares resgression with 
+        homoscedastic noise, and compare to known analytical solutions.
         See Section 5 of Wenjie Z, Computing Optimal Designs for Regression 
         Modelsvia Convex Programming, Ph.D. Thesis, 2012
         """
@@ -333,6 +334,18 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
+
+        # See J.E. Boon, Generating Exact D-Optimal Designs for Polynomial Models
+        # 2007. For how to derive analytical solution for this test case
+        M1 = homog_outer_prods.dot(mu)
+        xx = np.linspace(-1,1,101)
+        pred_factors = univariate_monomial_basis_matrix(
+            poly_degree,xx)
+        u = np.linalg.solve(M1, pred_factors.T)
+        variance = np.sum(pred_factors*u.T,axis=1)
+        import matplotlib.pyplot as plt
+        plt.plot(xx,variance)
+        plt.show()
 
 
 if __name__== "__main__":    

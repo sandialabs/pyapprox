@@ -341,6 +341,13 @@ class PolynomialChaosExpansion(object):
                 self.indices,canonical_samples,deriv_order)
         return basis_matrix
 
+    def jacobian(self,sample):
+        assert sample.shape[1]==1
+        derivative_matrix = self.basis_matrix(
+            sample,{'deriv_order':1})[1:]
+        jac = derivative_matrix.dot(self.coefficients).T
+        return jac
+
     def set_coefficients(self,coefficients):
         assert coefficients.ndim==2
         assert coefficients.shape[0]==self.num_terms()
@@ -433,8 +440,14 @@ def conditional_moments_of_polynomial_chaos_expansion(poly,samples,inactive_idx,
 
     Parameters
     ----------
-    inactive_idx : np.ndarray
+    poly: PolynomialChaosExpansion
+        The polynomial used to compute moments
+
+    inactive_idx : np.ndarray (ninactive_vars)
         The indices of the fixed variables
+
+    samples : np.ndarray (ninactive_vars)
+        The samples of the inacive dimensions fixed when computing moments
 
     Returns
     -------
