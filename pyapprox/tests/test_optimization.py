@@ -1,6 +1,5 @@
 import unittest
 from pyapprox.optimization import *
-from scipy.optimize import check_grad
 
 class TestOptimization(unittest.TestCase):
     def test_approx_jacobian(self):

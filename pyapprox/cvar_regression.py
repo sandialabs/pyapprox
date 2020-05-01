@@ -35,7 +35,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     assert alpha>=0 and alpha<1
     num_samples = samples.shape[0]
     if weights is None:
-        weights = np.ones(num_samples)
+        weights = np.ones(num_samples)/num_samples
     assert weights.ndim==1 or weights.shape[1]==1
     assert samples.ndim==1 or samples.shape[1]==1
     if not samples_sorted:
@@ -79,17 +79,56 @@ def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,re
     samples = samples.squeeze()
     num_samples = samples.shape[0]
     if weights is None:
-        weights = np.ones(num_samples)
+        weights = np.ones(num_samples)/num_samples
     assert weights.ndim==1 or weights.shape[1]==1
     if not samples_sorted:
         I = np.argsort(samples)
         xx,ww = samples[I],weights[I]
+    else:
+        xx,ww=samples,weights
     VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
-    CVaR=VaR+1/((1-alpha)*num_samples)*np.sum((xx[index+1:]-VaR)*ww[index+1:])
+    CVaR=VaR+1/((1-alpha))*np.sum((xx[index+1:]-VaR)*ww[index+1:])
+    #The above one line can be used instead of the following
+    # # number of support points above VaR
+    # n_plus = num_samples-index-1
+    # if n_plus==0:
+    #     CVaR=VaR
+    # else:
+    #     # evalaute CDF at VaR
+    #     cdf_at_var = (index+1)/num_samples
+    #     lamda = (cdf_at_var-alpha)/(1-alpha)
+    #     # Compute E[X|X>VaR(beta)]
+    #     CVaR_plus = xx[index+1:].dot(ww[index+1:])/n_plus
+    #     CVaR=lamda*VaR+(1-lamda)*CVaR_plus
     if not return_var:
         return CVaR
     else:
         return CVaR,VaR
+
+def conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted=False):
+    assert samples.ndim==1 or samples.shape[1]==1
+    samples = samples.squeeze()
+    num_samples = samples.shape[0]
+    if weights is None:
+        weights = np.ones(num_samples)/num_samples
+    assert weights.ndim==1 or weights.shape[1]==1
+    if not samples_sorted:
+        I = np.argsort(samples)
+        xx,ww = samples[I],weights[I]
+    else:
+        xx,ww=samples,weights
+    VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
+    grad = np.empty(num_samples)
+    grad[:index]=0
+    grad[index]=1/(1-alpha)*(weights[:index+1].sum()-alpha)
+    grad[index+1:]=1/(1-alpha)*weights[index+1:]
+    print(weights,1/(1-alpha))
+    if not samples_sorted:
+        # grad is for sorted samples so revert to original ordering
+        grad = grad[np.argsort(I)]
+    return grad
+        
+        
 
 def cvar_smoothing_function_I(samples,eps):
     return (samples + eps*np.log(1+np.exp(-samples/eps)))

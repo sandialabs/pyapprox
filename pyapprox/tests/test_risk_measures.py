@@ -677,12 +677,47 @@ class TestRiskMeasures(unittest.TestCase):
             plt.show()
 
     def test_conditional_value_at_risk(self):
+        N = 6
+        p = np.ones(N)/N
+        X = np.random.normal(0,1,N)
+        #X = np.arange(1,N+1)
+        X = np.sort(X)
+        beta = 7/12
+        i_beta_exact=3
+        VaR_exact = X[i_beta_exact]
+        cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
+        ecvar,evar = conditional_value_at_risk(
+            X,beta,return_var=True)
+        print(cvar_exact,ecvar)
+        assert np.allclose(cvar_exact,ecvar)
+
+    def test_conditional_value_at_risk_gradient(self):
+        N = 6
+        p = np.ones(N)/N
+        X = np.random.normal(0,1,N)
+        #X = np.arange(1,N+1)
+        X = np.sort(X)
+        beta = 7/12
+        i_beta_exact=3
+        VaR_exact = X[i_beta_exact]
+        cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
+        cvar_grad = conditional_value_at_risk_gradient(X,beta)
+        print(cvar_grad)
+        from pyapprox.optimization import approx_jacobian
+        func = partial(conditional_value_at_risk,alpha=beta)
+        cvar_grad_fd = approx_jacobian(func,X)
+        print((cvar_grad,cvar_grad_fd))
+        assert np.allclose(cvar_grad,cvar_grad_fd)
+        
+
+    def test_conditional_value_at_risk_using_opitmization_formula(self):
         """
         Compare value obtained via optimization and analytical formula
         """
         plot=False
         num_samples = 5
         alpha = np.array([1./3.,0.5,0.85])
+        np.random.seed(1)
         samples = np.random.normal(0,1,(num_samples))
         for ii in range(alpha.shape[0]):
             ecvar,evar = conditional_value_at_risk(
@@ -698,7 +733,7 @@ class TestRiskMeasures(unittest.TestCase):
                             options=options)
             value_at_risk = result['x']
             cvar = result['fun']
-            #print(value_at_risk,cvar,ecvar)
+            print(alpha[ii],value_at_risk,cvar,ecvar)
             assert np.allclose(ecvar,cvar)
             assert np.allclose(evar,value_at_risk)
 
