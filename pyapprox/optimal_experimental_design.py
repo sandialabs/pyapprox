@@ -372,11 +372,14 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
 
     num_design_pts, num_design_factors = design_factors.shape
     # [:,:,0] just changes shape from (N,N,1) to (N,N)
-    M1 = homog_outer_prods.dot(design_prob_measure)[:,:,0]
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
     M1_inv = np.linalg.inv(M1)
     if hetero_outer_prods is not None:
         # [:,:,0] just changes shape from (N,N,1) to (N,N)
-        M0 =  hetero_outer_prods.dot(design_prob_measure)[:,:,0]
+        M0 =  hetero_outer_prods.dot(design_prob_measure)
         gamma = M0.dot(M1_inv)
         value = np.trace(M1_inv.dot(gamma))
         if (return_grad):
@@ -542,7 +545,7 @@ class AlphabetOptimalDesign(object):
                 noise_multiplier=noise_multiplier,return_grad=False)
             self.jac = lambda r: aoptimality_criterion(
                 homog_outer_prods,design_factors,r,return_grad=True,
-                hetero_outer_prods=self.hetero_outer_prods,
+                hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         elif self.criteria=='C':
             self.objective = partial(
@@ -580,7 +583,7 @@ class AlphabetOptimalDesign(object):
                 pred_factors,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
             self.jac = lambda r: roptimality_criterion(
-                homog_outer_prods,beta,design_factors,pred_factors,r,
+                beta,homog_outer_prods,design_factors,pred_factors,r,
                 return_grad=True,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         else:
