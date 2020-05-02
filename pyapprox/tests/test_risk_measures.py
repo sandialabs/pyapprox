@@ -421,9 +421,15 @@ class TestRiskMeasures(unittest.TestCase):
         alpha=0.8
         num_samples = int(1e2)
         samples = np.random.normal(0,1,num_samples)
-        xx = np.sort(samples)
-        VaR,VaR_index = value_at_risk(xx,alpha,weights,samples_sorted=True)
-        index = int(np.ceil(alpha*num_samples)-1)
+        samples = np.arange(1,num_samples+1)#[np.random.permutation(num_samples)]
+        #xx = np.sort(samples)
+        #VaR,VaR_index = value_at_risk(xx,alpha,weights,samples_sorted=True)
+        xx = samples
+        VaR,VaR_index = value_at_risk(xx,alpha,weights,samples_sorted=False)
+        sorted_index = int(np.ceil(alpha*num_samples)-1)
+        I = np.argsort(samples)
+        index = I[sorted_index]
+        print(index,VaR_index)
         assert np.allclose(VaR_index,index)
         assert np.allclose(VaR,xx[index])
 
@@ -469,6 +475,7 @@ class TestRiskMeasures(unittest.TestCase):
         J = np.where(bias_pdf_vals>=np.finfo(float).eps)[0]
         weights = np.zeros_like(target_pdf_vals)
         weights[J] = target_pdf_vals[J]/bias_pdf_vals[J]
+        weights/=weights.sum()
         
         empirical_VaR,__ = value_at_risk(
             samples,alpha,weights,samples_sorted=False)
@@ -688,7 +695,7 @@ class TestRiskMeasures(unittest.TestCase):
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
         ecvar,evar = conditional_value_at_risk(
             X,beta,return_var=True)
-        print(cvar_exact,ecvar)
+        #print(cvar_exact,ecvar)
         assert np.allclose(cvar_exact,ecvar)
 
     def test_conditional_value_at_risk_gradient(self):
@@ -698,18 +705,16 @@ class TestRiskMeasures(unittest.TestCase):
         #X = np.arange(1,N+1)
         X = np.sort(X)
         beta = 7/12
+        beta = 2/3
         i_beta_exact=3
         VaR_exact = X[i_beta_exact]
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
         cvar_grad = conditional_value_at_risk_gradient(X,beta)
-        print(cvar_grad)
         from pyapprox.optimization import approx_jacobian
         func = partial(conditional_value_at_risk,alpha=beta)
         cvar_grad_fd = approx_jacobian(func,X)
-        print((cvar_grad,cvar_grad_fd))
-        assert np.allclose(cvar_grad,cvar_grad_fd)
+        assert np.allclose(cvar_grad,cvar_grad_fd,atol=1e-7)
         
-
     def test_conditional_value_at_risk_using_opitmization_formula(self):
         """
         Compare value obtained via optimization and analytical formula
@@ -717,7 +722,6 @@ class TestRiskMeasures(unittest.TestCase):
         plot=False
         num_samples = 5
         alpha = np.array([1./3.,0.5,0.85])
-        np.random.seed(1)
         samples = np.random.normal(0,1,(num_samples))
         for ii in range(alpha.shape[0]):
             ecvar,evar = conditional_value_at_risk(

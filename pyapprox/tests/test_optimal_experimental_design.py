@@ -51,8 +51,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         """
         Test homoscedastic and hetroscedastic API produce same value
         when noise is homoscedastic
-
-        WARING current test is just homoscedastic noise but it is still wront
         """
         poly_degree = 10;
         num_design_pts = 101
@@ -270,33 +268,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
-        objective = partial(
-            doptimality_criterion,homog_outer_prods,design_factors,
-            return_grad=False)
-
-        from scipy.optimize import Bounds, minimize, LinearConstraint
-        bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
-        # lb<=Ax<=ub
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts))
-        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-
-        jac = lambda r: doptimality_criterion(
-            homog_outer_prods,design_factors,r,return_grad=True)[1]
-        hess = None # compute hessian using quasi newton approximations
-        # Even though we may get the warning
-        # UserWarning: delta_grad == 0.0. Check if the approximated function is
-        # linear. If the function is linear better results can be obtained by
-        # defining the Hessian as zero instead of using quasi-Newton
-        # approximations.
-        # The Hessian is not zero.
-
-        x0 = 0.5*np.ones(num_design_pts)
-        res = minimize(objective, x0, method='trust-constr',
-                       jac=jac, hess=hess, constraints=[linear_constraint],
-                       options={'verbose': 1, 'gtol':1e-15}, bounds=bounds)
-
-        mu = res.x
+        
+        opt_problem = AlphabetOptimalDesign('D',design_factors)
+        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,3,6])
         assert np.allclose(np.ones(3)/3,mu[I])
@@ -309,28 +283,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
-        objective = partial(
-            doptimality_criterion,homog_outer_prods,design_factors,
-            return_grad=False)
-
-        bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
-        # lb<=Ax<=ub
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts))
-        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-
-        jac = lambda r: doptimality_criterion(
-            homog_outer_prods,design_factors,r,return_grad=True)[1]
-        hess = None
-
-        tol=1e-12
-        x0 = 0.5*np.ones(num_design_pts)
-        res = minimize(objective, x0, method='trust-constr',
-                       jac=jac, hess=hess,constraints=[linear_constraint],
-                       options={'verbose': 1, 'gtol':tol, 'xtol':tol},
-                       bounds=bounds)
-
-        mu = res.x
+        opt_problem = AlphabetOptimalDesign('D',design_factors)
+        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
@@ -346,6 +300,49 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         import matplotlib.pyplot as plt
         plt.plot(xx,variance)
         plt.show()
+
+    def test_homoscedastic_roptimality_criterion(self):
+        beta=0.5# when beta=0 we get I optimality
+        poly_degree = 10;
+        num_design_pts = 101
+        num_pred_pts = 51
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        # TODO check if design factors may have to be a subset of pred_factors
+        #pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        #assert num_design_pts<=pred_factors.shape[0]
+        #design_factors = pred_factors[:num_design_pts,:]
+        design_samples = np.linspace(-1,1,num_design_pts)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        roptimality_criterion_wrapper = partial(
+            roptimality_criterion,beta,homog_outer_prods,design_factors,
+            pred_factors)
+        diffs = check_derivative(roptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-7, diffs
+
+    def test_hetroscedastic_foptimality_criterion(self):
+        poly_degree = 10;
+        beta=0.5
+        num_design_pts = 101
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier = design_samples**2+1
+        pred_samples = np.random.uniform(-1,1,51)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        hetero_outer_prods = compute_heteroscedastic_outer_products(
+            design_factors,noise_multiplier)
+        roptimality_criterion_wrapper = partial(
+            roptimality_criterion,beta,homog_outer_prods,design_factors,
+            pred_factors,hetero_outer_prods=hetero_outer_prods,
+            noise_multiplier=noise_multiplier)
+  
+        # Test hetroscedastic API gradients are correct        
+        diffs = check_derivative(roptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-7,diffs
 
 
 if __name__== "__main__":    

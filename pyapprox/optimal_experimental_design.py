@@ -406,3 +406,193 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
             return value, gradient
         else:
             return value
+
+def roptimality_criterion(beta,homog_outer_prods,design_factors,
+                          pred_factors,design_prob_measure,return_grad=True,
+                          hetero_outer_prods=None,
+                          noise_multiplier=None):
+    r"""
+    Evaluate the R-optimality criterion for a given design probability measure.
+
+    The criteria is
+
+
+    where
+    C(\mu) = M_1^{-1} M_0 M^{-1}
+
+    For Homoscedastic noise M_0=M_1 and
+    C(\mu) = M_1^{-1}
+
+    Parameters
+    ----------
+    beta : float
+       The confidence level of CVAR 
+
+    design_prob_measure : np.ndarray (num_design_pts)
+       The prob measure \mu on the design points
+
+    homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                 num_design_pts)
+       The hessian M_1 of the error for each design point
+
+    hetero_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                          num_design_pts)
+       The asymptotic covariance M_0 of the subgradient of the model for 
+       each design point. If None homoscedastic noise is assumed.
+
+    design_factors : np.ndarray (num_design_pts,num_design_factors)
+       The design factors evaluated at each of the design points
+
+    pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
+       The prediction factors g evaluated at each of the prediction points
+
+    return_grad : boolean
+       True  - return the value and gradient of the criterion
+       False - return only the value of the criterion
+
+    Returns
+    -------
+    value : float
+        The value of the objective function
+
+    grad : np.ndarray (num_design_pts)
+        The gradient of the objective function. Only if return_grad is True.
+    """
+    assert beta>=0 and beta<=1
+    from pyapprox.cvar_regression import conditional_value_at_risk, \
+        conditional_value_at_risk_gradient
+    num_design_pts, num_design_factors = design_factors.shape
+    num_pred_pts,   num_pred_factors   = pred_factors.shape
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
+    if hetero_outer_prods is not None:
+        M0 = hetero_outer_prods.dot(design_prob_measure)
+        Q,R = np.linalg.qr(M1)
+        u = solve_triangular(R,Q.T.dot(pred_factors.T))
+        M0u = M0.dot(u)
+        variances = np.sum(u*M0u,axis=0)
+        value = conditional_value_at_risk(variances,beta)
+        if (return_grad):
+            assert noise_multiplier is not None
+            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
+            Fu  = design_factors.dot(u)
+            t   = noise_multiplier[:,np.newaxis] * Fu
+            Fgamma  = design_factors.dot(gamma)
+            cvar_grad = conditional_value_at_risk_gradient(variances,beta)
+            #gradient = 2*np.sum(Fu*Fgamma*cvar_grad,axis=1) + np.sum(t**2*cvar_grad,axis=1)
+            gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
+            return value, gradient
+        else:
+            return value
+    else:
+        u = np.linalg.solve(M1,pred_factors.T)
+        # Value
+        # We want to sum the variances, i.e. the enties of the diagonal of
+        # pred_factors.dot(M1.dot(pred_factors.T))
+        # We know that diag(A.T.dot(B)) = (A*B).axis=0)
+        # The following sums over all entries of A*B we get the diagonal
+        # variances
+        variances = np.sum(pred_factors*u.T,axis=1)
+        value = conditional_value_at_risk(variances,beta)
+        if (not return_grad):
+            return value
+        # Gradient
+        F_M1_inv_P = design_factors.dot(u);
+        cvar_grad = conditional_value_at_risk_gradient(variances,beta)
+        gradient   = -np.sum(F_M1_inv_P.T**2*cvar_grad[:,np.newaxis],axis=0)
+        return value, gradient
+
+from scipy.optimize import Bounds, minimize, LinearConstraint
+from functools import partial
+class AlphabetOptimalDesign(object):
+    """
+    Notes
+    -----
+        # Even though scipy.optimize.minimize may print the warning
+        # UserWarning: delta_grad == 0.0. Check if the approximated function is
+        # linear. If the function is linear better results can be obtained by
+        # defining the Hessian as zero instead of using quasi-Newton
+        # approximations.
+        # The Hessian is not zero.
+    """
+    def __init__(self,criteria,design_factors,noise_multiplier=None,
+                 pred_factors=None,opts=None):
+        self.criteria=criteria
+        self.num_design_pts = design_factors.shape[0]
+        
+        self.bounds = Bounds([0]*self.num_design_pts,[1]*self.num_design_pts)
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,self.num_design_pts))
+        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+        homog_outer_prods = compute_homoscedastic_outer_products(
+            design_factors)
+        
+        if noise_multiplier is not None:
+            hetero_outer_prods = compute_heteroscedastic_outer_products(
+                design_factors,noise_multiplier)
+        else:
+            hetero_outer_prods=None
+
+        if self.criteria=='A':
+            self.objective = partial(
+                aoptimality_criterion,homog_outer_prods,design_factors,
+                hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            self.jac = lambda r: aoptimality_criterion(
+                homog_outer_prods,design_factors,r,return_grad=True,
+                hetero_outer_prods=self.hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
+        elif self.criteria=='C':
+            self.objective = partial(
+                coptimality_criterion,homog_outer_prods,design_factors,
+                hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            self.jac = lambda r: coptimality_criterion(
+                homog_outer_prods,design_factors,r,return_grad=True,
+                hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
+        elif self.criteria=='D':
+            self.objective = partial(
+                doptimality_criterion,homog_outer_prods,design_factors,
+                hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            self.jac = lambda r: doptimality_criterion(
+                homog_outer_prods,design_factors,r,return_grad=True,
+                hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
+        elif self.criteria=='I':
+            pred_factors = opts['pred_factors']
+            self.objective = partial(
+                ioptimality_criterion,homog_outer_prods,design_factors,
+                pred_factors,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            self.jac = lambda r: ioptimality_criterion(
+                homog_outer_prods,design_factors,pred_factors,r,
+                return_grad=True,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
+        elif self.criteria=='R':
+            beta = opts['beta']
+            pred_factors = opts['pred_factors']
+            self.objective = partial(
+                roptimality_criterion,beta,homog_outer_prods,design_factors,
+                pred_factors,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            self.jac = lambda r: roptimality_criterion(
+                homog_outer_prods,beta,design_factors,pred_factors,r,
+                return_grad=True,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
+        else:
+            msg = f'Optimality criteria: {f} is not supported'
+            raise Exception(msg)
+        
+
+    def solve(self,options=None):
+        x0 = 0.5*np.ones(self.num_design_pts)
+        res = minimize(
+            self.objective, x0, method='trust-constr', jac=self.jac, hess=None,
+            constraints=[self.linear_constraint],options=options,
+            bounds=self.bounds)
+        weights = res.x
+        return weights
