@@ -29,13 +29,15 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
 
     Returns
     -------
-    cvar : float
-        The conditional value at risk of the random variable Y
+    var : float
+        The value at risk of the random variable Y
     """
     assert alpha>=0 and alpha<1
+    assert samples.ndim==1
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)/num_samples
+    assert np.allclose(weights.sum(),1)
     assert weights.ndim==1 or weights.shape[1]==1
     assert samples.ndim==1 or samples.shape[1]==1
     if not samples_sorted:
@@ -44,9 +46,12 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     else:
         xx,ww = samples,weights
     ecdf = ww.cumsum()
-    ecdf/=ecdf[-1]
     index = np.arange(num_samples)[ecdf>=alpha][0]
-    return xx[index],index
+    VaR = xx[index]
+    if not samples_sorted:
+        index = I[index]
+        #assert samples[index]==VaR
+    return VaR,index
 
 def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,return_var=False):
     """
@@ -80,6 +85,7 @@ def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,re
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)/num_samples
+    assert np.allclose(weights.sum(),1)
     assert weights.ndim==1 or weights.shape[1]==1
     if not samples_sorted:
         I = np.argsort(samples)
@@ -111,6 +117,7 @@ def conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)/num_samples
+    assert np.allclose(weights.sum(),1)
     assert weights.ndim==1 or weights.shape[1]==1
     if not samples_sorted:
         I = np.argsort(samples)
@@ -122,7 +129,6 @@ def conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted
     grad[:index]=0
     grad[index]=1/(1-alpha)*(weights[:index+1].sum()-alpha)
     grad[index+1:]=1/(1-alpha)*weights[index+1:]
-    print(weights,1/(1-alpha))
     if not samples_sorted:
         # grad is for sorted samples so revert to original ordering
         grad = grad[np.argsort(I)]
