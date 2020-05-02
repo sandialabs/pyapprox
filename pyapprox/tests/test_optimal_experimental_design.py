@@ -275,6 +275,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(I,[0,3,6])
         assert np.allclose(np.ones(3)/3,mu[I])
 
+        #See J.E. Boon, Generating Exact D-Optimal Designs for Polynomial Models
+        #2007. For how to derive analytical solution for this test case
+
         poly_degree = 3;
         num_design_pts = 30
         design_samples = np.linspace(-1,1,num_design_pts)
@@ -289,17 +292,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
 
-        # See J.E. Boon, Generating Exact D-Optimal Designs for Polynomial Models
-        # 2007. For how to derive analytical solution for this test case
-        M1 = homog_outer_prods.dot(mu)
-        xx = np.linspace(-1,1,101)
-        pred_factors = univariate_monomial_basis_matrix(
-            poly_degree,xx)
-        u = np.linalg.solve(M1, pred_factors.T)
-        variance = np.sum(pred_factors*u.T,axis=1)
-        import matplotlib.pyplot as plt
-        plt.plot(xx,variance)
-        plt.show()
 
     def test_homoscedastic_roptimality_criterion(self):
         beta=0.5# when beta=0 we get I optimality
