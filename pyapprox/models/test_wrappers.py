@@ -29,17 +29,8 @@ class TestModelwrappers(unittest.TestCase):
     def test_pool_model(self):
         num_vars = 3
         max_eval_concurrency=min(multiprocessing.cpu_count(),10)
-        data_basename='pool-model-data'
-        save_frequency=1
 
-
-        filenames = glob.glob(data_basename+'*.npz')
-        for filename in filenames:
-           os.remove(filename)
-
-        model = PoolModel(
-            function,max_eval_concurrency,data_basename,save_frequency,
-            assert_omp=False)
+        model = PoolModel(function,max_eval_concurrency,assert_omp=False)
 
         num_samples = 102
         samples = np.random.uniform(0.,1.,(num_vars,num_samples))
@@ -48,20 +39,61 @@ class TestModelwrappers(unittest.TestCase):
         exact_values = function(samples)
         assert np.allclose(values,exact_values)
 
+    def test_data_function_model(self):
+        num_vars = 3
+        data_basename='data_function-model-data'
+        save_frequency=3
+        max_eval_concurrency=min(multiprocessing.cpu_count(),10)
+
+
+        filenames = glob.glob(data_basename+'*.npz')
+        for filename in filenames:
+           os.remove(filename)
+
+        pool_model = PoolModel(function,max_eval_concurrency,assert_omp=False)  
+        model = DataFunctionModel(
+            pool_model,None,data_basename,save_frequency)
+
+        num_samples = 102
+        samples = np.random.uniform(0.,1.,(num_vars,num_samples))
+        
+        values = model(samples)
+        exact_values = function(samples)
+        assert np.allclose(values,exact_values)
+        assert model.num_evaluations==samples.shape[1]
+
         filenames = glob.glob(data_basename+'*.npz')
         num_files = len(filenames)
-        assert num_files==num_samples//(max_eval_concurrency*save_frequency)+min(num_samples%(max_eval_concurrency*save_frequency),1)
+        assert num_files==num_samples//(save_frequency)+min(
+            num_samples%(save_frequency),1)
 
-        data = combine_saved_model_data(data_basename)
-        model_wrapper=DataFunctionModel(model,data)
-
-        new_samples = np.random.uniform(0.,1.,(num_vars,num_samples*2))
+        model_1=DataFunctionModel(
+            function,None,data_basename,save_frequency)
+        samples_1 = np.random.uniform(0.,1.,(num_vars,num_samples*2))
+        #set half of new samples to be replicates from previous study
         I = np.random.permutation(np.arange(num_samples*2))[:num_samples]
-        new_samples[:,I] = samples
-        values = model_wrapper(new_samples)
+        samples_1[:,I] = samples
+        values = model_1(samples_1)
+        exact_values = function(samples_1)
+        assert np.allclose(values,exact_values)
+        assert model_1.num_evaluations==samples_1.shape[1]
+
+        data=combine_saved_model_data(data_basename)
+        model_2=DataFunctionModel(
+            function,data,data_basename,save_frequency)
+
+        #set two thirds of new samples to be replicates from previous study
+        samples_2 = np.random.uniform(0.,1.,(num_vars,num_samples*3))
+        I = np.random.permutation(np.arange(num_samples*3))[:2*num_samples]
+        samples_2[:,I] = samples_1
+        values = model_2(samples_2)
+        assert model_2.num_evaluations==samples_2.shape[1]
         
         filenames = glob.glob(data_basename+'*.npz')
-        assert len(filenames)==num_files*2
+        assert model_2.num_evaluations_ran==3*num_samples
+        assert len(filenames)==num_files*3
+
+        
 
         for filename in filenames:
            os.remove(filename)

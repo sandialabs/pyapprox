@@ -139,7 +139,8 @@ class DataFunctionModel(object):
         key = hash_array(sample)
         return key
     
-    def __init__(self,function,data,use_hash=True):
+    def __init__(self,function,data=None,data_basename=None,
+                 save_frequency=None,use_hash=True):
         self.function=function
 
         self.data=dict()
@@ -151,21 +152,67 @@ class DataFunctionModel(object):
         self.tol = 10**(-self.digits)
         self.use_hash=use_hash
 
+        self.data_basename = data_basename
+        self.save_frequency=save_frequency
+        if self.data_basename is not None:
+            assert save_frequency is not None
+        if self.save_frequency and self.data_basename is None:
+            msg = 'Warning save_frequency not being used because data_basename'
+            msg += ' is None'
+            print(msg)
+
+        if data_basename is not None:
+            file_data=combine_saved_model_data(data_basename)
+            if file_data[0] is not None:
+                self.add_new_data(file_data)
+            
         if data is not None:
             self.samples,self.values=data
             assert self.samples.shape[1]==self.values.shape[0]
-            for ii in range(self.samples.shape[1]):
-                key = self.hash_sample(self.samples[:,ii])
-                if key in self.data:
-                    print((self.samples.sum(axis=0),self.samples[:,ii]))
-                    raise Exception('there are duplicate samples')
+            self.add_new_data(data)
+
+
+    def add_new_data(self,data):
+        samples,values=data
+        for ii in range(samples.shape[1]):
+            key = self.hash_sample(samples[:,ii])
+            if key in self.data:
+                if not np.allclose(self.values[self.data[key]],values[ii]):
+                    msg = 'Duplicate samples found but values do not match'
+                    raise Exception(msg)
+            else:
+                self.data[key]=ii
+                if self.samples.shape[1]>0:
+                    self.samples=np.hstack([self.samples,samples[:,ii:ii+1]])
+                    self.values=np.vstack([self.values,values[ii:ii+1,:]])
                 else:
-                    self.data[key]=ii
-            # set counter so that next file takes into account all previously
-            # ran samples
-            self.num_evaluations_ran=self.samples.shape[1]
-        
-    def __call__(self,samples):
+                    self.samples=samples[:,ii:ii+1]
+                    self.values=values[ii:ii+1,:]
+                                           
+        # set counter so that next file takes into account all previously
+        # ran samples
+        self.num_evaluations_ran=self.samples.shape[1]
+
+    def _batch_call(self,samples):
+        assert self.save_frequency>0
+        num_batch_samples = self.save_frequency
+        lb = 0
+        vals = None
+        while lb<samples.shape[1]:
+            ub = min(lb+num_batch_samples,samples.shape[1])
+            batch_vals = self._call(samples[:,lb:ub])
+            data_filename = self.data_basename+'-%d-%d.npz'%(
+                self.num_evaluations+lb,self.num_evaluations+ub-1)
+            np.savez(data_filename,vals=batch_vals,
+                     samples=samples[:,lb:ub])
+            if vals is None:
+                vals = batch_vals
+            else:
+                vals = np.vstack((vals,batch_vals))
+            lb=ub
+        return vals
+
+    def _call(self,samples):
         evaluated_sample_indices = []
         new_sample_indices = []
         for ii in range(samples.shape[1]):
@@ -186,9 +233,7 @@ class DataFunctionModel(object):
                     evaluated_sample_indices.append([ii,jj])
                 else:
                     new_sample_indices.append(ii)
-
-
-            
+                    
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
         if len(new_sample_indices)>0:
             new_samples = samples[:,new_sample_indices]
@@ -223,6 +268,13 @@ class DataFunctionModel(object):
         self.num_evaluations+=samples.shape[1]
 
         return values
+
+    def __call__(self,samples):
+        if self.save_frequency is not None and self.save_frequency>0:
+            return self._batch_call(samples)
+        else:
+            return self._call(samples)
+
 
 def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
                                   assert_omp=True):
@@ -347,8 +399,9 @@ class WorkTrackingModel(object):
     
         
 class PoolModel(object):
-    def __init__(self,function,max_eval_concurrency,data_basename=None,
-                 save_frequency=None,assert_omp=True, base_model=None):
+    def __init__(self,function,max_eval_concurrency,assert_omp=True,
+                 base_model=None):
+        
         """
         If defining a custom __getattr__ it seems I cannot have member
         variables with the same name in this class and class definition
@@ -360,43 +413,12 @@ class PoolModel(object):
         self.max_eval_concurrency=max_eval_concurrency
         self.num_evaluations=0
         self.pool = Pool(self.max_eval_concurrency)
-        self.data_basename = data_basename
-        self.save_frequency=save_frequency
-        if self.data_basename is not None:
-            assert save_frequency is not None
-        if self.save_frequency and self.data_basename is None:
-            msg = 'Warning save_frequency not being used because data_basename'
-            msg += ' is None'
-            print(msg)
         self.assert_omp=assert_omp
 
-
     def __call__(self,samples):
-        if self.data_basename is None:
-            vals = run_model_samples_in_parallel(
-                self.pool_function,self.max_eval_concurrency,samples,
-                pool=self.pool,assert_omp=self.assert_omp)
-        else:
-            assert self.save_frequency>0
-            num_batch_samples = self.max_eval_concurrency*self.save_frequency
-            lb = 0
-            vals = None
-            while lb<samples.shape[1]:
-                ub = min(lb+num_batch_samples,samples.shape[1])
-                batch_vals = run_model_samples_in_parallel(
-                    self.pool_function,
-                    self.max_eval_concurrency,samples[:,lb:ub],
-                    pool=self.pool,assert_omp=self.assert_omp)
-                data_filename = self.data_basename+'-%d-%d.npz'%(
-                    self.num_evaluations+lb,self.num_evaluations+ub-1)
-                np.savez(data_filename,vals=batch_vals,
-                         samples=samples[:,lb:ub])
-                if vals is None:
-                    vals = batch_vals
-                else:
-                    vals = np.vstack((vals,batch_vals))
-                lb=ub
-        self.num_evaluations+=samples.shape[1]
+        vals = run_model_samples_in_parallel(
+            self.pool_function,self.max_eval_concurrency,samples,
+            pool=self.pool,assert_omp=self.assert_omp)
         return vals
 
 class ActiveSetVariableModel(object):
