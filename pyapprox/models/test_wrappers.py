@@ -72,13 +72,17 @@ class TestModelwrappers(unittest.TestCase):
         samples_1 = np.random.uniform(0.,1.,(num_vars,num_samples*2))
         #set half of new samples to be replicates from previous study
         I = np.random.permutation(np.arange(num_samples*2))[:num_samples]
+        print(I)
         samples_1[:,I] = samples
         values = model_1(samples_1)
         exact_values = function(samples_1)
         assert np.allclose(values,exact_values)
         assert model_1.num_evaluations==samples_1.shape[1]
 
+        from pyapprox.utilities import unique_matrix_rows
         data=combine_saved_model_data(data_basename)
+        assert data[0].shape[1]==num_samples*2
+        assert unique_matrix_rows(data[0].T).T.shape[1]==2*num_samples
         model_2=DataFunctionModel(
             function,data,data_basename,save_frequency)
 
@@ -88,12 +92,10 @@ class TestModelwrappers(unittest.TestCase):
         samples_2[:,I] = samples_1
         values = model_2(samples_2)
         assert model_2.num_evaluations==samples_2.shape[1]
-        
-        filenames = glob.glob(data_basename+'*.npz')
-        assert model_2.num_evaluations_ran==3*num_samples
-        assert len(filenames)==num_files*3
 
-        
+        data=combine_saved_model_data(data_basename)
+        assert data[0].shape[1]==num_samples*3
+        assert unique_matrix_rows(data[0].T).T.shape[1]==3*num_samples
 
         for filename in filenames:
            os.remove(filename)

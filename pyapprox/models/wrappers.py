@@ -136,11 +136,11 @@ class DataFunctionModel(object):
         # sample = np.round(sample, self.digits)
         # I = np.where(np.abs(sample)<self.tol)[0]
         # sample[I] = 0.
-        key = hash_array(sample)
+        key = hash_array(sample)#,decimals=self.digits)
         return key
     
     def __init__(self,function,data=None,data_basename=None,
-                 save_frequency=None,use_hash=True):
+                 save_frequency=None,use_hash=True,digits=16):
         self.function=function
 
         self.data=dict()
@@ -148,7 +148,7 @@ class DataFunctionModel(object):
         self.values=None
         self.num_evaluations_ran=0
         self.num_evaluations=0 
-        self.digits = 16
+        self.digits = digits
         self.tol = 10**(-self.digits)
         self.use_hash=use_hash
 
@@ -175,13 +175,26 @@ class DataFunctionModel(object):
     def add_new_data(self,data):
         samples,values=data
         for ii in range(samples.shape[1]):
-            key = self.hash_sample(samples[:,ii])
-            if key in self.data:
-                if not np.allclose(self.values[self.data[key]],values[ii]):
-                    msg = 'Duplicate samples found but values do not match'
-                    raise Exception(msg)
+            if self.use_hash:
+                key = self.hash_sample(samples[:,ii])
+                print(ii,samples[:,ii],key,flush=True)
+                if key in self.data:
+                    if not np.allclose(self.values[self.data[key]],values[ii]):
+                        msg = 'Duplicate samples found but values do not match'
+                        raise Exception(msg)
+                    found=True
+                else:
+                    self.data[key]=ii
+                    found=False
             else:
-                self.data[key]=ii
+                print(ii,samples[:,ii],flush=True)
+                found = False
+                for jj in range(self.samples.shape[1]):
+                    if np.allclose(self.samples[:,jj],samples[:,ii],
+                                   atol=self.tol):
+                        found = True
+                        break
+            if not found:
                 if self.samples.shape[1]>0:
                     self.samples=np.hstack([self.samples,samples[:,ii:ii+1]])
                     self.values=np.vstack([self.values,values[ii:ii+1,:]])
@@ -200,11 +213,14 @@ class DataFunctionModel(object):
         vals = None
         while lb<samples.shape[1]:
             ub = min(lb+num_batch_samples,samples.shape[1])
-            batch_vals = self._call(samples[:,lb:ub])
+            num_evaluations_ran=self.num_evaluations_ran
+            batch_vals, new_sample_indices = self._call(samples[:,lb:ub])
+            print(num_evaluations_ran,self.num_evaluations_ran)
             data_filename = self.data_basename+'-%d-%d.npz'%(
-                self.num_evaluations+lb,self.num_evaluations+ub-1)
-            np.savez(data_filename,vals=batch_vals,
-                     samples=samples[:,lb:ub])
+                num_evaluations_ran,
+                num_evaluations_ran+len(new_sample_indices)-1)
+            np.savez(data_filename,vals=batch_vals[new_sample_indices],
+                     samples=samples[:,lb:ub][:,new_sample_indices])
             if vals is None:
                 vals = batch_vals
             else:
@@ -222,6 +238,7 @@ class DataFunctionModel(object):
                     evaluated_sample_indices.append([ii,self.data[key]])
                 else:
                     new_sample_indices.append(ii)
+                    print('s',samples[:,ii],key,flush=True)
             else:
                 found = False
                 for jj in range(self.samples.shape[1]):
@@ -233,6 +250,7 @@ class DataFunctionModel(object):
                     evaluated_sample_indices.append([ii,jj])
                 else:
                     new_sample_indices.append(ii)
+                    print('s',samples[:,ii],flush=True)
                     
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
         if len(new_sample_indices)>0:
@@ -265,15 +283,21 @@ class DataFunctionModel(object):
                 self.data[key]=jj+ii
 
             self.num_evaluations_ran+=len(new_sample_indices)
+        # increment the number of samples pass to __call__ since object created
+        # includes samples drawn from arxiv and samples used to evaluate
+        # self.function
         self.num_evaluations+=samples.shape[1]
 
-        return values
+        return values, new_sample_indices
 
     def __call__(self,samples):
         if self.save_frequency is not None and self.save_frequency>0:
-            return self._batch_call(samples)
+            values = self._batch_call(samples)
         else:
-            return self._call(samples)
+            values = self._call(samples)
+        filenames = glob.glob(self.data_basename+'*.npz')
+        print(filenames)
+        return values
 
 
 def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,

@@ -255,7 +255,7 @@ def outer_product(input_sets):
           
     return result
 
-def hash_array(array):
+def hash_array(array,decimals=None):
     """
     Hash an array for dictionary or set based lookup
 
@@ -273,6 +273,8 @@ def hash_array(array):
     #array = np.ascontiguousarray(array)
     #array.flags.writeable = False
     #return hash(array.data)
+    if decimals is not None:
+        array = np.around(array,decimals)
     return hash(array.tostring())
 
 def unique_matrix_rows(matrix):
