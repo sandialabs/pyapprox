@@ -209,7 +209,7 @@ def generate_mesh_with_cicular_subdomain(resolution,radius,plot_mesh=False):
     # Generate and plot mesh
     mesh2d = mshr.generate_mesh(domain, resolution)
     if plot_mesh:
-        plot(mesh2d, "2D mesh")
+        dl.plot(mesh2d, "2D mesh")
 
         class Circle1(dl.SubDomain):
             def inside(self, x, on_boundary):
@@ -225,7 +225,7 @@ def generate_mesh_with_cicular_subdomain(resolution,radius,plot_mesh=False):
         circle1 = Circle1()
         circle2 = Circle2()
 
-        for c in cells(mesh2d):
+        for c in dl.cells(mesh2d):
             if circle1.inside(c.midpoint(), True):
                 mf[c.index()] = 1
             if circle2.inside(c.midpoint(), True):
@@ -404,26 +404,28 @@ class TestHelmholtz(unittest.TestCase):
 
         pr,pi=sol.split()
         pr_super,pi_super=superposition_sol.split()
-        print('error',dl.errornorm(pr_super,pr))
-        print('error',dl.errornorm(pi_super,pi))
+        #print('error',dl.errornorm(pr_super,pr))
+        #print('error',dl.errornorm(pi_super,pi))
+        assert dl.errornorm(pr_super,pr)<1e-10
+        assert dl.errornorm(pi_super,pi)<1e-10
 
-        plt.subplot(1,4,1)
-        dl.plot(pr)
-        plt.subplot(1,4,3)
-        pp=dl.plot(pi)
-        plt.colorbar(pp)
-        plt.subplot(1,4,2)
+        # plt.subplot(1,4,1)
+        # dl.plot(pr)
+        # plt.subplot(1,4,3)
+        # pp=dl.plot(pi)
+        # plt.colorbar(pp)
+        # plt.subplot(1,4,2)
 
-        dl.plot(pr_super)
-        plt.subplot(1,4,4)
-        pp=dl.plot(pi_super)
-        plt.colorbar(pp)
-        plt.figure()
-        pp=dl.plot(pi_super-pi)
-        print(pp)
-        plt.colorbar(pp)
+        # dl.plot(pr_super)
+        # plt.subplot(1,4,4)
+        # pp=dl.plot(pi_super)
+        # plt.colorbar(pp)
+        # plt.figure()
+        # pp=dl.plot(pi_super-pi)
+        # print(pp)
+        # plt.colorbar(pp)
 
-        plt.show()
+        # plt.show()
 
         
 if __name__== "__main__":

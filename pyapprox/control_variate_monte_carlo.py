@@ -1260,14 +1260,17 @@ class ModelEnsemble(object):
         model_ids = samples[-1,:]
         #print(model_ids.max(),self.nmodels)
         assert model_ids.max()<self.nmodels
-        I = np.where(model_ids==0)[0]
-        values_0 = self.functions[0](samples[:-1,I])
+        active_model_ids = np.unique(model_ids).astype(int)
+        active_model_id=active_model_ids[0]
+        I = np.where(model_ids==active_model_id)[0]
+        values_0 = self.functions[active_model_id](samples[:-1,I])
         assert values_0.ndim==2
         nqoi = values_0.shape[1]
         values = np.empty((samples.shape[1],nqoi))
         values[I,:]=values_0
-        for ii,f in enumerate(self.functions[1:]):
-            I = np.where(model_ids==ii+1)[0]
+        for ii in range(1,active_model_ids.shape[0]):
+            active_model_id=active_model_ids[ii]
+            I = np.where(model_ids==active_model_id)[0]
             values[I] = f(samples[:-1,I])
         return values
 
