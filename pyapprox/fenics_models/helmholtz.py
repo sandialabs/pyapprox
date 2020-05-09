@@ -3,8 +3,8 @@ import dolfin as dl
 import matplotlib.pyplot as plt
 from pyapprox.visualization import get_meshgrid_function_data
 from pyapprox.fenics_models.fenics_utilities import *
-#dl.set_log_level(40)
-dl.set_log_level(20)
+dl.set_log_level(40)
+#dl.set_log_level(20)
 #dl.set_log_level(16)
 def get_2d_square_mesh_boundary_segments():
     bndry_obj=[]

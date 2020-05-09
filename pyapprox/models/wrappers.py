@@ -177,7 +177,6 @@ class DataFunctionModel(object):
         for ii in range(samples.shape[1]):
             if self.use_hash:
                 key = self.hash_sample(samples[:,ii])
-                print(ii,samples[:,ii],key,flush=True)
                 if key in self.data:
                     if not np.allclose(self.values[self.data[key]],values[ii]):
                         msg = 'Duplicate samples found but values do not match'
@@ -187,7 +186,6 @@ class DataFunctionModel(object):
                     self.data[key]=ii
                     found=False
             else:
-                print(ii,samples[:,ii],flush=True)
                 found = False
                 for jj in range(self.samples.shape[1]):
                     if np.allclose(self.samples[:,jj],samples[:,ii],
@@ -215,7 +213,6 @@ class DataFunctionModel(object):
             ub = min(lb+num_batch_samples,samples.shape[1])
             num_evaluations_ran=self.num_evaluations_ran
             batch_vals, new_sample_indices = self._call(samples[:,lb:ub])
-            print(num_evaluations_ran,self.num_evaluations_ran)
             data_filename = self.data_basename+'-%d-%d.npz'%(
                 num_evaluations_ran,
                 num_evaluations_ran+len(new_sample_indices)-1)
@@ -238,7 +235,6 @@ class DataFunctionModel(object):
                     evaluated_sample_indices.append([ii,self.data[key]])
                 else:
                     new_sample_indices.append(ii)
-                    print('s',samples[:,ii],key,flush=True)
             else:
                 found = False
                 for jj in range(self.samples.shape[1]):
@@ -250,7 +246,6 @@ class DataFunctionModel(object):
                     evaluated_sample_indices.append([ii,jj])
                 else:
                     new_sample_indices.append(ii)
-                    print('s',samples[:,ii],flush=True)
                     
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
         if len(new_sample_indices)>0:
@@ -296,7 +291,6 @@ class DataFunctionModel(object):
         else:
             values = self._call(samples)
         filenames = glob.glob(self.data_basename+'*.npz')
-        print(filenames)
         return values
 
 
