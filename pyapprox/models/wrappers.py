@@ -289,8 +289,7 @@ class DataFunctionModel(object):
         if self.save_frequency is not None and self.save_frequency>0:
             values = self._batch_call(samples)
         else:
-            values = self._call(samples)
-        filenames = glob.glob(self.data_basename+'*.npz')
+            values = self._call(samples)[0]
         return values
 
 
