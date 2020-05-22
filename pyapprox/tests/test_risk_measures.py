@@ -554,7 +554,7 @@ class TestRiskMeasures(unittest.TestCase):
 
     def test_second_order_stochastic_dominance(self):
         np.random.seed(4)
-        solver = solve_SSD_constrained_least_squares
+        solver = partial(solve_SSD_constrained_least_squares,return_full=True)
         self.help_test_stochastic_dominance(solver,10,2,False)
 
     def test_disutility_second_order_stochastic_dominance(self):

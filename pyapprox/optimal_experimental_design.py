@@ -284,7 +284,6 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-
     num_design_pts, num_design_factors = design_factors.shape
     if design_prob_measure.ndim==2:
         assert design_prob_measure.shape[1]==1
@@ -507,7 +506,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
         gradient   = -np.sum(F_M1_inv_P.T**2*cvar_grad[:,np.newaxis],axis=0)
         return value, gradient
 
-from scipy.optimize import Bounds, minimize, LinearConstraint
+from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
 class AlphabetOptimalDesign(object):
     """
@@ -521,81 +520,151 @@ class AlphabetOptimalDesign(object):
         # The Hessian is not zero.
     """
     def __init__(self,criteria,design_factors,noise_multiplier=None,
-                 pred_factors=None,opts=None):
+                 opts=None):
         self.criteria=criteria
-        self.num_design_pts = design_factors.shape[0]
+        self.noise_multiplier = noise_multiplier
+        self.design_factors = design_factors
+        self.opts=opts
         
-        self.bounds = Bounds([0]*self.num_design_pts,[1]*self.num_design_pts)
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,self.num_design_pts))
-        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-        homog_outer_prods = compute_homoscedastic_outer_products(
-            design_factors)
-        
-        if noise_multiplier is not None:
-            hetero_outer_prods = compute_heteroscedastic_outer_products(
-                design_factors,noise_multiplier)
-        else:
-            hetero_outer_prods=None
-
+    def get_objective_and_jacobian(self,design_factors,homog_outer_prods,
+                                   hetero_outer_prods,noise_multiplier,opts):
         if self.criteria=='A':
-            self.objective = partial(
+            objective = partial(
                 aoptimality_criterion,homog_outer_prods,design_factors,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
-            self.jac = lambda r: aoptimality_criterion(
+            jac = lambda r: aoptimality_criterion(
                 homog_outer_prods,design_factors,r,return_grad=True,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         elif self.criteria=='C':
-            self.objective = partial(
+            objective = partial(
                 coptimality_criterion,homog_outer_prods,design_factors,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
-            self.jac = lambda r: coptimality_criterion(
+            jac = lambda r: coptimality_criterion(
                 homog_outer_prods,design_factors,r,return_grad=True,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         elif self.criteria=='D':
-            self.objective = partial(
+            objective = partial(
                 doptimality_criterion,homog_outer_prods,design_factors,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
-            self.jac = lambda r: doptimality_criterion(
+            jac = lambda r: doptimality_criterion(
                 homog_outer_prods,design_factors,r,return_grad=True,
                 hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         elif self.criteria=='I':
             pred_factors = opts['pred_factors']
-            self.objective = partial(
+            objective = partial(
                 ioptimality_criterion,homog_outer_prods,design_factors,
                 pred_factors,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
-            self.jac = lambda r: ioptimality_criterion(
+            jac = lambda r: ioptimality_criterion(
                 homog_outer_prods,design_factors,pred_factors,r,
                 return_grad=True,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         elif self.criteria=='R':
             beta = opts['beta']
             pred_factors = opts['pred_factors']
-            self.objective = partial(
-                roptimality_criterion,beta,homog_outer_prods,design_factors,
+            objective = partial(
+                roptimality_criterion,beta,homog_outer_prods,
+                design_factors,
                 pred_factors,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier,return_grad=False)
-            self.jac = lambda r: roptimality_criterion(
+            jac = lambda r: roptimality_criterion(
                 beta,homog_outer_prods,design_factors,pred_factors,r,
                 return_grad=True,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
         else:
-            msg = f'Optimality criteria: {f} is not supported'
+            msg = f'Optimality criteria: {self.criteria} is not supported'
             raise Exception(msg)
+        return objective,jac
         
 
     def solve(self,options=None):
-        x0 = 0.5*np.ones(self.num_design_pts)
+        num_design_pts = self.design_factors.shape[0]
+        self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts))
+        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+
+        homog_outer_prods = compute_homoscedastic_outer_products(
+            self.design_factors)
+        
+        if self.noise_multiplier is not None:
+            hetero_outer_prods = compute_heteroscedastic_outer_products(
+                self.design_factors,self.noise_multiplier)
+        else:
+            hetero_outer_prods=None
+
+        x0 = 0.5*np.ones(num_design_pts)
+        objective,jac = self.get_objective_and_jacobian(
+            self.design_factors,homog_outer_prods,hetero_outer_prods,
+            self.noise_multiplier,self.opts)
         res = minimize(
-            self.objective, x0, method='trust-constr', jac=self.jac, hess=None,
+            objective, x0, method='trust-constr', jac=jac, hess=None,
             constraints=[self.linear_constraint],options=options,
             bounds=self.bounds)
         weights = res.x
+        return weights
+
+    def minmax_nonlinear_constraints(self,parameter_samples,design_samples):
+        constraints = []
+        for ii in range(parameter_samples.shape[1]):
+            design_factors = self.design_factors(
+                parameter_samples[:,ii],design_samples)
+            homog_outer_prods = compute_homoscedastic_outer_products(
+                design_factors)
+            if self.noise_multiplier is not None:
+                hetero_outer_prods = compute_heteroscedastic_outer_products(
+                    design_factors,self.noise_multiplier)
+            else:
+                hetero_outer_prods=None
+            import copy
+            opts = copy.deepcopy(self.opts)
+            if opts is not None and 'pred_factors' in opts:
+                opts['pred_factors']=pred_factors(
+                    parameter_samples[:,ii],opts['pred_samples'])
+            obj,jac = self.get_objective_and_jacobian(
+                design_factors,homog_outer_prods,hetero_outer_prods,
+                self.noise_multiplier,opts)
+            constraint_obj = lambda x: x[0]-obj(x[1:])
+            constraint_jac='2-point'
+            #constraint_jac = lambda x: np.concatenate([1,jac(x[1:])])
+            constraint = NonlinearConstraint(
+                constraint_obj,0,np.inf,jac=constraint_jac)
+            constraints.append(constraint)
+            
+        num_design_pts = homog_outer_prods.shape[2]
+        return constraints,num_design_pts
+
+    def solve_minmax(self,parameter_samples,design_samples,options=None):
+        assert callable(self.design_factors)
+        nonlinear_constraints,num_design_pts = self.minmax_nonlinear_constraints(
+            parameter_samples,design_samples)
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts+1))
+        A_con[0,0] = 0
+        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+        constraints = [linear_constraint]
+        constraints += nonlinear_constraints
+        
+        minmax_objective = lambda x: x[0]
+        def jac(x):
+            vec = np.zeros_like(x)
+            vec[0] = 1
+            return vec
+        jac=None
+        bounds = Bounds(
+            [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
+
+        x0 = 0.5*np.ones(num_design_pts+1)
+        res = minimize(
+            minmax_objective, x0, method='trust-constr',jac=jac, hess=None,
+            constraints=constraints,options=options,
+            bounds=bounds)
+        
+        weights = res.x[1:]
         return weights

@@ -198,7 +198,7 @@ def hessian(basis_matrix,P,use_sample_average=True):
 
 def solve_SSD_constrained_least_squares(
         samples,values,eval_basis_matrix,lstsq_coef=None,
-        eta_indices=None):
+        eta_indices=None,return_full=False):
     # Compute coefficients with second order stochastic dominance constraints
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
@@ -251,7 +251,9 @@ def solve_SSD_constrained_least_squares(
     #print ("done")
     ssd_solution = np.array(result['x'])
     coef = ssd_solution[:num_basis_terms,0]
-    return coef, None
+    if return_full:
+        return coef, None
+    return coef
 
 class SLSQPDisutilitySSDOptProblem(object):
     def __init__(self,basis_matrix,values,eta,probabilities):
@@ -877,7 +879,9 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         return coef
 
 
-def solve_disutility_SSD_constrained_least_squares_smooth(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None,eps=None,smoother_type=0):
+def solve_disutility_SSD_constrained_least_squares_smooth(
+        samples,values,eval_basis_matrix,eta_indices=None,probabilities=None,
+        eps=None,smoother_type=0,return_full=False):
     """
     Disutility formuation
     -Y dominates -Z
@@ -896,7 +900,10 @@ def solve_disutility_SSD_constrained_least_squares_smooth(samples,values,eval_ba
 
     coef = ssd_opt_problem.solve()
 
-    return coef, ssd_opt_problem
+    if return_full:
+        return coef, ssd_opt_problem
+    else:
+        return coef
 
 
 class FSDOptProblem(SmoothDisutilitySSDOptProblem):
