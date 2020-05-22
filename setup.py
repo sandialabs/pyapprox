@@ -31,8 +31,10 @@ def no_cythonize(extensions, **_ignore):
 try:
     from Cython.Build import cythonize
     USE_CYTHON=True
+    print('CYTHONIZING')
 except:
     USE_CYTHON=False
+    print('USING PRECYTHONIZED FILES')
 
 if USE_CYTHON:
     extensions = cythonize(
@@ -77,7 +79,7 @@ setuptools.setup(
         'sphinx',
         'sphinx_automodapi',
         'sphinx_rtd_theme',
-        'torch',
+        #'torch',
         'seaborn',
         'pillow', # required by sphinx-gallery and dependency not auto handle
         'sphinx-gallery',
@@ -94,4 +96,4 @@ setuptools.setup(
 # mshr can only be installed using conda
 # conda install -c conda-forge mshr
 
-#conda create -n fenics2017 -c conda-forge fenics=2017 scipy mpi4py matplotlib python=3.5 sympy=1.1.1 cython cvxopt
+#conda create -n default -c conda-forge numpy scipy cython mpi4py fenics=2019 matplotlib python=3.6 mhsr

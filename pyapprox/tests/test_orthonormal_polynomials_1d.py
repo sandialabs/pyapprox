@@ -217,7 +217,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         rv = poisson(rate)
         ab = charlier_recurrence(degree+1, rate)
         lb,ub=rv.interval(1-np.finfo(float).eps)
-        x=np.linspace(lb,ub,ub-lb+1)
+        x=np.linspace(lb,ub,int(ub-lb+1))
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         w = rv.pmf(x)
         #print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())

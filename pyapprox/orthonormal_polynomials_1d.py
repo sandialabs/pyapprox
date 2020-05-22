@@ -418,6 +418,13 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     p : np.ndarray (num_samples, num_indices)
        The values of the s-th derivative of the polynomials
     """
+
+    # filter out cython warnings.
+    import warnings
+    warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+    #warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+    #warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
+
     try:
         # necessary when discrete variables are define on integers
         x = np.asarray(x,dtype=float)
@@ -455,9 +462,9 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
 
 from scipy.sparse import diags as sparse_diags
 def gauss_quadrature(recursion_coeffs,N):
-    r"""Computes Gauss quadrature from recurrence coefficients::
+    r"""Computes Gauss quadrature from recurrence coefficients
     
-       x,w = gauss_quadrature(recursion+coeffs,N)
+       x,w = gauss_quadrature(recursion_coeffs,N)
 
     Computes N Gauss quadrature nodes (x) and weights (w) from 
     standard orthonormal recurrence coefficients. 
