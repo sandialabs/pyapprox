@@ -625,14 +625,13 @@ class AlphabetOptimalDesign(object):
             import copy
             opts = copy.deepcopy(self.opts)
             if opts is not None and 'pred_factors' in opts:
-                opts['pred_factors']=pred_factors(
+                opts['pred_factors']=opts['pred_factors'](
                     parameter_samples[:,ii],opts['pred_samples'])
             obj,jac = self.get_objective_and_jacobian(
                 design_factors,homog_outer_prods,hetero_outer_prods,
                 self.noise_multiplier,opts)
             constraint_obj = lambda x: x[0]-obj(x[1:])
-            constraint_jac='2-point'
-            #constraint_jac = lambda x: np.concatenate([1,jac(x[1:])])
+            constraint_jac = lambda x: np.concatenate([np.ones(1),-jac(x[1:])])
             constraint = NonlinearConstraint(
                 constraint_obj,0,np.inf,jac=constraint_jac)
             constraints.append(constraint)
@@ -640,7 +639,8 @@ class AlphabetOptimalDesign(object):
         num_design_pts = homog_outer_prods.shape[2]
         return constraints,num_design_pts
 
-    def solve_minmax(self,parameter_samples,design_samples,options=None):
+    def solve_minmax(self,parameter_samples,design_samples,options=None,
+                     return_full=False,x0=None):
         assert callable(self.design_factors)
         nonlinear_constraints,num_design_pts = self.minmax_nonlinear_constraints(
             parameter_samples,design_samples)
@@ -656,15 +656,18 @@ class AlphabetOptimalDesign(object):
             vec = np.zeros_like(x)
             vec[0] = 1
             return vec
-        jac=None
         bounds = Bounds(
             [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
 
-        x0 = 0.5*np.ones(num_design_pts+1)
+        if x0 is None:
+            x0 = 0.5*np.ones(num_design_pts+1)
         res = minimize(
             minmax_objective, x0, method='trust-constr',jac=jac, hess=None,
             constraints=constraints,options=options,
             bounds=bounds)
         
         weights = res.x[1:]
-        return weights
+        if not return_full:
+            return weights
+        else:
+            return weights, res

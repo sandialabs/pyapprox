@@ -99,7 +99,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         jac = emax_model_grad_parameters(theta,samples)
         assert np.allclose(jac.T,fd_jac)
 
-    def test_michaelis_menten_model_locally_optimal_design(self):
+    def test_michaelis_menten_model_locally_d_optimal_design(self):
         """
         Exact solution obtained from
         Holger Dette and  Stefanie Biedermann, 
@@ -137,7 +137,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             (design_factors*mu[:,np.newaxis]).T.dot(design_factors))
         assert np.allclose(determinant,exact_determinant)
 
-    def test_michaelis_menten_model_minmax_optimal_design(self):
+    def test_michaelis_menten_model_minmax_d_optimal_design(self):
         """
         If theta_2 in [a,b] the minmax optimal design will be locally d-optimal
         at b. This can be proved with an application of Holders inequality to 
@@ -149,18 +149,99 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         print(design_samples)
         noise_multiplier = None
 
-        local_design_factors = lambda x,p: michaelis_menten_model_grad_parameters(x,p).T
+        local_design_factors = \
+            lambda x,p: michaelis_menten_model_grad_parameters(x,p).T
         xx1 = np.linspace(0.9,1.1,3)
         xx2 = np.linspace(0.2,1,5)
         from pyapprox import cartesian_product
         parameter_samples = cartesian_product([xx1,xx2])
         opt_problem = AlphabetOptimalDesign('D',local_design_factors)
-        mu = opt_problem.solve_minmax(parameter_samples,design_samples[np.newaxis,:],{'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve_minmax(
+            parameter_samples,design_samples[np.newaxis,:],
+            {'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
         # given largest theta_2=1 then optimal design will be at 1/3,1
         #with masses=0.5
         assert np.allclose(I,[2,6])
         assert np.allclose(mu[I],np.ones(2)*0.5)
+
+    def test_michaelis_menten_model_minmax_r_optimal_design(self):
+        """
+        If theta_2 in [a,b] the minmax optimal design will be locally d-optimal
+        at b. This can be proved with an application of Holders inequality to 
+        show that the determinant of the fihser information matrix decreases
+        with increasing theta_2.
+        """
+        verbose=0
+        num_design_pts = 30
+        design_samples = np.linspace(0,1,num_design_pts)
+        pred_samples = design_samples
+        noise_multiplier = None
+        xtol=1e-16
+        maxiter=int(1e3)
+        #criteria='R'
+        criteria='I'
+        #criteria='D'
+        #criteria='A'
+
+        #beta=0.75
+        beta=0.25
+        #beta=0
+        local_design_factors = \
+            lambda x,p: michaelis_menten_model_grad_parameters(x,p).T
+        local_pred_factors = local_design_factors
+        opts = {'beta':beta,'pred_factors':local_pred_factors,
+                'pred_samples':pred_samples[np.newaxis,:]}
+        
+        xx1 = np.linspace(0.9,1.1,3)[-1:]# theta_1 does not effect optimum
+        xx2 = np.linspace(0.2,1,5)
+        from pyapprox import cartesian_product
+        parameter_samples = cartesian_product([xx1,xx2])
+        x0 = None
+        opt_problem = AlphabetOptimalDesign(criteria,local_design_factors,opts=opts)
+        mu_minmax = opt_problem.solve_minmax(
+            parameter_samples,design_samples[np.newaxis,:],
+            {'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
+        
+        #I= np.where(mu_minmax>3e-2)[0]
+        #print('minmax')
+        #print(mu_minmax[I])
+        
+        import copy
+        opts = copy.deepcopy(opts)
+        mu_local_list = []
+        for ii in range(parameter_samples.shape[1]):
+            pred_factors = local_design_factors(
+                parameter_samples[:,ii],pred_samples[np.newaxis,:])
+            opts['pred_factors']=pred_factors
+            design_factors = local_design_factors(
+                parameter_samples[:,ii],design_samples[np.newaxis,:])
+            opt_problem = AlphabetOptimalDesign(
+                criteria,design_factors,opts=opts)
+            mu_local = opt_problem.solve({'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
+            mu_local_list.append(mu_local)
+
+        for mu in mu_local_list+[mu_minmax]:
+            stats = []
+            for ii in range(parameter_samples.shape[1]):
+                pred_factors = local_design_factors(
+                    parameter_samples[:,ii],pred_samples[np.newaxis,:])
+                design_factors = local_design_factors(
+                    parameter_samples[:,ii],design_samples[np.newaxis,:])
+                homog_outer_prods = compute_homoscedastic_outer_products(
+                    design_factors)
+                M1 = homog_outer_prods.dot(mu)
+                u = np.linalg.solve(M1, pred_factors.T)
+                variance = np.sum(pred_factors*u.T,axis=1)
+                stats.append([variance.mean(),variance.max(),1/np.linalg.det(M1),np.trace(np.linalg.inv(M1))])
+            #print(np.array(stats)[:,2])
+            #print(np.min(np.array(stats),axis=0)[2])
+
+            print(np.array(stats)[:,0])
+            print(np.max(np.array(stats),axis=0)[0])
+            
+        #print(design_samples[I])
+        
         
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
