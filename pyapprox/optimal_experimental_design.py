@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import solve_triangular
+import copy
 
 def compute_heteroscedastic_outer_products(factors,noise_multiplier):
     """
@@ -118,7 +119,6 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors   = pred_factors.shape
     if design_prob_measure.ndim==2:
@@ -130,7 +130,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         Q,R = np.linalg.qr(M1)
         u = solve_triangular(R,Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
-        value = np.sum(u*M0u) / num_pred_factors;
+        value = np.sum(u*M0u) / num_pred_pts;
         if (return_grad):
             assert noise_multiplier is not None
             gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
@@ -138,7 +138,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
             gradient = 2*np.sum(Fu*Fgamma,axis=1) + np.sum(t**2,axis=1)
-            gradient /= num_pred_factors
+            gradient /= num_pred_pts
             return value, gradient
         else:
             return value
@@ -150,12 +150,12 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         # We know that diag(A.T.dot(B)) = (A*B).axis=0)
         # The following sums over all entries of A*B we get the mean of the
         # variance
-        value    = np.sum(pred_factors*u.T) / num_pred_factors;
+        value    = np.sum(pred_factors*u.T) / num_pred_pts;
         if (not return_grad):
             return value
         # Gradient
         F_M1_inv_P = design_factors.dot(u);
-        gradient   = -np.sum(F_M1_inv_P**2,axis=1) / num_pred_factors;
+        gradient   = -np.sum(F_M1_inv_P**2,axis=1) / num_pred_pts;
         return value, gradient
 
 
@@ -508,6 +508,14 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
 
 from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
+
+def minmax_oed_constraint_objective(local_oed_obj,x):
+    return x[0]-local_oed_obj(x[1:])
+
+def minmax_oed_constraint_jacobian(local_oed_jac,x):
+    return np.concatenate([np.ones(1),-local_oed_jac(x[1:])])
+    
+
 class AlphabetOptimalDesign(object):
     """
     Notes
@@ -599,7 +607,7 @@ class AlphabetOptimalDesign(object):
         else:
             hetero_outer_prods=None
 
-        x0 = 0.5*np.ones(num_design_pts)
+        x0 = np.ones(num_design_pts)/num_design_pts
         objective,jac = self.get_objective_and_jacobian(
             self.design_factors,homog_outer_prods,hetero_outer_prods,
             self.noise_multiplier,self.opts)
@@ -622,16 +630,16 @@ class AlphabetOptimalDesign(object):
                     design_factors,self.noise_multiplier)
             else:
                 hetero_outer_prods=None
-            import copy
             opts = copy.deepcopy(self.opts)
             if opts is not None and 'pred_factors' in opts:
                 opts['pred_factors']=opts['pred_factors'](
                     parameter_samples[:,ii],opts['pred_samples'])
             obj,jac = self.get_objective_and_jacobian(
-                design_factors,homog_outer_prods,hetero_outer_prods,
-                self.noise_multiplier,opts)
-            constraint_obj = lambda x: x[0]-obj(x[1:])
-            constraint_jac = lambda x: np.concatenate([np.ones(1),-jac(x[1:])])
+                design_factors.copy(),homog_outer_prods.copy(),hetero_outer_prods,
+                self.noise_multiplier,copy.deepcopy(opts))
+            constraint_obj = partial(minmax_oed_constraint_objective,obj)
+            constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
+            num_design_pts=design_factors.shape[0]
             constraint = NonlinearConstraint(
                 constraint_obj,0,np.inf,jac=constraint_jac)
             constraints.append(constraint)
@@ -660,7 +668,8 @@ class AlphabetOptimalDesign(object):
             [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
 
         if x0 is None:
-            x0 = 0.5*np.ones(num_design_pts+1)
+            x0 = np.ones(num_design_pts+1)/num_design_pts
+            x0[0]=1
         res = minimize(
             minmax_objective, x0, method='trust-constr',jac=jac, hess=None,
             constraints=constraints,options=options,
