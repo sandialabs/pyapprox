@@ -372,6 +372,12 @@ class TestHelmholtz(unittest.TestCase):
                 ['robin',bndry_obj[ii],
                  [dl.Constant(0),dl.Constant(0)],[dl.Constant(0),alpha]]
                 for ii in [0,2,3,5,6,8,9,11]]
+            tmp = [None for ii in range(len(boundary_conditions))]
+            for ii,jj in enumerate([1,4,7,10]):
+                tmp[jj]=boundary_conditions[ii]
+            for ii,jj in enumerate([0,2,3,5,6,8,9,11]):
+                tmp[jj]=boundary_conditions[ii+4]
+            boundary_conditions=tmp
             return boundary_conditions
             
         boundary_conditions=get_boundary_conditions()
@@ -382,19 +388,25 @@ class TestHelmholtz(unittest.TestCase):
             boundary_conditions = get_boundary_conditions()
             for kk in range(12):
                 if jj!=kk:
-                    boundary_conditions[kk][2][1]=0.
+                    boundary_conditions[kk][2][1]=dl.Constant(0)
             pii=run_model(kappa,forcing,function_space,boundary_conditions)
             sols.append(pii)
 
 
-        for jj in [0,2,3,5,6,8,9,11]:
-            boundary_conditions = get_boundary_conditions()
-            for kk in range(12):
-                if jj!=kk:
-                    boundary_conditions[kk][2][1]=0.
-            pii=run_model(kappa,forcing,function_space,boundary_conditions)
-            sols.append(pii)
+        # for jj in [0,2,3,5,6,8,9,11]:
+        #     boundary_conditions = get_boundary_conditions()
+        #     for kk in range(12):
+        #         if jj!=kk:
+        #             boundary_conditions[kk][2][1]=dl.Constant(0)
+        #     pii=run_model(kappa,forcing,function_space,boundary_conditions)
+        #     sols.append(pii)
 
+        boundary_conditions = get_boundary_conditions()
+        for kk in range(12):
+            if kk not in [0,2,3,5,6,8,9,11]:
+                boundary_conditions[kk][2][1]=dl.Constant(0)
+        pii=run_model(kappa,forcing,function_space,boundary_conditions)
+        sols.append(pii)
 
         superposition_sol = sols[0]
         for ii in range(1,len(sols)):
