@@ -292,7 +292,8 @@ def create_3d_axis():
 
 def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
                  num_contour_levels=0, plot_axes=True, cmap=mpl.cm.coolwarm,
-                 axis_labels=None, angle=None, alpha=1., zorder=None):
+                 axis_labels=None, angle=None, alpha=1., zorder=None,
+                 antialiased=False):
     """
     Plot the three-dimensional surface of a two-dimensional function using
     matplotlib.plot_surface
@@ -345,7 +346,7 @@ def plot_surface(X, Y, Z, ax, samples=None, limit_state=None,
         Z_tmp = Z
 
     # Plot surface
-    ax.plot_surface(X, Y, Z_tmp, cmap=cmap, antialiased=False,
+    ax.plot_surface(X, Y, Z_tmp, cmap=cmap, antialiased=antialiased,
                     cstride=1, rstride=1, linewidth=0., alpha=alpha,
                     zorder=zorder)
 
