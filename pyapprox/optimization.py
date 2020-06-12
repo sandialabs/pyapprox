@@ -397,8 +397,11 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
 
 def check_gradients(function,grad_function,xx,plot=False,disp=True):
     assert xx.ndim==1
-    function_val = function(xx)
-    grad_val = grad_function(xx)
+    if callable(grad_function):
+        function_val = function(xx)
+        grad_val = grad_function(xx)
+    elif grad_function==True:
+        function_val,grad_val = function(xx)
     direction = np.random.normal(0,1,xx.shape[0])
     direction /= np.linalg.norm(direction)
     directional_derivative = grad_val.dot(direction)
@@ -409,14 +412,17 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
         print(row_format.format("Eps","Errors (max)","Errors (min)"))
     for ii in range(fd_eps.shape[0]):
         xx_perturbed = xx.copy()+fd_eps[ii]*direction
+        perturbed_function_val = function(xx_perturbed)
+        if grad_function==True:
+            perturbed_function_val = perturbed_function_val[0]
         fd_directional_derivative = (
-            function(xx_perturbed)-function_val)/fd_eps[ii]
+            perturbed_function_val-function_val)/fd_eps[ii]
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
         if disp:
             print(row_format.format(fd_eps[ii],errors[ii].max(),
                                     errors[ii].min()))
-            print(fd_directional_derivative,directional_derivative)
+            #print(fd_directional_derivative,directional_derivative)
 
     if plot:
         plt.loglog(fd_eps,errors,'o-')
@@ -425,3 +431,103 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
         plt.show()
 
     return np.asarray(errors)
+
+import scipy.sparse as sp
+from scipy.optimize import LinearConstraint, NonlinearConstraint, BFGS, linprog 
+def basis_pursuit(Amat,bvec,options):
+    nunknowns = Amat.shape[1]
+    nslack_variables = nunknowns
+
+    c = np.zeros(nunknowns+nslack_variables)
+    c[nunknowns:] = 1.0
+
+    I = sp.identity(nunknowns)
+    tmp = np.array([[1,-1],[-1,-1]])
+    A_ub = sp.kron(tmp,I)
+    b_ub = np.zeros(nunknowns+nslack_variables)
+
+    A_eq = sp.lil_matrix((Amat.shape[0],c.shape[0]),dtype=float)
+    A_eq[:,:Amat.shape[1]] = Amat
+    b_eq = bvec
+
+    bounds = [(-np.inf,np.inf)]*nunknowns + [(0,np.inf)]*nslack_variables
+    
+    res = linprog(c,A_ub=A_ub,b_ub=b_ub,A_eq=A_eq,b_eq=b_eq,bounds=bounds,options=options)
+    
+    return res.x[:nunknowns]
+    
+
+def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
+    method = 'trust-constr'
+    nunknowns = init_guess.shape[0]
+    nslack_variables = nunknowns
+    def obj(x):
+        val = np.sum(x[nunknowns:])
+        grad = np.zeros(x.shape[0])
+        grad[nunknowns:]=1.0
+        return val, grad
+    def hessp(x,p):
+        matvec = np.zeros(x.shape[0])
+        return matvec
+    
+    I = sp.identity(nunknowns)
+    tmp = np.array([[1,-1],[-1,-1]])
+    A_con = sp.kron(tmp,I)
+    #A_con = A_con.A#dense
+    lb_con = -np.inf*np.ones(nunknowns+nslack_variables)
+    ub_con = np.zeros(nunknowns+nslack_variables)
+    #print(A_con.A)
+    linear_constraint = LinearConstraint(
+        A_con, lb_con, ub_con, keep_feasible=False)
+    constraints = [linear_constraint]
+    
+    def constraint_obj(x):
+        val = func(x[:nunknowns])
+        if func_jac == True:
+            return val[0]
+        return val
+    
+    def constraint_jac(x):
+        if func_jac == True:
+            jac = func(x[:nunknowns])[1]
+        else:
+            jac = func_jac(x[:nunknowns])
+
+        jac = sp.hstack([jac,sp.csr_matrix((jac.shape[0],jac.shape[1]),dtype=float)])
+        #np.concatenate([jac,np.zeros(nslack_variables)])[np.newaxis,:]
+        jac = sp.csr_matrix(jac)
+        return jac
+    
+    if func_hess is not None:
+        def constraint_hessian(x,v):
+            # see https://prog.world/scipy-conditions-optimization/
+            # for example how to define NonlinearConstraint hess
+            H = func_hess(x[:nunknowns])
+            hess = sp.lil_matrix((x.shape[0],x.shape[0]),dtype=float)
+            hess[:nunknowns,:nunknowns]=H*v[0]
+            return hess
+    else:
+        constraint_hessian = BFGS()   
+
+    # experimental parameter. does not enforce interpolation but allows some
+    # deviation
+    nonlinear_constraint = NonlinearConstraint(
+        constraint_obj,0,0,jac=constraint_jac,hess=constraint_hessian,
+        keep_feasible=False)
+    constraints.append(nonlinear_constraint)
+    
+    lbs = np.zeros(nunknowns+nslack_variables);
+    lbs[:nunknowns]=-np.inf
+    ubs = np.inf*np.ones(nunknowns+nslack_variables)
+    bounds = Bounds(lbs,ubs)
+    x0 = np.concatenate([init_guess,np.absolute(init_guess)])
+    #print('obj',obj(x0)[0])
+    #print('jac',obj(x0)[1])
+    #print('nl_constr_obj',nonlinear_constraint.fun(x0))
+    #print('nl_constr_jac',nonlinear_constraint.jac(x0).A)
+    #print('l_constr_obj',linear_constraint.A.dot(x0),linear_constraint.ub)
+    res = minimize(
+        obj, x0, method=method, jac=True, hessp=hessp, options=options,
+        bounds=bounds, constraints=constraints)
+    
+    return res.x[:nunknowns]
