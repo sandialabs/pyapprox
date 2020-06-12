@@ -531,3 +531,53 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
         bounds=bounds, constraints=constraints)
     
     return res.x[:nunknowns]
+
+def kouri_smooth_absolute_value(t,r,x):
+    vals = np.zeros(x.shape[0])
+    print(x.shape,t.shape)
+    I = np.where(r*x+t<-1)[0]
+    vals[I] = 1/r*(-r * x[I] - t[I] - 1/2 - 1/2 * t[I]**2)
+    J = np.where((-1<=r*x+t)&(r*x+t<=1))[0]
+    vals[J] = t[J] * x[J] + r/2 * x[J]**2
+    K = np.where(1<r*x+t)[0]
+    vals[K] = 1/r * (r * x[K] + t[K] - 1/2 - 1/2 * t[K]**2)
+    return vals
+
+def kouri_smooth_absolute_value_gradient(t,r,x):
+    grad = np.zeros(x.shape[0])
+    I = np.where(r*x+t<-1)[0]
+    grad[I] = -1
+    J = np.where((-1<=r*x+t)&(r*x+t<=1))[0]
+    grad[J] = t[J] + r * x[J]
+    K = np.where(1<r*x+t)[0]
+    grad[K] = 1
+    return grad
+
+def kouri_smooth_absolute_value_hessian(t,r,x):
+    hess = np.zeros(x.shape[0])
+    J = np.where((-1<=r*x+t)&(r*x+t<=1))[0]
+    hess[J] = r
+    return hess
+
+def kouri_smooth_l1_norm(t,r,x):
+    vals = kouri_smooth_absolute_value(t,r,x)
+    norm = vals.sum()
+    return norm
+
+def kouri_smooth_l1_norm_gradient(t,r,x):
+    grad = kouri_smooth_absolute_value_gradient(t,r,x)
+    norm = grad
+    return norm
+
+def kouri_smooth_l1_norm_hessian(t,r,x):
+    hess = kouri_smooth_absolute_value_hessian(t,r,x)
+    norm = hess
+    return norm
+        
+def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,options):
+
+    t = np.ones_like(init_guess)
+    r = 10
+
+    
+    pass

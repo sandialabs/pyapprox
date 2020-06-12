@@ -184,11 +184,24 @@ class TestOptimization(unittest.TestCase):
         options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
         init_guess = true_coef+np.random.normal(0,1,true_coef.shape[0])
         l1_coef = nonlinear_basis_pursuit(func,jac,hess,init_guess,options)
-        print(true_coef,l1_coef)
+        #print(true_coef,l1_coef)
         assert np.allclose(l1_coef,true_coef,atol=2e-4)
 
+    def test_l1_kouri(self):
+        x = np.linspace(-1,1,101)
+        t = np.zeros_like(x)
+        t = np.ones_like(x)
+        r = 10
+        #plt.plot(x,kouri_smooth_absolute_value(t,r,x))
+        #plt.show()
 
+        init_guess = np.random.normal(0,1,(t.shape[0]))
+        func = partial(kouri_smooth_l1_norm,t,r)
+        jac  = partial(kouri_smooth_l1_norm_gradient,t,r)
+        errors = check_gradients(func,jac,init_guess,disp=True)
+        assert errors.min()<2e-7
 
+        basis_pursuit_denoising(init_guess)
         
 
 if __name__ == '__main__':
