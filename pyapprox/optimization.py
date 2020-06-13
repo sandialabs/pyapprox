@@ -433,7 +433,7 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
     return np.asarray(errors)
 
 import scipy.sparse as sp
-from scipy.optimize import LinearConstraint, NonlinearConstraint, BFGS, linprog 
+from scipy.optimize import LinearConstraint, NonlinearConstraint, BFGS, linprog, OptimizeResult
 def basis_pursuit(Amat,bvec,options):
     nunknowns = Amat.shape[1]
     nslack_variables = nunknowns
@@ -534,7 +534,6 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
 
 def kouri_smooth_absolute_value(t,r,x):
     vals = np.zeros(x.shape[0])
-    print(x.shape,t.shape)
     I = np.where(r*x+t<-1)[0]
     vals[I] = 1/r*(-r * x[I] - t[I] - 1/2 - 1/2 * t[I]**2)
     J = np.where((-1<=r*x+t)&(r*x+t<=1))[0]
@@ -566,18 +565,91 @@ def kouri_smooth_l1_norm(t,r,x):
 
 def kouri_smooth_l1_norm_gradient(t,r,x):
     grad = kouri_smooth_absolute_value_gradient(t,r,x)
-    norm = grad
-    return norm
+    return grad
 
 def kouri_smooth_l1_norm_hessian(t,r,x):
     hess = kouri_smooth_absolute_value_hessian(t,r,x)
-    norm = hess
-    return norm
+    hess = np.diag(hess)
+    return hess
+
+def kouri_smooth_l1_norm_hessp(t,r,x,v):
+    hess = kouri_smooth_absolute_value_hessian(t,r,x)
+    return hess*v
         
-def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,options):
+def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homotopy_options):
 
     t = np.ones_like(init_guess)
-    r = 10
+    r = 1
 
+    method = 'trust-constr'
+    nunknowns = init_guess.shape[0]
+
+    def constraint_obj(x):
+        val = func(x)
+        if func_jac == True:
+            return val[0]
+        return val
     
-    pass
+    def constraint_jac(x):
+        if func_jac == True:
+            jac = func(x)[1]
+        else:
+            jac = func_jac(x)
+        return jac
+
+    #if func_hess is None:
+    #    constraint_hessian = BFGS()
+    #else:
+    #    def constraint_hessian(x,v):
+    #        print(v)
+    #        return func_hess(x)*v[0]
+    constraint_hessian = BFGS()
+
+    nonlinear_constraint = NonlinearConstraint(
+        constraint_obj,0,eps,jac=constraint_jac,hess=constraint_hessian,
+        keep_feasible=False)
+    constraints = [nonlinear_constraint]
+
+    niter=0
+    prev_obj = np.inf
+    x0=init_guess
+    maxiter,xtol = homotopy_options.get('maxiter',1000),homotopy_options.get('xtol',1e-8)
+    verbose=homotopy_options.get('verbose',1)
+    nfev,njev,nhev=0,0,0
+    constr_nfev,constr_njev,constr_nhev=0,0,0
+    while True:
+        obj  = partial(kouri_smooth_l1_norm,t,r)
+        jac  = partial(kouri_smooth_l1_norm_gradient,t,r)
+        hessp = partial(kouri_smooth_l1_norm_hessp,t,r)
+        hessp=None
+
+        res = minimize(
+            obj, x0, method=method, jac=jac, hessp=hessp, options=options,
+            constraints=constraints)
+        assert res.status==1 or res.status==2
+
+        if abs(prev_obj-res.fun)<xtol:
+            msg = f'homotopy xtol {xtol} reached after {niter} iters.'
+            status=2
+            break
+        if niter >= maxiter:
+            msg = f'maxiter {maxiter} reached. f(x_prev)-f(x)={prev_obj-res.fun}'
+            status=0
+            break
+        
+        if verbose>1:
+            print (f'Current objective value {res.fun}')
+        niter+=1
+        x = res.x
+        prev_obj=res.fun
+        t = np.maximum(-1, np.minimum(1, t + r*x))
+        r *= 2
+        x0=x.copy()
+        nfev+=res.nfev;njev+=res.njev;nhev+=res.nhev
+        constr_nfev+=res.constr_nfev[0];constr_njev+=res.constr_njev[0];constr_nhev+=res.constr_nhev[0]
+
+    if verbose>0:
+        print(msg)
+
+    res = OptimizeResult(fun=res.fun,x=res.x,nit=niter,msg=msg,nfev=nfev,njev=njev,nhev=nhev,constr_nfev=constr_nfev,constr_njev=constr_njev,constr_nhev=constr_nhev,status=status)
+    return res
