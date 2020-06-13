@@ -605,7 +605,7 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homot
     constraint_hessian = BFGS()
 
     nonlinear_constraint = NonlinearConstraint(
-        constraint_obj,0,eps,jac=constraint_jac,hess=constraint_hessian,
+        constraint_obj,-eps,eps,jac=constraint_jac,hess=constraint_hessian,
         keep_feasible=False)
     constraints = [nonlinear_constraint]
 
