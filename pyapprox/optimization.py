@@ -535,7 +535,7 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
 def kouri_smooth_absolute_value(t,r,x):
     vals = np.zeros(x.shape[0])
     I = np.where(r*x+t<-1)[0]
-    vals[I] = 1/r*(-r * x[I] - t[I] - 1/2 - 1/2 * t[I]**2)
+    vals[I] = -1/r*(r * x[I] + t[I] + 1/2 + 1/2 * t[I]**2)
     J = np.where((-1<=r*x+t)&(r*x+t<=1))[0]
     vals[J] = t[J] * x[J] + r/2 * x[J]**2
     K = np.where(1<r*x+t)[0]
@@ -574,7 +574,7 @@ def kouri_smooth_l1_norm_hessian(t,r,x):
 
 def kouri_smooth_l1_norm_hessp(t,r,x,v):
     hess = kouri_smooth_absolute_value_hessian(t,r,x)
-    return hess*v
+    return hess*v[0]
         
 def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homotopy_options):
 
@@ -601,7 +601,8 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homot
     #    constraint_hessian = BFGS()
     # else:
     #    def constraint_hessian(x,v):
-    #        return func_hess(x)*v[0]
+    #        H = func_hess(x)
+    #        return H*v.sum()
     constraint_hessian = BFGS()
 
     nonlinear_constraint = NonlinearConstraint(
