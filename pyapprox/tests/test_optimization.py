@@ -206,7 +206,8 @@ class TestOptimization(unittest.TestCase):
         fd_hess = approx_jacobian(jac,init_guess)
         assert np.allclose(fd_hess,kouri_smooth_l1_norm_hessian(t,r,init_guess))
 
-        nsamples, degree, sparsity = 6, 7, 2 
+        nsamples, degree, sparsity = 6, 7, 2
+        #nsamples, degree, sparsity = 15, 20, 3
         samples = np.random.uniform(0,1,(1,nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
 
@@ -214,23 +215,29 @@ class TestOptimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
 
-        def func(x):
-            return basis_matrix.dot(x)-vals, basis_matrix
-        jac=True
+        def func(x,return_grad=True):
+            residual = basis_matrix.dot(x)-vals
+            obj = 0.5*residual.dot(residual)
+            grad = basis_matrix.T.dot(residual)
+            if return_grad:
+                return obj, grad
+            return obj
+
         def hess(x):
             return basis_matrix.T.dot(basis_matrix)
-        
+        jac=True
 
-        tol=1e-10
-        eps=1e-12
-        init_guess = np.random.normal(0,1,(true_coef.shape[0]))
+        tol=1e-8
+        eps=1e-14
+        #init_guess = np.random.normal(0,1,(true_coef.shape[0]))
+        init_guess = true_coef
         options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
-        homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':10}
+        homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':1e-4,'maxiter':10}
         res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options,homotopy_options)
-        #print (res)
+        print (res)
         coef =  res.x
 
-        #print(true_coef,coef)
+        print(true_coef,coef)
         assert np.allclose(true_coef,coef)
         
 
