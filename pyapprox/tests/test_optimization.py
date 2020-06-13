@@ -188,6 +188,7 @@ class TestOptimization(unittest.TestCase):
         assert np.allclose(l1_coef,true_coef,atol=2e-4)
 
     def test_l1_kouri(self):
+        np.random.seed(1)
         x = np.linspace(-1,1,101)
         t = np.zeros_like(x)
         t = np.ones_like(x)
@@ -195,13 +196,42 @@ class TestOptimization(unittest.TestCase):
         #plt.plot(x,kouri_smooth_absolute_value(t,r,x))
         #plt.show()
 
+        t = np.ones(5);r=1
         init_guess = np.random.normal(0,1,(t.shape[0]))
         func = partial(kouri_smooth_l1_norm,t,r)
         jac  = partial(kouri_smooth_l1_norm_gradient,t,r)
         errors = check_gradients(func,jac,init_guess,disp=True)
-        assert errors.min()<2e-7
+        assert errors.min()<3e-7
 
-        basis_pursuit_denoising(init_guess)
+        fd_hess = approx_jacobian(jac,init_guess)
+        assert np.allclose(fd_hess,kouri_smooth_l1_norm_hessian(t,r,init_guess))
+
+        nsamples, degree, sparsity = 6, 7, 2 
+        samples = np.random.uniform(0,1,(1,nsamples))
+        basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
+
+        true_coef = np.zeros(basis_matrix.shape[1])
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
+        vals = basis_matrix.dot(true_coef)
+
+        def func(x):
+            return basis_matrix.dot(x)-vals, basis_matrix
+        jac=True
+        def hess(x):
+            return basis_matrix.T.dot(basis_matrix)
+        
+
+        tol=1e-10
+        eps=1e-12
+        init_guess = np.random.normal(0,1,(true_coef.shape[0]))
+        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
+        homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':10}
+        res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options,homotopy_options)
+        #print (res)
+        coef =  res.x
+
+        #print(true_coef,coef)
+        assert np.allclose(true_coef,coef)
         
 
 if __name__ == '__main__':
