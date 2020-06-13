@@ -597,11 +597,10 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homot
             jac = func_jac(x)
         return jac
 
-    #if func_hess is None:
+    # if func_hess is None:
     #    constraint_hessian = BFGS()
-    #else:
+    # else:
     #    def constraint_hessian(x,v):
-    #        print(v)
     #        return func_hess(x)*v[0]
     constraint_hessian = BFGS()
 
@@ -620,7 +619,7 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homot
     while True:
         obj  = partial(kouri_smooth_l1_norm,t,r)
         jac  = partial(kouri_smooth_l1_norm_gradient,t,r)
-        hessp = partial(kouri_smooth_l1_norm_hessp,t,r)
+        #hessp = partial(kouri_smooth_l1_norm_hessp,t,r)
         hessp=None
 
         res = minimize(
