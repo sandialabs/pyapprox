@@ -670,8 +670,10 @@ class AlphabetOptimalDesign(object):
         if x0 is None:
             x0 = np.ones(num_design_pts+1)/num_design_pts
             x0[0]=1
+        #method = 'trust-constr'
+        method = 'slsqp'
         res = minimize(
-            minmax_objective, x0, method='trust-constr',jac=jac, hess=None,
+            minmax_objective, x0, method=method,jac=jac, hess=None,
             constraints=constraints,options=options,
             bounds=bounds)
         

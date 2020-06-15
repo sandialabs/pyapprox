@@ -18,3 +18,4 @@ from pyapprox.indexing import *
 from pyapprox.multivariate_polynomials import *
 from pyapprox.sensitivity_analysis import *
 from pyapprox.stochastic_dominance import *
+from pyapprox.monomial import *

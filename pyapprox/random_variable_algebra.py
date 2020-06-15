@@ -192,8 +192,34 @@ def get_inverse_derivatives(poly,bounds,zz,fd_eps=np.sqrt(np.finfo(float).eps)):
 
 def get_pdf_from_monomial_expansion(coef,lb,ub,x_pdf,zz):
     """
+    Evaluate the PDF of the z=f(x) where f(x) is a 1D monomial expansion.
+
+    Notes
+    -----
     my code assumes monomial coefficients are ordered smallest degree to largest
     scipy assumes reverse ordering
+
+    Parameters
+    ----------
+    coef : np.ndarray (num_coef)
+        The coefficients of the monomial expansion
+
+    lb : float
+        The lower bound of the independent random variable x
+
+    ub : float
+        The upper bound of the independent random variable x
+
+    x_pdf : callable
+        The PDF of the independent random variable x
+
+    zz : np.ndarray (num_samples)
+        Samples at which to compute the PDF of the dependent random variable z
+
+    Returns
+    -------
+    zz_pdf_vals : np.ndarray (nsamples)
+       The pdf of the dependent random variable z=f(x)
     """
     poly = np.poly1d(coef[::-1])
     critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
