@@ -86,13 +86,19 @@ class TestOptimization(unittest.TestCase):
         """for tutorial purposes. Perhaps move to a tutorial"""
         np.random.seed(1)
         tol=1e-14
-        nsamples, degree, sparsity = 100, 7, 2 
+        nsamples, degree, sparsity = 20, 7, 2 
         samples = np.random.uniform(0,1,(1,nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
 
         true_coef = np.zeros(basis_matrix.shape[1])
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
+
+        import os
+        print(os.getcwd())
+        np.savetxt('basis_matrix.txt',basis_matrix)
+        np.savetxt('rhs.txt',vals)
+        np.savetxt('true_coef.txt',true_coef)
 
         def objective(x,return_grad=True):
             residual = basis_matrix.dot(x)-vals
@@ -108,16 +114,38 @@ class TestOptimization(unittest.TestCase):
         lstsq_coef = np.linalg.lstsq(basis_matrix,vals,rcond=0)[0]
 
         init_guess = np.random.normal(0,0.1,(true_coef.shape[0]))
-        #init_guess = lstsq_coef
+        #init_guess = lstsq_coef+np.random.normal(0,1e-3,(true_coef.shape[0]))
 
         errors = check_gradients(objective,True,init_guess,disp=True)
         assert errors.min()<2e-7
 
         method = 'trust-constr'
         func = partial(objective,return_grad=True); jac=True; hess=hessian; 
-        options = {'gtol':tol,'verbose':0,'disp':True,'xtol':tol,'maxiter':1000}
+        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':10000}
+        constraints = []
+
+        # def constraint_obj(x):
+        #     val = objective(x)[0]
+        #     return val
+    
+        # def constraint_jac(x):
+        #     jac = objective(x)[1]
+        #     return jac
+
+        # def constraint_hessian(x,v):
+        #     return hessian(x)*v[0]
+                
+        # #constraint_hessian = BFGS()
+
+        # eps=1e-4
+        # nonlinear_constraint = NonlinearConstraint(
+        #     constraint_obj,0,eps,jac=constraint_jac,hess=constraint_hessian,
+        #     keep_feasible=False)
+        # constraints = [nonlinear_constraint]
+        
         res = minimize(
-            func, init_guess, method=method, jac=jac, hess=hess,options=options)
+            func, init_guess, method=method, jac=jac, hess=hess,options=options,
+            constraints=constraints)
 
         #print(lstsq_coef)
         print(res.x,true_coef)
@@ -253,7 +281,8 @@ class TestOptimization(unittest.TestCase):
         assert np.allclose(true_coef,coef,atol=1e-7)
 
     def test_basis_pursuit_denoising_smooth_l1_norm(self):
-        nsamples, degree, sparsity = 6, 7, 2
+        np.random.seed(1)
+        nsamples, degree, sparsity = 20, 7, 2
         #nsamples, degree, sparsity = 15, 20, 3
         samples = np.random.uniform(0,1,(1,nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
@@ -278,10 +307,11 @@ class TestOptimization(unittest.TestCase):
         assert np.allclose(func(init_guess)[0],0.5*np.linalg.norm(basis_matrix.dot(init_guess)-vals)**2)
 
         tol=1e-8
-        eps=1e-8
+        eps=0
+        init_guess = np.random.normal(0,0.1,(true_coef.shape[0]))
         #init_guess = np.random.normal(0,1,(true_coef.shape[0]))
-        init_guess = true_coef
-        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':10000}
+        #init_guess = true_coef
+        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
         homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':1e-4,'maxiter':10}
         res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options,homotopy_options)
         print (res)

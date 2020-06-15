@@ -578,10 +578,12 @@ def kouri_smooth_l1_norm_hessp(t,r,x,v):
         
 def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options,homotopy_options):
 
-    t = np.ones_like(init_guess)
+    t = np.zeros_like(init_guess)
     r = 1
 
     method = 'trust-constr'
+    #method = 'slsqp'
+    #method = 'cobyla'
     nunknowns = init_guess.shape[0]
 
     def constraint_obj(x):
