@@ -94,8 +94,6 @@ class TestOptimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
 
-        import os
-        print(os.getcwd())
         np.savetxt('basis_matrix.txt',basis_matrix)
         np.savetxt('rhs.txt',vals)
         np.savetxt('true_coef.txt',true_coef)
@@ -218,12 +216,11 @@ class TestOptimization(unittest.TestCase):
         assert np.allclose(l1_coef,true_coef,atol=2e-4)
 
     def test_smooth_l1_norm_gradients(self):
-        x = np.linspace(-1,1,101)
-        t = np.zeros_like(x)
+        #x = np.linspace(-1,1,101)
         #t = np.ones_like(x)
-        r = 10
-        plt.plot(x,kouri_smooth_absolute_value(t,r,x))
-        plt.show()
+        #r = 1e1
+        #plt.plot(x,kouri_smooth_absolute_value(t,r,x))
+        #plt.show()
 
         t = np.ones(5);r=1
         init_guess = np.random.normal(0,1,(t.shape[0]))
@@ -248,16 +245,21 @@ class TestOptimization(unittest.TestCase):
 
     def test_basis_pursuit_smooth_l1_norm(self):
         np.random.seed(1)
-        # #nsamples, degree, sparsity = 6, 7, 2
-        # nsamples, degree, sparsity = 15, 20, 3
-        # samples = np.random.uniform(0,1,(1,nsamples))
-        # basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
+        #nsamples, degree, sparsity = 6, 7, 2
+        nsamples, degree, sparsity = 15, 20, 3
+        samples = np.random.uniform(0,1,(1,nsamples))
+        basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
 
-        # true_coef = np.zeros(basis_matrix.shape[1])
-        # true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
-        # vals = basis_matrix.dot(true_coef)
+        true_coef = np.zeros(basis_matrix.shape[1])
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
+        vals = basis_matrix.dot(true_coef)
 
         basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+
+        np.savetxt('basis_matrix.txt',basis_matrix)
+        np.savetxt('rhs.txt',vals)
+        np.savetxt('true_coef.txt',true_coef)
+
 
         def func(x):
             return basis_matrix.dot(x)-vals, basis_matrix
@@ -265,15 +267,15 @@ class TestOptimization(unittest.TestCase):
         def hess(x):
             return sp.lil_matrix((x.shape[0],x.shape[0]),dtype=float)
 
-        tol=1e-14
+        tol=1e-6
         eps=0
-        #init_guess = np.random.normal(0,1,(true_coef.shape[0]))
-        init_guess = true_coef
-        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
-        homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':1e-10,
-                            'maxiter':10}
+        init_guess = np.random.normal(0,1,(true_coef.shape[0]))*0
+        method='ipopt'
+        #init_guess = true_coef
+        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':1e-10,
+                   'maxiter':20,'method':method,'ftol':1e-10}
         res = basis_pursuit_denoising(
-            func,jac,hess,init_guess,eps,options,homotopy_options)
+            func,jac,hess,init_guess,eps,options)
         coef =  res.x
 
         #print(true_coef,coef)
@@ -291,33 +293,35 @@ class TestOptimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
 
+        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+
         def func(x,return_grad=True):
             residual = basis_matrix.dot(x)-vals
-            obj = 0.5*residual.dot(residual)
-            grad = basis_matrix.T.dot(residual)
+            obj = residual.dot(residual)
+            grad = 2*basis_matrix.T.dot(residual)
             if return_grad:
                 return obj, grad
             return obj
 
         def hess(x):
-            return basis_matrix.T.dot(basis_matrix)
+            return 2*basis_matrix.T.dot(basis_matrix)
         jac=True
 
         init_guess = np.random.normal(0,1,(true_coef.shape[0]))
-        assert np.allclose(func(init_guess)[0],0.5*np.linalg.norm(basis_matrix.dot(init_guess)-vals)**2)
+        assert np.allclose(func(init_guess)[0],np.linalg.norm(basis_matrix.dot(init_guess)-vals)**2)
 
-        tol=1e-8
-        eps=0
-        init_guess = np.random.normal(0,0.1,(true_coef.shape[0]))
-        #init_guess = np.random.normal(0,1,(true_coef.shape[0]))
+        print(true_coef)
+        eps=1e-3
+        method = 'slsqp'
+        #method = 'ipopt'
+        #init_guess = np.random.normal(0,0.1,(true_coef.shape[0]))
+        init_guess = np.random.normal(0,1,(true_coef.shape[0]))*0
         #init_guess = true_coef
-        options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000}
-        homotopy_options = {'gtol':tol,'verbose':2,'disp':True,'xtol':1e-4,'maxiter':10}
-        res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options,homotopy_options)
-        print (res)
+        options = {'gtol':1e-8,'verbose':6,'disp':True,'dualtol':1e-6,'maxiter_inner':1e3,'r0':1e4,'maxiter':1e2,'ftol':1e-10,'method':method}
+        res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options)
         coef =  res.x
 
-        print(true_coef,coef)
+        print(np.linalg.norm(true_coef-coef))
         assert np.allclose(true_coef,coef)
         
 
