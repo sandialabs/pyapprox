@@ -118,10 +118,10 @@ class TestL1Minimization(unittest.TestCase):
         tol=1e-6
         #options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000,
         #           'method':'trust-constr'}
-        options = {'ftol':tol,'disp':True,'maxiter':1000,'iprint':3,
-                   'method':'slsqp'}
-        #options = {'tol':tol,'maxiter':1000,'print_level':3,
-        #           'method':'ipopt'}
+        #options = {'ftol':tol,'disp':True,'maxiter':1000,'iprint':3,
+        #           'method':'slsqp'}
+        options = {'tol':tol,'maxiter':1000,'print_level':3,
+                   'method':'ipopt'}
         init_guess = np.random.normal(0,1,true_coef.shape[0])
         #fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
         #exact_jac = func(init_guess)[1]

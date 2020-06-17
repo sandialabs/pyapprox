@@ -26,7 +26,7 @@ def basis_pursuit(Amat,bvec,options):
     return res.x[:nunknowns]
     
 
-def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0):
+def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0,return_full=False):
     nunknowns = init_guess.shape[0]
     nslack_variables = nunknowns
     def obj(x):
@@ -101,12 +101,19 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0):
         from ipopt import minimize_ipopt
         from scipy.optimize._constraints import new_constraint_to_old
         con = new_constraint_to_old(constraints[0],x0)
+        print(con)
+        ipopt_bounds = []
+        for ii in range(len(bounds.lb)):
+            ipopt_bounds.append([bounds.lb[ii],bounds.ub[ii]])
         res = minimize_ipopt(
             obj,x0,method=method,jac=True,options=options,
-            constraints=con)
+            constraints=con,bounds=ipopt_bounds)
 
-    
-    return res.x[:nunknowns]
+
+    if return_full:
+        return res.x[:nunknowns], res
+    else:
+        return res.x[:nunknowns]
 
 def kouri_smooth_absolute_value(t,r,x):
     vals = np.zeros(x.shape[0])
