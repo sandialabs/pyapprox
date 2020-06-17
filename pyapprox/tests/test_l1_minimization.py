@@ -261,10 +261,11 @@ class TestL1Minimization(unittest.TestCase):
         print(true_coef)
         eps=1e-3
         method = 'slsqp'
+        #method = 'ipopt'
         init_guess = np.random.normal(0,1,(true_coef.shape[0]))*0
         #init_guess = true_coef
-        options = {'gtol':1e-8,'verbose':6,'disp':True,'dualtol':1e-6,
-                   'maxiter_inner':1e3,'r0':1e4,'maxiter':1e2,'ftol':1e-10,
+        options = {'gtol':1e-8,'verbose':2,'disp':True,'dualtol':1e-6,
+                   'maxiter_inner':3e3,'r0':1e4,'maxiter':1e2,'ftol':1e-10,
                    'method':method}
         res = basis_pursuit_denoising(func,jac,hess,init_guess,eps,options)
         coef =  res.x

@@ -242,7 +242,7 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options):
             from ipopt import minimize_ipopt
             options0 = {'tol':gtol0,'print_level':max(0,verbose-1),
                         'maxiter':int(maxiter_inner),'acceptable_constr_viol_tol':ctol0,
-                        'derivative_test':'first-order'}
+                        'derivative_test':'first-order','nlp_scaling_constr_target_gradient':1.}
             from scipy.optimize._constraints import new_constraint_to_old
             con = new_constraint_to_old(constraints[0],init_guess)
             res = minimize_ipopt(
@@ -254,6 +254,7 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options):
             assert res.status==1 or res.status==2
         elif method=='slsqp':
             assert res.status==0
+        assert res.success==True
 
         fdiff = np.linalg.norm(f0-res.fun)
         xdiff = np.linalg.norm(x0-res.x)
