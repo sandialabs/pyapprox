@@ -282,9 +282,9 @@ class TestL1Minimization(unittest.TestCase):
         true_coef = np.zeros(basis_matrix.shape[1])
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
-        lamdas = np.logspace(-5, 0.8, 10)
+        lamdas = np.logspace(-6, 1, 10)
 
-        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+        basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
         #lamdas = np.logspace(0, 2, 20)
 
         def func(x,return_grad=True):
@@ -299,19 +299,22 @@ class TestL1Minimization(unittest.TestCase):
         AtA = basis_matrix.T.dot(basis_matrix)
         def hess(x):
             return AtA
+        #hess=None
 
         init_guess = np.random.normal(0,1,(true_coef.shape[0]))*0
+        #init_guess = true_coef
         for i, lamda in enumerate(lamdas):
             #options = {'gtol':1e-12,'disp':True,
             #           'maxiter':1e3, 'method':'trust-constr','sparse_jacobian':True,
             #           'barrier_tol':1e-12}
             #options = {'ftol':1e-12,'disp':False,
             #           'maxiter':1e3, 'method':'slsqp'};hess=None
-            options = {'tol':1e-8,'maxiter':int(1e3),'print_level':0,
-                       'method':'ipopt'}
-            coef = lasso(func,jac,hess,init_guess,lamda,options)
+            options = {'tol':1e-8,'maxiter':int(1e4),'print_level':0,
+                       'method':'ipopt','mu_strategy':'adaptive','jac_d_constant':'yes','hessian_constant':'yes','obj_scaling_factor':float(1/lamda)}
+            coef, res = lasso(func,jac,hess,init_guess,lamda,options)
             initial_guess=coef
             print(lamda,np.absolute(coef).sum(),func(coef,False),np.linalg.norm(true_coef-coef))
+            assert res.success==True
         assert False, 'test not finished'
 
 if __name__ == '__main__':

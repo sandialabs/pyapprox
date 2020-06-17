@@ -322,7 +322,7 @@ def lasso(func,func_jac,func_hess,init_guess,lamda,options):
 
     def hess(x):
         H = sp.lil_matrix((x.shape[0],x.shape[0]),dtype=float)
-        H[:nunknowns,:nunknowns] = func_hess(x)
+        H[:nunknowns,:nunknowns] = func_hess(x[:nunknowns])
         return H
     if func_hess is None:
         hess=None
@@ -335,6 +335,7 @@ def lasso(func,func_jac,func_hess,init_guess,lamda,options):
     linear_constraint = LinearConstraint(
         A_con, lb_con, ub_con, keep_feasible=False)
     constraints = [linear_constraint]
+    #print(A_con.A)
     
     lbs = np.zeros(nunknowns+nslack_variables);
     lbs[:nunknowns]=-np.inf
@@ -349,15 +350,32 @@ def lasso(func,func_jac,func_hess,init_guess,lamda,options):
             partial(obj,lamda), x0, method=method, jac=True, hess=hess, options=options,
             bounds=bounds, constraints=constraints)
     else:
-        jac_structure = lambda : np.nonzero(np.tile(np.eye(nunknowns), (2, 2)))
+        #jac_structure_old = lambda : np.nonzero(np.tile(np.eye(nunknowns), (2, 2)))
+        def jac_structure():
+            rows = np.repeat(np.arange(2*nunknowns),2)
+            cols = np.empty_like(rows)
+            cols[::2] =np.hstack([ np.arange(nunknowns)]*2)
+            cols[1::2] =np.hstack([np.arange(nunknowns,2*nunknowns)]*2)
+            return rows,cols
+        #assert np.allclose(jac_structure()[0],jac_structure_old()[0])
+        #assert np.allclose(jac_structure()[1],jac_structure_old()[1])
+        
+        #jac_structure=None
+        def hess_structure():
+            h = np.zeros((2*nunknowns, 2*nunknowns))
+            h[:nunknowns, :nunknowns] = np.tril(np.ones((nunknowns,nunknowns)))
+            return np.nonzero(h)
+        if hess is None:
+            hess_structure=None
+        
         from ipopt import minimize_ipopt
         from scipy.optimize._constraints import new_constraint_to_old
         con = new_constraint_to_old(constraints[0],x0)
         res = minimize_ipopt(
             partial(obj,lamda),x0,method=method,jac=True,options=options,
-            constraints=con,jac_structure=jac_structure)
+            constraints=con,jac_structure=jac_structure, hess_structure=hess_structure, hess=hess)
     #print(res)
     
-    return res.x[:nunknowns]
+    return res.x[:nunknowns], res
     
     
