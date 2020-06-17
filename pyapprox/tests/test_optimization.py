@@ -170,10 +170,48 @@ class TestOptimization(unittest.TestCase):
 
         tol=1e-12
         options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':10000}
+        #options = {'tol':tol,'maxiter':1000,'print_level':3,
+        #           'method':'ipopt'}
         init_guess = true_coef+np.random.normal(0,1,true_coef.shape[0])
         #fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
         #exact_jac = func(init_guess)[1]
         l1_coef = nonlinear_basis_pursuit(func,jac,hess,init_guess,options)
+        print(np.linalg.norm(l1_coef-true_coef))
+        assert np.allclose(l1_coef,true_coef,atol=1e-5)
+
+    def test_nonlinear_basis_pursuit_denoising_with_linear_model(self):
+        np.random.seed(1)
+        nsamples, degree, sparsity = 20, 7, 2 
+        samples = np.random.uniform(0,1,(1,nsamples))
+        basis_matrix = samples.T**np.arange(degree+1)[np.newaxis,:]
+
+        true_coef = np.zeros(basis_matrix.shape[1])
+        true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
+        vals = basis_matrix.dot(true_coef)
+
+        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+
+        eps=1e-3
+        def func(x,return_grad=True):
+            residual = basis_matrix.dot(x)-vals
+            obj = residual.dot(residual)
+            grad = 2*basis_matrix.T.dot(residual)
+            if return_grad:
+                return obj, grad
+            return obj
+        jac=True; hess=None
+
+        tol=1e-6
+        #options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000,
+        #           'method':'trust-constr'}
+        options = {'ftol':tol,'disp':True,'maxiter':1000,'iprint':3,
+                   'method':'slsqp'}
+        #options = {'tol':tol,'maxiter':1000,'print_level':3,
+        #           'method':'ipopt'}
+        init_guess = np.random.normal(0,1,true_coef.shape[0])
+        #fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
+        #exact_jac = func(init_guess)[1]
+        l1_coef = nonlinear_basis_pursuit(func,jac,hess,init_guess,options,eps**2)
         print(np.linalg.norm(l1_coef-true_coef))
         assert np.allclose(l1_coef,true_coef,atol=1e-5)
 

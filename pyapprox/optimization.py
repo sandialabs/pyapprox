@@ -457,8 +457,7 @@ def basis_pursuit(Amat,bvec,options):
     return res.x[:nunknowns]
     
 
-def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
-    method = 'trust-constr'
+def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0):
     nunknowns = init_guess.shape[0]
     nslack_variables = nunknowns
     def obj(x):
@@ -493,6 +492,8 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
         else:
             jac = func_jac(x[:nunknowns])
 
+        if jac.ndim==1:
+            jac = jac[np.newaxis,:]
         jac = sp.hstack([jac,sp.csr_matrix((jac.shape[0],jac.shape[1]),dtype=float)])
         #np.concatenate([jac,np.zeros(nslack_variables)])[np.newaxis,:]
         jac = sp.csr_matrix(jac)
@@ -512,7 +513,7 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
     # experimental parameter. does not enforce interpolation but allows some
     # deviation
     nonlinear_constraint = NonlinearConstraint(
-        constraint_obj,0,0,jac=constraint_jac,hess=constraint_hessian,
+        constraint_obj,0,eps,jac=constraint_jac,hess=constraint_hessian,
         keep_feasible=False)
     constraints.append(nonlinear_constraint)
     
@@ -526,9 +527,21 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options):
     #print('nl_constr_obj',nonlinear_constraint.fun(x0))
     #print('nl_constr_jac',nonlinear_constraint.jac(x0).A)
     #print('l_constr_obj',linear_constraint.A.dot(x0),linear_constraint.ub)
-    res = minimize(
-        obj, x0, method=method, jac=True, hessp=hessp, options=options,
-        bounds=bounds, constraints=constraints)
+    method = options.get('method','slsqp')
+    if 'method' in options:
+        del options['method']
+    if method!='ipopt':
+        res = minimize(
+            obj, x0, method=method, jac=True, hessp=hessp, options=options,
+            bounds=bounds, constraints=constraints)
+    else:
+        from ipopt import minimize_ipopt
+        from scipy.optimize._constraints import new_constraint_to_old
+        con = new_constraint_to_old(constraints[0],x0)
+        res = minimize_ipopt(
+            obj,x0,method=method,jac=True,options=options,
+            constraints=con)
+
     
     return res.x[:nunknowns]
 
