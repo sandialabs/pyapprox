@@ -40,6 +40,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         lb,ub=0,1
         function = lambda xx: (1-xx)**3
         x_pdf = lambda xx: (3*(1-xx)**2).squeeze()
+        #xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
+        #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));plt.show()
         coef = [1,-3,3,-1]
         poly=np.poly1d(coef[::-1])
         poly_min,poly_max = get_global_maxima_and_minima_of_monomial_expansion(
@@ -53,6 +55,12 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         z_pdf_vals = get_pdf_from_monomial_expansion(coef,lb,ub,x_pdf,zz)
         print(z_pdf_vals)
         assert np.allclose(z_pdf_vals,np.ones(zz.shape[0]),atol=1e-8)
+
+        x_cdf = lambda tt: (tt*(tt**2-3*tt+3)).squeeze()
+        z_cdf_vals = get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz)
+        plt.plot(zz,z_cdf_vals,label='Approx.')
+        plt.plot(zz,stats.uniform(0,1).cdf(zz),label='True'); plt.legend();plt.show()
+        assert np.allclose(z_cdf_vals,stats.uniform(0,1).cdf(zz),atol=1e-8)
 
     def test_get_inverse_derivatives_x_squared(self):
         lb,ub = -np.inf, np.inf
@@ -77,12 +85,21 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         poly=np.poly1d(coef[::-1])
         # due to singularities at 0 and 1 zz is only defined on 0<zz<1
         # so do not evaluate close to these bounds
-        eps=1e-3
-        zz_bounds = [eps,1-eps]
+        zz_bounds = stats.chi2.interval(0.9,df=1)
         zz = np.linspace(zz_bounds[0],zz_bounds[1],100)
         z_pdf_vals = get_pdf_from_monomial_expansion(coef,lb,ub,x_pdf,zz)
-        
+        #plt.plot(zz,z_pdf_vals,label='Approx.')
+        #plt.plot(zz,stats.chi2.pdf(zz,df=1),label='True'); plt.legend();plt.show()
         assert np.allclose(z_pdf_vals,stats.chi2.pdf(zz,df=1),atol=1e-8)
+
+        zz_bounds = stats.chi2.interval(0.999,df=1)
+        zz = np.linspace(zz_bounds[0],zz_bounds[1],5)
+
+        x_cdf = stats.norm(mean,np.sqrt(var)).cdf
+        z_cdf_vals = get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz)
+        plt.plot(zz,z_cdf_vals,label='Approx.')
+        plt.plot(zz,stats.chi2.cdf(zz,df=1),label='True'); plt.legend();plt.show()
+        assert np.allclose(z_cdf_vals,stats.chi2.cdf(zz,df=1),atol=1e-8)
         
     def test_sum_of_independent_uniform_and_gaussian_variables(self):
         lb,ub=1,3
