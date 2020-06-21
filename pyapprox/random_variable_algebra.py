@@ -219,7 +219,7 @@ def get_pdf_from_monomial_expansion(coef,lb,ub,x_pdf,zz):
     Returns
     -------
     zz_pdf_vals : np.ndarray (nsamples)
-       The pdf of the dependent random variable z=f(x)
+       The PDF of the dependent random variable z=f(x)
     """
     poly = np.poly1d(coef[::-1])
     critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
@@ -239,3 +239,65 @@ def get_pdf_from_monomial_expansion(coef,lb,ub,x_pdf,zz):
         zz_pdf_vals[defined_indices] += x_pdf_vals*np.absolute(
             inverse_derivs[defined_indices])
     return zz_pdf_vals
+
+def get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz):
+    """
+    Evaluate the CDF of the z=f(x) where f(x) is a 1D monomial expansion.
+
+    Notes
+    -----
+    my code assumes monomial coefficients are ordered smallest degree to largest
+    scipy assumes reverse ordering
+
+    Parameters
+    ----------
+    coef : np.ndarray (num_coef)
+        The coefficients of the monomial expansion
+
+    lb : float
+        The lower bound of the independent random variable x
+
+    ub : float
+        The upper bound of the independent random variable x
+
+    x_cdf : callable
+        The CDF of the independent random variable x
+
+    zz : np.ndarray (num_samples)
+        Samples at which to compute the CDF of the dependent random variable z
+
+    Returns
+    -------
+    zz_cdf_vals : np.ndarray (nsamples)
+       The CDF of the dependent random variable z=f(x)
+    """
+    poly = np.poly1d(coef[::-1])
+    critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
+    # intervals containing monotone regions of polynomial
+    intervals = critical_points
+    if (len(intervals)==0 or not np.isfinite(intervals[0]) or
+        abs(intervals[0]-lb)>1e-15):
+        intervals=np.concatenate(([lb],intervals))
+    if not np.isfinite(intervals[-1]) or abs(intervals[-1]-ub)>1e-15:
+        intervals=np.concatenate((intervals,[ub]))
+        
+    zz_cdf_vals = np.zeros((zz.shape[0]))
+    for jj in range(intervals.shape[0]-1):
+        inverse_vals=invert_monotone_function(poly,intervals[jj:jj+2],zz)
+        defined_indices = np.where(np.isfinite(inverse_vals))[0]
+        assert np.allclose(poly(inverse_vals[defined_indices]),zz[defined_indices])
+        assert np.all(
+            (inverse_vals[defined_indices]>=intervals[jj]-np.finfo(float).eps)&
+            (inverse_vals[defined_indices]<=intervals[jj+1]+np.finfo(float).eps))
+        #print(defined_indices)
+        left = max(intervals[jj],-np.finfo(float).max/10)
+        right = min(intervals[jj+1],np.finfo(float).max/10)
+        decreasing = (poly(left)>poly(right))
+        print(inverse_vals,zz)
+        if decreasing:
+            x_cdf_vals = 1-x_cdf(inverse_vals[defined_indices])
+        else:
+            x_cdf_vals = x_cdf(inverse_vals[defined_indices])
+        print(x_cdf_vals)
+        zz_cdf_vals[defined_indices] += x_cdf_vals
+    return zz_cdf_vals
