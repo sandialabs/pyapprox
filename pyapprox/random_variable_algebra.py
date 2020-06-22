@@ -280,24 +280,48 @@ def get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz):
         intervals=np.concatenate(([lb],intervals))
     if not np.isfinite(intervals[-1]) or abs(intervals[-1]-ub)>1e-15:
         intervals=np.concatenate((intervals,[ub]))
-        
+
     zz_cdf_vals = np.zeros((zz.shape[0]))
-    for jj in range(intervals.shape[0]-1):
-        inverse_vals=invert_monotone_function(poly,intervals[jj:jj+2],zz)
-        defined_indices = np.where(np.isfinite(inverse_vals))[0]
-        assert np.allclose(poly(inverse_vals[defined_indices]),zz[defined_indices])
-        assert np.all(
-            (inverse_vals[defined_indices]>=intervals[jj]-np.finfo(float).eps)&
-            (inverse_vals[defined_indices]<=intervals[jj+1]+np.finfo(float).eps))
-        #print(defined_indices)
-        left = max(intervals[jj],-np.finfo(float).max/10)
-        right = min(intervals[jj+1],np.finfo(float).max/10)
-        decreasing = (poly(left)>poly(right))
-        print(inverse_vals,zz)
-        if decreasing:
-            x_cdf_vals = 1-x_cdf(inverse_vals[defined_indices])
-        else:
-            x_cdf_vals = x_cdf(inverse_vals[defined_indices])
-        print(x_cdf_vals)
-        zz_cdf_vals[defined_indices] += x_cdf_vals
+
+    poly_vals_at_intervals = poly(intervals)
+    for ii in range(zz.shape[0]):
+        for jj in range(intervals.shape[0]-1):
+            inverse_val = invert_monotone_function(poly,intervals[jj:jj+2],zz[ii])
+            if np.isfinite(inverse_val):
+                left = poly_vals_at_intervals[jj]
+                right = poly_vals_at_intervals[jj+1]
+                if not np.isfinite(left):
+                    left = poly(intervals[jj+1]-1e-8)
+                if not np.isfinite(right):
+                    right= poly(intervals[jj]+1e-8)
+                decreasing = (left>right)
+                if decreasing:
+                    zz_cdf_vals[ii]+=x_cdf(intervals[jj+1])-x_cdf(inverse_val)
+                else:
+                    zz_cdf_vals[ii]+=x_cdf(inverse_val)-x_cdf(intervals[jj])
+            elif (zz[ii]>poly_vals_at_intervals[jj:jj+2].max()):
+                zz_cdf_vals[ii]+=x_cdf(intervals[jj+1])-x_cdf(intervals[jj])
     return zz_cdf_vals
+
+    # for jj in range(intervals.shape[0]-1):
+    #     inverse_vals=invert_monotone_function(poly,intervals[jj:jj+2],zz)
+    #     defined_indices = np.where(np.isfinite(inverse_vals))[0]
+    #     assert np.allclose(poly(inverse_vals[defined_indices]),zz[defined_indices])
+    #     assert np.all(
+    #         (inverse_vals[defined_indices]>=intervals[jj]-np.finfo(float).eps)&
+    #         (inverse_vals[defined_indices]<=intervals[jj+1]+np.finfo(float).eps))
+    #     #print(defined_indices)
+    #     left = max(intervals[jj],-np.finfo(float).max/10)
+    #     right = min(intervals[jj+1],np.finfo(float).max/10)
+    #     decreasing = (poly(left)>poly(right))
+    #     #print(inverse_vals[defined_indices],zz[defined_indices])
+    #     if decreasing:
+    #         I = np.where(zz_cdf_vals[defined_indices]==0)[0]
+    #         zz_cdf_vals[I] = x_cdf(inverse_vals[defined_indices])[I]
+    #         J = np.where(zz_cdf_vals[defined_indices]>0)[0]
+    #         zz_cdf_vals[J]+=x_cdf(intervals[jj+1])-x_cdf(inverse_vals[defined_indices])[J]
+    #     else:
+    #         x_cdf_vals = x_cdf(inverse_vals[defined_indices])-x_cdf(intervals[jj])
+    #         #assert np.all(x_cdf_vals>0)
+    #         zz_cdf_vals[defined_indices] += x_cdf_vals
+    # return zz_cdf_vals
