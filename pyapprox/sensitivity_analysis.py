@@ -201,3 +201,157 @@ def plot_interaction_values( interaction_values, interaction_terms,
     plot_pie_chart( interaction_values, labels = labels, title = title,
                     show = show, fignum = fignum, fontsize = fontsize,
                     filename = filename )
+
+def get_morris_trajectory(nvars,nlevels,eps=0):
+    """
+    Compute a morris trajectory used to compute elementary effects
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables
+
+    nlevels : integer
+        The number of levels used for to define the morris grid.
+
+    eps : float 
+        Set grid used defining the morris trajectory to [eps,1-eps].
+        This is needed when mapping the morris trajectories using inverse
+        CDFs of unbounded variables
+
+    Returns
+    -------
+    trajectory : np.ndarray (nvars,nvars+1)
+        The Morris trajectory which consists of nvars+1 samples
+    """
+    assert nlevels%2==0
+    delta = nlevels/((nlevels-1)*2)
+    samples_1d = np.linspace(eps, 1-eps, nlevels)
+    
+    initial_point=np.random.choice(samples_1d, nvars)
+    shifts = np.diag(np.random.choice([-delta,delta],nvars))
+    trajectory = np.empty((nvars,nvars+1))
+    trajectory[:,0] = initial_point
+    for ii in range(nvars):
+        trajectory[:,ii+1]=trajectory[:,ii].copy()
+        if (trajectory[ii,ii]-delta)>=0 and (trajectory[ii,ii]+delta)<=1:
+            trajectory[ii,ii+1]+=shift[ii]
+        elif (trajectory[ii,ii]-delta)>=0:
+            trajectory[ii,ii+1]-=delta
+        elif (trajectory[ii,ii]+delta)<=1:
+            trajectory[ii,ii+1]+=delta
+        else:
+            raise Exception('This should not happen')
+    return trajectory
+
+def get_morris_samples(nvars,nlevels,ntrajectories,eps=0,icdfs=None):
+    """
+    Compute a set of Morris trajectories used to compute elementary effects
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables
+
+    nlevels : integer
+        The number of levels used for to define the morris grid.
+
+    ntrajectories : integer
+        The number of Morris trajectories requested
+
+    eps : float 
+        Set grid used defining the Morris trajectory to [eps,1-eps].
+        This is needed when mapping the morris trajectories using inverse
+        CDFs of unbounded variables
+
+    icdfs : list (nvars)
+        List of inverse CDFs functions for each variable
+
+    Returns
+    -------
+    trajectories : np.ndarray (nvars,ntrajectories*(nvars+1))
+        The Morris trajectories
+    """
+    if icdfs is None:
+        icdfs = [lambda x: x]*nvars
+    assert len(icdfs)==nvars
+
+    trajectories = np.hstack([get_morris_trajectory(nvars,nlevels,eps)
+                              for n in range(ntrajectories)])
+    for ii in range(nvars):
+        trajectories[ii,:] = icdfs[ii](trajectories[ii,:])
+    return trajectories
+
+def get_morris_elementary_effects(samples,values):
+    """
+    Get the Morris elementary effects from a set of trajectories.
+
+    Parameters
+    ----------
+    samples : np.ndarray (nvars,ntrajectories*(nvars+1))
+        The morris trajectories
+
+    values : np.ndarray (ntrajectories*(nvars+1),nqoi)
+        The values of the vecto-valued target function with nqoi quantities 
+        of interest (QoI)
+
+    Returns
+    -------
+    elem_effects : np.ndarray(nvars,ntrajectories,nqoi)
+        The elementary effects of each variable for each trajectory and QoI
+    """
+    nvars = samples.shape[0]
+    nqoi=values.shape[1]
+    assert samples.shape[1]%(nvars+1)==0
+    assert samples.shape[1]==values.shape[0]
+    ntrajectories = samples.shape[1]//(nvars+1)
+    elem_effects = np.empty((nvars,ntrajectories,nqoi))
+    ix1=0
+    for ii in range(ntrajectories):
+        ix2=ix1+nvars
+        delta = np.diff(samples[:,ix1+1:ix2+1]-samples[:,ix1:ix2]).max()
+        assert delta>0
+        elem_effects[:,ii] = (values[ix1+1:ix2+1]-values[ix1:ix2])/delta
+        ix1=ix2+1
+    return elem_effects
+
+def get_morris_sensitivity_indices(elem_effects):
+    """
+    Compute the Morris sensitivity indices mu and sigma from the elementary 
+    effects computed for a set of trajectories.
+
+    Mu is the mu^\star from Campolongo et al.
+
+    Parameters
+    ----------
+    elem_effects : np.ndarray(nvars,ntrajectories,nqoi)
+        The elementary effects of each variable for each trajectory and quantity
+        of interest (QoI)
+
+    Returns
+    -------
+    mu : np.ndarray(nvars,nqoi) 
+        The sensitivity of each output to each input. Larger mu corresponds to 
+        higher sensitivity
+    
+    sigma: np.ndarray(nvars,nqoi) 
+        A measure of the non-linearity and/or interaction effects of each input
+        for each output. Low values suggest a linear realationship between
+        the input and output. Larger values suggest a that the output is 
+        nonlinearly dependent on the input and/or the input interacts with 
+        other inputs
+    """
+    mu = np.absolute(elem_effects).mean(axis=1)
+    assert mu.shape==(elem_effects.shape[0],elem_effects.shape[2])
+    sigma = np.std(elem_effects,axis=1)
+    return mu,sigma
+
+def print_morris_sensitivity_indices(mu,sigma,qoi=0):
+    string = "Morris sensitivity indices\n"
+    from pandas import DataFrame
+    df=DataFrame({"mu*":mu[:,qoi],"sigma":sigma[:,qoi]})
+    df.index = [f'Z_{ii+1}' for ii in range(mu.shape[0])]
+    print(df)
+    
+    
+    
