@@ -1,6 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-
 from scipy.special import comb as nchoosek
 from pyapprox.utilities import cartesian_product, hash_array
 def get_total_degree(num_dims, num_pts):

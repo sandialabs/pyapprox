@@ -1451,3 +1451,22 @@ def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
     T = num_entries_rectangular_triangular_matrix(ii,min(ii,N),upper=False)
     kk = T+jj
     return kk
+
+def evaluate_quadratic_form(matrix,samples):
+    """
+    Evaluate x.T.dot(A).dot(x) for several vectors x
+
+    Parameters
+    ----------
+    num_samples : np.ndarray (nvars,nsamples)
+        The vectors x
+
+    matrix : np.ndarray(nvars,nvars)
+        The matrix A
+
+    Returns
+    -------
+    vals : np.ndarray (nsamples)
+        Evaluations of the quadratic form for each vector x
+    """
+    return (samples.T.dot(matrix)*samples.T).sum(axis=1)

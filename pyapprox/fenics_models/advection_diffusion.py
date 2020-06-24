@@ -380,6 +380,8 @@ class AdvectionDiffusionModel(object):
                 pbc =  RectangularMeshPeriodicBoundary(1)
                 function_space = dl.FunctionSpace(
                     mesh, "CG", self.degree, constrained_domain=pbc)
+
+                
                 bndry_obj = dl.CompiledSubDomain(
                     "on_boundary&&(near(x[0],0)||near(x[0],1))")
                 boundary_conditions = [['dirichlet',bndry_obj,dl.Constant(0)]]

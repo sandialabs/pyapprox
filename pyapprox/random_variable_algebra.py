@@ -303,25 +303,32 @@ def get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz):
                 zz_cdf_vals[ii]+=x_cdf(intervals[jj+1])-x_cdf(intervals[jj])
     return zz_cdf_vals
 
-    # for jj in range(intervals.shape[0]-1):
-    #     inverse_vals=invert_monotone_function(poly,intervals[jj:jj+2],zz)
-    #     defined_indices = np.where(np.isfinite(inverse_vals))[0]
-    #     assert np.allclose(poly(inverse_vals[defined_indices]),zz[defined_indices])
-    #     assert np.all(
-    #         (inverse_vals[defined_indices]>=intervals[jj]-np.finfo(float).eps)&
-    #         (inverse_vals[defined_indices]<=intervals[jj+1]+np.finfo(float).eps))
-    #     #print(defined_indices)
-    #     left = max(intervals[jj],-np.finfo(float).max/10)
-    #     right = min(intervals[jj+1],np.finfo(float).max/10)
-    #     decreasing = (poly(left)>poly(right))
-    #     #print(inverse_vals[defined_indices],zz[defined_indices])
-    #     if decreasing:
-    #         I = np.where(zz_cdf_vals[defined_indices]==0)[0]
-    #         zz_cdf_vals[I] = x_cdf(inverse_vals[defined_indices])[I]
-    #         J = np.where(zz_cdf_vals[defined_indices]>0)[0]
-    #         zz_cdf_vals[J]+=x_cdf(intervals[jj+1])-x_cdf(inverse_vals[defined_indices])[J]
-    #     else:
-    #         x_cdf_vals = x_cdf(inverse_vals[defined_indices])-x_cdf(intervals[jj])
-    #         #assert np.all(x_cdf_vals>0)
-    #         zz_cdf_vals[defined_indices] += x_cdf_vals
-    # return zz_cdf_vals
+def sum_two_uniform_variables(ranges,zz):
+    """Sum two uniform random variables Z=X+Y
+
+    Parameters
+    ----------
+    ranges : iterable (4)
+        The upper and lower bounds of X and Y, i.e. [X_lb,X_ub,Y_lb,Y_ub]
+
+    zz : np.ndarray (nsamples)
+        The points at which to evaluate the PDF of Z
+
+    Returns
+    -------
+    vals : np.ndarray (nsamples)
+        Evaluations of the PDF of Z at the points zz
+    """
+    vals = np.zeros_like(zz)
+    lb1,ub1,lb2,ub2=ranges
+    d1,d2=(ub1-lb1),(ub2-lb2)
+    factor = 1/(d1*d2)
+    # shift variables so they both have lower bounds at the origin zz=0
+    tt = zz.copy()-(lb1+lb2)
+    I1 = np.where((tt>=0)&(tt<=d1))[0]
+    vals[I1]=factor*tt[I1]
+    I2 = np.where((tt>=d1)&(tt<=d2))[0]
+    vals[I2]=factor*d1
+    I3 = np.where((tt>=d2)&(tt<=d1+d2))[0]
+    vals[I3]=factor*(d1+d2-tt[I3])
+    return vals
