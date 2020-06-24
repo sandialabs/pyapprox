@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 from pyapprox.variables import define_iid_random_variables, \
     is_bounded_continuous_variable

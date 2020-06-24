@@ -34,7 +34,8 @@ setuptools.setup(
         'numpydoc',
         'sphinx',
         'sphinx_automodapi',
-        'sphinx_rtd_theme'
+        'sphinx_rtd_theme',
+        'pandas'
       ],
     ext_modules = cythonize(
         "pyapprox/cython/*.pyx",

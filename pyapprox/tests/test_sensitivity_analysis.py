@@ -55,6 +55,44 @@ def get_sobol_g_function_statistics(a,interaction_terms=None):
         for index in interaction_terms])
     return mean,variance,main_effects,total_effects,sobol_indices
 
+def morris_function(samples):
+    assert samples.shape[0]==20
+    beta0 = np.random.randn()
+    beta_first_order = np.empty(20)
+    beta_first_order[:10]=20
+    beta_first_order[10:] = np.random.normal(0,1,10)
+    beta_second_order = np.empty((20,20))
+    beta_second_order[:6,:6]=-15
+    beta_second_order[6:,6:] = np.random.normal(0,1,(14,14))
+    #beta_third_order = np.zeros((20,20,20))
+    #beta_third_order[:5,:5,:5]=-10
+    beta_third_order=-10
+    #beta_forth_order = np.zeros((20,20,20,20))
+    #beta_forth_order[:4,:4,:4,:4]=5
+    beta_forth_order = 5
+    ww = 2*(samples-0.5)
+    I = [3,5,7]
+    ww[I]=2 * (1.1 * samples[I]/(samples[I]+0.1)-0.5)
+
+    values = beta0
+    values += np.sum(beta_first_order[:,np.newaxis]*ww,axis=0)
+
+    for jj in range(20):
+        for ii in range(jj):
+            values += beta_second_order[ii,jj]*ww[ii]*ww[jj]
+
+    for kk in range(5):
+        for jj in range(kk):
+            for ii in range(jj):
+                values += beta_third_order*ww[ii]*ww[jj]*ww[kk]
+
+    for ll in range(4):
+        for kk in range(ll):
+            for jj in range(kk):
+                for ii in range(jj):
+                    values += beta_forth_order*ww[ii]*ww[jj]*ww[kk]*ww[ll]
+    return values[:,np.newaxis]
+
 class TestSensitivityAnalysis(unittest.TestCase):
     def test_get_sobol_indices_from_pce(self):
         num_vars = 5; degree = 5
@@ -225,6 +263,30 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         #plot_total_effects(total_effects)
         #plot_main_effects(main_effects)
+
+    def test_morris_elementary_effects(self):
+        nvars = 20
+        nlevels,ntrajectories = 4,20
+        from scipy.stats import norm
+        univariate_variables = [norm(0,1)]*nvars
+
+        nvars = len(univariate_variables)
+
+        marginal_icdfs = [v.ppf for v in univariate_variables]
+        samples = get_morris_samples(nvars,nlevels,ntrajectories)
+        values = morris_function(samples)
+        elem_effects = get_morris_elementary_effects(samples,values)
+        mu,sigma = get_morris_sensitivity_indices(elem_effects)
+        print(mu,sigma)
+        print_morris_sensitivity_indices(mu,sigma)
+        # ix1 = 0
+        # for ii in range(ntrajectories):
+        #     ix2 = ix1+nvars+1
+        #     plt.plot(samples[0,ix1:ix2],samples[1,ix1:ix2],'-o')
+        #     ix1=ix2
+        # plt.xlim([0,1]); plt.ylim([0,1]); plt.show()
+        
+        
         
     
 if __name__== "__main__":    
