@@ -706,7 +706,20 @@ class TestUtilities(unittest.TestCase):
             kk = flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N)
             #print('kk',kk,tril_entries[nn])
             assert kk==nn
-        
+
+    def test_evaluate_quadratic_form(self):
+        nvars,nsamples = 3,10
+        A = np.random.normal(0,1,nvars)
+        A = A.T.dot(A)
+        samples = np.random.uniform(0,1,(nvars,nsamples))
+        values1 = evaluate_quadratic_form(A,samples)
+
+        values2 = np.zeros(samples.shape[1])
+        for ii in range(samples.shape[1]):
+            values2[ii] = samples[:,ii:ii+1].T.dot(A).dot(samples[:,ii:ii+1])
+
+        assert np.allclose(values1,values2)
+
 
 if __name__== "__main__":    
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(

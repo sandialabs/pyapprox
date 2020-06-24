@@ -102,6 +102,28 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         #print(np.linalg.norm((z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps)))
         assert np.allclose(z_pdf_vals,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,atol=1e-5)
 
+    def test_variable_transformation_uniform_postive_poly(self):
+        coef = [ 3.22667072e-02, 0.0,  8.10965258e-02,  0.0,
+                 -2.59111042e-01, 0.0, 1.85351770e-01]
+        poly=np.poly1d(coef[::-1])
+        function = poly
+
+        lb,ub=-1,1
+        critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
+
+        x_cdf =  stats.uniform(lb,ub-lb).cdf
+        zz = np.linspace(min(poly([lb,ub]).min(),poly(critical_points).min())*1.001,max(poly([lb,ub]).max(),poly(critical_points).max())*0.999,101)
+        z_cdf_vals = get_cdf_from_monomial_expansion(coef,lb,ub,x_cdf,zz)
+        zz_rand = np.sort(function(np.random.uniform(lb,ub,1001)))
+        ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
+        fig,axs=plt.subplots(1,2,figsize=(2*8,6))
+        critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
+        xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));axs[0].plot(critical_points,poly(critical_points),'o')
+
+        axs[1].plot(zz_rand,ecdf,label='ECDF')
+        axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
+        plt.legend();plt.show()
+
     def test_get_inverse_derivatives_x_squared(self):
         lb,ub = -np.inf, np.inf
         mean, var = [0,1]
@@ -255,6 +277,32 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.show()
         # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))
         assert np.linalg.norm(true_pdf-product_pdf,ord=np.inf)<0.03
+
+    def test_sum_of_independent_uniform_variables(self):
+        nvars = 2
+        lb1,ub1=[0,2]
+        lb2,ub2=[10,13]
+        pdfs = [stats.uniform(lb1,ub1-lb1).pdf]
+
+        # transfomation not defined at 0
+        zz = np.linspace(lb1+lb2,ub1+ub2,100)
+        x,w = gauss_jacobi_pts_wts_1D(200,0,0)
+        x=(x+1)/2*(ub2-lb2)+lb2 # map to [lb2,ub2]
+        quad_rules = [[x,w]]
+        product_pdf = sum_of_independent_random_variables_pdf(
+            pdfs[0],quad_rules,zz)
+            
+        true_pdf = partial(sum_two_uniform_variables,[lb1,ub1,lb2,ub2])
+        #plt.plot(zz,true_pdf(zz), label='True PDF')
+        #plt.plot(zz,product_pdf, '--', label='Approx PDF')
+        #nsamples=10000
+        #vals = np.random.uniform(lb1,ub1,nsamples)+np.random.uniform(lb2,ub2,nsamples)
+        #plt.hist(vals,bins=100,density=True)
+        #plt.legend();plt.show()
+        # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))
+        assert np.linalg.norm(true_pdf(zz)-product_pdf,ord=np.inf)<0.03
+
+        
     
 if __name__== "__main__":    
     random_variable_algebra_test_suite = \
