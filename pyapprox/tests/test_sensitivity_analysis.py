@@ -27,6 +27,11 @@ def get_ishigami_funciton_statistics(a=7,b=0.1):
     return mean, variance, main_effects, total_effects, sobol_indices
 
 def sobol_g_function(coefficients,samples):
+    """
+    The coefficients control the sensitivity of each variable. Specifically
+    they limit the range of the outputs, i.e.
+    1-1/(1+a_i) <= (abs(4*x-2)+a_i)/(a_i+1) <= 1-1/(1+a_i)
+    """
     nvars,nsamples = samples.shape
     assert coefficients.shape[0]==nvars
     vals = np.prod((np.absolute(4*samples-2)+coefficients[:,np.newaxis])/
@@ -266,18 +271,24 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_morris_elementary_effects(self):
         nvars = 20
-        nlevels,ntrajectories = 4,20
-        from scipy.stats import norm
-        univariate_variables = [norm(0,1)]*nvars
+        from functools import partial
+        function = morris_function
 
-        nvars = len(univariate_variables)
+        nvars = 6
+        coefficients = np.array([78,12,0.5,2,97,33])
+        function = partial(sobol_g_function,coefficients)
+        
+        nlevels,ncandidate_trajectories,ntrajectories = 4,40,4
 
-        marginal_icdfs = [v.ppf for v in univariate_variables]
-        samples = get_morris_samples(nvars,nlevels,ntrajectories)
-        values = morris_function(samples)
+        candidate_samples = get_morris_samples(
+            nvars,nlevels,ncandidate_trajectories)
+
+        samples=downselect_morris_trajectories(candidate_samples,ntrajectories)
+
+        
+        values = function(samples)
         elem_effects = get_morris_elementary_effects(samples,values)
         mu,sigma = get_morris_sensitivity_indices(elem_effects)
-        print(mu,sigma)
         print_morris_sensitivity_indices(mu,sigma)
         # ix1 = 0
         # for ii in range(ntrajectories):
