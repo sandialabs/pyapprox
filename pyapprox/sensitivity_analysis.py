@@ -1,8 +1,6 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-
 import numpy as np
 from pyapprox.indexing import compute_hyperbolic_indices,hash_array
+from pyapprox.utilities import nchoosek
 
 def get_main_and_total_effect_indices_from_pce(coefficients,indices):
     """
@@ -248,6 +246,14 @@ def get_morris_samples(nvars,nlevels,ntrajectories,eps=0,icdfs=None):
     """
     Compute a set of Morris trajectories used to compute elementary effects
 
+    Notes
+    -----
+    The choice of nlevels must be linked to the choice of ntrajectories.
+    For example, if a large number of possible levels is used ntrajectories
+    must also be high, otherwise if ntrajectories is small effort will be  
+    wasted because many levels will not be explored. nlevels=4 and 
+    ntrajectories=10 is often considered reasonable.
+
     Parameters
     ----------
     nvars : integer
@@ -353,5 +359,44 @@ def print_morris_sensitivity_indices(mu,sigma,qoi=0):
     df.index = [f'Z_{ii+1}' for ii in range(mu.shape[0])]
     print(df)
     
+from scipy.spatial.distance import cdist
+from itertools import combinations
+def downselect_morris_trajectories(samples,ntrajectories):    
+    nvars = samples.shape[0]
+    assert samples.shape[1]%(nvars+1)==0
+    ncandidate_trajectories = samples.shape[1]//(nvars+1)
+    #assert 10*ntrajectories<=ncandidate_trajectories
+
+    trajectories=np.reshape(
+        samples,(nvars,nvars+1,ncandidate_trajectories),order='F')
     
+    distances = np.zeros((ncandidate_trajectories,ncandidate_trajectories))
+    for ii in range(ncandidate_trajectories):
+        for jj in range(ii+1):
+            distances[ii,jj]=cdist(
+                trajectories[:,:,ii].T,trajectories[:,:,jj].T).sum()
+            distances[jj,ii]=distances[ii,jj]
+
+    get_combinations=combinations(
+        np.arange(ncandidate_trajectories),ntrajectories)
+    ncombinations = nchoosek(ncandidate_trajectories,ntrajectories)
+    print('ncombinations',ncombinations)
+    values = np.empty(ncombinations)
+    best_index = None
+    best_value = -np.inf
+    for ii,index in enumerate(get_combinations):
+        value = np.sqrt(np.sum(
+            [distances[ix[0],ix[1]]**2 for ix in combinations(index,2)]))
+        if value>best_value:
+            best_value=value
+            best_index=index
+
+    samples = trajectories[:,:,best_index].reshape(nvars,ntrajectories*(nvars+1),order='F')
+    return samples
+
+    
+        
+    
+
+
     
