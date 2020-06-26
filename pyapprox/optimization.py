@@ -396,15 +396,16 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
     return fig_cdf,axs_cdf
 
 def check_gradients(function,grad_function,xx,plot=False,disp=True):
-    assert xx.ndim==1
+    assert xx.ndim==2
+    assert xx.shape[1]==1
     if callable(grad_function):
         function_val = function(xx)
         grad_val = grad_function(xx)
     elif grad_function==True:
         function_val,grad_val = function(xx)
-    direction = np.random.normal(0,1,xx.shape[0])
+    direction = np.random.normal(0,1,(xx.shape[0],1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = grad_val.dot(direction)
+    directional_derivative = grad_val.T.dot(direction)
     fd_eps = np.logspace(-13,0,14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
@@ -417,6 +418,37 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
             perturbed_function_val = perturbed_function_val[0]
         fd_directional_derivative = (
             perturbed_function_val-function_val)/fd_eps[ii]
+        errors.append(np.absolute(
+            fd_directional_derivative-directional_derivative))
+        if disp:
+            print(row_format.format(fd_eps[ii],errors[ii].max(),
+                                    errors[ii].min()))
+            #print(fd_directional_derivative,directional_derivative)
+
+    if plot:
+        plt.loglog(fd_eps,errors,'o-')
+        plt.ylabel(r'$\lvert\nabla_\epsilon f-\nabla f\rvert$')
+        plt.xlabel(r'$\epsilon$')
+        plt.show()
+
+    return np.asarray(errors)
+
+def check_hessian(grad_function,hessian_matvec,xx,plot=False,disp=True):
+    assert xx.ndim==2
+    assert xx.shape[1]==1
+    grad = grad_function(xx)
+    direction = np.random.normal(0,1,(xx.shape[0],1))
+    direction /= np.linalg.norm(direction)
+    directional_derivative = hessian_matvec(xx,direction)
+    fd_eps = np.logspace(-13,0,14)[::-1]
+    errors = []
+    row_format = "{:<25} {:<25} {:<25}"
+    if disp:
+        print(row_format.format("Eps","Errors (max)","Errors (min)"))
+    for ii in range(fd_eps.shape[0]):
+        xx_perturbed = xx.copy()+fd_eps[ii]*direction
+        perturbed_grad = grad_function(xx_perturbed)
+        fd_directional_derivative = (perturbed_grad-grad)/fd_eps[ii]
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
         if disp:
