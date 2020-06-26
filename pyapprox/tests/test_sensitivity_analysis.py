@@ -8,6 +8,16 @@ def ishigami_function(samples,a=7,b=0.1):
         b*samples[2,:]**4*np.sin(samples[0,:])
     return vals[:,np.newaxis]
 
+def ishigami_function_jacobian(samples,a=7,b=0.1):
+    assert samples.shape[1]==1
+    nvars=3
+    assert samples.shape[0]==nvars
+    jac = np.empty((nvars,1))
+    jac[0] = np.cos(samples[0,:]) + b*samples[2,:]**4*np.cos(samples[0,:])
+    jac[1] = 2*a*np.sin(samples[1,:])*cos(samples[1,:])
+    jac[2] = 4*b*samples[2,:]**3*np.sin(samples[0,:])
+    return jac
+
 def get_ishigami_funciton_statistics(a=7,b=0.1):
     """
     p_i(X_i) ~ U[-pi,pi]
