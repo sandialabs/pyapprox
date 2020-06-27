@@ -96,4 +96,4 @@ setuptools.setup(
 # mshr can only be installed using conda
 # conda install -c conda-forge mshr
 
-#conda create -n default -c conda-forge numpy scipy cython mpi4py fenics=2019 matplotlib python=3.6 mhsr
+#conda create -n default -c conda-forge numpy scipy cython mpi4py fenics=2019 matplotlib python=3.6 mshr

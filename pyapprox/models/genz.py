@@ -140,10 +140,10 @@ class GenzFunction(object):
                 self.c[d] *= ( c_factor / csum )
         elif ( coef_type == "squared-exponential-decay" ):
             csum = 0.0
-            for d in range( self.num_vars ):
-                self.w[d] = w_factor
-                self.c[d]=np.exp((d+1)**2*np.log(1.e-15)/self.num_vars**2)
-                csum += self.c[d]
+            self.w[:] = w_factor
+            self.c[:] = 10**(-15*((np.arange(1,self.num_vars+1)/self.num_vars)**2))#equivalent to below
+            #cself.[:] = np.exp(np.arange(1,d+1)**2*np.log(1.e-15)/d**2)
+            csum = self.c.sum()
             for d in range( self.num_vars ):
                 self.c[d] *= ( c_factor / csum )
         elif ( coef_type == "exponential-decay" ):
@@ -263,8 +263,58 @@ class GenzFunction(object):
             raise Exception(msg)
 
     def __reduce__(self):
-        return (type(self),(self.func_type, self.num_vars, self.c, self.w, self.name))
+        return (type(self),(self.func_type, self.num_vars, self.c, self.w,
+                            self.name))
+
+from pyapprox.random_variable_algebra import \
+    sum_of_independent_random_variables_pdf
+from scipy.stats import uniform
+from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+from functools import partial
+from scipy.special import factorial
+from pyapprox.random_variable_algebra import get_pdf_from_monomial_expansion, get_all_local_extrema_of_monomial_expansion_1d
+import matplotlib.pyplot as plt
+def oscillatory_genz_pdf(c,w1,values):
+    nvars = c.shape[0]
+    x,w = gauss_jacobi_pts_wts_1D(100,0,0)
+    x = (x+1)/2 #scale from [-1,1] to [0,1]
+    pdf1 = partial(uniform.pdf,loc=0+2*np.pi*w1,scale=c[0])
+    quad_rules = [[c[ii]*x,w] for ii in range(1,nvars)]
+    conv_pdf = partial(sum_of_independent_random_variables_pdf,
+        pdf1,[[x,w]]*(nvars-1))
+
+    # samples = np.random.uniform(0,1,(nvars,10000))
+    # Y = np.sum(c[:,np.newaxis]*samples,axis=0)+w1*np.pi*2
+    # plt.hist(Y,bins=100,density=True)
+    # zz = np.linspace(Y.min(),Y.max(),100)
+    # plt.plot(zz,conv_pdf(zz))
+    # plt.show()
+
+    # approximate cos(x)
+    N=20
+    lb,ub=2*np.pi*w1,c.sum()+2*np.pi*w1
+    nonzero_coef = [1]+[
+        (-1)**n * (1)**(2*n)/factorial(2*n) for n in range(1,N+1)]
+    coef = np.zeros(2*N+2); coef[::2]=nonzero_coef
+    z_pdf_vals = get_pdf_from_monomial_expansion(
+        coef,lb,ub,conv_pdf,values[:,0])
+    return z_pdf_vals
 
 # add unit test like to test pickling
 #python -c "from PyDakota.models.genz import GenzFunction; g = GenzFunction('oscillatory',2); import pickle; pickle.dump(g,open('function.pkl','wb')); g1 = pickle.load(open('function.pkl','rb'))"
 
+
+    # def test_genz_function_pdf(self):
+    #     nvars=2
+    #     benchmark = setup_benchmark(
+    #         "genz",nvars=nvars,test_name='oscillatory',
+    #         coefficients=[np.ones(nvars),np.zeros(nvars)+1])
+    #     samples = pya.generate_independent_random_samples(
+    #         benchmark.variable,int(1e3))
+    #     values = benchmark.fun(samples)
+    #     plt.hist(values[:,0],bins=20,density=True)
+    #     from pyapprox.models.genz import oscillatory_genz_pdf
+    #     zz = np.linspace(values.min(),values.max(),100)[:,np.newaxis]
+    #     pdf_vals = oscillatory_genz_pdf(benchmark.fun.c,benchmark.fun.w[0],zz)
+    #     plt.plot(zz,pdf_vals)
+    #     plt.show()

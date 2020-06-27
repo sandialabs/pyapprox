@@ -74,8 +74,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         x_pdf = stats.uniform(lb,ub-lb).pdf
         #xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
         #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));plt.plot(xx,xx*np.cos(xx));plt.plot(xx,poly(xx),'--');plt.show()
-        poly_min,poly_max = get_global_maxima_and_minima_of_monomial_expansion(
-            poly,lb,ub)
+        #poly_min,poly_max = get_global_maxima_and_minima_of_monomial_expansion(
+        #    poly,lb,ub)
         # zz_bounds = [poly_min,poly_max]
         # due to singularities at 0 and 1 zz is only defined on 0<zz<1
         # so do not evaluate close to these bounds

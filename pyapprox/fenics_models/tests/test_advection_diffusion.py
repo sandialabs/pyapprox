@@ -1,4 +1,5 @@
 from pyapprox.fenics_models.advection_diffusion import *
+from pyapprox.fenics_models.advection_diffusion_wrappers import *
 from pyapprox.fenics_models.fenics_utilities import *
 import unittest
 import matplotlib.pyplot as plt
@@ -475,8 +476,56 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         #    print('\n' + error_type)
         #    for degree in degrees:
         #        print('P%d: %s' %(degree, str(rates[degree][error_type])[1:-1]))
+    def test_maunfactured_solution_dirichlet_boundaries_using_object(self):
+        # Define time stepping
+        final_time = 0.7
+        exact_sol_sympy = get_exact_solution_sympy(steady_state=False)[0]
+        exact_sol = dl.Expression(
+            sp.printing.ccode(exact_sol_sympy),t=0,degree=6)
+        exact_sol.t=final_time
+        
+        class NewModel(AdvectionDiffusionModel):
+            def initialize_random_expressions(self,random_sample):
+                init_condition = self.get_initial_condition(None)
+                boundary_conditions, function_space = \
+                    self.get_boundary_conditions_and_function_space(None)
+                beta = self.get_velocity(None)
+                forcing = self.get_forcing(None)
+                kappa = self.get_diffusivity(None)
+                return init_condition, boundary_conditions, function_space, \
+                    beta, forcing, kappa
+            
+            def get_velocity(self,random_sample):
+                assert random_sample is None
+                beta = dl.Expression(
+                    ('1.0','1.0'),cell=self.mesh.ufl_cell(),domain=self.mesh,
+                    degree=self.degree)
+                return beta
 
-    
+            def get_diffusivity(self,random_sample):
+                assert random_sample is None
+                return dl.Constant(1.0)
+            
+            def forcing(self,random_sample):
+                assert random_sample is None
+                kappa = self.get_diffusivity(None)
+                return get_forcing(
+                    kappa,self.mesh,self.degree,steady_state=False,
+                    advection=True)
+                
+        
+        def run(n,degree):
+            nx=np.log2(n)-2
+            model = NewModel(final_time,degree,qoi_functional_misc)
+            samples = np.array([[nx,nx,nx]]).T
+            sol = model.solve(samples)
+            return sol
+        etypes, degrees, rates, errors = compute_convergence_rates(
+            run,exact_sol,max_degree=1, num_levels=4)
+        degree=1
+        print(rates[degree]['L2 norm'])
+        assert np.allclose(
+            rates[degree]['L2 norm'][-1:],(degree+1)*np.ones(1),atol=1e-2)
 
 if __name__== "__main__":
     dl.set_log_level(40)

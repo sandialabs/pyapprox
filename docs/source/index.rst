@@ -16,8 +16,16 @@ The following links document the functionality of the PyApprox module.
 
    auto_tutorials/index
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Benchmarks
+	     
+   benchmarks
+
+
 ..
    Currently no example are implemented so comment out
+   
    auto_examples/index
    examples
 
