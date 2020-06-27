@@ -160,11 +160,11 @@ class AdvectionDiffusionModel(object):
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
     def get_timestep(self,dt_level):
-        dt = 2**(-(dt_level+2))
+        dt = self.final_time/2**(dt_level+2)
         return dt
 
     def get_mesh_resolution(self,mesh_levels):
-        nx,ny = mesh_levels
+        nx_level,ny_level = mesh_levels
         nx = 2**(nx_level+2)
         ny = 2**(ny_level+2)
         return nx,ny
@@ -173,6 +173,7 @@ class AdvectionDiffusionModel(object):
         """The arguments to this function are the outputs of 
         get_degrees_of_freedom_and_timestep()"""
         nx,ny=np.asarray(resolution_levels,dtype=int)
+        print('x',nx,ny)
         mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
         return mesh
 
@@ -209,13 +210,15 @@ class AdvectionDiffusionModel(object):
 
         resolution_levels = samples[-self.num_config_vars:,0]
         dt = self.get_timestep(resolution_levels[-1])
-        self.mesh = self.get_mesh(resolution_levels[:-1])
+        self.mesh = self.get_mesh(
+            self.get_mesh_resolution(resolution_levels[:-1]))
         
         random_sample = samples[:-self.num_config_vars,0]
 
         init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa = self.initialize_random_expressions(random_sample)
 
+        print(dt)
         sol = run_model(
             function_space,kappa,forcing,
             init_condition,dt,self.final_time,
