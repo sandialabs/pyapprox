@@ -476,6 +476,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         #    print('\n' + error_type)
         #    for degree in degrees:
         #        print('P%d: %s' %(degree, str(rates[degree][error_type])[1:-1]))
+        
     def test_maunfactured_solution_dirichlet_boundaries_using_object(self):
         # Define time stepping
         final_time = 0.7
@@ -506,7 +507,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
                 assert random_sample is None
                 return dl.Constant(1.0)
             
-            def forcing(self,random_sample):
+            def get_forcing(self,random_sample):
                 assert random_sample is None
                 kappa = self.get_diffusivity(None)
                 return get_forcing(
