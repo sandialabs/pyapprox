@@ -528,6 +528,26 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         assert np.allclose(
             rates[degree]['L2 norm'][-1:],(degree+1)*np.ones(1),atol=1e-2)
 
+    def test_advection_diffusion_base_class(self):
+        """
+        Just check the benchmark runs
+        """
+        nvars,corr_len=2,0.1
+        benchmark = setup_advection_diffusion_benchmark(
+            nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
+        model = benchmark.fun
+        #random_samples = np.zeros((nvars,1))
+        random_samples = -np.sqrt(3)*np.ones((nvars,1))
+        config_samples = 3*np.ones((3,1))
+        samples = np.vstack([random_samples,config_samples])
+        sol = model.base_model.solve(samples)
+        qoi = model.base_model(samples)
+        print(qoi)
+        assert np.isfinite(qoi)
+        
+        #dl.plot(sol)
+        #plt.show()
+
 if __name__== "__main__":
     dl.set_log_level(40)
     transient_diffusion_test_suite=\

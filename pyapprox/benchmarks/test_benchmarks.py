@@ -31,9 +31,6 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.jac,benchmark.hessp,init_guess,disp=False)
         assert errors.min()<1e-5
 
-    def test_advection_diffusion(self):
-        
-
     def test_incorrect_benchmark_name(self):
         self.assertRaises(Exception,setup_benchmark,"missing",a=7,b=0.1)
         benchmark = Benchmark({'fun':rosenbrock_function,'jac':rosenbrock_function_jacobian,
