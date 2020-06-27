@@ -302,7 +302,12 @@ def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
     """
     num_samples = samples.shape[1]
     if assert_omp and max_eval_concurrency>1:
-        assert int(os.environ['OMP_NUM_THREADS'])==1
+        if ('OMP_NUM_THREADS' not in os.environ or
+            not int(os.environ['OMP_NUM_THREADS'])==1):
+            msg = 'User set assert_omp=True but OMP_NUM_THREADS has not been '
+            msg += 'set to 1. Run script with OMP_NUM_THREADS=1 python script.py'
+            raise Exception(msg)
+        
     if pool is None:
         pool = Pool(max_eval_concurrency)
     result = pool.map(

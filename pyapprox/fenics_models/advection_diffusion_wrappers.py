@@ -30,7 +30,7 @@ def get_gaussian_source_forcing(degree,random_sample):
         'A/(sig2*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sig2))',xk=random_sample[0],yk=random_sample[1],sig2=0.05**2,A=2.,degree=degree)
     return forcing
 
-def get_nobile_diffusivity(degree,random_sample):
+def get_nobile_diffusivity(corr_len,degree,random_sample):
     nvars = random_sample.shape[0]
     path = os.path.abspath(os.path.dirname(__file__))
     if '2017' in dl.__version__:
@@ -47,9 +47,7 @@ def get_nobile_diffusivity(degree,random_sample):
         kappa = dl.CompiledExpression(
             dl.compile_cpp_code(kappa_code).NobileDiffusivityExpression(),
             degree=degree)
-        
     kappa.initialize_kle(nvars,corr_len)
-    kappa.set_mean_field(-np.exp(1)+1)
 
     if '2017' in dl.__version__:
         for ii in range(random_sample.shape[0]):
@@ -88,6 +86,7 @@ def setup_zero_flux_neumann_boundary_conditions(degree,random_sample):
     return boundary_conditions
 
 class AdvectionDiffusionModel(object):
+        
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Change the following functions to modify governing equations
@@ -149,7 +148,8 @@ class AdvectionDiffusionModel(object):
         """
         Use the random diffusivity specified in [JEGGIJNME2020].
         """
-        kappa = get_nobile_diffusivity(self.degree,random_sample)
+        kappa = get_nobile_diffusivity(
+            self.options['corr_len'],self.degree,random_sample)
         return kappa
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
@@ -173,7 +173,6 @@ class AdvectionDiffusionModel(object):
         """The arguments to this function are the outputs of 
         get_degrees_of_freedom_and_timestep()"""
         nx,ny=np.asarray(resolution_levels,dtype=int)
-        print('x',nx,ny)
         mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
         return mesh
 
@@ -189,12 +188,13 @@ class AdvectionDiffusionModel(object):
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
     def __init__(self,final_time,degree,qoi_functional,
-                 second_order_timestepping=True):
+                 second_order_timestepping=True,options={}):
         self.final_time=final_time
         self.qoi_functional=qoi_functional
         self.degree=degree
         self.second_order_timestepping=second_order_timestepping
         self.set_num_config_vars()
+        self.options=options
 
     def solve(self,samples):
         """
@@ -218,7 +218,6 @@ class AdvectionDiffusionModel(object):
         init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa = self.initialize_random_expressions(random_sample)
 
-        print(dt)
         sol = run_model(
             function_space,kappa,forcing,
             init_condition,dt,self.final_time,
@@ -232,3 +231,35 @@ class AdvectionDiffusionModel(object):
         if vals.ndim==1:
             vals = vals[:,np.newaxis]
         return vals
+
+def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
+    """
+    Compute functionals of the following model of advection-diffusion
+
+    .. math::
+
+    \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad\qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+    \mathcal{B}(x,t,\rv)&=0 \qquad\qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
+    """
+    
+    from scipy import stats
+    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+        WorkTrackingModel
+    from pyapprox.models.wrappers import PoolModel
+    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.benchmarks.benchmarks import Benchmark
+    univariate_variables = [stats.uniform(-np.sqrt(3),2*np.sqrt(3))]*nvars
+    variable=IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = 1.0,1
+    options={'corr_len':corr_len}
+    base_model = AdvectionDiffusionModel(
+        final_time,degree,qoi_functional_misc,second_order_timestepping=False,
+        options=options)
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModelWrapper(base_model,base_model)
+    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model,base_model)
+    attributes = {'fun':model,'variable':variable}
+    return Benchmark(attributes)
+     

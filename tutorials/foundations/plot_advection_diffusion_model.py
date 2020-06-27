@@ -115,7 +115,7 @@ def setup_model(num_vars,corr_len,max_eval_concurrency):
     timer_model = pya.TimerModelWrapper(base_model,base_model)
     # add wraper to allow model runs to be run on independent threads
     model = pya.PoolModel(timer_model,max_eval_concurrency,
-                      base_model=base_model)
+                          base_model=base_model)
     # add wrapper that tracks execution times.
     model = pya.WorkTrackingModel(model,model.base_model)
     return model
@@ -148,8 +148,10 @@ def error_vs_cost(model,generate_random_samples,validation_levels,
     for ii in range(len(keys)):
         key=keys[ii]
         costs.append(np.median(model.work_tracker.costs[key]))
-        nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
-            np.asarray(key))
+        #nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
+        #    np.asarray(key))
+        nx,ny = model.base_model.get_mesh_resolution(np.asarray(key)[:2])
+        dt = model.base_model.get_timestep(key[2])
         ndofs.append(nx*ny*model.base_model.final_time/dt)
         means.append(np.mean(values[ii::config_vars.shape[1],0]))
         errors.append(abs(means[-1]-reference_mean)/abs(reference_mean))
@@ -170,6 +172,8 @@ def error_vs_cost(model,generate_random_samples,validation_levels,
         model.work_tracker.costs[tuple(validation_levels)])
     validation_cost = validation_time/costs[-1]
     validation_ndof = np.prod(reference_values[:,-2:],axis=1)
+
+    print(costs,errors)
 
     data = {"costs":costs,"errors":errors,"indices":indices,
             "times":times,"validation_index":validation_index,
@@ -251,11 +255,15 @@ def generate_random_samples(m,n):
 
 from functools import partial
 import matplotlib.pyplot as plt
-num_vars = 2
-model = setup_model(num_vars,corr_len=0.1,max_eval_concurrency=1)
+nvars,corr_len = 2,0.1
+#model = setup_model(nvars,corr_len,max_eval_concurrency=1)
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+benchmark = setup_benchmark(
+    'advection-diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=4)
+model = benchmark.fun
 validation_levels = [5]*3
 data = error_vs_cost(
-    model,partial(generate_random_samples,model.base_model.num_vars),
+    model,partial(generate_random_samples,benchmark.variable.num_vars()),
     validation_levels)
 plot_error_vs_cost(data,'time')
 plt.show()

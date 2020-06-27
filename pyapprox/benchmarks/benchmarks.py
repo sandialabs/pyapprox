@@ -250,6 +250,16 @@ def setup_benchmark(name,**kwargs):
                   'rosenbrock':setup_rosenbrock_function,
                   'genz':setup_genz_function}
 
+    try:
+        from pyapprox.fenics_models.advection_diffusion_wrappers import \
+            setup_advection_diffusion_benchmark
+        fenics_benchmarks={
+            'advection-diffusion':setup_advection_diffusion_benchmark}
+        benchmarks.update(fenics_benchmarks)
+    except:
+        pass
+
+
     if name not in benchmarks:
         msg = f'Benchmark "{name}" not found.\n Avaiable benchmarks are:\n'
         for key in benchmarks.keys():
