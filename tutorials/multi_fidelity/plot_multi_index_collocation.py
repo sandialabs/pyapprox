@@ -96,3 +96,5 @@ plt.show()
 #.. [TJWGSIAMUQ2015] `Teckentrup, A. and Jantsch, P. and Webster, C. and Gunzburger, M. A Multilevel Stochastic Collocation Method for Partial Differential Equations with Random Input Data. SIAM/ASA Journal on Uncertainty Quantification, 3(1), 1046-1074, 2015. <https://doi.org/10.1137/140969002>`_
 #
 #.. [HNTTCMAME2016] `Haji-Ali, A. and Nobile, F. and Tamellini, L. and Tempone, R. Multi-Index Stochastic Collocation for random PDEs. Computer Methods in Applied Mechanics and Engineering, 306, 95-122, 2016. <https://doi.org/10.1016/j.cma.2016.03.029>`_
+#
+#.. [JEGGIJNME2020] `Jakeman, J.D., Eldred, M.S., Geraci, G., Gorodetsky, A. Adaptive multi-index collocation for uncertainty quantification and sensitivity analysis. Int J Numer Methods Eng. 2020; 121: 1314– 1343. <https://doi.org/10.1002/nme.6268>`_
