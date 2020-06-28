@@ -32,7 +32,8 @@ class Benchmark(OptimizeResult):
         The Hessian of fun. (optional)
 
     hessp : callable
-        Function implementing the hessian of fun multiplied by a vector. (optional)
+        Function implementing the hessian of fun multiplied by a vector. 
+        (optional)
 
     mean: np.ndarray (nvars)
         The mean of the function with respect to the PDF of var
@@ -64,9 +65,10 @@ def setup_sobol_g_function(nvars):
 
     using 
 
-    >>> setup_benchmark('sobol_g',nvars=2)
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('sobol_g',nvars=2)
     >>> print(benchmark.keys())
-    dict_keys(['fun', 'variable', 'mean', 'variance', 'main_effects', 'total_effects'])
+    dict_keys(['fun', 'mean', 'variance', 'main_effects', 'total_effects', 'variable'])
 
     Parameters
     ----------
@@ -100,7 +102,8 @@ def setup_ishigami_function(a,b):
 
     using 
 
-    >>> setup_benchmark('ishigami',a=7,b=0.1)
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('ishigami',a=7,b=0.1)
     >>> print(benchmark.keys())
     dict_keys(['fun', 'jac', 'hess', 'variable', 'mean', 'variance', 'main_effects', 'total_effects', 'sobol_indices'])
 
@@ -141,9 +144,10 @@ def setup_rosenbrock_function(nvars):
 
     using 
 
-    >>> setup_benchmark('rosenbrock',a=7,b=0.1)
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('rosenbrock',nvars=2)
     >>> print(benchmark.keys())
-    dict_keys(['fun', 'jac', 'hess', 'variable'])
+    dict_keys(['fun', 'jac', 'hessp', 'variable'])
 
     Parameters
     ----------
@@ -173,9 +177,10 @@ def setup_genz_function(nvars,test_name,coefficients=None):
     For example, the two-dimensional oscillatory Genz problem can be defined 
     using
     
-    >>> setup_benchmark('genz',nvars=2,test_name='oscillatory')
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('genz',nvars=2,test_name='oscillatory')
     >>> print(benchmark.keys())
-    dict_keys(['fun', 'variable', 'mean'])
+    dict_keys(['fun', 'mean', 'variable'])
 
     Parameters
     ----------
