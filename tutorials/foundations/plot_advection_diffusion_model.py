@@ -173,8 +173,6 @@ def error_vs_cost(model,generate_random_samples,validation_levels,
     validation_cost = validation_time/costs[-1]
     validation_ndof = np.prod(reference_values[:,-2:],axis=1)
 
-    print(costs,errors)
-
     data = {"costs":costs,"errors":errors,"indices":indices,
             "times":times,"validation_index":validation_index,
             "validation_cost":validation_cost,"validation_ndof":validation_ndof,

@@ -720,5 +720,8 @@ class TestUtilities(unittest.TestCase):
 
         assert np.allclose(values1,values2)
 
-
-
+ 
+if __name__== "__main__":    
+    utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+        TestUtilities)
+    unittest.TextTestRunner(verbosity=2).run(utilities_test_suite)
