@@ -394,9 +394,68 @@ def downselect_morris_trajectories(samples,ntrajectories):
     samples = trajectories[:,:,best_index].reshape(nvars,ntrajectories*(nvars+1),order='F')
     return samples
 
+from scipy.optimize import OptimizeResult
+class SensivitityResult(OptimizeResult):
+    pass
+
+def analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2):
+    sparse_grid = approximate_sparse_grid(
+        fun,univariate_variables,max_nsamples=maxnsamples,tol=tol,
+        verbose=verbose)
+    pce_opts=define_poly_options_from_variable_transformation(
+        sparse_grid.variable_transformation)
+    pce = convert_sparse_grid_to_polynomial_chaos_expansion(
+        sparse_grid,pce_opts)
+    pce_main_effects,pce_total_effects=\
+        pya.get_main_and_total_effect_indices_from_pce(
+            pce.get_coefficients(),pce.get_indices())
+
+    interaction_terms, pce_sobol_indices = get_sobol_indices(
+            poly.get_coefficients(),poly.get_indices(),max_order=max_order)
     
+    return SensivitityResult(
+        {'main_effects':pce_main_effects,
+         'total_effects':pce_total_effects,
+         'sobol_indices':pce_sobol_indices,
+         'sobol_interaction_indices':interaction_terms})
+    
+def analyze_sensitivity(fun,variable,method,options=None):
+    r"""
+    Approximation of a scalar or vector-valued function of one or more variables
+    
+    Parameters
+    ----------
+    fun : callable
+        The function to be minimized
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shaoe (nsamples,nqoi)
+
+    method : string
+        Type of approximation. Should be one of
+
+        - 'sparse-grid'
+        - 'polynomial-chaos'
+        - 'morris'
         
-    
+    Returns
+    -------
+    approx : Object
+       An object which approximates fun.
+    """
 
+    methods = {'sparse-grid':analyze_sensitivity_sparse_grid,
+               'polynomial-chaos':analyze_sensitivity_polynomial_chaos
+               'morris':analyze_sensitivity_morris}
 
-    
+    if method not in methods:
+        msg = f'Method {method} not found.\n Available methods are:\n'
+        for key in methods.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+
+    if options is None:
+        options = {}
+    return methods[method](fun,variable,callback,**options)
