@@ -774,12 +774,14 @@ class SubSpaceRefinementManager(object):
                     
         return new_active_subspace_indices
 
-    def build(self):
+    def build(self,callback=None):
         """
         """
         while (not self.active_subspace_queue.empty() or
                self.subspace_indices.shape[1]==0):
             self.refine()
+            if callback is not None:
+                callback(self)
 
     def refine_and_add_new_subspaces(self,best_active_subspace_index):
         key = hash_array(best_active_subspace_index)
@@ -1106,7 +1108,8 @@ class SubSpaceRefinementManager(object):
             self.error[count] = error
     
     
-from pyapprox.univariate_quadrature import leja_growth_rule
+from pyapprox.univariate_quadrature import leja_growth_rule, \
+    constant_increment_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
     beta_leja_quadrature_rule, candidate_based_leja_rule, \
     get_univariate_leja_quadrature_rule
@@ -1145,7 +1148,8 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     assert var_trans is not None
     
     if growth_rules is None:
-        growth_rules = leja_growth_rule
+        #growth_rules = leja_growth_rule
+        growth_rules = partial(constant_increment_growth_rule,2)
 
     unique_quadrule_variables,unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)

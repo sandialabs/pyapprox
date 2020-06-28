@@ -242,7 +242,12 @@ def setup_genz_function(nvars,test_name,coefficients=None):
         attributes['variance']=genz.variance()
         from scipy.optimize import OptimizeResult
     return Benchmark(attributes)
-    
+
+try:
+    from pyapprox.fenics_models.advection_diffusion_wrappers import \
+        setup_advection_diffusion_benchmark as setup_advection_diffusion
+except:
+    pass
 
 def setup_benchmark(name,**kwargs):
     benchmarks = {'sobol_g':setup_sobol_g_function,
@@ -251,10 +256,10 @@ def setup_benchmark(name,**kwargs):
                   'genz':setup_genz_function}
 
     try:
-        from pyapprox.fenics_models.advection_diffusion_wrappers import \
-            setup_advection_diffusion_benchmark
+        # will fail if fenics is not installed and the import of the fenics
+        # benchmarks fail
         fenics_benchmarks={
-            'advection-diffusion':setup_advection_diffusion_benchmark}
+            'advection-diffusion':setup_advection_diffusion}
         benchmarks.update(fenics_benchmarks)
     except:
         pass

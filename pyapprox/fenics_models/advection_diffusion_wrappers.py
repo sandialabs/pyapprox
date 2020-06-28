@@ -233,13 +233,56 @@ class AdvectionDiffusionModel(object):
         return vals
 
 def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
-    """
-    Compute functionals of the following model of advection-diffusion
+    r"""
+    Compute functionals of the following model of transient advection-diffusion
 
     .. math::
 
-    \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad\qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
-    \mathcal{B}(x,t,\rv)&=0 \qquad\qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set 
+
+    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
+
+    and we model the diffusivity :math:`k` as a random field represented by the
+    Karhunen-Loeve (like) expansion (KLE)
+
+    .. math::
+
+       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
+
+    with
+
+    .. math::
+
+       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
+       \begin{cases}
+       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
+       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
+       \end{cases}
+
+    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables of the KLE
+
+    corr_len : float
+        The correlation length :math:`L_c` of the covariance kernel
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
+
+    Returns
+    --------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes
+    
     """
     
     from scipy import stats
