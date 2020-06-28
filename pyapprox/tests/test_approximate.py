@@ -36,7 +36,7 @@ class TestApproximate(unittest.TestCase):
             benchmark.fun,univariate_variables,'sparse-grid',callback,options)
         assert np.min(errors)<1e-12
 
-    def test_approximate_polnomial_chaos_default_options(self):
+    def test_approximate_polynomial_chaos_default_options(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars

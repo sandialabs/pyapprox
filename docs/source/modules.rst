@@ -1,17 +1,11 @@
-Module Documentation
-====================
-
-Control Variate Monte Carlo Sampling
-------------------------------------
-.. automodapi:: pyapprox.control_variate_monte_carlo
+.. automodapi:: pyapprox.approximate
    :no-heading:
-on
-General utilities
------------------
-.. automodapi:: pyapprox.utilities
+
+.. automodapi:: pyapprox.benchmarks.benchmarks
+   :no-heading:
+
+.. automodapi:: pyapprox.benchmarks.sensitivity_benchmarks
    :no-heading:		
 
-Orthonormal polynomials
------------------------
-.. automodapi:: pyapprox.orthonormal_polynomials_1d
+.. automodapi:: pyapprox.fenics_models.advection_diffusion_wrappers
    :no-heading:		
