@@ -5,26 +5,36 @@ from pyapprox.benchmarks.benchmarks import setup_benchmark
 import pyapprox as pya
 class TestApproximate(unittest.TestCase):
 
-    def test_approximate_sparse_grid(self):
+    def test_approximate_sparse_grid_default_options(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars
+        approx = approximate_sparse_grid(benchmark.fun,univariate_variables)
+        nsamples = 100
+        error = compute_l2_error(
+            approx,benchmark.fun,approx.variable_transformation.variable,
+            nsamples)
+        assert error<1e-12
+
+    def test_approximate_sparse_grid_user_options(self):
+        nvars = 3
+        benchmark = setup_benchmark('ishigami',a=7,b=0.1)
+        univariate_variables = [stats.uniform(0,1)]*nvars
+        errors = []
         def callback(approx):
-            print(approx.num_equivalent_function_evaluations)
+            nsamples = 1000
+            error = compute_l2_error(
+                approx,benchmark.fun,approx.variable_transformation.variable,
+                nsamples)
+            errors.append(error)
         univariate_quad_rule_info = [
             pya.clenshaw_curtis_in_polynomial_order,
             pya.clenshaw_curtis_rule_growth]
-        univariate_quad_rule_info = None
-        approx = approximate_sparse_grid(benchmark.fun,univariate_variables,callback=callback,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=univariate_quad_rule_info,max_num_samples=100,tol=0,verbose=False)
-
-        nvalidation_samples = 100
-        validation_samples = pya.generate_independent_random_samples(approx.variable_transformation.variable,nvalidation_samples)
-        validation_vals = benchmark.fun(validation_samples)
-        approx_vals = approx(validation_samples)
-        error=np.linalg.norm(approx_vals-validation_vals)/np.sqrt(
-            validation_samples.shape[1])
-        print(error)
-        assert error<1e-12
+        approx = approximate_sparse_grid(
+            benchmark.fun,univariate_variables,callback=callback,
+            univariate_quad_rule_info=univariate_quad_rule_info,
+            max_num_samples=110,tol=0,verbose=False)
+        assert np.min(errors)<1e-12
 
 if __name__== "__main__":    
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
