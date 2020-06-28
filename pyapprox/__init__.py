@@ -1,3 +1,7 @@
+"""
+PyApprox : Sotware for model and data analysis
+"""
+
 name = "pyapprox"
 from pyapprox.utilities import *
 from pyapprox.control_variate_monte_carlo import *
@@ -19,3 +23,4 @@ from pyapprox.multivariate_polynomials import *
 from pyapprox.sensitivity_analysis import *
 from pyapprox.stochastic_dominance import *
 from pyapprox.monomial import *
+

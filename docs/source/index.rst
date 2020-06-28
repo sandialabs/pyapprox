@@ -22,6 +22,11 @@ The following links document the functionality of the PyApprox module.
 	     
    benchmarks
 
+.. toctree::
+   :maxdepth: 2
+   :caption: User Reference Guide
+	     
+   user_reference_guide
 
 ..
    Currently no example are implemented so comment out
@@ -31,5 +36,5 @@ The following links document the functionality of the PyApprox module.
 
 ..
    The following is commented out for now to save time during compile
-   .. toctree:: API and Developer Reference
+   .. toctree:: Developer Reference Guide
    modules

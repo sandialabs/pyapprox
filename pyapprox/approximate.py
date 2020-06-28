@@ -110,7 +110,7 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
 from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator= variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
-    """
+    r"""
     Compute a Polynomial Chaos Expansion of a function.
 
     Parameters
@@ -227,7 +227,7 @@ def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refineme
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 def compute_l2_error(f,g,variable,nsamples):
-    """
+    r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
 
     .. math:: \lVertf(z)-g(z)\rVert\approx \sum_{m=1}^M f(z^{(m)})
@@ -264,6 +264,7 @@ def compute_l2_error(f,g,variable,nsamples):
     -------
     error : np.ndarray (nqoi)
     """
+    
     validation_samples = generate_independent_random_samples(variable,nsamples)
     validation_vals = f(validation_samples)
     approx_vals = g(validation_samples)
@@ -272,7 +273,7 @@ def compute_l2_error(f,g,variable,nsamples):
     return error
 
 def approximate(fun,variable,method,callback=None,options=None):
-    """
+    r"""
     Approximation of a scalar or vector-valued function of one or more variables
     
     Parameters
