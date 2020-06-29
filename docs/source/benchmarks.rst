@@ -7,7 +7,7 @@ to run a benchmark.
 
 To demonstrate the benchmark class consider the problem of estimating sensitivity indices of the Ishigami function
 
-.. math:: f(z) = \sin(z_1)+a\sin^2(z_2) bz_3^4\sin(z_0)
+.. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)
 
 The mean, variance, main effect and total effect sensitivity indices are well known for this problem.
 
@@ -32,6 +32,7 @@ Sensitivity Analysis
 
 :func:`pyapprox.benchmarks.benchmarks.setup_ishigami_function`
 :func:`pyapprox.benchmarks.benchmarks.setup_sobol_g_function`
+:func:`pyapprox.benchmarks.benchmarks.setup_oakley_function`
 
 Quadrature
 ----------

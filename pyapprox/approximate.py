@@ -109,7 +109,7 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
-def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator= variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
+def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
     r"""
     Compute a Polynomial Chaos Expansion of a function.
 

@@ -98,7 +98,7 @@ def setup_ishigami_function(a,b):
     r"""
     Setup the Ishigami function benchmark 
 
-    .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) bz_3^4\sin(z_0)
+    .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)
 
     using 
 
@@ -135,6 +135,36 @@ def setup_ishigami_function(a,b):
          'variable':variable,'mean':mean,'variance':variance,
          'main_effects':main_effects,'total_effects':total_effects,
          'sobol_indices':sobol_indices})
+
+def setup_oakley_function():
+    r"""
+    Setup the Oakely function benchmark 
+
+    .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz
+
+    where :math:`z` consists of 15 I.I.D. standard Normal variables and the data :math:`a_1,a_2,a_3` and :math:`M` are defined in the function :func:`pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data`.
+
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('oakley')
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable', 'mean', 'variance', 'main_effects'])
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes
+
+    References
+    ----------
+    .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
+    """
+    univariate_variables = [stats.norm()]*15
+    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    mean, variance, main_effects = oakley_function_statistics()
+    return Benchmark(
+        {'fun':oakley_function,
+         'variable':variable,'mean':mean,'variance':variance,
+         'main_effects':main_effects})
 
 def setup_rosenbrock_function(nvars):
     r"""
@@ -257,6 +287,7 @@ except:
 def setup_benchmark(name,**kwargs):
     benchmarks = {'sobol_g':setup_sobol_g_function,
                   'ishigami':setup_ishigami_function,
+                  'oakley':setup_oakley_function,
                   'rosenbrock':setup_rosenbrock_function,
                   'genz':setup_genz_function}
 

@@ -398,26 +398,59 @@ from scipy.optimize import OptimizeResult
 class SensivitityResult(OptimizeResult):
     pass
 
-def analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2):
+from pyapprox.approximate import approximate_sparse_grid, \
+    approximate_polynomial_chaos
+from pyapprox.multivariate_polynomials import \
+    define_poly_options_from_variable_transformation
+from pyapprox.adaptive_sparse_grid import \
+    convert_sparse_grid_to_polynomial_chaos_expansion, variance_refinement_indicator
+
+
+def analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
     sparse_grid = approximate_sparse_grid(
-        fun,univariate_variables,max_nsamples=maxnsamples,tol=tol,
-        verbose=verbose)
+        fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
+        verbose=verbose,
+        univariate_quad_rule_info=univariate_quad_rule_info,
+        refinement_indicator=refinement_indicator)
     pce_opts=define_poly_options_from_variable_transformation(
         sparse_grid.variable_transformation)
     pce = convert_sparse_grid_to_polynomial_chaos_expansion(
         sparse_grid,pce_opts)
     pce_main_effects,pce_total_effects=\
-        pya.get_main_and_total_effect_indices_from_pce(
+        get_main_and_total_effect_indices_from_pce(
             pce.get_coefficients(),pce.get_indices())
 
     interaction_terms, pce_sobol_indices = get_sobol_indices(
-            poly.get_coefficients(),poly.get_indices(),max_order=max_order)
+            pce.get_coefficients(),pce.get_indices(),max_order=max_order)
     
     return SensivitityResult(
         {'main_effects':pce_main_effects,
          'total_effects':pce_total_effects,
          'sobol_indices':pce_sobol_indices,
          'sobol_interaction_indices':interaction_terms})
+
+from pyapprox.adaptive_polynomial_chaos import \
+    variance_pce_refinement_indicator
+def analyze_sensitivity_polynomial_chaos(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,growth_rules=None,refinement_indicator=variance_pce_refinement_indicator):
+    pce = approximate_polynomial_chaos(
+        fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
+        verbose=verbose,growth_rules=growth_rules,
+        refinement_indicator=refinement_indicator)
+    pce_main_effects,pce_total_effects=\
+        get_main_and_total_effect_indices_from_pce(
+            pce.pce.get_coefficients(),pce.pce.get_indices())
+
+    interaction_terms, pce_sobol_indices = get_sobol_indices(
+            pce.pce.get_coefficients(),pce.pce.get_indices(),max_order=max_order)
+    
+    return SensivitityResult(
+        {'main_effects':pce_main_effects,
+         'total_effects':pce_total_effects,
+         'sobol_indices':pce_sobol_indices,
+         'sobol_interaction_indices':interaction_terms})
+
+def analyze_sensitivity_morris(fun,univariate_variables):
+    pass
     
 def analyze_sensitivity(fun,variable,method,options=None):
     r"""
@@ -431,7 +464,7 @@ def analyze_sensitivity(fun,variable,method,options=None):
         ``fun(z) -> np.ndarray``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
-        output is a 2D np.ndarray with shaoe (nsamples,nqoi)
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
 
     method : string
         Type of approximation. Should be one of
@@ -447,7 +480,7 @@ def analyze_sensitivity(fun,variable,method,options=None):
     """
 
     methods = {'sparse-grid':analyze_sensitivity_sparse_grid,
-               'polynomial-chaos':analyze_sensitivity_polynomial_chaos
+               'polynomial-chaos':analyze_sensitivity_polynomial_chaos,
                'morris':analyze_sensitivity_morris}
 
     if method not in methods:
@@ -458,4 +491,4 @@ def analyze_sensitivity(fun,variable,method,options=None):
 
     if options is None:
         options = {}
-    return methods[method](fun,variable,callback,**options)
+    return methods[method](fun,variable,**options)

@@ -307,8 +307,33 @@ class TestSensitivityAnalysis(unittest.TestCase):
         #     ix1=ix2
         # plt.xlim([0,1]); plt.ylim([0,1]); plt.show()
         
-        
-        
+    def test_analyze_sensitivity_sparse_grid(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
+        benchmark = setup_benchmark("oakley")
+        options = {'max_nsamples':2000}
+        #'refinement_indicator':isotropic_refinement_indicator}
+        res = analyze_sensitivity(
+            benchmark.fun,benchmark.variable.all_variables(),"sparse-grid",
+            options=options)
+
+        #print(res.main_effects-benchmark.main_effects)
+        assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-4)
+
+
+    def test_analyze_sensitivity_polynomial_chaos(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
+        benchmark = setup_benchmark("ishigami",a=7,b=0.1)
+        options = {'max_nsamples':500}
+        #'refinement_indicator':isotropic_refinement_indicator}
+        res = analyze_sensitivity(
+            benchmark.fun,benchmark.variable.all_variables(),"polynomial-chaos",
+            options=options)
+
+        #print(res.main_effects-benchmark.main_effects)
+        assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-4)
+
     
 if __name__== "__main__":    
     sensitivity_analysis_test_suite=unittest.TestLoader().loadTestsFromTestCase(
