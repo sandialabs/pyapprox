@@ -2,6 +2,30 @@ import unittest
 from pyapprox.optimal_experimental_design import *
 from pyapprox.monomial import univariate_monomial_basis_matrix
 from functools import partial
+import pyapprox as pya
+
+def exponential_growth_model(parameters,samples):
+    assert samples.ndim==2
+    assert samples.shape[0]==1
+    assert parameters.ndim==1
+    assert np.all(parameters>=1)
+    theta_1=parameters[0]
+    x = samples[0,:]
+    vals = np.exp(-theta_1*x)
+    vals = vals[:,np.newaxis]
+    assert vals.ndim==2
+    return vals
+
+def exponential_growth_model_grad_parameters(parameters,samples):
+    assert samples.ndim==2
+    assert samples.shape[0]==1
+    assert parameters.ndim==1
+    assert np.all(parameters>=1)
+    theta_1=parameters[0]
+    x = samples[0,:]
+    grad = np.empty((1,x.shape[0]))
+    grad[0] = -x*np.exp(-theta_1*x)
+    return grad
 
 def michaelis_menten_model(parameters,samples):
     assert samples.ndim==2
@@ -420,6 +444,14 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_exponential_growth_model(self):
+        from pyapprox.optimization import approx_jacobian
+        theta = np.ones(1)*2
+        samples = np.random.uniform(0,1,(1,3))
+        fd_jac = approx_jacobian(exponential_growth_model,theta,samples)
+        jac = exponential_growth_model_grad_parameters(theta,samples)
+        assert np.allclose(jac.T,fd_jac)
+
     def test_michaelis_menten_model(self):
         from pyapprox.optimization import approx_jacobian
         theta = np.ones(2)*0.5
@@ -580,6 +612,50 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         # so round answer and compare. argmin returns first instance of minimum
         max_stat=np.round(max_stat,7)
         assert np.argmin(max_stat)==0
+
+    def test_bayesian_optimal_design(self):
+        num_design_pts = 201
+        num_pred_pts = 100
+        design_samples = np.linspace(0,1,num_design_pts)
+        lb2,ub2=1,20
+        # assuming middle of parameter domain is used to find local design
+        design_samples = np.linspace(0,1,3*int((ub2+lb2)+1))
+        print(design_samples)
+        noise_multiplier = None
+        pred_samples = np.linspace(0,1,num_pred_pts)
+
+        # lb2,ub2=0.2,1
+        # local_design_factors = \
+        #     lambda x,p: michaelis_model_grad_parameters(x,p).T
+        # xx1 = np.linspace(0.9,1.1,3)[-1:]# theta_1 does not effect optimum
+        # xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
+        # xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
+        # from pyapprox import cartesian_product
+        # parameter_samples = cartesian_product([xx1,xx2])
+
+        # locally optimal design is a one point design with mass at 1/theta_1
+        local_design_factors = \
+             lambda x,p: exponential_growth_model_grad_parameters(x,p).T
+        xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
+        xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(1,0,0)
+        xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
+        parameter_samples = xx2[np.newaxis,:]
+        print(xx2,1/xx2)
+        
+        beta=0.75
+        local_pred_factors = local_design_factors
+        opts = {'beta':beta,'pred_factors':local_pred_factors,
+                'pred_samples':pred_samples[np.newaxis,:]}
+        opt_problem = AlphabetOptimalDesign('D',local_design_factors,opts=opts)
+        mu = opt_problem.solve_bayesian(
+            parameter_samples,design_samples[np.newaxis,:],
+            sample_weights=ww2,options={'verbose': 1, 'gtol':1e-15})
+        I= np.where(mu>1e-5)[0]
+        print(I)
+        print(design_samples[I])
+        print(mu[I])
+        msg = 'TODO test locally D -optimal design for exponential growth model is the analytical result noted in the comments above. This answer is for a continuous design space'
+        assert False, msg
 
 if __name__== "__main__":    
     oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(

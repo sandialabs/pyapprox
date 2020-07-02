@@ -513,8 +513,7 @@ def minmax_oed_constraint_objective(local_oed_obj,x):
     return x[0]-local_oed_obj(x[1:])
 
 def minmax_oed_constraint_jacobian(local_oed_jac,x):
-    return np.concatenate([np.ones(1),-local_oed_jac(x[1:])])
-    
+    return np.concatenate([np.ones(1),-local_oed_jac(x[1:])])    
 
 class AlphabetOptimalDesign(object):
     """
@@ -591,7 +590,7 @@ class AlphabetOptimalDesign(object):
         return objective,jac
         
 
-    def solve(self,options=None):
+    def solve(self,options=None,init_design=None):
         num_design_pts = self.design_factors.shape[0]
         self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
         lb_con = ub_con = np.atleast_1d(1)
@@ -607,7 +606,10 @@ class AlphabetOptimalDesign(object):
         else:
             hetero_outer_prods=None
 
-        x0 = np.ones(num_design_pts)/num_design_pts
+        if init_design is None:
+            x0 = np.ones(num_design_pts)/num_design_pts
+        else:
+            x0 = init_design
         objective,jac = self.get_objective_and_jacobian(
             self.design_factors,homog_outer_prods,hetero_outer_prods,
             self.noise_multiplier,self.opts)
@@ -635,8 +637,8 @@ class AlphabetOptimalDesign(object):
                 opts['pred_factors']=opts['pred_factors'](
                     parameter_samples[:,ii],opts['pred_samples'])
             obj,jac = self.get_objective_and_jacobian(
-                design_factors.copy(),homog_outer_prods.copy(),hetero_outer_prods,
-                self.noise_multiplier,copy.deepcopy(opts))
+                design_factors.copy(),homog_outer_prods.copy(),
+                hetero_outer_prods,self.noise_multiplier,copy.deepcopy(opts))
             constraint_obj = partial(minmax_oed_constraint_objective,obj)
             constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
             num_design_pts=design_factors.shape[0]
@@ -674,6 +676,78 @@ class AlphabetOptimalDesign(object):
         method = 'slsqp'
         res = minimize(
             minmax_objective, x0, method=method,jac=jac, hess=None,
+            constraints=constraints,options=options,
+            bounds=bounds)
+        
+        weights = res.x[1:]
+        if not return_full:
+            return weights
+        else:
+            return weights, res
+
+    def bayesian_objective_jacobian_components(
+            self,parameter_samples,design_samples):
+        objs,jacs=[],[]
+        for ii in range(parameter_samples.shape[1]):
+            design_factors = self.design_factors(
+                parameter_samples[:,ii],design_samples)
+            homog_outer_prods = compute_homoscedastic_outer_products(
+                design_factors)
+            if self.noise_multiplier is not None:
+                hetero_outer_prods = compute_heteroscedastic_outer_products(
+                    design_factors,self.noise_multiplier)
+            else:
+                hetero_outer_prods=None
+            opts = copy.deepcopy(self.opts)
+            if opts is not None and 'pred_factors' in opts:
+                opts['pred_factors']=opts['pred_factors'](
+                    parameter_samples[:,ii],opts['pred_samples'])
+            obj,jac = self.get_objective_and_jacobian(
+                design_factors.copy(),homog_outer_prods.copy(),
+                hetero_outer_prods,self.noise_multiplier,copy.deepcopy(opts))
+            objs.append(obj)
+            jacs.append(jac)
+            
+        num_design_pts = homog_outer_prods.shape[2]
+        return objs,jacs,num_design_pts
+
+    def solve_bayesian(self,samples,design_samples,
+                       sample_weights=None,options=None,
+                       return_full=False,x0=None):
+        assert callable(self.design_factors)
+        objs,jacs,num_design_pts = self.bayesian_objective_jacobian_components(
+            samples,design_samples)
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts))
+        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+        constraints = [linear_constraint]
+
+        if sample_weights is None:
+            sample_weights = np.ones(
+                samples.shape[1])/samples.shape[1]
+        assert sample_weights.shape[0]==samples.shape[1]
+        
+        def objective(x):
+            objective = 0
+            for obj,weight in zip(objs,sample_weights):
+                objective += obj(x)*weight
+            return objective
+            
+        def jacobian(x):
+            vec = 0
+            for jac,weight in zip(jacs,sample_weights):
+                vec += jac(x)*weight
+            return vec
+                
+        bounds = Bounds(
+            [0]*num_design_pts,[1]*num_design_pts)
+
+        if x0 is None:
+            x0 = np.ones(num_design_pts)/num_design_pts
+        #method = 'trust-constr'
+        method = 'slsqp'
+        res = minimize(
+            objective, x0, method=method,jac=jacobian, hess=None,
             constraints=constraints,options=options,
             bounds=bounds)
         
