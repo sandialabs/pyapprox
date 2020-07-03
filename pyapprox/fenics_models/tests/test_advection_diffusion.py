@@ -548,6 +548,24 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         #dl.plot(sol)
         #plt.show()
 
+    def test_advection_diffusion_source_inversion_model(self):
+        """
+        Just check the benchmark runs
+        """
+        benchmark = setup_advection_diffusion_source_inversion_benchmark(
+            measurement_times=np.array([0.15]),source_strength=0.5,source_width=0.1)
+        model = benchmark.fun
+        #random_samples = np.zeros((nvars,1))
+        random_samples = np.array([[0.25,0.75]]).T
+        config_samples = 3*np.ones((3,1))
+        samples = np.vstack([random_samples,config_samples])
+        sol = model.base_model.solve(samples)
+        print(sol.vector().get_local().max())
+        
+        p=dl.plot(sol)
+        plt.colorbar(p)
+        plt.show()
+
 if __name__== "__main__":
     dl.set_log_level(40)
     transient_diffusion_test_suite=\

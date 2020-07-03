@@ -751,7 +751,7 @@ class AlphabetOptimalDesign(object):
             constraints=constraints,options=options,
             bounds=bounds)
         
-        weights = res.x[1:]
+        weights = res.x
         if not return_full:
             return weights
         else:

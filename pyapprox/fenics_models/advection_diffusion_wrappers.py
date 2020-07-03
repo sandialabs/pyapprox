@@ -9,10 +9,10 @@ def qoi_functional_misc(u):
         '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',
         xk=0.3,yk=0.5,sigma=0.16,degree=2)
 
-    The /sigma*sigma is an error it should be 1/(sigma*sigma)
+    The /sigma*sigma is an error it should be 1/(2*sigma*sigma)
     """
     expr = dl.Expression(
-        '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(sigma*sigma))',
+        '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sigma*sigma))',
         xk=0.3,yk=0.5,sigma=0.16,degree=2)
     qoi = dl.assemble(u*expr*dl.dx(u.function_space().mesh()))
     return np.asarray([qoi])
@@ -85,8 +85,7 @@ def setup_zero_flux_neumann_boundary_conditions(degree,random_sample):
         ['neumann',  bndry_objs[3],dl.Constant(0)]]
     return boundary_conditions
 
-class AdvectionDiffusionModel(object):
-        
+class AdvectionDiffusionModel(object):   
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Change the following functions to modify governing equations
@@ -232,6 +231,87 @@ class AdvectionDiffusionModel(object):
             vals = vals[:,np.newaxis]
         return vals
 
+class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
+    def initialize_random_expressions(self,random_sample):
+        """
+        Overide this class to split random_samples into the parts that effect
+        the 5 random quantities
+        """
+        init_condition = self.get_initial_condition(None)
+        boundary_conditions, function_space = \
+            self.get_boundary_conditions_and_function_space(None)
+        beta = self.get_velocity(None)
+        forcing = self.get_forcing(random_sample[:2])
+        kappa = self.get_diffusivity(random_sample[2:])
+        return init_condition, boundary_conditions, function_space, beta, \
+            forcing, kappa
+
+    def get_forcing(self,random_sample):
+        source_stop_time = self.final_time
+        s=self.options['source_strength']
+        h=self.options['source_width']
+        print('h',h,'s',s)
+        forcing = dl.Expression(
+            '((t>ft)?0.:1.)*s/(2.*pi*h*h)*std::exp(-(pow(x[0]-x0,2)+pow(x[1]-x1,2))/(2.*h*h))',x0=random_sample[0],x1=random_sample[1],t=0,ft=source_stop_time,s=s,h=h,degree=self.degree)
+        return forcing
+
+    def get_diffusivity(self,random_sample):
+        """
+        Use the random diffusivity specified in [JEGGIJNME2020].
+        """
+        kappa = dl.Constant(1.0)
+        return kappa
+
+    def get_boundary_conditions_and_function_space(
+            self,random_sample):
+        """By Default the boundary conditions are deterministic, Dirichlet and 
+           and set to zero"""
+        assert random_sample is None
+        function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
+        bndry_objs = get_2d_rectangular_mesh_boundaries(0,1,0,1)
+        boundary_conditions = [
+            ['neumann',  bndry_objs[0],dl.Constant(0)],
+            ['neumann',  bndry_objs[1],dl.Constant(0)],
+            ['neumann',  bndry_objs[2],dl.Constant(0)],
+            ['neumann',  bndry_objs[3],dl.Constant(0)]]
+        return boundary_conditions,function_space
+
+def qoi_functional_source_inversion(sol):
+    """
+    JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR 
+    THE BAYESIAN SOLUTION OF INVERSE PROBLEMS
+
+    sensor_times t=0.1, t=0.2
+    noise std = 0.1
+    true source location = 0.25,0.25
+    source strength and width
+    s=2, sigma=0.05
+    difusivity = 1
+
+    Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn,
+    Stochastic spectral methods for efficient Bayesian solution of inverse problems,
+    Journal of Computational Physics,
+    Volume 224, Issue 2,
+    2007,
+    Pages 560-586,https://doi.org/10.1016/j.jcp.2006.10.010
+
+    sensor_times = 0.05,0.15
+
+    noise_std = 0.4
+
+    source strength and width
+    s=0.5, sigma=0.1
+    true source location = 0.25,0.75
+    difusivity = 1
+    """
+    sensor_locations = np.array(
+        [[0,0],[0,0.5],[0.,1.],[0.5,0],[0.5,0.5],[0.5,1.],
+         [1,0],[1,0.5],[1.,1.]]).T
+    vals = np.empty(sensor_locations.shape[1])
+    for ii,loc in enumerate(sensor_locations.T):
+        vals[ii]=sol(loc)
+    return vals
+
 def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     r"""
     Compute functionals of the following model of transient advection-diffusion
@@ -267,6 +347,11 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
 
     where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
 
+    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
+
+    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
+
+
     Parameters
     ----------
     nvars : integer
@@ -279,7 +364,7 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
         The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
 
     Returns
-    --------
+    -------
     benchmark : pya.Benchmark
        Object containing the benchmark attributes
     
@@ -305,4 +390,81 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     model = WorkTrackingModel(pool_model,base_model)
     attributes = {'fun':model,'variable':variable}
     return Benchmark(attributes)
+
+def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05]),source_strength=0.5,source_width=0.1,max_eval_concurrency=1):
+    r"""
+    Compute functionals of the following model of transient diffusion of 
+    a contaminant
+
+    .. math::
+
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [MNRJCP2006]_, [LMSISC2014]_ we set 
+
+    .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Neumann boundary conditions, i.e.
+
+    .. math:: \nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D
+
+    and we model the diffusivity :math:`k=1` as a constant.
+
+    The quantities of interest are point observations :math:`u(x_l)` 
+    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L` 
+    locations :math:`\{x_l\}_{l=1}^L`.
+
+    Parameters
+    ----------
+    measurement_times : np.ndarray (nmeasurement_times)
+        The times :math:`\{t_p\}_{p=1}^P` at which measurements of the 
+        contaminant concentration are taken
+
+    source_strength : float
+        The source strength :math:`s`
+
+    source_width : float
+        The source width :math:`h`
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should 
+        be no more than the maximum number of cores on the computer being used
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes
+
+    References
+    ----------
+    .. [MNRJCP2006] `Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn, Stochastic spectral methods for efficient Bayesian solution of inverse problems, Journal of Computational Physics, Volume 224, Issue 2, 2007, Pages 560-586, <https://doi.org/10.1016/j.jcp.2006.10.010>`_
+
+    .. [LMSISC2014] `Jinglai Li and Youssef M. Marzouk. Adaptive Construction of Surrogates for the Bayesian Solution of Inverse Problems, SIAM Journal on Scientific Computing 2014 36:3, A1163-A1186 <https://doi.org/10.1137/130938189>`_
+    """
+    
+    from scipy import stats
+    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+        WorkTrackingModel
+    from pyapprox.models.wrappers import PoolModel
+    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.benchmarks.benchmarks import Benchmark
+    univariate_variables = [stats.uniform(0,1)]*2
+    variable=IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = measurement_times.max(),2
+    print(final_time)
+    options={'measurement_times':measurement_times,'source_strength':source_strength,'source_width':source_width}
+    base_model = AdvectionDiffusionSourceInversionModel(
+        final_time,degree,qoi_functional_source_inversion,
+        second_order_timestepping=False,options=options)
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModelWrapper(base_model,base_model)
+    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model,base_model)
+    attributes = {'fun':model,'variable':variable}
+    return Benchmark(attributes)
+
+
      

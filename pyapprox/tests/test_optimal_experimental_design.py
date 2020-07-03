@@ -519,7 +519,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         noise_multiplier = None
 
         local_design_factors = \
-            lambda x,p: michaelis_menten_model_grad_parameters(x,p).T
+            lambda p,x: michaelis_menten_model_grad_parameters(p,x).T
         xx1 = np.linspace(0.9,1.1,3)[-1:]# theta_1 does not effect optimum
         xx2 = np.linspace(0.2,1,5)
         from pyapprox import cartesian_product
@@ -560,7 +560,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         # always computing these simplifies the test
         beta=0.75
         local_design_factors = \
-            lambda x,p: michaelis_menten_model_grad_parameters(x,p).T
+            lambda p,x: michaelis_menten_model_grad_parameters(p,x).T
         local_pred_factors = local_design_factors
         opts = {'beta':beta,'pred_factors':local_pred_factors,
                 'pred_samples':pred_samples[np.newaxis,:]}
@@ -613,49 +613,50 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         max_stat=np.round(max_stat,7)
         assert np.argmin(max_stat)==0
 
-    def test_bayesian_optimal_design(self):
-        num_design_pts = 201
+    def test_exponential_growth_model_local_d_optimal_design(self):
+        """
+        See the following for derivation of exact one point design for 
+        local d optimal design for exponential growth model 
+        Dietrich Braess and Holger Dette. On the number of support points of maximin and Bayesian optimal designs, 2007
+        dx.doi.org/10.1214/009053606000001307
+        """
+        lb2,ub2=1,10
+        design_samples = np.linspace(0,1,5*int(ub2+lb2)+1)
+        noise_multiplier = None
+        parameter_sample = np.array([(ub2+lb2)/2])
+        design_factors = exponential_growth_model_grad_parameters(parameter_sample,design_samples[np.newaxis,:]).T
+        opt_problem = AlphabetOptimalDesign('D',design_factors)
+        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        I = np.where(mu>1e-5)[0]
+        assert np.allclose(mu[I],1)
+        assert np.allclose(design_samples[I],1/parameter_sample)
+
+    def test_exponential_growth_model_bayesian_d_optimal_design(self):
+        num_design_pts = 21
         num_pred_pts = 100
         design_samples = np.linspace(0,1,num_design_pts)
-        lb2,ub2=1,20
+        lb2,ub2=1,10
         # assuming middle of parameter domain is used to find local design
-        design_samples = np.linspace(0,1,3*int((ub2+lb2)+1))
-        print(design_samples)
+        design_samples = np.linspace(0,1,5*int(ub2+lb2)+1)
         noise_multiplier = None
         pred_samples = np.linspace(0,1,num_pred_pts)
 
-        # lb2,ub2=0.2,1
-        # local_design_factors = \
-        #     lambda x,p: michaelis_model_grad_parameters(x,p).T
-        # xx1 = np.linspace(0.9,1.1,3)[-1:]# theta_1 does not effect optimum
-        # xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
-        # xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
-        # from pyapprox import cartesian_product
-        # parameter_samples = cartesian_product([xx1,xx2])
-
         # locally optimal design is a one point design with mass at 1/theta_1
         local_design_factors = \
-             lambda x,p: exponential_growth_model_grad_parameters(x,p).T
+             lambda p,x: exponential_growth_model_grad_parameters(p,x).T
         xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
-        xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(1,0,0)
         xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
         parameter_samples = xx2[np.newaxis,:]
-        print(xx2,1/xx2)
         
-        beta=0.75
-        local_pred_factors = local_design_factors
-        opts = {'beta':beta,'pred_factors':local_pred_factors,
-                'pred_samples':pred_samples[np.newaxis,:]}
-        opt_problem = AlphabetOptimalDesign('D',local_design_factors,opts=opts)
+        opt_problem = AlphabetOptimalDesign('D',local_design_factors,opts=None)
+        
         mu = opt_problem.solve_bayesian(
             parameter_samples,design_samples[np.newaxis,:],
             sample_weights=ww2,options={'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
-        print(I)
-        print(design_samples[I])
-        print(mu[I])
-        msg = 'TODO test locally D -optimal design for exponential growth model is the analytical result noted in the comments above. This answer is for a continuous design space'
-        assert False, msg
+        assert np.allclose(mu[I],1)
+        assert np.allclose(design_samples[I],2/(ub2+lb2))
+
 
 if __name__== "__main__":    
     oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(
