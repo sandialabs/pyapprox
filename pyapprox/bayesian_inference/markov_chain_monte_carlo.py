@@ -96,7 +96,7 @@ class LogLikeWithGrad(LogLike):
     itypes = [tt.dvector] # expects a vector of parameter values when called
     otypes = [tt.dscalar] # outputs a single scalar value (the log likelihood)
 
-    def __init__(self, loglike):
+    def __init__(self, loglike, loglike_grad=None):
         """
         Initialise with various things that the function requires. Below
         are the things that are needed in this particular example.
@@ -105,12 +105,15 @@ class LogLikeWithGrad(LogLike):
         ----------
         loglike:
             The log-likelihood (or whatever) function we've defined
+
+        loglike:
+            The log-likelihood (or whatever) function we've defined
         """
 
         super().__init__(loglike)
         
         # initialise the gradient Op (below)
-        self.logpgrad = LogLikeGrad(self.likelihood)
+        self.logpgrad = LogLikeGrad(self.likelihood,loglike_grad)
 
     def grad(self, inputs, g):
         # the method that calculates the gradients - it actually returns the
@@ -127,7 +130,7 @@ class LogLikeGrad(tt.Op):
     itypes = [tt.dvector]
     otypes = [tt.dvector]
 
-    def __init__(self, loglike):
+    def __init__(self, loglike, loglike_grad=None):
         """
         Initialise with various things that the function requires. Below
         are the things that are needed in this particular example.
@@ -138,16 +141,20 @@ class LogLikeGrad(tt.Op):
             The log-likelihood (or whatever) function we've defined
         """
         self.likelihood = loglike
+        self.likelihood_grad = loglike_grad
 
     def perform(self, node, inputs, outputs):
         samples,=inputs
         
-        # define version of likelihood function to pass to derivative function
-        def lnlike(values):
-            return self.likelihood(values)
-
         # calculate gradients
-        grads = approx_fprime(samples,lnlike,2*np.sqrt(np.finfo(float).eps))
+        if self.likelihood_grad is None:
+            # define version of likelihood function to pass to
+            # derivative function
+            def lnlike(values):
+                return self.likelihood(values)
+            grads = approx_fprime(samples,lnlike,2*np.sqrt(np.finfo(float).eps))
+        else:
+            grads = self.likelihood_grad(samples)
         outputs[0][0] = grads
 
 def extract_mcmc_chain_from_pymc3_trace(trace,var_names,ndraws,nburn,njobs):
@@ -195,13 +202,13 @@ def get_pymc_variable(rv,pymc_var_name):
 
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
-        algorithm='nuts',get_map=False,print_summary=False):
+        algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None):
     
     # create our Op
     if algorithm!='nuts':
         logl = LogLike(loglike)
     else:
-        logl = LogLikeWithGrad(loglike)
+        logl = LogLikeWithGrad(loglike,loglike_grad)
 
     # use PyMC3 to sampler from log-likelihood
     with pm.Model():
@@ -256,8 +263,9 @@ class PYMC3LogLikeWrapper():
     Main difference is that PYMC3 often passes 1d arrays where as
     Pyapprox assumes 2d arrays.
     """
-    def __init__(self,loglike):
+    def __init__(self,loglike,loglike_grad=None):
         self.loglike=loglike
+        self.loglike_grad=loglike_grad
 
     def __call__(self,x):
         if x.ndim==1:
@@ -266,3 +274,10 @@ class PYMC3LogLikeWrapper():
             xr=x
         vals = self.loglike(xr)
         return vals.squeeze()
+
+    def gradient(self,x):
+        if x.ndim==1:
+            xr = x[:,np.newaxis]
+        else:
+            xr=x
+        return self.loglike_grad(xr).squeeze()

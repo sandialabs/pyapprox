@@ -14,6 +14,55 @@ from pyapprox.utilities import \
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.manipulate_polynomials import add_polynomials
+
+def precompute_multivariate_orthonormal_polynomial_univariate_values(samples,indices,recursion_coeffs,deriv_order,basis_type_index_map):
+    num_vars = indices.shape[0]
+    max_level_1d = indices.max(axis=1)
+    
+    if basis_type_index_map is None:
+        basis_type_index_map = np.zeros(num_vars,dtype=int)
+        recursion_coeffs = [recursion_coeffs]
+
+    for dd in range(num_vars):
+        assert (recursion_coeffs[basis_type_index_map[dd]].shape[0]>
+                max_level_1d[dd])
+    
+    basis_vals_1d = []
+    for dd in range(num_vars):
+        basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
+            samples[dd,:],max_level_1d[dd],
+            recursion_coeffs[basis_type_index_map[dd]],deriv_order)
+        basis_vals_1d.append(basis_vals_1d_dd)
+    return basis_vals_1d
+
+def evaluate_multivariate_orthonormal_polynomial_values(
+        indices,basis_vals_1d,num_samples):
+    num_vars,num_indices = indices.shape
+    values = np.empty((num_samples,num_indices))
+    for ii in range(num_indices):
+        index = indices[:,ii]
+        values[:num_samples,ii]=basis_vals_1d[0][:,index[0]]
+        for dd in range(1,num_vars):
+            values[:num_samples,ii]*=basis_vals_1d[dd][:,index[dd]]
+    return values
+
+def evaluate_multivariate_orthonormal_polynomial_derivs(indices,max_level_1d,basis_vals_1d,num_samples,deriv_order):
+    num_vars,num_indices = indices.shape
+    values = np.zeros(((deriv_order*num_vars)*num_samples,num_indices))
+    for ii in range(num_indices):
+        index = indices[:,ii]
+        for jj in range(num_vars):
+            # derivative in jj direction
+            basis_vals=\
+                basis_vals_1d[jj][:,(max_level_1d[jj]+1)+index[jj]].copy()
+            # basis values in other directions
+            for dd in range(num_vars):
+                if dd!=jj:
+                    basis_vals*=basis_vals_1d[dd][:,index[dd]]
+            
+            values[(jj)*num_samples:(jj+1)*num_samples,ii] = basis_vals
+    return values
+
 def evaluate_multivariate_orthonormal_polynomial(
         samples,indices,recursion_coeffs,deriv_order=0,
         basis_type_index_map=None):
@@ -47,13 +96,6 @@ def evaluate_multivariate_orthonormal_polynomial(
     assert samples.shape[1]>0
     #assert recursion_coeffs.shape[0]>indices.max()
     max_level_1d = indices.max(axis=1)
-    if basis_type_index_map is None:
-        basis_type_index_map = np.zeros(num_vars,dtype=int)
-        recursion_coeffs = [recursion_coeffs]
-
-    for dd in range(num_vars):
-        assert (recursion_coeffs[basis_type_index_map[dd]].shape[0]>
-                max_level_1d[dd])
 
     assert deriv_order>=0 and deriv_order<=1
 
@@ -68,51 +110,19 @@ def evaluate_multivariate_orthonormal_polynomial(
     
     # precompute 1D basis functions for faster evaluation of
     # multivariate terms
+
+    basis_vals_1d = precompute_multivariate_orthonormal_polynomial_univariate_values(samples,indices,recursion_coeffs,deriv_order,basis_type_index_map)
     
-    basis_vals_1d = []
-    for dd in range(num_vars):
-        basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
-            samples[dd,:],max_level_1d[dd],
-            recursion_coeffs[basis_type_index_map[dd]],deriv_order)
-        basis_vals_1d.append(basis_vals_1d_dd)
-    # basis_vals_1d = np.empty(
-    #    (num_vars,samples.shape[1],(deriv_order+1)*(max_level_1d.max()+1)))
-    # for dd in range(num_vars):
-    #    basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
-    #        samples[dd,:],max_level_1d[dd],
-    #        recursion_coeffs[basis_type_index_map[dd]],deriv_order)
-    #    basis_vals_1d[dd,:,:basis_vals_1d_dd.shape[1]] = basis_vals_1d_dd
-
     num_samples = samples.shape[1]
-    values = np.zeros(((1+deriv_order*num_vars)*num_samples,num_indices))
-    for ii in range(num_indices):
-        index = indices[:,ii]
-        values[:num_samples,ii]=basis_vals_1d[0][:,index[0]]
-        for dd in range(1,num_vars):
-            values[:num_samples,ii]*=basis_vals_1d[dd][:,index[dd]]
-
-    # for ii in range(num_indices):
-    #    index = indices[:,ii]
-    #    values[:num_samples,ii]=basis_vals_1d[0,:,index[0]]
-    #    for dd in range(1,num_vars):
-    #        values[:num_samples,ii]*=basis_vals_1d[dd,:,index[dd]]
-
+    values = evaluate_multivariate_orthonormal_polynomial_values(
+        indices,basis_vals_1d,num_samples)
 
     if deriv_order==0:
         return values
 
-    for ii in range(num_indices):
-        index = indices[:,ii]
-        for jj in range(num_vars):
-            # derivative in jj direction
-            basis_vals=\
-              basis_vals_1d[jj][:,(max_level_1d[jj]+1)+index[jj]].copy()
-            # basis values in other directions
-            for dd in range(num_vars):
-                if dd!=jj:
-                    basis_vals*=basis_vals_1d[dd][:,index[dd]]
-            
-            values[(jj+1)*num_samples:(jj+2)*num_samples,ii] = basis_vals
+    derivs = evaluate_multivariate_orthonormal_polynomial_derivs(
+        indices,max_level_1d,basis_vals_1d,num_samples,deriv_order)
+    values = np.vstack([values,derivs])
         
     return values
 

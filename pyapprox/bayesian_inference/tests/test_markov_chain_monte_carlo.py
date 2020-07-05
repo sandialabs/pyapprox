@@ -32,15 +32,11 @@ class ExponentialQuarticLogLikelihoodModel(object):
         return value
 
     def gradient(self, x):
-        assert x.ndim==1
+        assert x.ndim==2
+        assert x.shape[1]==1
         grad = -np.array([12./5.*x[0]**3-4.*x[0]*x[1],
                           4.*x[1]-2.*x[0]**2])
         return grad
-
-    def value(self, x):
-        assert x.ndim == 1
-        vals = self.loglikelihood_function(x)
-        return np.array([vals])
 
     def __call__(self,x):
         return np.array([self.loglikelihood_function(x)]).T
@@ -120,7 +116,7 @@ class TestMCMC(unittest.TestCase):
         variables = IndependentMultivariateRandomVariable(univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
-        loglike = PYMC3LogLikeWrapper(loglike)
+        loglike = PYMC3LogLikeWrapper(loglike,loglike.gradient)
 
         # number of draws from the distribution
         ndraws = 5000
@@ -157,7 +153,8 @@ class TestMCMC(unittest.TestCase):
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
-                algorithm=algorithm,get_map=True,print_summary=True)
+                algorithm=algorithm,get_map=True,print_summary=True,
+                loglike_grad = loglike.gradient)
 
         # from pyapprox.visualization import get_meshgrid_function_data
         # import matplotlib

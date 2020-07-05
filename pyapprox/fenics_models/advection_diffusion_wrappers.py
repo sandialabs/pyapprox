@@ -217,7 +217,6 @@ class AdvectionDiffusionModel(object):
         init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa = self.initialize_random_expressions(random_sample)
 
-        print(self.options.get('intermediate_times',None))
         sol = run_model(
             function_space,kappa,forcing,
             init_condition,dt,self.final_time,
@@ -252,7 +251,6 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
         source_stop_time = self.final_time
         s=self.options['source_strength']
         h=self.options['source_width']
-        print('h',h,'s',s)
         forcing = dl.Expression(
             '((t>ft)?0.:1.)*s/(2.*pi*h*h)*std::exp(-(pow(x[0]-x0,2)+pow(x[1]-x1,2))/(2.*h*h))',x0=random_sample[0],x1=random_sample[1],t=0,ft=source_stop_time,s=s,h=h,degree=self.degree)
         return forcing
@@ -389,7 +387,7 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     attributes = {'fun':model,'variable':variable}
     return Benchmark(attributes)
 
-def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1,true_sample=np.array([[0.25,0.75,4,4,4]]).T,max_eval_concurrency=1):
+def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1,true_sample=np.array([[0.25,0.75,4,4,4]]).T,noise_stdev=0.4,max_eval_concurrency=1):
     r"""
     Compute functionals of the following model of transient diffusion of 
     a contaminant
@@ -431,6 +429,9 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     true_sample : np.ndarray (2)
         The true location of the source used to generate the observations
         used in the likelihood function
+    
+    noise_stdev : float
+        The standard deviation of the observational noise
 
     max_eval_concurrency : integer
         The maximum number of simulations that can be run in parallel. Should 
@@ -449,9 +450,11 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
 
     Notes
     -----
-    The example from [MNRJCP2006]_ can be obtained by setting `s=0.5`, `h=0.1` and `measurement_times=np.array([0.05,0.15])`
+    The example from [MNRJCP2006]_ can be obtained by setting `s=0.5`, `h=0.1`,
+    `measurement_times=np.array([0.05,0.15])` and `noise_stdev=0.1`
 
-    The example from [LMSISC2014]_ can be obtained by setting `s=2`, `h=0.05` and `measurement_times=np.array([0.1,0.2])`
+    The example from [LMSISC2014]_ can be obtained by setting `s=2`, `h=0.05`,
+    `measurement_times=np.array([0.1,0.2])` and `noise_stdev=0.1`
     """
     
     from scipy import stats
@@ -463,7 +466,6 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     univariate_variables = [stats.uniform(0,1)]*2
     variable=IndependentMultivariateRandomVariable(univariate_variables)
     final_time, degree = measurement_times.max(),2
-    print(final_time,measurement_times)
     options={'intermediate_times':measurement_times[:-1],
              'source_strength':source_strength,'source_width':source_width}
     base_model = AdvectionDiffusionSourceInversionModel(
@@ -476,16 +478,15 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     model = WorkTrackingModel(pool_model,base_model)
     
     from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
-        GaussianLogLike, PYMC3LogLikeWrapper
+        GaussianLogLike
     if true_sample.shape!=(5,1):
         msg = 'true_sample must be the concatenation of random sample and the '
         msg += 'configure sample'
         raise Exception(msg)
-    noiselses_data = model(true_sample)[0,:]
-    noise = np.random.norm(0,noise_stdev,(obs.shape[1]))
+    noiseless_data = model(true_sample)[0,:]
+    noise = np.random.normal(0,noise_stdev,(noiseless_data.shape[0]))
     data = noiseless_data + noise
     loglike = GaussianLogLike(model,data,noise_stdev)
-    loglike = PYMC3LogLikeWrapper(loglike)
     
     attributes = {'fun':model,'variable':variable,'loglike':loglike}
     return Benchmark(attributes)
