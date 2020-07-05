@@ -542,8 +542,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         samples = np.vstack([random_samples,config_samples])
         sol = model.base_model.solve(samples)
         qoi = model.base_model(samples)
-        print(qoi)
-        assert np.isfinite(qoi)
+        assert np.all(np.isfinite(qoi))
         
         #dl.plot(sol)
         #plt.show()
@@ -553,18 +552,26 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         Just check the benchmark runs
         """
         benchmark = setup_advection_diffusion_source_inversion_benchmark(
-            measurement_times=np.array([0.15]),source_strength=0.5,source_width=0.1)
+            measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1)
         model = benchmark.fun
         #random_samples = np.zeros((nvars,1))
         random_samples = np.array([[0.25,0.75]]).T
         config_samples = 3*np.ones((3,1))
         samples = np.vstack([random_samples,config_samples])
         sol = model.base_model.solve(samples)
-        print(sol.vector().get_local().max())
-        
-        p=dl.plot(sol)
-        plt.colorbar(p)
-        plt.show()
+
+        # plt.figure(figsize=(2*8,6))
+        # ax=plt.subplot(121)
+        # p0=dl.plot(sol[0])
+        # plt.colorbar(p0,ax=ax)
+        # ax=plt.subplot(122)
+        # p1=dl.plot(sol[1])
+        # plt.colorbar(p1,ax=ax)
+        # plt.show()
+
+        qoi = model.base_model(samples)
+        print(qoi)
+        assert np.all(np.isfinite(qoi))
 
 if __name__== "__main__":
     dl.set_log_level(40)

@@ -30,12 +30,12 @@ setuptools.setup(
         'matplotlib',
         'scipy >= 1.0.0',
         'cython',
+        'pandas',
         'cvxopt',
         'numpydoc',
         'sphinx',
         'sphinx_automodapi',
-        'sphinx_rtd_theme',
-        'pandas'
+        'sphinx_rtd_theme'
       ],
     ext_modules = cythonize(
         "pyapprox/cython/*.pyx",
@@ -51,3 +51,8 @@ setuptools.setup(
 # conda install -c conda-forge mshr
 
 #conda create -n fenics2017 -c conda-forge fenics=2017 scipy mpi4py matplotlib python=3.5 sympy=1.1.1 cython cvxopt
+
+#conda create -n pyapprox -c conda-forge numpy scipy cython mpi4py fenics=2019 matplotlib python=3.6 mshr pymc3 seaborn
+
+#todo consider having separate dependency list for building documentation, e.g.
+#sphinx, numpydoc, sphinx_automodapi, sphinx_rtd_theme

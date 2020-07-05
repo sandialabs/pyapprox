@@ -5,7 +5,8 @@ import os, time
 
 def run_model(function_space,kappa,forcing,init_condition,dt,final_time,
               boundary_conditions=None,second_order_timestepping=False,
-              exact_sol=None,velocity=None,point_sources=None):
+              exact_sol=None,velocity=None,point_sources=None,
+              intermediate_times=None):
     """
     Use implicit euler to solve transient advection diffusion equation
 
@@ -119,6 +120,13 @@ def run_model(function_space,kappa,forcing,init_condition,dt,final_time,
 
     dt_tol=1e-12
     n_time_steps=0
+    if intermediate_times is not None:
+        intermediate_u = []
+        intermediate_cnt = 0
+        # assert in chronological order
+        assert np.allclose(intermediate_times,np.array(intermediate_times))
+        assert np.all(intermediate_times<final_time)
+        
     while t < final_time-dt_tol:
         # Update current time
         t += dt
@@ -186,11 +194,21 @@ def run_model(function_space,kappa,forcing,init_condition,dt,final_time,
             #plt.show()
 
         t = min(t,final_time)
+        if (intermediate_times is not None and
+            intermediate_cnt<intermediate_times.shape[0] and
+            t>=intermediate_times[intermediate_cnt]):
+            #save solution closest to intermediate time
+            u_t=dl.Function(function_space)
+            u_t.assign(u_2)
+            intermediate_u.append(u_t)
+            intermediate_cnt+=1
         n_time_steps+=1
     #print ("t =", t, "end t=", final_time,"# time steps", n_time_steps)
     
-
-    return u_2
+    if intermediate_times is None:
+        return u_2
+    else:
+        return intermediate_u+[u_2]
 
 def run_steady_state_model(function_space,kappa,forcing,
                            boundary_conditions=None,velocity=None):

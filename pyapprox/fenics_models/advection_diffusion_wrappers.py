@@ -217,11 +217,13 @@ class AdvectionDiffusionModel(object):
         init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa = self.initialize_random_expressions(random_sample)
 
+        print(self.options.get('intermediate_times',None))
         sol = run_model(
             function_space,kappa,forcing,
             init_condition,dt,self.final_time,
             boundary_conditions,velocity=beta,
-            second_order_timestepping=self.second_order_timestepping)
+            second_order_timestepping=self.second_order_timestepping,
+            intermediate_times=self.options.get('intermediate_times',None))
         return sol
         
     def __call__(self,samples):
@@ -276,7 +278,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
             ['neumann',  bndry_objs[3],dl.Constant(0)]]
         return boundary_conditions,function_space
 
-def qoi_functional_source_inversion(sol):
+def qoi_functional_source_inversion(sols):
     """
     JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR 
     THE BAYESIAN SOLUTION OF INVERSE PROBLEMS
@@ -295,21 +297,17 @@ def qoi_functional_source_inversion(sol):
     2007,
     Pages 560-586,https://doi.org/10.1016/j.jcp.2006.10.010
 
-    sensor_times = 0.05,0.15
-
     noise_std = 0.4
-
-    source strength and width
-    s=0.5, sigma=0.1
-    true source location = 0.25,0.75
-    difusivity = 1
     """
     sensor_locations = np.array(
         [[0,0],[0,0.5],[0.,1.],[0.5,0],[0.5,0.5],[0.5,1.],
          [1,0],[1,0.5],[1.,1.]]).T
-    vals = np.empty(sensor_locations.shape[1])
-    for ii,loc in enumerate(sensor_locations.T):
-        vals[ii]=sol(loc)
+    vals = np.empty(sensor_locations.shape[1]*len(sols))
+    kk=0
+    for jj,sol in enumerate(sols):
+        for ii,loc in enumerate(sensor_locations.T):
+            vals[kk]=sol(loc)
+            kk+=1
     return vals
 
 def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
@@ -391,7 +389,7 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     attributes = {'fun':model,'variable':variable}
     return Benchmark(attributes)
 
-def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05]),source_strength=0.5,source_width=0.1,max_eval_concurrency=1):
+def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1,true_sample=np.array([[0.25,0.75,4,4,4]]).T,max_eval_concurrency=1):
     r"""
     Compute functionals of the following model of transient diffusion of 
     a contaminant
@@ -416,9 +414,11 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L` 
     locations :math:`\{x_l\}_{l=1}^L`.
 
+    TODO: Add description of liklihood function
+
     Parameters
     ----------
-    measurement_times : np.ndarray (nmeasurement_times)
+    measurement_times : np.ndarray (P)
         The times :math:`\{t_p\}_{p=1}^P` at which measurements of the 
         contaminant concentration are taken
 
@@ -427,6 +427,10 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
 
     source_width : float
         The source width :math:`h`
+
+    true_sample : np.ndarray (2)
+        The true location of the source used to generate the observations
+        used in the likelihood function
 
     max_eval_concurrency : integer
         The maximum number of simulations that can be run in parallel. Should 
@@ -442,6 +446,12 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     .. [MNRJCP2006] `Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn, Stochastic spectral methods for efficient Bayesian solution of inverse problems, Journal of Computational Physics, Volume 224, Issue 2, 2007, Pages 560-586, <https://doi.org/10.1016/j.jcp.2006.10.010>`_
 
     .. [LMSISC2014] `Jinglai Li and Youssef M. Marzouk. Adaptive Construction of Surrogates for the Bayesian Solution of Inverse Problems, SIAM Journal on Scientific Computing 2014 36:3, A1163-A1186 <https://doi.org/10.1137/130938189>`_
+
+    Notes
+    -----
+    The example from [MNRJCP2006]_ can be obtained by setting `s=0.5`, `h=0.1` and `measurement_times=np.array([0.05,0.15])`
+
+    The example from [LMSISC2014]_ can be obtained by setting `s=2`, `h=0.05` and `measurement_times=np.array([0.1,0.2])`
     """
     
     from scipy import stats
@@ -453,8 +463,9 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     univariate_variables = [stats.uniform(0,1)]*2
     variable=IndependentMultivariateRandomVariable(univariate_variables)
     final_time, degree = measurement_times.max(),2
-    print(final_time)
-    options={'measurement_times':measurement_times,'source_strength':source_strength,'source_width':source_width}
+    print(final_time,measurement_times)
+    options={'intermediate_times':measurement_times[:-1],
+             'source_strength':source_strength,'source_width':source_width}
     base_model = AdvectionDiffusionSourceInversionModel(
         final_time,degree,qoi_functional_source_inversion,
         second_order_timestepping=False,options=options)
@@ -463,7 +474,20 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
     # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model,base_model)
-    attributes = {'fun':model,'variable':variable}
+    
+    from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
+        GaussianLogLike, PYMC3LogLikeWrapper
+    if true_sample.shape!=(5,1):
+        msg = 'true_sample must be the concatenation of random sample and the '
+        msg += 'configure sample'
+        raise Exception(msg)
+    noiselses_data = model(true_sample)[0,:]
+    noise = np.random.norm(0,noise_stdev,(obs.shape[1]))
+    data = noiseless_data + noise
+    loglike = GaussianLogLike(model,data,noise_stdev)
+    loglike = PYMC3LogLikeWrapper(loglike)
+    
+    attributes = {'fun':model,'variable':variable,'loglike':loglike}
     return Benchmark(attributes)
 
 
