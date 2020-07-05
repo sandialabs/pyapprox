@@ -195,10 +195,13 @@ def setup_rosenbrock_function(nvars):
     """
     univariate_variables = [stats.uniform(-2,4)]*nvars
     variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
-    
-    return Benchmark(
+
+    benchmark = Benchmark(
         {'fun':rosenbrock_function,'jac':rosenbrock_function_jacobian,
          'hessp':rosenbrock_function_hessian_prod,'variable':variable})
+    benchmark.update({'loglike':lambda x: -benchmark['fun'](x),
+                      'loglike_grad':lambda x: -benchmark['jac'](x)})
+    return benchmark
 
 def setup_genz_function(nvars,test_name,coefficients=None):
     r"""
