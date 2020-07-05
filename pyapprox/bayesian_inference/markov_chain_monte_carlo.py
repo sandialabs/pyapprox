@@ -5,7 +5,6 @@ import theano
 import theano.tensor as tt
 from scipy.optimize import approx_fprime
 
-
 class GaussianLogLike(object):
     """
     A Gaussian log-likelihood function for a model with parameters given in 
@@ -154,11 +153,15 @@ class LogLikeGrad(tt.Op):
 def extract_mcmc_chain_from_pymc3_trace(trace,var_names,ndraws,nburn,njobs):
     nvars = len(var_names)
     samples = np.empty((nvars,(ndraws-nburn)*njobs))
-    effective_sample_size = np.empty(nvars)
+    effective_sample_size = -np.ones(nvars)
     for ii in range(nvars):
         samples[ii,:]=trace.get_values(
             var_names[ii],burn=nburn,chains=np.arange(njobs))
-        effective_sample_size[ii]=pm.ess(trace)[var_names[ii]].values
+        try:
+            effective_sample_size[ii]=pm.ess(trace)[var_names[ii]].values
+        except:
+            print('could not compute ess. likely issue with theano')
+
 
     return samples,effective_sample_size
 
@@ -193,6 +196,7 @@ def get_pymc_variable(rv,pymc_var_name):
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
         algorithm='nuts',get_map=False,print_summary=False):
+    
     # create our Op
     if algorithm!='nuts':
         logl = LogLike(loglike)
@@ -225,19 +229,24 @@ def run_bayesian_inference_gaussian_error_model(
                 step=pm.NUTS(pymc_variables)
             
             trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
-                              start=None,cores=njobs,step=step)
-
-    if print_summary:
-        print(pm.summary(trace))
+                              start=None,cores=njobs,step=step,
+                              compute_convergence_checks=False)
+            # compute_convergence_checks=False avoids bugs in theano
+            
+        if print_summary:
+            try:
+                print(pm.summary(trace))
+            except:
+                print('could not print summary. likely issue with theano')
         
-    samples, effective_sample_size = extract_mcmc_chain_from_pymc3_trace(
-        trace,pymc_var_names,ndraws,nburn,njobs)
+        samples, effective_sample_size = extract_mcmc_chain_from_pymc3_trace(
+            trace,pymc_var_names,ndraws,nburn,njobs)
     
-    if get_map:
-        map_sample = extract_map_sample_from_pymc3_dict(
-            map_sample_dict,pymc_var_names)
-    else:
-        map_samples = None
+        if get_map:
+            map_sample = extract_map_sample_from_pymc3_dict(
+                map_sample_dict,pymc_var_names)
+        else:
+            map_samples = None
         
     return samples, effective_sample_size, map_sample
 

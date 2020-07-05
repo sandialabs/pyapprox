@@ -617,8 +617,8 @@ class TestCVMC(unittest.TestCase):
         estimator = ACVMF(cov,costs)
         errors = pya.check_gradients(
             partial(acv_sample_allocation_objective,estimator),
-            partial(acv_sample_allocation_jacobian,estimator),
-            nsample_ratios,disp=False)
+            partial(acv_sample_allocation_jacobian_torch,estimator),
+            nsample_ratios[:,np.newaxis],disp=False)
         #print(errors.min())
         assert errors.min()<1e-8
 
@@ -630,3 +630,4 @@ if __name__== "__main__":
          TestCVMC)
     unittest.TextTestRunner(verbosity=2).run(cvmc_test_suite)
 
+    

@@ -1271,7 +1271,7 @@ class ModelEnsemble(object):
         for ii in range(1,active_model_ids.shape[0]):
             active_model_id=active_model_ids[ii]
             I = np.where(model_ids==active_model_id)[0]
-            values[I] = f(samples[:-1,I])
+            values[I] = self.functions[active_model_id](samples[:-1,I])
         return values
 
 def estimate_model_ensemble_covariance(npilot_samples,generate_samples,

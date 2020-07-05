@@ -75,16 +75,15 @@ setuptools.setup(
 #        'cython',
         'cvxopt',
         'sympy',
-        'numpydoc',
-        'sphinx',
-        'sphinx_automodapi',
-        'sphinx_rtd_theme',
-        #'torch',
         'seaborn',
-        'pillow', # required by sphinx-gallery and dependency not auto handle
-        'sphinx-gallery',
-        'jupyter',
-        'pymc3'
+        'pymc3',
+        #'numpydoc',
+        #'sphinx',
+        #'sphinx_automodapi',
+        #'sphinx_rtd_theme',
+        #'sphinx-gallery',
+        #'jupyter'
+        #'torch',
       ],
     ext_modules = extensions,
     test_suite='nose.collector',
@@ -96,4 +95,15 @@ setuptools.setup(
 # mshr can only be installed using conda
 # conda install -c conda-forge mshr
 
-#conda create -n default -c conda-forge numpy scipy cython mpi4py fenics=2019 matplotlib python=3.6 mshr
+#conda create -n default -c conda-forge python=3.6 numpy scipy cython matplotlib  mpi4py fenics=2019 mshr pymc3 mkl-service
+
+# mkl-service needed for pymc3
+
+#replicate previous environ where pymc3 worked
+#conda create -n redhat -c conda-forge python=3.7 numpy=1.15 scipy cython matplotlib=3.1  mpi4py fenics=2018 mshr pymc3=3.8 theano=1.0.4
+
+# install tools needed to generate documentation
+# conda install -c conda forge sphinx sphinx-gallery numpydoc
+
+#install torch with
+#conda install pytorch torchvision -c pytorch

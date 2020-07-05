@@ -152,8 +152,8 @@ class TestMCMC(unittest.TestCase):
         exact_mean = ((x*unnormalized_posterior(x)[:,0]).dot(w)/evidence)
         #print(exact_mean)
 
-        #algorithm = 'nuts'
-        algorithm = 'smc'
+        algorithm = 'nuts'
+        #algorithm = 'smc'
         samples, effective_sample_size, map_sample = \
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
