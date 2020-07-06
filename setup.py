@@ -103,7 +103,7 @@ setuptools.setup(
 #conda create -n redhat -c conda-forge python=3.7 numpy=1.15 scipy cython matplotlib=3.1  mpi4py fenics=2018 mshr pymc3=3.8 theano=1.0.4
 
 # install tools needed to generate documentation
-# conda install -c conda forge sphinx sphinx-gallery numpydoc
+# conda install -c conda forge sphinx sphinx-gallery numpydoc sphinx-automodapi sphinx_rtd_theme
 
 #install torch with
 #conda install pytorch torchvision -c pytorch

@@ -18,7 +18,7 @@ def approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_in
         ``fun(z) -> np.ndarray``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
-        output is a 2D np.ndarray with shaoe (nsamples,nqoi)
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
 
     univariate_variables : list
         A list of scipy.stats random variables of size (nvars)
@@ -121,7 +121,7 @@ def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refineme
         ``fun(z) -> np.ndarray``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
-        output is a 2D np.ndarray with shaoe (nsamples,nqoi)
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
 
     univariate_variables : list
         A list of scipy.stats random variables of size (nvars)

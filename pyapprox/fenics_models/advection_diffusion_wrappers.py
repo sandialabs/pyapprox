@@ -362,8 +362,38 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     Returns
     -------
     benchmark : pya.Benchmark
-       Object containing the benchmark attributes
-    
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars`` 
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of 
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and 
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}` 
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration 
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep 
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed 
+        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
+
+    Examples
+    --------
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
     """
     
     from scipy import stats
@@ -410,9 +440,23 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
 
     The quantities of interest are point observations :math:`u(x_l)` 
     taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L` 
-    locations :math:`\{x_l\}_{l=1}^L`.
+    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last 
+    observation time.
 
-    TODO: Add description of liklihood function
+    These functionals can be used to define the posterior distribution 
+
+    .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
+
+    where the prior is the tensor product of independent and identically 
+    distributed uniform variables on :math:`[0,1]` i.e. 
+    :math:`\pi(\rv)=1`, and the likelihood is given by
+
+    .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)
+
+    and :math:`y` are noisy observations of the solution `u` at the 9 
+    points of a uniform :math:`3\times 3` grid covering the physical domain 
+    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is indepenent and Normally distrbuted with mean 
+    zero and variance :math:`\sigma^2`.
 
     Parameters
     ----------
@@ -431,7 +475,7 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
         used in the likelihood function
     
     noise_stdev : float
-        The standard deviation of the observational noise
+        The standard deviation :math:`sigma` of the observational noise
 
     max_eval_concurrency : integer
         The maximum number of simulations that can be run in parallel. Should 
@@ -440,7 +484,38 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     Returns
     -------
     benchmark : pya.Benchmark
-       Object containing the benchmark attributes
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars`` 
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of 
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and 
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}` 
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration 
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep 
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed 
+        uniform variables on :math:`[0,1]`.
+
+    Examples
+    --------
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
 
     References
     ----------

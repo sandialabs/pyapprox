@@ -28,7 +28,7 @@ The density :math:`\pi (\rv\mid d)` is referred to as the posterior density.
 
 .. math::
 
-   \pi_\text{post}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
+   \pi_{\text{post}}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
    \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
 Prior
