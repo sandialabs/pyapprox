@@ -16,7 +16,7 @@ from scipy.stats import uniform, beta, norm, hypergeom, binom
 class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_evaluate_multivariate_orthonormal_polynomial(self):
-        num_vars = 2; alpha = 0.; beta = 0.; degree = 2; deriv_order=1    
+        num_vars = 2; alpha = 0.; beta = 0.; degree = 2; deriv_order=1 
         probability_measure = True
 
         ab = jacobi_recurrence(
@@ -86,14 +86,19 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly.configure({'poly_type':'legendre','var_trans':var_trans})
 
         samples, weights = get_tensor_product_quadrature_rule(
-            degree,num_vars,np.polynomial.legendre.leggauss)
+            degree-1,num_vars,np.polynomial.legendre.leggauss)
 
         indices = compute_hyperbolic_indices(num_vars,degree,1.0)
 
         # sort lexographically to make testing easier
         I = np.lexsort((indices[0,:],indices[1,:], indices.sum(axis=0)))
         indices = indices[:,I]
-        poly.set_indices(indices)
+        # remove [0,2] index so max_level is not the same for every dimension
+        # also remove [1,0] and [1,1] to make sure can handle index sets that
+        # have missing univariate degrees not at the ends
+        J = [1,5,4]
+        reduced_indices = np.delete(indices,J,axis=1)
+        poly.set_indices(reduced_indices)
 
         basis_matrix = poly.basis_matrix(samples,{'deriv_order':1})
 
@@ -119,13 +124,15 @@ class TestMultivariatePolynomials(unittest.TestCase):
             [0.*x,exact_basis_derivs_1d[0][:,1],0.*x,
              exact_basis_derivs_1d[0][:,2],
             exact_basis_derivs_1d[0][:,1]*exact_basis_vals_1d[1][:,1],
-            0.*x]).T))
+             0.*x]).T))
 
         # x2 derivative
         exact_basis_matrix = np.vstack((exact_basis_matrix,np.asarray(
             [0.*x,0.*x,exact_basis_derivs_1d[1][:,1],0.*x,
             exact_basis_vals_1d[0][:,1]*exact_basis_derivs_1d[1][:,1],
             exact_basis_derivs_1d[1][:,2]]).T))
+
+        exact_basis_matrix = np.delete(exact_basis_matrix,J,axis=1)
 
         assert np.allclose(exact_basis_matrix, basis_matrix)
 
