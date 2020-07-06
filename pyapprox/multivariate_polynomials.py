@@ -51,8 +51,9 @@ def evaluate_multivariate_orthonormal_polynomial_values(
 def evaluate_multivariate_orthonormal_polynomial_derivs(indices,max_level_1d,basis_vals_1d,num_samples,deriv_order):
     # TODO Consider combining
     # evaluate_multivariate_orthonormal_polynomial_values and derivs and
-    # evaluate_multivariate_orthonormal_polynomial_derivs becuase they both
+    # evaluate_multivariate_orthonormal_polynomial_derivs beecause they both
     # compute temp2
+    
     assert deriv_order==1
     num_vars,num_indices = indices.shape
 
@@ -60,6 +61,9 @@ def evaluate_multivariate_orthonormal_polynomial_derivs(indices,max_level_1d,bas
     temp1 = basis_vals_1d.reshape((num_vars*basis_vals_1d.shape[1],num_samples))
     temp2 = temp1[indices.ravel()+np.repeat(np.arange(num_vars)*basis_vals_1d.shape[1],num_indices),:].reshape(num_vars,num_indices,num_samples)
     values = np.prod(temp2,axis=0).T
+    # derivs are stored immeadiately after values in basis_vals_1d
+    # if max_level_1d[dd]!=max_level_1d.max() then there will be some
+    # uninitialized values at the end of the array but these are never accessed
     temp3 = temp1[indices.ravel()+np.repeat(max_level_1d+1+np.arange(num_vars)*basis_vals_1d.shape[1],num_indices),:].reshape(num_vars,num_indices,num_samples)
 
     derivs = np.empty((num_samples*num_vars,num_indices))

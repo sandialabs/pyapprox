@@ -172,12 +172,20 @@ def setup_rosenbrock_function(nvars):
 
     .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
 
-    using 
+    This benchmark can also be used to test Bayesian inference methods. 
+    Specifically this benchmarks returns the log likelihood
+    
+    .. math:: l(z) = -f(z)
 
-    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
-    >>> benchmark=setup_benchmark('rosenbrock',nvars=2)
-    >>> print(benchmark.keys())
-    dict_keys(['fun', 'jac', 'hessp', 'variable'])
+    which can be used to compute the posterior distribution
+    
+    .. math:: \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
+
+    where the prior is the tensor product of :math:`d` independent and 
+    identically distributed uniform variables on :math:`[-2,2]`, i.e. 
+    :math:`\pi(\rv)=\frac{1}{4^d}`, and the likelihood is given by
+    
+    .. math:: \pi(\V{y}|\rv)=\exp\left(l(\rv)\right)
 
     Parameters
     ----------
@@ -187,18 +195,78 @@ def setup_rosenbrock_function(nvars):
     Returns
     -------
     benchmark : pya.Benchmark
-       Object containing the benchmark attributes
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The rosenbrock with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
+
+    jac : callable
+        The jacobian of ``fun`` with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nvars,1)
+
+    hessp : callable
+        Hessian of  ``fun`` times an arbitrary vector p with signature
+    
+        ``hessp(z, p) ->  ndarray shape (nvars,1)``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an 
+        arbitraty vector with shape (nvars,1)
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed 
+        uniform variables on :math:`[-2,2]`.
+
+    mean : float
+        The mean of the rosenbrock function with respect to the pdf of variable.
+
+    loglike : callable
+        The log likelihood of the Bayesian inference problem for inferring z
+        given the uniform prior specified by variable and the negative 
+        log likelihood given by the Rosenbrock function. loglike has the 
+        signature
+
+        ``loglike(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
+
+    loglike_grad : callable
+        The gradient of the ``loglike`` with the signature
+
+        ``loglike_grad(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
 
     References
     ----------
     .. [DixonSzego1990] `Dixon, L. C. W.; Mills, D. J. "Effect of Rounding Errors on the Variable Metric Method". Journal of Optimization Theory and Applications. 80: 175–179. 1994 <https://doi.org/10.1007%2FBF02196600>`_
+
+    Examples
+    --------
+    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark=setup_benchmark('rosenbrock',nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'jac', 'hessp', 'variable', 'mean', 'loglike', 'loglike_grad'])
     """
     univariate_variables = [stats.uniform(-2,4)]*nvars
     variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
     benchmark = Benchmark(
         {'fun':rosenbrock_function,'jac':rosenbrock_function_jacobian,
-         'hessp':rosenbrock_function_hessian_prod,'variable':variable})
+         'hessp':rosenbrock_function_hessian_prod,'variable':variable,
+         'mean':rosenbrock_function_mean(nvars)})
     benchmark.update({'loglike':lambda x: -benchmark['fun'](x),
                       'loglike_grad':lambda x: -benchmark['jac'](x)})
     return benchmark
