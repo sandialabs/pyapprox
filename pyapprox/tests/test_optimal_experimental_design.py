@@ -83,25 +83,8 @@ def emax_model_grad_parameters(parameters,samples):
     return grad
 
 def check_derivative(function,num_design_pts):
-    design_prob_measure = np.random.uniform(0,1,(num_design_pts,1))
-    direction = np.random.uniform(0,1,(num_design_pts,1))
-    t     = 1
-    dt=0.1
-    f,g = function(design_prob_measure,return_grad=True)
-    dold  = g.T.dot(direction)
-    #print('\n\n')
-    #print(dold.shape,g.shape)
-    print('eps','dfun','dfd','error')
-    diff = []
-    for i in range(1,13):
-        fleft = function(design_prob_measure-t*direction,return_grad=False)
-        fright = function(design_prob_measure+t*direction,return_grad=False)
-        dnew = (fright-fleft)/(2*t)
-        print(t,dold,dnew,abs(dold-dnew)/abs(dold))
-        t    = t*dt
-        diff.append(abs(dold-dnew)/abs(dold))
-    #print('\n\n')
-    return np.array(diff) 
+    design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
+    return pya.check_gradients(function,True,design_prob_measure)
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
     def setUp(self):
@@ -173,6 +156,61 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         u = np.linalg.solve(M1, pred_factors.T)
         assert np.allclose(np.diag(u.T.dot(M0).dot(u)).mean(),
                            ioptimality_criterion_wrapper(mu,return_grad=False))
+
+    def test_homoscedastic_goptimality_criterion(self):
+        poly_degree = 3;
+        num_design_pts = 5
+        num_pred_pts = 4
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        # TODO check if design factors may have to be a subset of pred_factors
+        #pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        #assert num_design_pts<=pred_factors.shape[0]
+        #design_factors = pred_factors[:num_design_pts,:]
+        design_samples = np.linspace(-1,1,num_design_pts)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        goptimality_criterion_wrapper = partial(
+            goptimality_criterion,homog_outer_prods,design_factors,pred_factors)
+        diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
+        #print(diffs)
+        assert diffs.min()<6e-7, diffs
+
+    def test_hetroscedastic_goptimality_criterion(self):
+        """
+        Test homoscedastic and hetroscedastic API produce same value
+        when noise is homoscedastic
+        """
+        poly_degree = 10;
+        num_design_pts = 101
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier = design_samples**2+1
+        pred_samples = np.random.uniform(-1,1,51)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        hetero_outer_prods = compute_heteroscedastic_outer_products(
+            design_factors,noise_multiplier)
+        goptimality_criterion_wrapper = partial(
+            goptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            hetero_outer_prods=hetero_outer_prods,
+            noise_multiplier=noise_multiplier)
+  
+        # Test hetroscedastic API gradients are correct        
+        diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-7,diffs
+      
+        # Test homoscedastic and hetroscedastic API produce same value
+        # when noise is homoscedastic
+        pp=np.random.uniform(0,1,(num_design_pts,1))
+        assert np.allclose(
+            goptimality_criterion_wrapper(pp,return_grad=False),
+            goptimality_criterion(
+                homog_outer_prods,design_factors,pred_factors,
+                pp,return_grad=False,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier*0+1))
         
     def test_hetroscedastic_coptimality_criterion(self):
         poly_degree = 10
@@ -369,7 +407,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 2;
         num_design_pts = 7
         design_samples = np.linspace(-1,1,num_design_pts)
-        print(design_samples)
         noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
@@ -386,7 +423,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 3;
         num_design_pts = 30
         design_samples = np.linspace(-1,1,num_design_pts)
-        print(design_samples)
         noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
@@ -396,6 +432,30 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
 
+
+    def test_homoscedastic_least_squares_goptimal_design(self):
+        """
+        Create G-optimal design
+        """
+        poly_degree = 2;
+        num_design_pts = 7
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier = None
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+
+        opts = {'pred_factors':design_factors}
+        opt_problem = AlphabetOptimalDesign('G',design_factors,opts=opts)
+        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        I= np.where(mu>1e-5)[0]
+        assert np.allclose(I,[0,3,6])
+        assert np.allclose(np.ones(3)/3,mu[I])
+
+        # check G gives same as D optimality. This holds due to equivalence
+        # theorem
+        opt_problem = AlphabetOptimalDesign('D',design_factors)
+        mu_d = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        assert np.allclose(mu,mu_d)
 
     def test_homoscedastic_roptimality_criterion(self):
         beta=0.5# when beta=0 we get I optimality

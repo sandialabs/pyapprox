@@ -405,7 +405,7 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
         function_val,grad_val = function(xx)
     direction = np.random.normal(0,1,(xx.shape[0],1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = grad_val.T.dot(direction)
+    directional_derivative = grad_val.T.dot(direction).squeeze()
     fd_eps = np.logspace(-13,0,14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
@@ -417,7 +417,7 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
         if grad_function==True:
             perturbed_function_val = perturbed_function_val[0]
         fd_directional_derivative = (
-            perturbed_function_val-function_val)/fd_eps[ii]
+            perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
         if disp:

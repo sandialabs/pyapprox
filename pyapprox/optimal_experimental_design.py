@@ -418,6 +418,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
 
     The criteria is
 
+    .. math:: \mathrm{CVaR}\left[\sigma^2f(x)^T\left(F(\mathcal{X})^TF(\mathcal{X})\right)^{-1}f(x)\right]
 
     where
     C(\mu) = M_1^{-1} M_0 M^{-1}
@@ -506,6 +507,95 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
         gradient   = -np.sum(F_M1_inv_P.T**2*cvar_grad[:,np.newaxis],axis=0)
         return value, gradient
 
+def goptimality_criterion(homog_outer_prods,design_factors,
+                          pred_factors,design_prob_measure,return_grad=True,
+                          hetero_outer_prods=None,
+                          noise_multiplier=None):
+    r"""
+    Evaluate the G-optimality criterion for a given design probability measure.
+
+    The criteria is
+
+    .. math:: \max{sup}_{xi\in\Xi_\text{pred}} \sigma^2f(x)^T\left(F(\mathcal{X})^TF(\mathcal{X})\right)^{-1}f(x)
+
+    where
+    C(\mu) = M_1^{-1} M_0 M^{-1}
+
+    For Homoscedastic noise M_0=M_1 and
+    C(\mu) = M_1^{-1}
+
+    Parameters
+    ----------
+    design_prob_measure : np.ndarray (num_design_pts)
+       The prob measure \mu on the design points
+
+    homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                 num_design_pts)
+       The hessian M_1 of the error for each design point
+
+    hetero_outer_prods : np.ndarray (num_design_factors,num_design_factors,
+                                          num_design_pts)
+       The asymptotic covariance M_0 of the subgradient of the model for 
+       each design point. If None homoscedastic noise is assumed.
+
+    design_factors : np.ndarray (num_design_pts,num_design_factors)
+       The design factors evaluated at each of the design points
+
+    pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
+       The prediction factors g evaluated at each of the prediction points
+
+    return_grad : boolean
+       True  - return the value and gradient of the criterion
+       False - return only the value of the criterion
+
+    Returns
+    -------
+    value : float
+        The value of the objective function
+
+    grad : np.ndarray (num_design_pts)
+        The gradient of the objective function. Only if return_grad is True.
+    """
+    num_design_pts, num_design_factors = design_factors.shape
+    num_pred_pts,   num_pred_factors   = pred_factors.shape
+    if design_prob_measure.ndim==2:
+        assert design_prob_measure.shape[1]==1
+        design_prob_measure = design_prob_measure[:,0]
+    M1 = homog_outer_prods.dot(design_prob_measure)
+    if hetero_outer_prods is not None:
+        M0 = hetero_outer_prods.dot(design_prob_measure)
+        Q,R = np.linalg.qr(M1)
+        u = solve_triangular(R,Q.T.dot(pred_factors.T))
+        M0u = M0.dot(u)
+        variances = np.sum(u*M0u,axis=0)
+        value = variances
+        if (return_grad):
+            assert noise_multiplier is not None
+            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
+            Fu  = design_factors.dot(u)
+            t   = noise_multiplier[:,np.newaxis] * Fu
+            Fgamma  = design_factors.dot(gamma)
+            gradient = 2*Fu*Fgamma + t**2
+            return value, gradient
+        else:
+            return value
+    else:
+        u = np.linalg.solve(M1,pred_factors.T)
+        # Value
+        # We want to sum the variances, i.e. the enties of the diagonal of
+        # pred_factors.dot(M1.dot(pred_factors.T))
+        # We know that diag(A.T.dot(B)) = (A*B).axis=0)00
+        # The following sums over all entries of A*B we get the diagonal
+        # variances
+        variances = np.sum(pred_factors*u.T,axis=1)
+        value = variances
+        if (not return_grad):
+            return value
+        # Gradient
+        F_M1_inv_P = design_factors.dot(u);
+        gradient   = -F_M1_inv_P**2
+        return value, gradient
+
 from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
 
@@ -513,7 +603,9 @@ def minmax_oed_constraint_objective(local_oed_obj,x):
     return x[0]-local_oed_obj(x[1:])
 
 def minmax_oed_constraint_jacobian(local_oed_jac,x):
-    return np.concatenate([np.ones(1),-local_oed_jac(x[1:])])    
+    jac = -local_oed_jac(x[1:])
+    jac = np.atleast_2d(jac)
+    return np.hstack([np.ones((jac.shape[0],1)),jac])    
 
 class AlphabetOptimalDesign(object):
     """
@@ -584,6 +676,16 @@ class AlphabetOptimalDesign(object):
                 beta,homog_outer_prods,design_factors,pred_factors,r,
                 return_grad=True,hetero_outer_prods=hetero_outer_prods,
                 noise_multiplier=noise_multiplier)[1]
+        elif self.criteria=='G':
+            pred_factors = opts['pred_factors']
+            objective = partial(
+                goptimality_criterion,homog_outer_prods,design_factors,
+                pred_factors,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier,return_grad=False)
+            jac = lambda r: goptimality_criterion(
+                homog_outer_prods,design_factors,pred_factors,r,
+                return_grad=True,hetero_outer_prods=hetero_outer_prods,
+                noise_multiplier=noise_multiplier)[1]
         else:
             msg = f'Optimality criteria: {self.criteria} is not supported'
             raise Exception(msg)
@@ -592,27 +694,36 @@ class AlphabetOptimalDesign(object):
 
     def solve(self,options=None,init_design=None):
         num_design_pts = self.design_factors.shape[0]
-        self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts))
-        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-
         homog_outer_prods = compute_homoscedastic_outer_products(
             self.design_factors)
-        
         if self.noise_multiplier is not None:
             hetero_outer_prods = compute_heteroscedastic_outer_products(
                 self.design_factors,self.noise_multiplier)
         else:
             hetero_outer_prods=None
-
+        objective,jac = self.get_objective_and_jacobian(
+            self.design_factors,homog_outer_prods,hetero_outer_prods,
+            self.noise_multiplier,self.opts)
+            
+        if self.criteria=='G': 
+            constraint_obj = partial(minmax_oed_constraint_objective,objective)
+            constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
+            nonlinear_constraints = [NonlinearConstraint(
+                constraint_obj,0,np.inf,jac=constraint_jac)]
+            return self._solve_minmax(nonlinear_constraints,num_design_pts)
+            
+        self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
+        lb_con = ub_con = np.atleast_1d(1)
+        A_con = np.ones((1,num_design_pts))
+        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+        
         if init_design is None:
             x0 = np.ones(num_design_pts)/num_design_pts
         else:
             x0 = init_design
-        objective,jac = self.get_objective_and_jacobian(
-            self.design_factors,homog_outer_prods,hetero_outer_prods,
-            self.noise_multiplier,self.opts)
+
+
+        
         res = minimize(
             objective, x0, method='trust-constr', jac=jac, hess=None,
             constraints=[self.linear_constraint],options=options,
@@ -641,19 +752,14 @@ class AlphabetOptimalDesign(object):
                 hetero_outer_prods,self.noise_multiplier,copy.deepcopy(opts))
             constraint_obj = partial(minmax_oed_constraint_objective,obj)
             constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
-            num_design_pts=design_factors.shape[0]
             constraint = NonlinearConstraint(
                 constraint_obj,0,np.inf,jac=constraint_jac)
             constraints.append(constraint)
             
-        num_design_pts = homog_outer_prods.shape[2]
-        return constraints,num_design_pts
+        return constraints
 
-    def solve_minmax(self,parameter_samples,design_samples,options=None,
+    def _solve_minmax(self,nonlinear_constraints,num_design_pts,options=None,
                      return_full=False,x0=None):
-        assert callable(self.design_factors)
-        nonlinear_constraints,num_design_pts = self.minmax_nonlinear_constraints(
-            parameter_samples,design_samples)
         lb_con = ub_con = np.atleast_1d(1)
         A_con = np.ones((1,num_design_pts+1))
         A_con[0,0] = 0
@@ -684,6 +790,15 @@ class AlphabetOptimalDesign(object):
             return weights
         else:
             return weights, res
+
+    def solve_minmax(self,parameter_samples,design_samples,options=None,
+                     return_full=False,x0=None):
+        assert callable(self.design_factors)
+        nonlinear_constraints = self.minmax_nonlinear_constraints(
+            parameter_samples,design_samples)
+        num_design_pts = design_samples.shape[1]
+        return self._solve_minmax(nonlinear_constraints,num_design_pts)
+            
 
     def bayesian_objective_jacobian_components(
             self,parameter_samples,design_samples):
