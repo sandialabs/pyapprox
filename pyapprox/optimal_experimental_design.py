@@ -164,7 +164,11 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
-            gradient = 2*np.sum(Fu*Fgamma,axis=1) + np.sum(t**2,axis=1)
+            if regression_type=='lstsq':
+                gradient = 2*np.sum(Fu*Fgamma,axis=1) + np.sum(t**2,axis=1)
+            elif regression_type='quantile':
+                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier,axis=1) + \
+                    np.sum(Fu**2,axis=1)
             gradient /= num_pred_pts
             return value, gradient.T
         else:
@@ -254,7 +258,10 @@ def coptimality_criterion(homog_outer_prods,design_factors,
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
-            gradient = 2*Fu*Fgamma + t**2
+            if regression_type=='lstsq':
+                gradient = 2*Fu*Fgamma + t**2
+            elif if regression_type=='quantile':
+                gradient = 2*Fu*Fgamma/noise_multiplier + Fu**2
             return value, gradient.T
         else:
             return value
@@ -429,8 +436,14 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
             kappa  = M1.dot(M0_inv)
             gradient = np.zeros(num_design_pts)
             for ii in range(num_design_pts):
-                gradient[ii]=np.trace(M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
-                    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                if regression_type=='lstsq':
+                    gradient[ii]=np.trace(
+                        M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
+                        -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                elif regression_type=='quantile':
+                    gradient[ii]=np.trace(
+                        M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
+                        -2*gamma.T/noise_multiplier[ii]+ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
@@ -520,7 +533,11 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
             cvar_grad = conditional_value_at_risk_gradient(variances,beta)
-            gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
+            if regression_type=='lstsq':
+                gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
+            elif regression_type=='quantile':
+                gradient = np.sum((2*Fu*Fgamma/noise_multiplier+Fu**2).T*cvar_grad[:,np.newaxis],axis=0)
+                
             return value, gradient.T
         else:
             return value
@@ -611,7 +628,10 @@ def goptimality_criterion(homog_outer_prods,design_factors,
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
-            gradient = 2*Fu*Fgamma + t**2
+            if regression_type=='lstsq':
+                gradient = 2*Fu*Fgamma + t**2
+            elif regression_type=='quantile':
+                gradient = 2*Fu*Fgamma/noise_multiplier + Fu**2
             return value, gradient.T
         else:
             return value
