@@ -395,7 +395,7 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
             constraint_function_vals[0],constraint_function_vals[-1])
     return fig_cdf,axs_cdf
 
-def check_gradients(function,grad_function,xx,plot=False,disp=True):
+def check_gradients(function,grad_function,xx,plot=False,disp=True,rel=True):
     assert xx.ndim==2
     assert xx.shape[1]==1
     if callable(grad_function):
@@ -420,6 +420,8 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True):
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
+        if rel:
+            errors[-1]/=np.absolute(directional_derivative)
         if disp:
             print(row_format.format(fd_eps[ii],errors[ii].max(),
                                     errors[ii].min()))

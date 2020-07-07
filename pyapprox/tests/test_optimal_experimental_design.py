@@ -84,6 +84,7 @@ def emax_model_grad_parameters(parameters,samples):
 
 def check_derivative(function,num_design_pts):
     design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
+    #design_prob_measure = np.random.uniform(0,1,(num_design_pts,1))
     return pya.check_gradients(function,True,design_prob_measure)
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
@@ -107,7 +108,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         ioptimality_criterion_wrapper = partial(
             ioptimality_criterion,homog_outer_prods,design_factors,pred_factors)
         diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7, diffs
+        assert diffs.min()<6e-5, diffs
 
         mu = np.random.uniform(0,1,(num_design_pts)); mu/=mu.sum()
         M1 = homog_outer_prods.dot(mu)
@@ -138,7 +139,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
   
         # Test hetroscedastic API gradients are correct        
         diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7,diffs
+        assert diffs.min()<6e-5,diffs
       
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -175,7 +176,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             goptimality_criterion,homog_outer_prods,design_factors,pred_factors)
         diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
         #print(diffs)
-        assert diffs.min()<6e-7, diffs
+        assert diffs.min()<6e-5, diffs
 
     def test_hetroscedastic_goptimality_criterion(self):
         """
@@ -200,7 +201,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
   
         # Test hetroscedastic API gradients are correct        
         diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7,diffs
+        assert diffs.min()<6e-5,diffs
       
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -228,7 +229,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
-        assert diffs.min()<4e-7,diffs
+        assert diffs.min()<5e-5,diffs
 
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -252,7 +253,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             coptimality_criterion,homog_outer_prods,design_factors)
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
-        assert diffs.min()<4e-7,diffs
+        assert diffs.min()<5e-5,diffs
 
     def test_homoscedastic_doptimality_criterion(self):
         poly_degree = 10;
@@ -266,7 +267,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             doptimality_criterion,homog_outer_prods,design_factors)
         diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
-        assert diffs.min()<5e-7,diffs
+        assert diffs.min()<5e-5,diffs
 
         mu = np.random.uniform(0,1,(num_design_pts)); mu/=mu.sum()
         M1 = homog_outer_prods.dot(mu)
@@ -292,7 +293,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
 
-        assert diffs[np.isfinite(diffs)].min()<4e-7,diffs
+        assert diffs[np.isfinite(diffs)].min()<5e-5,diffs
 
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -316,7 +317,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             aoptimality_criterion,homog_outer_prods,design_factors)
         diffs=check_derivative(aoptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
-        assert diffs.min()<5e-7,diffs
+        assert diffs.min()<6e-5,diffs
 
         
         mu = np.random.uniform(0,1,(num_design_pts)); mu/=mu.sum()
@@ -342,7 +343,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(aoptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
 
-        assert diffs[np.isfinite(diffs)].min()<4e-7,diffs
+        assert diffs[np.isfinite(diffs)].min()<5e-5,diffs
 
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -432,7 +433,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
 
-
     def test_homoscedastic_least_squares_goptimal_design(self):
         """
         Create G-optimal design
@@ -443,8 +443,11 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
+        #pred_factors = design_factors
+        pred_factors = univariate_monomial_basis_matrix(
+            poly_degree,np.linspace(-1,1,num_design_pts))
 
-        opts = {'pred_factors':design_factors}
+        opts = {'pred_factors':pred_factors}
         opt_problem = AlphabetOptimalDesign('G',design_factors,opts=opts)
         mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
@@ -476,7 +479,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             roptimality_criterion,beta,homog_outer_prods,design_factors,
             pred_factors)
         diffs = check_derivative(roptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7, diffs
+        assert diffs.min()<6e-5, diffs
 
     def test_hetroscedastic_foptimality_criterion(self):
         poly_degree = 10;
@@ -498,7 +501,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         
         # Test hetroscedastic API gradients are correct        
         diffs = check_derivative(roptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-7,diffs
+        assert diffs.min()<6e-5,diffs
 
 class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
     def setUp(self):
@@ -566,9 +569,9 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             (design_factors*mu[:,np.newaxis]).T.dot(design_factors))
         assert np.allclose(determinant,exact_determinant)
 
-    def test_michaelis_menten_model_minmax_d_optimal_design(self):
+    def test_michaelis_menten_model_minimax_d_optimal_design(self):
         """
-        If theta_2 in [a,b] the minmax optimal design will be locally d-optimal
+        If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
         at b. This can be proved with an application of Holders inequality to 
         show that the determinant of the fihser information matrix decreases
         with increasing theta_2.
@@ -585,7 +588,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         from pyapprox import cartesian_product
         parameter_samples = cartesian_product([xx1,xx2])
         opt_problem = AlphabetOptimalDesign('D',local_design_factors)
-        mu = opt_problem.solve_minmax(
+        mu = opt_problem.solve_nonlinear_minimax(
             parameter_samples,design_samples[np.newaxis,:],
             {'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]
@@ -594,16 +597,17 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(I,[2,6])
         assert np.allclose(mu[I],np.ones(2)*0.5)
 
-    def test_michaelis_menten_model_minmax_designs(self):
-        self.help_test_michaelis_menten_model_minmax_r_optimal_design('D')
-        self.help_test_michaelis_menten_model_minmax_r_optimal_design('A')
-        self.help_test_michaelis_menten_model_minmax_r_optimal_design('I')
-        self.help_test_michaelis_menten_model_minmax_r_optimal_design('R')
+    def test_michaelis_menten_model_minimax_designs(self):
+        self.help_test_michaelis_menten_model_minimax_optimal_design('G')
+        self.help_test_michaelis_menten_model_minimax_optimal_design('D')
+        self.help_test_michaelis_menten_model_minimax_optimal_design('A')
+        self.help_test_michaelis_menten_model_minimax_optimal_design('I')
+        self.help_test_michaelis_menten_model_minimax_optimal_design('R')
         
 
-    def help_test_michaelis_menten_model_minmax_r_optimal_design(self,criteria):
+    def help_test_michaelis_menten_model_minimax_optimal_design(self,criteria):
         """
-        If theta_2 in [a,b] the minmax optimal design will be locally d-optimal
+        If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
         at b. This can be proved with an application of Holders inequality to 
         show that the determinant of the fihser information matrix decreases
         with increasing theta_2.
@@ -611,7 +615,8 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         verbose=0
         num_design_pts = 30
         design_samples = np.linspace(0,1,num_design_pts)
-        pred_samples = design_samples
+        #pred_samples = design_samples
+        pred_samples = np.linspace(0,1,num_design_pts+10)
         noise_multiplier = None
         xtol=1e-16
         maxiter=int(1e3)
@@ -630,13 +635,10 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         from pyapprox import cartesian_product
         parameter_samples = cartesian_product([xx1,xx2])
         x0 = None
-        minmax_opt_problem = AlphabetOptimalDesign(
+        minimax_opt_problem = AlphabetOptimalDesign(
             criteria,local_design_factors,opts=opts)
 
-        constraints = minmax_opt_problem.minmax_nonlinear_constraints(
-            parameter_samples,design_samples[np.newaxis,:])[0]
-        
-        mu_minmax = minmax_opt_problem.solve_minmax(
+        mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
             parameter_samples,design_samples[np.newaxis,:],
             {'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
         
@@ -655,8 +657,11 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
                 {'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
             mu_local_list.append(mu_local)
 
+        constraints = minimax_opt_problem.minimax_nonlinear_constraints(
+            parameter_samples,design_samples[np.newaxis,:])
+
         max_stat = []
-        for mu in [mu_minmax] + mu_local_list:
+        for mu in [mu_minimax] + mu_local_list:
             stats = []
             for ii in range(parameter_samples.shape[1]):
                 # evaluate local design criterion f(mu)
@@ -666,9 +671,9 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
                     1-constraints[ii].fun(np.concatenate([np.array([1]),mu])))
             stats = np.array(stats)
             max_stat.append(stats.max(axis=0))
-        # check min max stat is obtained by minmax design
+        # check min max stat is obtained by minimax design
         # for d optimal design one local design will be optimal but because
-        # of numerical precision it agrees only to 1e-7 with minmax design
+        # of numerical precision it agrees only to 1e-7 with minimax design
         # so round answer and compare. argmin returns first instance of minimum
         max_stat=np.round(max_stat,7)
         assert np.argmin(max_stat)==0
@@ -710,7 +715,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         
         opt_problem = AlphabetOptimalDesign('D',local_design_factors,opts=None)
         
-        mu = opt_problem.solve_bayesian(
+        mu = opt_problem.solve_nonlinear_bayesian(
             parameter_samples,design_samples[np.newaxis,:],
             sample_weights=ww2,options={'verbose': 1, 'gtol':1e-15})
         I= np.where(mu>1e-5)[0]

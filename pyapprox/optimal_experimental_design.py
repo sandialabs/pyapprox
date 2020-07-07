@@ -550,10 +550,10 @@ def goptimality_criterion(homog_outer_prods,design_factors,
 
     Returns
     -------
-    value : float
+    value : np.ndarray (num_pred_pts)
         The value of the objective function
 
-    grad : np.ndarray (num_design_pts)
+    grad : np.ndarray (num_pred_pts,num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
     num_design_pts, num_design_factors = design_factors.shape
@@ -576,7 +576,7 @@ def goptimality_criterion(homog_outer_prods,design_factors,
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
             gradient = 2*Fu*Fgamma + t**2
-            return value, gradient
+            return value, gradient.T
         else:
             return value
     else:
@@ -594,18 +594,18 @@ def goptimality_criterion(homog_outer_prods,design_factors,
         # Gradient
         F_M1_inv_P = design_factors.dot(u);
         gradient   = -F_M1_inv_P**2
-        return value, gradient
+        return value, gradient.T
 
 from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
 
-def minmax_oed_constraint_objective(local_oed_obj,x):
+def minimax_oed_constraint_objective(local_oed_obj,x):
     return x[0]-local_oed_obj(x[1:])
 
-def minmax_oed_constraint_jacobian(local_oed_jac,x):
+def minimax_oed_constraint_jacobian(local_oed_jac,x):
     jac = -local_oed_jac(x[1:])
     jac = np.atleast_2d(jac)
-    return np.hstack([np.ones((jac.shape[0],1)),jac])    
+    return np.hstack([np.ones((jac.shape[0],1)),jac]) 
 
 class AlphabetOptimalDesign(object):
     """
@@ -692,7 +692,7 @@ class AlphabetOptimalDesign(object):
         return objective,jac
         
 
-    def solve(self,options=None,init_design=None):
+    def solve(self,options=None,init_design=None,return_full=False):
         num_design_pts = self.design_factors.shape[0]
         homog_outer_prods = compute_homoscedastic_outer_products(
             self.design_factors)
@@ -706,11 +706,13 @@ class AlphabetOptimalDesign(object):
             self.noise_multiplier,self.opts)
             
         if self.criteria=='G': 
-            constraint_obj = partial(minmax_oed_constraint_objective,objective)
-            constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
+            constraint_obj = partial(minimax_oed_constraint_objective,objective)
+            constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
             nonlinear_constraints = [NonlinearConstraint(
                 constraint_obj,0,np.inf,jac=constraint_jac)]
-            return self._solve_minmax(nonlinear_constraints,num_design_pts)
+            return self._solve_minimax(
+                nonlinear_constraints,num_design_pts,options,return_full,
+                init_design)
             
         self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
         lb_con = ub_con = np.atleast_1d(1)
@@ -722,16 +724,18 @@ class AlphabetOptimalDesign(object):
         else:
             x0 = init_design
 
-
-        
         res = minimize(
             objective, x0, method='trust-constr', jac=jac, hess=None,
             constraints=[self.linear_constraint],options=options,
             bounds=self.bounds)
         weights = res.x
-        return weights
 
-    def minmax_nonlinear_constraints(self,parameter_samples,design_samples):
+        if not return_full:
+            return weights
+        
+        return weights,res.x
+
+    def minimax_nonlinear_constraints(self,parameter_samples,design_samples):
         constraints = []
         for ii in range(parameter_samples.shape[1]):
             design_factors = self.design_factors(
@@ -750,16 +754,16 @@ class AlphabetOptimalDesign(object):
             obj,jac = self.get_objective_and_jacobian(
                 design_factors.copy(),homog_outer_prods.copy(),
                 hetero_outer_prods,self.noise_multiplier,copy.deepcopy(opts))
-            constraint_obj = partial(minmax_oed_constraint_objective,obj)
-            constraint_jac = partial(minmax_oed_constraint_jacobian,jac)
+            constraint_obj = partial(minimax_oed_constraint_objective,obj)
+            constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
             constraint = NonlinearConstraint(
                 constraint_obj,0,np.inf,jac=constraint_jac)
             constraints.append(constraint)
             
         return constraints
 
-    def _solve_minmax(self,nonlinear_constraints,num_design_pts,options=None,
-                     return_full=False,x0=None):
+    def _solve_minimax(self,nonlinear_constraints,num_design_pts,options,
+                       return_full,x0):
         lb_con = ub_con = np.atleast_1d(1)
         A_con = np.ones((1,num_design_pts+1))
         A_con[0,0] = 0
@@ -767,7 +771,7 @@ class AlphabetOptimalDesign(object):
         constraints = [linear_constraint]
         constraints += nonlinear_constraints
         
-        minmax_objective = lambda x: x[0]
+        minimax_objective = lambda x: x[0]
         def jac(x):
             vec = np.zeros_like(x)
             vec[0] = 1
@@ -781,7 +785,7 @@ class AlphabetOptimalDesign(object):
         #method = 'trust-constr'
         method = 'slsqp'
         res = minimize(
-            minmax_objective, x0, method=method,jac=jac, hess=None,
+            minimax_objective, x0, method=method,jac=jac, hess=None,
             constraints=constraints,options=options,
             bounds=bounds)
         
@@ -791,14 +795,14 @@ class AlphabetOptimalDesign(object):
         else:
             return weights, res
 
-    def solve_minmax(self,parameter_samples,design_samples,options=None,
-                     return_full=False,x0=None):
+    def solve_nonlinear_minimax(self,parameter_samples,design_samples,
+                                options=None,return_full=False,x0=None):
         assert callable(self.design_factors)
-        nonlinear_constraints = self.minmax_nonlinear_constraints(
+        nonlinear_constraints = self.minimax_nonlinear_constraints(
             parameter_samples,design_samples)
         num_design_pts = design_samples.shape[1]
-        return self._solve_minmax(nonlinear_constraints,num_design_pts)
-            
+        return self._solve_minimax(nonlinear_constraints,num_design_pts,options,
+                                   return_full,x0)
 
     def bayesian_objective_jacobian_components(
             self,parameter_samples,design_samples):
@@ -826,9 +830,9 @@ class AlphabetOptimalDesign(object):
         num_design_pts = homog_outer_prods.shape[2]
         return objs,jacs,num_design_pts
 
-    def solve_bayesian(self,samples,design_samples,
-                       sample_weights=None,options=None,
-                       return_full=False,x0=None):
+    def solve_nonlinear_bayesian(self,samples,design_samples,
+                                 sample_weights=None,options=None,
+                                 return_full=False,x0=None):
         assert callable(self.design_factors)
         objs,jacs,num_design_pts = self.bayesian_objective_jacobian_components(
             samples,design_samples)
