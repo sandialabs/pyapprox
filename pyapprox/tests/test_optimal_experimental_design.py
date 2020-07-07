@@ -394,7 +394,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
     def test_homoscedastic_least_squares_doptimal_design(self):
         """
-        Create D-optimal designs, for least squares resgression with 
+        Create D-optimal designs, for least squares regression with 
         homoscedastic noise, and compare to known analytical solutions.
         See Section 5 of Wenjie Z, Computing Optimal Designs for Regression 
         Modelsvia Convex Programming, Ph.D. Thesis, 2012
@@ -426,6 +426,39 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
+
+    def test_homoscedastic_quantile_doptimal_design(self):
+        """
+        Create D-optimal designs, for least squares regression with 
+        homoscedastic noise, and compare to known analytical solutions.
+        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile 
+        Regression Models https://doi.org/10.1080/01621459.2012.695665
+        """
+        poly_degree = 2;
+        num_design_pts = 17
+        lb,ub=2,10
+        design_samples = np.linspace(lb,ub,num_design_pts)
+        theta=np.array([1,2])
+        n=1 # possible values -2,1,0,1
+        link_function = lambda z: 1/z**n
+        model = lambda x: michaelis_menten_model(theta,x[np.newaxis,:])
+        noise_multiplier = link_function(model(design_samples)).squeeze()
+        design_factors = michaelis_menten_model_grad_parameters(
+            theta,design_samples[np.newaxis,:]).T
+        
+        opt_problem = AlphabetOptimalDesign(
+            'D',design_factors,noise_multiplier=noise_multiplier)
+        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        I= np.where(mu>1e-5)[0]
+        if n==-1 or n==-2:
+            exact_design_samples=[lb,ub]
+        elif n==0 or n==1:
+            exact_design_samples=[
+                max(lb,(n+1)*ub*theta[1]/((n+2)*theta[1]+ub)),ub]
+        else:
+            raise Exception("n must be in {-2,-1,0,1}")
+        assert np.allclose(exact_design_samples,design_samples[I])
+        assert np.allclose(mu[I],[0.5,0.5])
 
     def test_homoscedastic_least_squares_goptimal_design(self):
         """
@@ -588,15 +621,23 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(I,[2,6])
         assert np.allclose(mu[I],np.ones(2)*0.5)
 
-    def test_michaelis_menten_model_minimax_designs(self):
+    def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
         self.help_test_michaelis_menten_model_minimax_optimal_design('G')
         self.help_test_michaelis_menten_model_minimax_optimal_design('D')
         self.help_test_michaelis_menten_model_minimax_optimal_design('A')
         self.help_test_michaelis_menten_model_minimax_optimal_design('I')
         self.help_test_michaelis_menten_model_minimax_optimal_design('R')
-        
 
-    def help_test_michaelis_menten_model_minimax_optimal_design(self,criteria):
+
+    def test_michaelis_menten_model_minimax_designs_heteroscedastic(self):
+        self.help_test_michaelis_menten_model_minimax_optimal_design('G',True)
+        self.help_test_michaelis_menten_model_minimax_optimal_design('D',True)
+        self.help_test_michaelis_menten_model_minimax_optimal_design('A',True)
+        self.help_test_michaelis_menten_model_minimax_optimal_design('I',True)
+        self.help_test_michaelis_menten_model_minimax_optimal_design('R',True)
+
+
+    def help_test_michaelis_menten_model_minimax_optimal_design(self,criteria,heteroscedastic=False):
         """
         If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
         at b. This can be proved with an application of Holders inequality to 
@@ -608,7 +649,10 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         design_samples = np.linspace(0,1,num_design_pts)
         #pred_samples = design_samples
         pred_samples = np.linspace(0,1,num_design_pts+10)
-        noise_multiplier = None
+        if heteroscedastic:
+            noise_multiplier = design_samples**2
+        else:
+            noise_multiplier = None
         xtol=1e-16
         maxiter=int(1e3)
 
@@ -627,7 +671,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         parameter_samples = cartesian_product([xx1,xx2])
         x0 = None
         minimax_opt_problem = AlphabetOptimalDesign(
-            criteria,local_design_factors,opts=opts)
+            criteria,local_design_factors,noise_multiplier,opts=opts)
 
         mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
             parameter_samples,design_samples[np.newaxis,:],

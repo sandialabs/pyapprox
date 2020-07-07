@@ -340,8 +340,12 @@ def doptimality_criterion(homog_outer_prods,design_factors,
                 #TODO order multiplications to be most efficient. Probably
                 # need to work on f_i rather than stored outer product
                 # f_i.dot(f_i.T)
-                gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
-                    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                if regression_type=='lstsq':
+                    gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+                        -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                elif regression_type=='quantile':
+                    gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+                        -2/noise_multiplier[ii]*gamma.T+ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
