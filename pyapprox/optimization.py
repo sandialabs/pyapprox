@@ -395,26 +395,71 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
             constraint_function_vals[0],constraint_function_vals[-1])
     return fig_cdf,axs_cdf
 
-def check_gradients(function,grad_function,xx,plot=False,disp=True,rel=True):
-    assert xx.ndim==2
-    assert xx.shape[1]==1
-    if callable(grad_function):
-        function_val = function(xx)
-        grad_val = grad_function(xx)
-    elif grad_function==True:
-        function_val,grad_val = function(xx)
-    direction = np.random.normal(0,1,(xx.shape[0],1))
+def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
+    """
+    Compare a user specified jacobian with the jacobian computed with finite
+    difference with multiple step sizes.
+
+    Parameters
+    ---------
+    fun : callable
+
+        A function with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nqoi,nsamples)
+
+    jac : callable
+        The jacobian of ``fun`` with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nqoi,nvars)
+
+    zz : np.ndarray (nvars,1)
+        A sample of ``z`` at which to compute the gradient
+
+    plot : boolean
+        Plot the errors as a function of the finite difference step size
+
+    disp : boolean
+        True - print the errors
+        False - do not print
+
+    rel : boolean
+        True - compute the relative error in the directional derivative, 
+        i.e. the absolute error divided by the directional derivative using 
+        ``jac``.
+        False - compute the absolute error in the directional derivative
+
+    Returns
+    -------
+    errors : np.ndarray (14,nqoi)
+        The errors in the directional derivative of ``fun`` at 14 different 
+        values of finite difference tolerance for each quantity of interest
+    """
+    assert zz.ndim==2
+    assert zz.shape[1]==1
+    if callable(jac):
+        function_val = fun(zz)
+        grad_val = jac(zz)
+    elif jac==True:
+        function_val,grad_val = fun(zz)
+    direction = np.random.normal(0,1,(zz.shape[0],1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = grad_val.T.dot(direction).squeeze()
+    directional_derivative = grad_val.dot(direction).squeeze()
     fd_eps = np.logspace(-13,0,14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
     if disp:
         print(row_format.format("Eps","Errors (max)","Errors (min)"))
     for ii in range(fd_eps.shape[0]):
-        xx_perturbed = xx.copy()+fd_eps[ii]*direction
-        perturbed_function_val = function(xx_perturbed)
-        if grad_function==True:
+        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        perturbed_function_val = fun(zz_perturbed)
+        if jac==True:
             perturbed_function_val = perturbed_function_val[0]
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
@@ -429,27 +474,73 @@ def check_gradients(function,grad_function,xx,plot=False,disp=True,rel=True):
 
     if plot:
         plt.loglog(fd_eps,errors,'o-')
-        plt.ylabel(r'$\lvert\nabla_\epsilon f-\nabla f\rvert$')
+        plt.ylabel(r'$\lvert\nabla_\epsilon f\cdot p-\nabla f\cdot p\rvert$')
         plt.xlabel(r'$\epsilon$')
         plt.show()
 
     return np.asarray(errors)
 
-def check_hessian(grad_function,hessian_matvec,xx,plot=False,disp=True):
-    assert xx.ndim==2
-    assert xx.shape[1]==1
-    grad = grad_function(xx)
-    direction = np.random.normal(0,1,(xx.shape[0],1))
+def check_hessian(jac,hessian_matvec,zz,plot=False,disp=True):
+    """
+    Compare a user specified Hessian matrix-vector product with the 
+    Hessian matrix vector produced computed with finite
+    difference with multiple step sizes using a user specified jacobian.
+
+    Parameters
+    ---------
+    jac : callable
+        The jacobian  with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nqoi,nvars)
+
+    hessian_matvec : callable
+        A function implementing the hessian matrix-vector product with signature
+
+        ``hessian_matvec(z,p) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples), ``p`` is
+        an arbitrary vector with shape (nvars,1) and the
+        output is a 2D np.ndarray with shape (nqoi,nvars)
+
+    zz : np.ndarray (nvars,1)
+        A sample of ``z`` at which to compute the gradient
+
+    plot : boolean
+        Plot the errors as a function of the finite difference step size
+
+    disp : boolean
+        True - print the errors
+        False - do not print
+
+    rel : boolean
+        True - compute the relative error in the directional derivative, 
+        i.e. the absolute error divided by the directional derivative using 
+        ``jac``.
+        False - compute the absolute error in the directional derivative
+
+    Returns
+    -------
+    errors : np.ndarray (14,nqoi)
+        The errors in the directional derivative of ``jac`` at 14 different 
+        values of finite difference tolerance for each quantity of interest
+    """
+    assert zz.ndim==2
+    assert zz.shape[1]==1
+    grad = jac(zz)
+    direction = np.random.normal(0,1,(zz.shape[0],1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = hessian_matvec(xx,direction)
+    directional_derivative = hessian_matvec(zz,direction)
     fd_eps = np.logspace(-13,0,14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
     if disp:
         print(row_format.format("Eps","Errors (max)","Errors (min)"))
     for ii in range(fd_eps.shape[0]):
-        xx_perturbed = xx.copy()+fd_eps[ii]*direction
-        perturbed_grad = grad_function(xx_perturbed)
+        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        perturbed_grad = jac(zz_perturbed)
         fd_directional_derivative = (perturbed_grad-grad)/fd_eps[ii]
         errors.append(np.absolute(
             fd_directional_derivative-directional_derivative))
@@ -460,7 +551,7 @@ def check_hessian(grad_function,hessian_matvec,xx,plot=False,disp=True):
 
     if plot:
         plt.loglog(fd_eps,errors,'o-')
-        plt.ylabel(r'$\lvert\nabla_\epsilon f-\nabla f\rvert$')
+        plt.ylabel(r'$\lvert\nabla^2_\epsilon \cdot p f-\nabla^2 f\cdot p\rvert$')
         plt.xlabel(r'$\epsilon$')
         plt.show()
 
