@@ -166,8 +166,8 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
             Fgamma  = design_factors.dot(gamma)
             if regression_type=='lstsq':
                 gradient = 2*np.sum(Fu*Fgamma,axis=1) + np.sum(t**2,axis=1)
-            elif regression_type='quantile':
-                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier,axis=1) + \
+            elif regression_type=='quantile':
+                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier[:,np.newaxis],axis=1) + \
                     np.sum(Fu**2,axis=1)
             gradient /= num_pred_pts
             return value, gradient.T
@@ -260,8 +260,8 @@ def coptimality_criterion(homog_outer_prods,design_factors,
             Fgamma  = design_factors.dot(gamma)
             if regression_type=='lstsq':
                 gradient = 2*Fu*Fgamma + t**2
-            elif if regression_type=='quantile':
-                gradient = 2*Fu*Fgamma/noise_multiplier + Fu**2
+            elif regression_type=='quantile':
+                gradient = 2*Fu*Fgamma/noise_multiplier[:,np.newaxis] + Fu**2
             return value, gradient.T
         else:
             return value
@@ -352,7 +352,7 @@ def doptimality_criterion(homog_outer_prods,design_factors,
                         -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
                 elif regression_type=='quantile':
                     gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
-                        -2/noise_multiplier[ii]*gamma.T+ident).dot(M1_inv))
+                        -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
@@ -443,7 +443,7 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
                 elif regression_type=='quantile':
                     gradient[ii]=np.trace(
                         M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
-                        -2*gamma.T/noise_multiplier[ii]+ident).dot(M1_inv))
+                        -2*gamma.T/noise_multiplier[:,np.newaxis][ii]+ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
@@ -536,7 +536,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
             if regression_type=='lstsq':
                 gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
             elif regression_type=='quantile':
-                gradient = np.sum((2*Fu*Fgamma/noise_multiplier+Fu**2).T*cvar_grad[:,np.newaxis],axis=0)
+                gradient = np.sum((2*Fu*Fgamma/noise_multiplier[:,np.newaxis]+Fu**2).T*cvar_grad[:,np.newaxis],axis=0)
                 
             return value, gradient.T
         else:
@@ -631,7 +631,7 @@ def goptimality_criterion(homog_outer_prods,design_factors,
             if regression_type=='lstsq':
                 gradient = 2*Fu*Fgamma + t**2
             elif regression_type=='quantile':
-                gradient = 2*Fu*Fgamma/noise_multiplier + Fu**2
+                gradient = 2*Fu*Fgamma/noise_multiplier[:,np.newaxis] + Fu**2
             return value, gradient.T
         else:
             return value
@@ -675,65 +675,65 @@ class AlphabetOptimalDesign(object):
         # The Hessian is not zero.
     """
     def __init__(self,criteria,design_factors,noise_multiplier=None,
-                 opts=None):
+                 opts=None,regression_type='lstsq'):
         self.criteria=criteria
         self.noise_multiplier = noise_multiplier
         self.design_factors = design_factors
         self.opts=opts
+        self.regression_type=regression_type
         
     def get_objective_and_jacobian(self,design_factors,homog_outer_prods,
                                    noise_multiplier,opts):
-        if self.criteria=='A':
+
+        #criteria requiring pred_factors
+        pred_criteria_funcs = {
+            'G':goptimality_criterion,'I':ioptimality_criterion}
+        #criteria not requiring pred_factors
+        other_criteria_funcs = {
+            'A':aoptimality_criterion,'C':coptimality_criterion,
+            'D':doptimality_criterion}
+
+        if self.criteria in other_criteria_funcs:
+            criteria_fun =  other_criteria_funcs[self.criteria]
             objective = partial(
-                aoptimality_criterion,homog_outer_prods,design_factors,
-                noise_multiplier=noise_multiplier,return_grad=False)
-            jac = lambda r: aoptimality_criterion(
+                criteria_fun,homog_outer_prods,design_factors,
+                noise_multiplier=noise_multiplier,return_grad=False,
+                regression_type=self.regression_type)
+            jac = lambda r: criteria_fun(
                 homog_outer_prods,design_factors,r,return_grad=True,
-                noise_multiplier=noise_multiplier)[1]
-        elif self.criteria=='C':
-            objective = partial(
-                coptimality_criterion,homog_outer_prods,design_factors,
-                noise_multiplier=noise_multiplier,return_grad=False)
-            jac = lambda r: coptimality_criterion(
-                homog_outer_prods,design_factors,r,return_grad=True,
-                noise_multiplier=noise_multiplier)[1]
-        elif self.criteria=='D':
-            objective = partial(
-                doptimality_criterion,homog_outer_prods,design_factors,
-                noise_multiplier=noise_multiplier,return_grad=False)
-            jac = lambda r: doptimality_criterion(
-                homog_outer_prods,design_factors,r,return_grad=True,
-                noise_multiplier=noise_multiplier)[1]
-        elif self.criteria=='I':
+                noise_multiplier=noise_multiplier,
+                regression_type=self.regression_type)[1]
+        elif self.criteria in pred_criteria_funcs:
+            criteria_fun =  pred_criteria_funcs[self.criteria]
             pred_factors = opts['pred_factors']
             objective = partial(
-                ioptimality_criterion,homog_outer_prods,design_factors,
+                criteria_fun,homog_outer_prods,design_factors,
                 pred_factors,noise_multiplier=noise_multiplier,
-                return_grad=False)
-            jac = lambda r: ioptimality_criterion(
+                return_grad=False,regression_type=self.regression_type)
+            jac = lambda r: criteria_fun(
                 homog_outer_prods,design_factors,pred_factors,r,
-                return_grad=True,noise_multiplier=noise_multiplier)[1]
+                return_grad=True,noise_multiplier=noise_multiplier,
+                regression_type=self.regression_type)[1]
         elif self.criteria=='R':
             beta = opts['beta']
             pred_factors = opts['pred_factors']
             objective = partial(
                 roptimality_criterion,beta,homog_outer_prods,
                 design_factors,pred_factors,
-                noise_multiplier=noise_multiplier,return_grad=False)
+                noise_multiplier=noise_multiplier,return_grad=False,
+                regression_type=self.regression_type)
             jac = lambda r: roptimality_criterion(
                 beta,homog_outer_prods,design_factors,pred_factors,r,
-                return_grad=True,noise_multiplier=noise_multiplier)[1]
-        elif self.criteria=='G':
-            pred_factors = opts['pred_factors']
-            objective = partial(
-                goptimality_criterion,homog_outer_prods,design_factors,
-                pred_factors,noise_multiplier=noise_multiplier,
-                return_grad=False)
-            jac = lambda r: goptimality_criterion(
-                homog_outer_prods,design_factors,pred_factors,r,
-                return_grad=True,noise_multiplier=noise_multiplier)[1]
+                return_grad=True,noise_multiplier=noise_multiplier,
+                regression_type=self.regression_type)[1]
         else:
-            msg = f'Optimality criteria: {self.criteria} is not supported'
+            msg = f'Optimality criteria: {self.criteria} is not supported. '
+            msg += 'Supported criteria are:\n'
+            for key in other_criteria_funcs.keys():
+                msg += f"\t{key}\n"
+            for key in pred_criteria_funcs.keys():
+                msg += f"\t{key}\n"
+            msg += '\tR\n'
             raise Exception(msg)
         return objective,jac
         
@@ -765,8 +765,10 @@ class AlphabetOptimalDesign(object):
         else:
             x0 = init_design
 
+        #method='trust-constr'
+        method='slsqp'
         res = minimize(
-            objective, x0, method='trust-constr', jac=jac, hess=None,
+            objective, x0, method=method, jac=jac, hess=None,
             constraints=[self.linear_constraint],options=options,
             bounds=self.bounds)
         weights = res.x
@@ -787,9 +789,16 @@ class AlphabetOptimalDesign(object):
             if opts is not None and 'pred_factors' in opts:
                 opts['pred_factors']=opts['pred_factors'](
                     parameter_samples[:,ii],opts['pred_samples'])
+            if self.noise_multiplier is None:
+                noise_multiplier=None
+            else:
+                noise_multiplier=self.noise_multiplier(
+                    parameter_samples[:,ii],design_samples).squeeze()
+                assert noise_multiplier.ndim==1
+                assert noise_multiplier.shape[0]==design_samples.shape[1]
             obj,jac = self.get_objective_and_jacobian(
                 design_factors.copy(),homog_outer_prods.copy(),
-                self.noise_multiplier,copy.deepcopy(opts))
+                noise_multiplier,copy.deepcopy(opts))
             constraint_obj = partial(minimax_oed_constraint_objective,obj)
             constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
             constraint = NonlinearConstraint(
@@ -834,6 +843,8 @@ class AlphabetOptimalDesign(object):
     def solve_nonlinear_minimax(self,parameter_samples,design_samples,
                                 options=None,return_full=False,x0=None):
         assert callable(self.design_factors)
+        if self.noise_multiplier is not None:
+            assert callable(self.noise_multiplier)
         nonlinear_constraints = self.minimax_nonlinear_constraints(
             parameter_samples,design_samples)
         num_design_pts = design_samples.shape[1]
@@ -848,13 +859,20 @@ class AlphabetOptimalDesign(object):
                 parameter_samples[:,ii],design_samples)
             homog_outer_prods = compute_homoscedastic_outer_products(
                 design_factors)
+            if self.noise_multiplier is None:
+                noise_multiplier=None
+            else:
+                noise_multiplier=self.noise_multiplier(
+                    parameter_samples[:,ii],design_samples).squeeze()
+                assert noise_multiplier.ndim==1
+                assert noise_multiplier.shape[0]==design_samples.shape[1]
             opts = copy.deepcopy(self.opts)
             if opts is not None and 'pred_factors' in opts:
                 opts['pred_factors']=opts['pred_factors'](
                     parameter_samples[:,ii],opts['pred_samples'])
             obj,jac = self.get_objective_and_jacobian(
                 design_factors.copy(),homog_outer_prods.copy(),
-                self.noise_multiplier,copy.deepcopy(opts))
+                noise_multiplier,copy.deepcopy(opts))
             objs.append(obj)
             jacs.append(jac)
             
@@ -900,6 +918,8 @@ class AlphabetOptimalDesign(object):
             objective, x0, method=method,jac=jacobian, hess=None,
             constraints=constraints,options=options,
             bounds=bounds)
+
+        res['obj_fun']=objective
         
         weights = res.x
         if not return_full:

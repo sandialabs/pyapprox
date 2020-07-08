@@ -3,6 +3,7 @@ from pyapprox.optimal_experimental_design import *
 from pyapprox.monomial import univariate_monomial_basis_matrix
 from functools import partial
 import pyapprox as pya
+from pyapprox import cartesian_product
 
 def exponential_growth_model(parameters,samples):
     assert samples.ndim==2
@@ -134,7 +135,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
             noise_multiplier=noise_multiplier)
   
-        # Test hetroscedastic API gradients are correct        
+        # Test least squares hetroscedastic gradients are correct        
         diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
         assert diffs.min()<6e-5,diffs
       
@@ -158,6 +159,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             np.diag(u.T.dot(M0).dot(u)).mean(),
             ioptimality_criterion(homog_outer_prods,design_factors,pred_factors,
                                   mu,return_grad=False))
+
+        # Test quantile regression gradients
+        ioptimality_criterion_wrapper = partial(
+            ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')  
+        diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
+      
 
     def test_homoscedastic_goptimality_criterion(self):
         poly_degree = 3;
@@ -212,6 +221,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             goptimality_criterion(
                 homog_outer_prods,design_factors,pred_factors,
                 pp,return_grad=False,noise_multiplier=noise_multiplier))
+
+        # Test quantile regression gradients
+        goptimality_criterion_wrapper = partial(
+            goptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
         
     def test_hetroscedastic_coptimality_criterion(self):
         poly_degree = 10
@@ -238,6 +254,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             coptimality_criterion(
                 homog_outer_prods,design_factors,
                 pp,return_grad=False,noise_multiplier=noise_multiplier))
+
+        # Test quantile regression gradients
+        coptimality_criterion_wrapper = partial(
+            coptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
 
     def test_homoscedastic_coptimality_criterion(self):
         poly_degree = 10;
@@ -301,6 +324,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
                 homog_outer_prods,design_factors,pp,return_grad=False,
                 noise_multiplier=noise_multiplier))
 
+        # Test quantile regression gradients
+        doptimality_criterion_wrapper = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
+
     def test_homoscedastic_aoptimality_criterion(self):
         poly_degree = 10;
         num_design_pts = 101
@@ -348,6 +378,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             aoptimality_criterion(
                 homog_outer_prods,design_factors,pp,return_grad=False,
                 noise_multiplier=noise_multiplier))
+
+        # Test quantile regression gradients
+        aoptimality_criterion_wrapper = partial(
+            aoptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(aoptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
 
     def test_gradient_log_determinant(self):
         """
@@ -407,7 +444,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             poly_degree,design_samples)
         
         opt_problem = AlphabetOptimalDesign('D',design_factors)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,3,6])
         assert np.allclose(np.ones(3)/3,mu[I])
@@ -422,12 +459,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         opt_problem = AlphabetOptimalDesign('D',design_factors)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,8,21,29])
         assert np.allclose(0.25*np.ones(4),mu[I])
 
-    def test_homoscedastic_quantile_doptimal_design(self):
+    def test_heteroscedastic_quantile_local_doptimal_design(self):
         """
         Create D-optimal designs, for least squares regression with 
         homoscedastic noise, and compare to known analytical solutions.
@@ -448,7 +485,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         
         opt_problem = AlphabetOptimalDesign(
             'D',design_factors,noise_multiplier=noise_multiplier)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-10})
         I= np.where(mu>1e-5)[0]
         if n==-1 or n==-2:
             exact_design_samples=[lb,ub]
@@ -476,7 +513,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         opts = {'pred_factors':pred_factors}
         opt_problem = AlphabetOptimalDesign('G',design_factors,opts=opts)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[0,3,6])
         assert np.allclose(np.ones(3)/3,mu[I])
@@ -484,7 +521,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # check G gives same as D optimality. This holds due to equivalence
         # theorem
         opt_problem = AlphabetOptimalDesign('D',design_factors)
-        mu_d = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu_d = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         assert np.allclose(mu,mu_d)
 
     def test_homoscedastic_roptimality_criterion(self):
@@ -582,7 +619,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             theta,design_samples[np.newaxis,:]).T
         
         opt_problem = AlphabetOptimalDesign('D',design_factors)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         # design pts are (theta_2/(2*theta_2+1)) and 1 with masses 0.5,0.5
         I= np.where(mu>1e-5)[0]
         assert np.allclose(I,[1,4])
@@ -593,7 +630,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             (design_factors*mu[:,np.newaxis]).T.dot(design_factors))
         assert np.allclose(determinant,exact_determinant)
 
-    def test_michaelis_menten_model_minimax_d_optimal_design(self):
+    def test_michaelis_menten_model_minimax_d_optimal_least_squares_design(self):
         """
         If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
         at b. This can be proved with an application of Holders inequality to 
@@ -602,7 +639,6 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         """
         num_design_pts = 7
         design_samples = np.linspace(0,1,num_design_pts)
-        print(design_samples)
         noise_multiplier = None
 
         local_design_factors = \
@@ -614,12 +650,59 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         opt_problem = AlphabetOptimalDesign('D',local_design_factors)
         mu = opt_problem.solve_nonlinear_minimax(
             parameter_samples,design_samples[np.newaxis,:],
-            {'verbose': 1, 'gtol':1e-15})
+            {'iprint': 1, 'ftol':1e-8})
         I= np.where(mu>1e-5)[0]
         # given largest theta_2=1 then optimal design will be at 1/3,1
         #with masses=0.5
         assert np.allclose(I,[2,6])
         assert np.allclose(mu[I],np.ones(2)*0.5)
+
+    def test_heteroscedastic_quantile_bayesian_doptimal_design(self):
+        """
+        Create D-optimal designs, for least squares regression with 
+        homoscedastic noise, and compare to known analytical solutions.
+        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile 
+        Regression Models https://doi.org/10.1080/01621459.2012.695665
+        """
+        poly_degree = 2;
+        num_design_pts = 100
+        x_lb,x_ub=1e-3,2000
+        design_samples = np.linspace(x_lb,x_ub,num_design_pts)
+        design_samples = np.sort(np.concatenate([design_samples,[754.4]]))
+        n=1 # possible values -2,1,0,1
+        link_function = lambda z: 1/z**n
+        noise_multiplier = lambda p,x: link_function(michaelis_menten_model(p,x))
+        local_design_factors = \
+            lambda p,x: michaelis_menten_model_grad_parameters(p,x).T
+        xx1 = np.array([10])# theta_1 does not effect optimum
+        #xx2 = np.linspace(100,2000,50)
+        #parameter_samples = cartesian_product([xx1,xx2])
+
+        p_lb,p_ub=100,2000
+        local_design_factors = \
+             lambda p,x: michaelis_menten_model_grad_parameters(p,x).T
+        xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
+        xx2 = (xx2+1)/2*(p_ub-p_lb)+p_lb # transform from [-1,1] to [p_lb,p_ub]
+        parameter_samples = cartesian_product([xx1,xx2])
+
+        opt_problem = AlphabetOptimalDesign(
+            'D',local_design_factors,noise_multiplier=noise_multiplier,
+            regression_type='quantile')
+
+        mu,res = opt_problem.solve_nonlinear_bayesian(
+            parameter_samples,design_samples[np.newaxis,:],sample_weights=ww2,
+            options={'iprint': 0, 'ftol':1e-8,'disp':True},return_full=True)
+
+        # vals = []
+        # for ii in range(design_samples.shape[0]):
+        #     xopt = np.zeros(design_samples.shape[0])+1e-8;
+        #     #xopt[-1]=.5; xopt[ii]=.5
+        #     vals.append(res.obj_fun(xopt))
+        #plt.plot(design_samples,vals); plt.show()
+        
+        I= np.where(mu>1e-5)[0]
+        assert np.allclose(design_samples[I],[754.4,x_ub])
+        assert np.allclose(mu[I],[0.5,0.5])
 
     def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
         self.help_test_michaelis_menten_model_minimax_optimal_design('G')
@@ -644,16 +727,18 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         show that the determinant of the fihser information matrix decreases
         with increasing theta_2.
         """
-        verbose=0
+        iprint=0
         num_design_pts = 30
-        design_samples = np.linspace(0,1,num_design_pts)
+        design_samples = np.linspace(1e-3,1,num_design_pts)
         #pred_samples = design_samples
         pred_samples = np.linspace(0,1,num_design_pts+10)
         if heteroscedastic:
-            noise_multiplier = design_samples**2
+            n=1
+            link_function = lambda z: 1/z**n
+            noise_multiplier = lambda p,x: link_function(
+                michaelis_menten_model(p,x))
         else:
             noise_multiplier = None
-        xtol=1e-16
         maxiter=int(1e3)
 
         # come of these quantities are not used by every criteria but
@@ -675,7 +760,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
 
         mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
             parameter_samples,design_samples[np.newaxis,:],
-            {'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
+            {'iprint':iprint,'ftol':1e-8,'maxiter':maxiter})
         
         import copy
         opts = copy.deepcopy(opts)
@@ -689,7 +774,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             opt_problem = AlphabetOptimalDesign(
                 criteria,design_factors,opts=opts)
             mu_local = opt_problem.solve(
-                {'verbose':verbose,'gtol':1e-15,'xtol':xtol,'maxiter':maxiter})
+                {'iprint':iprint,'ftol':1e-8,'maxiter':maxiter})
             mu_local_list.append(mu_local)
 
         constraints = minimax_opt_problem.minimax_nonlinear_constraints(
@@ -708,9 +793,9 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             max_stat.append(stats.max(axis=0))
         # check min max stat is obtained by minimax design
         # for d optimal design one local design will be optimal but because
-        # of numerical precision it agrees only to 1e-7 with minimax design
+        # of numerical precision it agrees only to 1e-6 with minimax design
         # so round answer and compare. argmin returns first instance of minimum
-        max_stat=np.round(max_stat,7)
+        max_stat=np.round(max_stat,6)
         assert np.argmin(max_stat)==0
 
     def test_exponential_growth_model_local_d_optimal_design(self):
@@ -724,38 +809,51 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         design_samples = np.linspace(0,1,5*int(ub2+lb2)+1)
         noise_multiplier = None
         parameter_sample = np.array([(ub2+lb2)/2])
-        design_factors = exponential_growth_model_grad_parameters(parameter_sample,design_samples[np.newaxis,:]).T
+        design_factors = exponential_growth_model_grad_parameters(
+            parameter_sample,design_samples[np.newaxis,:]).T
         opt_problem = AlphabetOptimalDesign('D',design_factors)
-        mu = opt_problem.solve({'verbose': 1, 'gtol':1e-15})
+        mu = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         I = np.where(mu>1e-5)[0]
         assert np.allclose(mu[I],1)
         assert np.allclose(design_samples[I],1/parameter_sample)
 
     def test_exponential_growth_model_bayesian_d_optimal_design(self):
-        num_design_pts = 21
-        num_pred_pts = 100
-        design_samples = np.linspace(0,1,num_design_pts)
-        lb2,ub2=1,10
-        # assuming middle of parameter domain is used to find local design
-        design_samples = np.linspace(0,1,5*int(ub2+lb2)+1)
-        noise_multiplier = None
-        pred_samples = np.linspace(0,1,num_pred_pts)
+        """
+        See Table 2 in  Dietrich Braess and Holger Dette. 
+        On the number of support points of maximin and Bayesian optimal designs,
+        2007 dx.doi.org/10.1214/009053606000001307
+        """
+        num_design_pts = 50
+        optimal_design_samples = {10:([0.182],[1.0]),40:([0.048,0.354],[0.981,0.019]),50:([0.038,0.318],[0.973,0.027]),100:([0.019,0.215],[.962,0.038]),200:([0.010,0.134],[0.959,0.041]),300:([0.006,0.084,0.236],[0.957,0.037,0.006]),3000:([0.0006,0.009,0.055,1.000],[0.951,0.039,0.006,0.004])}
+        lb2=1
+        for ub2 in optimal_design_samples.keys():
+            # assuming middle of parameter domain is used to find local design
+            design_samples = np.linspace(0,1,num_design_pts)
+            design_samples = np.sort(np.unique(np.concatenate(
+                [design_samples,optimal_design_samples[ub2][0]])))
+            noise_multiplier = None
 
-        # locally optimal design is a one point design with mass at 1/theta_1
-        local_design_factors = \
-             lambda p,x: exponential_growth_model_grad_parameters(p,x).T
-        xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(20,0,0)
-        xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
-        parameter_samples = xx2[np.newaxis,:]
+            local_design_factors = \
+                lambda p,x: exponential_growth_model_grad_parameters(p,x).T
+            xx2,ww2 = pya.gauss_jacobi_pts_wts_1D(40,0,0)
+            xx2 = (xx2+1)/2*(ub2-lb2)+lb2 # transform from [-1,1] to [lb2,ub2]
+            parameter_samples = xx2[np.newaxis,:]
         
-        opt_problem = AlphabetOptimalDesign('D',local_design_factors,opts=None)
+            opt_problem = AlphabetOptimalDesign(
+                'D',local_design_factors,opts=None)
         
-        mu = opt_problem.solve_nonlinear_bayesian(
-            parameter_samples,design_samples[np.newaxis,:],
-            sample_weights=ww2,options={'verbose': 1, 'gtol':1e-15})
-        I= np.where(mu>1e-5)[0]
-        assert np.allclose(mu[I],1)
-        assert np.allclose(design_samples[I],2/(ub2+lb2))
+            mu,res = opt_problem.solve_nonlinear_bayesian(
+                parameter_samples,design_samples[np.newaxis,:],
+                sample_weights=ww2,options={'iprint': 0, 'ftol':1e-14,'disp':True,'tol':1e-12},return_full=True)
+            I = np.where(mu>1e-5)[0]
+            J =np.nonzero(design_samples==np.array(optimal_design_samples[ub2][0])[:,None])[1]
+            mu_paper = np.zeros(design_samples.shape[0]);
+            mu_paper[J] = optimal_design_samples[ub2][1]
+            # published designs are not optimal for larger values of ub2
+            if I.shape==J.shape and np.allclose(I,J):
+                assert np.allclose(
+                    mu[I],optimal_design_samples[ub2][1],rtol=3e-2)
+            assert (res.obj_fun(mu)<=res.obj_fun(mu_paper)+1e-6)
 
 
 if __name__== "__main__":    
