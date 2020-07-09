@@ -2,6 +2,12 @@ import numpy as np
 from scipy.linalg import solve_triangular
 import copy
 
+def compute_prediction_variance(mu,pred_factors,homog_outer_prods):
+    M1 = homog_outer_prods.dot(mu)
+    u = np.linalg.solve(M1, pred_factors.T)
+    variance = np.sum(pred_factors*u.T,axis=1)
+    return variance
+
 def compute_homoscedastic_outer_products(factors):
     r"""
     Compute 
@@ -56,7 +62,7 @@ def get_M0_and_M1_matrices(
 
     Parameters
     ----------
-    homog_outer_prods : np.ndarray(num_design_pts,num_design_pts,num_design_pts)
+    homog_outer_prods : np.ndarray(num_factors,num_factors,num_design_pts)
         The outer products :math:`f(x_i)f(x_i)^T` for each design point 
         :math:`x_i`
 
@@ -72,10 +78,10 @@ def get_M0_and_M1_matrices(
 
     Returns
     -------
-    M0 : np.ndarray (num_design_pts,num_design_pts)
+    M0 : np.ndarray (num_factors,num_factors)
         The matrix :math:`M_0`
 
-    M1 : np.ndarray (num_design_pts,num_design_pts)
+    M1 : np.ndarray (num_factors,num_factors)
         The matrix :math:`M_1`
     
     """
@@ -114,7 +120,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
     Parameters
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
-                                 num_design_pts)
+                                    num_design_pts)
        The outer_products :math:`f(x_i)f(x_i)^T` for each design point 
        :math:`x_i`
 
@@ -174,6 +180,8 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         else:
             return value
     else:
+        #import time
+        #t0=time.time()
         u = np.linalg.solve(M1,pred_factors.T)
         # Value
         # We want to sum the variances, i.e. the enties of the diagonal of
@@ -187,6 +195,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         # Gradient
         F_M1_inv_P = design_factors.dot(u);
         gradient   = -np.sum(F_M1_inv_P**2,axis=1) / num_pred_pts;
+        #print('That took', time.time()-t0)
         return value, gradient.T
 
 
@@ -213,7 +222,7 @@ def coptimality_criterion(homog_outer_prods,design_factors,
     Parameters
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
-                                 num_design_pts)
+                                    num_design_pts)
        The hessian M_1 of the error for each design point
 
     design_factors : np.ndarray (num_design_pts,num_design_factors)
@@ -278,7 +287,9 @@ def coptimality_criterion(homog_outer_prods,design_factors,
 def doptimality_criterion(homog_outer_prods,design_factors,
                           design_prob_measure,return_grad=True,
                           noise_multiplier=None,
-                          regression_type='lstsq'):
+                          regression_type='lstsq',
+                          use_cholesky=False,
+                          return_hessian=False):
     r"""
     Evaluate the D-optimality criterion for a given design probability measure
     for the linear model
@@ -296,7 +307,7 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     Parameters
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
-                                 num_design_pts)
+                                    num_design_pts)
        The outer_products :math:`f(x_i)f(x_i)^T` for each design point 
        :math:`x_i`
 
@@ -325,6 +336,8 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
+    if return_hessian:
+        assert return_grad
     num_design_pts, num_design_factors = design_factors.shape
     if design_prob_measure.ndim==2:
         assert design_prob_measure.shape[1]==1
@@ -337,34 +350,53 @@ def doptimality_criterion(homog_outer_prods,design_factors,
         gamma = M0.dot(M1_inv)
         value = np.log(np.linalg.det(M1_inv.dot(gamma)))
         if (return_grad):
-            ident = np.eye(gamma.shape[0])
             M0_inv = np.linalg.inv(M0)
-            kappa  = M1.dot(M0_inv)
-            gradient = np.zeros(num_design_pts)
-            for ii in range(num_design_pts):
-                #gradient[ii]=np.trace(kappa.dot(homog_outer_prods[:,:,ii]).dot(
-                #    -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
-                #TODO order multiplications to be most efficient. Probably
-                # need to work on f_i rather than stored outer product
-                # f_i.dot(f_i.T)
-                if regression_type=='lstsq':
-                    gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
-                        -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
-                elif regression_type=='quantile':
-                    gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
-                        -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+ident).dot(M1_inv))
-            return value, gradient.T
+            # ident = np.eye(gamma.shape[0])
+            # kappa  = M1.dot(M0_inv)
+            # gradient = np.zeros(num_design_pts)
+            # for ii in range(num_design_pts):
+            #     if regression_type=='lstsq':
+            #         gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+            #             -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+            #     elif regression_type=='quantile':
+            #         gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+            #             -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+ident).dot(M1_inv))
+            #return value, gradient
+            
+            if regression_type=='lstsq':
+                #computing diagonal elements with trace is more efficient than
+                # extracting diagonal (below) and looping through each element
+                # (above)
+                #gradient = -2*np.diag(design_factors.dot(M1_inv.dot(design_factors.T)))+np.diag(noise_multiplier[:,np.newaxis]*design_factors.dot(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)))
+                gradient = -2*np.sum(design_factors.T*(M1_inv.dot(design_factors.T)),axis=0)+np.sum((noise_multiplier[:,np.newaxis]*design_factors).T*(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)),axis=0)
+            elif regression_type=='quantile':
+                gradient = -2*np.sum(design_factors.T*(M1_inv.dot((design_factors/noise_multiplier[:,np.newaxis]).T)),axis=0)+np.sum(design_factors.T*(M0_inv.dot(design_factors.T)),axis=0)
+            return value, gradient
         else:
             return value
     else:
-        value  = np.log(np.linalg.det(M1_inv))
+        if use_cholesky:
+            chol_factor = np.linalg.cholesky(M1)
+            value = -2 * np.log(np.diag(chol_factor)).sum()
+        else:
+            value  = np.log(np.linalg.det(M1_inv))
         # Gradient
         if (return_grad):
-            #gradient = -np.array([np.trace(M1_inv.dot(homog_outer_prods[:,:,ii])) for ii in range(homog_outer_prods.shape[2])])
-            #TODO order multiplications to be most efficient. Probably need to
-            # work on f_i rather than stored outer product f_i.dot(f_i.T)
-            gradient = -np.array([(homog_outer_prods[:,:,ii]*M1_inv).sum() for ii in range(homog_outer_prods.shape[2])])
-            return value, gradient.T
+            if use_cholesky:
+                from scipy.linalg import solve_triangular
+                temp = solve_triangular(
+                    chol_factor,design_factors.T,lower=True)
+                gradient = -(temp**2).sum(axis=0)
+                temp = temp.T.dot(temp)#precompute for hessian
+            else:
+                temp = design_factors.T*M1_inv.dot(design_factors.T)
+                gradient = -(temp).sum(axis=0)
+            if not return_hessian:
+                return value, gradient.T
+            else:
+                hessian = temp**2
+                return value,gradient.T,hessian
+        
         else:
             return value
 
@@ -443,7 +475,7 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
                 elif regression_type=='quantile':
                     gradient[ii]=np.trace(
                         M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
-                        -2*gamma.T/noise_multiplier[:,np.newaxis][ii]+ident).dot(M1_inv))
+                        -2*gamma.T/noise_multiplier[:,np.newaxis][ii]+ident).dot(M1_inv))            
             return value, gradient.T
         else:
             return value
@@ -451,7 +483,10 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
         value  = np.trace(M1_inv)
         # Gradient
         if (return_grad):
-            gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
+            #gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
+            #below is faster than above
+            temp = M1_inv.dot(M1_inv)
+            gradient = -np.sum(design_factors.T*(temp).dot(design_factors.T),axis=0)
             return value, gradient.T
         else:
             return value
@@ -479,7 +514,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
        The confidence level of CVAR 
 
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
-                                 num_design_pts)
+                                    num_design_pts)
        The hessian M_1 of the error for each design point
 
     design_factors : np.ndarray (num_design_pts,num_design_factors)
@@ -579,7 +614,7 @@ def goptimality_criterion(homog_outer_prods,design_factors,
     Parameters
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
-                                 num_design_pts)
+                                    num_design_pts)
        The hessian M_1 of the error for each design point
 
     design_factors : np.ndarray (num_design_pts,num_design_factors)
@@ -742,6 +777,7 @@ class AlphabetOptimalDesign(object):
         num_design_pts = self.design_factors.shape[0]
         homog_outer_prods = compute_homoscedastic_outer_products(
             self.design_factors)
+
         objective,jac = self.get_objective_and_jacobian(
             self.design_factors,homog_outer_prods,
             self.noise_multiplier,self.opts)
@@ -765,8 +801,12 @@ class AlphabetOptimalDesign(object):
         else:
             x0 = init_design
 
-        #method='trust-constr'
-        method='slsqp'
+        if 'solver' in options:
+            method = options['solver']
+            del options['solver']
+        else:
+            #method='trust-constr'
+            method='slsqp'
         res = minimize(
             objective, x0, method=method, jac=jac, hess=None,
             constraints=[self.linear_constraint],options=options,
@@ -827,8 +867,14 @@ class AlphabetOptimalDesign(object):
         if x0 is None:
             x0 = np.ones(num_design_pts+1)/num_design_pts
             x0[0]=1
-        #method = 'trust-constr'
-        method = 'slsqp'
+
+        if 'solver' in options:
+            method = options['solver']
+            del options['solver']
+        else:
+            #method='trust-constr'
+            method='slsqp'
+
         res = minimize(
             minimax_objective, x0, method=method,jac=jac, hess=None,
             constraints=constraints,options=options,
@@ -912,8 +958,14 @@ class AlphabetOptimalDesign(object):
 
         if x0 is None:
             x0 = np.ones(num_design_pts)/num_design_pts
-        #method = 'trust-constr'
-        method = 'slsqp'
+            
+        if 'solver' in options:
+            method = options['solver']
+            del options['solver']
+        else:
+            #method='trust-constr'
+            method='slsqp'
+            
         res = minimize(
             objective, x0, method=method,jac=jacobian, hess=None,
             constraints=constraints,options=options,

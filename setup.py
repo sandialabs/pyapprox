@@ -107,3 +107,5 @@ setuptools.setup(
 
 #install torch with
 #conda install pytorch torchvision -c pytorch
+
+#install cvxopt with conda install -c conda-forge cvxopt

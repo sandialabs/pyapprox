@@ -104,8 +104,9 @@ def compile_tikz_figure(file_string,filename_out,tikz_dir,show=False,
 
     os.chdir(cur_dir)
 
-def plot_3d_indices(indices,filename_out,coeff=None,show=True,tikz_dir='.',
-                    tol=1e-5,remove_all_files=True,label_indices=False):
+def plot_3d_indices_latex(
+        indices,filename_out,coeff=None,show=True,tikz_dir='.',
+        tol=1e-5,remove_all_files=True,label_indices=False):
     """
     Plot a set of three dimensional multivariate indices using latex.
 
