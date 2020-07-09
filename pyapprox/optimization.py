@@ -455,7 +455,10 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
     if disp:
-        print(row_format.format("Eps","Errors (max)","Errors (min)"))
+        if rel:
+            print(row_format.format("Eps","Rel. Errors (max)","Rel. Errors (min)"))
+        else:
+            print(row_format.format("Eps","Errors (max)","Errors (min)"))
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)

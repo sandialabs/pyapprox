@@ -83,14 +83,32 @@ def emax_model_grad_parameters(parameters,samples):
     grad[2] = -theta_1*x/(theta_2+x)**2
     return grad
 
-def check_derivative(function,num_design_pts):
+def check_derivative(function,num_design_pts,rel=True):
     design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
-    #design_prob_measure = np.random.uniform(0,1,(num_design_pts,1))
-    return pya.check_gradients(function,True,design_prob_measure)
+    design_prob_measure = np.random.uniform(0,1,(num_design_pts,1))
+    return pya.check_gradients(function,True,design_prob_measure,rel=rel)
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_prediction_variance(self):
+        poly_degree = 10;
+        num_design_pts = 101
+        num_pred_pts = 51
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        design_samples = np.linspace(-1,1,num_design_pts)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        design_prob_measure = np.ones(num_design_pts)/num_design_pts
+        variance = compute_prediction_variance(
+            design_prob_measure,pred_factors,homog_outer_prods)
+        M1 = homog_outer_prods.dot(design_prob_measure)
+        variance1 = np.diag(
+            pred_factors.dot(np.linalg.inv(M1).dot(pred_factors.T)))
+        assert np.allclose(variance,variance1)
     
     def test_homoscedastic_ioptimality_criterion(self):
         poly_degree = 10;
@@ -138,6 +156,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # Test least squares hetroscedastic gradients are correct        
         diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
         assert diffs.min()<6e-5,diffs
+
+        
+        # Test quantile regression gradients
+        ioptimality_criterion_wrapper = partial(
+            ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')  
+        diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
       
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -159,13 +185,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             np.diag(u.T.dot(M0).dot(u)).mean(),
             ioptimality_criterion(homog_outer_prods,design_factors,pred_factors,
                                   mu,return_grad=False))
-
-        # Test quantile regression gradients
-        ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion,homog_outer_prods,design_factors,pred_factors,
-            noise_multiplier=noise_multiplier,regression_type='quantile')  
-        diffs = check_derivative(ioptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-5,diffs
       
 
     def test_homoscedastic_goptimality_criterion(self):
@@ -209,6 +228,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # Test hetroscedastic API gradients are correct        
         diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
         assert diffs.min()<6e-5,diffs
+
+        # Test quantile regression gradients
+        goptimality_criterion_wrapper = partial(
+            goptimality_criterion,homog_outer_prods,design_factors,pred_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
+
       
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -221,19 +248,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             goptimality_criterion(
                 homog_outer_prods,design_factors,pred_factors,
                 pp,return_grad=False,noise_multiplier=noise_multiplier))
-
-        # Test quantile regression gradients
-        goptimality_criterion_wrapper = partial(
-            goptimality_criterion,homog_outer_prods,design_factors,pred_factors,
-            noise_multiplier=noise_multiplier,regression_type='quantile')
-        diffs = check_derivative(goptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-5,diffs
         
     def test_hetroscedastic_coptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier =design_samples**2
+        noise_multiplier =design_samples**2+1
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
@@ -243,6 +263,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
         assert diffs.min()<5e-5,diffs
+
+        # Test quantile regression gradients
+        coptimality_criterion_wrapper = partial(
+            coptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<6e-5,diffs
 
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -254,13 +281,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             coptimality_criterion(
                 homog_outer_prods,design_factors,
                 pp,return_grad=False,noise_multiplier=noise_multiplier))
-
-        # Test quantile regression gradients
-        coptimality_criterion_wrapper = partial(
-            coptimality_criterion,homog_outer_prods,design_factors,
-            noise_multiplier=noise_multiplier,regression_type='quantile')
-        diffs = check_derivative(coptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-5,diffs
 
     def test_homoscedastic_coptimality_criterion(self):
         poly_degree = 10;
@@ -277,8 +297,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert diffs.min()<5e-5,diffs
 
     def test_homoscedastic_doptimality_criterion(self):
-        poly_degree = 10;
-        num_design_pts = 101
+        poly_degree = 3;
+        num_design_pts = 11
         design_samples = np.linspace(-1,1,num_design_pts)
         noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
@@ -297,11 +317,17 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(np.log(np.linalg.det(np.linalg.inv(M1))),
                            doptimality_criterion_wrapper(mu,return_grad=False))
 
+        jac = lambda x: doptimality_criterion(
+            homog_outer_prods,design_factors,x)[1]
+        hess_matvec = lambda x,p: doptimality_criterion(
+            homog_outer_prods,design_factors,x,return_hessian=True)[2].dot(p)
+        pya.check_hessian(jac,hess_matvec,mu[:,np.newaxis])
+
     def test_hetroscedastic_doptimality_criterion(self):
         poly_degree = 10
-        num_design_pts = 101
+        num_design_pts = 51
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier =design_samples**2
+        noise_multiplier =1+design_samples**2+1
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
@@ -311,7 +337,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
         #print (diffs)
 
-        assert diffs[np.isfinite(diffs)].min()<5e-5,diffs
+        assert diffs[np.isfinite(diffs)].min()<2e-4,diffs
+
+        # Test quantile regression gradients
+        doptimality_criterion_wrapper = partial(
+            doptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts,rel=False)
+        assert diffs.min()<6e-5,diffs
 
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
@@ -324,13 +357,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
                 homog_outer_prods,design_factors,pp,return_grad=False,
                 noise_multiplier=noise_multiplier))
 
-        # Test quantile regression gradients
-        doptimality_criterion_wrapper = partial(
-            doptimality_criterion,homog_outer_prods,design_factors,
-            noise_multiplier=noise_multiplier,regression_type='quantile')
-        diffs = check_derivative(doptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-5,diffs
-
     def test_homoscedastic_aoptimality_criterion(self):
         poly_degree = 10;
         num_design_pts = 101
@@ -341,7 +367,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         aoptimality_criterion_wrapper = partial(
             aoptimality_criterion,homog_outer_prods,design_factors)
-        diffs=check_derivative(aoptimality_criterion_wrapper,num_design_pts)
+        diffs=check_derivative(aoptimality_criterion_wrapper,num_design_pts,True)
         #print (diffs)
         assert diffs.min()<6e-5,diffs
 
@@ -356,7 +382,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1,1,num_design_pts)
-        noise_multiplier =design_samples**2
+        noise_multiplier =design_samples**2+1
         design_factors = univariate_monomial_basis_matrix(
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
@@ -368,6 +394,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         assert diffs[np.isfinite(diffs)].min()<1e-4,diffs
 
+        # Test quantile regression gradients
+        aoptimality_criterion_wrapper = partial(
+            aoptimality_criterion,homog_outer_prods,design_factors,
+            noise_multiplier=noise_multiplier,regression_type='quantile')
+        diffs = check_derivative(aoptimality_criterion_wrapper,num_design_pts)
+        assert diffs.min()<2e-4,diffs
+
+
         # Test homoscedastic and hetroscedastic API produce same value
         # when noise is homoscedastic
         pp=np.ones((num_design_pts,1))/num_design_pts
@@ -378,13 +412,6 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             aoptimality_criterion(
                 homog_outer_prods,design_factors,pp,return_grad=False,
                 noise_multiplier=noise_multiplier))
-
-        # Test quantile regression gradients
-        aoptimality_criterion_wrapper = partial(
-            aoptimality_criterion,homog_outer_prods,design_factors,
-            noise_multiplier=noise_multiplier,regression_type='quantile')
-        diffs = check_derivative(aoptimality_criterion_wrapper,num_design_pts)
-        assert diffs.min()<6e-5,diffs
 
     def test_gradient_log_determinant(self):
         """
