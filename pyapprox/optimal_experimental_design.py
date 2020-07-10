@@ -2,11 +2,18 @@ import numpy as np
 from scipy.linalg import solve_triangular
 import copy
 
-def compute_prediction_variance(mu,pred_factors,homog_outer_prods):
-    M1 = homog_outer_prods.dot(mu)
-    u = np.linalg.solve(M1, pred_factors.T)
-    variance = np.sum(pred_factors*u.T,axis=1)
-    return variance
+def compute_prediction_variance(design_prob_measure,pred_factors,
+                                homog_outer_prods,noise_multiplier=None,
+                                regression_type='lstsq'):
+    M0,M1=get_M0_and_M1_matrices(
+        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    u = np.linalg.solve(M1,pred_factors.T)
+    if M0 is not None:
+        M0u = M0.dot(u)
+        variances = np.sum(u*M0u,axis=0)
+    else:
+        variances = np.sum(pred_factors.T*u,axis=0)
+    return variances
 
 def compute_homoscedastic_outer_products(factors):
     r"""
@@ -66,7 +73,7 @@ def get_M0_and_M1_matrices(
         The outer products :math:`f(x_i)f(x_i)^T` for each design point 
         :math:`x_i`
 
-    design_prob_measure : np.ndarray (ndesign_pts)
+    design_prob_measure : np.ndarray (num_design_pts)
         The weights :math:`r_i` for each design point
 
     noise_multiplier : np.ndarray (num_design_pts)
@@ -153,6 +160,8 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
+    #import time
+    #t0=time.time()
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors   = pred_factors.shape
     if design_prob_measure.ndim==2:
@@ -176,6 +185,7 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
                 gradient = 2*np.sum(Fu*Fgamma/noise_multiplier[:,np.newaxis],axis=1) + \
                     np.sum(Fu**2,axis=1)
             gradient /= num_pred_pts
+            #print('that took',time.time()-t0)
             return value, gradient.T
         else:
             return value
@@ -690,13 +700,106 @@ def goptimality_criterion(homog_outer_prods,design_factors,
 from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
 
+def minimax_oed_objective(x):
+    return x[0]
+
+def minimax_oed_objective_jacobian(x):
+    vec = np.zeros_like(x)
+    vec[0] = 1
+    return vec
+
 def minimax_oed_constraint_objective(local_oed_obj,x):
     return x[0]-local_oed_obj(x[1:])
 
 def minimax_oed_constraint_jacobian(local_oed_jac,x):
     jac = -local_oed_jac(x[1:])
     jac = np.atleast_2d(jac)
-    return np.hstack([np.ones((jac.shape[0],1)),jac]) 
+    return np.hstack([np.ones((jac.shape[0],1)),jac])
+
+def get_minimax_bounds(num_design_pts):
+    return Bounds(
+        [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
+
+def get_minimax_default_initial_guess(num_design_pts):
+    x0 = np.ones(num_design_pts+1)/num_design_pts
+    x0[0]=1
+    return x0
+
+def get_minimax_linear_constraints(num_design_pts):
+    lb_con = ub_con = np.atleast_1d(1)
+    A_con = np.ones((1,num_design_pts+1))
+    A_con[0,0] = 0
+    return LinearConstraint(A_con, lb_con, ub_con)
+
+def extract_minimax_design_from_optimize_result(res):
+    return res.x[1:]
+
+def r_oed_objective(beta,pred_weights,x):
+    num_pred_pts = pred_weights.shape[0]
+    t = x[0]
+    u = x[1:num_pred_pts+1].squeeze()
+    return x[0]+1/(1-beta)*u.dot(pred_weights)
+
+def r_oed_objective_jacobian(beta,pred_weights,x):
+    num_pred_pts = pred_weights.shape[0]
+    vec = np.zeros(x.shape[0])
+    vec[0] = 1
+    vec[1:num_pred_pts+1] = pred_weights/(1-beta)
+    return vec
+
+def r_oed_constraint_objective(num_design_pts,local_oed_obj,x):
+    num_pred_pts = x.shape[0]-(1+num_design_pts)
+    t = x[0]
+    u = x[1:num_pred_pts+1]
+    return t+u-local_oed_obj(x[num_pred_pts+1:]).T
+
+def r_oed_constraint_jacobian(num_design_pts,local_oed_jac,x):
+    num_pred_pts = x.shape[0]-(1+num_design_pts)
+    jac = -local_oed_jac(x[num_pred_pts+1:])
+    assert jac.ndim==2 and jac.shape==(num_pred_pts,num_design_pts)
+    jac = np.hstack(
+        [np.ones((jac.shape[0],1)),np.eye(jac.shape[0],num_pred_pts),jac])
+    return jac
+
+def r_oed_sparse_constraint_jacobian(num_design_pts,local_oed_jac,x):
+    num_pred_pts = x.shape[0]-(1+num_design_pts)
+    local_jac = -local_oed_jac(x[num_pred_pts+1:])
+    assert local_jac.ndim==2 and local_jac.shape==(num_pred_pts,num_design_pts)
+    size=num_pred_pts*num_design_pts+1
+    jac = np.empty((num_pred_pts,2+num_design_pts))
+    jac[:,:2]=1
+    jac[:,2:]=local_jac
+    jac = jac.ravel()
+    return jac
+
+def get_r_oed_bounds(num_pred_pts,num_design_pts):
+    return Bounds(
+        [-np.inf]+[0]*(num_pred_pts+num_design_pts),[np.inf]*(num_pred_pts+1)+[1]*(num_design_pts))
+
+def get_r_oed_default_initial_guess(num_pred_pts,num_design_pts):
+    x0 = np.ones(1+num_pred_pts+num_design_pts)/num_design_pts
+    x0[:num_pred_pts+1]=1
+    return x0
+
+def get_r_oed_linear_constraints(num_pred_pts,num_design_pts):
+    lb_con = ub_con = np.atleast_1d(1)
+    A_con = np.ones((1,1+num_pred_pts+num_design_pts))
+    A_con[0,:num_pred_pts+1] = 0
+    return LinearConstraint(A_con, lb_con, ub_con)
+
+def extract_r_oed_design_from_optimize_result(num_design_pts,res):
+    num_pred_pts = res.x.shape[0]-(1+num_design_pts)
+    return res.x[num_pred_pts+1:]
+
+def get_r_oed_jacobian_structure(num_pred_pts,num_design_pts):
+    nonlinear_constraint_structure = np.hstack(
+        [np.ones((num_pred_pts,1)),np.eye(num_pred_pts,num_pred_pts),np.ones((
+            num_pred_pts,num_design_pts))])
+    linear_constraint_structure = np.zeros((1,num_pred_pts+num_design_pts+1))
+    linear_constraint_structure[0,1+num_pred_pts:]=1
+    structure = np.vstack(
+        [linear_constraint_structure,nonlinear_constraint_structure])
+    return np.nonzero(structure)
 
 class AlphabetOptimalDesign(object):
     """
@@ -781,7 +884,7 @@ class AlphabetOptimalDesign(object):
         objective,jac = self.get_objective_and_jacobian(
             self.design_factors,homog_outer_prods,
             self.noise_multiplier,self.opts)
-            
+
         if self.criteria=='G': 
             constraint_obj = partial(minimax_oed_constraint_objective,objective)
             constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
@@ -790,7 +893,38 @@ class AlphabetOptimalDesign(object):
             return self._solve_minimax(
                 nonlinear_constraints,num_design_pts,options,return_full,
                 init_design)
-            
+        elif self.criteria=='R' and not self.opts.get('nonsmooth',False):
+            #if nonsmooth is True then minimize then constraint objective
+            #(objective returned self.get_objective_and_jacobian) will not be
+            # differentiable instead and the jacobian returned will consists of sub-differentials and this will be passed to minimize and this section skipped
+            self.criteria='G'
+            objective,jac = self.get_objective_and_jacobian(
+                self.design_factors,homog_outer_prods,
+                self.noise_multiplier,self.opts)
+            self.criteria='R'
+            beta = self.opts['beta']
+            num_pred_pts = self.opts['pred_factors'].shape[0]
+            weights = np.ones(num_pred_pts)/num_pred_pts
+            assert weights.shape[0]==num_pred_pts
+            r_obj = partial(r_oed_objective,beta,weights)
+            r_jac = partial(r_oed_objective_jacobian,beta,weights)
+            constraint_obj = partial(
+                r_oed_constraint_objective,num_design_pts,objective)
+            constraint_jac = partial(
+                r_oed_constraint_jacobian,num_design_pts,jac)
+            nonlinear_constraints = [NonlinearConstraint(
+                constraint_obj,0,np.inf,jac=constraint_jac)]
+            return self._solve_minimax(
+                nonlinear_constraints,num_design_pts,options,return_full,
+                init_design,objective=r_obj,jac=r_jac,
+                get_bounds=partial(get_r_oed_bounds,num_pred_pts),
+                get_init_guess=partial(
+                    get_r_oed_default_initial_guess,num_pred_pts),
+                get_linear_constraint=partial(
+                    get_r_oed_linear_constraints,num_pred_pts),
+                extract_design_from_optimize_result=partial(
+                    extract_r_oed_design_from_optimize_result,num_design_pts))
+
         self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
         lb_con = ub_con = np.atleast_1d(1)
         A_con = np.ones((1,num_design_pts))
@@ -802,21 +936,38 @@ class AlphabetOptimalDesign(object):
             x0 = init_design
 
         if 'solver' in options:
+            options=options.copy()
             method = options['solver']
             del options['solver']
         else:
             #method='trust-constr'
             method='slsqp'
-        res = minimize(
-            objective, x0, method=method, jac=jac, hess=None,
-            constraints=[self.linear_constraint],options=options,
-            bounds=self.bounds)
+
+        if method=='ipopt':
+            # when printing results of derivative_test The first floating point
+            # number is the value given by the user code, and the second number
+            # (after "~") is the finite differences estimation. Finally, the
+            # number in square brackets is the relative difference between
+            # these two numbers.
+            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+            from scipy.optimize._constraints import new_constraint_to_old
+            con = new_constraint_to_old(self.linear_constraint,x0)
+            from ipopt import minimize_ipopt
+            res = minimize_ipopt(
+                objective,x0,jac=jac,bounds=bounds,constraints=con,
+                options=options)
+        else:
+            res = minimize(
+                objective, x0, method=method, jac=jac, hess=None,
+                constraints=[self.linear_constraint],options=options,
+                bounds=self.bounds)
+            
         weights = res.x
 
         if not return_full:
             return weights
         
-        return weights,res.x
+        return weights,res
 
     def minimax_nonlinear_constraints(self,parameter_samples,design_samples):
         constraints = []
@@ -848,39 +999,59 @@ class AlphabetOptimalDesign(object):
         return constraints
 
     def _solve_minimax(self,nonlinear_constraints,num_design_pts,options,
-                       return_full,x0):
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts+1))
-        A_con[0,0] = 0
-        linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-        constraints = [linear_constraint]
+                       return_full,x0,objective=minimax_oed_objective,
+                       jac=minimax_oed_objective_jacobian,
+                       get_bounds=get_minimax_bounds,
+                       get_init_guess=get_minimax_default_initial_guess,
+                       get_linear_constraint=get_minimax_linear_constraints,
+                       extract_design_from_optimize_result=extract_minimax_design_from_optimize_result):
+        
+        self.linear_constraint = get_linear_constraint(num_design_pts)
+        constraints = [self.linear_constraint]
         constraints += nonlinear_constraints
         
-        minimax_objective = lambda x: x[0]
-        def jac(x):
-            vec = np.zeros_like(x)
-            vec[0] = 1
-            return vec
-        bounds = Bounds(
-            [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
+        self.bounds = get_bounds(num_design_pts)
 
         if x0 is None:
-            x0 = np.ones(num_design_pts+1)/num_design_pts
-            x0[0]=1
+            x0 = get_init_guess(num_design_pts)
 
         if 'solver' in options:
             method = options['solver']
+            options=options.copy()
             del options['solver']
         else:
             #method='trust-constr'
             method='slsqp'
 
-        res = minimize(
-            minimax_objective, x0, method=method,jac=jac, hess=None,
-            constraints=constraints,options=options,
-            bounds=bounds)
+        if method=='ipopt':
+            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+            from scipy.optimize._constraints import new_constraint_to_old
+            constraints = [
+                new_constraint_to_old(con,x0)[0] for con in constraints]
+            from ipopt import minimize_ipopt
+            try:
+                # if version of ipopt supports it pass in jacobian structure
+                options = options.copy()
+                constraint_jacobianstructure = options.get(
+                    'constraint_jacobianstructure',None)
+                if 'constraint_jacobianstructure' in options:
+                    del options['constraint_jacobianstructure']
+                res = minimize_ipopt(
+                    objective,x0,jac=jac,bounds=bounds,
+                    constraints=constraints,
+                    options=options,
+                    constraint_jacobianstructure=constraint_jacobianstructure)
+            except:
+                res = minimize_ipopt(
+                    objective,x0,jac=jac,bounds=bounds,constraints=constraints,
+                    options=options)
+        else:
+            res = minimize(
+                objective, x0, method=method,jac=jac, hess=None,
+                constraints=constraints,options=options,
+                bounds=self.bounds)
         
-        weights = res.x[1:]
+        weights = extract_design_from_optimize_result(res)
         if not return_full:
             return weights
         else:
@@ -960,16 +1131,26 @@ class AlphabetOptimalDesign(object):
             x0 = np.ones(num_design_pts)/num_design_pts
             
         if 'solver' in options:
+            options=options.copy()
             method = options['solver']
             del options['solver']
         else:
             #method='trust-constr'
             method='slsqp'
             
-        res = minimize(
-            objective, x0, method=method,jac=jacobian, hess=None,
-            constraints=constraints,options=options,
-            bounds=bounds)
+        if method=='ipopt':
+            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+            from ipopt import minimize_ipopt
+            from scipy.optimize._constraints import new_constraint_to_old
+            con = new_constraint_to_old(self.linear_constraint,x0)
+            res = minimize_ipopt(
+                objective,x0,jac=jacobian,bounds=bounds,constraints=con,
+                options=options)
+        else:
+            res = minimize(
+                objective, x0, method=method,jac=jacobian, hess=None,
+                constraints=constraints,options=options,
+                bounds=bounds)
 
         res['obj_fun']=objective
         

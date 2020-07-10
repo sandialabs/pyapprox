@@ -103,15 +103,76 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             poly_degree,design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
         design_prob_measure = np.ones(num_design_pts)/num_design_pts
+        # homoscedastic error
         variance = compute_prediction_variance(
             design_prob_measure,pred_factors,homog_outer_prods)
         M1 = homog_outer_prods.dot(design_prob_measure)
         variance1 = np.diag(
             pred_factors.dot(np.linalg.inv(M1).dot(pred_factors.T)))
         assert np.allclose(variance,variance1)
+
+        # heteroscedastic error lstsq
+        noise_multiplier = design_samples**2+1
+        variance = compute_prediction_variance(
+            design_prob_measure,pred_factors,homog_outer_prods,noise_multiplier)
+        M1 = homog_outer_prods.dot(design_prob_measure)
+        M0 = homog_outer_prods.dot(design_prob_measure*noise_multiplier**2)
+        variance1 = np.diag(
+            pred_factors.dot(np.linalg.inv(M1).dot(M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
+        assert np.allclose(variance,variance1)
+
+        # heteroscedastic error quantile
+        noise_multiplier = design_samples**2+1
+        variance = compute_prediction_variance(
+            design_prob_measure,pred_factors,homog_outer_prods,noise_multiplier,
+            'quantile')
+        M0 = homog_outer_prods.dot(design_prob_measure)
+        M1 = homog_outer_prods.dot(design_prob_measure/noise_multiplier)
+        variance1 = np.diag(
+            pred_factors.dot(np.linalg.inv(M1).dot(M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
+        assert np.allclose(variance,variance1)
+
+    def test_r_oed_objective_and_constraint_wrappers(self):
+        poly_degree = 10
+        num_design_pts = 101
+        num_pred_pts = 51
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        design_samples = np.linspace(-1,1,num_design_pts)
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        goptimality_criterion_wrapper = partial(
+            goptimality_criterion,homog_outer_prods,design_factors,pred_factors)
+        mu = np.random.uniform(0,1,(num_design_pts)); mu/=mu.sum()
+        obj,jac = goptimality_criterion_wrapper(mu)
+
+        beta=0.75
+        pred_weights = np.ones(num_pred_pts)/num_pred_pts
+        r_oed_objective_wrapper = partial(r_oed_objective,beta,pred_weights)
+        r_oed_jac_wrapper = partial(r_oed_objective_jacobian,beta,pred_weights)
+        x0 = np.concatenate([np.ones(num_design_pts+1),mu])[:,np.newaxis]
+        diffs = pya.check_gradients(
+            r_oed_objective_wrapper,r_oed_jac_wrapper,x0)
+        assert diffs.min()<6e-5, diffs
+
+        r_oed_constraint_wrapper = partial(
+            r_oed_constraint_objective,num_design_pts,
+            lambda x: goptimality_criterion_wrapper(x)[0])
+        r_oed_constraint_jac_wrapper = partial(
+            r_oed_constraint_jacobian, num_design_pts,
+            lambda x: goptimality_criterion_wrapper(x)[1])
+        x0 = np.concatenate([np.ones(num_pred_pts+1),mu])[:,np.newaxis]
+        from pyapprox import approx_jacobian
+        print(x0.shape)
+        approx_jacobian(r_oed_constraint_wrapper,x0[:,0])
+        diffs = pya.check_gradients(
+            r_oed_constraint_wrapper,r_oed_constraint_jac_wrapper,x0)
+        assert diffs.min()<6e-5, diffs
+        
     
     def test_homoscedastic_ioptimality_criterion(self):
-        poly_degree = 10;
+        poly_degree = 10
         num_design_pts = 101
         num_pred_pts = 51
         pred_samples = np.random.uniform(-1,1,num_pred_pts)
@@ -590,6 +651,45 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # Test hetroscedastic API gradients are correct        
         diffs = check_derivative(roptimality_criterion_wrapper,num_design_pts)
         assert diffs.min()<6e-5,diffs
+
+    def test_homoscedastic_least_squares_roptimal_design(self):
+        """
+        Check R (beta=0) and I optimal designs are the same
+        """
+        poly_degree = 1;
+        num_design_pts = 2
+        design_samples = np.linspace(-1,1,num_design_pts)
+        noise_multiplier = None
+        design_factors = univariate_monomial_basis_matrix(
+            poly_degree,design_samples)
+        num_pred_pts = 3
+        pred_samples = np.random.uniform(-1,1,num_pred_pts)
+        pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
+
+        opts = {'beta':0,'pred_factors':pred_factors,
+                'pred_samples':pred_samples[np.newaxis,:],'nonsmooth':False}
+        
+        opt_problem = AlphabetOptimalDesign('R',design_factors,opts=opts)
+        solver_opts = {'disp':True,'iprint': 0, 'ftol':1e-12,'maxiter':2000}
+        #solver_opts = {'solver':'ipopt','print_level':0,
+        #              'tol':1e-8,'acceptable_obj_change_tol':1e-8,
+        #               'derivative_test':'first-order','maxiter':1000}
+        #solver_opts.update({'constraint_jacobianstructure':partial(get_r_oed_jacobian_structure,num_pred_pts,num_design_pts)})
+        mu_R ,res= opt_problem.solve(solver_opts,return_full=True)
+        homog_outer_prods = compute_homoscedastic_outer_products(design_factors)
+        variance = compute_prediction_variance(
+            mu_R,pred_factors,homog_outer_prods)
+        assert (res.x[0]<=variance.min())
+
+
+        del opts['beta']
+        if 'constraint_jacobianstructure' in solver_opts:
+            del solver_opts['constraint_jacobianstructure']
+        opt_problem = AlphabetOptimalDesign('I',design_factors,opts=opts)
+        mu_I = opt_problem.solve(solver_opts)
+        variance = compute_prediction_variance(
+            mu_I,pred_factors,homog_outer_prods)
+        assert np.allclose(mu_R,mu_I)
 
 class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
     def setUp(self):
