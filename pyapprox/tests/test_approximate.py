@@ -10,7 +10,7 @@ class TestApproximate(unittest.TestCase):
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse-grid')
+            benchmark.fun,univariate_variables,'sparse_grid')
         nsamples = 100
         error = compute_l2_error(
             approx,benchmark.fun,approx.variable_transformation.variable,
@@ -34,7 +34,7 @@ class TestApproximate(unittest.TestCase):
         options = {'univariate_quad_rule_info':univariate_quad_rule_info,
                    'max_nsamples':110,'tol':0,'verbose':False}
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse-grid',callback,options)
+            benchmark.fun,univariate_variables,'sparse_grid',callback,options)
         assert np.min(errors)<1e-12
 
     def test_approximate_polynomial_chaos_default_options(self):
@@ -42,7 +42,7 @@ class TestApproximate(unittest.TestCase):
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,method='polynomial-chaos')
+            benchmark.fun,univariate_variables,method='polynomial_chaos')
         nsamples = 100
         error = compute_l2_error(
             approx,benchmark.fun,approx.variable_transformation.variable,
@@ -69,17 +69,22 @@ class TestApproximate(unittest.TestCase):
         train_vals = poly(train_samples)
         true_poly=poly
 
-        poly = copy.deepcopy(true_poly)
-        poly, best_degree = cross_validate_pce_degree(
-            poly,train_samples,train_vals,1,degree+2)
 
-        assert best_degree==degree
+        poly = approximate(
+            train_samples,train_vals,'polynomial_chaos',
+            {'basis_type':'hyperbolic_cross','variable':variable})
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
             variable,num_validation_samples)
         assert np.allclose(
             poly(validation_samples),true_poly(validation_samples))
+
+        poly = copy.deepcopy(true_poly)
+        poly, best_degree = cross_validate_pce_degree(
+            poly,train_samples,train_vals,1,degree+2)
+        assert best_degree==degree
+
 
     def test_pce_basis_expansion(self):
         num_vars = 2
@@ -105,20 +110,53 @@ class TestApproximate(unittest.TestCase):
         train_vals = poly(train_samples)
         true_poly=poly
 
-        poly = copy.deepcopy(true_poly)
-        poly, best_degree = expanding_basis_omp_pce(
-            poly,train_samples,train_vals,hcross_strength=hcross_strength,
-            verbosity=1,max_num_terms=5)
+        poly = approximate(
+            train_samples,train_vals,'polynomial_chaos',
+            {'basis_type':'expanding_basis','variable':variable})
 
-        num_validation_samples = 10
+        num_validation_samples = 100
         validation_samples = pya.generate_independent_random_samples(
             variable,num_validation_samples)
         validation_samples = train_samples
-        #print(poly(validation_samples),'\n',true_poly(validation_samples))
+        error = np.linalg.norm(poly(validation_samples)-true_poly(
+            validation_samples))/np.sqrt(num_validation_samples)
         assert np.allclose(
-            poly(validation_samples),true_poly(validation_samples))
+            poly(validation_samples),true_poly(validation_samples),atol=1e-8),\
+            error
 
+    def test_approximate_gaussian_process(self):
+        from sklearn.gaussian_process.kernels import Matern
+        num_vars = 1
+        univariate_variables = [stats.uniform(-1,2)]*num_vars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        num_samples = 100
+        train_samples=pya.generate_independent_random_samples(
+            variable,num_samples)
 
+        # Generate random function
+        nu=np.inf#2.5
+        kernel = Matern(0.5, nu=nu)
+        X=np.linspace(-1,1,1000)[np.newaxis,:]
+        alpha=np.random.normal(0,1,X.shape[1])
+        train_vals = kernel(train_samples.T,X.T).dot(alpha)[:,np.newaxis]
+
+        gp = approximate(train_samples,train_vals,'gaussian_process',{'nu':nu})
+
+        error = np.linalg.norm(gp(X)[:,0]-kernel(X.T,X.T).dot(alpha))/np.sqrt(
+            X.shape[1])
+        assert error<1e-5
+
+        # import matplotlib.pyplot as plt
+        # plt.plot(X[0,:],kernel(X.T,X.T).dot(alpha),'r--',zorder=100)
+        # vals,std = gp(X,return_std=True)
+        # plt.plot(X[0,:],vals[:,0],c='b')
+        # plt.fill_between(
+        #     X[0,:],vals[:,0]-2*std,vals[:,0]+2*std,color='b',alpha=0.5)
+        # plt.plot(train_samples[0,:], train_vals[:,0],'ro')
+        # plt.show()
+
+        
 if __name__== "__main__":    
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestApproximate)
