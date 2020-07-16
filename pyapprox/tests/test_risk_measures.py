@@ -395,6 +395,27 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
 
 class TestRiskMeasures(unittest.TestCase):
 
+    def test_smooth_max_function_gradients(self):
+        smoother_type,eps=0,1e-1
+        #x = np.linspace(-1,1,101)
+        #plt.plot(x,smooth_max_function(smoother_type,eps,x));plt.show()
+        #plt.plot(x,smooth_max_function_first_derivative(smoother_type,eps,x));plt.show()
+        x = np.array([0.01])
+        errors = check_gradients(
+            partial(smooth_max_function,smoother_type,eps),
+            partial(smooth_max_function_first_derivative,smoother_type,eps),
+            x[:,np.newaxis])
+        assert errors.min()<1e-6
+
+    def test_smooth_conditioal_value_at_risk_gradient(self):
+        smoother_type,eps,alpha=0,1e-1,0.7
+        samples = np.linspace(-1,1,11)
+        errors = check_gradients(
+            partial(smooth_conditional_value_at_risk,smoother_type,eps,alpha),
+            partial(smooth_conditional_value_at_risk_gradient,smoother_type,eps,alpha),
+            samples[:,np.newaxis])
+        assert errors.min()<1e-6
+
     def test_triangle_quantile(self):
         rv_1 = triangle_rv(0.5,loc=-0.5, scale=2)
 

@@ -1134,7 +1134,6 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                     pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
         else:
             pivot = pivots[init_pivots[ii]]
-        #print(pivot)
             
         swap_rows(pivots,ii,pivot)
         if diag[pivots[ii]] <= 0:

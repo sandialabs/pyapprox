@@ -272,9 +272,12 @@ def compute_l2_error(f,g,variable,nsamples):
         validation_samples.shape[1])
     return error
 
-def approximate(fun,variable,method,callback=None,options=None):
+def adaptive_approximate(fun,variable,method,callback=None,options=None):
     r"""
-    Approximation of a scalar or vector-valued function of one or more variables
+    Adaptive approximation of a scalar or vector-valued function of one or 
+    more variables. These methods choose the samples to at which to 
+    evaluate the function being approximated.
+    
     
     Parameters
     ----------
@@ -321,3 +324,214 @@ def approximate(fun,variable,method,callback=None,options=None):
     if options is None:
         options = {}
     return methods[method](fun,variable,callback,**options)
+
+
+from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
+    OrthogonalMatchingPursuitCV
+
+def fit_linear_model(basis_matrix,train_vals,solver_type,**kwargs):
+    solvers = {'lasso-lars':LassoLarsCV(cv=kwargs['cv']).fit,
+               'lasso':LassoCV.fit,
+               'lars':LarsCV.fit,'omp':OrthogonalMatchingPursuitCV.fit}
+    assert train_vals.ndim==2
+    if solver_type in solvers:
+        fit = solvers[solver_type]
+        res = fit(basis_matrix,train_vals[:,0])
+    else:
+        msg = f'Solver type {solver_type} not supported\n'
+        msg += 'Supported solvers are:\n'
+        for key in solvers.keys():
+            msg += f'\t{key}\n'
+        raise Exception(msg)
+
+    cv_score = res.score(basis_matrix,train_vals[:,0])
+    coef = res.coef_[:,np.newaxis]; coef[0]=res.intercept_
+    return coef, cv_score
+
+import copy
+from pyapprox import compute_hyperbolic_indices
+def cross_validate_pce_degree(
+        pce,train_samples,train_vals,min_degree,max_degree,hcross_strength=1,
+        cv=10,solver_type='lasso-lars',verbosity=0):
+
+    num_samples = train_samples.shape[1]
+    if min_degree is None:
+        min_degree = 2
+    if max_degree is None:
+        max_degree = np.iinfo(int).max-1
+
+    best_coef = None
+    best_cv_score = -np.finfo(np.double).max
+    best_degree = min_degree
+    prev_num_terms = 0
+    if verbosity>0:
+        print ("{:<8} {:<10} {:<18}".format('degree','num_terms','cv score',))
+    for degree in range(min_degree,max_degree+1):
+        indices = compute_hyperbolic_indices(
+            pce.num_vars(),degree,hcross_strength)
+        pce.set_indices(indices)
+        if ((pce.num_terms()>100000) and
+            (100000-prev_num_terms<pce.num_terms()-100000) ): break
+
+        basis_matrix = pce.basis_matrix(train_samples)
+        coef, cv_score = fit_linear_model(
+            basis_matrix,train_vals,solver_type,cv=cv)
+        pce.set_coefficients(coef)
+
+        if verbosity>0:
+            print("{:<8} {:<10} {:<18} ".format(degree,pce.num_terms(),cv_score))
+        if ( cv_score > best_cv_score ):
+            best_cv_score = cv_score
+            best_coef = coef.copy()
+            best_degree = degree
+        if ( ( cv_score >= best_cv_score ) and ( degree-best_degree > 1 ) ):
+            break
+        prev_num_terms = pce.num_terms()
+
+    pce.set_indices(compute_hyperbolic_indices(
+        pce.num_vars(),best_degree,hcross_strength))
+    pce.set_coefficients(best_coef)
+    if verbosity>0:
+        print ('best degree:', best_degree)
+    return pce, best_degree
+
+def restrict_basis(indices,coefficients,tol):
+    I = np.where(np.absolute(coefficients)>tol)[0]
+    restricted_indices = indices[:,I]
+    degrees = indices.sum(axis=0)
+    J = np.where(degrees==0)[0]
+    assert J.shape[0]==1
+    if J not in I:
+        #always include zero degree polynomial in restricted_indices
+        restricted_indices = np.concatenate([indices[:J],restrict_indices])
+    return restricted_indices
+
+from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
+def expand_basis(indices):
+    nvars,nindices=indices.shape
+    indices_set = set()
+    for ii in range(nindices):
+        indices_set.add(hash_array(indices[:,ii]))
+    
+    new_indices = []
+    for ii in range(nindices):
+        index = indices[:,ii]
+        active_vars = np.nonzero(index)
+        for dd in range(nvars):
+            forward_index = get_forward_neighbor(index,dd)
+            key = hash_array(forward_index)
+            if key not in indices_set:
+                admissible=True
+                for kk in active_vars:
+                    backward_index = get_backward_neighbor(forward_index,kk)
+                    if hash_array(backward_index) not in indices_set:
+                        admissible=False
+                        break
+                if admissible:
+                    indices_set.add(key)
+                    new_indices.append(forward_index)
+    return np.asarray(new_indices).T
+    
+
+def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
+                            verbosity=1,max_num_terms=None,
+                            solver_type='lasso-lars',cv=10,
+                            restriction_tol=np.finfo(float).eps*2):
+    assert train_vals.shape[1]==1
+    num_vars = pce.num_vars()
+    if max_num_terms  is None:
+        max_num_terms = 10*train_vals.shape[1]
+    degree = 2
+    prev_num_terms = 0
+    while True:
+        indices =compute_hyperbolic_indices(num_vars, degree, hcross_strength)
+        num_terms = indices.shape[1]
+        if ( num_terms > max_num_terms ): break
+        degree += 1
+        prev_num_terms = num_terms
+
+    if ( abs( num_terms - max_num_terms ) > 
+         abs( prev_num_terms - max_num_terms ) ):
+        degree -=1
+    pce.set_indices(
+        compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+
+    if verbosity>0:
+        msg = f'Initializing basis with hyperbolic cross of degree {degree} and '
+        msg += f' strength {hcross_strength} with {pce.num_terms()} terms'
+        print(msg)
+
+    basis_matrix = pce.basis_matrix(train_samples)
+    best_coef, best_cv_score = fit_linear_model(
+        basis_matrix,train_vals,solver_type,cv=cv)
+    pce.set_coefficients(best_coef)
+    best_indices = pce.get_indices()
+    if verbosity>0:
+        print ("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
+        print ("{:<10} {:<10} {:<18}".format(
+            pce.num_terms(),np.count_nonzero(pce.coefficients),best_cv_score))
+
+    best_cv_score_iter = best_cv_score
+    best_num_expansion_steps = 3
+    it = 0
+    best_it = 0
+    while True:
+        max_num_expansion_steps = 1
+        best_num_expansion_steps_iter = best_num_expansion_steps
+        while True:
+            # -------------- #
+            #  Expand basis  #
+            # -------------- #
+            num_expansion_steps = 0
+            indices=restrict_basis(pce.indices,pce.coefficients,restriction_tol)
+            while ( ( num_expansion_steps < max_num_expansion_steps ) and
+                    ( num_expansion_steps < best_num_expansion_steps ) ):
+                new_indices = expand_basis(pce.indices)
+                pce.set_indices(np.hstack([pce.indices,new_indices]))
+                num_terms = pce.num_terms()
+                num_expansion_steps += 1
+
+            # -----------------#
+            # Compute solution #
+            # -----------------#
+            basis_matrix = pce.basis_matrix(train_samples)
+            coef, cv_score = fit_linear_model(
+                basis_matrix,train_vals,solver_type,cv=cv)
+            pce.set_coefficients(coef)
+
+            if verbosity>0:
+                print ("{:<10} {:<10} {:<18}".format(
+                    pce.num_terms(),np.count_nonzero(pce.coefficients),cv_score))
+
+            if ( cv_score > best_cv_score_iter ):
+                best_cv_score_iter = cv_score
+                best_indices_iter = pce.indices.copy()
+                best_coef_iter = pce.coefficients.copy()
+                best_num_expansion_steps_iter = num_expansion_steps 
+
+            if ( num_terms >= max_num_terms ): break
+            if ( max_num_expansion_steps >= 3 ): break
+
+            max_num_expansion_steps += 1
+
+
+        if ( best_cv_score_iter > best_cv_score):
+            best_cv_score = best_cv_score_iter
+            best_coef = best_coef_iter.copy()
+            best_indices = best_indices_iter.copy()
+            best_num_expansion_steps = best_num_expansion_steps_iter
+            best_it = it
+        elif ( it - best_it >= 1 ):
+            break
+
+        it += 1
+
+    nindices = best_indices.shape[1]
+    I = np.nonzero(best_coef[:,0])[0]
+    pce.set_indices(best_indices[:,I])
+    pce.set_coefficients(best_coef[I])
+    if verbosity>0:
+        msg = f'Final basis has {pce.num_terms()} terms selected from {nindices}'
+        msg += f' using {train_samples.shape[1]} samples'
+        print(msg)
+    return pce, best_cv_score
