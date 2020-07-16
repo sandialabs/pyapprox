@@ -398,8 +398,8 @@ from scipy.optimize import OptimizeResult
 class SensivitityResult(OptimizeResult):
     pass
 
-from pyapprox.approximate import approximate_sparse_grid, \
-    approximate_polynomial_chaos
+from pyapprox.approximate import adaptive_approximate_sparse_grid, \
+    adaptive_approximate_polynomial_chaos
 from pyapprox.multivariate_polynomials import \
     define_poly_options_from_variable_transformation
 from pyapprox.adaptive_sparse_grid import \

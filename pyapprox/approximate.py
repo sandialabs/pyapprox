@@ -6,7 +6,7 @@ from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
-def approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=False):
+def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=False):
     """
     Compute a sparse grid approximation of a function.
 
@@ -109,9 +109,9 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
-def approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
+def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
     r"""
-    Compute a Polynomial Chaos Expansion of a function.
+    Compute an adaptive Polynomial Chaos Expansion of a function.
 
     Parameters
     ----------
@@ -292,10 +292,9 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
     method : string
         Type of approximation. Should be one of
 
-        - 'sparse-grid'
-        - 'polynomial-chaos'
-        - 'tensor-train'
-        - 'gaussian-process'
+        - 'sparse_grid'
+        - 'polynomial_chaos'
+        - 'gaussian_process'
 
     callback : callable
         Function called after each iteration with the signature
@@ -310,10 +309,10 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
        An object which approximates fun.
     """
 
-    methods = {'sparse-grid':approximate_sparse_grid,
-               'polynomial-chaos':approximate_polynomial_chaos}#,
+    methods = {'sparse_grid':adaptive_approximate_sparse_grid,
+               'polynomial_chaos':adaptive_approximate_polynomial_chaos}#,
                #'tensor-train':approximate_tensor_train,
-               #'gaussian-process':approximate_gaussian_process}
+               #'gaussian_process':approximate_gaussian_process}
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -325,12 +324,110 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
         options = {}
     return methods[method](fun,variable,callback,**options)
 
+def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
+                                 basis_type='expanding_basis',
+                                 variable=None,options=None):
+    r"""
+    Compute a Polynomial Chaos Expansion of a function from a fixed data set.
+
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+
+    basis_type : string
+        Type of approximation. Should be one of
+
+        - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree` 
+        - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_omp_pce`
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z.
+        This is used to generate random samples from this join density
+
+    verbosity : integer
+        Controls the amount of information printed to screen
+
+
+    Returns
+    -------
+    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+    """
+    funcs = {'expanding_basis':expanding_basis_omp_pce,
+             'hyperbolic_cross':cross_validate_pce_degree}
+    if variable is None:
+        msg = 'pce requires that variable be defined'
+        raise Exception(msg)
+    if basis_type not in funcs:
+        msg = f'Basis type {basis_type} not found.\n Available types are:\n'
+        for key in funcs.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+    
+    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+        define_poly_options_from_variable_transformation
+    var_trans = AffineRandomVariableTransformation(variable)
+    poly = PolynomialChaosExpansion()
+    poly_opts = define_poly_options_from_variable_transformation(
+        var_trans)
+    poly.configure(poly_opts)
+    
+    if options is None:
+        options = {}
+
+    res = funcs[basis_type](poly,train_samples,train_vals,**options)[0]
+    return res
+
+from pyapprox.gaussian_process import approximate_gaussian_process
+def approximate(train_samples,train_vals,method,options=None):
+    r"""
+    Approximate a scalar or vector-valued function of one or 
+    more variables from a set of points provided by the user
+    
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+
+    method : string
+        Type of approximation. Should be one of
+
+        - 'polynomial_chaos'
+        - 'gaussian_process'
+
+    Returns
+    -------
+    approx : Object
+       An object which approximates fun.
+    """
+
+    methods = {'polynomial_chaos':approximate_polynomial_chaos,
+               'gaussian_process':approximate_gaussian_process}
+               #'tensor-train':approximate_tensor_train,
+
+    if method not in methods:
+        msg = f'Method {method} not found.\n Available methods are:\n'
+        for key in methods.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+
+    if options is None:
+        options = {}
+    return methods[method](train_samples,train_vals,**options)
+
 
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
     OrthogonalMatchingPursuitCV
 
 def fit_linear_model(basis_matrix,train_vals,solver_type,**kwargs):
-    solvers = {'lasso-lars':LassoLarsCV(cv=kwargs['cv']).fit,
+    solvers = {'lasso_lars':LassoLarsCV(cv=kwargs['cv']).fit,
                'lasso':LassoCV.fit,
                'lars':LarsCV.fit,'omp':OrthogonalMatchingPursuitCV.fit}
     assert train_vals.ndim==2
@@ -351,8 +448,53 @@ def fit_linear_model(basis_matrix,train_vals,solver_type,**kwargs):
 import copy
 from pyapprox import compute_hyperbolic_indices
 def cross_validate_pce_degree(
-        pce,train_samples,train_vals,min_degree,max_degree,hcross_strength=1,
-        cv=10,solver_type='lasso-lars',verbosity=0):
+        pce,train_samples,train_vals,min_degree=1,max_degree=3,
+        hcross_strength=1,
+        cv=10,solver_type='lasso_lars',verbosity=0):
+    r"""
+    Use cross validation to find the polynomial degree which best fits the data.
+    A polynomial is constructed for each degree and the degree with the highest
+    cross validation score is returned.
+    
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+    
+    min_degree : integer
+        The minimum degree to consider
+
+    min_degree : integer
+        The maximum degree to consider. 
+        All degrees in ``range(min_degree,max_deree+1)`` are considered
+
+    hcross_strength : float
+       The strength of the hyperbolic cross index set. hcross_strength must be 
+       in (0,1]. A value of 1 produces total degree polynomials
+
+    cv : integer
+        The number of cross validation folds used to compute the cross 
+        validation error
+
+    solver_type : string
+        The type of regression used to train the polynomial
+
+        - 'lasso_lars'
+        - 'lars'
+        - 'lasso'
+        - 'omp'
+
+    verbosity : integer
+        Controls the amount of information printed to screen
+
+    Returns
+    -------
+    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+    """
 
     num_samples = train_samples.shape[1]
     if min_degree is None:
@@ -435,8 +577,52 @@ def expand_basis(indices):
 
 def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                             verbosity=1,max_num_terms=None,
-                            solver_type='lasso-lars',cv=10,
+                            solver_type='lasso_lars',cv=10,
                             restriction_tol=np.finfo(float).eps*2):
+    r"""
+    Iteratively expand and restrict the polynomial basis and use 
+    cross validation to find the best basis [JESJCP2015]_
+    
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+    
+    hcross_strength : float
+       The strength of the hyperbolic cross index set. hcross_strength must be 
+       in (0,1]. A value of 1 produces total degree polynomials
+
+    cv : integer
+        The number of cross validation folds used to compute the cross 
+        validation error
+
+    solver_type : string
+        The type of regression used to train the polynomial
+
+        - 'lasso_lars'
+        - 'lars'
+        - 'lasso'
+        - 'omp'
+
+    verbosity : integer
+        Controls the amount of information printed to screen
+
+    restriction_tol : float
+        The tolerance used to prune inactive indices
+
+    Returns
+    -------
+    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+
+    References
+    ----------
+    .. [JESJCP2015] `J.D. Jakeman, M.S. Eldred, and K. Sargsyan. Enhancing l1-minimization estimates of polynomial chaos expansions using basis selection. Journal of Computational Physics, 289(0):18 – 34, 2015 <https://doi.org/10.1016/j.jcp.2015.02.025>`_
+    """
+    
     assert train_vals.shape[1]==1
     num_vars = pce.num_vars()
     if max_num_terms  is None:
@@ -521,7 +707,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             best_indices = best_indices_iter.copy()
             best_num_expansion_steps = best_num_expansion_steps_iter
             best_it = it
-        elif ( it - best_it >= 1 ):
+        elif ( it - best_it >= 2 ):
             break
 
         it += 1
@@ -531,7 +717,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     pce.set_indices(best_indices[:,I])
     pce.set_coefficients(best_coef[I])
     if verbosity>0:
-        msg = f'Final basis has {pce.num_terms()} terms selected from {nindices}'
-        msg += f' using {train_samples.shape[1]} samples'
+        msg=f'Final basis has {pce.num_terms()} terms selected from {nindices}'
+        msg+=f' using {train_samples.shape[1]} samples'
         print(msg)
     return pce, best_cv_score
