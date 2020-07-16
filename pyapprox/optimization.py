@@ -140,7 +140,7 @@ def quantile_lower_bound_constraint(constraint_function,quantile,lower_bound,
     # to enforce lower bound
     return -val
 
-from pyapprox.cvar_regression import smoothed_conditional_value_at_risk, \
+from pyapprox.cvar_regression import smooth_conditional_value_at_risk, \
     conditional_value_at_risk
 def cvar_lower_bound_constraint(constraint_function,quantile,lower_bound,eps,
                                 uq_samples,design_samples):
@@ -148,7 +148,7 @@ def cvar_lower_bound_constraint(constraint_function,quantile,lower_bound,eps,
     assert design_samples.shape[1]==1
     vals = constraint_function(uq_samples,design_samples)
     # -vals because we want to minimize lower tail
-    val = (lower_bound-smoothed_conditional_value_at_risk(-vals,quantile,eps))
+    val = (lower_bound-smooth_conditional_value_at_risk(0,eps,quantile,-vals))
     #val = (lower_bound-conditional_value_at_risk(-vals,quantile))
     return val
 
@@ -367,7 +367,7 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
             uq_samples,design_sample)
 
         cvar = (conditional_value_at_risk(-constraint_function_vals,0.9))
-        cvars = (smoothed_conditional_value_at_risk(-constraint_function_vals,0.9,1e-3))
+        cvars = (smooth_conditional_value_at_risk(0,1e-3,0.9,-constraint_function_vals))
         print ('cvar',cvar)
         print ('cvars',cvars)
         #constraint_val = constraints[ii]['fun'](design_sample)

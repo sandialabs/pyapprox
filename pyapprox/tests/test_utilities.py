@@ -720,6 +720,43 @@ class TestUtilities(unittest.TestCase):
 
         assert np.allclose(values1,values2)
 
+    def test_weighted_pivoted_cholesky(self):
+        nrows, npivots = 4, 3
+        A = np.random.normal(0.,1.,(nrows,nrows))
+        A = A.T.dot(A)
+        weights = np.random.uniform(1,2,(nrows))
+        L, pivots, error, flag = pivoted_cholesky_decomposition(
+            A,npivots,pivot_weights=weights)
+
+        B = np.diag(np.sqrt(weights)).dot(A.dot(np.diag(np.sqrt(weights))))
+        C = np.sqrt(weights)[:,np.newaxis]*A*np.sqrt(weights)
+        assert np.allclose(B,C)
+        L2, pivots2, error2, flag2 = pivoted_cholesky_decomposition(
+            C,npivots,pivot_weights=None)
+
+        # check pivots are the same
+        assert np.allclose(pivots,pivots2)
+
+        # check cholesky factors are the same
+        #we have L2.dot(L2.T)=S.dot(A).dot(S)= S.dot(L.dot(L.T)).dot(S)
+        #where S = np.diag(np.sqrt(weights)). So L2=S.dot(L)
+        assert np.allclose(
+            np.sqrt(weights[pivots,np.newaxis])*L[pivots,:npivots],
+            L2[pivots,:npivots])
+
+    def cholesky_qr_pivoting_equivalence(self):
+        nrows, npivots = 4, 4
+        A = np.random.normal(0.,1.,(nrows,nrows))
+        B = A.T.dot(A)
+        cholL, chol_pivots, error, flag = pivoted_cholesky_decomposition(
+            B,npivots)
+
+        import scipy
+        Q,R,P = scipy.linalg.qr(A,pivoting=True)
+        assert np.allclose(P,chol_pivots)
+
+        #print(R.T,'\n',cholL[chol_pivots])
+        assert np.allclose(np.absolute(R.T),np.absolute(cholL[chol_pivots]))
  
 if __name__== "__main__":    
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(

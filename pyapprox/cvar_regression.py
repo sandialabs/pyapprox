@@ -111,7 +111,7 @@ def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,re
     else:
         return CVaR,VaR
 
-def conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted=False):
+def conditional_value_at_risk_subgradient(samples,alpha,weights=None,samples_sorted=False):
     assert samples.ndim==1 or samples.shape[1]==1
     samples = samples.squeeze()
     num_samples = samples.shape[0]
@@ -133,19 +133,102 @@ def conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted
         # grad is for sorted samples so revert to original ordering
         grad = grad[np.argsort(I)]
     return grad
-        
-        
 
-def cvar_smoothing_function_I(samples,eps):
-    return (samples + eps*np.log(1+np.exp(-samples/eps)))
+def smooth_conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted=False):
+    assert samples.ndim==1 or samples.shape[1]==1
+    samples = samples.squeeze()
+    num_samples = samples.shape[0]
+    if weights is None:
+        weights = np.ones(num_samples)/num_samples
+    assert np.allclose(weights.sum(),1)
+    assert weights.ndim==1 or weights.shape[1]==1
+    if not samples_sorted:
+        I = np.argsort(samples)
+        xx,ww = samples[I],weights[I]
+    else:
+        xx,ww=samples,weights
+    VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
+    grad = np.empty(num_samples)
+    grad[:index]=0
+    grad[index]=1/(1-alpha)*(weights[:index+1].sum()-alpha)
+    grad[index+1:]=1/(1-alpha)*weights[index+1:]
+    if not samples_sorted:
+        # grad is for sorted samples so revert to original ordering
+        grad = grad[np.argsort(I)]
+    return grad
 
-def smoothed_conditional_value_at_risk(samples,alpha,eps):
+def smooth_conditional_value_at_risk(smoother_type,eps,alpha,samples,
+                                     weights=None):
     assert samples.ndim==1
     num_samples = samples.shape[0]
+    if weights is not None:
+        weights = np.ones(num_samples)/num_samples
+    assert weights.sum()==1
     q = quantile(samples,alpha)
-    cvar_eps = cvar_smoothing_function_I(samples-q,eps).sum()
-    cvar_eps /= ((1-alpha)*num_samples)
+    cvar_eps = (weights*smooth_max_function(smoother_type,eps,samples-q)).sum()
+    cvar_eps /= (1-alpha)
     return cvar_eps + np.asscalar(q)
+
+def smooth_conditional_value_at_risk_gradient(smoother_type,eps,alpha,samples,weighs=None):
+    assert samples.ndim==1
+    num_samples = samples.shape[0]
+    if weights is not None:
+        weights = np.ones(num_samples)/num_samples
+    assert weights.sum()==1
+    q = quantile(samples,alpha)
+    cvar_eps = weights*smooth_max_function_first_derivative(smoother_type,eps,samples-q)
+    cvar_eps /= (1-alpha)
+    return cvar_eps + np.asscalar(q)
+        
+def smooth_max_function(smoother_type,eps,x):
+    if smoother_type==0:
+        I = np.where(np.isfinite(np.exp(-x/eps)))
+        vals = np.zeros_like(x)
+        vals[I] = (x[I] + eps*np.log(1+np.exp(-x[I]/eps)))
+        assert np.all(np.isfinite(vals))
+        return vals
+    elif smoother_type==1:
+        vals = np.zeros(x.shape)
+        I = np.where((x>0)&(x<eps))#[0]
+        vals[I]=x[I]**3/eps**2*(1-x[I]/(2*eps))
+        J = np.where(x>=eps)#[0]
+        vals[J]=x[J]-eps/2
+        return vals
+    else:
+        msg="incorrect smoother_type"
+        raise Exception(msg)
+
+def smooth_max_function_first_derivative(smoother_type,eps,x):
+    if smoother_type==0:
+        #vals = 1.-1./(1+np.exp(x/eps))
+        vals = 1./(1+np.exp(-x/eps))
+        assert np.all(np.isfinite(vals))
+        return vals.T
+    elif smoother_type==1:
+        vals = np.zeros(x.shape)
+        I = np.where((x>0)&(x<eps))#[0]
+        vals[I]=(x[I]**2*(3*eps-2*x[I]))/eps**3
+        J = np.where(x>=eps)#[0]
+        vals[J]=1
+        return vals.T
+    else:
+        msg="incorrect smoother_type"
+        raise Exception(msg)
+
+def smooth_max_function_second_derivative(smoother_type,eps,x):
+    if smoother_type==0:
+        vals = 1/(eps*(np.exp(-x/eps)+2+np.exp(x/eps)))
+        assert np.all(np.isfinite(vals))
+        return vals
+    elif smoother_type==1:
+        vals = np.zeros(x.shape)
+        I = np.where((x>0)&(x<eps))#[0]
+        vals[I]=6*x[I]*(eps-x[I])/eps**3
+        return vals
+    else:
+        msg="incorrect smoother_type"
+        raise Exception(msg)
+
 
 def cvar_regression_quadrature(basis_matrix,values,alpha,nquad_intervals,
                                verbosity=1,trapezoid_rule=False,
