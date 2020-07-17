@@ -42,20 +42,25 @@ The advection diffusion model, defined here, can be inexpensively evaluated and 
 
 Lets first consider a simple 1D example. The following sets up the problem
 """
+import numpy as np
 import pyapprox as pya
 from scipy.stats import uniform
-from pyapprox.examples.multi_index_advection_diffusion import *
 from pyapprox.models.wrappers import MultiLevelWrapper
+import matplotlib.pyplot as plt
 
 nmodels  = 3
-num_vars = 1
+nvars = 1
 max_eval_concurrency = 1
-base_model = setup_model(num_vars,max_eval_concurrency)
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+benchmark = setup_benchmark(
+    'advection-diffusion',nvars=nvars,corr_len=0.1,max_eval_concurrency=1)
+base_model = benchmark.fun
+#base_model = setup_model(nvars,max_eval_concurrency)
 multilevel_model=MultiLevelWrapper(
     base_model,base_model.base_model.num_config_vars,
     base_model.cost_function)
 variable = pya.IndependentMultivariateRandomVariable(
-    [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(num_vars)])
+    [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(nvars)])
 #%%
 #Now lets us plot each model as a function of the random variable
 lb,ub = variable.get_statistics('interval',alpha=1)[0]
@@ -70,8 +75,10 @@ import dolfin as dl
 plt.figure(figsize=(nmodels*8,2*6))
 config_samples = multilevel_model.map_to_multidimensional_index(config_vars)
 for ii in range(nmodels):
-    nx,ny,dt = base_model.base_model.get_degrees_of_freedom_and_timestep(
-        config_samples[:,ii])
+    #nx,ny,dt = base_model.base_model.get_degrees_of_freedom_and_timestep(
+     #   config_samples[:,ii])
+    nx,ny = base_model.base_model.get_mesh_resolution(config_samples[:2,ii])
+    dt = base_model.base_model.get_timestep(config_samples[2,ii])
     mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
     plt.subplot(2,nmodels,ii+1)
     dl.plot(mesh)
