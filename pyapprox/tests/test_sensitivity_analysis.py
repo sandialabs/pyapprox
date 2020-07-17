@@ -325,11 +325,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
         benchmark = setup_benchmark("ishigami",a=7,b=0.1)
-        def callback(pce):
-            print(pce.pce.num_terms())
         options = {
-            'approx_options':{'max_nsamples':300,'callback':callback}}
-        #options = {'max_nsamples':750,'callback':callback}
+            'approx_options':{'max_nsamples':800,'verbose':0}}
         res = adaptive_analyze_sensitivity(
             benchmark.fun,benchmark.variable.all_variables(),"polynomial_chaos",
             options=options)
@@ -340,7 +337,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
         error = compute_l2_error(
             approx,benchmark.fun,approx.var_trans.variable,
             nsamples)
-        print(error)
         assert error<1e-12
 
 
