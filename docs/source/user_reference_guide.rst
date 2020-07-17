@@ -29,15 +29,11 @@ Sensitivity analysis
 --------------------
 Surrogate based global sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity` computes
-variance based sobol indices by adaptively constructing approximations using
-:func:`pyapprox.approximate.adaptive_approximate`.
+The following functions can be used to extract sensitivity metrics analytically from a surrogates. 
 
-The `adaptive_analyze_sensitivity` function supports the following methods
-
-  - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_sparse_grid`
+  - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid`
     
-  - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_polynomial_chaos`
+  - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos`
 
 The following functions can be used to visualize variance based sensitivity measures
 
