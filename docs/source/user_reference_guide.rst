@@ -29,7 +29,7 @@ Sensitivity analysis
 --------------------
 Surrogate based global sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The following functions can be used to extract sensitivity metrics analytically from a surrogates. 
+The following functions can be used to extract sensitivity metrics analytically from a surrogate. 
 
   - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid`
     
@@ -48,15 +48,28 @@ Local sensitivity analysis
 The :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_morris` computes
 morris sensitivity indices.
 
-Quadrature
+Multivariate Quadrature
 ----------
+Surrogate based quadrature
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+The following functions can be used to compute the mean and variance analytically from a surrogate. 
+
+  - 'sparse_grid'  See :func:`pyapprox.quadrature.compute_mean_and_variance_sparse_grid`
+
+  - 'polynomial_chaos' See :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean` and :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance`
+
+.. Multi-fidelity Monte Carlo quadrature
+.. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Inference
 ---------
 
+The function :func:`pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model` can be used to draw samples from the posterior distribution of variables of a model conditioned on a set of observations with Gaussian noise.
+
 Optimal experimental design
 ---------------------------
+Optimal experimental designs for m-estimators such as least squares and quantile regression can be computed with
 
-Multi-fidelity modeling
------------------------
+:func:`pyapprox.optimal_experimental_design.optimal_experimental_design`
+
 

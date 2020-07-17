@@ -1159,3 +1159,110 @@ class AlphabetOptimalDesign(object):
             return weights
         else:
             return weights, res
+
+def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',noise_multiplier=None, solver_opts=None, pred_factors=None, cvar_tol=None):
+    r"""
+    Compute optimal experimental designs for models of the form
+
+    .. math:: y(\rv)=m(\rv;\theta)+\eta(\rv)\epsilon
+
+    to be used with estimators, such as least-squares and quantile regression, to find approximate parameters 
+    :math:`\hat{\theta}` that are the solutions of
+    
+    .. math:: \mathrm{argmin}_\theta \frac{1}{M}\sum_{i=1}^M e(y_i-m(\rv_i;\theta))
+
+    for some loss function :math:`e`
+
+    Parameters
+    ----------
+    design_pts : np.ndarray (nvars,nsamples)
+        All possible experimental conditions
+
+    design_factors : callable or np.ndarray
+       The function :math:`m(\rv;\theta)` with the signature
+    
+       `design_factors(z,p)->np.ndarray`
+    
+       where `z` are the design points and `p` are the unknown
+       parameters of the function which will be estimated
+       from data collected using the optimal design
+
+       A np.ndarray with shape (nsamples,nfactors) where
+       each column is the jacobian of :math:`m(\rv,\theta)` for some :math:`\theta`
+
+    criteria : string
+       The optimality criteria. Supported criteria are
+    
+       - ``'A'``
+       - ``'D'``
+       - ``'C'``
+       - ``'I'``
+       - ``'R'``
+       - ``'G'``
+
+       The criteria I,G and R require pred_factors to be provided. A, C and D optimality do not. R optimality requires cvar_tol to be provided.
+
+       See [KJLSIAMUQ2020]_ for a definition of these criteria
+
+    regression_type : string
+        The method used to compute the coefficients of the linear model. This defineds the loss function :math:`e`. 
+        Currently supported options are 
+
+        - ``'lstsq'`` 
+        - ``'quantile'``
+
+        Both these options will produce the same design if noise_multiplier is None
+
+    noise_multiplier : np.ndarray (nsamples)
+        An array specifying the noise multiplier :math:`\eta` at each design point
+
+    solver_opts : dict
+        Options passed to the non-linear optimizer which solves
+        the OED problem
+
+    pred_factors : callable or np.ndarray
+        The function :math:`g(\rv;\theta)` with the signature
+    
+        `design_factors(z,p)->np.ndarray`
+    
+        where `z` are the prediction points and `p` are the unknown
+        parameters
+
+        A np.ndarray with shape (nsamples,nfactors) where
+       each column is the jacobian of :math:`g(\rv,\theta)` for some :math:`\theta`
+
+    cvar_tol : float
+        The :math:`0\le\beta<1` quantile defining the R-optimality criteria. When :math:`\beta=0`, I and R optimal designs will be the same.
+
+    Returns
+    -------
+    final_design_pts : np.ndarray (nvars,nfinal_design_pts)
+        The design points used in the experimental design
+
+    nrepetitions : np.ndarray (nfinal_design_pts)
+        The number of times to evaluate the model at each 
+        design point
+
+    References
+    ----------
+    .. [KJLSIAMUQ2020] `D.P. Kouri, J.D. Jakeman, J. Lewis, Risk-Adapted Optimal Experimental Design.`
+       
+    """
+    if not callable(fun):
+        design_factors = fun
+
+    opts = None
+    if pred_factors is not None:
+        opts = {'pred_factors':pred_factors}
+        if cvar_tol is not None:
+            opts['beta']=cvar_tol
+    
+    ncandidate_design_pts = design_pts.shape[1]
+    opt_problem = AlphabetOptimalDesign(criteria,design_factors,regression_type='quantile',noise_multiplier=noise_multiplier,opts=opts)
+    if solver_opts is None:
+        solver_opts  = {'iprint': 1, 'ftol':1e-8}
+    mu = opt_problem.solve(solver_opts)
+    mu = np.round(mu*ncandidate_design_pts)
+    I= np.where(mu>0)[0]
+    return design_pts[:,I], mu[I]
+    

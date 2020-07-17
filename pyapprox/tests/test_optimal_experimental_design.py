@@ -612,6 +612,17 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         mu_d = opt_problem.solve({'iprint': 1, 'ftol':1e-8})
         assert np.allclose(mu,mu_d)
 
+        # test high-level api for D optimality
+        selected_pts, mu_d = optimal_experimental_design(design_samples[np.newaxis,:],design_factors,'D',regresion_type='lstsq',noise_multiplier=None)
+        assert np.allclose(selected_pts, design_samples[I])
+        assert np.allclose(mu_d, np.round(mu[I]*num_design_pts))
+
+        # test high-level api for G optimality
+        selected_pts, mu_g = optimal_experimental_design(design_samples[np.newaxis,:],design_factors,'G',regresion_type='lstsq',noise_multiplier=None,pred_factors=pred_factors)
+        assert np.allclose(selected_pts, design_samples[I])
+        assert np.allclose(mu_g, np.round(mu[I]*num_design_pts))
+        
+
     def test_homoscedastic_roptimality_criterion(self):
         beta=0.5# when beta=0 we get I optimality
         poly_degree = 10;

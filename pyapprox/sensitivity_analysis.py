@@ -510,13 +510,13 @@ def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4)
 
 def analyze_sensitivity_sparse_grid(sparse_grid,max_order=2):
     """
-    Compute sensitivity indices by constructing an adaptive sparse grid
-    and converting it to a polynomial chaos expansion
+    Compute sensitivity indices from a sparse grid
+    by converting it to a polynomial chaos expansion
 
     Parameters
     ----------
-    pce :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
-       The polynomial chaos expansion
+    sparse_grid :class:`pyapprox.adaptive_sparse_grid:CombinationSparseGrid`
+       The sparse grid
 
     max_order : integer
         The maximum interaction order of Sonol indices to compute. A value
