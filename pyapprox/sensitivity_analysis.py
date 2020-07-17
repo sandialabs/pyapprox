@@ -85,40 +85,42 @@ def get_sobol_indices(coefficients,indices,max_order=2):
     
     return interaction_terms, interaction_values/variance
 
-from pyapprox.configure_plots import *
-def plot_pie_chart( fracs, labels = None, title = None, show = True,
-                    fignum = 1, fontsize = 20, filename = None ):
-    plt.figure( fignum )
-    plt.pie( fracs, labels = labels, autopct='%1.1f%%',
-               shadow = True )#, startangle = 90 )
+def plot_main_effects(main_effects, ax, truncation_pct=0.95,
+                      max_slices=5, rv='z', qoi=0):
+    """
+    Plot the main effects in a pie chart showing relative size.
 
-    environment_fontsize = mpl.rcParams['font.size']
-    mpl.rcParams['font.size'] = fontsize
+    Parameters
+    ----------
+    main_effects : np.ndarray (nvars,nqoi)
+        The variance based main effect sensitivity indices
 
-    if ( title is not None ):
-        plt.title( title )
+    ax : :class:`matplotlib.pyplot.axes.Axes`
+        Axes that will be used for plotting
 
-    if ( filename is not None ):
-        plt.savefig( filename, dpi = 300, format = 'png' )
+    truncation_pct : float
+        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        effects to plot
 
-    if ( show ):
-        plt.show()
+    max_slices : integer
+        The maximum number of slices in the pie-chart. Will only
+        be active if the turncation_pct gives more than max_slices
 
-    mpl.rcParams['font.size'] = environment_fontsize
-
-def plot_main_effects( main_effects, title = None, labels = None, show = True,
-                       fignum = 1, fontsize = 20, truncation_pct = 0.95,
-                       max_slices = 5, filename = None, rv='z', qoi=0  ):
-
-    main_effects = main_effects[:,qoi]
+    rv : string
+        The name of the random variables when creating labels
+        
+    qoi : integer
+        The index 0<qoi<nqoi of the quantitiy of interest to plot
+    """
+    main_effects=main_effects[:,qoi]
     assert main_effects.sum()<=1.
 
     # sort main_effects in descending order
-    I = np.argsort( main_effects )[::-1]
-    main_effects = main_effects[I]
+    I=np.argsort( main_effects )[::-1]
+    main_effects=main_effects[I]
 
-    labels = []
-    partial_sum = 0.
+    labels=[]
+    partial_sum=0.
     for i in range( I.shape[0] ):
         if partial_sum < truncation_pct and i < max_slices:
             labels.append( '$%s_{%d}$' %(rv,I[i]+1) )
@@ -129,27 +131,50 @@ def plot_main_effects( main_effects, title = None, labels = None, show = True,
     main_effects.resize( i + 1 )
     if abs( partial_sum - main_effects.sum()) > 100*np.finfo(np.double).eps:
         labels.append( 'other' )
-        main_effects[-1] =  main_effects.sum() - partial_sum
+        main_effects[-1]= main_effects.sum() - partial_sum
 
-    plot_pie_chart( main_effects, labels = labels , title = title, show = show,
-                    fignum = fignum, fontsize = fontsize, filename = filename )
+    ax.pie(main_effects, labels=labels, autopct='%1.1f%%',
+           shadow=True )
 
-def plot_total_effects( total_effects, title = None, labels = None,
-                        show = True, fignum = 1, fontsize = 20,
-                        truncation_pct = 0.95, max_slices = 5,
-                        filename = None, rv = 'z', qoi=0  ):
+def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
+                        rv='z', qoi=0):
+    """
+    Plot the total effects in a pie chart showing relative size.
 
-    total_effects = total_effects[:,qoi]
+    Parameters
+    ----------
+    total_effects : np.ndarray (nvars,nqoi)
+        The variance based total effect sensitivity indices
+
+    ax : :class:`matplotlib.pyplot.axes.Axes`
+        Axes that will be used for plotting
+
+    truncation_pct : float
+        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        effects to plot
+
+    max_slices : integer
+        The maximum number of slices in the pie-chart. Will only
+        be active if the turncation_pct gives more than max_slices
+
+    rv : string
+        The name of the random variables when creating labels
+        
+    qoi : integer
+        The index 0<qoi<nqoi of the quantitiy of interest to plot
+    """
+
+    total_effects=total_effects[:,qoi]
 
     # normalise total effects
     total_effects /= total_effects.sum()
 
     # sort total_effects in descending order
-    I = np.argsort( total_effects )[::-1]
-    total_effects = total_effects[I]
+    I=np.argsort( total_effects )[::-1]
+    total_effects=total_effects[I]
 
-    labels = []
-    partial_sum = 0.
+    labels=[]
+    partial_sum=0.
     for i in range( I.shape[0] ):
         if partial_sum < truncation_pct*total_effects.sum() and i < max_slices:
             labels.append( '$%s_{%d}$' %(rv,I[i]+1) )
@@ -160,27 +185,57 @@ def plot_total_effects( total_effects, title = None, labels = None,
     total_effects.resize( i + 1 )
     if abs( partial_sum - 1. ) > 10 * np.finfo( np.double ).eps:
         labels.append( 'other' )
-        total_effects[-1] = 1. - partial_sum
+        total_effects[-1]=1. - partial_sum
 
-    plot_pie_chart( total_effects, labels = labels, title = title, show = show,
-                    fignum = fignum, fontsize = fontsize, filename = filename )
+    ax.pie(total_effects, labels=labels, autopct='%1.1f%%',
+           shadow=True )
 
 
-def plot_interaction_values( interaction_values, interaction_terms,
-                             title = None, labels = None,
-                             show = True, fignum = 1, fontsize = 20,
-                             truncation_pct = 0.95, max_slices = 5,
-                             filename = None, rv = 'z', qoi=0 ):
+def plot_interaction_values( interaction_values, interaction_terms, ax, 
+                             truncation_pct=0.95, max_slices=5, rv='z', qoi=0):
+    """
+    Plot sobol indices in a pie chart showing relative size.
 
-    interaction_values = interaction_values[:,qoi]
+    Parameters
+    ----------
+    interaction_values : np.ndarray (nvars,nqoi)
+        The variance based Sobol indices
 
+    interaction_terms : nlist (nchoosek(nvars+max_order,nvars))
+        Indices np.ndarrays of varying size specifying the variables in each 
+        interaction in ``interaction_indices``
+
+    ax : :class:`matplotlib.pyplot.axes.Axes`
+        Axes that will be used for plotting
+
+    truncation_pct : float
+        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        effects to plot
+
+    max_slices : integer
+        The maximum number of slices in the pie-chart. Will only
+        be active if the turncation_pct gives more than max_slices
+
+    rv : string
+        The name of the random variables when creating labels
+        
+    qoi : integer
+        The index 0<qoi<nqoi of the quantitiy of interest to plot
+    """
+
+    assert interaction_values.shape[0]==len(interaction_terms)
+    interaction_values=interaction_values[:,qoi]
     interaction_values /= interaction_values.sum()
 
-    labels = []
-    partial_sum = 0.
-    for i in range( interaction_values.shape[0] ):
+    I = np.argsort(interaction_values)[::-1]
+    interaction_values = interaction_values[I]
+    interaction_terms = [interaction_terms[ii] for ii in I]
+
+    labels=[]
+    partial_sum=0.
+    for i in range(interaction_values.shape[0]):
         if partial_sum < truncation_pct and i < max_slices:
-            l = '($'
+            l='($'
             for j in range( len( interaction_terms[i] )-1 ):
                 l += '%s_{%d},' %(rv,interaction_terms[i][j]+1)
             l+= '%s_{%d}$)' %(rv,interaction_terms[i][-1]+1)
@@ -189,16 +244,15 @@ def plot_interaction_values( interaction_values, interaction_terms,
         else:
             break
 
-    interaction_values = interaction_values[:i+1]
+    interaction_values=interaction_values[:i]
     if abs( partial_sum - 1. ) > 10 * np.finfo( np.double ).eps:
         labels.append( 'other' )
-        interaction_values[-1] = 1. - partial_sum
+        interaction_values=np.concatenate([interaction_values,[1.-partial_sum]])
 
 
     assert interaction_values.shape[0] == len ( labels )
-    plot_pie_chart( interaction_values, labels = labels, title = title,
-                    show = show, fignum = fignum, fontsize = fontsize,
-                    filename = filename )
+    ax.pie(interaction_values, labels=labels, autopct='%1.1f%%',
+           shadow=True )
 
 def get_morris_trajectory(nvars,nlevels,eps=0):
     """
@@ -406,7 +460,9 @@ from pyapprox.adaptive_sparse_grid import \
     convert_sparse_grid_to_polynomial_chaos_expansion, variance_refinement_indicator
 
 
-def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
+#def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
+def adaptive_analyze_sensitivity_sparse_grid(fun,variable,max_order=2,
+                                             approx_options=None):
     """
     Compute sensitivity indices by constructing an adaptive sparse grid
     and converting it to a polynomial chaos expansion
@@ -447,9 +503,9 @@ def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsampl
     sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
         The variance based Sobol sensitivity indices
 
-    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
-        Indices specifying the variables in each interaction in 
-        ``sobol_indices``
+    sobol_interaction_indices : nlist (nchoosek(nvars+max_order,nvars))
+        Indices np.ndarrays of varying size specifying the variables in each 
+        interaction in ``sobol_indices``
 
     approx : :class:`pyapprox.adaptive_sparse_grid:CombinationSparseGrid`
        An object which approximates fun.
@@ -457,12 +513,14 @@ def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsampl
     pce : :class:`multivariate_polynomials.PolynomialChaosExpansion`
        The pce respresentation of the sparse grid ``approx``
     """
-
-    sparse_grid = approximate_sparse_grid(
-        fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
-        verbose=verbose,
-        univariate_quad_rule_info=univariate_quad_rule_info,
-        refinement_indicator=refinement_indicator)
+    sparse_grid = adaptive_approximate(
+        fun,variable,'sparse_grid',options=approx_options)
+    
+    #sparse_grid = adaptive_approximate_sparse_grid(
+    #    fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
+    #    verbose=verbose,
+    #    univariate_quad_rule_info=univariate_quad_rule_info,
+    #    refinement_indicator=refinement_indicator)
     pce_opts=define_poly_options_from_variable_transformation(
         sparse_grid.variable_transformation)
     pce = convert_sparse_grid_to_polynomial_chaos_expansion(
@@ -482,7 +540,7 @@ def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsampl
          'approx':pce})
 
 def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4):
-    r"""
+    """
     Compute sensitivity indices by constructing an adaptive polynomial chaos
     expansion.
     
@@ -508,11 +566,11 @@ def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4)
     result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
          Result object with the following attributes
 
-    mu : np.ndarray(nvars,nqoi) 
+    mu : np.ndarray (nvars,nqoi) 
         The sensitivity of each output to each input. Larger mu corresponds to 
         higher sensitivity
     
-    sigma: np.ndarray(nvars,nqoi) 
+    sigma: np.ndarray (nvars,nqoi) 
         A measure of the non-linearity and/or interaction effects of each input
         for each output. Low values suggest a linear realationship between
         the input and output. Larger values suggest a that the output is 
@@ -527,16 +585,15 @@ def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4)
     """
     
     nvars = len(univariate_variables)
-    samples = get_morris_samples(
-        nvars,nlevels,ntrajectories)
+    samples = get_morris_samples(nvars,nlevels,ntrajectories)
     values = function(samples)
     elem_effects = get_morris_elementary_effects(samples,values)
     mu,sigma = get_morris_sensitivity_indices(elem_effects)
     
     return SensivitityResult(
         {'morris_mu':pce_main_effects,
-         'morris_sigma':pce_total_effects
-         'samples':samples,'values':values)
+         'morris_sigma':pce_total_effects,
+         'samples':samples,'values':values})
     
 
 from pyapprox.approximate import adaptive_approximate
@@ -648,3 +705,181 @@ def adaptive_analyze_sensitivity(fun,variable,method,options=None):
     if options is None:
         options = {}
     return methods[method](fun,variable,**options)
+
+def analyze_sensitivity_sparse_grid(sparse_grid,max_order=2):
+    """
+    Compute sensitivity indices by constructing an adaptive sparse grid
+    and converting it to a polynomial chaos expansion
+
+    Parameters
+    ----------
+    pce :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+       The polynomial chaos expansion
+
+    max_order : integer
+        The maximum interaction order of Sonol indices to compute. A value
+        of 2 will compute all pairwise interactions, a value of 3 will 
+        compute indices for all interactions involving 3 variables. The number
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
+        when nvars is high the number of indices will increase rapidly with 
+        max_order.
+
+
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object with the following attributes
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
+    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
+        The variance based Sobol sensitivity indices
+
+    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
+        Indices specifying the variables in each interaction in 
+        ``sobol_indices``
+
+    pce : :class:`multivariate_polynomials.PolynomialChaosExpansion`
+       The pce respresentation of the sparse grid ``approx``
+    """
+    pce_opts=define_poly_options_from_variable_transformation(
+        sparse_grid.variable_transformation)
+    pce = convert_sparse_grid_to_polynomial_chaos_expansion(
+        sparse_grid,pce_opts)
+    pce_main_effects,pce_total_effects=\
+        get_main_and_total_effect_indices_from_pce(
+            pce.get_coefficients(),pce.get_indices())
+
+    interaction_terms, pce_sobol_indices = get_sobol_indices(
+            pce.get_coefficients(),pce.get_indices(),max_order=max_order)
+    
+    return SensivitityResult(
+        {'main_effects':pce_main_effects,
+         'total_effects':pce_total_effects,
+         'sobol_indices':pce_sobol_indices,
+         'sobol_interaction_indices':interaction_terms,
+         'pce':pce})
+
+def analyze_sensitivity_polynomial_chaos(pce,max_order=2):
+    """
+    Compute variance based sensitivity metrics from a polynomial chaos expansion
+
+    Parameters
+    ----------
+    pce :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+       The polynomial chaos expansion
+
+    max_order : integer
+        The maximum interaction order of Sonol indices to compute. A value
+        of 2 will compute all pairwise interactions, a value of 3 will 
+        compute indices for all interactions involving 3 variables. The number
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
+        when nvars is high the number of indices will increase rapidly with 
+        max_order.
+
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object with the following attributes
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
+    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
+        The variance based Sobol sensitivity indices
+
+    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
+        Indices specifying the variables in each interaction in 
+        ``sobol_indices``
+    """
+    pce_main_effects,pce_total_effects=\
+        get_main_and_total_effect_indices_from_pce(
+            pce.get_coefficients(),pce.get_indices())
+
+    interaction_terms, pce_sobol_indices = get_sobol_indices(
+        pce.get_coefficients(),pce.get_indices(),
+        max_order=max_order)
+    
+    return SensivitityResult(
+        {'main_effects':pce_main_effects,
+         'total_effects':pce_total_effects,
+         'sobol_indices':pce_sobol_indices,
+         'sobol_interaction_indices':interaction_terms})
+
+def analyze_sensitivity_polynomial_chaos(train_samples,train_vals,max_order=2,
+                                         approx_options=None):
+    r"""
+    Compute sensitivity indices data provided by the user by constructing a 
+    Polynomial Chaos Expansion of a function from a fixed data set.
+
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+
+    max_order : integer
+        The maximum interaction order of Sonol indices to compute. A value
+        of 2 will compute all pairwise interactions, a value of 3 will 
+        compute indices for all interactions involving 3 variables. The number
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
+        when nvars is high the number of indices will increase rapidly with 
+        max_order.
+
+    approx_options : dict
+        Options for building the polynomial expansion. See documentation of
+        :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+
+    
+    """
+
+    pce = approximate(train_samples,train_vals,method='polynomial_chaos',
+                      options=approx_options)
+
+    
+
+def analyze_sensitivity(fun,variable,method,options=None):
+    r"""
+    Compute sensitivity indices data provided by the user.
+    
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+
+    method : string
+        Type of approximation. Should be one of
+
+        - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos`
+        - 'gaussian_process'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_gaussian_process`
+        
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object. See the documentation of the supported methods
+    """
+
+    methods = {'polynomial_chaos':analyze_sensitivity_polynomial_chaos,
+               'gaussian_process':analyze_sensitivity_gaussian_process}
+
+    if method not in methods:
+        msg = f'Method {method} not found.\n Available methods are:\n'
+        for key in methods.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+
+    if options is None:
+        options = {}
+    return methods[method](train_samples,train_vals,**options)

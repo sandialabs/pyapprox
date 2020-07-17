@@ -232,7 +232,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
 
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-def compute_l2_error(f,g,variable,nsamples):
+def compute_l2_error(f,g,variable,nsamples,rel=False):
     r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
 
@@ -265,6 +265,10 @@ def compute_l2_error(f,g,variable,nsamples):
 
     nsamples : integer
         The number of samples used to compute the :math:`\ell^2` error
+
+    rel : boolean
+        True - compute relative error
+        False - compute absolute error
     
     Returns
     -------
@@ -275,8 +279,11 @@ def compute_l2_error(f,g,variable,nsamples):
     validation_vals = f(validation_samples)
     approx_vals = g(validation_samples)
     assert validation_vals.shape==approx_vals.shape
-    error=np.linalg.norm(approx_vals-validation_vals,axis=0)/np.sqrt(
-        validation_samples.shape[1])
+    error=np.linalg.norm(approx_vals-validation_vals,axis=0)
+    if not rel:
+        error /=np.sqrt(validation_samples.shape[1])
+    else:
+        error /=np.linalg.norm(validation_vals,axis=0)
     return error
 
 def adaptive_approximate(fun,variable,method,options=None):

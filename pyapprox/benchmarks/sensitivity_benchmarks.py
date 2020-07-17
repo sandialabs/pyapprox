@@ -202,7 +202,8 @@ def get_ishigami_funciton_statistics(a=7,b=0.1):
     total_effects=1-np.array([D_2+D_3+D_23,D_1+D_3+D_13,D_1+D_2+D_12])/variance
     assert np.allclose(total_effects1,total_effects)
     sobol_indices = np.array([D_1,D_2,D_3,D_12,D_13,D_23,D_123])/variance
-    return mean, variance, main_effects[:,np.newaxis], total_effects[:,np.newaxis], sobol_indices[:,np.newaxis]
+    sobol_interaction_indices = [[0],[1],[2],[0,1],[0,2],[1,2],[0,1,2]]
+    return mean, variance, main_effects[:,np.newaxis], total_effects[:,np.newaxis], sobol_indices[:,np.newaxis], sobol_interaction_indices
 
 def sobol_g_function(coefficients,samples):
     """
@@ -237,3 +238,42 @@ def get_sobol_g_function_statistics(a,interaction_terms=None):
         unnormalized_main_effects[index].prod()/variance
         for index in interaction_terms])
     return mean,variance,main_effects[:,np.newaxis],total_effects[:,np.newaxis],sobol_indices[:,np.newaxis]
+
+
+def morris_function(samples):
+    assert samples.shape[0]==20
+    beta0 = np.random.randn()
+    beta_first_order = np.empty(20)
+    beta_first_order[:10]=20
+    beta_first_order[10:] = np.random.normal(0,1,10)
+    beta_second_order = np.empty((20,20))
+    beta_second_order[:6,:6]=-15
+    beta_second_order[6:,6:] = np.random.normal(0,1,(14,14))
+    #beta_third_order = np.zeros((20,20,20))
+    #beta_third_order[:5,:5,:5]=-10
+    beta_third_order=-10
+    #beta_forth_order = np.zeros((20,20,20,20))
+    #beta_forth_order[:4,:4,:4,:4]=5
+    beta_forth_order = 5
+    ww = 2*(samples-0.5)
+    I = [3,5,7]
+    ww[I]=2 * (1.1 * samples[I]/(samples[I]+0.1)-0.5)
+
+    values = beta0
+    values += np.sum(beta_first_order[:,np.newaxis]*ww,axis=0)
+
+    for jj in range(20):
+        for ii in range(jj):
+            values += beta_second_order[ii,jj]*ww[ii]*ww[jj]
+
+    for kk in range(5):
+        for jj in range(kk):
+            for ii in range(jj):
+                values += beta_third_order*ww[ii]*ww[jj]*ww[kk]
+
+    for ll in range(4):
+        for kk in range(ll):
+            for jj in range(kk):
+                for ii in range(jj):
+                    values += beta_forth_order*ww[ii]*ww[jj]*ww[kk]*ww[ll]
+    return values[:,np.newaxis]
