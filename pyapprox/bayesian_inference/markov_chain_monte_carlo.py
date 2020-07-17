@@ -203,6 +203,52 @@ def get_pymc_variable(rv,pymc_var_name):
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
         algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None):
+    """
+    Draw samples from the posterior distribution using Markov Chain Monte Carlo
+    for data that satisfies
+
+    .. math:: y=f(z)+\epsilon
+
+    where :math:`y` is a vector of observations, :math:`z` are the parameters of a function which are to be inferred, and :math:`\epsilon` is Gaussian noise.
+
+    Parameters
+    ----------
+    loglike : pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
+        A log-likelihood function associated with a Gaussian error model
+
+    variables : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z.
+        This is used to generate random samples from this join density
+
+    ndraws : integer
+        The number of posterior samples
+
+    nburn : integer
+        The number of samples to discard during initialization
+
+    njobs : integer
+        The number of prallel chains
+
+    algorithm : string
+        The MCMC algorithm should be one of
+
+        - 'nuts'
+        - 'metropolis'
+        - 'smc'
+
+    get_map : boolean
+        If true return the MAP
+    
+    print_summary : boolean
+        If true print summary statistics about the posterior samples
+
+    loglike_grad : callable
+        Function with signature
+      
+       ``loglikegrad(z) -> np.ndarray (nvars)``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples
+    """
     
     # create our Op
     if algorithm!='nuts':

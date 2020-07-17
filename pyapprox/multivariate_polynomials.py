@@ -448,9 +448,26 @@ class PolynomialChaosExpansion(object):
         return self.value(samples)
 
     def mean(self):
+        """
+        Compute the mean of the polynomial chaos expansion
+
+        Returns
+        -------
+        mean : np.ndarray (nqoi)
+            The mean of each quantitity of interest
+        """
         return self.coefficients[0,:]
 
     def variance(self):
+        """
+        Compute the variance of the polynomial chaos expansion
+
+        Returns
+        -------
+        var : np.ndarray (nqoi)
+            The variance of each quantitity of interest
+        """
+        
         var = np.sum(self.coefficients[1:,:]**2,axis=0)
         return var
 
