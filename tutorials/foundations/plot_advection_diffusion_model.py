@@ -197,7 +197,7 @@ def plot_error_vs_cost(data,cost_type='ndof'):
     mpl.rcParams['axes.titlesize'] = 30
     mpl.rcParams['xtick.labelsize'] = 30
     mpl.rcParams['ytick.labelsize'] = 30
-
+    mpl.rcParams['text.latex.preamble'] = [r'\usepackage{siunitx}', r'\usepackage{amsmath}',r'\usepackage{amssymb}']
     validation_levels = costs.shape
     fig,axs = plt.subplots(1,len(validation_levels),
                            figsize=(len(validation_levels)*8,6),
@@ -242,8 +242,8 @@ def plot_error_vs_cost(data,cost_type='ndof'):
     axs[1].legend()
     axs[2].legend()
     for ii in range(len(validation_levels)):
-        axs[ii].set_xlabel(r'$\mathrm{Work}$ $W_{\boldsymbol{\alpha}}$')
-    axs[0].set_ylabel(r'$\left\lvert \mathbb{E}[f]-\mathbb{E}[f_{\boldsymbol{\alpha}}]\right\rvert / \left\lvert \mathbb{E}[f]\right\rvert$')
+        axs[ii].set_xlabel(r'$\mathrm{Work}$ $W_{\alpha}$')
+        axs[0].set_ylabel(r'$\left| \mathbb{E}[f]-\mathbb{E}[f_{\alpha}]\right| / \left| \mathbb{E}[f]\right|$')
     return fig,axs
 
 def generate_random_samples(m,n):
@@ -257,7 +257,7 @@ nvars,corr_len = 2,0.1
 #model = setup_model(nvars,corr_len,max_eval_concurrency=1)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 benchmark = setup_benchmark(
-    'advection-diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=4)
+    'advection-diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
 model = benchmark.fun
 validation_levels = [5]*3
 data = error_vs_cost(

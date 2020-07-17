@@ -238,14 +238,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.approximate import adaptive_approximate
         benchmark = setup_benchmark("oakley")
-
-        # import matplotlib.pyplot as plt
-        # fig,axs = plt.subplots(1,3,figsize=(3*8,6))
-        # pya.plot_main_effects(benchmark['main_effects'],axs[0])
-        # pya.plot_total_effects(benchmark['total_effects'],axs[1])
-        # pya.plot_interaction_values(benchmark['sobol_indices'],benchmark['sobol_interaction_indices'],axs[2])
-        # plt.show()
-        # assert False
         
         options = {'max_nsamples':2000,'verbose':0}
         approx = adaptive_approximate(
