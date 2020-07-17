@@ -406,7 +406,7 @@ from pyapprox.adaptive_sparse_grid import \
     convert_sparse_grid_to_polynomial_chaos_expansion, variance_refinement_indicator
 
 
-def analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
+def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
     sparse_grid = approximate_sparse_grid(
         fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
         verbose=verbose,
@@ -430,18 +430,19 @@ def analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,to
          'sobol_interaction_indices':interaction_terms})
 
 from pyapprox.adaptive_polynomial_chaos import \
-    variance_pce_refinement_indicator
-def analyze_sensitivity_polynomial_chaos(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,growth_rules=None,refinement_indicator=variance_pce_refinement_indicator):
-    pce = approximate_polynomial_chaos(
+   variance_pce_refinement_indicator
+def adaptive_analyze_sensitivity_polynomial_chaos_dep(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,growth_rules=None,refinement_indicator=variance_pce_refinement_indicator,callback=None):
+    pce = adaptive_approximate_polynomial_chaos(
         fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
         verbose=verbose,growth_rules=growth_rules,
-        refinement_indicator=refinement_indicator)
+        refinement_indicator=refinement_indicator,callback=callback)
     pce_main_effects,pce_total_effects=\
         get_main_and_total_effect_indices_from_pce(
             pce.pce.get_coefficients(),pce.pce.get_indices())
 
     interaction_terms, pce_sobol_indices = get_sobol_indices(
-            pce.pce.get_coefficients(),pce.pce.get_indices(),max_order=max_order)
+            pce.pce.get_coefficients(),pce.pce.get_indices(),
+        max_order=max_order)
     
     return SensivitityResult(
         {'main_effects':pce_main_effects,
@@ -451,10 +452,32 @@ def analyze_sensitivity_polynomial_chaos(fun,univariate_variables,max_nsamples=1
 
 def analyze_sensitivity_morris(fun,univariate_variables):
     pass
+
+from pyapprox.approximate import adaptive_approximate
+def adaptive_analyze_sensitivity_polynomial_chaos(fun,variable,max_order=2,
+                                                  approx_options=None):
+    pce = adaptive_approximate(
+        fun,variable,'polynomial_chaos',options=approx_options)
     
-def analyze_sensitivity(fun,variable,method,options=None):
+    pce_main_effects,pce_total_effects=\
+        get_main_and_total_effect_indices_from_pce(
+            pce.pce.get_coefficients(),pce.pce.get_indices())
+
+    interaction_terms, pce_sobol_indices = get_sobol_indices(
+        pce.pce.get_coefficients(),pce.pce.get_indices(),
+        max_order=max_order)
+    
+    return SensivitityResult(
+        {'main_effects':pce_main_effects,
+         'total_effects':pce_total_effects,
+         'sobol_indices':pce_sobol_indices,
+         'sobol_interaction_indices':interaction_terms,
+         'approx':pce.pce})
+    
+    
+def adaptive_analyze_sensitivity(fun,variable,method,options=None):
     r"""
-    Approximation of a scalar or vector-valued function of one or more variables
+    Compute sensitivity indices by adaptively sampling a function
     
     Parameters
     ----------
@@ -469,8 +492,8 @@ def analyze_sensitivity(fun,variable,method,options=None):
     method : string
         Type of approximation. Should be one of
 
-        - 'sparse-grid'
-        - 'polynomial-chaos'
+        - 'sparse_grid'
+        - 'polynomial_chaos'
         - 'morris'
         
     Returns
@@ -479,8 +502,8 @@ def analyze_sensitivity(fun,variable,method,options=None):
        An object which approximates fun.
     """
 
-    methods = {'sparse-grid':analyze_sensitivity_sparse_grid,
-               'polynomial-chaos':analyze_sensitivity_polynomial_chaos,
+    methods = {'sparse_grid':adaptive_analyze_sensitivity_sparse_grid,
+               'polynomial_chaos':adaptive_analyze_sensitivity_polynomial_chaos,
                'morris':analyze_sensitivity_morris}
 
     if method not in methods:

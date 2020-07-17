@@ -20,7 +20,7 @@ class TestApproximate(unittest.TestCase):
     def test_approximate_sparse_grid_user_options(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
-        univariate_variables = [stats.uniform(0,1)]*nvars
+        univariate_variables = benchmark['variable'].all_variables()
         errors = []
         def callback(approx):
             nsamples = 1000
@@ -31,15 +31,28 @@ class TestApproximate(unittest.TestCase):
         univariate_quad_rule_info = [
             pya.clenshaw_curtis_in_polynomial_order,
             pya.clenshaw_curtis_rule_growth]
+        # ishigami has same value at first 3 points in clenshaw curtis rule
+        # and so adaptivity will not work so use different rule
+        #growth_rule=partial(pya.constant_increment_growth_rule,4)
+        #univariate_quad_rule_info = [
+        #    pya.get_univariate_leja_quadrature_rule(
+        #        univariate_variables[0],growth_rule),growth_rule]
+        refinement_indicator = partial(
+            variance_refinement_indicator,convex_param=0.5)
         options = {'univariate_quad_rule_info':univariate_quad_rule_info,
-                   'max_nsamples':110,'tol':0,'verbose':False}
+                   'max_nsamples':300,'tol':0,'verbose':False,
+                   'callback':callback,'verbose':0,
+                   'refinement_indicator':refinement_indicator}
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse_grid',callback,options)
-        assert np.min(errors)<1e-12
+            benchmark.fun,univariate_variables,'sparse_grid',options)
+        #print(np.min(errors))
+        assert np.min(errors)<1e-3
 
     def test_approximate_polynomial_chaos_default_options(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
+        # we can use different univariate variables than specified by
+        # benchmark
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
             benchmark.fun,univariate_variables,method='polynomial_chaos')

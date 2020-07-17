@@ -12,7 +12,8 @@ response surface approximations from training data.
 
 The `approximate` function supports the following methods
 
-  - 'polynomial-chaos' See :func:`pyapprox.approximate.approximate_polynomial_chaos`
+  - 'polynomial_chaos' See :func:`pyapprox.approximate.approximate_polynomial_chaos`
+  - 'gaussian_process' See :func:`pyapprox.approximate.approximate_gaussian_process`
 
 Supervised active learning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -21,8 +22,8 @@ response surface approximations of a function ``fun``, As the approximation is b
 
 The `adaptive_approximate` function supports the following methods
 
-  - 'sparse-grid' See :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
-  - 'polynomial-chaos' See :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+  - 'sparse_grid' See :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
+  - 'polynomial_chaos' See :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
 
 
 

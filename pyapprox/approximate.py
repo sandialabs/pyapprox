@@ -6,7 +6,7 @@ from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
-def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=False):
+def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=0):
     """
     Compute a sparse grid approximation of a function.
 
@@ -76,7 +76,7 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         terminated when the estimate error in the sparse grid (determined by 
         ``refinement_indicator`` is below tol.
 
-    verbose: boolean
+    verbose : integer
         Controls messages printed during construction.
 
     Returns
@@ -92,16 +92,18 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans)
+            var_trans)
     else:
         quad_rules,growth_rules=univariate_quad_rule_info
         unique_quadrule_indices=None
     admissibility_function = partial(
         max_level_admissibility_function,np.inf,[np.inf]*nvars,max_nsamples,
         tol,verbose=verbose)
-    sparse_grid.setup(fun, None, variance_refinement_indicator,
-                      admissibility_function, growth_rules, quad_rules,
-                      var_trans, unique_quadrule_indices=unique_quadrule_indices)
+    sparse_grid.setup(
+        fun, None,refinement_indicator,
+        admissibility_function, growth_rules, quad_rules,
+        var_trans,unique_quadrule_indices=unique_quadrule_indices,
+        verbose=verbose)
     sparse_grid.build(callback)
     return sparse_grid
 
@@ -168,7 +170,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
         terminated when the estimate error in the sparse grid (determined by 
         ``refinement_indicator`` is below tol.
 
-    verbose: boolean
+    verbose : integer
         Controls messages printed during construction.
 
     ncandidate_samples : integer
@@ -206,8 +208,11 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
         # Todo implement default for non-bounded variables that uses induced
         # sampling
         # candidate samples must be in canonical domain
+        from pyapprox import halton_sequence
         candidate_samples = -np.cos(
-            np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
+            np.pi*halton_sequence(nvars,1,int(ncandidate_samples+1)))
+        #candidate_samples = -np.cos(
+        #    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
     else:
         candidate_samples = generate_candidate_samples(ncandidate_samples)
         
@@ -272,7 +277,7 @@ def compute_l2_error(f,g,variable,nsamples):
         validation_samples.shape[1])
     return error
 
-def adaptive_approximate(fun,variable,method,callback=None,options=None):
+def adaptive_approximate(fun,variable,method,options=None):
     r"""
     Adaptive approximation of a scalar or vector-valued function of one or 
     more variables. These methods choose the samples to at which to 
@@ -295,13 +300,6 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
         - 'sparse_grid'
         - 'polynomial_chaos'
         - 'gaussian_process'
-
-    callback : callable
-        Function called after each iteration with the signature
-        
-        ``callback(approx_k)``
-
-        where approx_k is the current approximation object.
         
     Returns
     -------
@@ -310,9 +308,7 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
     """
 
     methods = {'sparse_grid':adaptive_approximate_sparse_grid,
-               'polynomial_chaos':adaptive_approximate_polynomial_chaos}#,
-               #'tensor-train':approximate_tensor_train,
-               #'gaussian_process':approximate_gaussian_process}
+               'polynomial_chaos':adaptive_approximate_polynomial_chaos}
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -322,7 +318,7 @@ def adaptive_approximate(fun,variable,method,callback=None,options=None):
 
     if options is None:
         options = {}
-    return methods[method](fun,variable,callback,**options)
+    return methods[method](fun,variable,**options)
 
 def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
                                  basis_type='expanding_basis',
@@ -382,7 +378,6 @@ def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
     res = funcs[basis_type](poly,train_samples,train_vals,**options)[0]
     return res
 
-from pyapprox.gaussian_process import approximate_gaussian_process
 def approximate(train_samples,train_vals,method,options=None):
     r"""
     Approximate a scalar or vector-valued function of one or 
@@ -721,3 +716,53 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         msg+=f' using {train_samples.shape[1]} samples'
         print(msg)
     return pce, best_cv_score
+
+def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_optimizer=5,verbosity=0):
+    r"""
+    Compute a Gaussian process approximation of a function from a fixed data 
+    set using the Matern kernel
+
+    .. math::
+
+       k(z_i, z_j) =  \frac{1}{\Gamma(\nu)2^{\nu-1}}\Bigg(
+       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)^\nu K_\nu\Bigg(
+       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)
+
+    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance, 
+    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the 
+    modified Bessel function.
+
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars,nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars,nsamples)
+        The values of the function at ``train_samples``
+
+    kernel_nu : string
+        The parameter :math:`\nu` of the Matern kernel. When :math:`\nu\to\inf`
+        the Matern kernel is equivalent to the squared-exponential kernel.
+
+    n_restarts_optimizer : int
+        The number of local optimizeation problems solved to find the 
+        GP hyper-parameters
+
+    verbosity : integer
+        Controls the amount of information printed to screen
+
+    Returns
+    -------
+    gaussian_process : :class:`pyapprox.gaussian_process.GaussianProcess`
+        The Gaussian process
+    """
+    from sklearn.gaussian_process.kernels import Matern, WhiteKernel
+    from pyapprox.gaussian_process import GaussianProcess
+    kernel = 1*Matern(length_scale_bounds=(1e-2, 10), nu=nu)
+    # optimize variance
+    kernel = 1*kernel
+    # optimize gp noise
+    kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
+    gp = GaussianProcess(kernel,n_restarts_optimizer=n_restarts_optimizer)
+    gp.fit(train_samples,train_vals)
+    return gp
