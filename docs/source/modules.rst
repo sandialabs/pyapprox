@@ -1,6 +1,9 @@
 .. automodapi:: pyapprox.approximate
    :no-heading:
 
+.. automodapi:: pyapprox.sensitivity_analysis
+   :no-heading:
+
 .. automodapi:: pyapprox.benchmarks.benchmarks
    :no-heading:
 

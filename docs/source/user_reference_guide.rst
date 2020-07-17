@@ -17,7 +17,7 @@ The `approximate` function supports the following methods
 
 Supervised active learning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-:func:`pyapprox.approximate.adaptive_approximate` produces adaptive
+The :func:`pyapprox.approximate.adaptive_approximate` function produces adaptive
 response surface approximations of a function ``fun``, As the approximation is built the function being approximated is sampled at locations that greedily minimize an estimate of error.
 
 The `adaptive_approximate` function supports the following methods
@@ -25,10 +25,32 @@ The `adaptive_approximate` function supports the following methods
   - 'sparse_grid' See :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
   - 'polynomial_chaos' See :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
 
-
-
 Sensitivity analysis
 --------------------
+Surrogate based global sensitivity analysis
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity` computes
+variance based sobol indices by adaptively constructing approximations using
+:func:`pyapprox.approximate.adaptive_approximate`.
+
+The `adaptive_analyze_sensitivity` function supports the following methods
+
+  - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_sparse_grid`
+    
+  - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_polynomial_chaos`
+
+The following functions can be used to visualize variance based sensitivity measures
+
+  - :func:`pyapprox.sensitivity_analysis.plot_main_effects`
+
+  - :func:`pyapprox.sensitivity_analysis.plot_total_effects`
+
+  - :func:`pyapprox.sensitivity_analysis.plot_interaction_values`
+    
+Local sensitivity analysis
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+The :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_morris` computes
+morris sensitivity indices.
 
 Quadrature
 ----------

@@ -407,6 +407,57 @@ from pyapprox.adaptive_sparse_grid import \
 
 
 def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,univariate_quad_rule_info=None,refinement_indicator=variance_refinement_indicator):
+    """
+    Compute sensitivity indices by constructing an adaptive sparse grid
+    and converting it to a polynomial chaos expansion
+    
+    Parameters
+    ----------
+    fun : callable
+        The function being analyzed
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    max_order : integer
+        The maximum interaction order of Sonol indices to compute. A value
+        of 2 will compute all pairwise interactions, a value of 3 will 
+        compute indices for all interactions involving 3 variables. The number
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
+        when nvars is high the number of indices will increase rapidly with 
+        max_order.
+
+    approx_options : dict
+        Options for building the polynomial expansion. See documentation of
+        :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+        
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object with the following attributes
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
+    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
+        The variance based Sobol sensitivity indices
+
+    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
+        Indices specifying the variables in each interaction in 
+        ``sobol_indices``
+
+    approx : :class:`pyapprox.adaptive_sparse_grid:CombinationSparseGrid`
+       An object which approximates fun.
+
+    pce : :class:`multivariate_polynomials.PolynomialChaosExpansion`
+       The pce respresentation of the sparse grid ``approx``
+    """
+
     sparse_grid = approximate_sparse_grid(
         fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
         verbose=verbose,
@@ -427,35 +478,118 @@ def adaptive_analyze_sensitivity_sparse_grid(fun,univariate_variables,max_nsampl
         {'main_effects':pce_main_effects,
          'total_effects':pce_total_effects,
          'sobol_indices':pce_sobol_indices,
-         'sobol_interaction_indices':interaction_terms})
+         'sobol_interaction_indices':interaction_terms,
+         'approx':pce})
 
-from pyapprox.adaptive_polynomial_chaos import \
-   variance_pce_refinement_indicator
-def adaptive_analyze_sensitivity_polynomial_chaos_dep(fun,univariate_variables,max_nsamples=100,tol=0,verbose=False,max_order=2,growth_rules=None,refinement_indicator=variance_pce_refinement_indicator,callback=None):
-    pce = adaptive_approximate_polynomial_chaos(
-        fun,univariate_variables,max_nsamples=max_nsamples,tol=tol,
-        verbose=verbose,growth_rules=growth_rules,
-        refinement_indicator=refinement_indicator,callback=callback)
-    pce_main_effects,pce_total_effects=\
-        get_main_and_total_effect_indices_from_pce(
-            pce.pce.get_coefficients(),pce.pce.get_indices())
+def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4):
+    r"""
+    Compute sensitivity indices by constructing an adaptive polynomial chaos
+    expansion.
+    
+    Parameters
+    ----------
+    fun : callable
+        The function being analyzed
 
-    interaction_terms, pce_sobol_indices = get_sobol_indices(
-            pce.pce.get_coefficients(),pce.pce.get_indices(),
-        max_order=max_order)
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    ntrajectories : integer
+        The number of Morris trajectories requested
+
+
+    nlevels : integer
+        The number of levels used for to define the morris grid.
+        
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object with the following attributes
+
+    mu : np.ndarray(nvars,nqoi) 
+        The sensitivity of each output to each input. Larger mu corresponds to 
+        higher sensitivity
+    
+    sigma: np.ndarray(nvars,nqoi) 
+        A measure of the non-linearity and/or interaction effects of each input
+        for each output. Low values suggest a linear realationship between
+        the input and output. Larger values suggest a that the output is 
+        nonlinearly dependent on the input and/or the input interacts with 
+        other inputs
+
+    samples : np.ndarray(nvars,ntrajectories*(nvars+1))
+        The coordinates of each morris trajectory
+
+    values : np.ndarray(nvars,nqoi)
+        The values of ``fun`` at each sample in ``samples``
+    """
+    
+    nvars = len(univariate_variables)
+    samples = get_morris_samples(
+        nvars,nlevels,ntrajectories)
+    values = function(samples)
+    elem_effects = get_morris_elementary_effects(samples,values)
+    mu,sigma = get_morris_sensitivity_indices(elem_effects)
     
     return SensivitityResult(
-        {'main_effects':pce_main_effects,
-         'total_effects':pce_total_effects,
-         'sobol_indices':pce_sobol_indices,
-         'sobol_interaction_indices':interaction_terms})
-
-def analyze_sensitivity_morris(fun,univariate_variables):
-    pass
+        {'morris_mu':pce_main_effects,
+         'morris_sigma':pce_total_effects
+         'samples':samples,'values':values)
+    
 
 from pyapprox.approximate import adaptive_approximate
 def adaptive_analyze_sensitivity_polynomial_chaos(fun,variable,max_order=2,
                                                   approx_options=None):
+    r"""
+    Compute sensitivity indices by constructing an adaptive polynomial chaos
+    expansion.
+    
+    Parameters
+    ----------
+    fun : callable
+        The function to be minimized
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    max_order : integer
+        The maximum interaction order of Sonol indices to compute. A value
+        of 2 will compute all pairwise interactions, a value of 3 will 
+        compute indices for all interactions involving 3 variables. The number
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
+        when nvars is high the number of indices will increase rapidly with 
+        max_order.
+
+    approx_options : dict
+        Options for building the polynomial expansion. See documentation of
+        :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+        
+    Returns
+    -------
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object with the following attributes
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
+    sobol_indices : np.ndarray (nchoosek(nvars+max_order,nvars),nqoi)
+        The variance based Sobol sensitivity indices
+
+    sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
+        Indices specifying the variables in each interaction in 
+        ``sobol_indices``
+
+    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+       An object which approximates fun.
+    """
+
     pce = adaptive_approximate(
         fun,variable,'polynomial_chaos',options=approx_options)
     
@@ -482,7 +616,7 @@ def adaptive_analyze_sensitivity(fun,variable,method,options=None):
     Parameters
     ----------
     fun : callable
-        The function to be minimized
+        The function being analyzed
 
         ``fun(z) -> np.ndarray``
 
@@ -492,14 +626,13 @@ def adaptive_analyze_sensitivity(fun,variable,method,options=None):
     method : string
         Type of approximation. Should be one of
 
-        - 'sparse_grid'
-        - 'polynomial_chaos'
-        - 'morris'
+        - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_sparse_grid`
+        - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.adaptive_analyze_sensitivity_polynomial_chaos`
         
     Returns
     -------
-    approx : Object
-       An object which approximates fun.
+    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+         Result object. See the documentation of the supported methods
     """
 
     methods = {'sparse_grid':adaptive_analyze_sensitivity_sparse_grid,

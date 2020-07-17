@@ -903,7 +903,7 @@ class SubSpaceRefinementManager(object):
                 subspace_index,num_new_subspace_samples[ii],self)
             self.active_subspace_queue.put((priority,error,cnt))
             self.error = np.concatenate([self.error,[error]])
-            
+
             if self.verbose>1:
                 msg = f'adding new index {subspace_index} '
                 msg += f'with priority {priority}'

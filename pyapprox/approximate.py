@@ -63,7 +63,7 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         ``growth_rule(l)->integer``
 
         where the output ``nsamples`` specifies the number of samples in the 
-        quadrature rule of level``l``.
+        quadrature rule of level ``l``.
 
         If either entry is a callable then the same quad or growth rule is 
         applied to every variable.
@@ -111,7 +111,7 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
-def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=False,ncandidate_samples=1e4,generate_candidate_samples=None):
+def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=0,ncandidate_samples=1e4,generate_candidate_samples=None):
     r"""
     Compute an adaptive Polynomial Chaos Expansion of a function.
 
@@ -157,7 +157,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
         ``growth_rule(l)->integer``
 
         where the output ``nsamples`` specifies the number of indices of the 
-        univariate basis of level``l``.
+        univariate basis of level ``l``.
 
         If the entry is a callable then the same growth rule is 
         applied to every variable.
@@ -218,6 +218,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
         
     pce = AdaptiveLejaPCE(
         nvars,candidate_samples,factorization_type='fast')
+    pce.verbose=verbose
     admissibility_function = partial(
         max_level_admissibility_function,np.inf,[np.inf]*nvars,max_nsamples,
         tol,verbose=verbose)
@@ -273,6 +274,7 @@ def compute_l2_error(f,g,variable,nsamples):
     validation_samples = generate_independent_random_samples(variable,nsamples)
     validation_vals = f(validation_samples)
     approx_vals = g(validation_samples)
+    assert validation_vals.shape==approx_vals.shape
     error=np.linalg.norm(approx_vals-validation_vals,axis=0)/np.sqrt(
         validation_samples.shape[1])
     return error
