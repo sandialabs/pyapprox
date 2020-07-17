@@ -1,112 +1,8 @@
 import unittest
 from pyapprox.sensitivity_analysis import *
+from pyapprox.benchmarks.sensitivity_benchmarks import *
 from scipy.stats import uniform
 import pyapprox as pya
-
-def ishigami_function(samples,a=7,b=0.1):    
-    vals = np.sin(samples[0,:])+a*np.sin(samples[1,:])**2+\
-        b*samples[2,:]**4*np.sin(samples[0,:])
-    return vals[:,np.newaxis]
-
-def ishigami_function_jacobian(samples,a=7,b=0.1):
-    assert samples.shape[1]==1
-    nvars=3
-    assert samples.shape[0]==nvars
-    jac = np.empty((nvars,1))
-    jac[0] = np.cos(samples[0,:]) + b*samples[2,:]**4*np.cos(samples[0,:])
-    jac[1] = 2*a*np.sin(samples[1,:])*cos(samples[1,:])
-    jac[2] = 4*b*samples[2,:]**3*np.sin(samples[0,:])
-    return jac
-
-def get_ishigami_funciton_statistics(a=7,b=0.1):
-    """
-    p_i(X_i) ~ U[-pi,pi]
-    """
-    mean = a/2
-    variance = a**2/8+b*np.pi**4/5+b**2*np.pi**8/18+0.5
-    D_1 = b*np.pi**4/5+b**2*np.pi**8/50+0.5
-    D_2,D_3,D_12,D_13 = a**2/8,0,0,b**2*np.pi**8/18-b**2*np.pi**8/50
-    D_23,D_123=0,0
-    main_effects =  np.array([D_1,D_2,D_3])/variance
-    # the following two ways of calulating the total effects are equivalent
-    total_effects1 = np.array(
-        [D_1+D_12+D_13+D_123,D_2+D_12+D_23+D_123,D_3+D_13+D_23+D_123])/variance
-    total_effects=1-np.array([D_2+D_3+D_23,D_1+D_3+D_13,D_1+D_2+D_12])/variance
-    assert np.allclose(total_effects1,total_effects)
-    sobol_indices = np.array([D_1,D_2,D_3,D_12,D_13,D_23,D_123])/variance
-    return mean, variance, main_effects, total_effects, sobol_indices
-
-def sobol_g_function(coefficients,samples):
-    """
-    The coefficients control the sensitivity of each variable. Specifically
-    they limit the range of the outputs, i.e.
-    1-1/(1+a_i) <= (abs(4*x-2)+a_i)/(a_i+1) <= 1-1/(1+a_i)
-    """
-    nvars,nsamples = samples.shape
-    assert coefficients.shape[0]==nvars
-    vals = np.prod((np.absolute(4*samples-2)+coefficients[:,np.newaxis])/
-                   (1+coefficients[:,np.newaxis]),axis=0)[:,np.newaxis]
-    assert vals.shape[0]==nsamples
-    return vals
-
-def get_sobol_g_function_statistics(a,interaction_terms=None):
-    """
-    See article: Variance based sensitivity analysis of model output. 
-    Design and estimator for the total sensitivity index
-    """
-    nvars = a.shape[0]
-    mean = 1
-    unnormalized_main_effects = 1/(3*(1+a)**2)
-    variance = np.prod(unnormalized_main_effects+1)-1
-    main_effects = unnormalized_main_effects/variance
-    total_effects = np.tile(np.prod(unnormalized_main_effects+1),(nvars))
-    total_effects *= unnormalized_main_effects/(unnormalized_main_effects+1)
-    total_effects /= variance
-    if interaction_terms is None:
-        return mean,variance,main_effects,total_effects
-    
-    sobol_indices = np.array([
-        unnormalized_main_effects[index].prod()/variance
-        for index in interaction_terms])
-    return mean,variance,main_effects,total_effects,sobol_indices
-
-def morris_function(samples):
-    assert samples.shape[0]==20
-    beta0 = np.random.randn()
-    beta_first_order = np.empty(20)
-    beta_first_order[:10]=20
-    beta_first_order[10:] = np.random.normal(0,1,10)
-    beta_second_order = np.empty((20,20))
-    beta_second_order[:6,:6]=-15
-    beta_second_order[6:,6:] = np.random.normal(0,1,(14,14))
-    #beta_third_order = np.zeros((20,20,20))
-    #beta_third_order[:5,:5,:5]=-10
-    beta_third_order=-10
-    #beta_forth_order = np.zeros((20,20,20,20))
-    #beta_forth_order[:4,:4,:4,:4]=5
-    beta_forth_order = 5
-    ww = 2*(samples-0.5)
-    I = [3,5,7]
-    ww[I]=2 * (1.1 * samples[I]/(samples[I]+0.1)-0.5)
-
-    values = beta0
-    values += np.sum(beta_first_order[:,np.newaxis]*ww,axis=0)
-
-    for jj in range(20):
-        for ii in range(jj):
-            values += beta_second_order[ii,jj]*ww[ii]*ww[jj]
-
-    for kk in range(5):
-        for jj in range(kk):
-            for ii in range(jj):
-                values += beta_third_order*ww[ii]*ww[jj]*ww[kk]
-
-    for ll in range(4):
-        for kk in range(ll):
-            for jj in range(kk):
-                for ii in range(jj):
-                    values += beta_forth_order*ww[ii]*ww[jj]*ww[kk]*ww[ll]
-    return values[:,np.newaxis]
 
 class TestSensitivityAnalysis(unittest.TestCase):
     def test_get_sobol_indices_from_pce(self):
@@ -156,8 +52,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
             pya.get_main_and_total_effect_indices_from_pce(
                 poly.get_coefficients(),poly.get_indices())
         
-        mean, variance, main_effects, total_effects, sobol_indices = \
-            get_ishigami_funciton_statistics()
+        mean, variance, main_effects, total_effects, sobol_indices, \
+            sobol_interaction_indices = get_ishigami_funciton_statistics()
         assert np.allclose(poly.mean(),mean)
         assert np.allclose(poly.variance(),variance)
         assert np.allclose(pce_main_effects[:,0],main_effects)
@@ -311,7 +207,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
         benchmark = setup_benchmark("oakley")
-        options = {'max_nsamples':2000}
+        options = {'approx_options':{'max_nsamples':2000},'max_order':2}
         #'refinement_indicator':isotropic_refinement_indicator}
         res = adaptive_analyze_sensitivity(
             benchmark.fun,benchmark.variable.all_variables(),"sparse_grid",
@@ -320,27 +216,50 @@ class TestSensitivityAnalysis(unittest.TestCase):
         #print(res.main_effects-benchmark.main_effects)
         assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-4)
 
-
     def test_analyze_sensitivity_polynomial_chaos(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
+        from pyapprox.approximate import approximate
         benchmark = setup_benchmark("ishigami",a=7,b=0.1)
-        options = {
-            'approx_options':{'max_nsamples':800,'verbose':0}}
-        res = adaptive_analyze_sensitivity(
-            benchmark.fun,benchmark.variable.all_variables(),"polynomial_chaos",
-            options=options)
+
+        num_samples = 1000
+        train_samples=pya.generate_independent_random_samples(
+            benchmark.variable,num_samples)
+        train_vals = benchmark.fun(train_samples)
+        
+        pce = approximate(
+            train_samples,train_vals,'polynomial_chaos',
+            {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
+             'options':{'max_degree':8}})
+
+        res = analyze_sensitivity_pce(pce)
+        assert np.allclose(res.main_effects,benchmark.main_effects,atol=1e-3)
+
+    def test_analyze_sensitivity_sparse_grid(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        benchmark = setup_benchmark("oakley")
+
+        # import matplotlib.pyplot as plt
+        # fig,axs = plt.subplots(1,3,figsize=(3*8,6))
+        # pya.plot_main_effects(benchmark['main_effects'],axs[0])
+        # pya.plot_total_effects(benchmark['total_effects'],axs[1])
+        # pya.plot_interaction_values(benchmark['sobol_indices'],benchmark['sobol_interaction_indices'],axs[2])
+        # plt.show()
+        # assert False
+        
+        options = {'max_nsamples':2000,'verbose':0}
+        approx = adaptive_approximate(
+            benchmark.fun,benchmark.variable.all_variables(),
+            'sparse_grid',options)
 
         from pyapprox.approximate import compute_l2_error
         nsamples = 100
-        approx=res['approx']
         error = compute_l2_error(
-            approx,benchmark.fun,approx.var_trans.variable,
-            nsamples)
-        assert error<1e-12
+            approx,benchmark.fun,approx.variable_transformation.variable,
+            nsamples,rel=True)
+        #print(error)
+        assert error<3e-3
 
-
-        print(res.main_effects-benchmark.main_effects)
+        res = analyze_sensitivity_sparse_grid(approx)
         assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-4)
 
     

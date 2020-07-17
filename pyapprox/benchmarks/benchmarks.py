@@ -126,15 +126,16 @@ def setup_ishigami_function(a,b):
     """
     univariate_variables = [stats.uniform(-np.pi,2*np.pi)]*3
     variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
-    mean, variance, main_effects, total_effects, sobol_indices = \
-        get_ishigami_funciton_statistics()
+    mean, variance, main_effects, total_effects, sobol_indices, \
+        sobol_interaction_indices = get_ishigami_funciton_statistics()
     return Benchmark(
         {'fun':partial(ishigami_function,a=a,b=b),
          'jac':partial(ishigami_function_jacobian,a=a,b=b),
          'hess':partial(ishigami_function_hessian,a=a,b=b),
          'variable':variable,'mean':mean,'variance':variance,
          'main_effects':main_effects,'total_effects':total_effects,
-         'sobol_indices':sobol_indices})
+         'sobol_indices':sobol_indices,
+         'sobol_interaction_indices':sobol_interaction_indices})
 
 def setup_oakley_function():
     r"""
