@@ -313,8 +313,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("oakley")
         options = {'max_nsamples':2000}
         #'refinement_indicator':isotropic_refinement_indicator}
-        res = analyze_sensitivity(
-            benchmark.fun,benchmark.variable.all_variables(),"sparse-grid",
+        res = adaptive_analyze_sensitivity(
+            benchmark.fun,benchmark.variable.all_variables(),"sparse_grid",
             options=options)
 
         #print(res.main_effects-benchmark.main_effects)
@@ -325,13 +325,26 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.adaptive_sparse_grid import isotropic_refinement_indicator
         benchmark = setup_benchmark("ishigami",a=7,b=0.1)
-        options = {'max_nsamples':500}
-        #'refinement_indicator':isotropic_refinement_indicator}
-        res = analyze_sensitivity(
-            benchmark.fun,benchmark.variable.all_variables(),"polynomial-chaos",
+        def callback(pce):
+            print(pce.pce.num_terms())
+        options = {
+            'approx_options':{'max_nsamples':300,'callback':callback}}
+        #options = {'max_nsamples':750,'callback':callback}
+        res = adaptive_analyze_sensitivity(
+            benchmark.fun,benchmark.variable.all_variables(),"polynomial_chaos",
             options=options)
 
-        #print(res.main_effects-benchmark.main_effects)
+        from pyapprox.approximate import compute_l2_error
+        nsamples = 100
+        approx=res['approx']
+        error = compute_l2_error(
+            approx,benchmark.fun,approx.var_trans.variable,
+            nsamples)
+        print(error)
+        assert error<1e-12
+
+
+        print(res.main_effects-benchmark.main_effects)
         assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-4)
 
     

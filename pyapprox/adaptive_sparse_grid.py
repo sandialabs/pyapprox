@@ -120,7 +120,8 @@ def subspace_index_is_admissible(subspace_index, subspace_indices_dict):
 
 def max_level_admissibility_function(max_level,max_level_1d,
                                      max_num_sparse_grid_samples, error_tol,
-                                     sparse_grid, subspace_index,verbose=False):
+                                     sparse_grid, subspace_index,verbose=0):
+    
     if subspace_index.sum()>max_level:
         return False
 
@@ -134,7 +135,7 @@ def max_level_admissibility_function(max_level,max_level_1d,
                 msg += "\nNo. active subspaces remaining %d"%len(
                     sparse_grid.active_subspace_queue.list)
                 msg += f'\nNo. samples {sparse_grid.samples.shape[1]}'
-                if verbose:
+                if verbose>0:
                     print(msg)
             else:
                 print(subspace_index)
@@ -147,7 +148,7 @@ def max_level_admissibility_function(max_level,max_level_1d,
     if max_level_1d is not None:
         for dd in range(subspace_index.shape[0]):
             if subspace_index[dd]>max_level_1d[dd]:
-                if verbose:
+                if verbose>0:
                     msg = f'Cannot add subspace {subspace_index}\n'
                     msg += f'Max level of {max_level_1d[dd]} reached in '
                     msg += f'variable {dd}'
@@ -157,10 +158,14 @@ def max_level_admissibility_function(max_level,max_level_1d,
     if (max_num_sparse_grid_samples is not None and
         (sparse_grid.num_equivalent_function_evaluations>
          max_num_sparse_grid_samples)):
-        if verbose:
+        if verbose>0:
             print(f'Max num evaluations ({max_num_sparse_grid_samples}) reached')
-            print(f'Error {sparse_grid.error.sum()}')
+            print(f'Error estimate {sparse_grid.error.sum()}')
         return False
+
+    if verbose>1:
+        msg = f'Subspace {subspace_index} is admissible'
+        print(msg)
     return True
         
 def default_combination_sparse_grid_cost_function(x):
@@ -328,7 +333,7 @@ def variance_refinement_indicator_old(subspace_index,num_new_subspace_samples,
 
 def variance_refinement_indicator(subspace_index,num_new_subspace_samples,
                                   sparse_grid,normalize=True,
-                                  mean_only=False):
+                                  mean_only=False,convex_param=1):
     """
     when config index is increased but the other indices are 0 the
     subspace will only have one random sample. Thus the variance
@@ -372,6 +377,9 @@ def variance_refinement_indicator(subspace_index,num_new_subspace_samples,
 
     # compute marginal benefit 
     indicator/=cost
+
+    # always keep in list
+    indicator=convex_param*indicator+(1-convex_param)/subspace_index.sum()
     
     return -indicator, error[qoi_chosen]
 
@@ -621,6 +629,7 @@ def extract_sparse_grid_quadrature_rule(asg):
 from pyapprox.adaptive_sparse_grid import mypriorityqueue
 class SubSpaceRefinementManager(object):
     def __init__(self,num_vars):
+        self.verbose=0
         self.num_vars = num_vars
         self.num_config_vars=0
         self.subspace_indices_dict = dict()
@@ -663,7 +672,10 @@ class SubSpaceRefinementManager(object):
 
         priority,error,best_subspace_idx = self.active_subspace_queue.get()
         best_active_subspace_index = self.subspace_indices[:,best_subspace_idx]
-        #print('refining index',best_active_subspace_index, f'of model {self.name}')
+        if self.verbose>1:
+            msg = f'refining index {best_active_subspace_index} '
+            msg += f'with priority {priority}'
+            print(msg)
 
         new_active_subspace_indices, num_new_subspace_samples = \
             self.refine_and_add_new_subspaces(best_active_subspace_index)
@@ -891,9 +903,11 @@ class SubSpaceRefinementManager(object):
                 subspace_index,num_new_subspace_samples[ii],self)
             self.active_subspace_queue.put((priority,error,cnt))
             self.error = np.concatenate([self.error,[error]])
-
-            #print(subspace_index[-self.num_config_vars:],
-            #      self.error.sum(),error,priority)
+            
+            if self.verbose>1:
+                msg = f'adding new index {subspace_index} '
+                msg += f'with priority {priority}'
+                print(msg)
             cnt += 1
 
     def set_function(self,function,variable_transformation=None):
@@ -1203,7 +1217,8 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
               univariate_quad_rule,
               variable_transformation=None,config_var_trans=None,
               cost_function=None,work_qoi_index=None,
-              unique_quadrule_indices=None):
+              unique_quadrule_indices=None,
+              verbose=0):
         self.set_function(function,variable_transformation)
         if config_variables_idx is not None:
             self.set_config_variable_index(config_variables_idx,config_var_trans)
@@ -1211,6 +1226,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             refinement_indicator,admissibility_function,univariate_growth_rule,
             cost_function,work_qoi_index,unique_quadrule_indices)
         self.set_univariate_rules(univariate_quad_rule)
+        self.verbose=verbose
 
     def set_univariate_rules(self,univariate_quad_rule):
         if self.univariate_growth_rule is None:
