@@ -56,12 +56,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
             sobol_interaction_indices = get_ishigami_funciton_statistics()
         assert np.allclose(poly.mean(),mean)
         assert np.allclose(poly.variance(),variance)
-        assert np.allclose(pce_main_effects[:,0],main_effects)
-        assert np.allclose(pce_total_effects[:,0],total_effects)
+        assert np.allclose(pce_main_effects,main_effects)
+        assert np.allclose(pce_total_effects,total_effects)
 
         interaction_terms, pce_sobol_indices = get_sobol_indices(
             poly.get_coefficients(),poly.get_indices(),max_order=3)
-        assert np.allclose(pce_sobol_indices[:,0],sobol_indices)
+        assert np.allclose(pce_sobol_indices,sobol_indices)
 
     def test_pce_sensitivities_of_sobol_g_function(self):
         nsamples=2000
@@ -111,11 +111,11 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert np.allclose(poly.mean(),mean,atol=1e-2)
         #print((poly.variance(),variance))
         assert np.allclose(poly.variance(),variance,atol=1e-2)
-        #print(pce_main_effects[:,0],main_effects)
-        assert np.allclose(pce_main_effects[:,0],main_effects,atol=1e-2)
-        #print(pce_total_effects[:,0],total_effects)
-        assert np.allclose(pce_total_effects[:,0],total_effects,atol=1e-2)
-        assert np.allclose(pce_sobol_indices[:,0],sobol_indices,atol=1e-2)
+        #print(pce_main_effects,main_effects)
+        assert np.allclose(pce_main_effects,main_effects,atol=1e-2)
+        #print(pce_total_effects,total_effects)
+        assert np.allclose(pce_total_effects,total_effects,atol=1e-2)
+        assert np.allclose(pce_sobol_indices,sobol_indices,atol=1e-2)
 
     def test_get_sobol_indices_from_pce_max_order(self):
         num_vars = 3; degree = 4; max_order=2
@@ -231,11 +231,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
             {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
              'options':{'max_degree':8}})
 
-        res = analyze_sensitivity_pce(pce)
-        assert np.allclose(res.main_effects,benchmark.main_effects,atol=1e-3)
+        res = analyze_sensitivity_polynomial_chaos(pce)
+        assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-3)
 
     def test_analyze_sensitivity_sparse_grid(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.approximate import adaptive_approximate
         benchmark = setup_benchmark("oakley")
 
         # import matplotlib.pyplot as plt
