@@ -366,19 +366,70 @@ class TimerModelWrapper(object):
         return time_function_evaluations(self.function_to_time,samples)
 
 class WorkTracker(object):
-    def __init__(self):
+    """
+    Store the cost needed to evaluate a function under different configurations,
+    e.g. mesh resolution of a finite element model used to solve a PDE.
+
+    Parameters
+    ----------
+    guess_cost : callable
+        A function with signature 
+
+        ``guess_cost(config_index) -> float``
+
+        where config_index is the id of the model cost being estimated
+        
+        If None (default) then this class assumes that __call__ will not
+        be used unless self.costs has been populated for each config_index
+        in config_samples
+
+        If not None then guess_cost uses a user defined guess of the cost of
+        evaluating a function if that function has not been previously 
+        evaluated.
+    """
+    def __init__(self,guess_cost=None):
         self.costs = dict()
+        self.guess_cost=guess_cost
 
     def __call__(self,config_samples):
+        """
+        Read the cost of evaluating the functions with the ids given in
+        a set of config_samples.
+
+        Parameters
+        ----------
+        config_samples : np.ndarray (nconfig_vars,nsamples)
+            The configuration indices
+        """
         num_config_vars, nqueries = config_samples.shape
         costs = np.empty((nqueries))
         for ii in range(nqueries):
             key = tuple([int(ll) for ll in config_samples[:,ii]])
-            assert key in self.costs, key
-            costs[ii] = np.median(self.costs[key])
+            if key not in self.costs:
+                if self.guess_cost is None:
+                    msg='Asking for cost before function cost has been provided'
+                    raise Exception(msg)
+                else:
+                    costs[ii] = self.guess_cost(config_samples[:,ii])
+            else:
+                costs[ii] = np.median(self.costs[key])
+            
         return costs
 
     def update(self,config_samples,costs):
+        """
+        Update the cost of evaluating the functions with the ids given in
+        a set of config_samples.
+
+        Parameters
+        ----------
+        config_samples : np.ndarray (nconfig_vars,nsamples)
+            The configuration indices
+        
+        costs : np.ndarray (nsamples)
+            The costs of evaluating the function index by each index in 
+            ``config_samples``
+        """
         num_config_vars, nqueries = config_samples.shape
         assert costs.shape[0]==nqueries
         assert costs.ndim==1
@@ -393,19 +444,75 @@ def eval(function,samples):
     return function(samples)
                 
 class WorkTrackingModel(object):
-    def __init__(self,function,base_model=None):
+    def __init__(self,function,base_model=None,guess_cost=None):
         """
-        Assumes last qoi returned by function is the length of the simulation
+        Keep track of the wall time needed to evaluate a function.
 
+        Parameters
+        ----------
+        function : callable
+            A function with signature 
+
+            ``function(w) -> np.ndarray (nsamples,nqoi+1)``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+             The last qoi returned by function (i.e. the last column of the 
+             output array) must be the cost of the simulation. This column
+             is removed from the output of __call__.
+
+        base_model : callable
+            A function with signature 
+
+            ``base_model(w) -> float``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+
+             This is useful when function is a wrapper of another model, i.e.
+             base_model and algorithms or the user want access to the attribtes
+             of the base_model.
+
+        guess_cost : callable
+            A function with signature 
+
+            ``guess_cost(config_index) -> float``
+
+            where config_index is the id of the model cost being estimated.
+
+            If None (default) then this class assumes that __call__ will not
+            be used unless self.costs has been populated for each config_index
+            in config_samples
+
+            If not None then guess_cost uses a user defined guess of the cost of
+            evaluating a function if that function has not been previously 
+            evaluated.
+
+        Notes
+        -----
         If defining a custom __getattr__ it seems I cannot have member
         variables with the same name in this class and class definition
         of function
         """
         self.wt_function=function
-        self.work_tracker = WorkTracker()
+        self.work_tracker = WorkTracker(guess_cost)
         self.base_model=base_model
 
     def __call__(self,samples):
+        """
+        Evaluate self.function
+
+        Parameters
+        ----------
+        samples : np.ndarray (nvars,nsamples)
+            Samples used to evaluate self.function
+
+        Returns
+        -------
+        values : np.ndarray (nsamples,nqoi)
+            The values of self.function. The last qoi returned by self.function 
+            (i.e. the last column of the output array of size (nsamples,nqoi+1) 
+            is the cost of the simulation. This column is not included in
+            values.
+        """
         num_config_vars=self.base_model.num_config_vars
         #data = self.wt_function(samples)
         data = eval(self.wt_function,samples)
@@ -416,6 +523,15 @@ class WorkTrackingModel(object):
         return values
 
     def cost_function(self,config_samples):
+        """
+        Retrun the cost of evaluating the functions with the ids given in
+        a set of config_samples.
+
+        Parameters
+        ----------
+        config_samples : np.ndarray (nconfig_vars,nsamples)
+            The configuration indices
+        """
         return self.work_tracker(config_samples)
 
     
@@ -425,6 +541,47 @@ class PoolModel(object):
                  base_model=None):
         
         """
+        Evaluate a function at multiple samples in parallel using 
+        multiprocessing.Pool
+
+        Parameters
+        ----------
+        function : callable
+            A function with signature 
+
+            ``function(w) -> np.ndarray (nsamples,nqoi+1)``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+
+        max_eval_concurrency : integer
+            The maximum number of simulations that can be run in parallel. 
+            Should be no more than the maximum number of cores on the computer 
+            being used
+
+        assert_omp : boolean
+            If True make sure that python is only using one thread per model 
+            instance. On OSX and Linux machines this means that the environement
+            variable OMP_NUM_THREADS has been set to 1 with, e.g. 
+            export OMP_NUM_THREADS=1
+        
+            This is useful because often many python packages, e.g. SciPy, NumPy
+            use multiple threads and this can cause running multiple evaluations
+            of function to be slow because of resource allocation issues.
+
+        base_model : callable
+            A function with signature 
+
+            ``base_model(w) -> float``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+
+             This is useful when function is a wrapper of another model, i.e.
+             base_model and algorithms or the user want access to the attribtes
+             of the base_model.
+
+
+        Notes
+        -----
         If defining a custom __getattr__ it seems I cannot have member
         variables with the same name in this class and class definition
         of function
@@ -438,6 +595,15 @@ class PoolModel(object):
         self.assert_omp=assert_omp
 
     def __call__(self,samples):
+        """
+        Evaluate a function at multiple samples in parallel using 
+        multiprocessing.Pool
+
+        Parameters
+        ----------
+        samples : np.ndarray (nvars,nsamples)
+            Samples used to evaluate self.function
+        """
         vals = run_model_samples_in_parallel(
             self.pool_function,self.max_eval_concurrency,samples,
             pool=self.pool,assert_omp=self.assert_omp)
@@ -509,10 +675,11 @@ class MultiLevelWrapper(object):
     See function default_map_to_multidimensional_index
     """
     def __init__(self,model,num_config_vars,multiindex_cost_function,
-                 map_to_multidimensional_index=None):
+                 map_to_multidimensional_index=None,multiindex_guess_cost=None):
         self.model=model
         self.num_config_vars=num_config_vars
         self.multiindex_cost_function=multiindex_cost_function
+        self.multiindex_guess_cost=multiindex_guess_cost
         if map_to_multidimensional_index is None:
             self.map_to_multidimensional_index=\
                 partial(default_map_to_multidimensional_index,num_config_vars)
@@ -530,6 +697,10 @@ class MultiLevelWrapper(object):
     def cost_function(self,multilevel_indices):
         indices = self.map_to_multidimensional_index(multilevel_indices)
         return self.multiindex_cost_function(indices)
+
+    def guess_cost(self,multilevel_index):
+        index = self.map_to_multidimensional_index(multilevel_index)
+        return self.multiindex_guess_cost(index[:,0])
 
     @property
     def num_evaluations(self):

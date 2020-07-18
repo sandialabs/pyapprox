@@ -33,14 +33,13 @@ where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}` and :math:`L_c=0.5`.
 
 We choose a random field which is effectively one-dimensional so that the error in the finite element solution is more sensitive to refinement of the mesh in the :math:`x_1`-direction than to refinement in the :math:`x_2`-direction.
 
-The advection diffusion equation \eqref{eq:advection-diffusion} is solved using linear finite elements and implicit backward-Euler timestepping implemented using `Fenics <https://fenicsproject.org/>`_. In the following we will show how solving the PDE with varying numbers of finite elements and timesteps can reduce the cost of approximating the quantity of interest
+The advection diffusion equation is solved using linear finite elements and implicit backward-Euler timestepping implemented using `Fenics <https://fenicsproject.org/>`_. In the following we will show how solving the PDE with varying numbers of finite elements and timesteps can reduce the cost of approximating the quantity of interest
 
 .. math:: f(\rv)=\int_D u(\rv)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x^\star \rVert_2^2}{\sigma^2}\right)\,dx,
 
 where :math:`x^\star=(0.3,0.5)` and :math:`\sigma=0.16`.
-The advection diffusion model, defined here, can be inexpensively evaluated and therefore allows for exhaustive exploration of the behavior of our proposed multi-index collocation approach.
 
-Lets first consider a simple 1D example. The following sets up the problem
+Lets first consider a simple example with one unknown parameter. The following sets up the problem
 """
 import numpy as np
 import pyapprox as pya
@@ -58,7 +57,10 @@ base_model = benchmark.fun
 #base_model = setup_model(nvars,max_eval_concurrency)
 multilevel_model=MultiLevelWrapper(
     base_model,base_model.base_model.num_config_vars,
-    base_model.cost_function)
+    base_model.cost_function,multiindex_guess_cost=base_model.work_tracker.guess_cost)
+# make sure work tracker takes 1D multilevel config variable
+# benchmark takes multiinex 3D config variables
+base_model.work_tracker.guess_cost = multilevel_model.guess_cost
 variable = pya.IndependentMultivariateRandomVariable(
     [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(nvars)])
 #%%
@@ -92,10 +94,36 @@ for ii in range(nmodels):
         label=r'$f_%d-f_%d$'%(ii,ii-1)
         plt.plot(random_samples[0,:],values[:,ii]-values[:,ii-1],label=label)
     plt.legend()
-plt.show()
+#plt.show()
 
 #%%
-# The first row shows the spatial mesh of each model and the second row depicts the model response and the discrepancy between two consecutive models. The difference between the model output decreases as the resolution of the mesh is increased. Thus as the cost of the model increases (with increasing resolution) we need less samples to resolve 
+# The first row shows the spatial mesh of each model and the second row depicts the model response and the discrepancy between two consecutive models. The difference between the model output decreases as the resolution of the mesh is increased. Thus as the cost of the model increases (with increasing resolution) we need less samples to resolve
+nrandom_vars = 1
+level_indices = [[1,2,3]]#multi-level
+#level_indices = [[1,2,3]]*3#multi-index
+from pyapprox.multifidelity import adaptive_approximate_multi_index_sparse_grid
+from pyapprox.adaptive_sparse_grid import ConfigureVariableTransformation
+config_var_trans = ConfigureVariableTransformation(level_indices)
+cost_function = base_model.cost_function
+options = {'config_var_trans':config_var_trans,'max_nsamples':.1,
+           'config_variables_idx':nrandom_vars,'verbose':3,
+           'cost_function':cost_function,
+           'max_level_1d':[np.inf]*nrandom_vars+[len(level_indices)]*3}
+sparse_grid = adaptive_approximate_multi_index_sparse_grid(
+    multilevel_model,variable.all_variables(),options)
+
+nvalidation_samples = 20
+validation_random_samples = pya.generate_independent_random_samples(
+    variable,nvalidation_samples)
+validation_samples = np.vstack(
+    [validation_random_samples,4*np.ones(nvalidation_samples)[np.newaxis,:]])
+validation_values  = multilevel_model(validation_samples)
+
+error = np.linalg.norm(
+    validation_values-sparse_grid(validation_samples))/np.sqrt(
+        validation_samples.shape[1])
+print(error)
+
 
 #%%
 #References
