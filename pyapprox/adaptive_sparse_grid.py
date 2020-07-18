@@ -674,7 +674,9 @@ class SubSpaceRefinementManager(object):
         best_active_subspace_index = self.subspace_indices[:,best_subspace_idx]
         if self.verbose>1:
             msg = f'refining index {best_active_subspace_index} '
-            msg += f'with priority {priority}'
+            msg += f'with priority {priority}\n'
+            msg += 'The Current number of equivalent function evaluations is '
+            msg += f'{self.num_equivalent_function_evaluations}'
             print(msg)
 
         new_active_subspace_indices, num_new_subspace_samples = \
@@ -886,9 +888,9 @@ class SubSpaceRefinementManager(object):
             self.values = new_values
         else:
             self.values = np.vstack((self.values, new_values))
-            
+
         self.num_equivalent_function_evaluations += self.get_cost(
-            new_subspace_indices,num_new_subspace_samples)
+            new_subspace_indices,num_new_subspace_samples)        
 
         return num_new_subspace_samples
 
@@ -1048,7 +1050,8 @@ class SubSpaceRefinementManager(object):
         self.config_var_trans=config_var_trans
         self.num_config_vars = self.num_vars-self.config_variables_idx
         if self.variable_transformation is not None:
-            assert self.variable_transformation.nvars==self.config_variables_idx
+            assert (self.variable_transformation.num_vars()==
+                    self.config_variables_idx)
         if self.config_var_trans is not None:
             assert self.num_config_vars==self.config_var_trans.num_vars()
 
@@ -1459,7 +1462,48 @@ def plot_adaptive_sparse_grid_3d(sparse_grid,plot_grid=True):
         ax.set_yticks([])
         ax.set_zticks([])
 
-    
+class ConfigureVariableTransformation(object):
+    """
+    Class which maps one-to-one configure indices in [0,1,2,3,...]
+    to a set of configure values accepted by a function
+
+    Parameters
+    ---------
+    nvars : integer
+        The number of configure variables
+
+    config_values : list
+        The list of configure values for each configure variable. Each entry
+        in the list is a 1D np.ndarray with potentiallly different sizes
+    """
+    def __init__(self,config_values):
+        self.nvars=len(config_values)
+        assert (type(config_values[0])==list or
+                type(config_values[0])==np.ndarray)
+        self.config_values=config_values
+
+    def map_from_canonical_space(self,canonical_samples):
+        """
+        Map a configure multi-dimensional index to the corresponding 
+        configure values
+        """
+        assert canonical_samples.shape[0]==self.nvars
+        samples = np.empty_like(canonical_samples)
+        for ii in range(samples.shape[1]):
+            for jj in range(self.nvars):
+                kk = canonical_samples[jj,ii]
+                samples[jj,ii] = self.config_values[jj][int(kk)]
+        print(canonical_samples,samples)
+        return samples
+
+    def num_vars(self):
+        """Return the number of configure variables.
+
+        Returns
+        -------
+        The number of configure variables
+        """
+        return self.nvars  
 
     
 """

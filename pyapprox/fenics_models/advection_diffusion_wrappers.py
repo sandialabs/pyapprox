@@ -412,8 +412,19 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     # add wrapper to allow execution times to be captured
     timer_model = TimerModelWrapper(base_model,base_model)
     pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+
+    # function that estimates cost of evaluating model. This will
+    # only be used if the model with a particular config_index has not been
+    # exectuted at least once
+    def guess_cost(config_sample):
+        assert config_sample.ndim==1 and config_sample.shape[0]==3
+        nx,ny=base_model.get_mesh_resolution(config_sample[:2])
+        dt = model.base_model.get_timestep(config_sample[2])
+        ndofs = nx*ny*model.base_model.final_time/dt
+        return ndofs/1e6
+    
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model,base_model)
+    model = WorkTrackingModel(pool_model,base_model,guess_cost=guess_cost)
     attributes = {'fun':model,'variable':variable}
     return Benchmark(attributes)
 
@@ -549,8 +560,19 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     # add wrapper to allow execution times to be captured
     timer_model = TimerModelWrapper(base_model,base_model)
     pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+
+    # function that estimates cost of evaluating model. This will
+    # only be used if the model with a particular config_index has not been
+    # exectuted at least once
+    def guess_cost(config_sample):
+        assert config_sample.ndim==1 and config_sample.shape[0]==3
+        nx,ny=base_model.get_mesh_resolution(config_sample[:2])
+        dt = model.base_model.get_timestep(config_sample[2])
+        ndofs = nx*ny*model.base_model.final_time/dt
+        return ndofs/1e6
+    
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model,base_model)
+    model = WorkTrackingModel(pool_model,base_model,guess_cost=guess_cost)
     
     from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
         GaussianLogLike

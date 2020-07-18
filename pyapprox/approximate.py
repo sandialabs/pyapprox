@@ -6,7 +6,7 @@ from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
-def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=0):
+def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=0, config_variables_idx=None, config_var_trans=None,cost_function=None,max_level_1d=None):
     """
     Compute a sparse grid approximation of a function.
 
@@ -68,8 +68,24 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         If either entry is a callable then the same quad or growth rule is 
         applied to every variable.
 
-    max_nsamples : integer
-        The maximum number of evaluations of fun.
+    max_nsamples : float
+        If ``cost_function==None`` then this argument is the maximum number of 
+        evaluations of fun. If fun has configure variables
+
+        If ``cost_function!=None`` Then max_nsamples is the maximum cost of 
+        constructing the sparse grid, i.e. the sum of the cost of evaluating
+        each point in the sparse grid.
+
+        The ``cost_function!=None` same behavior as ``cost_function==None``
+        can be obtained by setting cost_function = lambda config_sample: 1.
+
+        This is particularly useful if ``fun`` has configure variables
+        and evaluating ``fun`` at these different values of these configure
+        variables has different cost. For example if there is one configure
+        variable that can take two different values with cost 0.5, and 1
+        then 10 samples of both models will be measured as 15 samples and
+        so if max_nsamples is 19 the algorithm will not terminate because
+        even though the number of samples is the sparse grid is 20.
 
     tol : float
         Tolerance for termination. The construction of the sparse grid is 
@@ -78,6 +94,27 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
 
     verbose : integer
         Controls messages printed during construction.
+
+    config_variable_idx : integer
+        The position in a sample array that the configure variables start
+
+    config_var_trans : pyapprox.adaptive_sparse_grid.ConfigureVariableTransformation
+        An object that takes configure indices in [0,1,2,3...] 
+        and maps them to the configure values accepted by ``fun``
+
+    cost_function : callable 
+        A function with signature
+
+        ``cost_function(config_sample) -> float``
+    
+        where config_sample is a np.ndarray of shape (nconfig_vars). The output
+        is the cost of evaluating ``fun`` at ``config_sample``. The units can be
+        anything but the units must be consistent with the units of max_nsamples
+        which specifies the maximum cost of constructing the sparse grid.
+
+    max_level_1d : np.ndarray (nvars)
+        The maximum level of the sparse grid in each dimension. If None
+        There is no limit
 
     Returns
     -------
@@ -88,6 +125,8 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
     nvars = var_trans.num_vars()
+    if config_var_trans is not None:
+        nvars += config_var_trans.num_vars()
     sparse_grid = CombinationSparseGrid(nvars)
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices = \
@@ -96,14 +135,17 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
     else:
         quad_rules,growth_rules=univariate_quad_rule_info
         unique_quadrule_indices=None
+    if max_level_1d is None:
+        max_level_1d = [np.inf]*nvars
     admissibility_function = partial(
-        max_level_admissibility_function,np.inf,[np.inf]*nvars,max_nsamples,
+        max_level_admissibility_function,np.inf,max_level_1d,max_nsamples,
         tol,verbose=verbose)
     sparse_grid.setup(
-        fun, None,refinement_indicator,
+        fun, config_variables_idx, refinement_indicator,
         admissibility_function, growth_rules, quad_rules,
         var_trans,unique_quadrule_indices=unique_quadrule_indices,
-        verbose=verbose)
+        verbose=verbose,cost_function=cost_function,
+        config_var_trans=config_var_trans)
     sparse_grid.build(callback)
     return sparse_grid
 
