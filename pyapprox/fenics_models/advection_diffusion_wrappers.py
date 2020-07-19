@@ -413,19 +413,36 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     timer_model = TimerModelWrapper(base_model,base_model)
     pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
 
-    # function that estimates cost of evaluating model. This will
-    # only be used if the model with a particular config_index has not been
-    # exectuted at least once
-    def guess_cost(config_sample):
-        assert config_sample.ndim==1 and config_sample.shape[0]==3
-        nx,ny=base_model.get_mesh_resolution(config_sample[:2])
-        dt = model.base_model.get_timestep(config_sample[2])
-        ndofs = nx*ny*model.base_model.final_time/dt
-        return ndofs/1e6
-    
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model,base_model,guess_cost=guess_cost)
+    model = WorkTrackingModel(pool_model,base_model,base_model.num_config_vars)
     attributes = {'fun':model,'variable':variable}
+    return Benchmark(attributes)
+
+def setup_multi_level_advection_diffusion_benchmark(
+        nvars,corr_len,max_eval_concurrency=1):
+    from scipy import stats
+    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+        WorkTrackingModel
+    from pyapprox.models.wrappers import PoolModel
+    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.benchmarks.benchmarks import Benchmark
+    from pyapprox.models.wrappers import MultiLevelWrapper
+    univariate_variables = [stats.uniform(-np.sqrt(3),2*np.sqrt(3))]*nvars
+    variable=IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = 1.0,1
+    options={'corr_len':corr_len}
+    base_model = AdvectionDiffusionModel(
+        final_time,degree,qoi_functional_misc,second_order_timestepping=False,
+        options=options)
+    multilevel_model=MultiLevelWrapper(
+        base_model,base_model.num_config_vars)
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModelWrapper(multilevel_model,base_model)
+    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    model = WorkTrackingModel(
+        pool_model,base_model,multilevel_model.num_config_vars)
+    attributes = {'fun':model,'variable':variable,
+                  'multi_level_model':multilevel_model}
     return Benchmark(attributes)
 
 def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1,true_sample=np.array([[0.25,0.75,4,4,4]]).T,noise_stdev=0.4,max_eval_concurrency=1):

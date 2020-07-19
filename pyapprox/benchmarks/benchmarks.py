@@ -353,7 +353,8 @@ def setup_genz_function(nvars,test_name,coefficients=None):
 try:
     from pyapprox.fenics_models.advection_diffusion_wrappers import \
         setup_advection_diffusion_benchmark,\
-        setup_advection_diffusion_source_inversion_benchmark
+        setup_advection_diffusion_source_inversion_benchmark,\
+        setup_multi_level_advection_diffusion_benchmark
 except:
     pass
 
@@ -363,13 +364,13 @@ def setup_benchmark(name,**kwargs):
                   'oakley':setup_oakley_function,
                   'rosenbrock':setup_rosenbrock_function,
                   'genz':setup_genz_function}
-
     try:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
         fenics_benchmarks={
-            'advection-diffusion':setup_advection_diffusion_benchmark,
-            'advection-diffusion-source-inversion':setup_advection_diffusion_source_inversion_benchmark}
+            'multi_index_advection_diffusion':setup_advection_diffusion_benchmark,
+            'multi_index_advection_diffusion_source_inversion':setup_advection_diffusion_source_inversion_benchmark,
+            'multi_level_advection_diffusion':setup_multi_level_advection_diffusion_benchmark}
         benchmarks.update(fenics_benchmarks)
     except:
         pass

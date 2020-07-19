@@ -137,6 +137,7 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         unique_quadrule_indices=None
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
+    assert len(max_level_1d)==nvars
     admissibility_function = partial(
         max_level_admissibility_function,np.inf,max_level_1d,max_nsamples,
         tol,verbose=verbose)

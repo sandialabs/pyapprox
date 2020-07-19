@@ -257,7 +257,7 @@ nvars,corr_len = 2,0.1
 #model = setup_model(nvars,corr_len,max_eval_concurrency=1)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 benchmark = setup_benchmark(
-    'advection-diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
+    'multi_index_advection_diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
 model = benchmark.fun
 validation_levels = [5]*3
 data = error_vs_cost(

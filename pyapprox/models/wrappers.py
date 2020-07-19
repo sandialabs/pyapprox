@@ -370,26 +370,9 @@ class WorkTracker(object):
     Store the cost needed to evaluate a function under different configurations,
     e.g. mesh resolution of a finite element model used to solve a PDE.
 
-    Parameters
-    ----------
-    guess_cost : callable
-        A function with signature 
-
-        ``guess_cost(config_index) -> float``
-
-        where config_index is the id of the model cost being estimated
-        
-        If None (default) then this class assumes that __call__ will not
-        be used unless self.costs has been populated for each config_index
-        in config_samples
-
-        If not None then guess_cost uses a user defined guess of the cost of
-        evaluating a function if that function has not been previously 
-        evaluated.
     """
-    def __init__(self,guess_cost=None):
+    def __init__(self):
         self.costs = dict()
-        self.guess_cost=guess_cost
 
     def __call__(self,config_samples):
         """
@@ -406,11 +389,8 @@ class WorkTracker(object):
         for ii in range(nqueries):
             key = tuple([int(ll) for ll in config_samples[:,ii]])
             if key not in self.costs:
-                if self.guess_cost is None:
-                    msg='Asking for cost before function cost has been provided'
-                    raise Exception(msg)
-                else:
-                    costs[ii] = self.guess_cost(config_samples[:,ii])
+                msg='Asking for cost before function cost has been provided'
+                raise Exception(msg)
             else:
                 costs[ii] = np.median(self.costs[key])
             
@@ -444,7 +424,7 @@ def eval(function,samples):
     return function(samples)
                 
 class WorkTrackingModel(object):
-    def __init__(self,function,base_model=None,guess_cost=None):
+    def __init__(self,function,base_model=None,num_config_vars=0):
         """
         Keep track of the wall time needed to evaluate a function.
 
@@ -471,20 +451,9 @@ class WorkTrackingModel(object):
              base_model and algorithms or the user want access to the attribtes
              of the base_model.
 
-        guess_cost : callable
-            A function with signature 
-
-            ``guess_cost(config_index) -> float``
-
-            where config_index is the id of the model cost being estimated.
-
-            If None (default) then this class assumes that __call__ will not
-            be used unless self.costs has been populated for each config_index
-            in config_samples
-
-            If not None then guess_cost uses a user defined guess of the cost of
-            evaluating a function if that function has not been previously 
-            evaluated.
+        num_config_vars : integer
+             The number of configuration variables of fun. For most functions 
+             this will be zero.
 
         Notes
         -----
@@ -493,8 +462,9 @@ class WorkTrackingModel(object):
         of function
         """
         self.wt_function=function
-        self.work_tracker = WorkTracker(guess_cost)
+        self.work_tracker = WorkTracker()
         self.base_model=base_model
+        self.num_config_vars=num_config_vars
 
     def __call__(self,samples):
         """
@@ -513,12 +483,14 @@ class WorkTrackingModel(object):
             is the cost of the simulation. This column is not included in
             values.
         """
-        num_config_vars=self.base_model.num_config_vars
         #data = self.wt_function(samples)
         data = eval(self.wt_function,samples)
         values = data[:,:-1]
         work   = data[:,-1]
-        config_samples = samples[-num_config_vars:,:]
+        if self.num_config_vars is not None:
+            config_samples = samples[-self.num_config_vars:,:]
+        else:
+            config_samples = np.zeros((1,samples.shape[1]))
         self.work_tracker.update(config_samples,work)
         return values
 
@@ -673,35 +645,26 @@ class MultiLevelWrapper(object):
         Function which maps 1D model index to multi-dimensional index
 
     See function default_map_to_multidimensional_index
-    """
-    def __init__(self,model,num_config_vars,multiindex_cost_function,
-                 map_to_multidimensional_index=None,multiindex_guess_cost=None):
+    """    
+    def __init__(self,model,multiindex_num_config_vars,
+                 map_to_multidimensional_index=None):
         self.model=model
-        self.num_config_vars=num_config_vars
-        self.multiindex_cost_function=multiindex_cost_function
-        self.multiindex_guess_cost=multiindex_guess_cost
+        self.multiindex_num_config_vars=multiindex_num_config_vars
         if map_to_multidimensional_index is None:
             self.map_to_multidimensional_index=\
-                partial(default_map_to_multidimensional_index,num_config_vars)
+                partial(default_map_to_multidimensional_index,multiindex_num_config_vars)
         else:
             self.map_to_multidimensional_index=map_to_multidimensional_index
             
         self.num_evaluations=0
+        self.num_config_vars=1
 
     def __call__(self,samples):
         config_values = self.map_to_multidimensional_index(samples[-1:,:])
-        assert config_values.shape[0]==self.num_config_vars
+        assert config_values.shape[0]==self.multiindex_num_config_vars
         multi_index_samples = np.vstack((samples[:-1],config_values))
         return self.model(multi_index_samples)
     
-    def cost_function(self,multilevel_indices):
-        indices = self.map_to_multidimensional_index(multilevel_indices)
-        return self.multiindex_cost_function(indices)
-
-    def guess_cost(self,multilevel_index):
-        index = self.map_to_multidimensional_index(multilevel_index)
-        return self.multiindex_guess_cost(index[:,0])
-
     @property
     def num_evaluations(self):
         return self.model.num_evaluations
