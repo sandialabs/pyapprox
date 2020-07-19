@@ -946,13 +946,6 @@ class SubSpaceRefinementManager(object):
         samples = np .vstack((random_samples,config_samples))
         values = self.function(samples)
         
-        if self.work_qoi_index is not None:
-            costs = values[:,self.work_qoi_index]
-            values = np.delete(values,self.work_qoi_index,axis=1)
-            if self.config_variables_idx is None:
-                # single fidelity so make up dummy unique key for work tracker
-                config_samples=np.zeros((1,canonical_samples.shape[1]),dtype=int)
-            self.cost_function.update(config_samples,costs)
         return values
 
     def set_univariate_growth_rules(self,univariate_growth_rule,
@@ -1493,7 +1486,6 @@ class ConfigureVariableTransformation(object):
             for jj in range(self.nvars):
                 kk = canonical_samples[jj,ii]
                 samples[jj,ii] = self.config_values[jj][int(kk)]
-        print(canonical_samples,samples)
         return samples
 
     def num_vars(self):
