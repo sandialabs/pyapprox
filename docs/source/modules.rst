@@ -24,3 +24,12 @@
 
 .. automodapi:: pyapprox.optimal_experimental_design
    :no-heading:	
+
+.. automodapi:: pyapprox.models.wrappers
+   :no-heading:
+
+.. automodapi:: pyapprox.models.async_model
+   :no-heading:
+
+.. automodapi:: pyapprox.control_variate_monte_carlo
+   :no-heading:

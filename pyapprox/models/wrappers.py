@@ -39,27 +39,32 @@ def get_num_args(function):
     return num_args
 
 
-def evaluate_1darray_function_on_2d_array(function,samples,opts):
+def evaluate_1darray_function_on_2d_array(function,samples,opts=None):
     """
-    Evaluate a function at a set of samples.
+    Evaluate a function at a set of samples using a function that only takes
+    one sample at a time
 
     Parameters
     ----------
     function : callable
-    vals = function(sample)
-    function accepts a 1d np.ndarray of shape (num_vars) and returns a 1d 
-    np.ndarray of values of shape (num_qoi)
+        A function with signature
+
+        ``function(sample) -> np.ndarray```
+
+        where sample is a 1d np.ndarray of shape (num_vars) and the output is
+        a np.ndarray of values of shape (num_qoi). The output can also be a 
+        scalar
 
     samples : np.ndarray (num_vars, num_samples)
-    The samples at which to evaluate the model
+        The samples at which to evaluate the model
 
     opts : dictionary
-    A set of options that are needed to evaluate the model
+        A set of options that are needed to evaluate the model
 
     Returns
     -------
     values : np.ndarray (num_samples, num_qoi)
-    The value of each requested QoI of the model for each sample
+        The value of each requested QoI of the model for each sample
     """
     num_args = get_num_args(function)
     assert samples.ndim==2
@@ -68,6 +73,7 @@ def evaluate_1darray_function_on_2d_array(function,samples,opts):
         values_0 = function(samples[:,0], opts)
     else:
         values_0 = function(samples[:,0])
+    values_0 = np.atleast_1d(values_0)
     assert values_0.ndim==1
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples,num_qoi),float)
@@ -296,6 +302,8 @@ class DataFunctionModel(object):
 def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
                                   assert_omp=True):
     """
+    Warning
+    -------
     pool.map serializes each argument and so if model is a class, 
     any of its member variables that are updated in __call__ will not
     persist once each __call__ to pool completes.
@@ -420,6 +428,13 @@ class WorkTracker(object):
             else:
                 self.costs[key] = [costs[ii]]
 
+    def __str__(self):
+        msg = 'WorkTracker Cost Summary\n'
+        msg += '{:<10} {:<10}\n'.format('Funtion ID','Median Cost')
+        for item in self.costs.items():
+            msg += '{:<10} {:<10}\n'.format(str(item[0]),np.median(item[1]))
+        return msg
+
 def eval(function,samples):
     return function(samples)
                 
@@ -487,7 +502,7 @@ class WorkTrackingModel(object):
         data = eval(self.wt_function,samples)
         values = data[:,:-1]
         work   = data[:,-1]
-        if self.num_config_vars is not None:
+        if self.num_config_vars>0:
             config_samples = samples[-self.num_config_vars:,:]
         else:
             config_samples = np.zeros((1,samples.shape[1]))
@@ -551,20 +566,31 @@ class PoolModel(object):
              base_model and algorithms or the user want access to the attribtes
              of the base_model.
 
-
         Notes
         -----
         If defining a custom __getattr__ it seems I cannot have member
         variables with the same name in this class and class definition
         of function
         """
-        self.pool_function=function
         self.base_model=base_model
-        
-        self.max_eval_concurrency=max_eval_concurrency
+        self.set_max_eval_concurrency(max_eval_concurrency)
         self.num_evaluations=0
-        self.pool = Pool(self.max_eval_concurrency)
         self.assert_omp=assert_omp
+        self.pool_function=function
+
+    def set_max_eval_concurrency(self,max_eval_concurrency):
+        """
+        Set the number of threads used to evaluate the function
+
+        Parameters
+        ----------
+        max_eval_concurrency : integer
+            The maximum number of simulations that can be run in parallel. 
+            Should be no more than the maximum number of cores on the computer 
+            being used
+        """
+        self.max_eval_concurrency=max_eval_concurrency
+        self.pool = Pool(self.max_eval_concurrency)
 
     def __call__(self,samples):
         """

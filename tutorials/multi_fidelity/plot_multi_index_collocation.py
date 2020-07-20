@@ -49,7 +49,7 @@ import matplotlib.pyplot as plt
 
 nmodels  = 3
 nrandom_vars, corr_len = 1, 1/2
-max_eval_concurrency = 4
+max_eval_concurrency = 1
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 benchmark = setup_benchmark(
     'multi_level_advection_diffusion',nvars=nrandom_vars,corr_len=corr_len,
@@ -114,7 +114,7 @@ random_validation_samples = pya.generate_independent_random_samples(variable,nva
 validation_samples = np.vstack([random_validation_samples,validation_level*np.ones((1,nvalidation_samples))])
 validation_values = model(validation_samples)
 
-print(model.work_tracker.costs)
+#print(model.work_tracker.costs)
 
 errors,total_cost = [],[]
 def callback(approx):
@@ -127,18 +127,25 @@ def callback(approx):
 
 #%%
 #We can add this callback to the sparse grid options. We define ``max_nsamples``
-#to be the total wall time in seconds used to evaluate all samples in the sparse grid
+#to be the total cost used to evaluate all samples in the sparse grid
 
 max_nsamples = 100
 from pyapprox.multifidelity import adaptive_approximate_multi_index_sparse_grid
 cost_function = model.cost_function
+def cost_function(multilevel_config_sample):
+    config_sample = benchmark.multi_level_model.map_to_multidimensional_index(
+        multilevel_config_sample)
+    nx,ny=model.base_model.get_mesh_resolution(config_sample[:2])
+    dt = model.base_model.get_timestep(config_sample[2])
+    ndofs = nx*ny*model.base_model.final_time/dt
+    return ndofs/1e5
+
 options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
            'config_variables_idx':nrandom_vars,'verbose':0,
            'cost_function':cost_function,
            'max_level_1d':[np.inf]*nrandom_vars+[
                len(level_indices[0])-1]*len(level_indices),
            'callback':callback}
-
 
 #%%
 #Now lets us build the sparse grid
@@ -153,9 +160,10 @@ sparse_grid = adaptive_approximate_multi_index_sparse_grid(
 
 #%%
 # Now lets build a single fidelity approximation
+multi_level_indices = level_indices.copy()
 level_indices = [[level_indices[0][-1]]]
 config_var_trans = ConfigureVariableTransformation(level_indices)
-cost_function = model.cost_function
+#cost_function = model.cost_function
 options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
            'config_variables_idx':nrandom_vars,'verbose':0,
            'cost_function':cost_function,
@@ -181,7 +189,6 @@ plt.legend()
 
 #%%
 #Now lets build a multi-index approximation of the same model but now with more random variables. We again create the same benchmark but this time one that allows us to vary the two spatial mesh resolutions and the timestep independently
-nrandom_vars
 benchmark = setup_benchmark(
     'multi_index_advection_diffusion',nvars=nrandom_vars,corr_len=corr_len,
     max_eval_concurrency=max_eval_concurrency)
@@ -192,11 +199,16 @@ variable = benchmark.variable
 #Again we define the ConfigureVariableTransformation and define the appropriate options. Notice the different in max_level_1d. (print it; it should be longer than the single fidelity and multi-level versions)
 
 from pyapprox.adaptive_sparse_grid import ConfigureVariableTransformation
-level_indices = level_indices*3
+level_indices = multi_level_indices*3
 config_var_trans = ConfigureVariableTransformation(level_indices)
 
 from pyapprox.multifidelity import adaptive_approximate_multi_index_sparse_grid
-cost_function = model.cost_function
+#cost_function = model.cost_function
+def cost_function(config_sample):
+    nx,ny=model.base_model.get_mesh_resolution(config_sample[:2])
+    dt = model.base_model.get_timestep(config_sample[2])
+    ndofs = nx*ny*model.base_model.final_time/dt
+    return ndofs/1e5
 options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
            'config_variables_idx':nrandom_vars,'verbose':0,
            'cost_function':cost_function,
@@ -219,8 +231,6 @@ plt.loglog(single_fidelity_total_cost,single_fidelity_errors,
 plt.loglog(total_cost,errors,label=r'$\mathrm{Multi}-\mathrm{index}$')
 plt.legend()
 plt.show()
-
-#level_indices = [[1,2,3]]*3#multi-index
 
 
 #%%

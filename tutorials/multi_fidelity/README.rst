@@ -1,5 +1,5 @@
-Multi-Fidelity Monte Carlo Methods
-----------------------------------
+Multi-Fidelity Methods
+----------------------
 
 Multi-fidelity methods utilize an ensemble of models, enriching a small number of high-fidelity simulations with larger numbers of simulations from models of varying prediction accuracy and reduced cost, to enable greater exploration and resolution of uncertainty while maintaining deterministic prediction accuracy. The effectiveness of multi-fidelity approaches depends on the ability to identify and exploit relationships among models within the ensemble.
 
