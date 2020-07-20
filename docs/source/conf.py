@@ -56,6 +56,7 @@ extensions += ['sphinx_gallery.gen_gallery']
 
 from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
+    'plot_setup_model.py',
     'plot_advection_diffusion_model.py',
     'plot_monte_carlo.py',
     'plot_bayesian_inference.py',
@@ -70,7 +71,7 @@ example_filenames_in_order = [
     'plot_many_model_approximate_control_variate_monte_carlo.py',
     #'plot_recursive_control_variate_monte_carlo.py',#redundant remove when ready
     #'plot_approximate_control_variate_sample_allocation.py',#redundant remove when ready
-    'plot_multi_index_collocation.py'#incomplete
+    'plot_multi_index_collocation.py'
 ]
 class ExamplesExplicitOrder(_SortKey):
     
@@ -218,7 +219,7 @@ mathjax_config = {
             "pdf":r'\rho',
             "rvdom":r'\Gamma',
             "coloneqq":r'\colon=',
-            "norm":[r'\lVert #1 \rVert',1],
+            "norm":[r'{\lVert #1 \rVert}',1],
             "argmax":[r'\operatorname{argmax}'],
             "covar":[r'\mathbb{C}\text{ov}\left[#1,#2\right]',2],
             "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2],

@@ -377,7 +377,7 @@ def setup_benchmark(name,**kwargs):
 
 
     if name not in benchmarks:
-        msg = f'Benchmark "{name}" not found.\n Avaiable benchmarks are:\n'
+        msg = f'Benchmark "{name}" not found.\n Avaialble benchmarks are:\n'
         for key in benchmarks.keys():
             msg += f"\t{key}\n"
         raise Exception(msg)

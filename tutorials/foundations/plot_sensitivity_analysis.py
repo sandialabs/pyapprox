@@ -21,7 +21,7 @@ The functions :math:`\hat{f}_\V{u}` can be obtained by integration, specifically
 
 where :math:`\dx{\pdf_{\mathcal{D} \setminus \V{u}}(\rv)}=\prod_{j\notin\V{u}}\dx{\pdf_j(\rv)}` and :math:`\rvdom_{\mathcal{D} \setminus \V{u}}=\bigotimes_{j\notin\V{u}}\rvdom_j`.
 
-The first-order terms :math:`\hat{f}_{\V{u}}(\rv_i)`, :math:`\norm{\V{u}}{0}=1` represent the effect of a single variable acting independently of all others. Similarly, the second-order terms :math:`\norm{\V{u}}{0}=2` represent the contributions of two variables acting together, and so on.
+The first-order terms :math:`\hat{f}_{\V{u}}(\rv_i)`, :math:`\lVert \V{u}\rVert_{0}=1` represent the effect of a single variable acting independently of all others. Similarly, the second-order terms :math:`\lVert\V{u}\rVert_{0}=2` represent the contributions of two variables acting together, and so on.
 
  The terms of the ANOVA expansion are orthogonal, i.e. the weighted :math:`L^2` inner product :math:`(\hat{f}_\V{u},\hat{f}_\V{v})_{L^2_\pdf}=0`, for :math:`\V{u}\neq\V{v}`. This orthogonality facilitates the following decomposition of the variance of the function :math:`f` 
 
@@ -31,8 +31,7 @@ where :math:`\dx{\pdf_{\V{u}}(\rv)}=\prod_{j\in\V{u}}\dx{\pdf_j(\rv)}`.
 
 The quantities :math:`\var{\hat{f}_\V{u}}/ \var{f}` are referred to as Sobol indices [SMCS2001]_ and are frequently used to estimate the sensitivity of :math:`f` to single, or combinations of input parameters. Note that this is a *global* sensitivity, reflecting a variance attribution over the range of the input parameters, as opposed to the local sensitivity reflected by a derivative. Two popular measures of sensitivity are the main effect and total effect indices given respectively by
 
-.. math:: S_{i} = \frac{\var{\hat{f}_{\V{e}_i}}}{\var{f}}, \qquad
- S^T_{i} = \frac{\sum_{\V{u}\in\mathcal{J}}\var{\hat{f}_{\V{u}}}}{\var{f}}
+.. math:: S_{i} = \frac{\var{\hat{f}_{\V{e}_i}}}{\var{f}}, \qquad S^T_{i} = \frac{\sum_{\V{u}\in\mathcal{J}}\var{\hat{f}_{\V{u}}}}{\var{f}}
 
 where :math:`\V{e}_i` is the unit vector, with only one non-zero entry located at the :math:`i`-th element, and :math:`\mathcal{J} = \{\V{u}:i\in\V{u}\}`.
 
