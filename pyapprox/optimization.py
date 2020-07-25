@@ -8,13 +8,13 @@ from pyapprox.utilities import get_all_sample_combinations
 
 def approx_jacobian(func,x,*args,epsilon=np.sqrt(np.finfo(float).eps)):
     x0 = np.asfarray(x)
-    assert x0.ndim==1
+    assert x0.ndim==1 or x0.shape[1]==1
     f0 = np.atleast_1d(func(*((x0,)+args)))
     if f0.ndim==2:
         assert f0.shape[1]==1
         f0 = f0[:,0]
     jac = np.zeros([len(x0),len(f0)])
-    dx = np.zeros(len(x0))
+    dx = np.zeros(x0.shape)
     for i in range(len(x0)):
         dx[i] = epsilon
         f1 = func(*((x0+dx,)+args))
@@ -408,15 +408,15 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
 
         ``fun(z) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
-        output is a 2D np.ndarray with shape (nqoi,nsamples)
+        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
+        output is a 2D np.ndarray with shape (nqoi,1)
 
     jac : callable
         The jacobian of ``fun`` with signature
 
         ``jac(z) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
         output is a 2D np.ndarray with shape (nqoi,nvars)
 
     zz : np.ndarray (nvars,1)
@@ -496,7 +496,7 @@ def check_hessian(jac,hessian_matvec,zz,plot=False,disp=True):
 
         ``jac(z) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
         output is a 2D np.ndarray with shape (nqoi,nvars)
 
     hessian_matvec : callable
@@ -504,7 +504,7 @@ def check_hessian(jac,hessian_matvec,zz,plot=False,disp=True):
 
         ``hessian_matvec(z,p) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples), ``p`` is
+        where ``z`` is a 2D np.ndarray with shape (nvars,1), ``p`` is
         an arbitrary vector with shape (nvars,1) and the
         output is a 2D np.ndarray with shape (nqoi,nvars)
 

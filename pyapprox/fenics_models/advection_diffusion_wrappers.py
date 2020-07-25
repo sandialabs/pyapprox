@@ -118,8 +118,7 @@ class AdvectionDiffusionModel(object):
         initial_condition=dl.Constant(0.0)
         return initial_condition
 
-    def get_boundary_conditions_and_function_space(
-            self,random_sample):
+    def get_boundary_conditions_and_function_space(self,random_sample):
         """By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None

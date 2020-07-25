@@ -133,52 +133,6 @@ def conditional_value_at_risk_subgradient(samples,alpha,weights=None,samples_sor
         # grad is for sorted samples so revert to original ordering
         grad = grad[np.argsort(I)]
     return grad
-
-def smooth_conditional_value_at_risk_gradient(samples,alpha,weights=None,samples_sorted=False):
-    assert samples.ndim==1 or samples.shape[1]==1
-    samples = samples.squeeze()
-    num_samples = samples.shape[0]
-    if weights is None:
-        weights = np.ones(num_samples)/num_samples
-    assert np.allclose(weights.sum(),1)
-    assert weights.ndim==1 or weights.shape[1]==1
-    if not samples_sorted:
-        I = np.argsort(samples)
-        xx,ww = samples[I],weights[I]
-    else:
-        xx,ww=samples,weights
-    VaR,index = value_at_risk(xx,alpha,ww,samples_sorted=True)
-    grad = np.empty(num_samples)
-    grad[:index]=0
-    grad[index]=1/(1-alpha)*(weights[:index+1].sum()-alpha)
-    grad[index+1:]=1/(1-alpha)*weights[index+1:]
-    if not samples_sorted:
-        # grad is for sorted samples so revert to original ordering
-        grad = grad[np.argsort(I)]
-    return grad
-
-def smooth_conditional_value_at_risk(smoother_type,eps,alpha,samples,
-                                     weights=None):
-    assert samples.ndim==1
-    num_samples = samples.shape[0]
-    if weights is not None:
-        weights = np.ones(num_samples)/num_samples
-    assert weights.sum()==1
-    q = quantile(samples,alpha)
-    cvar_eps = (weights*smooth_max_function(smoother_type,eps,samples-q)).sum()
-    cvar_eps /= (1-alpha)
-    return cvar_eps + np.asscalar(q)
-
-def smooth_conditional_value_at_risk_gradient(smoother_type,eps,alpha,samples,weighs=None):
-    assert samples.ndim==1
-    num_samples = samples.shape[0]
-    if weights is not None:
-        weights = np.ones(num_samples)/num_samples
-    assert weights.sum()==1
-    q = quantile(samples,alpha)
-    cvar_eps = weights*smooth_max_function_first_derivative(smoother_type,eps,samples-q)
-    cvar_eps /= (1-alpha)
-    return cvar_eps + np.asscalar(q)
         
 def smooth_max_function(smoother_type,eps,x):
     if smoother_type==0:
@@ -229,6 +183,80 @@ def smooth_max_function_second_derivative(smoother_type,eps,x):
         msg="incorrect smoother_type"
         raise Exception(msg)
 
+def smooth_conditional_value_at_risk(smoother_type,eps,alpha,x,weights=None):
+    assert x.ndim==2 and x.shape[1]==1
+    t = x[-1]
+    if weights is None:
+        return t+smooth_max_function(smoother_type,eps,x[:-1]-t).mean()/(1-alpha)
+
+    assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
+    return t+smooth_max_function(
+        smoother_type,eps,x[:-1]-t)[:,0].dot(weights)/(1-alpha)
+
+def smooth_conditional_value_at_risk_gradient(smoother_type,eps,alpha,x,weights=None):
+    assert x.ndim==2 and x.shape[1]==1
+    t = x[-1]
+    if weights is None:
+        weights = np.ones(x.shape[0]-1)/(x.shape[0]-1)
+    assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
+    nsamples = x.shape[0]-1
+    grad = np.empty(x.shape[0])
+    grad[-1] = 1-smooth_max_function_first_derivative(
+        smoother_type,eps,x[:-1]-t).dot(weights)/((1-alpha))
+    grad[:-1] = smooth_max_function_first_derivative(
+        smoother_type,eps,x[:-1]-t)/(1-alpha)*weights
+    return grad
+
+def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,x,weights=None):
+    assert x.ndim==2 and x.shape[1]==1
+    t = x[-1]
+    values,weights = fun(x[:-1])
+    if weights is None:
+        return t+smooth_max_function(smoother_type,eps,values-t).mean()/(1-alpha), values,weights
+
+    assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
+    return 
+
+
+def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,jac,x,weights=None):
+    """
+    fun : callable
+         A function with signature 
+
+         ``fun(x)->ndarray (nsamples,1)``
+
+        The output values used to compute CVAR.
+
+    jac  : callable
+        The jacobian of ``fun`` (with resepct to the variables ``z`` )with signature
+        
+        ``jac(x) -> np.ndarray (nsamples,nvars)``
+
+        where nsamples is the number of values used to compute
+        CVAR. Typically this function will be a loop evaluating
+        the gradient of a function (with resepct to x) ``fun(x,z)`` at realizations
+        of random variables ``z``
+    """
+    assert x.ndim==2 and x.shape[1]==1
+    fun_vals = fun(x[:-1])
+    assert fun_vals.ndim==2
+    nsamples=fun_vals.shape[0]
+    t = x[-1]
+    if weights is None:
+        weights = np.ones(nsamples)/(nsamples)
+    assert weights.ndim==1 and weights.shape[0]==nsamples
+    obj_val = t+smooth_max_function(
+        smoother_type,eps,fun_vals-t)[:,0].dot(weights)/(1-alpha)
+    
+    grad = np.empty(x.shape[0])
+    grad[-1] = 1-smooth_max_function_first_derivative(
+        smoother_type,eps,fun_vals-t).dot(weights)/((1-alpha))
+    jac_vals = jac(x[:-1])
+    assert jac_vals.shape==(nsamples,x.shape[0]-1)
+    grad[:-1] =(smooth_max_function_first_derivative(
+        smoother_type,eps,fun_vals-t).T*jac_vals/(1-alpha)).T.dot(weights)
+    return obj_val,grad
+    
 
 def cvar_regression_quadrature(basis_matrix,values,alpha,nquad_intervals,
                                verbosity=1,trapezoid_rule=False,

@@ -416,6 +416,9 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(poly.mean(),true_mean)
         assert np.allclose(poly.variance(),true_variance)
 
+        assert np.allclose(np.diag(poly.covariance()),poly.variance())
+        assert np.allclose(poly.covariance()[0,1],coef[1:,0].dot(coef[1:,1]))
+
     def test_pce_jacobian(self):
         degree = 2;
 

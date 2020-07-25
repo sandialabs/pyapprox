@@ -110,7 +110,7 @@ def get_parameter_sweeps_samples(
         Each row contains the rotation vector of each sweep.
     """
     if sweep_rotation_matrix is None:
-        assert num_sweeps<=num_vars # otherwise have to use additonal Q matrices
+        assert num_sweeps<=num_vars # otherwise have to use additional Q matrices
         A = np.random.normal(0,1,(num_vars,num_sweeps))
         #A = np.eye(num_vars)[:,:num_sweeps]
         Q, R = np.linalg.qr( A )
@@ -120,11 +120,13 @@ def get_parameter_sweeps_samples(
         assert num_sweeps == sweep_rotation_matrix.shape[1]
     samples = np.empty((num_vars,num_samples_per_sweep*num_sweeps))
     active_samples = np.empty((num_sweeps,num_samples_per_sweep))
+
     samples,active_samples = get_parameter_sweeps_samples_using_rotation(
         sweep_rotation_matrix, get_sweep_bounds,num_samples_per_sweep,
         random_samples)
 
     return samples, active_samples, sweep_rotation_matrix
+
 
 def get_hypercube_sweep_bounds(W):
     num_vars = W.shape[0]
@@ -136,7 +138,7 @@ def get_hypercube_sweep_bounds(W):
     return y_lb, y_ub
 
 def get_hypercube_parameter_sweeps_samples(
-        ranges,num_samples_per_sweep=50,num_sweeps=1):
+        ranges,num_samples_per_sweep=50,num_sweeps=1,sweep_rotation_matrix=None):
     """
     Get the samples of parameter sweeps through random directions of a  
     d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]
@@ -167,9 +169,11 @@ def get_hypercube_parameter_sweeps_samples(
     """
 
     num_vars = ranges.shape[0]//2
+    
     samples, active_samples, W = get_parameter_sweeps_samples(
         num_vars,get_hypercube_sweep_bounds,
-        num_samples_per_sweep,num_sweeps)
+        num_samples_per_sweep,num_sweeps,
+        sweep_rotation_matrix=sweep_rotation_matrix)
 
     canonical_ranges = np.ones((num_vars*2),dtype=float)
     canonical_ranges[::2] = -1
@@ -252,7 +256,7 @@ def plot_parameter_sweep_single_qoi(active_samples,vals,num_sweeps,
         #scale y to [-1,1]
         lb = active_samples[i,:].min(); ub = active_samples[i,:].max()
         y = (active_samples[i,:]-lb)/(ub-lb)*2-1.
-        sweep_label = label_opts.get('sweep_label','sweep')
+        sweep_label = label_opts.get('sweep_label',r'$\mathrm{sweep}$')
         axs.plot(y,vals[i*num_samples_per_sweep:(i+1)*num_samples_per_sweep],
                  'o',lw=2,label=sweep_label+' %d'%i)
     try:
@@ -275,26 +279,30 @@ def plot_parameter_sweep_single_qoi(active_samples,vals,num_sweeps,
     
 def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
                           qoi_indices=None, show=False, axs=None,
-                          label_opts=dict()):
-    if axs is None:
-        fig,axs = plt.subplots(1,1,figsize=(8,6))
-    
+                          axes_label_opts=None):
     num_sweeps, num_samples_per_sweep = active_samples.shape
     assert vals.shape[0] == num_sweeps*num_samples_per_sweep
     if qoi_indices is None:
         qoi_indices = np.arange(vals.shape[1])
-    assert len(qoi_indices)<=vals.shape[1]
+    assert np.all(qoi_indices<vals.shape[1])
+
+    if axs is None:
+        fig,axs = plt.subplots(1,len(qoi_indices),figsize=(8*len(qoi_indices),6))
+
+    if axes_label_opts is None:
+        axes_label_opts = [dict()]*len(qoi_indices)
+        
     for j in range(len(qoi_indices)):
+        label_opts = axes_label_opts[j]
         if 'title' not in label_opts:
-            label_opts['title']="QoI %d"%j
+            label_opts['title']=r"$\mathrm{QoI\;%d}$"%j
         plot_parameter_sweep_single_qoi(
             active_samples,vals[:,j],num_sweeps,num_samples_per_sweep,
-            label_opts,axs)
-        if fig_basename is not None:
-            plt.savefig(fig_basename+'-qoi-%d.png'%qoi_indices[j],
-                        bbox_inches='tight')
-        if show:
-            plt.show()
+            label_opts,axs[j])
+    if fig_basename is not None:
+        plt.savefig(fig_basename+'.pdf',bbox_inches='tight')
+    if show:
+        plt.show()
 
 def run_parameter_sweeps(model,ranges,num_samples_per_sweep=50,
                          num_sweeps=1):
@@ -306,7 +314,7 @@ def run_parameter_sweeps(model,ranges,num_samples_per_sweep=50,
 def generate_parameter_sweeps_and_plot(
         model, opts, filename, sweep_type, num_samples_per_sweep=50,
         num_sweeps=2, qoi_indices=None, show=False, samples_only=False,
-        sweep_rotation_matrix=None):
+        sweep_rotation_matrix=None,axes_label_opts=None):
     if filename is None:
         # if assetion fails model will be run but not saved or
         # ploted so useless
@@ -316,7 +324,8 @@ def generate_parameter_sweeps_and_plot(
         if sweep_type=='hypercube':
             ranges = opts['ranges']
             samples, active_samples, W = get_hypercube_parameter_sweeps_samples(
-                ranges,num_samples_per_sweep,num_sweeps)
+                ranges,num_samples_per_sweep,num_sweeps,sweep_rotation_matrix)
+            print(samples.T)
         elif sweep_type=='gaussian':
             mean = opts['mean']
             covariance = opts.get('covariance',None)
@@ -340,7 +349,7 @@ def generate_parameter_sweeps_and_plot(
 
         if filename is not None:
             path = os.path.split(filename)[0]
-            if not os.path.exists(path):
+            if len(path)>0 and not os.path.exists(path):
                 os.makedirs(path)
             np.savez(filename,samples=samples,vals=vals,
                     active_samples=active_samples)
@@ -353,10 +362,13 @@ def generate_parameter_sweeps_and_plot(
             W = data['W']#backward compatability
 
     if filename is not None:
-        figbasename = filename[:-4]
+        if filename[-4]=='.':
+            figbasename = filename[:-4]
+        else:
+            figbasename = filename
     else:
         figbasename=None
     
     if vals is not  None:
         plot_parameter_sweeps(active_samples, vals, figbasename, qoi_indices,
-                              show)
+                              show, axes_label_opts=axes_label_opts)
