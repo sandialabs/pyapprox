@@ -185,6 +185,8 @@ if __name__=='__main__':
     model = AirfoilHeatTransferModel(degree)
     sample = np.array([595,645,705,29,1025,1000,0])
     sol = model.solve(sample[:,np.newaxis])
+
+    qoi = model(sample[:,np.newaxis])
     
     fig,axs=plt.subplots(1,1)
     p=dl.plot(sol)
