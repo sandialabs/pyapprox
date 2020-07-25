@@ -1100,7 +1100,8 @@ def cholesky_decomposition(Amat):
 
 def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                                    error_on_small_tol=False,
-                                   pivot_weights=None):
+                                   pivot_weights=None,
+                                   return_diag=False):
     """
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
@@ -1122,7 +1123,9 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
     assert npivots<=nrows
 
     L = np.zeros(((nrows,npivots)))
-    diag = np.diag(Amat).copy() # diag returns a view
+    #diag1 = np.diag(Amat).copy() # returns a copy of diag
+    diag = Amat.ravel()[::Amat.shape[0]+1] #returns a view of diag
+    #assert np.allclose(diag,diag1)
     pivots = np.arange(nrows)
     init_error = np.absolute(diag).sum()
     for ii in range(npivots):
@@ -1170,8 +1173,11 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                 break
         
     pivots = pivots[:ii+1]
-    
-    return L, pivots, error, chol_flag
+
+    if not return_diag:
+        return L, pivots, error, chol_flag
+    else:
+        return L, pivots, error, chol_flag, diag.copy()
 
 def get_pivot_matrix_from_vector(pivots,nrows):
     P = np.eye(nrows)

@@ -428,7 +428,7 @@ def collect_dirichlet_boundaries(function_space,boundary_conditions,boundaries):
     for ii in range(num_bndrys):
         if boundary_conditions[ii][0]=='dirichlet':
             bc_expr = boundary_conditions[ii][2]
-            #ii must be same marker number as used in mark_boundarie()
+            #ii must be same marker number as used in mark_boundaries()
             dirichlet_bcs.append(
                 dl.DirichletBC(function_space,bc_expr,boundaries,ii))
     return dirichlet_bcs

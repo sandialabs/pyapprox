@@ -410,11 +410,44 @@ class TestRiskMeasures(unittest.TestCase):
     def test_smooth_conditioal_value_at_risk_gradient(self):
         smoother_type,eps,alpha=0,1e-1,0.7
         samples = np.linspace(-1,1,11)
+        t=0.1
+        x0 = np.concatenate([samples,[t]])[:,np.newaxis]
         errors = check_gradients(
             partial(smooth_conditional_value_at_risk,smoother_type,eps,alpha),
-            partial(smooth_conditional_value_at_risk_gradient,smoother_type,eps,alpha),
-            samples[:,np.newaxis])
+            partial(smooth_conditional_value_at_risk_gradient,smoother_type,
+                    eps,alpha),x0)
         assert errors.min()<1e-6
+
+        weights = np.random.uniform(1,2,samples.shape[0])
+        weights /= weights.sum()
+        errors = check_gradients(
+            partial(smooth_conditional_value_at_risk,smoother_type,eps,alpha,
+                    weights=weights),
+            partial(smooth_conditional_value_at_risk_gradient,smoother_type,
+                    eps,alpha,weights=weights),x0)
+        assert errors.min()<1e-6
+
+    def test_smooth_conditional_value_at_risk_composition_gradient(self):
+        smoother_type,eps,alpha=0,1e-1,0.7
+        nsamples,nvars=4,2
+        samples = np.arange(nsamples*nvars).reshape(nvars,nsamples)
+        t=0.1
+        x0 = np.array([2,3,t])[:,np.newaxis]
+        fun = lambda x: (np.sum((x*samples)**2,axis=0).T)[:,np.newaxis]
+        jac = lambda x: 2*(x*samples**2).T
+
+        errors = check_gradients(fun,jac,x0[:2],disp=False)
+        assert (errors.min()<1e-6)
+
+        #import pyapprox as pya
+        #f = lambda x: smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,jac,x)[0]
+        #print(pya.approx_jacobian(f,x0))
+        #print(smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,jac,x0)[1])
+     
+        errors = check_gradients(
+            partial(smooth_conditional_value_at_risk_composition,smoother_type,eps,alpha,fun,jac),
+            True,x0)
+        assert errors.min()<1e-7
 
     def test_triangle_quantile(self):
         rv_1 = triangle_rv(0.5,loc=-0.5, scale=2)

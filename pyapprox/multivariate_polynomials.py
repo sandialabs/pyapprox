@@ -471,6 +471,20 @@ class PolynomialChaosExpansion(object):
         var = np.sum(self.coefficients[1:,:]**2,axis=0)
         return var
 
+    def covariance(self):
+        """
+        Compute the covariance between each quantity of interest of the 
+        polynomial chaos expansion
+
+        Returns
+        -------
+        covar : np.ndarray (nqoi)
+            The covariance between each quantitity of interest
+        """
+        nqoi=self.coefficients.shape[1]
+        covar=self.coefficients[1:,:].T.dot(self.coefficients[1:,:])
+        return covar
+
     def num_terms(self):
         # truncated svd creates basis with num_terms <= num_indices
         return self.indices.shape[1]
