@@ -363,7 +363,8 @@ def setup_benchmark(name,**kwargs):
                   'ishigami':setup_ishigami_function,
                   'oakley':setup_oakley_function,
                   'rosenbrock':setup_rosenbrock_function,
-                  'genz':setup_genz_function}
+                  'genz':setup_genz_function,
+                  'cantilever_beam':setup_cantilever_beam_benchmark}
     try:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -383,3 +384,15 @@ def setup_benchmark(name,**kwargs):
         raise Exception(msg)
 
     return benchmarks[name](**kwargs)
+    
+
+def setup_cantilever_beam_benchmark():
+    variable, design_variable = define_beam_random_variables()
+    attributes = {'fun':cantilever_beam_objective,
+                  'jac':cantilever_beam_objective_grad,
+                  'constraint_fun':cantilever_beam_constraints,
+                  'constraint_jac':cantilever_beam_constraints_jacobian,
+                  'variable':variable,
+                  'design_variable':design_variable,
+                  'design_var_indices':np.array([4,5])}
+    return Benchmark(attributes)

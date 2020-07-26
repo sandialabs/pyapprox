@@ -11,15 +11,32 @@ class TestModelwrappers(unittest.TestCase):
     def test_active_set_model(self):
         num_vars = 3
 
-        nominal_var_values = np.zeros(num_vars)
+        nominal_var_values = np.zeros((num_vars-2,1))
         active_var_indices = np.array([0,2])
         model = ActiveSetVariableModel(
-            function,nominal_var_values,active_var_indices)
+            function,num_vars,nominal_var_values,active_var_indices)
 
         num_samples = 10
         samples = np.random.uniform(0.,1.,(num_vars,num_samples))
         samples[1,:] = 0.
         reduced_samples = samples[active_var_indices,:]
+        
+        values = model(reduced_samples)
+        exact_values = function(samples)
+        assert np.allclose(values,exact_values)
+
+        nominal_var_values = np.array([[0],[1]]).T
+        active_var_indices = np.array([0,2])
+        model = ActiveSetVariableModel(
+            function,num_vars,nominal_var_values,active_var_indices)
+
+        num_samples = 10
+        samples = np.random.uniform(0.,1.,(num_vars,num_samples))
+        reduced_samples = samples[active_var_indices,:]
+
+        samples = np.tile(samples,2)
+        samples[1,:num_samples] = 0.
+        samples[1,num_samples:] = 1
         
         values = model(reduced_samples)
         exact_values = function(samples)

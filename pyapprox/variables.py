@@ -339,3 +339,9 @@ class float_rv_discrete(rv_sample):
                     vals[jj]=self.pk[ii]
                     break
         return vals
+
+class DesignVariable(object):
+    def __init__(self,bounds):
+        self.bounds=bounds
+    def num_vars(self):
+        return len(self.bounds.lb)
