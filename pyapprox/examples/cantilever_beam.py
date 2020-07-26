@@ -1,6 +1,42 @@
 import scipy.stats as ss
 from pyapprox.optimization import *
 
+from pyapprox.benchmarks.benchmarks import Benchmark
+def setup_cantilever_beam_benchmark():
+    attributes = {'fun':cantilever_beam_objective,
+                  'grad':cantilever_beam_objective_grad,
+                  'constraints':cantilever_beam_constraints,
+                  'jac':cantilever_beam_constraints_jacobian,
+                  'variable':define_beam_random_variables()}
+    return Benchmark(attributes)
+
+def cantilever_beam_objective(samples):
+    uq_samples,design_samples = samples[:-2],samples[-2:]
+    values = np.empty((samples.shape[1],1))
+    values[:,0] = beam_obj(uq_samples,design_samples)
+    return values
+
+def cantilever_beam_objective_grad(samples):
+    assert samples.shape[1]==1
+    X,Y,E,R,w,t = samples
+    grad = np.empty(2)
+    grad[0]=t
+    grad[1]=w
+    return grad
+
+def cantilever_beam_constraints(samples):
+    uq_samples,design_samples = samples[:-2],samples[-2:]
+    values = np.empty((samples.shape[1],1))
+    values[:,1] = beam_constraint_I(uq_samples,design_samples)
+    values[:,2] = beam_constraint_II(uq_samples,design_samples)
+    return values
+
+def cantilever_beam_constraints_jacobian(samples):
+    jac = np.vstack(
+        [beam_constraint_I_design_jac(samples),
+         beam_constraint_II_design_jac(samples)])
+    return jac
+
 def define_beam_random_variables():
     # traditional parameterization
     X = ss.norm(loc=500,scale=np.sqrt(100)**2)
@@ -29,6 +65,26 @@ def beam_constraint_I(uq_samples,design_samples):
     L = 100                  # length of beam
     vals = 1-6*L/(w*t)*(X/w+Y/t)/R # scaled version
     return vals
+
+def beam_constraint_I_design_jac(samples):
+    """
+    Jacobian with respect to the design variables
+    """
+    X,Y,E,R,w,t = samples
+    grad = np.empty((sample.shape[1],2))
+    grad[:,0] = (L*(12*t*X + 6*w*Y))/(R*t**2*w**3)
+    grad[:,1] = (L*(6*t*X + 12*w*Y))/(R*t**3*w**2)
+    return grad
+
+def beam_constraint_II_design_jac(samples):
+    """
+    Jacobian with respect to the design variables
+    """
+    X,Y,E,R,w,t = samples
+    grad = np.empty((sample.shape[1],2))
+    grad[:,0] = (4*L**3*(3*t**4*X**2 + w**4*Y**2))/(D*t**3*w**4*E*np.sqrt(t**4*X**2 + w**4*Y**2))
+    grad[:,1] = (4*L**3*(t**4*X**2 + 3*w**4*Y**2))/(D*t**4*w**3*E*np.sqrt(t**4*X**2 + w**4*Y**2))
+    return grad
 
 def beam_constraint_II(uq_samples,design_samples):
     uq_samples,design_samples = check_inputs(uq_samples,design_samples)

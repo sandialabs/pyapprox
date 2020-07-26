@@ -63,6 +63,7 @@ example_filenames_in_order = [
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
     'plot_sensitivity_analysis.py',
+    'plot_design_under_uncertainty.py'
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',

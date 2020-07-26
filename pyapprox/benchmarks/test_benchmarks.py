@@ -35,6 +35,50 @@ class TestBenchmarks(unittest.TestCase):
         self.assertRaises(Exception,setup_benchmark,"missing",a=7,b=0.1)
         benchmark = Benchmark({'fun':rosenbrock_function,'jac':rosenbrock_function_jacobian,
             'hessp':rosenbrock_function_hessian_prod})
+
+    def test_cantilever_beam_gradients(self):
+        benchmark = setup_benchmark('cantilever_beam')
+        from pyapprox.models.wrappers import ActiveSetVariableModel
+        fun = ActiveSetVariableModel(
+            benchmark.fun,benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),benchmark.design_var_indices)
+        jac = ActiveSetVariableModel(
+            benchmark.jac,benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),benchmark.design_var_indices)
+        init_guess = 2*np.ones((2,1))
+        errors = pya.check_gradients(
+            fun,jac,init_guess,disp=True)
+        assert errors.min()<1e-7
+
+        constraint_fun = ActiveSetVariableModel(
+            benchmark.constraint_fun,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),benchmark.design_var_indices)
+        constraint_jac = ActiveSetVariableModel(
+            benchmark.constraint_jac,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),benchmark.design_var_indices)
+        init_guess = 2*np.ones((2,1))
+        errors = pya.check_gradients(
+            constraint_fun,constraint_jac,init_guess,disp=True)
+        assert errors.min()<1e-7
+
+        nsamples=10
+        samples = pya.generate_independent_random_samples(benchmark.variable,nsamples)
+        constraint_fun = ActiveSetVariableModel(
+            benchmark.constraint_fun,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            samples,benchmark.design_var_indices)
+        constraint_jac = ActiveSetVariableModel(
+            benchmark.constraint_jac,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            samples,benchmark.design_var_indices)
+        init_guess = 2*np.ones((2,1))
+        errors = pya.check_gradients(
+            constraint_fun,constraint_jac,init_guess,disp=True)
+        assert errors.min()<1e-7
+        
+        
         
 
 if __name__== "__main__":    

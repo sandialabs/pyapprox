@@ -607,19 +607,26 @@ class PoolModel(object):
             pool=self.pool,assert_omp=self.assert_omp)
         return vals
 
+from pyapprox.utilities import get_all_sample_combinations
 class ActiveSetVariableModel(object):
-    def __init__(self,function,nominal_var_values,
+    def __init__(self,function,num_vars,inactive_var_values,
                  active_var_indices):
+        # num_vars can de determined from inputs but making it
+        # necessary allows for better error checking
         self.function = function
-        assert nominal_var_values.ndim==1
-        self.nominal_var_values = nominal_var_values
+        assert inactive_var_values.ndim==2
+        self.inactive_var_values = inactive_var_values
         self.active_var_indices = active_var_indices
-        assert np.all(self.active_var_indices<nominal_var_values.shape[0])
+        assert self.active_var_indices.shape[0]+self.inactive_var_values.shape[0]==num_vars
+        self.num_vars=num_vars
+        assert np.all(self.active_var_indices<self.num_vars)
+        self.inactive_var_indices = np.delete(np.arange(self.num_vars),active_var_indices)
         
     def __call__(self,reduced_samples):
-        samples = np.tile(
-            self.nominal_var_values[:,np.newaxis],(1,reduced_samples.shape[1]))
-        samples[self.active_var_indices,:] = reduced_samples
+        raw_samples = get_all_sample_combinations(self.inactive_var_values,reduced_samples)
+        samples = np.empty_like(raw_samples)
+        samples[self.inactive_var_indices,:] = raw_samples[:self.inactive_var_indices.shape[0]]
+        samples[self.active_var_indices,:] = raw_samples[self.inactive_var_indices.shape[0]:]
         return self.function(samples)
 
 def combine_saved_model_data(saved_data_basename):
