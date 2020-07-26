@@ -212,7 +212,8 @@ def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,x,w
     t = x[-1]
     values,weights = fun(x[:-1])
     if weights is None:
-        return t+smooth_max_function(smoother_type,eps,values-t).mean()/(1-alpha), values,weights
+        return t+smooth_max_function(smoother_type,eps,values-t).mean()/(1-alpha), \
+            values,weights
 
     assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
     return 
@@ -719,7 +720,4 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
     assert Icnt+Jcnt==nsamples
     #print(Icnt/nsamples,1-beta)
     #print(Jcnt/nsamples,beta)
-    return samples  
-
-#sudo yum install glpk-devel glpk
-# pip install cvxopt
+    return samples

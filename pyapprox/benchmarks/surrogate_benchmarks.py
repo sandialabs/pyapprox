@@ -52,15 +52,13 @@ def cantilever_beam_objective(samples):
     return values
 
 def cantilever_beam_objective_grad(samples):
-    assert samples.shape[1]==1
     X,Y,E,R,w,t = samples
-    grad = np.empty(2)
-    grad[0]=t
-    grad[1]=w
+    grad = np.empty((samples.shape[1],2))
+    grad[:,0]=t
+    grad[:,1]=w
     return grad
 
 def cantilever_beam_constraints(samples):
-    uq_samples,design_samples = samples[:-2],samples[-2:]
     values = np.hstack([beam_constraint_I(samples),beam_constraint_II(samples)])
     return values
 
@@ -74,7 +72,7 @@ def beam_constraint_I(samples):
     X,Y,E,R,w,t = samples
     L = 100                  # length of beam
     vals = 1-6*L/(w*t)*(X/w+Y/t)/R # scaled version
-    return vals
+    return vals[:,np.newaxis]
 
 def beam_constraint_I_design_jac(samples):
     """
@@ -92,7 +90,7 @@ def beam_constraint_II(samples):
     L,D0 = 100,2.2535
     # scaled version
     vals = 1-4*L**3/(E*w*t)*np.sqrt(X**2/w**4+Y**2/t**4)/D0
-    return vals
+    return vals[:,np.newaxis]
 
 def beam_constraint_II_design_jac(samples):
     """
