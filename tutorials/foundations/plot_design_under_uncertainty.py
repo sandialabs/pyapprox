@@ -23,8 +23,11 @@ We will ue the Cantilever Beam benchmark to illustrate how to design under uncer
 
 First we must specify the distribution of the random variables
 """
+import numpy as np
 import pyapprox as pya
 from pyapprox.benchmarks.benchmarks import setup_benchmark
+from functools import partial
+from pyapprox.optimization import *
 benchmark = setup_benchmark('cantilever_beam')
 
 from pyapprox.models.wrappers import ActiveSetVariableModel
@@ -37,11 +40,31 @@ jac = ActiveSetVariableModel(
     benchmark.jac,benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
     samples,benchmark.design_var_indices)
 
-constraint_fun = ActiveSetVariableModel(
-    benchmark.constraint_fun,
-    benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-    samples,benchmark.design_var_indices)
-constraint_jac = ActiveSetVariableModel(
-    benchmark.constraint_jac,
-    benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-    samples,benchmark.design_var_indices)
+generate_random_samples = partial(
+    pya.generate_independent_random_samples,benchmark.variable,100)
+generate_sample_data = partial(
+    generate_monte_carlo_quadrature_data,generate_random_samples,
+    benchmark.variable.num_vars(),benchmark.design_var_indices)
+
+num_vars = benchmark.variable.num_vars()+benchmark.design_variable.num_vars()
+objective = StatisticalConstraint(
+    benchmark.fun,benchmark.jac,expectation_fun,expectation_jac,num_vars,
+    benchmark.design_var_indices,generate_sample_data)
+
+init_guess = 2*np.ones((2,1))
+errors = pya.check_gradients(
+    objective,objective.jacobian,init_guess,disp=True)
+constraint = StatisticalConstraint(
+    benchmark.constraint_fun,benchmark.constraint_jac,expectation_fun,expectation_jac,
+    num_vars,benchmark.design_var_indices,generate_sample_data)
+
+init_guess = 2*np.ones((2,1))
+print(constraint(init_guess))
+print(constraint.jacobian(init_guess).shape)
+errors = pya.check_gradients(
+    constraint,constraint.jacobian,init_guess,disp=True)
+
+#Combinations of constraint specifications
+#fun,jac = fun,None
+#fun,jac = fun,True
+#fun,jac = fun,jac

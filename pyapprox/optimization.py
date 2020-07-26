@@ -559,3 +559,92 @@ def check_hessian(jac,hessian_matvec,zz,plot=False,disp=True):
         plt.show()
 
     return np.asarray(errors)
+
+def expectation_fun(values,weights):
+    assert values.shape[0]%weights.shape[0]==0
+    nqoi = values.shape[0]//weights.shape[0]
+    nsamples = values.shape[0]//nqoi
+    return (values.T.dot(weights)).T
+
+def expectation_jac(values,weights):
+    assert values.shape[0]%weights.shape[0]==0
+    nqoi = values.shape[0]//weights.shape[0]
+    nsamples = values.shape[0]//nqoi
+    num_vars = values.shape[1]
+    tmp = values.reshape((nsamples,nqoi,num_vars),order='F')
+    #assert np.allclose(tmp[:,0,:],values[:nsamples,:])
+    return (tmp.T.dot(weights)).T
+
+def generate_monte_carlo_quadrature_data(
+        generate_random_samples,num_vars,design_var_indices,fun):
+    samples = generate_random_samples()
+    weights = np.ones(samples.shape[1])/samples.shape[1]
+    values = fun(samples)
+    return samples,weights,values
+
+from pyapprox.models.wrappers import ActiveSetVariableModel
+class StatisticalConstraint(object):
+    """
+    Notes
+    -----
+    TODO ensure the following.
+
+    This class unifies the jac=True and callable(jac)=True interfaces.
+    The interface is used for passing to optimizers that need the fun and jac functions
+    to be separate. This is often good practice as it avoids computing 
+    jac when only fun is required.
+    If jac=True the jacobian is stored and returned when self.jac is called
+    """
+    
+    def __init__(self,fun,jac,stats_fun,stats_jac,num_vars,
+                 design_var_indices,generate_sample_data):
+        self.fun,self.jac,self.stats_fun,self.stats_jac=fun,jac,stats_fun,stats_jac
+        self.num_vars=num_vars
+        self.design_var_indices=design_var_indices
+        self.random_var_indices = np.delete(np.arange(self.num_vars),self.design_var_indices)
+        self.generate_sample_data=generate_sample_data
+
+        self.design_sample = None
+        self.jac_values = None
+        self.samples = None
+        
+        if self.stats_jac is not None and self.jac is None:
+            msg = 'stats_jac requries jac to be defined'
+            raise Exception(msg)
+        if self.jac is not None and self.stats_jac is None:
+            msg = 'jac will be ignored because stats_jac was not defined'
+            raise Exception(msg)
+
+    def generate_shared_data(self,design_sample):
+        self.design_sample=design_sample.copy()
+
+        fun = ActiveSetVariableModel(self.fun,self.num_vars,design_sample,
+                                     self.random_var_indices)
+        data = self.generate_sample_data(fun)
+        self.samples,self.weights,self.fun_values = data[:3]
+        assert self.samples.shape[0]==self.num_vars-self.design_var_indices.shape[0]
+        assert self.samples.shape[1]==self.weights.shape[0]
+        #assert self.samples.shape[1]==self.fun_values.shape[0]
+        if not callable(self.jac) and self.jac:
+            # consider whether to support self.jac=True. It seems appealing
+            # if using gradients from adjoint PDE simulation which requires 
+            # data used to compute function values and thus better to do at the
+            # time the function values are obtained. Challenge is defining the correct
+            # output interface and only computing gradients if self.jac has been called
+            # and not if self.__call__ is called.
+            raise Exception ("Not yet implemented")
+            self.jac_values = data[3]
+        
+    def __call__(self,design_sample):
+        self.generate_shared_data(design_sample)
+        values = self.stats_fun(self.fun_values,self.weights)
+        return values
+
+    def jacobian(self,design_sample):
+        if np.array_equal(design_sample,self.design_sample) and self.jac_values is not None:
+            jac_values = self.jac_values
+        else:
+            jac = ActiveSetVariableModel(
+                self.jac,self.num_vars,self.samples,self.design_var_indices)
+            jac_values = jac(design_sample)
+        return self.stats_jac(jac_values,self.weights)
