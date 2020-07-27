@@ -1,13 +1,12 @@
-name: Manually triggered workflow
+name: GitHub CI - PyApprox
+
 on:
+  push:
+    branches:
+      - github-actions
+
   workflow_dispatch:
 
-# name: GitHub CI - PyApprox
-#
-# on:
-#   push:
-#     branches:
-#       - github-actions
 
 #   # schedule:
 #   #  # * is a special character in YAML so you have to quote this string
