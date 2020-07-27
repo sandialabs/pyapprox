@@ -39,7 +39,7 @@ def define_beam_random_variables():
     R = stats.norm(loc=40000,scale=np.sqrt(2000)**2/10)
 
     from scipy.optimize import Bounds
-    design_bounds = Bounds([0,0],[4,4])
+    design_bounds = Bounds([1,1],[4,4])
     design_variable = DesignVariable(design_bounds)
     
     variable = IndependentMultivariateRandomVariable([X,Y,E,R])

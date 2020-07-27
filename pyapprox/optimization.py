@@ -572,11 +572,15 @@ def expectation_jac(values,weights):
     nsamples = values.shape[0]//nqoi
     num_vars = values.shape[1]
     tmp = values.reshape((nsamples,nqoi,num_vars),order='F')
-    #assert np.allclose(tmp[:,0,:],values[:nsamples,:])
+    assert np.array_equal(tmp[:,0,:],values[:nsamples,:])
+    if nqoi>1:
+        assert np.allclose(tmp[:,1,:],values[nsamples:,:])
     return (tmp.T.dot(weights)).T
 
 def generate_monte_carlo_quadrature_data(
-        generate_random_samples,num_vars,design_var_indices,fun):
+        generate_random_samples,num_vars,design_var_indices,fun,seed=None):
+    if seed is not None:
+        np.random.seed(seed)
     samples = generate_random_samples()
     weights = np.ones(samples.shape[1])/samples.shape[1]
     values = fun(samples)
@@ -597,12 +601,14 @@ class StatisticalConstraint(object):
     """
     
     def __init__(self,fun,jac,stats_fun,stats_jac,num_vars,
-                 design_var_indices,generate_sample_data):
+                 design_var_indices,generate_sample_data,bound=None,upper_bound=True):
         self.fun,self.jac,self.stats_fun,self.stats_jac=fun,jac,stats_fun,stats_jac
         self.num_vars=num_vars
         self.design_var_indices=design_var_indices
         self.random_var_indices = np.delete(np.arange(self.num_vars),self.design_var_indices)
         self.generate_sample_data=generate_sample_data
+        self.bound=bound
+        self.upper_bound=upper_bound
 
         self.design_sample = None
         self.jac_values = None
@@ -636,15 +642,26 @@ class StatisticalConstraint(object):
             self.jac_values = data[3]
         
     def __call__(self,design_sample):
+        if design_sample.ndim==1:
+            design_sample = design_sample[:,np.newaxis]
         self.generate_shared_data(design_sample)
         values = self.stats_fun(self.fun_values,self.weights)
+        if self.bound is not None:
+            values = values-self.bound
+            if self.upper_bound:
+                values *= -1
         return values
 
     def jacobian(self,design_sample):
+        if design_sample.ndim==1:
+            design_sample = design_sample[:,np.newaxis]
         if np.array_equal(design_sample,self.design_sample) and self.jac_values is not None:
             jac_values = self.jac_values
         else:
             jac = ActiveSetVariableModel(
                 self.jac,self.num_vars,self.samples,self.design_var_indices)
             jac_values = jac(design_sample)
-        return self.stats_jac(jac_values,self.weights)
+        constraint_jac = self.stats_jac(jac_values,self.weights)
+        if self.bound is not None and self.upper_bound:
+            constraint_jac *= -1
+        return constraint_jac
