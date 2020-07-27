@@ -3,7 +3,7 @@ name: GitHub CI - PyApprox
 on:
   push:
     branches:
-      - github-actions
+      - master
 
   workflow_dispatch:
 
