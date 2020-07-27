@@ -1,7 +1,9 @@
 name: Manually triggered workflow
 on:
-  workflow_dispatch:name: GitHub CI - PyApprox
+  workflow_dispatch:
 
+# name: GitHub CI - PyApprox
+#
 # on:
 #   push:
 #     branches:
