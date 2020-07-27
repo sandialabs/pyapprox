@@ -69,6 +69,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_dirs=[numpy.get_include()],
+    setup_requires=['numpy >= 1.14']
     install_requires=[
         'numpy >= 1.14',
         'matplotlib',
