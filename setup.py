@@ -48,7 +48,7 @@ else:
     extensions = []
     for pyx_file in pyx_files:
         name= pyx_file[:-4].replace('/', '.')
-        ext = Extension(name=name,sources=[pyx_file])
+        ext = Extension(name=name,sources=[pyx_file],include_dirs=[numpy.get_include()])
         extensions.append(ext)
     extensions = no_cythonize(extensions)
 
@@ -68,6 +68,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    include_dirs=[numpy.get_include()],
     install_requires=[
         'numpy >= 1.14',
         'matplotlib',
