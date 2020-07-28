@@ -11,7 +11,7 @@ mpl.rcParams['xtick.labelsize'] = 20
 mpl.rcParams['ytick.labelsize'] = 20
 mpl.rcParams['legend.fontsize'] = 16
 #print mpl.rcParams.keys()
-mpl.rcParams['text.latex.preamble'] = [r'\usepackage{siunitx}', r'\usepackage{amsmath}',r'\usepackage{amssymb}']
+mpl.rcParams['text.latex.preamble'] = r'\usepackage{siunitx}\usepackage{amsmath}\usepackage{amssymb}'
 
 # NOTES
 # using plt.plot(visible=False ) will allow linestyle/marker to be included

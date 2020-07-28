@@ -1,0 +1,10 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = [
+    "setuptools",
+    "wheel",
+    "Cython",
+    "numpy>=1.14",
+    "scipy>=1.0.0"]
+#cython is needed for build to execute because some of Pyapprox cython extensions use
+#scipy cython functions

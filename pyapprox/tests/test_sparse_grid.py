@@ -15,6 +15,7 @@ from pyapprox.variable_transformations import \
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
 import sympy as sp
+from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
 
 skiptest = unittest.skip("test not completely implemented")
 

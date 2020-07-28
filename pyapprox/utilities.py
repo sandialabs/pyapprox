@@ -1368,8 +1368,8 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
         density2_vals/=const2
     else:
         tol=1e-14
-        print(const1)
-        print(const2)
+        #print(const1)
+        #print(const2)
         assert np.allclose(const1,1.0,atol=tol)
         assert np.allclose(const2,1.0,atol=tol)
         const1,const2=1.0,1.0
@@ -1395,7 +1395,7 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
 
     d1_vals,d2_vals = d1(x),d2(x)
     I = np.where(d2_vals>1e-15)[0]
-    ratios = np.zeros_like(d2_vals)
+    ratios = np.zeros_like(d2_vals)+1e-15
     ratios[I] = d1_vals[I]/d2_vals[I]
     if not np.all(np.isfinite(ratios)):
         msg = 'Densities are not absolutely continuous. '
