@@ -38,24 +38,25 @@ jobs:
 #	 auto-update-conda: true
 #        auto-activate-base: false
     - name: Conda list
+      shell: bash -l {0}
       run: |
         conda list
         conda env list
     - name: Setup PyApprox
-      shell: bash
+      shell: bash -l {0}
       run: |
         pip install -e .
     - name: Test PyApprox
-      shell: bash
+      shell: bash -l {0}
       run: |
         pytest --cov-report term --cov=pyapprox  pyapprox/fenics_models/tests
 #        python setup.py test
     - name: Setup PyApprox Documentation
-      shell: bash
+      shell: bash -l {0}
       run: |
         pip install -e .[docs]
     - name: Create PyApprox Documentation
-      shell: bash
+      shell: bash -l {0}
       run: |
         cd docs
         make html SPHINXOPTS=-vvv
