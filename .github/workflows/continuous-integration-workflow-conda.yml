@@ -38,7 +38,7 @@ jobs:
 #	 auto-update-conda: true
 #        auto-activate-base: false
     - name: Conda list
-      shell: bash -l {0}
+      shell: bash -l {0} # - l {0} is needed to activate created env
       run: |
         conda list
         conda env list
