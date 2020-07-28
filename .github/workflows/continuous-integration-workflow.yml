@@ -40,5 +40,5 @@ jobs:
         pip install -e .
     - name: Test PyApprox
       run: |
-        pytest
+        python setup.py test
       
