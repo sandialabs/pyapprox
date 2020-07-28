@@ -27,11 +27,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }} on ${{ matrix.os }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Setup Miniconda
+    - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
       uses: goanpeca/setup-miniconda@v1
       with:
           auto-update-conda: true
