@@ -161,7 +161,7 @@ def tensor_product_indices(degrees):
     return indices
 
 def set_difference(indices1,indices2):
-    rr"""Compute the set difference A\B.
+    r"""Compute the set difference A\B.
     That is find the indices in set A that are not in set B
     This function is not symmetric, i.e. A\B != B\A
     """

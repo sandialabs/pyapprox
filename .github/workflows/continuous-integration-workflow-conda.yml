@@ -42,7 +42,9 @@ jobs:
           environment-file: environment.yml
           use-only-tar-bz2: true
     - name: Conda list
-      run: conda list
+      run: |
+        conda list
+	conda env list
     - name: Setup PyApprox
       shell: bash
       run: |
