@@ -1,7 +1,7 @@
 from pyapprox.fenics_models.advection_diffusion import *
 
 def qoi_functional_misc(u):
-    """
+    r"""
     Use the QoI from [JEGGIJNME2020]
 
     To reproduce adaptive multi index results use following 
@@ -18,7 +18,7 @@ def qoi_functional_misc(u):
     return np.asarray([qoi])
 
 def get_misc_forcing(degree):
-    """
+    r"""
     Use the forcing from [JEGGIJNME2020]
     """
     forcing = dl.Expression(
@@ -98,7 +98,7 @@ class AdvectionDiffusionModel(object):
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
     def initialize_random_expressions(self,random_sample):
-        """
+        r"""
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
         """
@@ -113,13 +113,13 @@ class AdvectionDiffusionModel(object):
             
 
     def get_initial_condition(self,random_sample):
-        """By Default the initial condition is deterministic and set to zero"""
+        r"""By Default the initial condition is deterministic and set to zero"""
         assert random_sample is None
         initial_condition=dl.Constant(0.0)
         return initial_condition
 
     def get_boundary_conditions_and_function_space(self,random_sample):
-        """By Default the boundary conditions are deterministic, Dirichlet and 
+        r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
@@ -127,13 +127,13 @@ class AdvectionDiffusionModel(object):
         return boundary_conditions,function_space
 
     def get_velocity(self,random_sample):
-        """By Default the advection is deterministic and set to zero"""
+        r"""By Default the advection is deterministic and set to zero"""
         assert random_sample is None
         beta = dl.Expression((str(0),str(0)),degree=self.degree)
         return beta
 
     def get_forcing(self,random_sample):
-        """By Default the forcing is deterministic and set to 
+        r"""By Default the forcing is deterministic and set to 
 
         .. math:: (1.5+\cos(2\pi t))*cos(x_1)
         
@@ -143,7 +143,7 @@ class AdvectionDiffusionModel(object):
         return forcing
 
     def get_diffusivity(self,random_sample):
-        """
+        r"""
         Use the random diffusivity specified in [JEGGIJNME2020].
         """
         kappa = get_nobile_diffusivity(
@@ -168,14 +168,14 @@ class AdvectionDiffusionModel(object):
         return nx,ny
 
     def get_mesh(self,resolution_levels):
-        """The arguments to this function are the outputs of 
+        r"""The arguments to this function are the outputs of 
         get_degrees_of_freedom_and_timestep()"""
         nx,ny=np.asarray(resolution_levels,dtype=int)
         mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
         return mesh
 
     def set_num_config_vars(self):
-        """
+        r"""
         Should be equal to the number of physical dimensions + 1 
         (for the temporal resolution)
         """
@@ -195,7 +195,7 @@ class AdvectionDiffusionModel(object):
         self.options=options
 
     def solve(self,samples):
-        """
+        r"""
         Run the simulation
 
         Notes
@@ -233,7 +233,7 @@ class AdvectionDiffusionModel(object):
 
 class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
     def initialize_random_expressions(self,random_sample):
-        """
+        r"""
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
         """
@@ -255,7 +255,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
         return forcing
 
     def get_diffusivity(self,random_sample):
-        """
+        r"""
         Use the random diffusivity specified in [JEGGIJNME2020].
         """
         kappa = dl.Constant(1.0)
@@ -263,7 +263,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
 
     def get_boundary_conditions_and_function_space(
             self,random_sample):
-        """By Default the boundary conditions are deterministic, Dirichlet and 
+        r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
@@ -276,7 +276,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
         return boundary_conditions,function_space
 
 def qoi_functional_source_inversion(sols):
-    """
+    r"""
     JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR 
     THE BAYESIAN SOLUTION OF INVERSE PROBLEMS
 
@@ -419,7 +419,7 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
 
 def setup_multi_level_advection_diffusion_benchmark(
         nvars,corr_len,max_eval_concurrency=1):
-    """
+    r"""
     Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep). An integer increase in the configure variable value will raise the 3 numerical discretiation paramaters by the same integer.
 
     See :func:`pyapprox.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.

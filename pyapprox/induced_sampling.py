@@ -607,15 +607,15 @@ def demo_idist_jacobi():
     
     fig,ax = plt.subplots(1,1)
     plt.plot(x,f)
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$p_n^2(x) \mathrm{d}\mu(x)$')
+    ax.set_xlabel(r'$x$')
+    ax.set_ylabel(r'$p_n^2(x) \mathrm{d}\mu(x)$')
     ax.set_xlim(-1,1)
     ax.set_ylim(0,4)
 
     fig,ax=plt.subplots(1,1)
     plt.plot(x,F)
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$F_n(x)$')
+    ax.set_xlabel(r'$x$')
+    ax.set_ylabel(r'$F_n(x)$')
     ax.set_xlim(-1,1)
     plt.show()
 
