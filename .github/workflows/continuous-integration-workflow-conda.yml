@@ -1,9 +1,9 @@
 name: PyApprox CI - conda
 
 on:
-  push:
-    branches:
-      - master
+#  push:
+#    branches:
+#      - master
 
   workflow_dispatch:
 
@@ -30,13 +30,13 @@ jobs:
     - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
       uses: goanpeca/setup-miniconda@v1
       with:
-          activate-environment: pyapprox-dev
-          python-version: ${{ matrix.python-version }}
-          channels: defaults,conda-forge
-          environment-file: environment.yml
-#          use-only-tar-bz2: true
-#	  auto-update-conda: true
-#          auto-activate-base: false
+        activate-environment: pyapprox-dev
+        python-version: ${{ matrix.python-version }}
+        channels: defaults,conda-forge
+        environment-file: environment.yml
+#        use-only-tar-bz2: true
+#	 auto-update-conda: true
+#        auto-activate-base: false
     - name: Conda list
       run: |
         conda list
