@@ -89,26 +89,26 @@ def gradient_enhanced_gp_example(num_vars,plot=True):
         fig,axs=plt.subplots(1,4,figsize=(4*8,6))
         plot_gp_1d(
            axs[0],gp.predict,num_XX_test,bounds,XX_train_values,
-           YY_train_values,num_stdev,function,gp_label='$f_\mathrm{GP}(x)$',
-           function_label='$f(x)$')
+           YY_train_values,num_stdev,function,gp_label=r'$f_\mathrm{GP}(x)$',
+           function_label=r'$f(x)$')
         gegp.plot_1d(num_XX_test,bounds,axs[1],2,function,
-                     '$f_\mathrm{GP_{enh}}(x)$','$f(x)$')
+                     r'$f_\mathrm{GP_{enh}}(x)$',r'$f(x)$')
         gegp.plot_1d(num_XX_test,bounds,axs[2],2,deriv,
-                     '$f^\prime_\mathrm{GP_{enh}}(x)$','$f^\prime(x)$',True)
+                     r'$f^\prime_\mathrm{GP_{enh}}(x)$',r'$f^\prime(x)$',True)
         gp_deriv = lambda XX_test, return_cov: predict_gpr_gradient(
             gp,XX_test,return_cov)
         plot_gp_1d(
             axs[3],gp_deriv,
             num_XX_test,bounds,XX_train_derivs,YY_train_derivs,num_stdev,deriv,
-            gp_label='$f^\prime_\mathrm{GP}(x)$',
-            function_label='$f^\prime(x)$')
+            gp_label=r'$f^\prime_\mathrm{GP}(x)$',
+            function_label=r'$f^\prime(x)$')
         XX_test = np.linspace(bounds[0],bounds[1],num_XX_test)[:,np.newaxis]
         eps = 1e-8
         vals = gp.predict(XX_test)
         perturbed_vals = gp.predict(XX_test+eps)
         fd_derivs = (perturbed_vals-vals)/eps
         axs[3].plot(XX_test[:,0],fd_derivs,'g-',
-                    label='$f^\prime_\mathrm{GP}(x)$ fd')
+                    label=r'$f^\prime_\mathrm{GP}(x)$ fd')
         
         for ii in range(len(axs)):
             axs[ii].set_xlim(-1,1)
@@ -209,9 +209,9 @@ class TestGradientEnhancedGP(unittest.TestCase):
         assert np.allclose(grads,fd_grads,atol=1e-4)
 
         # fig,axs = plt.subplots(1,2,figsize=(2*8,6))    
-        # axs[0].plot(X_test,f(X_test),'r-',label='f',lw=3)
-        # axs[1].plot(X_test,grads,'k-',label='analytic',lw=3)
-        # axs[1].plot(X_test,fd_grads,'b--',label='fd',lw=3)
+        # axs[0].plot(X_test,f(X_test),'r-',label=r'f',lw=3)
+        # axs[1].plot(X_test,grads,'k-',label=r'analytic',lw=3)
+        # axs[1].plot(X_test,fd_grads,'b--',label=r'fd',lw=3)
         # plt.legend()
         # plt.show()
 

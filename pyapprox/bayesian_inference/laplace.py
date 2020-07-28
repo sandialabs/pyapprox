@@ -6,7 +6,7 @@ from pyapprox.randomized_svd import randomized_svd
 from scipy.linalg import eigh as generalized_eigevalue_decomp
 
 class PriorConditionedHessianMatVecOperator(object):
-    """
+    r"""
     Compute the action of prior conditioned misfit Hessian on a vector.
 
     E.g. for a arbitrary vector w, the Cholesky factor L of the prior
@@ -18,7 +18,7 @@ class PriorConditionedHessianMatVecOperator(object):
         self.misfit_hessian_operator = misfit_hessian_operator
 
     def apply(self, vectors, transpose=None):
-        """
+        r"""
         Compute L'*H*L*w.
 
         Parameters
@@ -51,7 +51,7 @@ class PriorConditionedHessianMatVecOperator(object):
         return self.prior_covariance_sqrt_operator.num_vars()
 
 class LaplaceSqrtMatVecOperator(object):
-    """
+    r"""
     Compute the action of the sqrt of the covariance of a Laplace
     approximation of the posterior on a vector.
 
@@ -63,7 +63,7 @@ class LaplaceSqrtMatVecOperator(object):
     """
     def __init__(self, prior_covariance_sqrt_operator, e_r=None, V_r=None,
                  M=None, filename=None):
-        """
+        r"""
         Parameters
         ----------
         e_r : (rank x 1) vector
@@ -115,7 +115,7 @@ class LaplaceSqrtMatVecOperator(object):
         self.set_eigenvalues(data['e_r'])
 
     def apply_mass_weighted_eigvec_adjoint(self,vectors):
-        """
+        r"""
         Apply the mass weighted adjoint of the eigenvectors V_r to a set 
         of vectors w. I.e. compute
            x = V_r^T*M*w
@@ -139,7 +139,7 @@ class LaplaceSqrtMatVecOperator(object):
         return np.dot(self.V_r.T,vectors)
 
     def apply(self, vectors, transpose=False):
-        """
+        r"""
         Compute L*(V*D*V'+I)*w = L(V*D*V'*w+w)
 
         Parameters
@@ -176,7 +176,7 @@ class LaplaceSqrtMatVecOperator(object):
 def get_laplace_covariance_sqrt_operator(
         prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts,
         weights=None, min_singular_value=0.1):
-    """
+    r"""
     Get the operator representing the action of the cholesky factorization
     of the Laplace posterior approximation on a vector.
 
@@ -217,7 +217,7 @@ def get_laplace_covariance_sqrt_operator(
 def get_low_rank_prior_conditioned_misfit_hessian(
         prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts,
         min_singular_value=0.1):
-    """
+    r"""
     Get the low rank approximation of the prior conditioned misfit hessian
     using only matrix vector multiplication operators.
 
@@ -258,7 +258,7 @@ def get_low_rank_prior_conditioned_misfit_hessian(
 
 
 def find_map_point(objective, initial_guess, opts=None):
-    """
+    r"""
     Find the maximum of the log posterior of Bayes rule.
 
     Parameters
@@ -300,7 +300,7 @@ def find_map_point(objective, initial_guess, opts=None):
 
 def laplace_posterior_approximation_for_linear_models(
         linear_matrix,prior_mean,prior_hessian,noise_covariance_inv,obs):
-    """
+    r"""
     Compute the mean and covariance of the Laplace posterior of a linear model
     with a Gaussian prior
 
@@ -348,7 +348,7 @@ def laplace_posterior_approximation_for_linear_models(
     return posterior_mean, posterior_covariance
 
 def push_forward_gaussian_though_linear_model(A,b,mean,covariance):
-    """
+    r"""
     Find the mean and covariance of a gaussian distribution when it
     is push forward through a linear model. A linear transformation
     applied to a Gaussian is still a Gaussian.
@@ -369,7 +369,7 @@ def push_forward_gaussian_though_linear_model(A,b,mean,covariance):
     return y_mean, y_covariance
 
 class MisfitHessianVecOperator(object):
-    """
+    r"""
     Operator which computes the Hessian vector product. The Hessian
     is the Hessian of a misfit function and if not available 
     the action of the Hessian is computed using finite differences of 
@@ -377,7 +377,7 @@ class MisfitHessianVecOperator(object):
     """
     def __init__(self, model, map_point, 
                  fd_eps=2*np.sqrt(np.finfo(float).eps)):
-        """
+        r"""
         Initialize the MisfitHessianVecOperator
 
         Parameters
@@ -419,7 +419,7 @@ class MisfitHessianVecOperator(object):
         return self.num_rows()
 
     def apply(self, vectors, transpose=None):
-        """
+        r"""
         Compute action of hessian on a vector
         
         If self.model has no function hessian() then
@@ -471,7 +471,7 @@ class MisfitHessianVecOperator(object):
 def directional_derivatives(function, sample, value_at_sample, vectors, fd_eps,
                             normalize_vectors=False,
                             use_central_finite_difference=False):
-    """
+    r"""
     Compute the first-order forward difference directional derivative of a 
     vector valued function.
 
@@ -546,7 +546,7 @@ def directional_derivatives(function, sample, value_at_sample, vectors, fd_eps,
 
 def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
                                   num_dims, num_samples, weights=None):
-    """
+    r"""
     Parameters
     -------
     laplace_mean : vector (num_dims)

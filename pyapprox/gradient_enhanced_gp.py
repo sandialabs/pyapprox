@@ -11,7 +11,7 @@ from pyapprox.visualization import get_meshgrid_function_data
 from pyapprox.utilities import cartesian_product
 
 def kernel_dd(XX1,XX2,length_scale,var_num1,var_num2):
-    """
+    r"""
     For Gaussian kernel
     K(x,x^*) = exp(-0.5*(\sum_{i=1}^d w_i(x_i-x_i^*)^2)
 
@@ -52,7 +52,7 @@ def kernel_dd(XX1,XX2,length_scale,var_num1,var_num2):
     return K
 
 def kernel_ff(XX1,XX2,length_scale):
-    """
+    r"""
     Evaluate Gaussian Kernel
     K(x,x^*) = exp(-0.5*(\sum_{i=1}^d w_i(x_i-x_i^*)^2)
 
@@ -74,7 +74,7 @@ def kernel_ff(XX1,XX2,length_scale):
     return K
 
 def kernel_fd(XX1,XX2,length_scale,var_num):
-    """
+    r"""
     For Gaussian Kernel
     K(x,x^*) = exp(-0.5*(\sum_{i=1}^d w_i(x_i-x_i^*)^2)
 
@@ -104,7 +104,7 @@ def kernel_fd(XX1,XX2,length_scale,var_num):
     return K
 
 def function_values_kernel(X1,X2,length_scale,X3=None):
-    """
+    r"""
     Evaluate kernel used to compute function values from GP
     """
     num_vars = X1.shape[1]
@@ -169,7 +169,7 @@ def combine_kernel_fd(X1,X2,length_scale,X3=None):
 
         
 def gradients_kernel(X1,X2,length_scale,X3=None):
-    """
+    r"""
     Evaluate kernel used to compute function values from GP
     """
     K_dd = combine_kernel_dd(X1,X2,length_scale,X3)
@@ -178,7 +178,7 @@ def gradients_kernel(X1,X2,length_scale,X3=None):
     return K
 
 def full_kernel(XX1,length_scale,n_XX_func,XX2=None,return_code='full'):
-    """
+    r"""
     return_code : string
         'full'   return full covariance matrix
         'values' return values covariance matrix
@@ -210,7 +210,7 @@ def full_kernel(XX1,length_scale,n_XX_func,XX2=None,return_code='full'):
 class DerivGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     def __init__(self, n_XX_func, length_scale=[1.0],
                  length_scale_bounds=(1e-5, 1e5)):
-        """
+        r"""
         Parameters
         ----------
         n_XX_func : integer
@@ -223,7 +223,7 @@ class DerivGPKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         self.return_code='full'
 
     def __call__(self, XX1, XX2=None, eval_gradient=False):
-        """Return the kernel k(XX1, XX2) and optionally its gradient.
+        r"""Return the kernel k(XX1, XX2) and optionally its gradient.
 
         Parameters
         ----------
@@ -358,7 +358,7 @@ class GradientEnhancedGP(GaussianProcessRegressor):
 
     def fit(self,XX_train_values,YY_train_values,
             XX_train_derivs,YY_train_derivs):
-        """
+        r"""
         XX_train_values : np.ndarray (num_XX_train_values,num_vars)
             The location at which function values are obtained
 
@@ -437,7 +437,7 @@ class GradientEnhancedGP(GaussianProcessRegressor):
     
 
 def predict_gpr_gradient(gp,XX_test,return_cov):
-    """
+    r"""
     Compute gradient of standard GPR.
 
     When K_trans = gp.kernel_(X, gp.X_train_) is called

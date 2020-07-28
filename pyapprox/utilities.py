@@ -256,7 +256,7 @@ def outer_product(input_sets):
     return result
 
 def hash_array(array,decimals=None):
-    """
+    r"""
     Hash an array for dictionary or set based lookup
 
     Parameters
@@ -344,7 +344,7 @@ def allclose_unsorted_matrix_rows(matrix1,matrix2):
     return True
 
 def get_2d_cartesian_grid(num_pts_1d, ranges):
-    """
+    r"""
     Get a 2d tensor grid with equidistant points.
 
     Parameters
@@ -373,7 +373,7 @@ def get_2d_cartesian_grid(num_pts_1d, ranges):
     return grid
 
 def invert_permutation_vector( p , dtype=int):
-    """
+    r"""
     Returns the "inverse" of a permutation vector. I.e., returns the
     permutation vector that performs the inverse of the original
     permutation operation.
@@ -409,7 +409,7 @@ def nchoosek(nn,kk):
     return result
 
 def total_degree_space_dimension(dimension, degree):
-    """
+    r"""
     Return the number of basis functions in a total degree polynomial space,
     i.e. the space of all polynomials with degree at most degree.
 
@@ -431,7 +431,7 @@ def total_degree_space_dimension(dimension, degree):
     return nchoosek(dimension+degree,degree)
 
 def total_degree_encompassing_N(dimension, N):
-    """
+    r"""
     Returns the smallest integer k such that the dimension of the total
     degree-k space is greater than N.
     """
@@ -442,7 +442,7 @@ def total_degree_encompassing_N(dimension, N):
     return k
 
 def total_degree_barrier_indices(dimension, max_degree):
-    """
+    r"""
     Returns linear indices that bound total degree spaces
 
     Parameters
@@ -465,7 +465,7 @@ def total_degree_barrier_indices(dimension, max_degree):
     return degree_barrier_indices
 
 def total_degree_orthogonal_transformation( coefficients, d ):
-    """
+    r"""
     Returns an orthogonal matrix transformation that "matches" the input
     coefficients.
 
@@ -508,7 +508,7 @@ def total_degree_orthogonal_transformation( coefficients, d ):
     return q
 
 def get_low_rank_matrix(num_rows,num_cols,rank):
-    """
+    r"""
     Construct a matrix of size num_rows x num_cols with a given rank.
 
     Parameters
@@ -546,7 +546,7 @@ def get_low_rank_matrix(num_rows,num_cols,rank):
 
 
 def adjust_sign_svd(U, V, adjust_based_upon_U=True):
-    """
+    r"""
     Ensure uniquness of svd by ensuring the first entry of each left singular
     singular vector be positive. Only works for np.linalg.svd
     if full_matrices=False
@@ -586,7 +586,7 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
     return U,V
 
 def adjust_sign_eig(U):
-    """
+    r"""
     Ensure uniquness of eigenvalue decompotision by ensuring the first entry
     of the first singular vector of U is positive.
 
@@ -607,7 +607,7 @@ def adjust_sign_eig(U):
     return U
 
 def sorted_eigh(C):
-    """
+    r"""
     Compute the eigenvalue decomposition of a matrix C and sort
     the eigenvalues and corresponding eigenvectors by decreasing
     magnitude.
@@ -681,7 +681,7 @@ def continue_pivoted_lu_factorization(LU_factor,raw_pivots,current_iter,
     return LU_factor, raw_pivots, it
 
 def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
-    """
+    r"""
     A=LU and WA=XY
     Then WLU=XY
     We also know Y=WU
@@ -704,7 +704,7 @@ def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
     
 
 def split_lu_factorization_matrix(LU_factor,num_pivots=None):
-    """
+    r"""
     Return the L and U factors of an inplace LU factorization
 
     Parameters
@@ -731,7 +731,7 @@ def split_lu_factorization_matrix(LU_factor,num_pivots=None):
 
 def truncated_pivoted_lu_factorization(A,max_iters,num_initial_rows=0,
                                        truncate_L_factor=True):
-    """
+    r"""
     Compute a incomplete pivoted LU decompostion of a matrix.
 
     Parameters
@@ -794,7 +794,7 @@ def truncated_pivoted_lu_factorization(A,max_iters,num_initial_rows=0,
         return L_factor, U_factor, pivots
     
 def add_columns_to_pivoted_lu_factorization(LU_factor,new_cols,raw_pivots):
-    """
+    r"""
     Given factorization PA=LU add new columns to A in unpermuted order and 
     update LU factorization
     
@@ -875,7 +875,7 @@ def get_final_pivots_from_sequential_pivots(sequential_pivots,num_pivots=None):
 def get_tensor_product_quadrature_rule(
         degrees,num_vars,univariate_quadrature_rules,transform_samples=None,
         density_function=None):
-    """
+    r"""
     if get error about outer product failing it may be because 
     univariate_quadrature rule is returning a weights array for every level, 
     i.e. l=0,...level
@@ -945,7 +945,7 @@ def piecewise_quadratic_interpolation(samples,mesh,mesh_vals,ranges):
     # return vals[np.argsort(I)]
 
 def canonical_piecewise_quadratic_interpolation(x,nodal_vals):
-    """
+    r"""
     Piecewise quadratic interpolation of nodes at [0,0.5,1]
     Assumes all values are in [0,1]. 
     """
@@ -956,7 +956,7 @@ def canonical_piecewise_quadratic_interpolation(x,nodal_vals):
     return vals
 
 def discrete_sampling(N,probs,states=None):
-    """
+    r"""
     discrete_sampling -- samples iid from a discrete probability measure
 
     x = discrete_sampling(N, prob, states)
@@ -1019,7 +1019,7 @@ def beta_pdf_on_ab(alpha_stat,beta_stat,a,b,x):
     return pdf_under_affine_map(pdf,a,(b-a),x)
 
 def beta_pdf_derivative(alpha_stat,beta_stat,x):
-    """
+    r"""
     x in [0,1]
     """
     #beta_const = gamma_fn(alpha_stat+beta_stat)/(
@@ -1039,7 +1039,7 @@ def gaussian_cdf(mean,var,x):
   return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
 
 def gaussian_pdf(mean,var,x,package=np):
-    """
+    r"""
     set package=sympy if want to use for symbolic calculations
     """
     return package.exp(-(x-mean)**2/(2*var)) / (2*package.pi*var)**.5
@@ -1048,7 +1048,7 @@ def gaussian_pdf_derivative(mean,var,x):
     return -gaussian_pdf(mean,var,x)*(x-mean)/var
 
 def pdf_derivative_under_affine_map(pdf_deriv,loc,scale,y):
-    """
+    r"""
     Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
     p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
     dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
@@ -1102,7 +1102,7 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                                    error_on_small_tol=False,
                                    pivot_weights=None,
                                    return_diag=False):
-    """
+    r"""
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
     If A is positive definite and npivots is equal to the number of rows of A
@@ -1256,7 +1256,7 @@ def transformed_halton_sequence(marginal_icdfs,num_vars,num_samples,
     return samples
 
 def approx_fprime(x,func,eps=np.sqrt(np.finfo(float).eps)):
-    """Approx the gradient of a vector valued function at a single
+    r"""Approx the gradient of a vector valued function at a single
     sample using finite_difference
     """
     assert x.shape[1]==1
@@ -1278,7 +1278,7 @@ def partial_functions_equal(func1, func2):
     return are_equal
 
 def get_all_sample_combinations(samples1,samples2):
-    """
+    r"""
     For two sample sets of different random variables
     loop over all combinations 
 
@@ -1302,7 +1302,7 @@ def get_all_sample_combinations(samples1,samples2):
     return np.asarray(samples).T
 
 def get_correlation_from_covariance(cov):
-    """
+    r"""
     Compute the correlation matrix from a covariance matrix
 
     Parameters
@@ -1328,7 +1328,7 @@ def get_correlation_from_covariance(cov):
 
 def compute_f_divergence(density1,density2,quad_rule,div_type,
                          normalize=False):
-    """
+    r"""
     Compute f divergence between two densities
 
     .. math:: \int_\Gamma f\left(\frac{p(z)}{q(z)}\right)q(x)\,dx
@@ -1407,7 +1407,7 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
     return divergence_integrand.dot(w)
 
 def cholesky_solve_linear_system(L,rhs):
-    """
+    r"""
     Solve LL'x = b using forwards and backwards substitution
     """
     # Use forward subsitution to solve Ly = b
@@ -1417,14 +1417,14 @@ def cholesky_solve_linear_system(L,rhs):
     return x
 
 def num_entries_square_triangular_matrix(N,include_diagonal=True):
-    """Num entries in upper (or lower) NxN traingular matrix"""
+    r"""Num entries in upper (or lower) NxN traingular matrix"""
     if include_diagonal:
         return int(N*(N+1)/2)
     else:
         return int(N*(N-1)/2)
 
 def num_entries_rectangular_triangular_matrix(M,N,upper=True):
-    """Num entries in upper (or lower) MxN traingular matrix.
+    r"""Num entries in upper (or lower) MxN traingular matrix.
     This is useful for nested for loops like
 
     (upper=True)
@@ -1446,7 +1446,7 @@ def num_entries_rectangular_triangular_matrix(M,N,upper=True):
             num_entries_square_triangular_matrix(M-N)
 
 def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
-    """
+    r"""
     Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
     """
     assert M>=N
@@ -1458,7 +1458,7 @@ def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
     return kk
 
 def evaluate_quadratic_form(matrix,samples):
-    """
+    r"""
     Evaluate x.T.dot(A).dot(x) for several vectors x
 
     Parameters

@@ -48,7 +48,7 @@ def compute_homoscedastic_outer_products(factors):
 
 def get_M0_and_M1_matrices(
         homog_outer_prods,design_prob_measure,noise_multiplier,regression_type):
-    """
+    r"""
     Compute the matrices :math:`M_0` and :math:`M_1` used to compute the
     asymptotic covariance matrix :math:`C(\mu) = M_1^{-1} M_0 M^{-1}` of the
     linear model
@@ -802,7 +802,7 @@ def get_r_oed_jacobian_structure(num_pred_pts,num_design_pts):
     return np.nonzero(structure)
 
 class AlphabetOptimalDesign(object):
-    """
+    r"""
     Notes
     -----
         # Even though scipy.optimize.minimize may print the warning

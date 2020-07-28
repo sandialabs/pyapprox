@@ -5,7 +5,7 @@ from pyapprox.utilities import cholesky_solve_linear_system, \
 
 
 def select_nodes(V, N, weights=None, order=None):
-    """
+    r"""
     Algorithm 1 . Cholesky decomposition method for selection of 
     interpolation nodes from a finite-cardinality candidate set. 
     The output Cholesky factor L is not necessary for this selection, 
@@ -114,7 +114,7 @@ def select_nodes_cholesky(V, npivots, weights=None, order=None):
 
 def synthesis_operator(lf_selected_values, hf_selected_values,
                        chol_factor, lf_test_values, weights=None):
-    """
+    r"""
     Algorithm 2. Algorithmic evaluation of the synthesis operation
     -----------------------------------------------------------------
 
