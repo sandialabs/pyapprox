@@ -56,6 +56,6 @@ jobs:
     -name: Create PyApprox Documentation
       run: |
         cd docs
-	make html
+        make html
       
       
