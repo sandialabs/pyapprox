@@ -2,7 +2,6 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse import eye as speye
 from scipy.sparse import lil_matrix,csc_matrix
-from cvxopt import matrix as cvxopt_matrix, solvers, spmatrix as cvxopt_spmatrix
 from functools import partial
 from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, BFGS,\
     Bounds
@@ -199,6 +198,7 @@ def hessian(basis_matrix,P,use_sample_average=True):
 def solve_SSD_constrained_least_squares(
         samples,values,eval_basis_matrix,lstsq_coef=None,
         eta_indices=None,return_full=False):
+    from cvxopt import matrix as cvxopt_matrix, solvers, spmatrix as cvxopt_spmatrix
     # Compute coefficients with second order stochastic dominance constraints
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)

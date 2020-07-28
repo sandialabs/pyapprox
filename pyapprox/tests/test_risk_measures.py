@@ -7,6 +7,14 @@ from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv, \
 from pyapprox.configure_plots import *
 from pyapprox.optimization import check_gradients
 
+try:
+    import cvxopt
+    has_cvxopt=True
+except:
+    has_cvxopt=False
+skiptest = unittest.skipIf(
+    not has_cvxopt, reason="cvxopt package not found")
+
 def plot_1d_functions_and_statistics(
             functions,labels,samples,values,stat_function,eta):
 
@@ -425,6 +433,7 @@ class TestRiskMeasures(unittest.TestCase):
                     weights=weights),
             partial(smooth_conditional_value_at_risk_gradient,smoother_type,
                     eps,alpha,weights=weights),x0)
+        print(errors.min())
         assert errors.min()<1e-6
 
     def test_smooth_conditional_value_at_risk_composition_gradient(self):
@@ -606,6 +615,7 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(cvar3,CVaR(alpha))
         assert np.allclose(cvar4,CVaR(alpha))
 
+    @skiptest
     def test_second_order_stochastic_dominance(self):
         np.random.seed(4)
         solver = partial(solve_SSD_constrained_least_squares,return_full=True)
@@ -622,12 +632,12 @@ class TestRiskMeasures(unittest.TestCase):
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
-            smoother_type=0)
+            smoother_type=0,return_full=True)
         self.help_test_stochastic_dominance(solver,10,2,True)
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
-            smoother_type=1)  
+            smoother_type=1,return_full=True)  
         self.help_test_stochastic_dominance(solver,10,2,True)
 
     def test_first_order_stochastic_dominance(self):
@@ -752,7 +762,7 @@ class TestRiskMeasures(unittest.TestCase):
         #print(cvar_exact,ecvar)
         assert np.allclose(cvar_exact,ecvar)
 
-    def test_conditional_value_at_risk_gradient(self):
+    def test_conditional_value_at_risk_subgradient(self):
         N = 6
         p = np.ones(N)/N
         X = np.random.normal(0,1,N)
@@ -763,7 +773,7 @@ class TestRiskMeasures(unittest.TestCase):
         i_beta_exact=3
         VaR_exact = X[i_beta_exact]
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
-        cvar_grad = conditional_value_at_risk_gradient(X,beta)
+        cvar_grad = conditional_value_at_risk_subgradient(X,beta)
         from pyapprox.optimization import approx_jacobian
         func = partial(conditional_value_at_risk,alpha=beta)
         cvar_grad_fd = approx_jacobian(func,X)

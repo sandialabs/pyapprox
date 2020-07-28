@@ -558,7 +558,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
     """
     assert beta>=0 and beta<=1
     from pyapprox.cvar_regression import conditional_value_at_risk, \
-        conditional_value_at_risk_gradient
+        conditional_value_at_risk_subgradient
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors   = pred_factors.shape
     if design_prob_measure.ndim==2:
@@ -577,7 +577,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
             Fu  = design_factors.dot(u)
             t   = noise_multiplier[:,np.newaxis] * Fu
             Fgamma  = design_factors.dot(gamma)
-            cvar_grad = conditional_value_at_risk_gradient(variances,beta)
+            cvar_grad = conditional_value_at_risk_subgradient(variances,beta)
             if regression_type=='lstsq':
                 gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
             elif regression_type=='quantile':
@@ -600,7 +600,7 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
             return value
         # Gradient
         F_M1_inv_P = design_factors.dot(u);
-        cvar_grad = conditional_value_at_risk_gradient(variances,beta)
+        cvar_grad = conditional_value_at_risk_subgradient(variances,beta)
         gradient   = -np.sum(F_M1_inv_P.T**2*cvar_grad[:,np.newaxis],axis=0)
         return value, gradient.T
 

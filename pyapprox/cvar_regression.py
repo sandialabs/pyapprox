@@ -1,7 +1,5 @@
 import numpy as np
-from cvxopt import matrix, solvers, spmatrix
 from matplotlib import pyplot as plt
-
 from scipy.stats.mstats import mquantiles as quantile
 from scipy.stats import norm as normal_rv
 from scipy.special import erfinv
@@ -268,7 +266,7 @@ def cvar_regression_quadrature(basis_matrix,values,alpha,nquad_intervals,
 
     trapezoid works but default option is better.
     """
-    
+    from cvxopt import matrix, solvers, spmatrix
     assert alpha<1 and alpha>0
     basis_matrix=basis_matrix[:,1:]
     assert basis_matrix.ndim==2
@@ -438,6 +436,7 @@ def cvar_regression_quadrature(basis_matrix,values,alpha,nquad_intervals,
     return coef
 
 def cvar_regression(basis_matrix, values, alpha,verbosity=1):
+    from cvxopt import matrix, solvers, spmatrix
     # do not include constant basis in optimization
     assert alpha<1 and alpha>0
     basis_matrix=basis_matrix[:,1:]

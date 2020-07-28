@@ -1,14 +1,7 @@
 import sys
 import setuptools
 import os
-try:
-    # This is necessary when installing package with pip install -e .
-    # and numpy is not yet installed. pip will install numpy then install
-    # pyapprox
-    import numpy as np
-    os.environ["C_INCLUDE_PATH"] = np.get_include()
-except:
-    pass
+import numpy as np
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -28,29 +21,29 @@ def no_cythonize(extensions, **_ignore):
         extension.sources[:] = sources
     return extensions
 
-try:
-    from Cython.Build import cythonize
-    USE_CYTHON=True
-    print('CYTHONIZING')
-except:
-    USE_CYTHON=False
-    print('USING PRECYTHONIZED FILES')
+#try:
+from Cython.Build import cythonize
+USE_CYTHON=True
+print('CYTHONIZING')
+#except:
+#    USE_CYTHON=False
+#    print('USING PRECYTHONIZED FILES')
 
-if USE_CYTHON:
-    extensions = cythonize(
-        "pyapprox/cython/*.pyx",
-        compiler_directives={'language_level' : 3},
-        annotate=True)
-else:
-    import glob
-    from setuptools import Extension
-    pyx_files = glob.glob("pyapprox/cython/*.pyx")
-    extensions = []
-    for pyx_file in pyx_files:
-        name= pyx_file[:-4].replace('/', '.')
-        ext = Extension(name=name,sources=[pyx_file],include_dirs=[numpy.get_include()])
-        extensions.append(ext)
-    extensions = no_cythonize(extensions)
+#if USE_CYTHON:
+extensions = cythonize(
+    "pyapprox/cython/*.pyx",
+    compiler_directives={'language_level' : 3},
+    annotate=True)
+# else:
+#     import glob
+#     from setuptools import Extension
+#     pyx_files = glob.glob("pyapprox/cython/*.pyx")
+#     extensions = []
+#     for pyx_file in pyx_files:
+#         name= pyx_file[:-4].replace('/', '.')
+#         ext = Extension(name=name,sources=[pyx_file],include_dirs=[np.get_include()])
+#         extensions.append(ext)
+#     extensions = no_cythonize(extensions)
 
 setuptools.setup(
     name="pyapprox",
@@ -68,25 +61,21 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    include_dirs=[numpy.get_include()],
-    setup_requires=['numpy >= 1.14'],
+    include_dirs=[np.get_include()],
+    setup_requires=['numpy >= 1.14','Cython','scipy >= 1.0.0'],
     install_requires=[
         'numpy >= 1.14',
         'matplotlib',
         'scipy >= 1.0.0',
-#        'cython',
-        'cvxopt',
+        'Cython',
         'sympy',
         'seaborn',
         'pymc3',
-        #'numpydoc',
-        #'sphinx',
-        #'sphinx_automodapi',
-        #'sphinx_rtd_theme',
-        #'sphinx-gallery',
-        #'jupyter'
-        #'torch',
-      ],
+        'scikit-learn'
+        ],
+    extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
+                            'sphinx-gallery','jupyter']
+      },
     ext_modules = extensions,
     test_suite='nose.collector',
     tests_require=['nose'],
@@ -111,3 +100,5 @@ setuptools.setup(
 #conda install pytorch torchvision -c pytorch
 
 #install cvxopt with conda install -c conda-forge cvxopt
+
+#pip install -e .

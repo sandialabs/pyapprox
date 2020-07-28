@@ -1,5 +1,4 @@
 import numpy as np
-from cvxopt import matrix, solvers
 from matplotlib import pyplot as plt
 def scale_linear_system(matrix):
     col_norms = np.linalg.norm(matrix,axis=0)
@@ -14,6 +13,7 @@ def rescale_linear_system_coefficients(coef,col_norms):
     return scaled_coef
 
 def quantile_regression(basis_matrix, values, tau):
+    from cvxopt import matrix, solvers
     assert basis_matrix.ndim==2
     assert values.ndim==1
     nsamples,nbasis = basis_matrix.shape

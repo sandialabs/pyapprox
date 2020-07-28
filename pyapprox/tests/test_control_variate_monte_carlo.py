@@ -8,7 +8,7 @@ from scipy.stats import uniform,norm,lognorm
 from functools import partial
 
 skiptest = unittest.skipIf(
-    not use_torch, reason="active_subspace package missing")
+    not use_torch, reason="torch package missing")
 
 
 class PolynomialModelEnsemble(object):
