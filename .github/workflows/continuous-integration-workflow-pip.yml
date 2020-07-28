@@ -39,6 +39,5 @@ jobs:
         pip install -e .
     - name: Test PyApprox
       run: |
-        #python setup.py test
-	pytest --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/fenics_models/tests pyapprox/models pyapprox/benchmarks
+        pytest --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/fenics_models/tests pyapprox/models pyapprox/benchmarks
       
