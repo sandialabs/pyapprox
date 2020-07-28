@@ -44,7 +44,7 @@ jobs:
     - name: Conda list
       run: |
         conda list
-	conda env list
+        conda env list
     - name: Setup PyApprox
       shell: bash
       run: |
