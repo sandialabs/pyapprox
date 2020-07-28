@@ -1,9 +1,9 @@
 name: PyApprox CI - conda
 
 on:
-#  push:
-#    branches:
-#      - master
+  push:
+    branches:
+      - master
 
   workflow_dispatch:
 
