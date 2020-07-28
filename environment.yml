@@ -3,7 +3,8 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.7
+#  - python=3.7 # when using with CI matrix this creates conflicts
+  - python
   - jupyter
   - pytest
   - pytest-cov
