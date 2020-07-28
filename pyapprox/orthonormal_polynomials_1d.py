@@ -146,7 +146,7 @@ def hahn_recurrence(Nterms, N, alphaPoly, betaPoly):
     return ab
 
 def krawtchouk_recurrence(Nterms, Ntrials, p):
-    """
+    r"""
     Compute the recursion coefficients of the polynomials which are 
     orthonormal with respect to the binomial probability mass function
 
@@ -287,7 +287,7 @@ def hermite_recurrence(Nterms, rho=0., probability=False):
     return ab
 
 def evaluate_monic_polynomial_1d(x,nmax,ab):
-    """
+    r"""
     Evaluate univariate monic polynomials using their
     three-term recurrence coefficients. A monic polynomial is a polynomial 
     in which the coefficient of the highest degree term is 1.
@@ -608,7 +608,7 @@ def convert_orthonormal_recurence_to_three_term_recurence(recursion_coefs):
 from pyapprox.manipulate_polynomials import shift_momomial_expansion
 def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef,ab,
                                                            shift,scale):
-    """
+    r"""
     Convert a univariate orthonormal polynomial expansion
 
     .. math:: f(x)=\sum_{i=1}^N c_i\phi_i(x)

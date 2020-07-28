@@ -120,6 +120,7 @@ setuptools.setup(
 #pytest --cov-report term --cov=pyapprox pyapprox/tests/test_utilities.py
 #This will print code covarage of all functions in pyapprox that are accessed by
 #test_utilities
+#Use term-missing intead of term to get line numbers of missing coverage
 
 #create development environment
 #conda env create -f environment.yml

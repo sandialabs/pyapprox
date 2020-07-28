@@ -69,7 +69,7 @@ def standardize_sample_ratios(nhf_samples,nsample_ratios):
     return nhf_samples, np.asarray(nsample_ratios)
 
 def get_variance_reduction(get_rsquared,cov,nsample_ratios):
-    """
+    r"""
     Compute the variance reduction:
     
     .. math:: \gamma = 1-r^2
@@ -92,7 +92,7 @@ def get_variance_reduction(get_rsquared,cov,nsample_ratios):
     return 1-get_rsquared(cov,nsample_ratios)
 
 def get_control_variate_rsquared(cov):
-    """
+    r"""
     Compute :math:`r^2` used to compute the variance reduction of 
     control variate Monte Carlo
 
@@ -117,7 +117,7 @@ def get_control_variate_rsquared(cov):
     return rsquared
 
 def get_rsquared_mfmc(cov,nsample_ratios):
-    """
+    r"""
     Compute r^2 used to compute the variance reduction  of 
     Multifidelity Monte Carlo (MFMC)
     
@@ -148,7 +148,7 @@ def get_rsquared_mfmc(cov,nsample_ratios):
     return rsquared
 
 def get_rsquared_mlmc(cov,nsample_ratios,pkg=np):
-    """
+    r"""
     Compute r^2 used to compute the variance reduction of 
     Multilevel Monte Carlo (MLMC)
 
@@ -189,7 +189,7 @@ def get_rsquared_mlmc(cov,nsample_ratios,pkg=np):
     return 1-gamma
 
 def get_mlmc_control_variate_weights(nmodels):
-    """
+    r"""
     Get the weights used by the MLMC control variate estimator
 
     Returns
@@ -200,7 +200,7 @@ def get_mlmc_control_variate_weights(nmodels):
     return -np.ones(nmodels-1)
 
 def compute_approximate_control_variate_mean_estimate(weights,values):
-    """
+    r"""
     Use approximate control variate Monte Carlo to estimate the mean of 
     high-fidelity data with low-fidelity models with unknown means
 
@@ -235,7 +235,7 @@ def compute_approximate_control_variate_mean_estimate(weights,values):
 
 
 def compute_control_variate_mean_estimate(weights,values,lf_means):
-    """
+    r"""
     Use control variate Monte Carlo to estimate the mean of 
     high-fidelity data with low-fidelity models with known means
 
@@ -269,7 +269,7 @@ def compute_control_variate_mean_estimate(weights,values,lf_means):
     return est
 
 def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
-    """
+    r"""
     Determine the samples to be allocated to each model when using MFMC
 
     Parameters
@@ -338,7 +338,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
     return nhf_samples, np.atleast_1d(nsample_ratios), log10_variance
 
 def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
-    """
+    r"""
     Determine the samples to be allocated to each model when using MLMC
 
     Parameters
@@ -431,7 +431,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
     return nhf_samples, np.atleast_1d(nsample_ratios), log10_variance
 
 def get_lagrange_multiplier_mlmc(cov,costs,nhf_samples):
-    """
+    r"""
     Given an optimal sample allocation recover the optimal value of the 
     Lagrange multiplier. This is only used for testing
     """
@@ -442,7 +442,7 @@ def get_lagrange_multiplier_mlmc(cov,costs,nhf_samples):
     return lagrange_mult
 
 def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
-    """
+    r"""
     Get the covariances of the discrepancies :math:`\delta` 
     between each low-fidelity model and its estimated mean when the same 
     :math:`N` samples are used to compute the covariance between each models 
@@ -485,7 +485,7 @@ def get_discrepancy_covariances_IS(cov,nsample_ratios,pkg=np):
 
 
 def get_discrepancy_covariances_MF(cov,nsample_ratios,pkg=np):
-    """
+    r"""
     Get the covariances of the discrepancies :math:`\delta` 
     between each low-fidelity model and its estimated mean using the MFMC
     sampling strategy.
@@ -522,7 +522,7 @@ def get_discrepancy_covariances_MF(cov,nsample_ratios,pkg=np):
     return CF,cf
 
 def get_discrepancy_covariances_KL(cov,nsample_ratios,K,L,pkg=np):
-    """
+    r"""
     Get the covariances of the discrepancies :math:`\delta` 
     between each low-fidelity model and its estimated mean using the MFMC
     sampling strategy and the ACV KL estimator.
@@ -595,7 +595,7 @@ def get_discrepancy_covariances_KL(cov,nsample_ratios,K,L,pkg=np):
     return CF,cf
 
 def get_control_variate_weights(cov):
-    """
+    r"""
     Get the weights used by the control variate estimator with known low 
     fidelity means.
 
@@ -615,7 +615,7 @@ def get_control_variate_weights(cov):
 
 def get_approximate_control_variate_weights(cov,nsample_ratios,
                                             get_discrepancy_covariances):
-    """
+    r"""
     Get the weights used by the approximate control variate estimator.
 
     Parameters
@@ -641,7 +641,7 @@ def get_approximate_control_variate_weights(cov,nsample_ratios,
     return weights
 
 def get_rsquared_acv(cov,nsample_ratios,get_discrepancy_covariances):
-    """
+    r"""
     Compute r^2 used to compute the variance reduction  of 
     Approximate Control Variate Algorithms 
     
@@ -721,7 +721,7 @@ def generate_samples_and_values_acv_IS(nhf_samples,nsample_ratios,
 
 def generate_samples_and_values_mlmc(nhf_samples,nsample_ratios,functions,
                                      generate_samples):
-    """
+    r"""
     Parameters
     ==========
     nhf_samples : integer
@@ -796,7 +796,7 @@ def get_mfmc_control_variate_weights(cov):
     return weights
 
 def validate_nsample_ratios(nhf_samples,nsample_ratios):
-    """
+    r"""
     Check that nsample_ratios* nhf_samples are all integers
     and that nsample_ratios are all larger than 1
     """
@@ -815,7 +815,7 @@ def validate_nsample_ratios(nhf_samples,nsample_ratios):
 
 def generate_samples_and_values_acv_KL(nhf_samples,nsample_ratios,functions,
                                        generate_samples,K,L):
-    """
+    r"""
 
     K : integer (K<=nmodels-1)
         The number of effective control variates.
@@ -887,7 +887,7 @@ def generate_samples_and_values_acv_KL(nhf_samples,nsample_ratios,functions,
 
 def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
                                      generate_samples,acv_modification=False):
-    """
+    r"""
     Parameters
     ==========
     nhf_samples : integer
@@ -1141,7 +1141,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
 def allocate_samples_acv(cov, costs, target_cost, estimator,
                          standardize=True, initial_guess=None,
                          optim_options=None, optim_method='SLSQP'):
-    """
+    r"""
     Determine the samples to be allocated to each model
 
     Parameters
@@ -1186,7 +1186,7 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     return nhf_samples, nsample_ratios, log10_var
 
 def get_rsquared_acv_KL_best(cov, nsample_ratios):
-    """ 
+    r""" 
     """
     nmodels = cov.shape[1]
     opt_rsquared = -1
@@ -1227,12 +1227,12 @@ def allocate_samples_acv_best_kl(cov,costs,target_cost,standardize=True,
     return sol[0], sol[1], opt_log10_var
 
 class ModelEnsemble(object):
-    """
+    r"""
     Wrapper class to allow easy one-dimensional 
     indexing of models in an ensemble.
     """
     def __init__(self,functions):
-        """
+        r"""
         Parameters
         ----------
         functions : list of callable
@@ -1243,7 +1243,7 @@ class ModelEnsemble(object):
         self.nmodels = len(self.functions)
     
     def __call__(self,samples):
-        """
+        r"""
         Evaluate a set of models at a set of samples
 
         Parameters
@@ -1276,7 +1276,7 @@ class ModelEnsemble(object):
 
 def estimate_model_ensemble_covariance(npilot_samples,generate_samples,
                                        model_ensemble):
-    """
+    r"""
     Estimate the covariance of a model ensemble from a set of pilot samples
 
     Parameters
@@ -1421,7 +1421,7 @@ class MFMC(ACVMF):
 
 class MLMC(ACVMF):
     def use_lagrange_formulation(self,flag):
-        """For testing purposes only"""
+        r"""For testing purposes only"""
         if flag:
             self.objective_fun_all = partial(
                 acv_sample_allocation_objective_all_lagrange,self)
@@ -1451,7 +1451,7 @@ def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
         model_ensemble,generate_samples,
         generate_samples_and_values,cov,
         get_cv_weights,seed):
-    """
+    r"""
     Compute the approximate control variate estimate of a high-fidelity
     model from using it and a set of lower fidelity models. 
     Also compute the single fidelity Monte Carlo estimate of the mean from
@@ -1490,7 +1490,7 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
                                 get_cv_weights,get_rsquared=None,
                                 ntrials=1e3,max_eval_concurrency=1,
                                 target_cost=None, costs=None):
-    """
+    r"""
     Numerically estimate the variance of an approximate control variate estimator
     and compare its value to the estimator using only the high-fidelity data.
 
@@ -1537,7 +1537,7 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
     return means, numerical_var_reduction
 
 def get_mfmc_control_variate_weights_pool_wrapper(cov,nsamples):
-    """
+    r"""
     Create interface that adhears to assumed api for variance reduction check
     cannot be defined as a lambda locally in a test when using with 
     multiprocessing pool because python cannot pickle such lambda functions
@@ -1545,7 +1545,7 @@ def get_mfmc_control_variate_weights_pool_wrapper(cov,nsamples):
     return get_mfmc_control_variate_weights(cov)
 
 def get_mlmc_control_variate_weights_pool_wrapper(cov,nsamples):
-    """
+    r"""
     Create interface that adhears to assumed api for variance reduction check
     cannot be defined as a lambda locally in a test when using with 
     multiprocessing pool because python cannot pickle such lambda functions

@@ -14,7 +14,7 @@ from pyapprox.probability_measure_sampling import rejection_sampling
 from pyapprox.polynomial_sampling import christoffel_function
 
 def C_eval(a, b, x, N):
-    """
+    r"""
     C_eval -- Evaluates Christoffel-normalized orthogonal polynomials
 
     C = C_eval(a, b, x, N)
@@ -76,7 +76,7 @@ def C_eval(a, b, x, N):
 
      
 def ratio_eval(a, b, x, N):
-    """
+    r"""
     ratio_eval -- Evaluates ratios between successive orthogonal polynomials
 
     r = ratio_eval(a, b, x, N)
@@ -193,7 +193,7 @@ def linear_modification(alph, bet, x0):
     return a,b
 
 def quadratic_modification_C(alph, bet, x0):
-    """
+    r"""
     quadratic_modification_C -- Modifies recurrence coefficients
     
     [a,b] = quadratic_modification_C(alph, bet, x0)
@@ -251,7 +251,7 @@ def quadratic_modification_C(alph, bet, x0):
     return a,b
 
 def medapprox_jacobi(alph, bet, n):
-    """
+    r"""
     x0 = medapprox_jacobi(alph, bet, n)
 
     Returns a guess for the median of the order-n Jacobi induced distribution
@@ -366,7 +366,7 @@ def idist_jacobi(x, n, alph, bet, M=10):
 
 def idist_mixture_sampling(indices,univ_inv,weights=None,num_samples=None,
                            seed=None):
-    """
+    r"""
     x = idist_mixture_sampling(indices, univ_inv, M)
     
     Performs tensorial inverse transform sampling from an additive mixture of
@@ -424,7 +424,7 @@ def histcounts(n,edges):
     return nn, indices
 
 def idist_inverse(u, n, primitive, a, b, supp):
-    """
+    r"""
     [x] = idist_inverse(u, n, primitive, a, b, supp)
 
     Uses bisection to compute the (approximate) inverse of the order-n induced
@@ -468,7 +468,7 @@ def idist_inverse(u, n, primitive, a, b, supp):
     return x
 
 def markov_stiltjies_initial_guess(u, n, a, b, supp):
-    """
+    r"""
     intervals = markov_stiltjies_initial_guess(u, n, a, b, supp)
     
     Uses the Markov-Stiltjies inequalities to provide a bounding interval for x
@@ -528,7 +528,7 @@ def markov_stiltjies_initial_guess(u, n, a, b, supp):
     return intervals
     
 def idistinv_jacobi(u, n, alph, bet):
-    """
+    r"""
     [x] = idistinv_jacobi(u, n, alph, bet)
 
     Computes the inverse of the order-n induced primitive for the Jacobi
@@ -628,7 +628,7 @@ def idist_mixture_sampling_pool_helper(indices,univ_inv,weights,args):
 def idist_mixture_sampling_parallel(indices,univ_inv,num_samples=None,
                                     weights=None,max_eval_concurrency=1,
                                     seed=None,assert_omp=True):
-    """
+    r"""
     seed : integer
        seed random number generator. Mutiple calls to idist_mixture_sampling
        must be made with different seeds. The ith seed passed to the
@@ -770,7 +770,7 @@ def demo_multivariate_sampling_jacobi():
 
 def discrete_inverse_transform_sampling_1d(probability_mesh,probability_masses,
                                            num_samples):
-    """
+    r"""
     probability_mesh : np.ndarray (num_discrete_masses)
         The locations of non-zero probability mass. 
         Must be ascending order.
@@ -1008,7 +1008,7 @@ def compute_preconditioned_basis_matrix_condition_number(
 from pyapprox.polynomial_sampling import christoffel_weights
 def generate_induced_samples_migliorati_tolerance(pce,cond_tol,samples=None,
                                                   verbosity=0):
-    """
+    r"""
     Parameters
     ----------
     samples : np.ndarray
@@ -1034,7 +1034,7 @@ def generate_induced_samples_migliorati_tolerance(pce,cond_tol,samples=None,
 
 def increment_induced_samples_migliorati(pce,cond_tol,samples,indices,
                                          new_indices,verbosity=0):
-    """
+    r"""
     Parameters
     ----------
     samples : np.ndarray
@@ -1069,7 +1069,7 @@ def random_induced_measure_sampling(num_samples,num_vars,
                                     proposal_density, 
                                     generate_proposal_samples,
                                     envelope_factor):
-    """
+    r"""
     Draw independent samples from the induced measure.
 
     Returns

@@ -372,6 +372,8 @@ class TestSparseGrid(unittest.TestCase):
         samples, weights, data_structures=get_sparse_grid_samples_and_weights(
             num_vars,level,quadrature_rule,leja_growth_rule)
 
+        temp_directory.cleanup()
+
         poly_indices = data_structures[1]
         #plot_sparse_grid(samples,weights,poly_indices)
         #plt.show()
