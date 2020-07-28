@@ -72,7 +72,8 @@ setuptools.setup(
         'seaborn',
         'pymc3',
         'scikit-learn',
-        'pytest'
+        'pytest',
+        'pytest-cov'
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
@@ -122,3 +123,5 @@ setuptools.setup(
 
 #create development environment
 #conda env create -f environment.yml
+
+#http://www.yamllint.com/ can be used to check syntax of yml files

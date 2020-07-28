@@ -50,10 +50,10 @@ jobs:
     - name: Test PyApprox
       run: |
         python setup.py test
-    -name: Setup PyApprox Documentation
+    - name: Setup PyApprox Documentation
       run: |
         pip install -e .[docs]
-    -name: Create PyApprox Documentation
+    - name: Create PyApprox Documentation
       run: |
         cd docs
         make html
