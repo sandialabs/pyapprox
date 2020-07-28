@@ -102,3 +102,4 @@ setuptools.setup(
 #install cvxopt with conda install -c conda-forge cvxopt
 
 #pip install -e .
+#pip install -e .[docs]
