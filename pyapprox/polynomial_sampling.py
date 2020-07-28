@@ -9,7 +9,7 @@ from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver
 from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
     compute_hyperbolic_level_indices
 def christoffel_function(samples,basis_matrix_generator,normalize=False):
-    """
+    r"""
     Evaluate the christoffel function K(x) at a set of samples x. 
 
     Useful for preconditioning linear systems generated using 
@@ -29,7 +29,7 @@ def christoffel_function(samples,basis_matrix_generator,normalize=False):
     return vals
 
 def christoffel_weights(basis_matrix):
-    """
+    r"""
     Evaluate the 1/K(x),from a basis matrix, where K(x) is the 
     Christoffel function.
     """
@@ -42,7 +42,7 @@ def christoffel_preconditioner(basis_matrix,samples):
 def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
                        num_candidate_samples,preconditioning_function=None,
                        precond_opts=dict()):
-    """
+    r"""
     Generate Fekete samples using QR factorization. 
 
     The number of samples is determined by the number of basis functions.
@@ -105,7 +105,7 @@ def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
 def get_lu_leja_samples(generate_basis_matrix,generate_candidate_samples,
                         num_candidate_samples,num_leja_samples,
                         preconditioning_function=None,initial_samples=None):
-    """
+    r"""
     Generate Leja samples using LU factorization. 
 
     Parameters
@@ -192,7 +192,7 @@ def get_lu_leja_samples(generate_basis_matrix,generate_candidate_samples,
     return leja_samples, data_structures
 
 def total_degree_basis_generator(num_vars,degree):
-    """
+    r"""
     Generate all indices i such that ||i||_1=degree.
     This function is useful when computing oli_leja sequences
     """
@@ -202,7 +202,7 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
                          num_leja_samples, preconditioning_function=None,
                          basis_generator=total_degree_basis_generator,
                          initial_samples=None):
-    """
+    r"""
     Generate Leja samples using orthogonal least interpolation. 
 
     The number of samples is determined by the number of basis functions.
@@ -276,7 +276,7 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
     return leja_samples, data_structures
 
 def interpolate_fekete_samples(fekete_samples,values,data_structures):
-    """
+    r"""
     Assumes ordering of values and rows of L and U are consistent.
     Typically this is done by computing leja samples then evaluating function
     at these samples.
@@ -291,7 +291,7 @@ def interpolate_fekete_samples(fekete_samples,values,data_structures):
 
 
 def interpolate_lu_leja_samples(leja_samples,values,data_structures):
-    """
+    r"""
     Assumes ordering of values and rows of L and U are consistent.
     Typically this is done by computing leja samples then evaluating function
     at these samples.

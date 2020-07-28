@@ -7,7 +7,7 @@ from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, BFGS
     Bounds
 
 def build_inequality_contraints(Y,basis_matrix,p,eta_indices):
-    """
+    r"""
     Construct the matrix form of the constraints of quadratic program.
        Ax<=b
 
@@ -127,7 +127,7 @@ def build_inequality_contraints(Y,basis_matrix,p,eta_indices):
 
 
 def compute_conditional_expectations(eta,samples,disutility_formulation=True):
-    """
+    r"""
     Compute the conditional expectation of :math:`Y`
     .. math::
       \mathbb{E}\left[\max(0,\eta-Y)\right]
@@ -794,7 +794,7 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         return grad
 
     def define_nonlinear_constraint_hessian(self,x,ii):
-        """
+        r"""
         d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
 
         g''(x)=0 for all x

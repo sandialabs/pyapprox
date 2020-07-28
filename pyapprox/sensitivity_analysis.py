@@ -3,7 +3,7 @@ from pyapprox.indexing import compute_hyperbolic_indices,hash_array
 from pyapprox.utilities import nchoosek
 
 def get_main_and_total_effect_indices_from_pce(coefficients,indices):
-    """
+    r"""
     Assume basis is orthonormal
     Assume first coefficient is the coefficient of the constant basis. Remove
     this assumption by extracting array index of constant term from indices
@@ -87,7 +87,7 @@ def get_sobol_indices(coefficients,indices,max_order=2):
 
 def plot_main_effects(main_effects, ax, truncation_pct=0.95,
                       max_slices=5, rv='z', qoi=0):
-    """
+    r"""
     Plot the main effects in a pie chart showing relative size.
 
     Parameters
@@ -138,7 +138,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
 
 def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
                         rv='z', qoi=0):
-    """
+    r"""
     Plot the total effects in a pie chart showing relative size.
 
     Parameters
@@ -193,7 +193,7 @@ def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
 
 def plot_interaction_values( interaction_values, interaction_terms, ax, 
                              truncation_pct=0.95, max_slices=5, rv='z', qoi=0):
-    """
+    r"""
     Plot sobol indices in a pie chart showing relative size.
 
     Parameters
@@ -255,7 +255,7 @@ def plot_interaction_values( interaction_values, interaction_terms, ax,
            shadow=True )
 
 def get_morris_trajectory(nvars,nlevels,eps=0):
-    """
+    r"""
     Compute a morris trajectory used to compute elementary effects
 
     Parameters
@@ -297,7 +297,7 @@ def get_morris_trajectory(nvars,nlevels,eps=0):
     return trajectory
 
 def get_morris_samples(nvars,nlevels,ntrajectories,eps=0,icdfs=None):
-    """
+    r"""
     Compute a set of Morris trajectories used to compute elementary effects
 
     Notes
@@ -343,7 +343,7 @@ def get_morris_samples(nvars,nlevels,ntrajectories,eps=0,icdfs=None):
     return trajectories
 
 def get_morris_elementary_effects(samples,values):
-    """
+    r"""
     Get the Morris elementary effects from a set of trajectories.
 
     Parameters
@@ -376,7 +376,7 @@ def get_morris_elementary_effects(samples,values):
     return elem_effects
 
 def get_morris_sensitivity_indices(elem_effects):
-    """
+    r"""
     Compute the Morris sensitivity indices mu and sigma from the elementary 
     effects computed for a set of trajectories.
 
@@ -453,7 +453,7 @@ class SensivitityResult(OptimizeResult):
     pass
 
 def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4):
-    """
+    r"""
     Compute sensitivity indices by constructing an adaptive polynomial chaos
     expansion.
     
@@ -509,7 +509,7 @@ def analyze_sensitivity_morris(fun,univariate_variables,ntrajectories,nlevels=4)
          'samples':samples,'values':values})
 
 def analyze_sensitivity_sparse_grid(sparse_grid,max_order=2):
-    """
+    r"""
     Compute sensitivity indices from a sparse grid
     by converting it to a polynomial chaos expansion
 
@@ -571,7 +571,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid,max_order=2):
          'pce':pce})
 
 def analyze_sensitivity_polynomial_chaos(pce,max_order=2):
-    """
+    r"""
     Compute variance based sensitivity metrics from a polynomial chaos expansion
 
     Parameters

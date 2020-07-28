@@ -161,7 +161,7 @@ def tensor_product_indices(degrees):
     return indices
 
 def set_difference(indices1,indices2):
-    r"""Compute the set difference A\B.
+    rr"""Compute the set difference A\B.
     That is find the indices in set A that are not in set B
     This function is not symmetric, i.e. A\B != B\A
     """
@@ -189,7 +189,7 @@ def set_difference(indices1,indices2):
         return indices2[0,difference_idx]
     
 def argsort_indices_leixographically(indices):
-    """
+    r"""
     Argort a set of indices lexiographically. Sort by SUM of columns then
     break ties by value of first index then use the next index to break tie
     and so on
@@ -215,7 +215,7 @@ def argsort_indices_leixographically(indices):
     return np.asarray(sorted_idx)
 
 def argsort_indices_lexiographically_by_row(indices):
-    """
+    r"""
     Argort a set of indices lexiographically.  Sort by sum of columns by 
     value of first row. Break ties by value of first row then use the next 
     row to break tie and so on
@@ -242,7 +242,7 @@ def argsort_indices_lexiographically_by_row(indices):
 
 
 def sort_indices_lexiographically(indices):
-    """ 
+    r""" 
     Sort by level then lexiographically
     The last key in the sequence is used for the primary sort order,
     the second-to-last key for the secondary sort order, and so on
@@ -255,7 +255,7 @@ def sort_indices_lexiographically(indices):
     return indices[:,I]
 
 def get_maximal_indices(indices,indices_dict=None):
-    """
+    r"""
     Get the maximal indices of a set of multivariate indices.
 
     An index is maximal if all of its forward neighbours are not present
@@ -343,7 +343,7 @@ def compute_anisotropic_indices(num_vars,level,anisotropic_weights):
 
 
 def get_upper_triangular_matrix_scalar_index(ii,jj,nn):
-    """
+    r"""
     Get the scalar index kk of the (ii,jj) etnry of an upper triangular matrix 
     (excluding diagonal) stored in a 1D array
 
@@ -366,7 +366,7 @@ def get_upper_triangular_matrix_scalar_index(ii,jj,nn):
     return int(kk)
 
 def get_upper_triangular_matrix_indices(kk,nn):
-    """
+    r"""
     Get the index tuple (ii,jj) entry kk of an upper triangular matrix 
     (excluding diagonal) stored in a 1D array
 
