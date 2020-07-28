@@ -1,0 +1,29 @@
+name: pyapprox-dev
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.7
+  - jupyter
+  - pytest
+  - pytest-cov
+  - pip
+  - setuptools
+  - scikit-learn
+  - pymc3
+  - Cython
+  - seaborn
+  - sympy
+  - matplotlib
+  - numpy=1.15.4
+  - fenics=2019
+  - scipy=1.3.1
+  - mshr
+  # make html in docs folder
+  - sphinx
+  - sphinx-gallery
+  - pip:
+    - sphinx_copybutton
+    - sphinx_rtd_theme
+    - numpydoc
+    - sphinx_automodapi

@@ -78,8 +78,12 @@ setuptools.setup(
                             'sphinx-gallery','jupyter']
       },
     ext_modules = extensions,
-    #test_suite='nose.collector',
-    tests_require=['pytest'],
+    test_suite='nose.collector',
+    tests_require=['nose'],
+    #for some reason pytest will not work on github actions. It is discovering a test which
+    #causes an error which I cannot reproduce on my machine or find a way which test
+    #is causing the issue
+    #tests_require=['pytest'],
     license='MIT',
 )
 
@@ -104,3 +108,17 @@ setuptools.setup(
 
 #pip install -e .
 #pip install -e .[docs]
+
+#get code coverage of all directories
+#pytest --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/fenics_models/tests pyapprox/models pyapprox/benchmarks
+
+#get code coverage of one directory
+#pytest --cov-report term --cov=pyapprox pyapprox/tests/
+
+#to apply to a single file
+#pytest --cov-report term --cov=pyapprox pyapprox/tests/test_utilities.py
+#This will print code covarage of all functions in pyapprox that are accessed by
+#test_utilities
+
+#create development environment
+#conda env create -f environment.yml
