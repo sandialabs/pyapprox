@@ -71,14 +71,15 @@ setuptools.setup(
         'sympy',
         'seaborn',
         'pymc3',
-        'scikit-learn'
+        'scikit-learn',
+        'pytest'
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
       },
     ext_modules = extensions,
-    test_suite='nose.collector',
-    tests_require=['nose'],
+    #test_suite='nose.collector',
+    tests_require=['pytest'],
     license='MIT',
 )
 
