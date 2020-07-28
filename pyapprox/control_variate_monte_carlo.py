@@ -8,8 +8,8 @@ try:
     import torch
     use_torch=True
 except:
-    msg = 'Could not import Torch'
-    print(msg)
+    #msg = 'Could not import Torch'
+    #print(msg)
     use_torch=False
     
 import copy
