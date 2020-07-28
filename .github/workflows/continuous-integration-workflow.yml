@@ -37,7 +37,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Setup PyApprox
       run: |
-        python setup.py develop
+        pip install -e .
     - name: Test PyApprox
       run: |
         pytest
