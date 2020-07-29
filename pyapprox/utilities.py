@@ -275,7 +275,8 @@ def hash_array(array,decimals=None):
     #return hash(array.data)
     if decimals is not None:
         array = np.around(array,decimals)
-    return hash(array.tostring())
+    #return hash(array.tostring())
+    return hash(array.tobytes())
 
 def unique_matrix_rows(matrix):
     unique_rows = []

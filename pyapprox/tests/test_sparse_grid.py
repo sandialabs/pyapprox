@@ -1741,7 +1741,11 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         """
         num_vars=2
         num_model_levels=3
-        model = MultilevelPolynomialModel(num_model_levels,return_work=True)
+        base_model = MultilevelPolynomialModel(num_model_levels,return_work=True)
+        from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
+        # TimerModelWrapper is hard to test because cost is constantly changing because of variable wall time. So for testing instead use function of polynomial model that just fixes cost for each level of the multilevel model
+        timer_model=base_model
+        model = WorkTrackingModel(timer_model,base_model,1)
 
         ranges = [2*(-1)**(ii+1) for ii in range(2*num_vars)]
         canonical_ranges = [(-1)**(ii+1) for ii in range(2*num_vars)]
@@ -1752,7 +1756,6 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         # when computing validation values do not return work
         # or comparison of validation values with approx values will
         # compare matrices of different sizes
-        model.return_work=False
         num_validation_samples = 100
         validation_samples = np.random.uniform(
             -1.,1.,(num_vars+1,num_validation_samples))
@@ -1762,7 +1765,6 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         validation_samples[-1,:]=config_var_trans.map_from_canonical_space(
             validation_samples[-1:])
         validation_values = model(validation_samples)
-        model.return_work=True
 
         max_level=5
         max_level_1d=[max_level]*(num_vars+1)
@@ -1774,14 +1776,14 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
             max_num_sparse_grid_samples,error_tol)
 
         refinement_indicator = variance_refinement_indicator
-        cost_function=WorkTracker()
+        cost_function=model.cost_function
         
         sparse_grid = CombinationSparseGrid(num_vars+1)
         sparse_grid.set_function(model,var_trans)
         sparse_grid.set_config_variable_index(num_vars,config_var_trans)
         sparse_grid.set_refinement_functions(
             refinement_indicator,admissibility_function,
-            clenshaw_curtis_rule_growth,cost_function,work_qoi_index=1)
+            clenshaw_curtis_rule_growth,cost_function)
         sparse_grid.set_univariate_rules(
             clenshaw_curtis_in_polynomial_order)
         
@@ -1799,6 +1801,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         equivalent_costs,total_costs = get_equivalent_cost(
             cost_function,model_level_evals,model_ids)
 
+        #print(total_costs,sparse_grid.num_equivalent_function_evaluations,sparse_grid.num_config_vars)
         assert np.allclose(
             total_costs,sparse_grid.num_equivalent_function_evaluations)
         assert np.allclose(

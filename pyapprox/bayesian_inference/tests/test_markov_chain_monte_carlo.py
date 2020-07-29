@@ -123,7 +123,7 @@ class TestMCMC(unittest.TestCase):
         # number of "burn-in points" (which we'll discard)
         nburn = min(1000,int(ndraws*0.1))
         # number of parallel chains
-        njobs=1
+        njobs=4
 
         def unnormalized_posterior(x):
             # avoid use of pymc3 wrapper which only evaluates samples 1 at
@@ -171,6 +171,7 @@ class TestMCMC(unittest.TestCase):
         print('exact mean',exact_mean.squeeze())
         print('MCMC mean',samples.mean(axis=1))
         assert np.allclose(map_sample,np.zeros((variables.num_vars(),1)))
+        #tolerance 3e-2 can be exceeded for certain random runs
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1),atol=3e-2)
 

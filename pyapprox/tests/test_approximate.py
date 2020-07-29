@@ -4,6 +4,8 @@ from pyapprox.approximate import *
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 import pyapprox as pya
 class TestApproximate(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_approximate_sparse_grid_default_options(self):
         nvars = 3
