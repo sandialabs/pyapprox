@@ -76,7 +76,7 @@ class TestBenchmarks(unittest.TestCase):
         init_guess = 2*np.ones((2,1))
         errors = pya.check_gradients(
             constraint_fun,constraint_jac,init_guess,disp=True)
-        assert errors.min()<1e-7
+        assert errors.min()<4e-7
         
         
         

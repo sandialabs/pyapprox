@@ -742,7 +742,7 @@ def help_test_michaelis_menten_model_minimax_optimal_design(criteria,heterosceda
 
     mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
         parameter_samples,design_samples[np.newaxis,:],
-        {'iprint':iprint,'ftol':1e-8,'maxiter':maxiter})
+        {'iprint':iprint,'ftol':1e-12,'maxiter':maxiter})
 
     import copy
     opts = copy.deepcopy(opts)
@@ -756,7 +756,7 @@ def help_test_michaelis_menten_model_minimax_optimal_design(criteria,heterosceda
         opt_problem = AlphabetOptimalDesign(
             criteria,design_factors,opts=opts)
         mu_local = opt_problem.solve(
-            {'iprint':iprint,'ftol':1e-8,'maxiter':maxiter})
+            {'iprint':iprint,'ftol':1e-12,'maxiter':maxiter})
         mu_local_list.append(mu_local)
 
     constraints = minimax_opt_problem.minimax_nonlinear_constraints(
@@ -777,6 +777,7 @@ def help_test_michaelis_menten_model_minimax_optimal_design(criteria,heterosceda
     # for d optimal design one local design will be optimal but because
     # of numerical precision it agrees only to 1e-6 with minimax design
     # so round answer and compare. argmin returns first instance of minimum
+    print(max_stat)
     max_stat=np.round(max_stat,6)
     assert np.argmin(max_stat)==0
 
