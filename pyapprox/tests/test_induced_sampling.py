@@ -72,8 +72,8 @@ class TestInducedSampling(unittest.TestCase):
         samples = var_trans.map_from_canonical_space(canonical_samples)
 
         np.random.seed(1)
-        canonical_xk = [get_distribution_info(var1)[2]['xk'],
-                        get_distribution_info(var2)[2]['xk']]
+        canonical_xk = [2*get_distribution_info(var1)[2]['xk']-1,
+                        2*get_distribution_info(var2)[2]['xk']-1]
         basis_matrix_generator = partial(basis_matrix_generator_1d,pce,degree)
         canonical_samples1 = discrete_induced_sampling(
             basis_matrix_generator,pce.indices,canonical_xk,
@@ -106,13 +106,17 @@ class TestInducedSampling(unittest.TestCase):
         quad_samples = cartesian_product([var1.dist.xk,var2.dist.xk])
         quad_weights = outer_product([var1.dist.pk,var2.dist.pk])
 
+        #print(canonical_samples.min(axis=1),canonical_samples.max(axis=1))
+        #print(samples.min(axis=1),samples.max(axis=1))
+        #print(canonical_samples1.min(axis=1),canonical_samples1.max(axis=1))
+        #print(samples1.min(axis=1),samples1.max(axis=1))
         # import matplotlib.pyplot as plt
         # plt.plot(quad_samples[0,:],quad_samples[1,:],'s')
         # plt.plot(samples[0,:],samples[1,:],'o')
         # plt.plot(samples1[0,:],samples1[1,:],'*')
         # plt.show()
 
-        rtol=2e-2
+        rtol=1e-2
         assert np.allclose(quad_weights,density(quad_samples))
         assert np.allclose(density(quad_samples).sum(),1)
         assert np.allclose(

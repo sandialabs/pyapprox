@@ -3,6 +3,21 @@ import scipy.sparse as sp
 from functools import partial
 from scipy.optimize import minimize, LinearConstraint, NonlinearConstraint, BFGS, \
     linprog, OptimizeResult, Bounds
+
+try:
+    from ipopt import minimize_ipopt
+    has_ipopt = True
+except:
+    has_ipopt = False
+print('has_ipopt',has_ipopt)
+
+def get_method(options):
+    method = options.get('method','slsqp')
+    if method=='ipopt' and not has_ipopt:
+        msg = 'ipopt not avaiable using default slsqp'
+        method='slsqp'
+    return method
+
 def basis_pursuit(Amat,bvec,options):
     nunknowns = Amat.shape[1]
     nslack_variables = nunknowns
@@ -90,7 +105,8 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0,ret
     ubs = np.inf*np.ones(nunknowns+nslack_variables)
     bounds = Bounds(lbs,ubs)
     x0 = np.concatenate([init_guess,np.absolute(init_guess)])
-    method = options.get('method','slsqp')
+    method = get_method(options)
+    #method = options.get('method','slsqp')
     if 'method' in options:
         del options['method']
     if method!='ipopt':
@@ -101,7 +117,6 @@ def nonlinear_basis_pursuit(func,func_jac,func_hess,init_guess,options,eps=0,ret
         from ipopt import minimize_ipopt
         from scipy.optimize._constraints import new_constraint_to_old
         con = new_constraint_to_old(constraints[0],x0)
-        print(con)
         ipopt_bounds = []
         for ii in range(len(bounds.lb)):
             ipopt_bounds.append([bounds.lb[ii],bounds.ub[ii]])
@@ -160,7 +175,7 @@ def basis_pursuit_denoising(func,func_jac,func_hess,init_guess,eps,options):
 
     t = np.zeros_like(init_guess)
 
-    method = options.get('method','slsqp')
+    method = get_method(options)
     nunknowns = init_guess.shape[0]
 
     def constraint_obj(x):
@@ -350,7 +365,8 @@ def lasso(func,func_jac,func_hess,init_guess,lamda,options):
     ubs = np.inf*np.ones(nunknowns+nslack_variables)
     bounds = Bounds(lbs,ubs)
     x0 = np.concatenate([init_guess,np.absolute(init_guess)])
-    method = options.get('method','slsqp')
+    method = get_method(options)
+    #method = options.get('method','slsqp')
     if 'method' in options:
         del options['method']
     if method!='ipopt':
@@ -382,7 +398,6 @@ def lasso(func,func_jac,func_hess,init_guess,lamda,options):
         res = minimize_ipopt(
             partial(obj,lamda),x0,method=method,jac=True,options=options,
             constraints=con,jac_structure=jac_structure, hess_structure=hess_structure, hess=hess)
-    #print(res)
     
     return res.x[:nunknowns], res
     
