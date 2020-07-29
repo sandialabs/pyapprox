@@ -6,12 +6,12 @@ import theano.tensor as tt
 from scipy.optimize import approx_fprime
 
 class GaussianLogLike(object):
-    """
+    r"""
     A Gaussian log-likelihood function for a model with parameters given in 
     sample
     """
     def __init__(self,model,data,noise_covar):
-        """
+        r"""
         Initialise the Op with various things that our log-likelihood function
         requires. Below are the things that are needed in this particular
         example.
@@ -45,7 +45,7 @@ class GaussianLogLike(object):
         return inv_covar
 
     # def noise_covariance_determinant(self, noise_covar):
-    #     """The determinant is only necessary in log likelihood if the noise 
+    #     r"""The determinant is only necessary in log likelihood if the noise 
     #     covariance has a hyper-parameter which is being inferred which is
     #     not currently supported"""
     #     if np.isscalar(noise_covar):
@@ -71,7 +71,7 @@ class GaussianLogLike(object):
         return vals
 
 class LogLike(tt.Op):
-    """
+    r"""
     Specify what type of object will be passed and returned to the Op when it is
     called. In our case we will be passing it a vector of values (the parameters
     that define our model) and returning a single "scalar" value (the
@@ -97,7 +97,7 @@ class LogLikeWithGrad(LogLike):
     otypes = [tt.dscalar] # outputs a single scalar value (the log likelihood)
 
     def __init__(self, loglike, loglike_grad=None):
-        """
+        r"""
         Initialise with various things that the function requires. Below
         are the things that are needed in this particular example.
 
@@ -123,7 +123,7 @@ class LogLikeWithGrad(LogLike):
 
 class LogLikeGrad(tt.Op):
 
-    """
+    r"""
     This Op will be called with a vector of values and also return a vector of
     values - the gradients in each dimension.
     """
@@ -131,7 +131,7 @@ class LogLikeGrad(tt.Op):
     otypes = [tt.dvector]
 
     def __init__(self, loglike, loglike_grad=None):
-        """
+        r"""
         Initialise with various things that the function requires. Below
         are the things that are needed in this particular example.
 
@@ -203,7 +203,7 @@ def get_pymc_variable(rv,pymc_var_name):
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
         algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None):
-    """
+    r"""
     Draw samples from the posterior distribution using Markov Chain Monte Carlo
     for data that satisfies
 
@@ -304,7 +304,7 @@ def run_bayesian_inference_gaussian_error_model(
     return samples, effective_sample_size, map_sample
 
 class PYMC3LogLikeWrapper():
-    """
+    r"""
     Turn pyapprox model in to one which can be used by PYMC3.
     Main difference is that PYMC3 often passes 1d arrays where as
     Pyapprox assumes 2d arrays.

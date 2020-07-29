@@ -1029,11 +1029,13 @@ class SubSpaceRefinementManager(object):
         if cost_function is None:
             cost_function = default_combination_sparse_grid_cost_function
         self.cost_function=cost_function
-        self.work_qoi_index=work_qoi_index
-        if self.work_qoi_index is not None:
-            if not hasattr(self.cost_function,'update'):
-                msg = 'cost_function must have update() member function'
-                raise Exception(msg)
+        if work_qoi_index is not None:
+            raise Exception('this option is deprecated and wil  be removed')
+        #self.work_qoi_index=work_qoi_index
+        #if self.work_qoi_index is not None:
+        #    if not hasattr(self.cost_function,'update'):
+        #        msg = 'cost_function must have update() member function'
+        #        raise Exception(msg)
 
     def set_config_variable_index(self,idx,config_var_trans=None):
         if  self.function is None:

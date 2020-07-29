@@ -702,7 +702,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             mu_I,pred_factors,homog_outer_prods)
         assert np.allclose(mu_R,mu_I)
 
-def help_test_michaelis_menten_model_minimax_optimal_design(self,criteria,heteroscedastic=False):
+def help_test_michaelis_menten_model_minimax_optimal_design(criteria,heteroscedastic=False):
     """
     If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
     at b. This can be proved with an application of Holders inequality to 
