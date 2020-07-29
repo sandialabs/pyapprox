@@ -1,4 +1,4 @@
-name: PyApprox CI - conda
+name: Build and Test Using Conda
 
 on:
   push:

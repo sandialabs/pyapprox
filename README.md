@@ -1,3 +1,6 @@
+[![Actions Status](https://github.com/sandialabs/pyapprox/workflows/Build%20and%20Test%20Using%20Pip/badge.svg)](https://github.com/sandialabs/pyapprox/actions)
+[![Actions Status](https://github.com/sandialabs/pyapprox/workflows/Build%20and%20Test%20Using%20Conda/badge.svg)](https://github.com/sandialabs/pyapprox/actions)
+
 # PyApprox
 
 Documentation
