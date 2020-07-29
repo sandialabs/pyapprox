@@ -109,7 +109,7 @@ class TestMCMC(unittest.TestCase):
 
     def test_exponential_quartic(self):
         # set random seed, so the data is reproducible each time
-        np.random.seed(1)  
+        np.random.seed(2)  
         
         univariate_variables = [uniform(-2,4),uniform(-2,4)]
         plot_range = np.asarray([-1,1,-1,1])*2
@@ -119,7 +119,7 @@ class TestMCMC(unittest.TestCase):
         loglike = PYMC3LogLikeWrapper(loglike,loglike.gradient)
 
         # number of draws from the distribution
-        ndraws = 5000
+        ndraws = 500
         # number of "burn-in points" (which we'll discard)
         nburn = min(1000,int(ndraws*0.1))
         # number of parallel chains
@@ -154,7 +154,7 @@ class TestMCMC(unittest.TestCase):
             run_bayesian_inference_gaussian_error_model(
                 loglike,variables,ndraws,nburn,njobs,
                 algorithm=algorithm,get_map=True,print_summary=True,
-                loglike_grad = loglike.gradient)
+                loglike_grad = loglike.gradient, seed=2)
 
         # from pyapprox.visualization import get_meshgrid_function_data
         # import matplotlib

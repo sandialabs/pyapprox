@@ -14,6 +14,9 @@ from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth, \
 from functools import partial
 class TestAdaptivePCE(unittest.TestCase):
 
+    def setUp(self):
+        np.random.seed(1)
+
     def helper(self,function,var_trans,pce,max_level,error_tol):
         max_level_1d=[max_level]*(pce.num_vars)
         max_num_samples=100
@@ -138,7 +141,7 @@ class TestAdaptivePCE(unittest.TestCase):
         error, pce = self.helper(function,var_trans,pce,4,0.)
 
         print('induced sampling error',error)
-        assert error < 1e-14
+        assert error < 1e-7
 
     def test_adaptive_least_squares_proability_measure_sampling(self):
         #set cond <1 to use random samples from probaility measure
@@ -165,7 +168,6 @@ class TestAdaptivePCE(unittest.TestCase):
         
 
 if __name__ == '__main__':
-    np.random.seed(1)
     adaptive_pce_test_suite = unittest.TestLoader().loadTestsFromTestCase(
          TestAdaptivePCE)
     unittest.TextTestRunner(verbosity=2).run(adaptive_pce_test_suite)

@@ -202,7 +202,8 @@ def get_pymc_variable(rv,pymc_var_name):
 
 def run_bayesian_inference_gaussian_error_model(
         loglike,variables,ndraws,nburn,njobs,
-        algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None):
+        algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None,
+        seed=None):
     r"""
     Draw samples from the posterior distribution using Markov Chain Monte Carlo
     for data that satisfies
@@ -248,6 +249,11 @@ def run_bayesian_inference_gaussian_error_model(
        ``loglikegrad(z) -> np.ndarray (nvars)``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples
+
+    random_seed : int or list of ints
+        A list is accepted if ``cores`` is greater than one. PyMC3 does not 
+        produce consistent results by setting numpy.random.seed instead
+        seed must be passed in
     """
     
     # create our Op
@@ -283,7 +289,7 @@ def run_bayesian_inference_gaussian_error_model(
             
             trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
                               start=None,cores=njobs,step=step,
-                              compute_convergence_checks=False)
+                              compute_convergence_checks=False,random_seed=seed)
             # compute_convergence_checks=False avoids bugs in theano
             
         if print_summary:
