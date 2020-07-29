@@ -575,11 +575,17 @@ class TestRiskMeasures(unittest.TestCase):
         smoother_type,eps=0,1e-1
         #x = np.linspace(-1,1,101)
         #plt.plot(x,smooth_max_function(smoother_type,eps,x));plt.show()
-        #plt.plot(x,smooth_max_function_first_derivative(smoother_type,eps,x));plt.show()
+        #plt.plot(x,smooth_max_function_first_derivative(smoother_type,eps,x-0.5));plt.show()
+        #plt.plot(x,smooth_max_function_second_derivative(smoother_type,eps,x-0.5));plt.show()
         x = np.array([0.01])
         errors = check_gradients(
             partial(smooth_max_function,smoother_type,eps),
             partial(smooth_max_function_first_derivative,smoother_type,eps),
+            x[:,np.newaxis])
+
+        errors = check_gradients(
+            partial(smooth_max_function_first_derivative,smoother_type,eps),
+            partial(smooth_max_function_second_derivative,smoother_type,eps),
             x[:,np.newaxis])
         assert errors.min()<1e-6
 

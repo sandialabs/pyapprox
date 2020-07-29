@@ -74,7 +74,26 @@ class TestOptimization(unittest.TestCase):
         # uq_samples = np.random.uniform(0,1,(2,nsamples))
         # func = partial(mean_lower_bound_constraint,constraint_function,lower_bound,uq_samples)
         # grad = partial(mean_lower_bound_constraint_jacobian,constraint_grad,uq_samples)
-        
+
+    def test_prob_failure_fun(self):
+        smoother_type,eps=0,1e-3
+        nsamples = 1000
+        weights = np.ones(nsamples)/nsamples
+        samples = np.random.uniform(0,0.25,(1,nsamples))
+        a=np.array([2])
+        values = a**2*(samples).sum(axis=0)
+        #print(values.mean())
+        tol=0.5
+        prob_vals=smooth_prob_failure_fun(smoother_type,eps,tol,values,weights)
+        jac_values = (2*a*samples).T
+        fd_eps=1e-7
+        values_pert = (a+fd_eps)**2*(samples).sum(axis=0)
+        prob_vals_pert = smooth_prob_failure_fun(smoother_type,eps,tol,
+                                                 values_pert,weights)
+        grad=(smooth_prob_failure_jac(smoother_type,eps,tol,jac_values,weights))
+        fd_grad=((prob_vals_pert-prob_vals)/fd_eps)
+        assert np.allclose(grad,fd_grad)
+
 
 if __name__ == '__main__':
     optimization_test_suite = unittest.TestLoader().loadTestsFromTestCase(

@@ -566,18 +566,44 @@ def expectation_fun(values,weights):
     assert values.shape[0]%weights.shape[0]==0
     nqoi = values.shape[0]//weights.shape[0]
     nsamples = values.shape[0]//nqoi
-    return (values.T.dot(weights)).T
+    assert nqoi==1
+    fun_vals = (values.T.dot(weights)).T
+    return fun_vals
 
-def expectation_jac(values,weights):
+def expectation_jac(jac_values,weights):
+    assert jac_values.shape[0]%weights.shape[0]==0
+    nqoi = jac_values.shape[0]//weights.shape[0]
+    nsamples = jac_values.shape[0]//nqoi
+    num_vars = jac_values.shape[1]
+    assert nqoi==1
+    jac = (jac_values.T.dot(weights)).T
+    return jac
+
+from pyapprox.cvar_regression import smooth_max_function_first_derivative,\
+    smooth_max_function_second_derivative
+def smooth_prob_failure_fun(smoother_type,eps,tol,values,weights):
     assert values.shape[0]%weights.shape[0]==0
     nqoi = values.shape[0]//weights.shape[0]
+    assert nqoi==1
     nsamples = values.shape[0]//nqoi
-    num_vars = values.shape[1]
-    tmp = values.reshape((nsamples,nqoi,num_vars),order='F')
-    assert np.array_equal(tmp[:,0,:],values[:nsamples,:])
-    if nqoi>1:
-        assert np.allclose(tmp[:,1,:],values[nsamples:,:])
-    return (tmp.T.dot(weights)).T
+    heaviside_vals = smooth_max_function_first_derivative(
+        smoother_type,eps,values-tol)
+    fun_vals = (heaviside_vals.dot(weights)).T
+    #print(fun_vals.shape)
+    return fun_vals
+
+def smooth_prob_failure_jac(smoother_type,eps,tol,jac_values,weights):
+    assert jac_values.shape[0]%weights.shape[0]==0
+    nqoi = jac_values.shape[0]//weights.shape[0]
+    assert nqoi==1
+    nsamples = jac_values.shape[0]//nqoi
+    num_vars = jac_values.shape[1]
+    grad_heaviside_vals = smooth_max_function_second_derivative(
+        smoother_type,eps,jac_values-tol)
+    jac = (grad_heaviside_vals*jac_values).T.dot(weights)[np.newaxis,:]
+    print(jac_values.max(axis=0),'m',eps)
+
+    return jac
 
 def generate_monte_carlo_quadrature_data(
         generate_random_samples,num_vars,design_var_indices,fun,seed=None):
@@ -603,14 +629,18 @@ class StatisticalConstraint(object):
     """
     
     def __init__(self,fun,jac,stats_fun,stats_jac,num_vars,
-                 design_var_indices,generate_sample_data,bound=None,upper_bound=True):
-        self.fun,self.jac,self.stats_fun,self.stats_jac=fun,jac,stats_fun,stats_jac
+                 design_var_indices,generate_sample_data,bound=None,
+                 upper_bound=True,isobjective=False):
+        self.fun,self.jac,self.stats_fun=fun,jac,stats_fun
+        self.stats_jac=stats_jac
         self.num_vars=num_vars
         self.design_var_indices=design_var_indices
-        self.random_var_indices = np.delete(np.arange(self.num_vars),self.design_var_indices)
+        self.random_var_indices = np.delete(
+            np.arange(self.num_vars),self.design_var_indices)
         self.generate_sample_data=generate_sample_data
         self.bound=bound
         self.upper_bound=upper_bound
+        self.isobjective=isobjective
 
         self.design_sample = None
         self.jac_values = None
@@ -630,16 +660,17 @@ class StatisticalConstraint(object):
                                      self.random_var_indices)
         data = self.generate_sample_data(fun)
         self.samples,self.weights,self.fun_values = data[:3]
-        assert self.samples.shape[0]==self.num_vars-self.design_var_indices.shape[0]
+        assert self.samples.shape[0]==\
+            self.num_vars-self.design_var_indices.shape[0]
         assert self.samples.shape[1]==self.weights.shape[0]
         #assert self.samples.shape[1]==self.fun_values.shape[0]
         if not callable(self.jac) and self.jac:
             # consider whether to support self.jac=True. It seems appealing
             # if using gradients from adjoint PDE simulation which requires 
             # data used to compute function values and thus better to do at the
-            # time the function values are obtained. Challenge is defining the correct
-            # output interface and only computing gradients if self.jac has been called
-            # and not if self.__call__ is called.
+            # time the function values are obtained. Challenge is defining the
+            # correct output interface and only computing gradients if self.jac
+            # has been called and not if self.__call__ is called.
             raise Exception ("Not yet implemented")
             self.jac_values = data[3]
         
@@ -647,26 +678,45 @@ class StatisticalConstraint(object):
         if design_sample.ndim==1:
             design_sample = design_sample[:,np.newaxis]
         self.generate_shared_data(design_sample)
-        values = self.stats_fun(self.fun_values,self.weights)
+        nsamples = self.weights.shape[0]
+        nqoi = self.fun_values.shape[1]
+        #print(self.fun_values)
+        values = np.empty((nqoi))
+        for ii in range(nqoi):
+            values[ii] = self.stats_fun(
+                self.fun_values[:,ii:ii+1],self.weights)
+            
+            #print('b',np.where(self.fun_values[:,ii:ii+1]>0)[0].shape[0]/nsamples)
+            #print('c',values[ii])
+        #print(self.fun_values.min(),self.fun_values.max())
         if self.bound is not None:
             values = values-self.bound
             if self.upper_bound:
                 values *= -1
+        if self.isobjective:
+            values= values[0]
         return values
 
     def jacobian(self,design_sample):
         if design_sample.ndim==1:
             design_sample = design_sample[:,np.newaxis]
-        if np.array_equal(design_sample,self.design_sample) and self.jac_values is not None:
+        if (np.array_equal(design_sample,self.design_sample) and
+            self.jac_values is not None):
             jac_values = self.jac_values
         else:
             jac = ActiveSetVariableModel(
                 self.jac,self.num_vars,self.samples,self.design_var_indices)
             jac_values = jac(design_sample)
-        constraint_jac = self.stats_jac(jac_values,self.weights)
+        nsamples = self.weights.shape[0]
+        nqoi = self.fun_values.shape[1]
+        nvars = jac_values.shape[1]
+        constraint_jac = np.empty((nqoi,nvars))
+        for ii in range(nqoi):
+            constraint_jac[ii] = self.stats_jac(
+                jac_values[ii*nsamples:(ii+1)*nsamples,:],self.weights)
         if self.bound is not None and self.upper_bound:
             constraint_jac *= -1
-        return constraint_jac
+        return constraint_jac.squeeze()
 
 class PyapproxFunctionAsScipyMinimizeObjective(object):
     def __init__(self,fun):
