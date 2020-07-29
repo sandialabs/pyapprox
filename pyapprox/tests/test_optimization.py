@@ -20,10 +20,11 @@ class TestOptimization(unittest.TestCase):
         
         x0 = np.random.uniform(0,1,(2,1))
         true_jacobian = constraint_grad(x0[:,0])
-        assert np.allclose(true_jacobian,approx_jacobian(constraint_function,x0[:,0]))
+        assert np.allclose(true_jacobian,approx_jacobian(
+            constraint_function,x0[:,0]))
 
     def test_eval_mc_based_jacobian_at_multiple_design_samples(self):
-        constraint_function_single = lambda z,x: np.array([z[0]*(1-x[0]**2-x[1])])
+        constraint_function_single=lambda z,x: np.array([z[0]*(1-x[0]**2-x[1])])
         constraint_grad_single = lambda z,x: [-2*z[0]*x[0],-z[0]]
 
         x0 = np.random.uniform(0,1,(2,2))
@@ -36,7 +37,8 @@ class TestOptimization(unittest.TestCase):
         jacobian = eval_mc_based_jacobian_at_multiple_design_samples(
             constraint_grad_single,stat_func,zz,x0)
 
-        true_jacobian=[np.mean([constraint_grad_single(z,x) for z in zz.T],axis=0)
+        true_jacobian=[np.mean([constraint_grad_single(z,x) for z in zz.T],
+                               axis=0)
                        for x in x0.T]
         assert np.allclose(true_jacobian,jacobian)
 

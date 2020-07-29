@@ -750,7 +750,7 @@ def r_oed_objective_jacobian(beta,pred_weights,x):
 def r_oed_constraint_objective(num_design_pts,local_oed_obj,x):
     num_pred_pts = x.shape[0]-(1+num_design_pts)
     t = x[0]
-    u = x[1:num_pred_pts+1]
+    u = x[1:num_pred_pts+1].squeeze()
     return t+u-local_oed_obj(x[num_pred_pts+1:]).T
 
 def r_oed_constraint_jacobian(num_design_pts,local_oed_jac,x):

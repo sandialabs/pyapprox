@@ -450,24 +450,26 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
         function_val,grad_val = fun(zz)
     direction = np.random.normal(0,1,(zz.shape[0],1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = grad_val.dot(direction).squeeze()
+    directional_derivative = grad_val.squeeze().dot(direction).squeeze()
     fd_eps = np.logspace(-13,0,14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
     if disp:
         if rel:
-            print(row_format.format("Eps","Rel. Errors (max)","Rel. Errors (min)"))
+            print(
+                row_format.format("Eps","Rel. Errors (max)","Rel. Errors (min)"))
         else:
             print(row_format.format("Eps","Errors (max)","Errors (min)"))
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)
         if jac==True:
-            perturbed_function_val = perturbed_function_val[0]
+            perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
         errors.append(np.absolute(
-            fd_directional_derivative-directional_derivative))
+            fd_directional_derivative.reshape(directional_derivative.shape)-
+            directional_derivative))
         if rel:
             errors[-1]/=np.absolute(directional_derivative)
         if disp:
@@ -665,3 +667,41 @@ class StatisticalConstraint(object):
         if self.bound is not None and self.upper_bound:
             constraint_jac *= -1
         return constraint_jac
+
+class PyapproxFunctionAsScipyMinimizeObjective(object):
+    def __init__(self,fun):
+        self.fun=fun
+    def __call__(self,scipy_sample):
+        assert scipy_sample.ndim==1
+        data = self.fun(scipy_sample[:,np.newaxis])
+        if not np.isscalar(data):
+            assert len(data)==2
+            val = data[0]
+            assert np.isscalar(val)
+            assert data[1].ndim==2 and data[1].shape[0]==1
+            jac = data[1][0,:]
+            return val,jac
+        return data
+
+class ScipyMinimizeObjectiveAsPyapproxFunction(object):
+    def __init__(self,fun):
+        self.fun=fun
+    def __call__(self,pyapprox_sample):
+        assert pyapprox_sample.ndim==2 and pyapprox_sample.shape[1]==1
+        data = self.fun(pyapprox_sample[:,0])
+        if not np.isscalar(data):
+            assert len(data)==2
+            val = data[0]
+            assert np.isscalar(val)
+            assert data[1].ndim==2 and data[1].shape[0]==1
+            jac = data[1][0,:]
+            return val,jac
+        return data
+
+class ScipyMinimizeObjectiveJacAsPyapproxJac(object):
+    def __init__(self,jac):
+        self.jac=jac
+    def __call__(self,pyapprox_sample):
+        assert pyapprox_sample.ndim==2 and pyapprox_sample.shape[1]==1
+        grad = self.jac(pyapprox_sample[:,0])
+        return grad[np.newaxis,:]

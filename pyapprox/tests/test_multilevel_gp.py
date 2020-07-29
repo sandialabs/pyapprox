@@ -77,7 +77,7 @@ class TestMultilevelGP(unittest.TestCase):
             K[:,XX1.shape[0]:],p12**2*kernel1(XX1,XX2)+kernel2(XX1,XX2))
         print(K)
         
-    
+    @unittest.skip(reason="capability not complete")
     def test_2_models(self):
         # TODO Add Test which builds gp on two models data separately when
         # data2 is subset data and hyperparameters are fixed.
