@@ -1,4 +1,4 @@
-name: PyAPprox CI - pip
+name: Build and Test Using Pip
 
 on:
   push:

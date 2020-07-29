@@ -3,6 +3,9 @@ from pyapprox.optimization import *
 from pyapprox.l1_minimization import *
 
 class TestOptimization(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(2)
+    
     def test_approx_jacobian(self):
         constraint_function = lambda x: np.array([1-x[0]**2-x[1]])
         constraint_grad = lambda x: [-2*x[0],-1]
@@ -20,6 +23,8 @@ class TestOptimization(unittest.TestCase):
         
         x0 = np.random.uniform(0,1,(2,1))
         true_jacobian = constraint_grad(x0[:,0])
+        #print(true_jacobian,'\n',approx_jacobian(
+        #    constraint_function,x0[:,0]))
         assert np.allclose(true_jacobian,approx_jacobian(
             constraint_function,x0[:,0]))
 
