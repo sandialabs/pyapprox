@@ -205,16 +205,16 @@ def smooth_conditional_value_at_risk_gradient(smoother_type,eps,alpha,x,weights=
         smoother_type,eps,x[:-1]-t)/(1-alpha)*weights
     return grad
 
-def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,x,weights=None):
-    assert x.ndim==2 and x.shape[1]==1
-    t = x[-1]
-    values,weights = fun(x[:-1])
-    if weights is None:
-        return t+smooth_max_function(smoother_type,eps,values-t).mean()/(1-alpha), \
-            values,weights
+# def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,x,weights=None):
+#     assert x.ndim==2 and x.shape[1]==1
+#     t = x[-1]
+#     values,weights = fun(x[:-1])
+#     if weights is None:
+#         return t+smooth_max_function(smoother_type,eps,values-t).mean()/(1-alpha), \
+#             values,weights
 
-    assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
-    return 
+#     assert weights.ndim==1 and weights.shape[0]==x.shape[0]-1
+#     return
 
 
 def smooth_conditional_value_at_risk_composition(smoother_type,eps,alpha,fun,jac,x,weights=None):
