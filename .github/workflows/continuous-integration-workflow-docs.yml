@@ -1,4 +1,4 @@
-name: Build and Test Using Conda
+name: Build Docs Using Conda
 
 on:
   push:
@@ -46,9 +46,14 @@ jobs:
       shell: bash -l {0}
       run: |
         pip install -e .
-    - name: Test PyApprox
+    - name: Setup PyApprox Documentation
       shell: bash -l {0}
       run: |
-        pytest --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/fenics_models/tests pyapprox/models pyapprox/benchmarks
-#        python setup.py test
+        pip install -e .[docs]
+    - name: Create PyApprox Documentation
+      shell: bash -l {0}
+      run: |
+        cd docs
+        make html SPHINXOPTS=-vvv
+      
       
