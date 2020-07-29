@@ -183,7 +183,7 @@ class TestLowRankMultiFidelity(unittest.TestCase):
 
         error_mf = compute_mean_l2_error(hf_test_values,
                                          mf_test_values)[1]
-        assert np.allclose(error_mf<1e-4)#3.0401959914364483e-05)
+        assert assert error_mf<1e-4#3.0401959914364483e-05)
         
         return
         # for tutorial
