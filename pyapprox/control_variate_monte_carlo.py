@@ -1134,6 +1134,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
         constraints=cons,
         options = optim_options)
     if opt.success == False:
+        print(opt)
         raise Exception('SLSQP optimizer failed')
     return opt
         
