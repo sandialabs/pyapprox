@@ -121,7 +121,7 @@ def cartesian_product(input_sets, elem_size=1):
 
     The sets can consist of numbers or themselves be lists or vectors. All 
     the lists or vectors of a given set must have the same number of entries
-    (elem_size). However each set can have a different number of sclars, lists,
+    (elem_size). However each set can have a different number of scalars, lists,
     or vectors.
 
     Parameters

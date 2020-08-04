@@ -693,6 +693,6 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
 if __name__== "__main__":    
     multivariate_polynomials_test_suite = \
- unittest.TestLoader().loadTestsFromTestCase(TestMultivariatePolynomials)
+        unittest.TestLoader().loadTestsFromTestCase(TestMultivariatePolynomials)
     unittest.TextTestRunner(verbosity=2).run(
         multivariate_polynomials_test_suite)
