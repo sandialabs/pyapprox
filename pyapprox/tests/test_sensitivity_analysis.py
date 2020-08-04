@@ -229,7 +229,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         pce = approximate(
             train_samples,train_vals,'polynomial_chaos',
             {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
-             'options':{'max_degree':8}})
+             'options':{'max_degree':8}}).approx
 
         res = analyze_sensitivity_polynomial_chaos(pce)
         assert np.allclose(res.main_effects,benchmark.main_effects,atol=2e-3)
@@ -242,7 +242,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         options = {'max_nsamples':2000,'verbose':0}
         approx = adaptive_approximate(
             benchmark.fun,benchmark.variable.all_variables(),
-            'sparse_grid',options)
+            'sparse_grid',options).approx
 
         from pyapprox.approximate import compute_l2_error
         nsamples = 100
