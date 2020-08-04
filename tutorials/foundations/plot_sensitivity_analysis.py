@@ -48,10 +48,11 @@ train_samples=pya.generate_independent_random_samples(
     benchmark.variable,num_samples)
 train_vals = benchmark.fun(train_samples)
 
-pce = approximate(
+approx_res = approximate(
     train_samples,train_vals,'polynomial_chaos',
     {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
      'options':{'max_degree':8}})
+pce = approx_res.approx
 
 res = pya.analyze_sensitivity_polynomial_chaos(pce)
 
@@ -65,9 +66,9 @@ print(benchmark.main_effects[:,0])
 
 import matplotlib.pyplot as plt
 fig,axs = plt.subplots(1,3,figsize=(3*8,6))
-pya.plot_main_effects(benchmark['main_effects'],axs[0])
-pya.plot_total_effects(benchmark['total_effects'],axs[1])
-pya.plot_interaction_values(benchmark['sobol_indices'],benchmark['sobol_interaction_indices'],axs[2])
+pya.plot_main_effects(benchmark.main_effects,axs[0])
+pya.plot_total_effects(benchmark.total_effects,axs[1])
+pya.plot_interaction_values(benchmark.sobol_indices,benchmark.sobol_interaction_indices,axs[2])
 axs[0].set_title(r'$\mathrm{Main\;Effects}$')
 axs[1].set_title(r'$\mathrm{Total\;Effects}$')
 axs[2].set_title(r'$\mathrm{Sobol\;Indices}$')

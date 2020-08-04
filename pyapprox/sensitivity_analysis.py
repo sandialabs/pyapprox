@@ -114,6 +114,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     """
     main_effects=main_effects[:,qoi]
     assert main_effects.sum()<=1.
+    main_effects_sum = main_effects.sum()
 
     # sort main_effects in descending order
     I=np.argsort( main_effects )[::-1]
@@ -122,21 +123,27 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     labels=[]
     partial_sum=0.
     for i in range( I.shape[0] ):
-        if partial_sum < truncation_pct and i < max_slices:
+        if partial_sum/main_effects_sum < truncation_pct and i < max_slices:
             labels.append( '$%s_{%d}$' %(rv,I[i]+1) )
             partial_sum += main_effects[i]
         else:
             break
 
     main_effects.resize( i + 1 )
-    if abs( partial_sum - main_effects.sum()) > 100*np.finfo(np.double).eps:
-        labels.append( 'other' )
-        main_effects[-1]= main_effects.sum() - partial_sum
+    if abs( partial_sum - main_effects_sum) > 0.5:
+        explode=np.zeros(main_effects.shape[0]);
+        labels.append(r'$\mathrm{other}$')
+        main_effects[-1]= main_effects_sum - partial_sum
+        explode[-1]=0.1
+    else:
+        main_effects.resize(i)
+        explode=np.zeros(main_effects.shape[0]);
 
-    ax.pie(main_effects, labels=labels, autopct='%1.1f%%',
-           shadow=True )
+    p = ax.pie(main_effects, labels=labels, autopct='%1.1f%%',
+               shadow=True, explode=explode )
+    return p
 
-def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
+def plot_total_effects( total_effects, ax, truncation_pct=0.95,
                         rv='z', qoi=0):
     r"""
     Plot the total effects in a pie chart showing relative size.
@@ -153,10 +160,6 @@ def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
         The proportion :math:`0<p\le 1` of the sensitivity indices 
         effects to plot
 
-    max_slices : integer
-        The maximum number of slices in the pie-chart. Will only
-        be active if the turncation_pct gives more than max_slices
-
     rv : string
         The name of the random variables when creating labels
         
@@ -166,29 +169,13 @@ def plot_total_effects( total_effects, ax, truncation_pct=0.95, max_slices=5,
 
     total_effects=total_effects[:,qoi]
 
-    # normalise total effects
-    total_effects /= total_effects.sum()
-
-    # sort total_effects in descending order
-    I=np.argsort( total_effects )[::-1]
-    total_effects=total_effects[I]
-
-    labels=[]
-    partial_sum=0.
-    for i in range( I.shape[0] ):
-        if partial_sum < truncation_pct*total_effects.sum() and i < max_slices:
-            labels.append( '$%s_{%d}$' %(rv,I[i]+1) )
-            partial_sum += total_effects[i]
-        else:
-            break
-
-    total_effects.resize( i + 1 )
-    if abs( partial_sum - 1. ) > 10 * np.finfo( np.double ).eps:
-        labels.append( 'other' )
-        total_effects[-1]=1. - partial_sum
-
-    ax.pie(total_effects, labels=labels, autopct='%1.1f%%',
-           shadow=True )
+    width=.95
+    locations = np.arange(total_effects.shape[0])
+    p = ax.bar(locations-width/2,total_effects,width,align='edge')
+    labels = ['$%s_{%d}$' %(rv,ii) for ii in range(total_effects.shape[0])]
+    ax.set_xticks(locations)
+    ax.set_xticklabels(labels,rotation=0)
+    return p
 
 
 def plot_interaction_values( interaction_values, interaction_terms, ax, 
@@ -225,7 +212,6 @@ def plot_interaction_values( interaction_values, interaction_terms, ax,
 
     assert interaction_values.shape[0]==len(interaction_terms)
     interaction_values=interaction_values[:,qoi]
-    interaction_values /= interaction_values.sum()
 
     I = np.argsort(interaction_values)[::-1]
     interaction_values = interaction_values[I]
@@ -246,13 +232,15 @@ def plot_interaction_values( interaction_values, interaction_terms, ax,
 
     interaction_values=interaction_values[:i]
     if abs( partial_sum - 1. ) > 10 * np.finfo( np.double ).eps:
-        labels.append( 'other' )
+        labels.append(r'$\mathrm{other}$')
         interaction_values=np.concatenate([interaction_values,[1.-partial_sum]])
 
 
+    explode=np.zeros(interaction_values.shape[0]);explode[-1]=0.1
     assert interaction_values.shape[0] == len ( labels )
-    ax.pie(interaction_values, labels=labels, autopct='%1.1f%%',
-           shadow=True )
+    p = ax.pie(interaction_values, labels=labels, autopct='%1.1f%%',
+               shadow=True, explode=explode )
+    return p
 
 def get_morris_trajectory(nvars,nlevels,eps=0):
     r"""

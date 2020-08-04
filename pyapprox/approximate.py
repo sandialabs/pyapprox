@@ -6,6 +6,11 @@ from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
+
+from scipy.optimize import OptimizeResult
+class ApproximateResult(OptimizeResult):
+    pass
+
 def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=0, config_variables_idx=None, config_var_trans=None,cost_function=None,max_level_1d=None):
     """
     Compute a sparse grid approximation of a function.
@@ -118,7 +123,10 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
 
     Returns
     -------
-    sparse_grid : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`
         The sparse grid approximation
     """
     variable = IndependentMultivariateRandomVariable(
@@ -148,7 +156,7 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
         verbose=verbose,cost_function=cost_function,
         config_var_trans=config_var_trans)
     sparse_grid.build(callback)
-    return sparse_grid
+    return ApproximateResult({'approx':sparse_grid})
 
 from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
@@ -230,7 +238,10 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
 
     Returns
     -------
-    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
     """
     variable = IndependentMultivariateRandomVariable(
@@ -271,7 +282,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
     pce.set_refinement_functions(
         refinement_indicator,admissibility_function,growth_rules)
     pce.build(callback)
-    return pce
+    return ApproximateResult({'approx':pce})
 
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
@@ -355,8 +366,12 @@ def adaptive_approximate(fun,variable,method,options=None):
         
     Returns
     -------
-    approx : Object
-       An object which approximates fun.
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object. For more details see 
+    
+         - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
+
+         - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
     """
 
     methods = {'sparse_grid':adaptive_approximate_sparse_grid,
@@ -399,11 +414,14 @@ def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
     verbosity : integer
         Controls the amount of information printed to screen
 
-
     Returns
     -------
-    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
-        The PCE approximation
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object. For more details see 
+    
+         - :func:`pyapprox.approximate.cross_validate_pce_degree` 
+
+         - :func:`pyapprox.approximate.expanding_basis_omp_pce`
     """
     funcs = {'expanding_basis':expanding_basis_omp_pce,
              'hyperbolic_cross':cross_validate_pce_degree}
@@ -427,7 +445,7 @@ def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
     if options is None:
         options = {}
 
-    res = funcs[basis_type](poly,train_samples,train_vals,**options)[0]
+    res = funcs[basis_type](poly,train_samples,train_vals,**options)
     return res
 
 def approximate(train_samples,train_vals,method,options=None):
@@ -451,8 +469,7 @@ def approximate(train_samples,train_vals,method,options=None):
 
     Returns
     -------
-    approx : Object
-       An object which approximates fun.
+    result : :class:`pyapprox.approximate.ApproximateResult`
     """
 
     methods = {'polynomial_chaos':approximate_polynomial_chaos,
@@ -539,10 +556,57 @@ def cross_validate_pce_degree(
 
     Returns
     -------
-    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
-        The PCE approximation
-    """
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
 
+    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+
+    scores : np.ndarray (nqoi)
+        The best cross validation score for each QoI
+
+    degrees : np.ndarray (nqoi)
+        The best degree for each QoI
+    """
+    coefs = []
+    scores = []
+    indices = []
+    degrees = []
+    indices_dict=dict()
+    unique_indices=[]
+    nqoi = train_vals.shape[1]
+    for ii in range(nqoi):
+        if verbosity>1:
+            print(f'Approximating QoI: {ii}')
+        pce_ii,score_ii,degree_ii = _cross_validate_pce_degree(
+            pce,train_samples,train_vals[:,ii:ii+1],min_degree,max_degree,
+            hcross_strength,cv,solver_type,verbosity)
+        coefs.append(pce_ii.get_coefficients())
+        scores.append(score_ii)
+        indices.append(pce_ii.get_indices())
+        degrees.append(degree_ii)
+        for index in indices[ii].T:
+            key = hash_array(index)
+            if key not in indices_dict:
+                indices_dict[key]=len(unique_indices)
+                unique_indices.append(index)
+
+    unique_indices = np.array(unique_indices).T
+    all_coefs = np.zeros((unique_indices.shape[1],nqoi))
+    for ii in range(nqoi):
+        for jj,index in enumerate(indices[ii].T):
+            key = hash_array(index)
+            all_coefs[indices_dict[key],ii]=coefs[ii][jj,0]
+    pce.set_indices(unique_indices)
+    pce.set_coefficients(all_coefs)
+    return ApproximateResult({'approx':pce,'scores':np.array(scores),
+                              'degrees':np.array(degrees)})
+    
+def _cross_validate_pce_degree(
+        pce,train_samples,train_vals,min_degree=1,max_degree=3,
+        hcross_strength=1,
+        cv=10,solver_type='lasso_lars',verbosity=0):
+    assert train_vals.shape[1]==1
     num_samples = train_samples.shape[1]
     if min_degree is None:
         min_degree = 2
@@ -582,7 +646,7 @@ def cross_validate_pce_degree(
     pce.set_coefficients(best_coef)
     if verbosity>0:
         print ('best degree:', best_degree)
-    return pce, best_degree
+    return pce, best_cv_score, best_degree
 
 def restrict_basis(indices,coefficients,tol):
     I = np.where(np.absolute(coefficients)>tol)[0]
@@ -635,7 +699,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     train_samples : np.ndarray (nvars,nsamples)
         The inputs of the function used to train the approximation
 
-    train_vals : np.ndarray (nvars,nsamples)
+    train_vals : np.ndarray (nvars,nqoi)
         The values of the function at ``train_samples``
     
     hcross_strength : float
@@ -662,14 +726,54 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
     Returns
     -------
-    pce : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
+
+    scores : np.ndarray (nqoi)
+        The best cross validation score for each QoI
 
     References
     ----------
     .. [JESJCP2015] `J.D. Jakeman, M.S. Eldred, and K. Sargsyan. Enhancing l1-minimization estimates of polynomial chaos expansions using basis selection. Journal of Computational Physics, 289(0):18 – 34, 2015 <https://doi.org/10.1016/j.jcp.2015.02.025>`_
     """
-    
+    coefs = []
+    scores = []
+    indices = []
+    indices_dict=dict()
+    unique_indices=[]
+    nqoi = train_vals.shape[1]
+    for ii in range(nqoi):
+        if verbosity>1:
+            print(f'Approximating QoI: {ii}')
+        pce_ii,score_ii = _expanding_basis_omp_pce(
+            pce, train_samples, train_vals[:,ii:ii+1], hcross_strength,
+            verbosity,max_num_terms,solver_type,cv,restriction_tol)
+        coefs.append(pce_ii.get_coefficients())
+        scores.append(score_ii)
+        indices.append(pce_ii.get_indices())
+        for index in indices[ii].T:
+            key = hash_array(index)
+            if key not in indices_dict:
+                indices_dict[key]=len(unique_indices)
+                unique_indices.append(index)
+
+    unique_indices = np.array(unique_indices).T
+    all_coefs = np.zeros((unique_indices.shape[1],nqoi))
+    for ii in range(nqoi):
+        for jj,index in enumerate(indices[ii].T):
+            key = hash_array(index)
+            all_coefs[indices_dict[key],ii]=coefs[ii][jj,0]
+    pce.set_indices(unique_indices)
+    pce.set_coefficients(all_coefs)
+    return ApproximateResult({'approx':pce,'scores':np.array(scores)})
+
+def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
+                             verbosity=1,max_num_terms=None,
+                             solver_type='lasso_lars',cv=10,
+                             restriction_tol=np.finfo(float).eps*2):
     assert train_vals.shape[1]==1
     num_vars = pce.num_vars()
     if max_num_terms  is None:
@@ -805,7 +909,10 @@ def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_o
 
     Returns
     -------
-    gaussian_process : :class:`pyapprox.gaussian_process.GaussianProcess`
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.gaussian_process.GaussianProcess`
         The Gaussian process
     """
     from sklearn.gaussian_process.kernels import Matern, WhiteKernel
@@ -817,4 +924,4 @@ def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_o
     kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
     gp = GaussianProcess(kernel,n_restarts_optimizer=n_restarts_optimizer)
     gp.fit(train_samples,train_vals)
-    return gp
+    return ApproximateResult({'approx':gp})

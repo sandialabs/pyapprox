@@ -12,7 +12,7 @@ class TestApproximate(unittest.TestCase):
         benchmark = setup_benchmark('ishigami',a=7,b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse_grid')
+            benchmark.fun,univariate_variables,'sparse_grid').approx
         nsamples = 100
         error = compute_l2_error(
             approx,benchmark.fun,approx.variable_transformation.variable,
@@ -46,7 +46,7 @@ class TestApproximate(unittest.TestCase):
                    'callback':callback,'verbose':0,
                    'refinement_indicator':refinement_indicator}
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse_grid',options)
+            benchmark.fun,univariate_variables,'sparse_grid',options).approx
         #print(np.min(errors))
         assert np.min(errors)<1e-3
 
@@ -57,7 +57,7 @@ class TestApproximate(unittest.TestCase):
         # benchmark
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,method='polynomial_chaos')
+            benchmark.fun,univariate_variables,method='polynomial_chaos').approx
         nsamples = 100
         error = compute_l2_error(
             approx,benchmark.fun,approx.variable_transformation.variable,
@@ -78,16 +78,20 @@ class TestApproximate(unittest.TestCase):
         degree=3
         poly.set_indices(pya.compute_hyperbolic_indices(num_vars,degree,1.0))
         num_samples = poly.num_terms()*2
-        poly.set_coefficients(np.random.normal(0,1,(poly.indices.shape[1],1)))
+        coef = np.random.normal(0,1,(poly.indices.shape[1],2))
+        coef[pya.nchoosek(num_vars+2,2):,0]=0
+        # for first qoi make degree 2 the best degree
+        poly.set_coefficients(coef)
+        
         train_samples=pya.generate_independent_random_samples(
             variable,num_samples)
         train_vals = poly(train_samples)
         true_poly=poly
 
-
         poly = approximate(
             train_samples,train_vals,'polynomial_chaos',
-            {'basis_type':'hyperbolic_cross','variable':variable})
+            {'basis_type':'hyperbolic_cross','variable':variable,
+             'options':{'verbosity':3}}).approx
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
@@ -96,9 +100,9 @@ class TestApproximate(unittest.TestCase):
             poly(validation_samples),true_poly(validation_samples))
 
         poly = copy.deepcopy(true_poly)
-        poly, best_degree = cross_validate_pce_degree(
+        approx_res = cross_validate_pce_degree(
             poly,train_samples,train_vals,1,degree+2)
-        assert best_degree==degree
+        assert np.allclose(approx_res.degrees,[2,3])
 
 
     def test_pce_basis_expansion(self):
@@ -117,9 +121,15 @@ class TestApproximate(unittest.TestCase):
             pya.compute_hyperbolic_indices(num_vars,degree,hcross_strength))
         num_samples = poly.num_terms()*2
         degrees = poly.indices.sum(axis=0)
-        poly.set_coefficients(
-            (np.random.normal(
-                0,1,poly.indices.shape[1])/(degrees+1)**2)[:,np.newaxis])
+        coef = np.random.normal(
+            0,1,(poly.indices.shape[1],2))/(degrees[:,np.newaxis]+1)**2
+        # set some coefficients to zero to make sure that different qoi
+        # are treated correctly.
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I,0]=0
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I,1]=0
+        poly.set_coefficients(coef)
         train_samples=pya.generate_independent_random_samples(
             variable,num_samples)
         train_vals = poly(train_samples)
@@ -127,7 +137,7 @@ class TestApproximate(unittest.TestCase):
 
         poly = approximate(
             train_samples,train_vals,'polynomial_chaos',
-            {'basis_type':'expanding_basis','variable':variable})
+            {'basis_type':'expanding_basis','variable':variable}).approx
 
         num_validation_samples = 100
         validation_samples = pya.generate_independent_random_samples(
@@ -156,7 +166,8 @@ class TestApproximate(unittest.TestCase):
         alpha=np.random.normal(0,1,X.shape[1])
         train_vals = kernel(train_samples.T,X.T).dot(alpha)[:,np.newaxis]
 
-        gp = approximate(train_samples,train_vals,'gaussian_process',{'nu':nu})
+        gp = approximate(
+            train_samples,train_vals,'gaussian_process',{'nu':nu}).approx
 
         error = np.linalg.norm(gp(X)[:,0]-kernel(X.T,X.T).dot(alpha))/np.sqrt(
             X.shape[1])
