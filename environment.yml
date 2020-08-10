@@ -20,6 +20,7 @@ dependencies:
   - fenics=2019
   - scipy=1.3.1
   - mshr
+  - networkx
   # make html in docs folder
   - sphinx
   - sphinx-gallery
