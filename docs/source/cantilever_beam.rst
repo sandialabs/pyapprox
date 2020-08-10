@@ -20,7 +20,8 @@ Cantilever Beam
 
 First we must specify the distribution of the random variables
 
-.. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
+..
+  .. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
    :start-at: def define_beam_random_variables
    :end-at: return
 
@@ -36,7 +37,8 @@ Let :math:`\V{z}=(R,E,X,Y), \mathbf{w}=(w,t)` denote the random and design varia
 
 We specify the objective and constraints with
 
-.. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
+..
+  .. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
    :start-at: def beam_obj
    :end-before: def setup_beam_design
 
@@ -58,13 +60,15 @@ Deterministic optimization requires defining the nominal values of the random pa
 
 We can find the deterministic optima using
 
-.. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
+..
+  .. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
    :start-at: def setup_beam_design
    :end-before: def find_uncertainty_aware_beam_design
 
 Lets put this altogether. The aforementioned steps can be combined and run using the following 
 	      
-.. plot::
+..
+  .. plot::
    :include-source:
 
    from pyapprox.examples.cantilever_beam import *
@@ -101,11 +105,12 @@ It is better to incoporate uncertainty into the design process. In the following
 
 To setup the optimization problem use
 
-.. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
+..
+  .. literalinclude:: ../../pyapprox/examples/cantilever_beam.py
    :start-at: def find_uncertainty_aware_beam_design
    :end-at: return objective
 
-.. plot::
+  .. plot::
    :include-source:
 
    from pyapprox.examples.cantilever_beam import *
