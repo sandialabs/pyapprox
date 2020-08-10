@@ -23,7 +23,7 @@ class PriorConditionedHessianMatVecOperator(object):
 
         Parameters
         ----------
-        vectors : (num_dims x num_vectors) matrix
+        vectors : (num_dims,num_vectors) matrix
             A set or arbitrary vectors w.
 
         transpose : boolean (default=True)
@@ -33,7 +33,7 @@ class PriorConditionedHessianMatVecOperator(object):
 
         Returns
         -------
-        z : (num_dims x num_vectors) matrix
+        z : (num_dims,num_vectors) matrix
             The matrix vector products: L'*H*L*w
         """
         x = self.prior_covariance_sqrt_operator.apply(vectors,transpose=False)
@@ -66,10 +66,10 @@ class LaplaceSqrtMatVecOperator(object):
         r"""
         Parameters
         ----------
-        e_r : (rank x 1) vector
+        e_r : (rank,1) vector
             The r largest eigenvalues of the prior conditioned misfit hessian
 
-        V_r : (num_dims x rank) matrix
+        V_r : (num_dims,rank) matrix
             The eigenvectors corresponding to the r-largest eigenvalues
 
         M : (num_dims) vector (default=None)
@@ -122,12 +122,12 @@ class LaplaceSqrtMatVecOperator(object):
 
         Parameters
         ----------
-        vectors : (num_dims x num_vectors) matrix
+        vectors : (num_dims,num_vectors) matrix
             A set or arbitrary vectors w.
 
         Returns
         -------
-        x : (rank x num_vectors) matrix
+        x : (rank,num_vectors) matrix
             The matrix vector products: V'M*w
         """
         if self.M is not None:
@@ -144,7 +144,7 @@ class LaplaceSqrtMatVecOperator(object):
 
         Parameters
         ----------
-        vectors : (num_dims x num_vectors) matrix
+        vectors : (num_dims,num_vectors) matrix
             A set or arbitrary vectors w.
 
         transpose : boolean
@@ -153,7 +153,7 @@ class LaplaceSqrtMatVecOperator(object):
 
         Returns
         -------
-        z : (num_dims x num_vectors) matrix
+        z : (num_dims,num_vectors) matrix
             The matrix vector products: L*(V*D*V'+I)*w
         """
         if transpose:
@@ -241,9 +241,9 @@ def get_low_rank_prior_conditioned_misfit_hessian(
 
     Returns
     -------
-    e_r : (rank x 1) vector
+    e_r : (rank,1) vector
         The r largest eigenvalues of the prior conditioned misfit hessian
-    V_r : (num_dims x rank) matrix
+    V_r : (num_dims,rank) matrix
         The eigenvectors corresponding to the r-largest eigenvalues
     """
 
@@ -270,7 +270,7 @@ def find_map_point(objective, initial_guess, opts=None):
         Objective must implement with .evaluate()
         and .gradient() functions
 
-    initial guess : (num_dims x 1) vector
+    initial guess : (num_dims,1) vector
         The initial point to start the local optimization
 
     opts : dictionary (default=None)
@@ -279,7 +279,7 @@ def find_map_point(objective, initial_guess, opts=None):
 
     Returns
     -------
-    map_point : (num_dims x 1) vector
+    map_point : (num_dims,1) vector
         The coordinates of the maximum of the log posterior
 
     obj_max : float
@@ -310,27 +310,27 @@ def laplace_posterior_approximation_for_linear_models(
 
     Parameters
     ----------
-    linear_matrix : (num_qoi x num_dims) matrix
+    linear_matrix : (num_qoi,num_dims) matrix
         The matrix reprsenting the linear forward model.
 
-    prior_mean : (num_dims x 1) vector
+    prior_mean : (num_dims,1) vector
         The mean of the Gaussian prior
 
-    prior_covariance: (num_dims x num_dims) matrix
-        The covariance of the Gaussian prior
+    prior_hessian: (num_dims,num_dims) matrix
+        The Hessian (inverse of the covariance) of the Gaussian prior
 
-    noise_covariance_inv : (num_qoi x num_qoi) matrix
+    noise_covariance_inv : (num_qoi,num_qoi) matrix
         The inverse of the covariance of the osbervational noise
 
-    obs : (num_qoi x 1) vector
+    obs : (num_qoi,1) vector
         The observations
 
     Returns
     -------
-    posterior_mean : (num_dims x 1) vector
+    posterior_mean : (num_dims,1) vector
         The mean of the Gaussian posterior
 
-    posterior_covariance: (num_dims x num_dims) matrix
+    posterior_covariance: (num_dims,num_dims) matrix
         The covariance of the Gaussian posterior
     """
     if prior_mean.ndim==1:
@@ -357,7 +357,7 @@ def push_forward_gaussian_though_linear_model(A,b,mean,covariance):
     z~N(x,\Sigma)
 
     Transformation with b is a constant vector, e.g has no variance
-    y = Ax + b
+    y = Az + b
 
     Distribution of resulting gaussian
     y~N(Ax+b,A\Sigma A^T)
@@ -436,7 +436,7 @@ class MisfitHessianVecOperator(object):
 
         Parameters
         ----------
-        vectors : (num_dimx x num_vectors) matrix
+        vectors : (num_dimx,num_vectors) matrix
             Vectors to which the action of the Hessian will be applied
 
         transpose : boolean
@@ -446,7 +446,7 @@ class MisfitHessianVecOperator(object):
 
         Returns
         -------
-        hessian_vector_products : (num_dims x num_vectors) matrix
+        hessian_vector_products : (num_dims,num_vectors) matrix
             The Hessian vector products
         """
         if hasattr(self.model,'hessian') and self.fd_eps is None:
@@ -566,7 +566,7 @@ def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
 
     Returns
     -------
-    posterior_samples : matrix (num_dims x num_samples)
+    posterior_samples : matrix (num_dims,num_samples)
         Samples from the posterior
     """
     assert laplace_mean.ndim==2 and laplace_mean.shape[1]==1

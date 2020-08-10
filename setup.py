@@ -73,7 +73,8 @@ setuptools.setup(
         'pymc3',
         'scikit-learn',
         'pytest',
-        'pytest-cov'
+        'pytest-cov',
+        'networkx'
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
