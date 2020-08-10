@@ -72,7 +72,8 @@ example_filenames_in_order = [
     'plot_many_model_approximate_control_variate_monte_carlo.py',
     #'plot_recursive_control_variate_monte_carlo.py',#redundant remove when ready
     #'plot_approximate_control_variate_sample_allocation.py',#redundant remove when ready
-    'plot_multi_index_collocation.py'
+    'plot_multi_index_collocation.py',
+    'plot_gaussian_mfnets.py'
 ]
 class ExamplesExplicitOrder(_SortKey):
     

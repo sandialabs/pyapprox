@@ -176,4 +176,12 @@ print(f'With {max_eval_concurrency} threads that took {t1-t0} seconds')
 print(worktracking_fun_ensemble.work_tracker)
 
 #%%
-#Note pool model cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can't pickle <function <lambda> at 0x12b4e6440>: attribute lookup <lambda> on __main__ failed
+#Note
+#^^^^
+#PoolModel cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can't pickle <function <lambda> at 0x12b4e6440>: attribute lookup <lambda> on __main__ failed
+
+# sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
+
+#%%
+#.. gallery thumbnail will say broken if no plots are made in this file so
+#.. specify a default file as above

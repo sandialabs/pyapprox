@@ -99,8 +99,9 @@ class TestLVN(unittest.TestCase):
 
         degrees=[0]*nmodels
         
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
+        polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
         network = build_recursive_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
@@ -118,9 +119,11 @@ class TestLVN(unittest.TestCase):
 
 
         degrees=[1]*(nmodels-1)+[2]
+
         
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
+        polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
         network = build_recursive_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
@@ -151,13 +154,15 @@ class TestLVN(unittest.TestCase):
     def test_peer_graph_prior(self):
         nmodels = 3
         num_vars=1
-        degrees=[0]*nmodels
         prior_covs = [1,2,3]
         cpd_scales  =[0.5,0.4]
-
         univariate_variables = [stats.uniform(-1,2)]*num_vars
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
+
+        degrees=[0]*nmodels
+
+        polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
         network = build_peer_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
@@ -174,8 +179,33 @@ class TestLVN(unittest.TestCase):
         #print('true_prior_cov\n',true_prior_cov)
         assert np.allclose(true_prior_cov,prior_cov)
 
+        degrees=[6,6,6]
+
+        polys, nparams = get_total_degree_polynomials(
+            [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
+        network = build_peer_polynomial_network(
+            prior_covs,cpd_scales,basis_matrix_funcs,nparams)
+        network.convert_to_compact_factors()
+        labels = [l[1] for l in network.graph.nodes.data('label')]
+        factor_prior = cond_prob_variable_elimination(network, labels, None)
+        prior_mean,prior_cov = convert_gaussian_from_canonical_form(
+            factor_prior.precision_matrix,factor_prior.shift)
+
+        
+        I1 = np.eye(degrees[0]+1)
+        I2 = np.eye(degrees[1]+1)
+        I3 = np.eye(degrees[2]+1)
+        rows = [np.hstack([v1*I1,0*I1,a31*v1*I1]),
+                np.hstack([0*I2,v2*I2,a32*v2*I2]),
+                np.hstack([a31*v1*I3,a32*v2*I3,v3*I3])]
+        true_prior_cov=np.vstack(rows)
+        #print('true_prior_cov\n',true_prior_cov)
+        assert np.allclose(true_prior_cov,prior_cov)
+
     def test_one_model_inference(self):
         np.random.seed(1)
+        nmodels=1
         num_vars=1
         degrees=[2]
         prior_covs = [1]
@@ -186,8 +216,9 @@ class TestLVN(unittest.TestCase):
         samples_train = [np.random.uniform(-1,1,(1,nsamples))]
 
         univariate_variables = [stats.uniform(-1,2)]*num_vars
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
-            [univariate_variables],degrees)
+        polys, nparams = get_total_degree_polynomials(
+            [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
         basis_matrices = [b(s) for b,s in zip(
             basis_matrix_funcs,samples_train)]
         true_coef = [
@@ -242,8 +273,9 @@ class TestLVN(unittest.TestCase):
             np.random.uniform(-1,1,(1,nsamples[ii])) for ii in range(nmodels)]
 
         univariate_variables = [stats.uniform(-1,2)]*num_vars
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
+        polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
+        basis_matrix_funcs = [p.basis_matrix for p in polys]
         basis_matrices = [b(s) for b,s in zip(
             basis_matrix_funcs,samples_train)]
         true_coef = [

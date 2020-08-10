@@ -628,11 +628,11 @@ def get_total_degree_polynomials(univariate_variables,degrees):
         poly.configure(poly_opts)
         indices=compute_hyperbolic_indices(var_trans.num_vars(),degrees[ii],1.0)
         poly.set_indices(indices)
-        polys.append(poly.basis_matrix)
+        polys.append(poly)
         nparams.append(indices.shape[1])
     return polys, np.array(nparams)
 
-def plot_1d_lvn_approx(nmodels,hf_vandermonde,gauss_post,gauss_prior,
+def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
                        axs,samples,data,labels,ranges,hf_data_mean=None,
                        colors=None):    
     if samples[-1].ndim!=1 and samples[-1].shape[0]>1:
@@ -642,12 +642,13 @@ def plot_1d_lvn_approx(nmodels,hf_vandermonde,gauss_post,gauss_prior,
     xx = (ranges[1]-ranges[0])*xx+ranges[0]
     basis_matrix = hf_vandermonde(xx[np.newaxis,:])
     approx_post_covariance =basis_matrix.dot(gauss_post[1].dot(basis_matrix.T))
+    print(approx_post_covariance.min())
     approx_prior_covariance=basis_matrix.dot(gauss_prior[1].dot(basis_matrix.T))
     # print (approx_covariance.shape,gauss_post.get_covariance().shape)
 
 
-    approx_post_mean  = np.dot(basis_matrix,gauss_post[0])
-    approx_prior_mean = np.dot(basis_matrix,gauss_prior[0])
+    approx_post_mean  = np.dot(basis_matrix,gauss_post[0]).squeeze()
+    approx_prior_mean = np.dot(basis_matrix,gauss_prior[0]).squeeze()
     if hf_data_mean is not None:
         approx_post_mean += hf_data_mean
         approx_prior_mean+= hf_data_mean
@@ -662,7 +663,9 @@ def plot_1d_lvn_approx(nmodels,hf_vandermonde,gauss_post,gauss_prior,
                      approx_prior_mean+2*approx_prior_std,color='black',
                      alpha=0.2)
     #print('max prior var', (approx_prior_mean+2*approx_prior_std).max())
-    
+
+    if labels is None:
+        labels = [None]*len(samples)
     for ii in range(len(samples)):
         samples[ii] = np.atleast_2d(samples[ii])
         if colors is not None:
@@ -675,69 +678,3 @@ def plot_1d_lvn_approx(nmodels,hf_vandermonde,gauss_post,gauss_prior,
             #axs.set_ylim([(-2*approx_prior_std).min(),(2*approx_prior_std).max()])
     axs.set_xlim([xx.min(),xx.max()])
     axs.legend()
-
-import matplotlib.pyplot as plt
-def algebraic_example():
-    plot=True
-    ndata = [10,10,2]
-    nmodels = 3
-    builder_name='peer'
-    degrees = [3,5,5]
-    example = 'heterogeneous-data'+'-'+builder_name
-
-    seed=0
-
-    np.random.seed(seed)
-    prior_covs = np.array([1, 1, 1])#*0.5
-    noise_std = [1e-2]*3#[1e-3, 1e-3, 1e-3]
-    
-    samples, data, validation_samples, validation_data, ranges = \
-        get_heterogeneous_data(ndata,noise_std)
-
-    fig,axs=plt.subplots(1,3,figsize=(3*8,6),sharey=True)
-    labels=[r'$f_3$',r'$f_2$','$f_1$',]
-    colors=['k','b','r','y'][::-1]
-    xx = np.linspace(ranges[-1][0],ranges[-1][1],101)
-
-    centered_data = data
-    centered_validation_data = validation_data
-    
-    cpd_scales = np.array([0.5,-0.5])
-
-    univariate_variables = [
-        [stats.uniform(r[2*ii],r[2*ii+1]-r[2*ii])
-         for ii in range(len(r)//2)] for r in ranges]
-    fit_metric = partial(
-        estimate_mse_from_posterior,validation_samples,validation_data,True)
-    
-    build_network = build_peer_polynomial_network
-    build_network = build_recursive_polynomial_network
-    
-    for nmodels in [2,3]:
-        init_scales = cpd_scales[::-1][:nmodels-1]
-        print(init_scales,cpd_scales)
-        basis_matrix_funcs, nparams = get_total_degree_polynomials(
-            univariate_variables[-nmodels:],degrees[-nmodels:])
-        build_net = partial(
-            build_network,prior_covs[-nmodels:],
-            basis_matrix_funcs=basis_matrix_funcs,nparams=nparams)
-        nonlinear_constraint = partial(
-            nonlinear_constraint_peer,prior_covs[-nmodels:])
-        result = regression(
-            noise_std[-nmodels:],centered_data[-nmodels:],samples[-nmodels:],
-            build_net, fit_metric, init_scales)
-        gauss_post,gauss_prior=result['gauss_post'],result['gauss_prior']
-        vandermonde=result['network'].graph.nodes[nmodels-1]['basis_matrix_func']
-        
-        plot_1d_lvn_approx(
-            nmodels,vandermonde,gauss_post,gauss_prior,
-            axs[nmodels-1],samples[-nmodels:],data[-nmodels:],
-            labels[-nmodels:],ranges[-1],None,colors=colors[-nmodels:])
-        axs[nmodels-1].plot(validation_samples,validation_data,'-k')
-        plt.show()
-    plt.savefig(example+'.pdf')
-    plt.show()
-
-if __name__ == '__main__':
-    algebraic_example()
-    
