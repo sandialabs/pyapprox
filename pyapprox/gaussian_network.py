@@ -642,7 +642,7 @@ def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
     xx = (ranges[1]-ranges[0])*xx+ranges[0]
     basis_matrix = hf_vandermonde(xx[np.newaxis,:])
     approx_post_covariance =basis_matrix.dot(gauss_post[1].dot(basis_matrix.T))
-    print(approx_post_covariance.min())
+    assert (np.diag(approx_post_covariance).min()>0),np.diag(approx_post_covariance).min()
     approx_prior_covariance=basis_matrix.dot(gauss_prior[1].dot(basis_matrix.T))
     # print (approx_covariance.shape,gauss_post.get_covariance().shape)
 
@@ -678,3 +678,52 @@ def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
             #axs.set_ylim([(-2*approx_prior_std).min(),(2*approx_prior_std).max()])
     axs.set_xlim([xx.min(),xx.max()])
     axs.legend()
+
+import itertools
+def plot_peer_network(nmodels,ax):
+    # Best use with axis of (8,3) or (8,6)
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels-1)/64,(nmodels-1)/64,nmodels-1),[0]))
+    coords += [[0,1/16]]
+    pos = dict(zip(np.arange(nmodels,dtype=int),coords))
+    
+    graph = nx.DiGraph()
+    for ii in range(nmodels):
+        graph.add_node(ii)
+        
+    for ii in range(nmodels-1):
+        graph.add_edge(ii, nmodels-1)
+    
+    nx.draw(graph,pos,**options)
+    labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
+
+def plot_recursive_network(nmodels,ax):
+    # Best use with axis of (8,3) or (8,6)
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels)/64,(nmodels)/64,nmodels),[0]))
+    pos = dict(zip(np.arange(nmodels,dtype=int),coords))
+    
+    graph = nx.DiGraph()
+    for ii in range(nmodels):
+        graph.add_node(ii)
+        
+    for ii in range(nmodels-1):
+        graph.add_edge(ii, ii+1)
+    
+    nx.draw(graph,pos,**options)
+    labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
+
+    
+def set_polynomial_ensemble_coef_from_flattened(polys,coefs):
+    idx1,idx2=0,0
+    for ii in range(len(polys)):
+        idx2 += polys[ii].num_terms()
+        polys[ii].set_coefficients(coefs[idx1:idx2])
+        idx1=idx2
+    return polys

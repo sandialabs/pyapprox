@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np, os
 from numpy import dot, diag, sqrt
 from pyapprox.randomized_svd import randomized_svd

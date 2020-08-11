@@ -172,7 +172,7 @@ def plot_total_effects( total_effects, ax, truncation_pct=0.95,
     width=.95
     locations = np.arange(total_effects.shape[0])
     p = ax.bar(locations-width/2,total_effects,width,align='edge')
-    labels = ['$%s_{%d}$' %(rv,ii) for ii in range(total_effects.shape[0])]
+    labels = ['$%s_{%d}$' %(rv,ii+1) for ii in range(total_effects.shape[0])]
     ax.set_xticks(locations)
     ax.set_xticklabels(labels,rotation=0)
     return p
