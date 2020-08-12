@@ -274,23 +274,63 @@ fig.tight_layout()
 #
 #A similar procedure can be used to find :math:`h=[(A_{ij}^T\Sigma_{vi}^{-1})^T,(\Sigma_{vi}^{-1}b)^T]^T` of the factor product which can then be used to compute the normalization :math:`g` to ensure the resulting factor can be transformed into a density which integrates to 1.
 #
-#For Gaussian networks the mean and covariance of this Gaussian joint density can easily be computed by utilizing the canonical form of the Gaussian PDF.
-# 
-
-#To compute the canonical form of the CPD :math:`\mathbb{P}(Y\mid X)` of two variables :math:`X,Y` (in our example  :math:`X=[\theta_1^T,\theta_2^T]^T,Y=\theta_3`)
+#In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble
+#
+#.. math::
+#
+#   f_0(\rv) &= \cos\left(3\pi\rv_1+0.1\rv_2\right), \\
+#   f_1(\rv) &= \exp\left(-0.5(x-0.5)^2\right),\\
+#   f_2(\rv) &= f_1(\rv)+\cos(3\pi\rv_1)
 #
 
-# # solve using network
-# cpd_scales=[a31,a32]
-# prior_covs=[s11,s22,s33]
-# basis_matrix_funcs = [p.basis_matrix for p in polys]
-# network = build_peer_polynomial_network(
-#     prior_covs,cpd_scales,basis_matrix_funcs,nparams)
+nmodels=3
+f1 = lambda x: np.cos(3*np.pi*x[0,:]+0.1*x[1,:])
+f2 = lambda x: np.exp(-(x-.5)**2/0.5)
+f3 = lambda x: f2(x)+np.cos(3*np.pi*x)
+functions = [f1,f2,f3]
 
-# # plt.show()
+ensemble_univariate_variables=[[stats.uniform(0,1)]*2]+[[stats.uniform(0,1)]]*2
 
-# labels = [l[1] for l in network.graph.nodes.data('label')]
-# network.add_data_to_network(samples_train,np.array(noise_std)**2)
+#%%
+#The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.
+#
+#Again assume that the coefficients of one source are only related to the coefficient of the corresponding basis function in the parent sources. Note that unlike before the :math:`A_{ij}` matrices will not be diagonal. The polynomials have different numbers of terms and so the :math:`A_{ij}` matrices will be rectangular. They are essentially a diagonal matrix concatenated with a matrix of zeros. Let :math:`A^\mathrm{nz}_{31}=a_{31}I\in\reals^{P_1\times P_1}` be a diagonal matrix relating the coefficients of all the shared terms in :math:`Y_1,Y_3`. Then :math:`A^\mathrm{nz}_{31}=[A^\mathrm{nz}_{31} \: 0_{P_3\times(P_1-P_3)}]\in\reals^{P_1\times P_2}`.
+#
+#Use the following to setup a Gaussian network for our example
+#degrees = [3,5,5]
+degrees = [0,0,0]
+polys,nparams = get_total_degree_polynomials(ensemble_univariate_variables,degrees)
+basis_matrix_funcs = [p.basis_matrix for p in polys]
+
+s11,s22,s33=[1]*nmodels
+a31,a32=[0.7]*(nmodels-1)
+cpd_scales=[a31,a32]
+prior_covs=[s11,s22,s33]
+network = build_peer_polynomial_network(
+    prior_covs,cpd_scales,basis_matrix_funcs,nparams)
+
+#%%
+#We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
+network.convert_to_compact_factors()
+labels = [l[1] for l in network.graph.nodes.data('label')]
+factor_post = cond_prob_variable_elimination(
+    network,labels)
+post_mean,post_cov = convert_gaussian_from_canonical_form(
+    factor_post.precision_matrix,factor_post.shift)
+print(post_cov)
+
+#To infer the uncertain coefficients we must add training data to the network.
+nsamples = [10,10,2]
+samples_train = [pya.generate_independent_random_samples(p.var_trans.variable,n)
+           for p,n in zip(polys,nsamples)]
+noise_std=[0.01]*nmodels
+noise = [noise_std[ii]*np.random.normal(
+    0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
+values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
+network.add_data_to_network(samples_train,np.array(noise_std)**2)
+nx.draw(network.graph)
+plt.show()
+
 # #convert_to_compact_factors must be after add_data when doing inference
 # network.convert_to_compact_factors()
 # evidence, evidence_ids = network.assemble_evidence(values_train)
