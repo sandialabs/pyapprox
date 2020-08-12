@@ -272,7 +272,7 @@ fig.tight_layout()
 #
 #where we have extended the scope of :math:`\phi_j` and thus added zeros to :math:`K_j`. Equating terms in the above equation yields :math:`K_{i11}=A_{ij}^T\Sigma_{vi}^{-1}A_{ij}`, :math:`K_{i12}=K_{i21}^T=-A_{ij}^T\Sigma_{vi}^{-1}` and :math:`K_{i22}=\Sigma_{vi}^{-1}`.
 #
-#A similar procedure can be used to find :math:`h=[(A_{ij}^T\Sigma_{vi}^{-1})^T,(\Sigma_{vi}^{-1}b)^T]^T` of the factor product which can then be used to compute the normalization :math:`g` to ensure the resulting factor can be transformed into a density which integrates to 1.
+#A similar procedure can be used to find :math:`h=[(A_{ij}^T\Sigma_{vi}^{-1}b)^T,(\Sigma_{vi}^{-1}b)^T]^T` of the factor product which can then be used to compute the normalization :math:`g` to ensure the resulting factor can be transformed into a density which integrates to 1.
 #
 #In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble
 #
@@ -313,11 +313,11 @@ network = build_peer_polynomial_network(
 #We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
 network.convert_to_compact_factors()
 labels = [l[1] for l in network.graph.nodes.data('label')]
-factor_post = cond_prob_variable_elimination(
+factor_prior = cond_prob_variable_elimination(
     network,labels)
-post_mean,post_cov = convert_gaussian_from_canonical_form(
-    factor_post.precision_matrix,factor_post.shift)
-print(post_cov)
+prior_mean,prior_cov = convert_gaussian_from_canonical_form(
+    factor_prior.precision_matrix,factor_prior.shift)
+print(prior_cov)
 
 #To infer the uncertain coefficients we must add training data to the network.
 nsamples = [10,10,2]
@@ -328,8 +328,35 @@ noise = [noise_std[ii]*np.random.normal(
     0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
 values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
 network.add_data_to_network(samples_train,np.array(noise_std)**2)
-nx.draw(network.graph)
+fig,ax = plt.subplots(1,1,figsize=(8,5))
+plot_peer_network_with_data(network.graph,ax)
 plt.show()
+
+#%%
+#Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. Using the canonical form of these factors we can easily condition them on available data. Given a canonical form over two variables :math:`X,Y` with
+#
+#.. math:: K=\begin{bmatrix} K_{XX} & K_{XY}\\ K_{YX} & K_{YY}\end{bmatrix}, \qquad h=\begin{bmatrix}h_{X} \\h_{Y}\end{bmatrix}
+#
+#and given data :math:`y` (also called evidence in the literature) the paramterization of the canonical form of the factor conditioned on the data is simply
+#
+#.. math:: K^\prime=K_{XX}, \quad h^\prime=h_X-K_{XY}y, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{yy}y
+#
+#Thus the canonical form of a CPD :math:`\mathbb{P}(\theta_i\mid Y_i=y_i)` has the parameters
+#
+#.. math:: K^\prime=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T, \qquad h^\prime=\Phi_i^T\Sigma_{\epsilon_i}^{-1}b,
+#We then combine this conditioned CPD factor with its parent factor (associated with the prior distribution of the parameters :math:`\theta_i` by multiplying these two factors together after eliminating the data variables from the scope of the CPD. This is called the sum-product eliminate variable algorithm. The combined factor has parameters
+#
+#.. math:: K=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}, \qquad h=\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y
+#
+#which represents a Gaussian with mean and covariance given by
+#
+#.. math:: \Sigma^\mathrm{post}=\left(\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}\right)^{-1}, \qquad \mu^\mathrm{post} = \Sigma^\mathrm{post}\left(\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y\right)
+#
+#which is just the usual expression for the posterior of a gaussian linear model using only the linear model, noise and prior associated with a single node. Here we used the relationship between the canonical factors and the covariance :math:`C` and mean :math:`m` of the equivalent Gaussian distribution
+#
+#.. math:: C=K^{-1}, \qquad m=Ch
+#
+#After conditioning all nodes on the available data we have three factors remaining to obtain the joint posterior distribution over the variables of the remaining nodes we simply need to multiply the factors together again one at a time. Starting with one root node we collapse the CPDs one at a time.
 
 # #convert_to_compact_factors must be after add_data when doing inference
 # network.convert_to_compact_factors()
