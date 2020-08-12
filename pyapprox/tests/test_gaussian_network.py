@@ -261,7 +261,7 @@ class TestLVN(unittest.TestCase):
         #for just computing covariance of high-fidelity. The later will check
         #variable elimination, i.e. marginalization
         np.random.seed(1)
-        nmodels=2
+        nmodels=3
         num_vars=1
         degrees=[1]*(nmodels-1)+[2]
         prior_covs = [1]*nmodels
