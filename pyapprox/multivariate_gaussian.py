@@ -936,11 +936,11 @@ def convert_conditional_probability_density_to_canonical_form(
 
     into canonical form
 
-    ..math:: P(x|h,K) = \exp\left(g+h^T x-0.5 x^T K x\right)
+    .. math:: P(x|h,K) = \exp\left(g+h^T x-0.5 x^T K x\right)
 
     where 
 
-    ..math:: g = -0.5 m^T h -0.5 n\log(2\pi) +0.5 \log |K|,
+    .. math:: g = -0.5 m^T h -0.5 n\log(2\pi) +0.5 \log |K|,
 
     and :math:`m` is mean of distrbution and :math:`h = K m`
 
@@ -990,10 +990,6 @@ def convert_conditional_probability_density_to_canonical_form(
     nvars_per_all_vars : list (nvars)
         Sizes of the variable blocks in :math:`P(x_2\mid x_1)`
 
-    Notes
-    -----
-    To derive the expressions for :math:`m_{1\mid 2}` and :math:`C_{1\mid 2}` 
-    we use the well ...TODO
     """
     Cinv = np.linalg.inv(cov)
     CinvA = Cinv.dot(Amat)
