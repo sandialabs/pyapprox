@@ -204,37 +204,7 @@ class BayesianNetwork(object):
                 for child in self.node_childs[ii]:
                     assert child < ii
 
-        self.node_var_ids=[[ii] for ii in range(nnodes)] # move to when creating dataless network
-
-
-    def xadd_data_to_network(self,samples,noise_variances):
-        """
-        """
-        nnodes = len(self.graph.nodes)
-        assert len(samples)==nnodes
-        assert len(noise_variances)==nnodes
-        self.samples=samples
-        #self.build_matrix_functions = build_matrix_functions
-        self.ndata = [samples[ii].shape[1] for ii in range(nnodes)]
-        
-        # retain copy of old dataless graph
-        dataless_graph = copy.deepcopy(self.graph)
-        kk = len(self.graph.nodes)
-        for ii in dataless_graph.nodes:
-            vand = self.graph.nodes[ii]['basis_matrix_func'](samples[ii])
-            assert vand.shape[1]==self.graph.nodes[ii]['nparams']
-            for jj in range(self.ndata[ii]):
-                self.node_ids.append(kk)
-                label=self.graph.nodes[ii]['label']+'_%d'%jj
-                self.graph.add_node(len(self.Amats),label=label)
-                self.graph.add_edge(ii,kk)
-                
-                self.Amats.append(vand[jj:jj+1,:]),self.node_childs.append([ii])
-                self.cpd_prior_covs.append(noise_variances[ii]*np.eye(1))
-                self.node_labels.append(label)
-                self.node_nvars.append(self.cpd_prior_covs[-1].shape[0])
-                kk+=1
-        self.evidence_ids = np.arange(len(dataless_graph.nodes),kk)
+        self.node_var_ids=[[ii] for ii in range(nnodes)]
 
     def add_data_to_network(self,samples,noise_variances):
         """
@@ -283,27 +253,6 @@ class BayesianNetwork(object):
                 evidence[kk] = data[ii][jj]
                 kk += 1
         return evidence, self.evidence_ids
-
-
-    def assemble_evidence_deprecated(self,data):
-        """
-        Relies on order vandermondes are added in network.add_data_to_network
-        """
-        nnodes = len(data)
-        nevidence = np.sum([d.shape[0] for d in data])
-        evidence = np.empty((nevidence))
-        evidence_ids = np.empty((nevidence),dtype=int)
-        kk = 0
-        for ii in range(nnodes):
-            assert (data[ii].ndim==1 or data[ii].shape[1]==1),(
-                ii,data[ii].shape)
-            for jj in range(data[ii].shape[0]):
-                evidence[kk] = data[ii][jj]
-                evidence_ids[kk] = self.evidence_ids[ii][jj]
-                kk += 1
-        #return evidence, self.evidence_ids
-        return evidence, evidence_ids
-
                 
     def convert_to_compact_factors(self):
         """
@@ -324,7 +273,6 @@ class BayesianNetwork(object):
                     self.Amats[ii],None,self.cpd_prior_covs[ii],
                     self.node_childs[ii],
                     [self.node_nvars[jj]for jj in self.node_childs[ii]],
-                    #[ii],[self.node_nvars[ii]])
                     self.node_var_ids[ii],nvars_per_var2)
                 self.factors.append(cpd)
             else:
@@ -336,7 +284,6 @@ class BayesianNetwork(object):
                 normalization=compute_gaussian_pdf_canonical_form_normalization(
                     mean,shift,precision_matrix)
                 self.factors.append(GaussianFactor(
-                    #precision_matrix,shift,normalization,[ii],
                     precision_matrix,shift,normalization,self.node_var_ids[ii],
                     [self.node_nvars[ii]]))
                 
