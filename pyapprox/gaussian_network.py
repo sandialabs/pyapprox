@@ -711,6 +711,24 @@ def plot_peer_network(nmodels,ax):
     labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
     nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
 
+def plot_peer_network_with_data(graph,ax):
+    nmodels = len(graph.nodes)//2
+    # Best use with axis of (8,3) or (8,6)
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels-1)/64,(nmodels-1)/64,nmodels-1),[0]))
+    coords += [[0,1/16]]
+    coords += list(itertools.product(
+        np.linspace(-(nmodels-1)/64,(nmodels-1)/64,nmodels-1),[-1/16]))
+    coords += [[coords[nmodels//2][0],1/16]]
+    pos = dict(zip(np.arange(2*nmodels,dtype=int),coords))
+    
+    nx.draw(graph,pos,**options)
+    labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels_str+=[r'$y_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(2*nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
+
 def plot_recursive_network(nmodels,ax):
     # Best use with axis of (8,3) or (8,6)
     options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
@@ -728,6 +746,22 @@ def plot_recursive_network(nmodels,ax):
     nx.draw(graph,pos,**options)
     labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
     labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
+
+def plot_recursive_network_network_with_data(graph,ax):
+    nmodels = len(graph.nodes)//2
+    # Best use with axis of (8,3) or (8,6)
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels)/64,(nmodels)/64,nmodels),[0]))
+    coords += list(itertools.product(
+        np.linspace(-(nmodels)/64,(nmodels)/64,nmodels),[-1/16]))
+    pos = dict(zip(np.arange(2*nmodels,dtype=int),coords))
+    
+    nx.draw(graph,pos,**options)
+    labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels_str+=[r'$y_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(2*nmodels,dtype=int),labels_str))
     nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
 
     
