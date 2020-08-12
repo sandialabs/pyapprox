@@ -336,3 +336,34 @@ fig.tight_layout()
 #.. [GJGEIJUQ2020] `MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020. <https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf>`_
 #
 #.. [GJGJCP2020] `MFNets: Learning network representations for multifidelity surrogate modeling, 2020. <https://res.arxiv.org/abs/2008.02672>`_
+#
+#Appendix
+#^^^^^^^^
+#There is a strong connection between the mean of the Bayes posterior distribution of linear-Gaussian models with least squares regression. Specifically the mean of the posterior is equivalent to linear least-squares regression with a regulrization that penalizes deviations from the prior estimate of the parameters. Let the least squares objective function be
+#
+#.. math:: f(\theta)=\frac{1}{2}(y-A\theta)^T\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^T\Sigma_\theta^{-1}(\mu_\theta-\theta),
+#
+#where the first term on the right hand side is the usual least squares objective and the second is the regularization term. This regularized objective is minimized by setting its gradient to zero, i.e.
+#
+#.. math::
+#
+#   \nabla_\theta f(\theta)=A^T\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,
+#
+#thus
+#
+#.. math::
+#
+#   A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta
+#
+#and so
+#
+#.. math::
+#
+#   \theta=\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).
+#
+#Noting that :math:`\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}` is the posterior covariance we obtain the usual expression for the posterior mean
+#
+#.. math:: \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)
+
+
+
