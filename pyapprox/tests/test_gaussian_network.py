@@ -90,7 +90,7 @@ class TestLVN(unittest.TestCase):
         assert np.allclose(joint_mean,mean)
         assert np.allclose(joint_covar,covariance)
 
-    def test_recursive_graph_prior(self):
+    def test_hierarchical_graph_prior(self):
         nmodels = 3
         num_vars=1
         prior_covs = [1,2,3]
@@ -102,7 +102,7 @@ class TestLVN(unittest.TestCase):
         polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
         basis_matrix_funcs = [p.basis_matrix for p in polys]
-        network = build_recursive_polynomial_network(
+        network = build_hierarchical_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
         labels = [l[1] for l in network.graph.nodes.data('label')]
@@ -124,7 +124,7 @@ class TestLVN(unittest.TestCase):
         polys, nparams = get_total_degree_polynomials(
             [univariate_variables]*nmodels,degrees)
         basis_matrix_funcs = [p.basis_matrix for p in polys]
-        network = build_recursive_polynomial_network(
+        network = build_hierarchical_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
         labels = [l[1] for l in network.graph.nodes.data('label')]
@@ -256,7 +256,7 @@ class TestLVN(unittest.TestCase):
         
         assert np.allclose(gauss_post[1],true_post[1])
         
-    def test_recursive_graph_inference(self):
+    def test_hierarchical_graph_inference(self):
         #add tests for multiplie models for computing entire covariance and
         #for just computing covariance of high-fidelity. The later will check
         #variable elimination, i.e. marginalization
@@ -296,7 +296,7 @@ class TestLVN(unittest.TestCase):
             *[1/noise_std[ii]**2*np.eye(samples_train[ii].shape[1])
               for ii in range(nmodels)])
         data = np.vstack(data_train)
-        network = build_recursive_polynomial_network(
+        network = build_hierarchical_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         network.convert_to_compact_factors()
         labels = [l[1] for l in network.graph.nodes.data('label')]
@@ -309,7 +309,7 @@ class TestLVN(unittest.TestCase):
         #print('True post covar\n',true_post[1])
 
         # solve using network
-        network = build_recursive_polynomial_network(
+        network = build_hierarchical_polynomial_network(
             prior_covs,cpd_scales,basis_matrix_funcs,nparams)
         labels = [l[1] for l in network.graph.nodes.data('label')]
         network.add_data_to_network(samples_train,noise_std**2)
