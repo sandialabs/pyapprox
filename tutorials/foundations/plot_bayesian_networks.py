@@ -79,13 +79,27 @@ fig.tight_layout()
 #
 #.. math:: \mathbb{P}(\theta_1,\theta_2,\theta_3) = \phi_1(\theta_1)\phi_2(\theta_1,\theta_2)\phi_3(\theta_2,\theta_3)
 #
-#These three factors respectively correspond to the three CPDs :math:`\mathbb{P}(\theta_1),\mathbb{P}(\theta_2\mid\theta_1),\mathbb{P}(\theta_3\mid\theta_2)`
+#where we have dropped the dependence on :math:`K,h,g` for convenience. These three factors respectively correspond to the three CPDs :math:`\mathbb{P}(\theta_1),\mathbb{P}(\theta_2\mid\theta_1),\mathbb{P}(\theta_3\mid\theta_2)`
 #
-#To form the joint density (which we want to avoid in practice) and perform inference and marginalization of a Gaussian graph we must first understand the notion of **scope** and three basic operations: **multiplication**, **marginalization** and **conditioning** also knows as reduction.
+#To form the joint density (which we want to avoid in practice) and perform inference and marginalization of a Gaussian graph we must first understand the notion of **scope** and three basic operations on canonical factors: **multiplication**, **marginalization** and **conditioning** also knows as reduction.
 #
-#The **scope** of a canonical form :math:`\phi(x)` is the set of variables :math:`X` and is denoted :math:`\mathrm{Scope}[\phi]`. Consider the hierarchical structure, which can be represented by three canonical factors :math:`\phi_1(\theta_1),\phi_2(\theta_1,\theta_2),\phi_3(\theta_2,\theta_3)` which respectively corresond to the three CPDs :math:`\mathbb{P}(\theta_1),\mathbb{P}(\theta_2\mid\theta_1),\mathbb{P}(\theta_3\mid\theta_2)`. The scope of these variables is
+#The **scope** of a canonical form :math:`\phi(x)` is the set of variables :math:`X` and is denoted :math:`\mathrm{Scope}[\phi]`. Consider the hierarchical structure, just discussed the scope of the 3 factors are
 #
-#.. math:: \mathrm{Scope}[\phi_1]=\{\theta_1\},\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}
+#.. math:: \mathrm{Scope}[\phi_1]=\{\theta_1\},\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.
+#
+#The multiplication of canonical factors with the same scope is simple :math:`X` is simple
+#
+#.. math:: \phi_1(X,K_1,h_1,g_1)\phi_2(X,K_2,h_2,g_2)=\phi_1(X,K_1+K_2,h_1+h_2,g_1+g_2).
+#
+#To multiply two canonical forms with different scopes we must extend the scopes to match and then apply the previous formula. This can be done by adding zeros in :math:`K` and :math:`h` of the canonical form. For example consider the two canonical factors
+#
+#..math:: \phi_2(\theta_1,\theta_2,K_2,h_2,g_2),  \phi_3(\theta_2,\theta_3,K_2,h_3)
+#
+#Extending the scope and multiplying proceeds as follows
+#
+#..math:: \phi_2(\theta_1,\theta_2,\begin{bmatrix}K_2 & 0\\ 0 & 0\end{bmatrix},\begin{bmatrix}h_2\\ 0 \end{bmatrix},g_2)\phi_2(\theta_1,\theta_2,\begin{bmatrix}0 & 0\\ 0 & K_3\end{bmatrix},\begin{bmatrix}0\\ h_3 \end{bmatrix},g_3)
+#
+#of the 3 node hierarchial structure
 #
 #The canonical form of a normal distribution with mean :math:`m` and covariance :math:`C` has the parameters :math:`K=C^{-1}`, :math:`h = K m` and
 #
