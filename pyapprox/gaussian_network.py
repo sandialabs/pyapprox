@@ -131,7 +131,7 @@ def get_gaussian_factor_in_canonical_form(Amat,bvec,cov2g1,
         precision_matrix,shift,normalization,var_ids,nvars_per_var)
 
 
-def build_recursive_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
+def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
                                        nparams,model_labels=None):
     """
     prior_scales : list
@@ -428,7 +428,7 @@ def nonlinear_constraint_peer(covs,scales):
     cpd_cov = [covs[-1]-np.dot(scales**2, covs[:-1])-1e-7]
     return cpd_cov # must be > 0 to ensure cpd_cov is positive
 
-def nonlinear_constraint_recursive(covs,scales):
+def nonlinear_constraint_hierarchical(covs,scales):
     """
     All list arguments must contain model info ordered lowest-highest fidelity
     """
@@ -711,6 +711,26 @@ def plot_peer_network(nmodels,ax):
     labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
     nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
 
+def plot_diverging_network(nmodels,ax):
+    # Best use with axis of (8,3) or (8,6)
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels-1)/64,(nmodels-1)/64,nmodels-1),[0]))
+    coords += [[0,-1/16]]
+    pos = dict(zip(np.arange(nmodels,dtype=int),coords))
+    
+    graph = nx.DiGraph()
+    for ii in range(nmodels):
+        graph.add_node(ii)
+        
+    for ii in range(nmodels-1):
+        graph.add_edge(nmodels-1,ii)
+    
+    nx.draw(graph,pos,**options)
+    labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
+
 def plot_peer_network_with_data(graph,ax):
     nmodels = len(graph.nodes)//2
     # Best use with axis of (8,3) or (8,6)
@@ -729,7 +749,7 @@ def plot_peer_network_with_data(graph,ax):
     labels=dict(zip(np.arange(2*nmodels,dtype=int),labels_str))
     nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
 
-def plot_recursive_network(nmodels,ax):
+def plot_hierarchical_network(nmodels,ax):
     # Best use with axis of (8,3) or (8,6)
     options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
     coords = list(itertools.product(
@@ -748,7 +768,7 @@ def plot_recursive_network(nmodels,ax):
     labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
     nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
 
-def plot_recursive_network_network_with_data(graph,ax):
+def plot_hierarchical_network_network_with_data(graph,ax):
     nmodels = len(graph.nodes)//2
     # Best use with axis of (8,3) or (8,6)
     options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}

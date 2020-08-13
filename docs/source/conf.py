@@ -64,6 +64,7 @@ example_filenames_in_order = [
     'plot_tensor_product_interpolation.py',
     'plot_sensitivity_analysis.py',
     'plot_design_under_uncertainty.py',
+    'plot_bayesian_networks.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
@@ -231,3 +232,7 @@ mathjax_config = {
             }                       
         }                           
     } 
+
+# Supress all warnings so they do not appear in the documentation
+import warnings
+warnings.filterwarnings("ignore")
