@@ -84,6 +84,53 @@ def basis_matrix_cols(nvars,degree):
     ncols = total_degree_space_dimension(nvars, degree)
     return ncols
 
+def get_cpd_block_diagonal_linear_matrix(graph,node_index):
+    """
+    Get the mathrix :math:`A` from the conditional probability density
+
+    .. math:: \mathbb{P}(\theta_i\mid \mathrm{pa}(theta_i))\sim\mathcal{A\theta+b,\Sigma_v}
+
+    The graph must have edges with the attribute ``cpd_scale`` which is
+    either a constant or a np.ndarray (nparams) or a 
+    np.ndarray(nparams,nchild_params)
+
+    if ``cpd_scale`` is a constant or 1D array
+    ``A=cpd_scale*np.eye(nparams,nchild_params)`` otherwise ``A=cpd_scale``
+
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        A networkx directed acyclic graph
+    
+    node_index : integer 
+        The index of the node in the graph corresponding to the variable 
+        :math:`\theta_i`
+
+    Returns
+    -------
+    Amat : np.ndarray (nparams,nchild_params)
+        A matrix relating the 
+    """
+    assert len(nx.get_edge_attributes(graph,'cpd_scale'))>0
+    child_indices = list(graph.predecessors(node_index))
+    if len(child_indices)==0:
+        return None
+
+    Amat_blocks = []
+    node_nparams = graph.nodes[node_index]["nparams"]
+    for child in child_indices:
+        cpd_scale = graph.edges[child,node_index]['cpd_scale']
+        child_nparams = graph.nodes[child]["nparams"]
+        if np.isscalar(cpd_scale) or cpd_scale.ndim==1:
+            Amat_blocks.append(
+                cpd_scale*np.eye(node_nparams,child_nparams))
+        else:
+            assert cpd_scale.shape==(node_nparams,child_nparams)
+            Amat_blocks.append(cpd_scale)
+        
+    Amat = np.hstack(Amat_blocks)
+    return Amat
+
 def get_cpd_linear_matrix(graph,node_index):
     child_indices = list(graph.predecessors(node_index))
     if len(child_indices)==0:
@@ -171,6 +218,73 @@ def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_fun
     network = BayesianNetwork(graph)
     return network
 
+class GaussianNetwork(object):
+    def __init__(self, graph):
+        self.graph=graph
+        self.construct_dataless_network()
+
+    def construct_dataless_network(self):
+        nnodes = len(self.graph.nodes)
+        if len(self.graph.nodes)>1:
+            assert (np.max(self.graph.nodes)==nnodes-1 and
+                    np.min(self.graph.nodes)==0)
+
+        self.bvecs = [None]*nnodes
+        self.Amats,self.cpd_covs = [None]*nnodes,[None]*nnodes
+        self.node_childs, self.node_nvars = [None]*nnodes,[None]*nnodes
+        self.node_labels, self.node_ids = [None]*nnodes, list(np.arange(nnodes))
+        for ii in self.graph.nodes:
+            # Extract node information from graph
+            nparams = self.graph.nodes[ii]['nparams']
+            self.Amats[ii]=self.graph.nodes[ii]['cpd_mat']
+            self.bvecs[ii]=self.graph.nodes[ii]['cpd_mean'].squeeze()
+            self.node_childs[ii] = list(self.graph.predecessors(ii))
+            self.cpd_covs[ii] = self.graph.nodes[ii]['cpd_cov']
+            self.node_labels[ii] = self.graph.nodes[ii]['label']
+            self.node_nvars[ii] = self.cpd_covs[ii].shape[0]
+
+            # check the validity of the graph
+            if self.node_childs[ii] is not None:
+                for child in self.node_childs[ii]:
+                    assert child < ii
+
+        self.node_var_ids=[[ii] for ii in range(nnodes)]
+
+    def convert_to_compact_factors(self):
+        """
+        Compute the factors of the network
+        """
+        self.factors = []
+        for ii in self.graph.nodes:
+            if len(self.node_childs[ii])>0:
+                # Not a leaf node - at least one child (predecessor in networkx)
+                # Generate a Gaussian conditional probability density
+                if len(self.node_var_ids[ii])==self.node_nvars[ii]:
+                    # node contains data
+                    nvars_per_var2 = [[1] for kk in range(self.node_nvars[ii])]
+                else:
+                    # node does not contain data
+                    nvars_per_var2 = [self.node_nvars[ii]]
+                cpd = get_gaussian_factor_in_canonical_form(
+                    self.Amats[ii],self.bvecs[ii],self.cpd_covs[ii],
+                    self.node_childs[ii],
+                    [self.node_nvars[jj]for jj in self.node_childs[ii]],
+                    self.node_var_ids[ii],nvars_per_var2)
+                self.factors.append(cpd)
+            else:
+                # Leaf nodes - no children (predecessors in networkx)
+                # TODO: replace inverse by method that takes advantage of matrix
+                # structure, e.g. diagonal, constant diagonal
+                precision_matrix = np.linalg.inv(self.cpd_covs[ii])
+                mean = self.bvecs[ii]
+                shift = precision_matrix.dot(mean)
+                normalization=compute_gaussian_pdf_canonical_form_normalization(
+                    self.bvecs[ii],shift,precision_matrix)
+                self.factors.append(GaussianFactor(
+                    precision_matrix,shift,normalization,self.node_var_ids[ii],
+                    [self.node_nvars[ii]]))
+
+
 class BayesianNetwork(object):
     def __init__(self, graph):
         self.graph=graph
@@ -185,8 +299,8 @@ class BayesianNetwork(object):
         if len(self.graph.nodes)>1:
             assert (np.max(self.graph.nodes)==nnodes-1 and
                     np.min(self.graph.nodes)==0)
-        
-        self.Amats, self.cpd_prior_covs = [None]*nnodes,[None]*nnodes
+
+        self.Amats, self.cpd_covs = [None]*nnodes,[None]*nnodes
         self.node_childs, self.node_nvars = [None]*nnodes,[None]*nnodes
         self.node_labels, self.node_ids = [None]*nnodes, list(np.arange(nnodes))
         for ii in self.graph.nodes:
@@ -194,10 +308,10 @@ class BayesianNetwork(object):
             nparams = self.graph.nodes[ii]['nparams']
             self.Amats[ii],self.node_childs[ii] = get_cpd_linear_matrix(
                 self.graph,ii)
-            self.cpd_prior_covs[ii] = get_cpd_prior_covariance(
+            self.cpd_covs[ii] = get_cpd_prior_covariance(
                 self.graph,ii)
             self.node_labels[ii] = self.graph.nodes[ii]['label']
-            self.node_nvars[ii] = self.cpd_prior_covs[ii].shape[0]
+            self.node_nvars[ii] = self.cpd_covs[ii].shape[0]
 
             # check the validity of the graph
             if self.node_childs[ii] is not None:
@@ -229,10 +343,10 @@ class BayesianNetwork(object):
             self.graph.add_node(len(self.Amats),label=label)
             self.graph.add_edge(ii,kk)
             self.Amats.append(vand),self.node_childs.append([ii])
-            self.cpd_prior_covs.append(
+            self.cpd_covs.append(
                 noise_variances[ii]*np.eye(vand.shape[0]))
             self.node_labels.append(label)
-            self.node_nvars.append(self.cpd_prior_covs[-1].shape[0])
+            self.node_nvars.append(self.cpd_covs[-1].shape[0])
             self.node_var_ids.append(np.arange(jj,jj+vand.shape[0]))
             jj+=vand.shape[0]
             kk+=1
@@ -270,7 +384,7 @@ class BayesianNetwork(object):
                     # node does not contain data
                     nvars_per_var2 = [self.node_nvars[ii]]
                 cpd = get_gaussian_factor_in_canonical_form(
-                    self.Amats[ii],None,self.cpd_prior_covs[ii],
+                    self.Amats[ii],None,self.cpd_covs[ii],
                     self.node_childs[ii],
                     [self.node_nvars[jj]for jj in self.node_childs[ii]],
                     self.node_var_ids[ii],nvars_per_var2)
@@ -279,8 +393,8 @@ class BayesianNetwork(object):
                 # Leaf nodes - no children (predecessors in networkx)
                 # TODO: replace inverse by method that takes advantage of matrix
                 # structure, e.g. diagonal, constant diagonal
-                precision_matrix = np.linalg.inv(self.cpd_prior_covs[ii])
-                shift = np.zeros(self.cpd_prior_covs[ii].shape[0]); mean=shift
+                precision_matrix = np.linalg.inv(self.cpd_covs[ii])
+                shift = np.zeros(self.cpd_covs[ii].shape[0]); mean=shift
                 normalization=compute_gaussian_pdf_canonical_form_normalization(
                     mean,shift,precision_matrix)
                 self.factors.append(GaussianFactor(
