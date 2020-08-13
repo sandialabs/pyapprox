@@ -55,11 +55,11 @@ _=plot_diverging_network(nmodels,ax)
 fig.tight_layout()
 
 #%%
-# For Gaussian networks we assume that the parameters of each node are related by
+# For Gaussian networks we assume that the parameters of each node :math:`\theta_i=[\theta_{i,1},\ldots,\theta_{i,P_i}]^T` are related by
 #
 #.. math:: \theta_i = \sum_{j\in\mathrm{pa}(i)} A_{ij}\theta_j + b_i + v_i,
 #
-#where :math:`b_i\in\reals^{P_i}` is a deterministic shift, :math:`v_i` is a Gaussian noise with mean zero and covariance :math:`\Sigma_{v_\alpha}\in\reals^{P_\alpha\times P_\alpha}. Consequently, the CPDs take the form
+#where :math:`b_i\in\reals^{P_i}` is a deterministic shift, :math:`v_i` is a Gaussian noise with mean zero and covariance :math:`\Sigma_{v_i}\in\reals^{P_i\times P_i}`. Consequently, the CPDs take the form
 #
 # .. math:: \mathbb{P}(\theta_{i} \mid \theta_{\mathrm{pa}(i)}) \sim \mathcal{N}\left(\sum_{j\in\mathrm{pa}(i)} A_{ij}\theta_j + b_i,\Sigma_{vi}\right)
 #
@@ -85,28 +85,126 @@ fig.tight_layout()
 #
 #The **scope** of a canonical form :math:`\phi(x)` is the set of variables :math:`X` and is denoted :math:`\mathrm{Scope}[\phi]`. Consider the hierarchical structure, just discussed the scope of the 3 factors are
 #
-#.. math:: \mathrm{Scope}[\phi_1]=\{\theta_1\},\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.
+#.. math:: \mathrm{Scope}[\phi_1]=\{\theta_1\},\quad\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\quad\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.
 #
 #The multiplication of canonical factors with the same scope is simple :math:`X` is simple
 #
-#.. math:: \phi_1(X,K_1,h_1,g_1)\phi_2(X,K_2,h_2,g_2)=\phi_1(X,K_1+K_2,h_1+h_2,g_1+g_2).
+#.. math:: \phi_1(X;K_1,h_1,g_1)\phi_2(X;K_2,h_2,g_2)=\phi_1(X;K_1+K_2,h_1+h_2,g_1+g_2).
 #
-#To multiply two canonical forms with different scopes we must extend the scopes to match and then apply the previous formula. This can be done by adding zeros in :math:`K` and :math:`h` of the canonical form. For example consider the two canonical factors
+#To multiply two canonical forms with different scopes we must extend the scopes to match and then apply the previous formula. This can be done by adding zeros in :math:`K` and :math:`h` of the canonical form. For example consider the two canonical factors of the :math:`\theta_1,\theta_2` with :math:`P_1=1,P_2=1`
 #
-#..math:: \phi_2(\theta_1,\theta_2,K_2,h_2,g_2),  \phi_3(\theta_2,\theta_3,K_2,h_3)
+#.. math:: \phi_2\left(\theta_1,\theta_2;\begin{bmatrix}K_{2,11} & K_{2,12}\\ K_{2,21} & K_{2,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2} \end{bmatrix},g_2\right), \phi_3\left(\theta_2,\theta_3;\begin{bmatrix}K_{3,11} & K_{3,12}\\ K_{3,21} & K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{3,2} \end{bmatrix},g_3\right)
 #
 #Extending the scope and multiplying proceeds as follows
 #
-#..math:: \phi_2(\theta_1,\theta_2,\begin{bmatrix}K_2 & 0\\ 0 & 0\end{bmatrix},\begin{bmatrix}h_2\\ 0 \end{bmatrix},g_2)\phi_2(\theta_1,\theta_2,\begin{bmatrix}0 & 0\\ 0 & K_3\end{bmatrix},\begin{bmatrix}0\\ h_3 \end{bmatrix},g_3)
+#.. math::
+#   &\phi_2\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} & K_{2,12} & 0\\ K_{2,21} & K_{2,22} & 0\\ 0 & 0 & 0\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}\\0 \end{bmatrix},g_2\right)\phi_3\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}0 & 0 & 0 \\ 0 & K_{3,11} & K_{3,12}\\ 0 &K_{3,21} & K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{3,2} \end{bmatrix},g_3\right)\\=&\phi_{2\times 3}\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} & K_{2,12} & 0\\ K_{2,21} & K_{2,22}+K_{3,11} & K_{3,12}\\ 0 & K_{3,21} & K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}+h_{3,1}\\h_{3,2} \end{bmatrix},g_2+g_3\right)
 #
-#of the 3 node hierarchial structure
-#
-#The canonical form of a normal distribution with mean :math:`m` and covariance :math:`C` has the parameters :math:`K=C^{-1}`, :math:`h = K m` and
+#Now we understand how to multiply two factors of different scope we can now discuss how to convert CPDs into canonical factors. The canonical form of a normal distribution with mean :math:`m` and covariance :math:`C` has the parameters :math:`K=C^{-1}`, :math:`h = K m` and
 #
 #.. math:: g = -\frac{1}{2} m^T h -\frac{1}{2} n\log(2\pi) +\frac{1}{2} \log |K|.
 #
 #The derivation of these expressions is simple and we leave to the reader. The derivation of the canonical form of a linear-Gaussian CPD is more involved however and we derive it here. 
 #
+#First we assume that the joint density of two Gaussian variables :math:`\theta_i,\theta_j` can be represented as the product of two canonical forms referred to as factors. Specifically let :math:`\phi_{i}(\theta_i,\theta_j)` be the factor representing the CPD :math:`\mathbb{P}(\theta_i\mid\theta_j)`, let :math:`\phi_{j}` be the canonical form of the Gaussian :math:`\theta_j`, and assume
+#
+#..  math:: \mathbb{P}(\theta_i,\theta_j)=\mathbb{P}(\theta_i\mid\theta_j)\mathbb{P}(\theta_j)=\phi_{\theta_i}\phi_{\theta_j}
+#
+#Given the linear relationship of the CPD :math:`\theta_i=A_ij\theta_j+v_i` the inverse of the covariance of the Gaussian joint density :math:`\mathbb{P}(\theta_i,\theta_j)` is
+#
+#.. math::
+#
+#    K_{i}&=\begin{bmatrix}\Sigma_{jj} & \Sigma_{jj}A_{ij}^T\\ A_{ij}\Sigma_{jj} & A_{ij}\Sigma_{jj}A_{ij}^T + \Sigma_{vi}\end{bmatrix}^{-1}\\
+#     &=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} & -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} & \Sigma_{vi}^{-1}\end{bmatrix}
+#
+#where the second equality is derived using the matrix inversion lemma. Because :math:`\mathbb{P}(\theta_i)`is Gaussian we have from before that the factor :math:`\phi_j` has :math:`K_j=\Sigma_{jj}^{-1}\in\reals^{P_j\times P_j}`. Multiply he two canonical factors, making sure to account for the different scopes we have
+#
+#.. math::
+#
+#   \begin{bmatrix}\Sigma_{jj}^{-1} & 0 \\ 0 & 0\end{bmatrix}\begin{bmatrix}K_{i11} & K_{i12} \\ K_{i21} & K_{i22}\end{bmatrix}=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} & -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} & \Sigma_{vi}^{-1}\end{bmatrix}
+#
+#Equating terms in the above equation yields :math:`K_{i11}=A_{ij}^T\Sigma_{vi}^{-1}A_{ij}`, :math:`K_{i12}=K_{i21}^T=-A_{ij}^T\Sigma_{vi}^{-1}` and :math:`K_{i22}=\Sigma_{vi}^{-1}`.
+#
+#A similar procedure can be used to find :math:`h=[(A_{ij}^T\Sigma_{vi}^{-1}b)^T,(\Sigma_{vi}^{-1}b)^T]^T` and :math:`g`.
+#
+#We are now in a position to be able to compute the joint density of all the variables in a Gaussian Network. Note that we would never want to do this in practice because it negates the benefit of having the compact representation provided by the Gaussian network.
+#
+#The following builds a hierarchical network with three ndoes. Each node has :math:`P_i=2` variables.  We set the matrices :math:`A_{ij}=a_{i}jI` to be a diagonal matrix with the same entries :math:`a_{ij}` along the diagonal. This means that we are saying that only the :math:`k`-th variable :math:`k=1,\ldots,P_i` of the :math:`i`-th node is related to the :math:`k`-th variable of the :math:`j`-th node.
+nnodes=3
+prior_covs = [1,2,3]
+prior_means = [-1,-2,-3]
+cpd_scales  =[0.5,0.4]
+node_labels = [f'Node_{ii}' for ii in range(nnodes)]
+nparams = np.array([2]*nnodes)
+cpd_mats = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
+            cpd_scales[1]*np.eye(nparams[2],nparams[1])]
+
+#%%
+#Now we set up the directed acyclic graph providing the information to construct
+#the CPDs. Specifically we specify the Gaussian distributions of all the root nodes. in this example there is just one root node :math:`\theta_i`. We then specify the parameters of the CPDs for the remaining two nodes. Here we specify the CPD covariance :math:`\Sigma_{vi}` and shift :math:`b_i` such that the mean and variance of the paramters matches those specified above. To do this we note that
+#
+#.. math::
+#
+#   \mean{\theta_2}&=\mean{A_{21}\theta_1+b_2}=A_{21}\mean{\theta_1}+b_2\\
+#   \mean{\theta_3}&=A_{32}\mean{\theta_2}+b_3
+#
+#and so set
+#
+#.. math::
+#
+#   b_2&=\mean{\theta_2}-A_{21}\mean{\theta_1}\\
+#   b_3&=\mean{\theta_3}-A_{32}\mean{\theta_2}.
+#
+#Similarly we define the CPD covariance so that the diagonal of the prior covariance matches the values specified
+#
+#.. math::
+#
+#   \var{\theta_2}=\Sigma_{v2}+A_{21}^TA_{21}\var{\theta_1},\qquad \var{\theta_3}=\Sigma_{32}+A_{32}^TA_{32}\var{\theta_2}
+#
+# so
+#
+#.. math::
+#
+#   \Sigma_{v2}=\var{\theta_2}-A_{21}^TA_{21}\var{\theta_1},\qquad \Sigma_{32}=\var{\theta_3}-A_{32}^TA_{32}\var{\theta_2}
+#
+graph = nx.DiGraph()
+ii=0
+graph.add_node(
+    ii,label=node_labels[ii],cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
+    nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+    cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
+for ii in range(1,nnodes):
+    cpd_mean = np.ones((nparams[ii],1))*(
+        prior_means[ii]-cpd_scales[ii-1]*prior_means[ii-1])
+    cpd_cov = np.eye(nparams[ii])*max(
+        1e-8,prior_covs[ii]-cpd_scales[ii-1]**2*prior_covs[ii-1])
+    graph.add_node(ii,label=node_labels[ii],cpd_cov=cpd_cov,
+                   nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+                   cpd_mean=cpd_mean)
+
+graph.add_edges_from([(ii,ii+1) for ii in range(nnodes-1)])
+
+network = GaussianNetwork(graph)
+network.convert_to_compact_factors()
+labels = [l[1] for l in network.graph.nodes.data('label')]
+factor_prior = network.factors[0]
+for ii in range(1,len(network.factors)):
+    factor_prior *= network.factors[ii]
+prior_mean,prior_cov = convert_gaussian_from_canonical_form(
+    factor_prior.precision_matrix,factor_prior.shift)
+print('Prior Mean\n',prior_mean)
+print('Prior Covariance\n',prior_cov)
+
+#%%
+#We can check the mean and covariance  diagonal  of the prior match the values we specified
+true_prior_mean = np.hstack(
+    [[prior_means[ii]]*nparams[ii] for ii in range(nnodes)])
+assert np.allclose(true_prior_mean,prior_mean)
+true_prior_var = np.hstack(
+    [[prior_covs[ii]]*nparams[ii] for ii in range(nnodes)])
+assert np.allclose(true_prior_var,np.diag(prior_cov))
+
+
 #First we assume that the joint density of two Gaussian variables :math:`\theta_i,\theta_j` can be represented as the product of two canonical forms referred to as factors. Specifically let :math:`\phi_{\theta_i}(\theta_i,\theta_j)` be the factor representing the CPD :math:`\mathbb{P}(\theta_i\mid\theta_j)`, let :math:`\phi_{\theta_j}` be the canonical form of the Gaussian :math:`\theta_j`, and assume
 #
 #..  math:: \mathbb{P}(\theta_i,\theta_j)=\mathbb{P}(\theta_i\mid\theta_j)\mathbb{P}(\theta_j)=\phi_{\theta_i}\phi_{\theta_j}
