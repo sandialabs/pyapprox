@@ -12,26 +12,31 @@ def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
 
     Parameters
     ----------
-    network_ids : list
-        A list of integer variable ids of the nodes to eliminate from the 
-        network.
+    network_ids : np.ndarray (nnodes)
+        The integer ids of each nodes in the network.
 
-    network_labels: list
+    network_labels: list (nnodes)
        A list of strings containing the names of each node in the network
 
-    query_labels : list
-        A list of variable labels which must remain after elimination
+    query_labels : list (nqueries)
+        A list of strings containing the variable labels which must remain 
+        after elimination. nqueries<=nnodes. The network labels not in this
+        list will be identified for elimination from the scope of the network.
+        This list must not contain nodes associated with data.
 
-    evidence_ids : list
-        A list of data variable tuples (var_name,1,np.ndarray (1))
+    evidence_ids : np.ndarray (ndata)
+       The variable ids of the data in the network. Note the variable ids 
+       are not the same as the node ids. Each node can have multiple variables.
+        
 
     Returns
     -------
-    elimiate_ids : list
+    eliminate_ids : list
        A list of labels of variables to be eliminated. Labels associated with
-       evidence (data) will not be eliminated
+       evidence (data) will not be eliminated. Variables associated with data
+       will never be identified for elimination
     """
-
+    assert len(network_ids)==len(network_labels)
     nvars_to_query = len(query_labels)
     query_ids = np.empty(nvars_to_query,dtype=float)
     for ii in range(nvars_to_query):
@@ -52,7 +57,6 @@ def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
         query_ids = np.concatenate((query_ids,evidence_ids))
 
     mask = np.isin(network_ids,query_ids)
-    #eliminate_ids=[network_ids[ii] for ii in range(len(mask)) if not mask[ii]]
     eliminate_ids = np.asarray(network_ids)[~mask]
     return eliminate_ids
 
@@ -520,7 +524,7 @@ def sum_product_variable_elimination(factors,var_ids_to_eliminate):
 
     fup = copy.deepcopy(factors)
     for var_id in var_ids_to_eliminate:
-        print("eliminating ", var_id)
+        #print("eliminating ", var_id)
         fup = sum_product_eliminate_variable(fup, var_id)
         #print("factors left K= ",
         #      [np.linalg.pinv(f.precision_matrix) for f in fup])
@@ -544,6 +548,7 @@ def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
     """
     eliminate_ids = get_var_ids_to_eliminate(
         network.node_ids,network.node_labels,query_labels,evidence_ids)
+    print(eliminate_ids)
 
     factors = copy.deepcopy(network.factors)
 
