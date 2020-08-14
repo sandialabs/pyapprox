@@ -297,12 +297,13 @@ def find_map_point(objective, initial_guess, opts=None):
     return map_point, obj_max
 
 def laplace_posterior_approximation_for_linear_models(
-        linear_matrix,prior_mean,prior_hessian,noise_covariance_inv,obs):
+        linear_matrix,prior_mean,prior_hessian,noise_covariance_inv,obs,
+        bvec=None):
     r"""
     Compute the mean and covariance of the Laplace posterior of a linear model
     with a Gaussian prior
 
-    Given some data d and a linear forward model, A(x) = Ax,
+    Given some data d and a linear forward model, A(x) = Ax+b,
     and a Gaussian likelihood and a Gaussian prior, the resulting posterior
     is always Gaussian.
 
@@ -323,6 +324,9 @@ def laplace_posterior_approximation_for_linear_models(
     obs : (num_qoi,1) vector
         The observations
 
+    bvec : np.ndarray(num_qoi)
+        The deterministic shift of the linear model
+
     Returns
     -------
     posterior_mean : (num_dims,1) vector
@@ -341,6 +345,8 @@ def laplace_posterior_approximation_for_linear_models(
         dot(linear_matrix.T,noise_covariance_inv),linear_matrix)
     posterior_covariance = np.linalg.inv(misfit_hessian + prior_hessian)
     residual = obs-dot(linear_matrix,prior_mean)
+    if bvec is not None:
+        residual -= bvec
     temp = dot(dot(linear_matrix.T,noise_covariance_inv),residual)
     posterior_mean = dot(posterior_covariance,temp)+prior_mean
     return posterior_mean, posterior_covariance

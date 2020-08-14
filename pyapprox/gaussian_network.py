@@ -43,7 +43,9 @@ def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
                 found=True
                 break
         if not found:
-            raise Exception('query label %s was not found'%label)
+            msg = f'query label {label} was not found in network_labels '
+            msg += f'{network_labels}'
+            raise Exception(msg)
 
     if evidence_ids is not None:
         assert np.intersect1d(query_ids,evidence_ids).shape[0]==0
@@ -220,7 +222,7 @@ def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_fun
 
 class GaussianNetwork(object):
     def __init__(self, graph):
-        self.graph=graph
+        self.graph=copy.deepcopy(graph)
         self.construct_dataless_network()
 
     def construct_dataless_network(self):
@@ -283,6 +285,58 @@ class GaussianNetwork(object):
                 self.factors.append(GaussianFactor(
                     precision_matrix,shift,normalization,self.node_var_ids[ii],
                     [self.node_nvars[ii]]))
+
+    def add_data_to_network(self,data_cpd_mats,data_cpd_vecs,noise_covariances):
+        """
+        Todo pass in argument containing nodes which have data for situations
+        when not all nodes have data
+        """
+        nnodes = len(self.graph.nodes)
+        assert len(data_cpd_mats)==nnodes
+        assert len(noise_covariances)==nnodes
+        #self.build_matrix_functions = build_matrix_functions
+        self.ndata = [data_cpd_mats[ii].shape[0] for ii in range(nnodes)]
+        
+        # retain copy of old dataless graph
+        dataless_graph = copy.deepcopy(self.graph)
+        kk = len(self.graph.nodes)
+        jj=kk
+        for ii in dataless_graph.nodes:
+            assert data_cpd_mats[ii].shape[1]==self.graph.nodes[ii]['nparams']
+            assert data_cpd_vecs[ii].shape[0]==self.ndata[ii]
+            assert noise_covariances[ii].shape[0]==self.ndata[ii]
+            self.node_ids.append(kk)
+            label=self.graph.nodes[ii]['label']+'_data'
+            self.graph.add_node(kk,label=label)
+            self.graph.add_edge(ii,kk)
+            self.Amats.append(data_cpd_mats[ii])
+            self.bvecs.append(data_cpd_vecs[ii].squeeze())
+            self.node_childs.append([ii])
+            self.cpd_covs.append(noise_covariances[ii])
+            self.node_labels.append(label)
+            self.node_nvars.append(self.ndata[ii])
+            self.node_var_ids.append(np.arange(jj,jj+self.ndata[ii]))
+            jj+=self.ndata[ii]
+            kk+=1
+        self.evidence_ids = np.arange(len(dataless_graph.nodes),jj)
+
+    def assemble_evidence(self,data):
+        """
+        Relies on order vandermondes are added in network.add_data_to_network
+        """
+        assert len(data)==len(self.ndata)
+        nevidence = np.sum([d.shape[0] for d in data])
+        assert nevidence==len(self.evidence_ids)
+        evidence = np.empty((nevidence))
+        kk = 0
+        for ii in range(len(data)):
+            assert (data[ii].ndim==1 or data[ii].shape[1]==1),(
+                ii,data[ii].shape)
+            for jj in range(data[ii].shape[0]):
+                evidence[kk] = data[ii][jj]
+                kk += 1
+        return evidence, self.evidence_ids
+
 
 
 class BayesianNetwork(object):
@@ -466,7 +520,7 @@ def sum_product_variable_elimination(factors,var_ids_to_eliminate):
 
     fup = copy.deepcopy(factors)
     for var_id in var_ids_to_eliminate:
-        #print("eliminating ", var_id)
+        print("eliminating ", var_id)
         fup = sum_product_eliminate_variable(fup, var_id)
         #print("factors left K= ",
         #      [np.linalg.pinv(f.precision_matrix) for f in fup])

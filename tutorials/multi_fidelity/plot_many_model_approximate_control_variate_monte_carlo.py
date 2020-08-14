@@ -141,9 +141,8 @@ from pyapprox.tests.test_control_variate_monte_carlo import \
 from scipy.stats import uniform
 from functools import partial
 from scipy.stats import uniform,norm,lognorm
-np.random.seed(1)
+np.random.seed(2)
 
-np.random.seed(1)
 shifts= [.1,.2]
 model = TunableModelEnsemble(1,shifts=shifts)
 exact_integral_f0=0
