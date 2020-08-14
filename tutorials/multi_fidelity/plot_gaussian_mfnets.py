@@ -146,17 +146,17 @@ assert np.allclose(single_hf_posterior[1],hf_posterior[1])
 #
 #The variable :math:`v_\alpha` is a random variable that controls the correlation between the coefficients of the information sources. The MFNets framework in [GJGEIJUQ2020]_ assumes that this variable is Gaussian with mean zero and covariance given by :math:`\Sigma_{v\alpha}`. In this example we will set
 #
-#.. math:: \theta_3=A_{31}\theta_1+A_{32}\theta_2+v_3
+#.. math:: \theta_3=A_{31}\theta_1+A_{32}\theta_2+b_3+v_3
 #
 #and assume that :math:`\covar{\theta_\alpha}{v_3}=0\: \forall \alpha` and  :math:`\covar{\theta_1}{\theta_2}=0`. Note the later relationship does not mean data from the information from :math:`Y_1` cannot be used to inform the coefficients of :math:`Y_2`.
 #
-#Given the defined relationship between the coefficients of each information source we can compute the prior over the joint distribiution of the coefficients of all information sources. Without loss of generality we assume the variables have zero mean so that
+#Given the defined relationship between the coefficients of each information source we can compute the prior over the joint distribiution of the coefficients of all information sources. Without loss of generality we assume the variables have zero mean and:math:`b_3=0` so that
 #
-#.. math:: \covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3}=\mean{\theta_1\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)}=A_{31}\covar{\theta_1}{\theta_1}
+#.. math:: \covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^T}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^T}=\covar{\theta_1}{\theta_1}A_{31}^T
 #
-#similarly :math:`\covar{\theta_2}{\theta_3}=A_{31}\covar{\theta_1}{\theta_1}`. We also have
+#similarly :math:`\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^T`. We also have
 #
-#.. math:: \covar{\theta_1}{\theta_1}&=\mean{\theta_1\theta_1}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)^T\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)}\\&=A_{31}^TA_{31}\covar{\theta_1}{\theta_1}+A_{32}^TA_{32}\covar{\theta_2}{\theta_2}+\covar{v_1}{v_1}
+#.. math:: \covar{\theta_3}{\theta_3}&=\mean{\theta_1\theta_1^T}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^T}\\&=A_{31}\covar{\theta_1}{\theta_1}A_{31}^T+A_{32}\covar{\theta_2}{\theta_2}A_{32}^T+\covar{v_3}{v_3}
 #
 #In this tutorial we will set :math:`A_{31}=a_{31} I`, :math:`A_{32}=a_{32} I`, :math:`\Sigma_{11}=s_{11} I`, :math:`\Sigma_{22}=s_{22} I` and  :math:`\Sigma_{v3}=v_{3} I` to be diagonal matrices with the same value for all entries on the diagonal which gives
 #
@@ -254,7 +254,70 @@ plt.show()
 # plt.legend()
 # plt.show()
 
-# #Before computing the multi-fidelity approximation, let's first contruct an approximation using only the high fidelity data. 
+# #Before computing the multi-fidelity approximation, let's first contruct an approximation using only the high fidelity data.
+
+# #
+# #In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble
+# #
+# #.. math::
+# #
+# #   f_0(\rv) &= \cos\left(3\pi\rv_1+0.1\rv_2\right), \\
+# #   f_1(\rv) &= \exp\left(-0.5(x-0.5)^2\right),\\
+# #   f_2(\rv) &= f_1(\rv)+\cos(3\pi\rv_1)
+# #
+
+# nmodels=3
+# f1 = lambda x: np.cos(3*np.pi*x[0,:]+0.1*x[1,:])
+# f2 = lambda x: np.exp(-(x-.5)**2/0.5)
+# f3 = lambda x: f2(x)+np.cos(3*np.pi*x)
+# functions = [f1,f2,f3]
+
+# ensemble_univariate_variables=[[stats.uniform(0,1)]*2]+[[stats.uniform(0,1)]]*2
+
+# #%%
+# #The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.
+# #
+# #Again assume that the coefficients of one source are only related to the coefficient of the corresponding basis function in the parent sources. Note that unlike before the :math:`A_{ij}` matrices will not be diagonal. The polynomials have different numbers of terms and so the :math:`A_{ij}` matrices will be rectangular. They are essentially a diagonal matrix concatenated with a matrix of zeros. Let :math:`A^\mathrm{nz}_{31}=a_{31}I\in\reals^{P_1\times P_1}` be a diagonal matrix relating the coefficients of all the shared terms in :math:`Y_1,Y_3`. Then :math:`A^\mathrm{nz}_{31}=[A^\mathrm{nz}_{31} \: 0_{P_3\times(P_1-P_3)}]\in\reals^{P_1\times P_2}`.
+# #
+# #Use the following to setup a Gaussian network for our example
+# #degrees = [3,5,5]
+# degrees = [0,0,0]
+# polys,nparams = get_total_degree_polynomials(ensemble_univariate_variables,degrees)
+# basis_matrix_funcs = [p.basis_matrix for p in polys]
+
+# s11,s22,s33=[1]*nmodels
+# a31,a32=[0.7]*(nmodels-1)
+# cpd_scales=[a31,a32]
+# prior_covs=[s11,s22,s33]
+# network = build_peer_polynomial_network(
+#     prior_covs,cpd_scales,basis_matrix_funcs,nparams)
+
+# #%%
+# #We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
+# network.convert_to_compact_factors()
+# labels = [l[1] for l in network.graph.nodes.data('label')]
+# factor_prior = cond_prob_variable_elimination(
+#     network,labels)
+# prior_mean,prior_cov = convert_gaussian_from_canonical_form(
+#     factor_prior.precision_matrix,factor_prior.shift)
+# print(prior_cov)
+
+# #To infer the uncertain coefficients we must add training data to the network.
+# nsamples = [10,10,2]
+# samples_train = [pya.generate_independent_random_samples(p.var_trans.variable,n)
+#            for p,n in zip(polys,nsamples)]
+# noise_std=[0.01]*nmodels
+# noise = [noise_std[ii]*np.random.normal(
+#     0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
+# values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
+# network.add_data_to_network(samples_train,np.array(noise_std)**2)
+# fig,ax = plt.subplots(1,1,figsize=(8,5))
+# plot_peer_network_with_data(network.graph,ax)
+# plt.show()
+
+# #%%
+# #Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. 
+
 
 #%%
 #References

@@ -2,6 +2,8 @@ r"""Gaussian Networks
 ==================
 This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.
 
+Directed Acyclic Graphs
+-----------------------
 A Bayesian network (BN) structure is a directed acyclic graphs (DAG) whose nodes represent random variables and whose edges represent probabilistic relationships between them. The graph can be represented by a tuple of vertices (or nodes) and edges :math:`\mathcal{G} = \left( \mathbf{V}, \mathbf{E} \right)`. A node :math:`\theta_{j} \in \mathbf{V}` is a parent of a random variable :math:`\theta_{i} \in \mathbf{V}` if there is a directed edge :math:`[\theta_{j} \to \theta_{i}] \in \mathbf{E}`. The set of parents of random variable :math:`\theta_{i}` is denoted by :math:`\theta_{\mathrm{pa}(i)}`.
 
 Lets import some necessary modules and then construct a DAG consisting of 3 groups of variables.
@@ -21,6 +23,8 @@ fig.tight_layout()
 #%%
 #For this network we have :math:`\mathrm{pa}(\theta_1)=\emptyset,\;\mathrm{pa}(\theta_2)=\{\theta_1\},\;\mathrm{pa}(\theta_3)=\{\theta_2\}`.
 #
+#Conditional probability distributions
+#-------------------------------------
 #Bayesian networks use onditional probability distributions (CPDs) to encode the relationships between variables of the graph. Let :math:`A,B,C` denote three random variables. :math:`A` is conditionally independent of :math:`B` given :math:`C` in distribution :math:`\mathbb{P}`, denoted by :math:`A \mathrel{\perp\mspace{-10mu}\perp} B \mid C`, if
 #
 # .. math:: \mathbb{P}(A = a, B = b \mid C = c)  = \mathbb{P}(A = a\mid C=c) \mathbb{P}(B = b \mid C = c).
@@ -67,6 +71,8 @@ fig.tight_layout()
 #
 # .. math:: \mu_i=b_i+A_{ij}\mu_j, \qquad \Sigma_{ii}=\Sigma_{vi}+A_{ij}\Sigma_{jj}A_{ij}^T
 #
+#The Canonical Form
+#------------------
 #Unless a variable :math:`\theta_i` is a root node of a network, i.e. :math:`\mathrm{pa}(\theta_i)=\emptyset` the CPD is in general not Gaussian; for root nodes the CPD is just the density of :math:`\theta_i`. However we can represent the CPDs of no-root nodes and the Gaussian density of root nodes with a consistent reprsentation. Specifically we will use the canonical form of a set of variables :math:`X`
 #
 #.. math:: \mathcal{\phi}(x;K,h,g) = \exp\left(g+h^T x-\frac{1}{2} x^T K x\right)
@@ -83,6 +89,8 @@ fig.tight_layout()
 #
 #To form the joint density (which we want to avoid in practice) and perform inference and marginalization of a Gaussian graph we must first understand the notion of **scope** and three basic operations on canonical factors: **multiplication**, **marginalization** and **conditioning** also knows as reduction.
 #
+#Multiplying Canonical Forms
+#---------------------------
 #The **scope** of a canonical form :math:`\phi(x)` is the set of variables :math:`X` and is denoted :math:`\mathrm{Scope}[\phi]`. Consider the hierarchical structure, just discussed the scope of the 3 factors are
 #
 #.. math:: \mathrm{Scope}[\phi_1]=\{\theta_1\},\quad\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\quad\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.
@@ -130,14 +138,15 @@ fig.tight_layout()
 #We are now in a position to be able to compute the joint density of all the variables in a Gaussian Network. Note that we would never want to do this in practice because it negates the benefit of having the compact representation provided by the Gaussian network.
 #
 #The following builds a hierarchical network with three ndoes. Each node has :math:`P_i=2` variables.  We set the matrices :math:`A_{ij}=a_{i}jI` to be a diagonal matrix with the same entries :math:`a_{ij}` along the diagonal. This means that we are saying that only the :math:`k`-th variable :math:`k=1,\ldots,P_i` of the :math:`i`-th node is related to the :math:`k`-th variable of the :math:`j`-th node.
-nnodes=3
+nnodes = 3
+graph = nx.DiGraph()
 prior_covs = [1,2,3]
 prior_means = [-1,-2,-3]
 cpd_scales  =[0.5,0.4]
 node_labels = [f'Node_{ii}' for ii in range(nnodes)]
-nparams = np.array([2]*nnodes)
-cpd_mats = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
-            cpd_scales[1]*np.eye(nparams[2],nparams[1])]
+nparams = np.array([2]*3)
+cpd_mats  = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
+             cpd_scales[1]*np.eye(nparams[2],nparams[1])]
 
 #%%
 #Now we set up the directed acyclic graph providing the information to construct
@@ -159,15 +168,14 @@ cpd_mats = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
 #
 #.. math::
 #
-#   \var{\theta_2}=\Sigma_{v2}+A_{21}^TA_{21}\var{\theta_1},\qquad \var{\theta_3}=\Sigma_{32}+A_{32}^TA_{32}\var{\theta_2}
+#   \var{\theta_2}=\Sigma_{v2}+A_{21}\var{\theta_1}A_{21}^T,\qquad \var{\theta_3}=\Sigma_{32}+A_{32}\var{\theta_2}A_{32}^T
 #
 # so
 #
 #.. math::
 #
-#   \Sigma_{v2}=\var{\theta_2}-A_{21}^TA_{21}\var{\theta_1},\qquad \Sigma_{32}=\var{\theta_3}-A_{32}^TA_{32}\var{\theta_2}
+#   \Sigma_{21}=\var{\theta_2}-A_{21}\var{\theta_1}A_{21}^T,\qquad \Sigma_{32}=\var{\theta_3}-A_{32}\var{\theta_2}A_{32}^T
 #
-graph = nx.DiGraph()
 ii=0
 graph.add_node(
     ii,label=node_labels[ii],cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
@@ -183,6 +191,7 @@ for ii in range(1,nnodes):
                    cpd_mean=cpd_mean)
 
 graph.add_edges_from([(ii,ii+1) for ii in range(nnodes-1)])
+
 
 network = GaussianNetwork(graph)
 network.convert_to_compact_factors()
@@ -204,112 +213,41 @@ true_prior_var = np.hstack(
     [[prior_covs[ii]]*nparams[ii] for ii in range(nnodes)])
 assert np.allclose(true_prior_var,np.diag(prior_cov))
 
-
-#First we assume that the joint density of two Gaussian variables :math:`\theta_i,\theta_j` can be represented as the product of two canonical forms referred to as factors. Specifically let :math:`\phi_{\theta_i}(\theta_i,\theta_j)` be the factor representing the CPD :math:`\mathbb{P}(\theta_i\mid\theta_j)`, let :math:`\phi_{\theta_j}` be the canonical form of the Gaussian :math:`\theta_j`, and assume
+#%%
+#If the reader is interested they can also compare the entire prior covariance with
 #
-#..  math:: \mathbb{P}(\theta_i,\theta_j)=\mathbb{P}(\theta_i\mid\theta_j)\mathbb{P}(\theta_j)=\phi_{\theta_i}\phi_{\theta_j}
+#.. math:: \begin{bmatrix}\Sigma_{11} & \Sigma_{11}A_{12}^T & \Sigma_{11}A_{12}^TA_{32}^T \\ A_{21}\Sigma_{11} & \Sigma_{22} & \Sigma_{22}A_{32}^T\\ A_{32}A_{21}\Sigma_{11} & A_{32}\Sigma_{22} & \Sigma_{33}\end{bmatrix}
 #
-#Given the linear relationship of the CPD :math:`\theta_i=A_ij\theta_j+v_i` the inverse of the covariance of the Gaussian joint density :math:`\mathbb{P}(\theta_i,\theta_j)` is
+#Conditioning The Canonical Form
+#-------------------------------
+#Using the canonical form of these factors we can easily condition them on available data. Given a canonical form over two variables :math:`X,Y` with
 #
-#.. math::
+#.. math:: K=\begin{bmatrix} K_{XX} & K_{XY}\\ K_{YX} & K_{YY}\end{bmatrix}, \qquad h=\begin{bmatrix}h_{X} \\h_{Y}\end{bmatrix}
 #
-#    K&=\begin{bmatrix}\Sigma_{jj} & \Sigma_{jj}A_{ij}^T\\ A_{ij}\Sigma_{jj} & A_{ij}\Sigma_{jj}A_{ij}^T + \Sigma_{vi}\end{bmatrix}^{-1}\\
-#     &=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} & -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} & \Sigma_{vi}^{-1}\end{bmatrix}
+#and given data :math:`y` (also called evidence in the literature) the paramterization of the canonical form of the factor conditioned on the data is simply
 #
-#where the second equality is derived using the matrix inversion lemma. Using the definition of the canonical form we for :math:`\phi_j` that :math:`K_j=\Sigma_{jj}^{-1}\in\reals^{P_j\times P_j}`. However this is a different size than :math:`K_{j}\in\reals^{(P_i+P_j)\times(P_i+P_j)}`. In the Bayesian network literature these factors are said to have different scope, i.e. they are dependent on different variables. Two multiply two canonical forms with different scopes we simply need to extend the scope of each form so that the resulting scopes match. Now with this in mind, we know that the matrix :math:`K` corresponding to the product of the two factors is the sum of the two matrices :math:`K_i,K_j` of the factors :math:`\phi_i,\phi_j`, thus we have
+#.. math:: K^\prime=K_{XX}, \quad h^\prime=h_X-K_{XY}y, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{yy}y
 #
-#.. math::
+#Thus the canonical form of a CPD :math:`\mathbb{P}(\theta_i\mid Y_i=y_i)` has the parameters
 #
-#   \begin{bmatrix}\Sigma_{jj}^{-1} & 0 \\ 0 & 0\end{bmatrix}\begin{bmatrix}K_{i11} & K_{i12} \\ K_{i21} & K_{i22}\end{bmatrix}=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} & -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} & \Sigma_{vi}^{-1}\end{bmatrix}
+#.. math:: K^\prime=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T, \qquad h^\prime=\Phi_i^T\Sigma_{\epsilon_i}^{-1}b,
+#We then combine this conditioned CPD factor with its parent factor (associated with the prior distribution of the parameters :math:`\theta_i` by multiplying these two factors together after eliminating the data variables from the scope of the CPD. This is called the sum-product eliminate variable algorithm. The combined factor has parameters
 #
-#where we have extended the scope of :math:`\phi_j` and thus added zeros to :math:`K_j`. Equating terms in the above equation yields :math:`K_{i11}=A_{ij}^T\Sigma_{vi}^{-1}A_{ij}`, :math:`K_{i12}=K_{i21}^T=-A_{ij}^T\Sigma_{vi}^{-1}` and :math:`K_{i22}=\Sigma_{vi}^{-1}`.
+#.. math:: K=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}, \qquad h=\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y
 #
-#A similar procedure can be used to find :math:`h=[(A_{ij}^T\Sigma_{vi}^{-1}b)^T,(\Sigma_{vi}^{-1}b)^T]^T` of the factor product which can then be used to compute the normalization :math:`g` to ensure the resulting factor can be transformed into a density which integrates to 1.
+#which represents a Gaussian with mean and covariance given by
+#
+#.. math:: \Sigma^\mathrm{post}=\left(\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}\right)^{-1}, \qquad \mu^\mathrm{post} = \Sigma^\mathrm{post}\left(\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y\right)
+#
+#which is just the usual expression for the posterior of a gaussian linear model using only the linear model, noise and prior associated with a single node. Here we used the relationship between the canonical factors and the covariance :math:`C` and mean :math:`m` of the equivalent Gaussian distribution
+#
+#.. math:: C=K^{-1}, \qquad m=Ch
+#
+#After conditioning all nodes on the available data we have three factors remaining to obtain the joint posterior distribution over the variables of the remaining nodes we simply need to multiply the factors together again one at a time. Starting with one root node we collapse the CPDs one at a time.
+#Marginalizing Canonical Forms
+#-----------------------------
 
-
-# #
-# #In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble
-# #
-# #.. math::
-# #
-# #   f_0(\rv) &= \cos\left(3\pi\rv_1+0.1\rv_2\right), \\
-# #   f_1(\rv) &= \exp\left(-0.5(x-0.5)^2\right),\\
-# #   f_2(\rv) &= f_1(\rv)+\cos(3\pi\rv_1)
-# #
-
-# nmodels=3
-# f1 = lambda x: np.cos(3*np.pi*x[0,:]+0.1*x[1,:])
-# f2 = lambda x: np.exp(-(x-.5)**2/0.5)
-# f3 = lambda x: f2(x)+np.cos(3*np.pi*x)
-# functions = [f1,f2,f3]
-
-# ensemble_univariate_variables=[[stats.uniform(0,1)]*2]+[[stats.uniform(0,1)]]*2
-
-# #%%
-# #The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.
-# #
-# #Again assume that the coefficients of one source are only related to the coefficient of the corresponding basis function in the parent sources. Note that unlike before the :math:`A_{ij}` matrices will not be diagonal. The polynomials have different numbers of terms and so the :math:`A_{ij}` matrices will be rectangular. They are essentially a diagonal matrix concatenated with a matrix of zeros. Let :math:`A^\mathrm{nz}_{31}=a_{31}I\in\reals^{P_1\times P_1}` be a diagonal matrix relating the coefficients of all the shared terms in :math:`Y_1,Y_3`. Then :math:`A^\mathrm{nz}_{31}=[A^\mathrm{nz}_{31} \: 0_{P_3\times(P_1-P_3)}]\in\reals^{P_1\times P_2}`.
-# #
-# #Use the following to setup a Gaussian network for our example
-# #degrees = [3,5,5]
-# degrees = [0,0,0]
-# polys,nparams = get_total_degree_polynomials(ensemble_univariate_variables,degrees)
-# basis_matrix_funcs = [p.basis_matrix for p in polys]
-
-# s11,s22,s33=[1]*nmodels
-# a31,a32=[0.7]*(nmodels-1)
-# cpd_scales=[a31,a32]
-# prior_covs=[s11,s22,s33]
-# network = build_peer_polynomial_network(
-#     prior_covs,cpd_scales,basis_matrix_funcs,nparams)
-
-# #%%
-# #We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
-# network.convert_to_compact_factors()
-# labels = [l[1] for l in network.graph.nodes.data('label')]
-# factor_prior = cond_prob_variable_elimination(
-#     network,labels)
-# prior_mean,prior_cov = convert_gaussian_from_canonical_form(
-#     factor_prior.precision_matrix,factor_prior.shift)
-# print(prior_cov)
-
-# #To infer the uncertain coefficients we must add training data to the network.
-# nsamples = [10,10,2]
-# samples_train = [pya.generate_independent_random_samples(p.var_trans.variable,n)
-#            for p,n in zip(polys,nsamples)]
-# noise_std=[0.01]*nmodels
-# noise = [noise_std[ii]*np.random.normal(
-#     0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
-# values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
-# network.add_data_to_network(samples_train,np.array(noise_std)**2)
-# fig,ax = plt.subplots(1,1,figsize=(8,5))
-# plot_peer_network_with_data(network.graph,ax)
-# plt.show()
-
-# #%%
-# #Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. Using the canonical form of these factors we can easily condition them on available data. Given a canonical form over two variables :math:`X,Y` with
-# #
-# #.. math:: K=\begin{bmatrix} K_{XX} & K_{XY}\\ K_{YX} & K_{YY}\end{bmatrix}, \qquad h=\begin{bmatrix}h_{X} \\h_{Y}\end{bmatrix}
-# #
-# #and given data :math:`y` (also called evidence in the literature) the paramterization of the canonical form of the factor conditioned on the data is simply
-# #
-# #.. math:: K^\prime=K_{XX}, \quad h^\prime=h_X-K_{XY}y, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{yy}y
-# #
-# #Thus the canonical form of a CPD :math:`\mathbb{P}(\theta_i\mid Y_i=y_i)` has the parameters
-# #
-# #.. math:: K^\prime=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T, \qquad h^\prime=\Phi_i^T\Sigma_{\epsilon_i}^{-1}b,
-# #We then combine this conditioned CPD factor with its parent factor (associated with the prior distribution of the parameters :math:`\theta_i` by multiplying these two factors together after eliminating the data variables from the scope of the CPD. This is called the sum-product eliminate variable algorithm. The combined factor has parameters
-# #
-# #.. math:: K=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}, \qquad h=\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y
-# #
-# #which represents a Gaussian with mean and covariance given by
-# #
-# #.. math:: \Sigma^\mathrm{post}=\left(\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}\right)^{-1}, \qquad \mu^\mathrm{post} = \Sigma^\mathrm{post}\left(\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y\right)
-# #
-# #which is just the usual expression for the posterior of a gaussian linear model using only the linear model, noise and prior associated with a single node. Here we used the relationship between the canonical factors and the covariance :math:`C` and mean :math:`m` of the equivalent Gaussian distribution
-# #
-# #.. math:: C=K^{-1}, \qquad m=Ch
-# #
-# #After conditioning all nodes on the available data we have three factors remaining to obtain the joint posterior distribution over the variables of the remaining nodes we simply need to multiply the factors together again one at a time. Starting with one root node we collapse the CPDs one at a time.
-
-#The set of all CPDs is given by :math:`\{\mathbb{P}(\theta_{i} \mid \theta_{\mathrm{pa}(i)}) : \theta_{i} \in \mathbf{V}\}` and can be used to define a factorization of the graph.
+#%%
+#References
+#^^^^^^^^^^
+#.. [KFPGM2009] `Probabilistic Graphical Models: Principles and Techinques. 2009 <https://mitpress.mit.edu/books/probabilistic-graphical-models>`_

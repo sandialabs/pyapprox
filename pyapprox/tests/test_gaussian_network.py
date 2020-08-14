@@ -5,30 +5,35 @@ import unittest
 
 class TestGaussianNetwork(unittest.TestCase):
     def test_hierarchical_graph_prior(self):
-        nnodes = 3
-        graph = nx.DiGraph()
+        nnodes=3
         prior_covs = [1,2,3]
         prior_means = [-1,-2,-3]
         cpd_scales  =[0.5,0.4]
         node_labels = [f'Node_{ii}' for ii in range(nnodes)]
-        nparams = np.array([2]*3)
-        cpd_mats  = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
+        nparams = np.array([2]*nnodes)
+        cpd_mats = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
                     cpd_scales[1]*np.eye(nparams[2],nparams[1])]
+        tmp21=np.random.normal(0,1,(nparams[1],nparams[0]))
+        tmp21 /= tmp21.max()
+        tmp32=np.random.normal(0,1,(nparams[2],nparams[1]))
+        tmp32 /= tmp32.max()
+        cpd_mats = [None,cpd_scales[0]*tmp21,cpd_scales[1]*tmp32]
 
+        graph = nx.DiGraph()
         ii=0
         graph.add_node(
             ii,label=node_labels[ii],cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
             nparams=nparams[ii],cpd_mat=cpd_mats[ii],
             cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
         for ii in range(1,nnodes):
-            cpd_mean = np.ones((nparams[ii],1))*(
-                prior_means[ii]-cpd_scales[ii-1]*prior_means[ii-1])
-            cpd_cov = np.eye(nparams[ii])*max(
-                1e-8,prior_covs[ii]-cpd_scales[ii-1]**2*prior_covs[ii-1])
+            cpd_mean = np.ones((nparams[ii],1))*prior_means[ii]-cpd_mats[ii].dot(
+                np.ones((nparams[ii-1],1))*prior_means[ii-1])
+            cpd_cov = prior_covs[ii]*np.eye(nparams[ii])-cpd_mats[ii].dot(
+                prior_covs[ii-1]*np.eye(nparams[ii-1])).dot(cpd_mats[ii].T)
             graph.add_node(ii,label=node_labels[ii],cpd_cov=cpd_cov,
                            nparams=nparams[ii],cpd_mat=cpd_mats[ii],
                            cpd_mean=cpd_mean)
-            
+
         graph.add_edges_from([(ii,ii+1) for ii in range(nnodes-1)])
 
         network = GaussianNetwork(graph)
@@ -37,21 +42,29 @@ class TestGaussianNetwork(unittest.TestCase):
         factor_prior = cond_prob_variable_elimination(network, labels, None)
         prior_mean,prior_cov = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix,factor_prior.shift)
-        #print('Prior Covariance\n',prior_cov)
-        #print('Prior Mean\n',prior_mean)
-        
-        a21,a32=cpd_scales
-        v1,v2,v3=prior_covs
-        assert np.all(np.diff(nparams)==0)
-        I1,I2,I3 = [np.eye(nparams[0])]*nnodes
-        true_prior_cov = np.zeros((nparams.sum(),nparams.sum()))
-        true_prior_cov[:nparams.sum(),:nparams.sum()]=np.vstack([np.hstack([v1*I1,a21*v1*I1,a32*a21*v1*I1]),np.hstack([a21*v1*I2,v2*I2,a32*v2*I2]),np.hstack([a32*a21*v1*I3,a32*v2*I3,v3*I3])])
-        assert np.allclose(true_prior_cov,prior_cov)
+        print('Prior Covariance\n',prior_cov)
+        print('Prior Mean\n',prior_mean)
 
         true_prior_mean = np.hstack(
             [[prior_means[ii]]*nparams[ii] for ii in range(nnodes)])
         #print(true_prior_mean)
         assert np.allclose(true_prior_mean,prior_mean)
+        true_prior_var = np.hstack(
+            [[prior_covs[ii]]*nparams[ii] for ii in range(nnodes)])
+        assert np.allclose(true_prior_var,np.diag(prior_cov))
+
+        assert np.all(np.diff(nparams)==0)
+        v1,v2,v3=prior_covs
+        A21,A32=cpd_mats[1:]
+        I1,I2,I3 = [np.eye(nparams[0])]*nnodes
+        S11,S22,S33=v1*I1,v2*I2,v3*I3
+        true_prior_cov = np.zeros((nparams.sum(),nparams.sum()))
+        true_prior_cov[:nparams.sum(),:nparams.sum()]=np.vstack(
+            [np.hstack([S11,S11.dot(A21.T),S11.dot(A21.T.dot(A32.T))]),
+             np.hstack([A21.dot(S11),S22,S22.dot(A32.T)]),
+             np.hstack([A32.dot(A21).dot(S11),A32.dot(S22),
+                        S33])])
+        assert np.allclose(true_prior_cov,prior_cov)
 
     def test_peer_graph_prior(self):
         nnodes = 3
