@@ -1,19 +1,15 @@
 r"""
 MFNets: Multi-fidelity networks
 ===============================
-This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost [GJGEIJUQ2020]_, [GJGJCP2020]_.
+This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost [GJGEIJUQ2020]_.
 
-Multi-index collocation :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` takes adavantage of a specific type of relationship between models. In many practical applications this structure may not exist.
-
-MFNets provide a means to encode problem specific relationships between information sources.
+In the :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exlpoit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.
 
 In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) :math:`\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P` for each information source :math:`\alpha=1\ldots,M` we seek approximations of the form 
 
 .. math:: Y_\alpha = h(Z_\alpha)\theta_\alpha = \sum_{p=1}^{P_\alpha} \phi_p(Z_\alpha)\theta_{\alpha p}
 
 Given data for each model :math:`y_\alpha=[(y_\alpha^{(1)})^T,(y_\alpha^{(N_\alpha)})^T]^T` where :math:`y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}`
-
-We will show how we can use Byesian inference to use data from each model to produce an accurate approximation of the highest fidelity information source. Indeed the approach we discuss also has the advantage of using all data to inform all approximations.
 
 MFNets provides a framework to encode correlation between information sources to with the goal of producing high-fidelity approximations which are more accurate than single-fidelity approximations using ony high-fidelity data. The first part of this tutorial will show how to apply MFNets to a simple problem using standard results for the posterior of Gaussian linear models. The second part of this tutorial will show how to generalize the MFNets procedure using Bayesian Networks.
 
