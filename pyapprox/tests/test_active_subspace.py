@@ -21,9 +21,11 @@ from pyapprox.manipulate_polynomials import group_like_terms
 
 class TestActiveSubspace(unittest.TestCase):
 
+    def setUp(self):
+        np.random.seed(1)
+
     @skiptest
     def test_get_chebyhsev_center_of_inactive_subspace(self):
-        np.random.seed(1)
         # Define an active subspace
         num_vars = 6
         num_active_vars = 2
