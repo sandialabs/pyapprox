@@ -192,6 +192,85 @@ def evaluate_multivariate_orthonormal_polynomial(
         
     return values
 
+def get_recursion_coefficients(
+        opts,
+        num_coefs,
+        numerically_generated_poly_accuracy_tolerance=1e-12):
+    
+    poly_type = opts.get('poly_type',None)
+    var_type=None
+    if poly_type is None:
+        var_type=opts['rv_type']
+    if poly_type=='legendre' or var_type=='uniform':
+        recursion_coeffs = jacobi_recurrence(
+            num_coefs,alpha=0,beta=0,probability=True)
+    elif poly_type=='jacobi' or var_type=='beta':
+        if poly_type is not None:
+            alpha_poly,beta_poly = opts['alpha_poly'],opts['beta_poly']
+        else:
+            alpha_poly,beta_poly=opts['shapes']['b']-1,opts['shapes']['a']-1
+        recursion_coeffs = jacobi_recurrence(
+            num_coefs,alpha=alpha_poly,beta=beta_poly,probability=True)
+    elif poly_type=='hermite' or var_type=='norm':
+        recursion_coeffs = hermite_recurrence(
+            num_coefs, rho=0., probability=True)
+    elif poly_type=='krawtchouk' or var_type=='binom':
+        if poly_type is None:
+            opts = opts['shapes'] 
+        n,p = opts['n'],opts['p']
+        num_coefs = min(num_coefs,n)
+        recursion_coeffs = krawtchouk_recurrence(
+            num_coefs,n,p)
+    elif poly_type=='hahn' or var_type=='hypergeom':
+        if poly_type is not None:
+            apoly,bpoly = opts['alpha_poly'],opts['beta_poly']
+            N=opts['N']
+        else:
+            M,n,N=[opts['shapes'][key] for key in ['M','n','N']]
+            apoly,bpoly = -(n+1),-M-1+n
+        num_coefs = min(num_coefs,N)
+        recursion_coeffs = hahn_recurrence(
+            num_coefs,N,apoly,bpoly)
+    elif poly_type=='discrete_chebyshev' or var_type=='discrete_chebyshev':
+        if poly_type is not None:
+            N = opts['N']
+        else:
+            N = opts['shapes']['xk'].shape[0]
+            assert np.allclose(opts['shapes']['xk'],np.arange(N))
+            assert np.allclose(opts['shapes']['pk'],np.ones(N)/N)
+        num_coefs = min(num_coefs,N)
+        recursion_coeffs = discrete_chebyshev_recurrence(
+            num_coefs,N)
+    elif poly_type=='discrete_numeric' or var_type=='float_rv_discrete':
+        if poly_type is None:
+            opts = opts['shapes']
+        xk,pk = opts['xk'],opts['pk']
+        #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
+        xk = xk*2-1
+        assert xk.min()>=-1 and xk.max()<=1
+        if num_coefs>xk.shape[0]:
+            msg = 'Number of coefs requested is larger than number of '
+            msg += 'probability masses'
+            raise Exception(msg)
+        recursion_coeffs  = modified_chebyshev_orthonormal(
+            num_coefs,[xk,pk])
+        p = evaluate_orthonormal_polynomial_1d(
+            np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
+        error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
+        if error > numerically_generated_poly_accuracy_tolerance:
+            msg = f'basis created is ill conditioned. '
+            msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
+            msg += f'Terms requested: {num_coefs}'
+            raise Exception(msg)
+    elif poly_type=='monomial':
+        recursion_coeffs=None
+    else:
+        if poly_type is not None:
+            raise Exception('poly_type (%s) not supported'%poly_type)
+        else:
+            raise Exception('var_type (%s) not supported'%var_type)
+    return recursion_coeffs
+
 class PolynomialChaosExpansion(object):
     def __init__(self):
         self.coefficients=None
@@ -267,82 +346,6 @@ class PolynomialChaosExpansion(object):
         self.numerically_generated_poly_accuracy_tolerance=opts.get(
             'numerically_generated_poly_accuracy_tolerance',1e-12)
 
-    def get_recursion_coefficients(self,opts,num_coefs):
-        poly_type = opts.get('poly_type',None)
-        var_type=None
-        if poly_type is None:
-            var_type=opts['rv_type']
-        if poly_type=='legendre' or var_type=='uniform':
-            recursion_coeffs = jacobi_recurrence(
-                num_coefs,alpha=0,beta=0,probability=True)
-        elif poly_type=='jacobi' or var_type=='beta':
-            if poly_type is not None:
-                alpha_poly,beta_poly = opts['alpha_poly'],opts['beta_poly']
-            else:
-                alpha_poly,beta_poly=opts['shapes']['b']-1,opts['shapes']['a']-1
-            recursion_coeffs = jacobi_recurrence(
-                num_coefs,alpha=alpha_poly,beta=beta_poly,probability=True)
-        elif poly_type=='hermite' or var_type=='norm':
-            recursion_coeffs = hermite_recurrence(
-                num_coefs, rho=0., probability=True)
-        elif poly_type=='krawtchouk' or var_type=='binom':
-            if poly_type is None:
-                opts = opts['shapes'] 
-            n,p = opts['n'],opts['p']
-            num_coefs = min(num_coefs,n)
-            recursion_coeffs = krawtchouk_recurrence(
-                num_coefs,n,p)
-        elif poly_type=='hahn' or var_type=='hypergeom':
-            if poly_type is not None:
-                apoly,bpoly = opts['alpha_poly'],opts['beta_poly']
-                N=opts['N']
-            else:
-                M,n,N=[opts['shapes'][key] for key in ['M','n','N']]
-                apoly,bpoly = -(n+1),-M-1+n
-            num_coefs = min(num_coefs,N)
-            recursion_coeffs = hahn_recurrence(
-                num_coefs,N,apoly,bpoly)
-        elif poly_type=='discrete_chebyshev' or var_type=='discrete_chebyshev':
-            if poly_type is not None:
-                N = opts['N']
-            else:
-                N = opts['shapes']['xk'].shape[0]
-                assert np.allclose(opts['shapes']['xk'],np.arange(N))
-                assert np.allclose(opts['shapes']['pk'],np.ones(N)/N)
-            num_coefs = min(num_coefs,N)
-            recursion_coeffs = discrete_chebyshev_recurrence(
-                num_coefs,N)
-        elif poly_type=='discrete_numeric' or var_type=='float_rv_discrete':
-            if poly_type is None:
-                opts = opts['shapes']
-            xk,pk = opts['xk'],opts['pk']
-            #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
-            xk = xk*2-1
-            assert xk.min()>=-1 and xk.max()<=1
-            if num_coefs>xk.shape[0]:
-                msg = 'Number of coefs requested is larger than number of '
-                msg += 'probability masses'
-                raise Exception(msg)
-            recursion_coeffs  = modified_chebyshev_orthonormal(
-                num_coefs,[xk,pk])
-            p = evaluate_orthonormal_polynomial_1d(
-                np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
-            error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
-            if error > self.numerically_generated_poly_accuracy_tolerance:
-                msg = f'basis created is ill conditioned. '
-                msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
-                msg += f'Terms requested: {num_coefs}'
-                raise Exception(msg)
-        elif poly_type=='monomial':
-            recursion_coeffs=None
-        else:
-            if poly_type is not None:
-                raise Exception('poly_type (%s) not supported'%poly_type)
-            else:
-                raise Exception('var_type (%s) not supported'%var_type)
-        return recursion_coeffs
-
-
     def update_recursion_coefficients(self,num_coefs_per_var,opts):
         num_coefs_per_var = np.atleast_1d(num_coefs_per_var)
         initializing=False
@@ -360,8 +363,9 @@ class PolynomialChaosExpansion(object):
                             poly_opts['var_nums'])
                     num_coefs=num_coefs_per_var[
                         self.basis_type_var_indices[ii]].max()
-                    recursion_coeffs_ii = self.get_recursion_coefficients(
-                                          poly_opts,num_coefs)
+                    recursion_coeffs_ii = get_recursion_coefficients(
+                        poly_opts,num_coefs,
+                        self.numerically_generated_poly_accuracy_tolerance)
                     if recursion_coeffs_ii is None:
                         # recursion coefficients will be None is returned if
                         # monomial basis is specified. Only allow monomials to
@@ -377,8 +381,9 @@ class PolynomialChaosExpansion(object):
         else:
             # when only one type of basis is assumed then allow poly_type to
             # be elevated to top level of options dictionary.
-            self.recursion_coeffs=[self.get_recursion_coefficients(
-                opts,num_coefs_per_var.max())]
+            self.recursion_coeffs=[get_recursion_coefficients(
+                opts,num_coefs_per_var.max(),
+                self.numerically_generated_poly_accuracy_tolerance)]
         
         
     def set_indices(self,indices):
@@ -492,7 +497,7 @@ class PolynomialChaosExpansion(object):
 from pyapprox.utilities import get_tensor_product_quadrature_rule
 from functools import partial
 from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
-def get_tensor_product_quadrature_rule_from_pce(pce,degrees):
+def get_univariate_quadrature_rules_from_pce(pce,degrees):
     num_vars = pce.num_vars()
     degrees = np.atleast_1d(degrees)
     if degrees.shape[0]==1 and num_vars>1:
@@ -519,7 +524,11 @@ def get_tensor_product_quadrature_rule_from_pce(pce,degrees):
             univariate_quadrature_rules.append(
                 partial(gauss_quadrature,
                         pce.recursion_coeffs[basis_type_index_map[dd]]))
-            
+    return univariate_quadrature_rules
+
+def get_tensor_product_quadrature_rule_from_pce(pce,degrees):
+    univariate_quadrature_rules = get_univariate_quadrature_rules_from_pce(
+        pce,degrees)
     canonical_samples,weights = \
         get_tensor_product_quadrature_rule(
         degrees+1,num_vars,univariate_quadrature_rules)
@@ -528,15 +537,19 @@ def get_tensor_product_quadrature_rule_from_pce(pce,degrees):
     return samples, weights
 
 from pyapprox.variables import get_distribution_info
-def define_poly_options_from_variable_transformation(var_trans):
-    pce_opts = {'var_trans':var_trans}
+def define_poly_options_from_variable(variable):
     basis_opts = dict()
-    for ii in range(len(var_trans.variable.unique_variables)):
-        var = var_trans.variable.unique_variables[ii]
+    for ii in range(len(variable.unique_variables)):
+        var = variable.unique_variables[ii]
         name, scales, shapes = get_distribution_info(var)
         opts = {'rv_type':name,'shapes':shapes,
-                'var_nums':var_trans.variable.unique_variable_indices[ii]}
+                'var_nums':variable.unique_variable_indices[ii]}
         basis_opts['basis%d'%ii]=opts
+    return basis_opts
+
+def define_poly_options_from_variable_transformation(var_trans):
+    pce_opts = {'var_trans':var_trans}
+    basis_opts = define_poly_options_from_variable(var_trans.variable)
     pce_opts['poly_types']=basis_opts
     return pce_opts
     

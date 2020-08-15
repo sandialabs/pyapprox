@@ -917,7 +917,7 @@ def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_o
     """
     from sklearn.gaussian_process.kernels import Matern, WhiteKernel
     from pyapprox.gaussian_process import GaussianProcess
-    kernel = 1*Matern(length_scale_bounds=(1e-2, 10), nu=nu)
+    kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
     # optimize variance
     kernel = 1*kernel
     # optimize gp noise
