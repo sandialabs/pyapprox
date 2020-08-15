@@ -568,28 +568,49 @@ def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
     """
     All list arguments must contain high-fidelity info in last entry
     """
-    # construct graph
     graph = nx.DiGraph()
-    nmodels = len(nparams)
-    assert len(cpd_scales)==nmodels-1
-    assert len(basis_matrix_funcs)==nmodels
-
-    if model_labels is None:
-        model_labels = ['M_%d'%ii for ii in range(nmodels)]
-        
-    for ii in range(nmodels-1):
+    for ii in range(nnodes-1):
         graph.add_node(
-            ii,label=model_labels[ii],prior_scale=np.sqrt(prior_covs[ii]),
-            nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
+            ii,label=node_labels[ii],
+            cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
+            nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+            cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
 
-    ii = nmodels-1
-    hf_cpd_cov=prior_covs[ii]-np.dot(np.asarray(cpd_scales)**2,prior_covs[:ii])
-    hf_cpd_cov = max(1e-8, hf_cpd_cov)
-    graph.add_node(ii, label=model_labels[ii], prior_scale=np.sqrt(hf_cpd_cov),
-                   nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
+    ii=nnodes-1
+    cov=np.eye(nparams[ii])*max(1e-8,prior_covs[ii]-np.dot(
+        np.asarray(cpd_scales)**2,prior_covs[:ii]))
+    graph.add_node(
+        ii,label=node_labels[ii],cpd_cov=cov,nparams=nparams[ii],
+        cpd_mat=cpd_mats[ii],
+        cpd_mean=(prior_means[ii]-np.dot(cpd_scales[:ii],prior_means[:ii]))*\
+        np.ones((nparams[ii],1)))
 
-    for ii in range(nmodels-1):
-        graph.add_edge(ii, nmodels-1, cpd_scale=cpd_scales[ii])
+    graph.add_edges_from(
+        [(ii,nnodes-1,{'cpd_cov':np.eye(nparams[ii])*cpd_scales[ii]})
+         for ii in range(nnodes-1)])
+    
+    # # construct graph
+    # graph = nx.DiGraph()
+    # nmodels = len(nparams)
+    # assert len(cpd_scales)==nmodels-1
+    # assert len(basis_matrix_funcs)==nmodels
+
+    # if model_labels is None:
+    #     model_labels = ['M_%d'%ii for ii in range(nmodels)]
+        
+    # for ii in range(nmodels-1):
+    #     graph.add_node(
+    #         ii,label=model_labels[ii],prior_scale=np.sqrt(prior_covs[ii]),
+    #         nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
+
+    # ii = nmodels-1
+    # hf_cpd_cov=prior_covs[ii]-np.dot(np.asarray(cpd_scales)**2,prior_covs[:ii])
+    # hf_cpd_cov = max(1e-8, hf_cpd_cov)
+    # graph.add_node(ii, label=model_labels[ii], prior_scale=np.sqrt(hf_cpd_cov),
+    #                nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
+
+    # for ii in range(nmodels-1):
+    #     graph.add_edge(ii, nmodels-1, cpd_scale=cpd_scales[ii])
 
     network = BayesianNetwork(graph)
     return network
