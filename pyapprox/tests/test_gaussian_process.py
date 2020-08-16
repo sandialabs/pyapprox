@@ -5,17 +5,27 @@ import pyapprox as pya
 from scipy import stats
 
 class TestGaussianProcess(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+    
+    
     def test_integrate_gaussian_process_gaussian(self):
 
-        nvars=2
+        nvars=1
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        mu_scalar,sigma_scalar=1,2
+        mu_scalar,sigma_scalar=3,1
         #mu_scalar,sigma_scalar=0,1
 
-        ntrain_samples = 10
+        univariate_variables = [stats.norm(mu_scalar,sigma_scalar)]*nvars
+        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+
+        lb,ub = univariate_variables[0].interval(0.999)
+
+        ntrain_samples = 20
+        
         train_samples = pya.cartesian_product(
-            [np.linspace(-3,3,ntrain_samples)]*nvars)
+            [np.linspace(lb,ub,ntrain_samples)]*nvars)
         train_vals = func(train_samples)
 
         #tmp=np.random.normal(mu,sigma,(nvars,10001))
@@ -27,22 +37,21 @@ class TestGaussianProcess(unittest.TestCase):
         kernel = Matern(length_scale,length_scale_bounds=(1e-2, 10), nu=nu)
         # fix kernel variance
         kernel = ConstantKernel(
-            constant_value=1.,constant_value_bounds='fixed')*kernel
-
+            constant_value=2.,constant_value_bounds='fixed')*kernel
         # optimize kernel variance
         #kernel = ConstantKernel(
         #    constant_value=3,constant_value_bounds=(0.1,10))*kernel
         # optimize gp noise
         #kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
         # fix gp noise
-        kernel += WhiteKernel(noise_level=0.001,noise_level_bounds='fixed')
+        kernel += WhiteKernel(noise_level=1e-5,noise_level_bounds='fixed')
         #white kernel K(x_i,x_j) is only nonzeros when x_i=x_j, i.e.
         #it is not used when calling gp.predict
         gp = GaussianProcess(kernel,n_restarts_optimizer=10)
         gp.fit(train_samples,train_vals)
         print(gp.kernel_)
 
-        # xx=np.linspace(-3,3,101)
+        # xx=np.linspace(lb,ub,101)
         # plt.plot(xx,func(xx[np.newaxis,:]))
         # gp_mean,gp_std = gp(xx[np.newaxis,:],return_std=True)
         # gp_mean = gp_mean[:,0]
@@ -51,11 +60,19 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.fill_between(xx,gp_mean-2*gp_std,gp_mean+2*gp_std,alpha=0.5)
         # plt.show()
 
-        univariate_variables = [stats.norm(mu_scalar,sigma_scalar)]*nvars
-        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
         expected_random_mean, variance_random_mean=integrate_gaussian_process(
             gp,variable)
+
+        true_mean = nvars*(sigma_scalar**2+mu_scalar**2)
+        print('True mean',true_mean)
+        print('Expected random mean',expected_random_mean)
+        std_random_mean = np.sqrt(variance_random_mean)
+        print('Stdev random mean',std_random_mean)
+        print('Expected random mean +/- 3 stdev',
+              [expected_random_mean-3*std_random_mean,
+               expected_random_mean+3*std_random_mean])
+        
 
         #mu and sigma should match variable
         kernel_types = [Matern]
@@ -82,7 +99,8 @@ class TestGaussianProcess(unittest.TestCase):
         #Haylock formula
         Ainv_y = Kinv_y*kernel_var
         true_expected_random_mean = T.dot(Ainv_y)
-        assert np.allclose(true_expected_random_mean,expected_random_mean)
+        #print(true_expected_random_mean,expected_random_mean)
+        assert np.allclose(true_expected_random_mean,expected_random_mean,rtol=1e-5)
 
         U = np.sqrt(delta/(delta+4*sigma**2)).prod()
         from scipy.linalg import solve_triangular
@@ -92,17 +110,9 @@ class TestGaussianProcess(unittest.TestCase):
         #Haylock formula
         A_inv = K_inv*kernel_var
         true_variance_random_mean = kernel_var*(U-T.dot(A_inv).dot(T.T))
-        assert np.allclose(true_variance_random_mean,variance_random_mean)
+        #print(true_variance_random_mean,variance_random_mean)
+        assert np.allclose(true_variance_random_mean,variance_random_mean,rtol=1e-5)
 
-        true_mean = nvars*(sigma_scalar**2+mu_scalar**2)
-        
-        print('True mean',true_mean)
-        print('Expected random mean',expected_random_mean)
-        std_random_mean = np.sqrt(variance_random_mean)
-        print('Stdev random mean',std_random_mean)
-        print('Expected random mean +/- 3 stdev',
-              [expected_random_mean-3*std_random_mean,
-               expected_random_mean+3*std_random_mean])
         assert ((true_mean>expected_random_mean-3*std_random_mean) and 
                 (true_mean<expected_random_mean+3*std_random_mean))
 

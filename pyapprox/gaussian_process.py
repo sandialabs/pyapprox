@@ -143,7 +143,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     """
     
     nvars = variable.num_vars()
-    degrees = [200]*nvars
+    degrees = [100]*nvars
     pce = get_polynomial_from_variable(variable)
     indices = []
     for ii in range(pce.num_vars()):
