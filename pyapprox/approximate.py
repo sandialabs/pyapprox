@@ -921,7 +921,9 @@ def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_o
     # optimize variance
     kernel = 1*kernel
     # optimize gp noise
-    kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
+    nvars = train_samples.shape[0]
+    length_scale = np.array([1]*nvars)
+    kernel += WhiteKernel(length_scale,noise_level_bounds=(1e-8, 1))
     gp = GaussianProcess(kernel,n_restarts_optimizer=n_restarts_optimizer)
     gp.fit(train_samples,train_vals)
     return ApproximateResult({'approx':gp})
