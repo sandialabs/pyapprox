@@ -7,60 +7,111 @@ from scipy import stats
 class TestGaussianProcess(unittest.TestCase):
     def test_integrate_gaussian_process_gaussian(self):
 
-        nvars=1
+        nvars=2
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        ntrain_samples = 5
-        train_samples = np.linspace(-3,3,ntrain_samples)[np.newaxis,:]
+        mu_scalar,sigma_scalar=1,2
+        #mu_scalar,sigma_scalar=0,1
+
+        ntrain_samples = 10
+        train_samples = pya.cartesian_product(
+            [np.linspace(-3,3,ntrain_samples)]*nvars)
         train_vals = func(train_samples)
 
+        #tmp=np.random.normal(mu,sigma,(nvars,10001))
+        #print(func(tmp).mean())
+
         nu=np.inf
-        kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
-        # optimize variance
-        #kernel = 1*kernel
+        nvars = train_samples.shape[0]
+        length_scale = np.array([1]*nvars)
+        kernel = Matern(length_scale,length_scale_bounds=(1e-2, 10), nu=nu)
+        # fix kernel variance
+        kernel = ConstantKernel(
+            constant_value=1.,constant_value_bounds='fixed')*kernel
+
+        # optimize kernel variance
+        #kernel = ConstantKernel(
+        #    constant_value=3,constant_value_bounds=(0.1,10))*kernel
         # optimize gp noise
         #kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
-        gp = GaussianProcess(kernel,n_restarts_optimizer=3)
+        # fix gp noise
+        kernel += WhiteKernel(noise_level=0.001,noise_level_bounds='fixed')
+        #white kernel K(x_i,x_j) is only nonzeros when x_i=x_j, i.e.
+        #it is not used when calling gp.predict
+        gp = GaussianProcess(kernel,n_restarts_optimizer=10)
         gp.fit(train_samples,train_vals)
+        print(gp.kernel_)
 
+        # xx=np.linspace(-3,3,101)
+        # plt.plot(xx,func(xx[np.newaxis,:]))
+        # gp_mean,gp_std = gp(xx[np.newaxis,:],return_std=True)
+        # gp_mean = gp_mean[:,0]
+        # plt.plot(xx,gp_mean)
+        # plt.plot(train_samples[0,:],train_vals[:,0],'o')
+        # plt.fill_between(xx,gp_mean-2*gp_std,gp_mean+2*gp_std,alpha=0.5)
+        # plt.show()
 
-        univariate_variables = [stats.norm(0,1)]
+        univariate_variables = [stats.norm(mu_scalar,sigma_scalar)]*nvars
         variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
         expected_random_mean, variance_random_mean=integrate_gaussian_process(
             gp,variable)
-        print('True mean',1)
-        print('Expected random mean',expected_random_mean)
-        print('Stdev random mean',np.sqrt(variance_random_mean))
-        print('Expected random mean +/- 2 stdev',
-              [expected_random_mean-2*np.sqrt(variance_random_mean),
-               expected_random_mean+2*np.sqrt(variance_random_mean)])
 
         #mu and sigma should match variable
-        length_scale=gp.kernel_.length_scale
+        kernel_types = [Matern]
+        kernel = extract_covariance_kernel(gp.kernel_,kernel_types)
+        length_scale=np.atleast_1d(kernel.length_scale)
+        constant_kernel = extract_covariance_kernel(gp.kernel_,[ConstantKernel])
+        if constant_kernel is not None:
+            kernel_var = constant_kernel.constant_value
+        else:
+            kernel_var = 1
+
+        
         Kinv_y = gp.alpha_
-        mu = np.array([0]*nvars)
-        sigma = np.array([1]*nvars)
-        delta = length_scale**2
-        dists = (train_samples-mu[:,np.newaxis])
+        mu = np.array([mu_scalar]*nvars)[:,np.newaxis]
+        sigma = np.array([sigma_scalar]*nvars)[:,np.newaxis]
+        # Halyok sq exp kernel is exp(-dists/delta). Sklearn RBF kernel is
+        # exp(-.5*dists/L**2)
+        delta = 2*length_scale[:,np.newaxis]**2
+        dists = (train_samples-mu)**2
         T = np.prod(
             np.sqrt(delta/(delta+2*sigma**2))*np.exp(
                 -(dists)/(delta+2*sigma**2)),axis=0)
-        print(T.shape,dists.shape)
-        print(T.dot(Kinv_y))
+        #Kinv_y is inv(kernel_var*A).dot(y). Thus multiply by kernel_var to get
+        #Haylock formula
+        Ainv_y = Kinv_y*kernel_var
+        true_expected_random_mean = T.dot(Ainv_y)
+        assert np.allclose(true_expected_random_mean,expected_random_mean)
 
-        # xx=np.linspace(-3,3,101)
-        # plt.plot(xx,func(xx[np.newaxis,:]))
-        # plt.plot(xx,gp(xx[np.newaxis,:]))
-        # plt.plot(train_samples[0,:],train_vals[:,0],'o')
-        # plt.show()
+        U = np.sqrt(delta/(delta+4*sigma**2)).prod()
+        from scipy.linalg import solve_triangular
+        L_inv = solve_triangular(gp.L_.T,np.eye(gp.L_.shape[0]))
+        K_inv = L_inv.dot(L_inv.T)
+        #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
+        #Haylock formula
+        A_inv = K_inv*kernel_var
+        true_variance_random_mean = kernel_var*(U-T.dot(A_inv).dot(T.T))
+        assert np.allclose(true_variance_random_mean,variance_random_mean)
+
+        true_mean = nvars*(sigma_scalar**2+mu_scalar**2)
+        
+        print('True mean',true_mean)
+        print('Expected random mean',expected_random_mean)
+        std_random_mean = np.sqrt(variance_random_mean)
+        print('Stdev random mean',std_random_mean)
+        print('Expected random mean +/- 3 stdev',
+              [expected_random_mean-3*std_random_mean,
+               expected_random_mean+3*std_random_mean])
+        assert ((true_mean>expected_random_mean-3*std_random_mean) and 
+                (true_mean<expected_random_mean+3*std_random_mean))
 
     def test_integrate_gaussian_process_uniform(self):
-
+        np.random.seed(1)
         nvars=1
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        ntrain_samples = 5
+        ntrain_samples = 10
         train_samples = np.linspace(-1,1,ntrain_samples)[np.newaxis,:]
         train_vals = func(train_samples)
 
@@ -70,7 +121,7 @@ class TestGaussianProcess(unittest.TestCase):
         #kernel = 1*kernel
         # optimize gp noise
         #kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
-        gp = GaussianProcess(kernel,n_restarts_optimizer=3)
+        gp = GaussianProcess(kernel,n_restarts_optimizer=1)
         gp.fit(train_samples,train_vals)
 
 
@@ -79,17 +130,21 @@ class TestGaussianProcess(unittest.TestCase):
 
         expected_random_mean, variance_random_mean=integrate_gaussian_process(
             gp,variable)
-        print('True mean',1/3)
-        print('Expected random mean',expected_random_mean)
-        print('Stdev random mean',np.sqrt(variance_random_mean))
-        print('Expected random mean +/- 2 stdev',
-              [expected_random_mean-2*np.sqrt(variance_random_mean),
-               expected_random_mean+2*np.sqrt(variance_random_mean)])
 
-        # xx=np.linspace(-1,1,101)
-        # plt.plot(xx,func(xx[np.newaxis,:]))
-        # plt.plot(xx,gp(xx[np.newaxis,:]))
-        # plt.show()
+        true_mean = 1/3
+        
+        print('True mean',true_mean)
+        print('Expected random mean',expected_random_mean)
+        print(variance_random_mean)
+        std_random_mean = np.sqrt(variance_random_mean)
+        print('Stdev random mean',std_random_mean)
+        print('Expected random mean +/- 3 stdev',
+              [expected_random_mean-3*std_random_mean,
+               expected_random_mean+3*std_random_mean])
+        assert abs(true_mean-expected_random_mean)<1e-4
+
+        assert ((true_mean>expected_random_mean-3*std_random_mean) and 
+                (true_mean<expected_random_mean+3*std_random_mean))
 
 if __name__== "__main__":    
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(
