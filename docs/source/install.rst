@@ -12,18 +12,34 @@ or download the source from the `PyApprox github repository <https://github.com/
 
 Install
 -------
-To install PyApprox run the following in the PyApprox root directory::
+To get all the features of PyApprox it is best to install PyApprox dependencies with conda. However if this is not possible or desirable PyApprox can also be installed entirely with pip. If pip is used the user will not have access to the benchmarks based on the finite element modeling package fenics.
+
+Conda
+^^^^^
+The most robust way to install PyApprox is to create a new environment. Pyapprox can be installed in an existing environment, however the user will need to take care to ensure that any upgrades or downgrades suggested by conda will not cause issues with the current environment.
+
+To create a new environment use::
+
+    conda env create -f environment.yml
+
+This will create an environment called pyapprox-dev. Activate this environment with::
+
+    conda activate pyapprox-dev
+
+Once the new environment, or an existing environment, has been activated run the following in the PyApprox root directory to install PyApprox::
+
+    pip install -e .
+
+The -e argument specifies to install softlinks so that any changes made by the user to the source in the source folders are reflected in the install when importing modules.
+
+Pip
+^^^
+To install PyApprox entirely with pip simply run the following in the PyApprox root directory to install PyApprox::
 
     pip install -e .
 
 
-To instead install a version for developlement which allows for package source
-to be edited and changes activated without needed to reinstall use::
-
-    pip install -r requirements.txt
-    python setup.py develop
-
-Note that sometimes developers need to remove all files generated when calling setup.py. To do this use::
+Note that sometimes developers need to remove all files generated when installing. To do this use::
 
   python setup.py clean --all
   find . -name "*.pyc" -exec rm -f {} \;
@@ -46,10 +62,14 @@ To test all docstrings in a file use::
   
   python -m doctest -v file.py
 
+Some tests will be skipped if not all optional packages are installed.
+
 
 Create Documentation
 --------------------
-Creating documentation requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. Html documentation can be generated with::
+To create the documentation fenics must be installed. Creating documentation also requires Sphinx 1.7 or later, sphinx, numpydoc, and sphinx-automodapi. These are automatically installed with pip install -e . command.
+
+Html documentation can be generated with::
 
     cd docs
     make html

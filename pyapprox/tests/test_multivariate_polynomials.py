@@ -545,6 +545,14 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(true_mean,mean)
         assert np.allclose(true_variance,variance)
 
+        # nsamples = int(1e5)
+        # samples = generate_independent_random_samples(
+        #     var_trans.variable,nsamples)
+        # samples[inactive_idx,:]=fixed_samples
+        # values = poly(samples)
+        # print(mean,values.mean())
+        # print(variance,np.var(values))
+
     def test_compute_univariate_orthonormal_basis_products(self):
         max_degree1,max_degree2=3,2
 
