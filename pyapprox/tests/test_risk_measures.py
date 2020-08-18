@@ -399,7 +399,7 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
     else:
         assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=1e-3) 
 
-def help_test_stochastic_dominance(solver,nsamples,degree,
+def help_check_stochastic_dominance(solver,nsamples,degree,
                                    disutility=None,plot=False):
     """
     disutilty is none plot emprical CDF
@@ -496,7 +496,7 @@ def help_test_stochastic_dominance(solver,nsamples,degree,
 
         plt.show()
 
-def help_test_stochastic_dominance_gradients(sd_opt_problem):
+def help_check_stochastic_dominance_gradients(sd_opt_problem):
 
     np.random.seed(1)
     xx = sd_opt_problem.init_guess
@@ -793,36 +793,36 @@ class TestRiskMeasures(unittest.TestCase):
     def test_second_order_stochastic_dominance(self):
         np.random.seed(4)
         solver = partial(solve_SSD_constrained_least_squares,return_full=True)
-        help_test_stochastic_dominance(solver,10,2,False)
+        help_check_stochastic_dominance(solver,10,2,False)
 
     def test_disutility_second_order_stochastic_dominance(self):
         np.random.seed(2)
         # slsqp needs more testing. Dont think it is working, e.g. try
         solver = solve_disutility_SSD_constrained_least_squares_slsqp
-        help_test_stochastic_dominance(solver,10,2,True)
+        help_check_stochastic_dominance(solver,10,2,True)
 
         solver = solve_disutility_SSD_constrained_least_squares_trust_region
-        help_test_stochastic_dominance(solver,10,2,True)
+        help_check_stochastic_dominance(solver,10,2,True)
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
             smoother_type=0,return_full=True)
-        help_test_stochastic_dominance(solver,10,2,True)
+        help_check_stochastic_dominance(solver,10,2,True)
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
             smoother_type=1,return_full=True)  
-        help_test_stochastic_dominance(solver,10,2,True)
+        help_check_stochastic_dominance(solver,10,2,True)
 
     def test_first_order_stochastic_dominance(self):
         np.random.seed(4)
         solver=partial(
             solve_FSD_constrained_least_squares_smooth,eps=1e-6)
-        help_test_stochastic_dominance(solver,100,3)
+        help_check_stochastic_dominance(solver,100,3)
 
         solver=partial(
             solve_FSD_constrained_least_squares_smooth,eps=1e-6)
-        help_test_stochastic_dominance(solver,50,1)
+        help_check_stochastic_dominance(solver,50,1)
 
 
     def test_conditional_value_at_risk(self):
@@ -940,14 +940,14 @@ class TestRiskMeasures(unittest.TestCase):
     def test_stochastic_second_order_dominance_gradients(self):
         sd_opt_problem = self.setup_sd_opt_problem(
             TrustRegionDisutilitySSDOptProblem)
-        help_test_stochastic_dominance_gradients(sd_opt_problem)
+        help_check_stochastic_dominance_gradients(sd_opt_problem)
 
         sd_opt_problem =self.setup_sd_opt_problem(SLSQPDisutilitySSDOptProblem)
-        help_test_stochastic_dominance_gradients(sd_opt_problem)
+        help_check_stochastic_dominance_gradients(sd_opt_problem)
 
         sd_opt_problem = self.setup_sd_opt_problem(
             SmoothDisutilitySSDOptProblem)
-        help_test_stochastic_dominance_gradients(sd_opt_problem)
+        help_check_stochastic_dominance_gradients(sd_opt_problem)
         
     def test_fsd_gradients(self):
         np.random.seed(5)
@@ -1020,7 +1020,7 @@ class TestRiskMeasures(unittest.TestCase):
         # plt.plot(xx,fsd_opt_problem.smooth_heaviside_function(xx))
         # plt.show()
         
-        help_test_stochastic_dominance_gradients(fsd_opt_problem)
+        help_check_stochastic_dominance_gradients(fsd_opt_problem)
 
 def compute_quartic_spline_of_right_heaviside_function():
     """

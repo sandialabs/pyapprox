@@ -702,7 +702,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             mu_I,pred_factors,homog_outer_prods)
         assert np.allclose(mu_R,mu_I)
 
-def help_test_michaelis_menten_model_minimax_optimal_design(criteria,heteroscedastic=False):
+def help_check_michaelis_menten_model_minimax_optimal_design(criteria,heteroscedastic=False):
     """
     If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
     at b. This can be proved with an application of Holders inequality to 
@@ -923,19 +923,19 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(mu[I],[0.5,0.5])
 
     def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
-        help_test_michaelis_menten_model_minimax_optimal_design('G')
-        help_test_michaelis_menten_model_minimax_optimal_design('D')
-        help_test_michaelis_menten_model_minimax_optimal_design('A')
-        help_test_michaelis_menten_model_minimax_optimal_design('I')
-        help_test_michaelis_menten_model_minimax_optimal_design('R')
+        help_check_michaelis_menten_model_minimax_optimal_design('G')
+        help_check_michaelis_menten_model_minimax_optimal_design('D')
+        help_check_michaelis_menten_model_minimax_optimal_design('A')
+        help_check_michaelis_menten_model_minimax_optimal_design('I')
+        help_check_michaelis_menten_model_minimax_optimal_design('R')
 
 
     def test_michaelis_menten_model_minimax_designs_heteroscedastic(self):
-        help_test_michaelis_menten_model_minimax_optimal_design('G',True)
-        help_test_michaelis_menten_model_minimax_optimal_design('D',True)
-        help_test_michaelis_menten_model_minimax_optimal_design('A',True)
-        help_test_michaelis_menten_model_minimax_optimal_design('I',True)
-        help_test_michaelis_menten_model_minimax_optimal_design('R',True)
+        help_check_michaelis_menten_model_minimax_optimal_design('G',True)
+        help_check_michaelis_menten_model_minimax_optimal_design('D',True)
+        help_check_michaelis_menten_model_minimax_optimal_design('A',True)
+        help_check_michaelis_menten_model_minimax_optimal_design('I',True)
+        help_check_michaelis_menten_model_minimax_optimal_design('R',True)
 
     def test_exponential_growth_model_local_d_optimal_design(self):
         """
