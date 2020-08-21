@@ -622,7 +622,47 @@ class TestCVMC(unittest.TestCase):
         #print(errors.min())
         assert errors.min()<1e-8
 
-    
+    def test_bootstrap_monte_carlo_estimator(self):
+        nsamples = int(1e4)
+        nbootstraps=int(1e3)
+        values = np.random.normal(1.,1.,(nsamples,1))
+        est_variance = np.var(values)/nsamples
+        bootstrap_mean,bootstrap_variance = \
+            pya.bootstrap_monte_carlo_estimator(values,nbootstraps)
+        print(abs(est_variance-bootstrap_variance)/est_variance)
+        assert abs((est_variance-bootstrap_variance)/est_variance)<1e-2
+
+    def test_bootstrap_control_variate_estimator(self):
+        example = TunableModelEnsemble(np.pi/2*0.95)
+        model_ensemble = pya.ModelEnsemble(example.models)
+        
+        univariate_variables = [uniform(-1,2),uniform(-1,2)]
+        variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+        
+        cov_matrix = example.get_covariance_matrix()
+        model_costs = [1,0.5,0.4]
+        est = ACVMF(cov_matrix,model_costs)
+
+        target_cost = 1000
+        nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
+        generate_samples = partial(
+            pya.generate_independent_random_samples,variable)
+        samples,values=est.generate_data(
+            nhf_samples,nsample_ratios,generate_samples,model_ensemble)
+        
+        mc_cov_matrix = compute_covariance_from_control_variate_samples(values)
+        #assert np.allclose(cov_matrix,mc_cov_matrix,atol=1e-2)
+        est = ACVMF(mc_cov_matrix,model_costs)
+        weights = get_mfmc_control_variate_weights(
+            example.get_covariance_matrix())
+        bootstrap_mean,bootstrap_variance = \
+            pya.bootstrap_mfmc_estimator(values,weights,10000)
+
+        est_mean = est(values)
+        est_variance = est.get_variance(nhf_samples,nsample_ratios)
+        #print(abs((est_variance-bootstrap_variance)/est_variance))
+        assert abs((est_variance-bootstrap_variance)/est_variance)<1e-2
+
         
     
 if __name__== "__main__":    
