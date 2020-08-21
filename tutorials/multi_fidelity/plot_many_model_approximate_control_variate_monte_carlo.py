@@ -218,13 +218,13 @@ axs[1].plot(theta1,var_reds[:,0]/var_reds[:,1],'o-',
 axs[0].set_xlabel(r'$\theta_1$')
 axs[0].set_ylabel(r'$\mathrm{Correlation}$')
 axs[1].set_xlabel(r'$\theta_1$')
-axs[1].set_ylabel(r'$\mathrm{Variance reduction ratio} \ \gamma$')
+axs[1].set_ylabel(r'$\mathrm{Variance\;reduction\;ratio} \; \gamma$')
 axs[0].legend()
 _ = axs[1].legend()
 
 #%%
 #The variance reduction clearly depends on the correlation between all the models.
-
+#
 #Let us now compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble
 #
 #.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4

@@ -809,7 +809,7 @@ def validate_nsample_ratios(nhf_samples,nsample_ratios):
     nhf_samples = int(nhf_samples)
     nlf_samples = nhf_samples*nsample_ratios
     for ii in range(nmodels-1):
-        assert nlf_samples[ii]/int(nlf_samples[ii])==1.0
+        assert np.allclose(nlf_samples[ii]/int(nlf_samples[ii]),1.0,atol=1e-5)
     nlf_samples = np.asarray(nlf_samples,dtype=int)
     return nlf_samples
 
@@ -1232,7 +1232,7 @@ class ModelEnsemble(object):
     Wrapper class to allow easy one-dimensional 
     indexing of models in an ensemble.
     """
-    def __init__(self,functions):
+    def __init__(self,functions,names=None):
         r"""
         Parameters
         ----------
@@ -1242,6 +1242,9 @@ class ModelEnsemble(object):
         """
         self.functions=functions
         self.nmodels = len(self.functions)
+        if names is None:
+            names = ['f%d'%ii for ii in range(self.nmodels)]
+        self.names=names
     
     def __call__(self,samples):
         r"""
@@ -1345,9 +1348,13 @@ class ACVMF(object):
             pkg=torch
         else:
             pkg=np
-        return get_rsquared_acv(
+        rsquared = get_rsquared_acv(
             self.cov,nsample_ratios,
             partial(get_discrepancy_covariances_MF,pkg=pkg))
+        try:
+            return rsquared.numpy()
+        except:
+            return rsquared
 
     def variance_reduction(self,nsample_ratios):
         return 1-self.get_rsquared(nsample_ratios)
@@ -1367,7 +1374,25 @@ class ACVMF(object):
 
     def get_variance(self,nhf_samples,nsample_ratios):
         gamma = (1-self.get_rsquared(nsample_ratios))
-        return gamma*self.cov[0,0]/nhf_samples
+        return gamma*self.get_covariance()[0,0]/nhf_samples
+
+    def generate_data(self,nhf_samples,nsample_ratios,generate_samples,
+                      model_ensemble):
+        return generate_samples_and_values_mfmc(
+            nhf_samples,nsample_ratios,model_ensemble,
+            generate_samples,acv_modification=True)
+
+    def get_covariance(self):
+        try:
+            return self.cov.numpy()
+        except:
+            return self.cov
+        
+    def __call__(self,values):
+        eta = get_mfmc_control_variate_weights(self.get_covariance())
+        return compute_approximate_control_variate_mean_estimate(eta,values)
+    
+        
 
 class MC(object):
     def __init__(self,cov,costs):
@@ -1382,8 +1407,19 @@ class MC(object):
 
     def get_nsamples(self,nhf_samples,nsample_ratios):
         return np.concatenate([[nhf_samples],np.zeros(self.cov.shape[0]-1)])
-    
-        
+
+    def generate_data(self,nhf_samples,nsample_ratios,generate_samples,
+                      model_ensemble):
+        samples = generate_samples(int(nhf_samples))
+        if not callable(model_ensemble):
+            values = model_ensemble[0](samples)
+        else:
+            samples_with_id=np.vstack([samples,np.zeros((1,int(nhf_samples)))])
+            values = model_ensemble(samples_with_id)
+        return samples, values
+
+    def __call__(self,values):
+        return values.mean()
 
 class ACVMFKL(ACVMF):
     def __init__(self,cov,costs,target_cost,K,L):
@@ -1582,3 +1618,189 @@ def plot_acv_sample_allocation(nsamples_history,costs,labels,ax):
     ax.set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
     ax.set_ylabel(r'$\mathrm{Percentage}\;\mathrm{of}\;\mathrm{Total}\;\mathrm{Cost}$ / $N_\alpha$')
     ax.legend(loc=[0.925,0.25])
+
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
+from pyapprox.utilities import get_correlation_from_covariance
+def get_pilot_covariance(nmodels,variable,model_ensemble,npilot_samples):
+    """
+    Parameters
+    ----------
+    nmodels : integer
+        The number of information sources
+
+    variable : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+        Object defining the nvar uncertain random variables. 
+        Samples will be drawn from its joint density.
+
+    model_ensemble : callable
+        Function with signature
+
+        ``model_ensemble(samples) -> np.ndarray (nsamples,1)``
+
+        where samples is a np.ndarray with shape (nvars+1,nsamples) 
+    
+    npilot_samples : integer
+        The number of samples used to compute correlations
+
+    Returns
+    -------
+    cov_matrix : np.ndarray (nmodels,nmodels)
+        The covariance between each information source
+
+    pilot_samples : np.ndarray (nvars+1,nsamples)
+        The samples used to evaluate each information source when computing
+        correlations
+
+    pilot_values : np.ndarray (nsamples,nmodels)
+        The values of each information source at the pilot samples
+    """
+    pilot_samples = generate_independent_random_samples(
+        variable,npilot_samples)
+    config_vars = np.arange(nmodels)[np.newaxis,:]
+    pilot_samples = get_all_sample_combinations(
+        pilot_samples,config_vars)
+    pilot_values = model_ensemble(pilot_samples)
+    pilot_values = np.reshape(
+        pilot_values,(npilot_samples,model_ensemble.nmodels))
+    cov_matrix = np.cov(pilot_values,rowvar=False)
+    return cov_matrix,pilot_samples,pilot_values
+
+def bootstrap_monte_carlo_estimator(values,nbootstraps=10,verbose=True):
+    """
+    Approxiamte the variance of the Monte Carlo estimate of the mean using 
+    bootstraping
+
+    Parameters
+    ----------
+    values : np.ndarry (nsamples,1)
+        The values used to compute the mean
+
+    nbootstraps : integer
+        The number of boostraps used to compute estimator variance
+
+    verbose:
+        If True print the estimator mean and +/- 2 standard deviation interval
+
+    Returns
+    -------
+    bootstrap_mean : float
+        The bootstrap estimate of the estimator mean
+
+    bootstrap_variance : float
+        The bootstrap estimate of the estimator variance
+    """
+    values = values.squeeze()
+    assert values.ndim==1
+    nsamples = values.shape[0]
+    bootstrap_values = np.random.choice(
+        values,size=(nsamples,nbootstraps),replace=True)
+    bootstrap_means = bootstrap_values.mean(axis=0)
+    bootstrap_mean = bootstrap_means.mean()
+    bootstrap_variance = np.var(bootstrap_means)
+    if verbose:
+        print('No. samples', values.shape[0])
+        print('Mean',bootstrap_mean)
+        print('Mean +/- 2 sigma', [bootstrap_mean-2*np.sqrt(bootstrap_variance),bootstrap_mean+2*np.sqrt(bootstrap_variance)])
+
+    return bootstrap_mean, bootstrap_variance
+
+def bootstrap_mfmc_estimator(values,weights,nbootstraps=10,
+                             verbose=True,acv_modification=True):
+    r"""
+    Boostrap the approximate MFMC estimate of the mean of 
+    high-fidelity data with low-fidelity models with unknown means
+
+    Parameters
+    ----------
+    values : list (nmodels)
+        The evaluations of each information source seperated in form
+        necessary for control variate estimators. 
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of 
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate 
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+    weights : np.ndarray (nmodels-1)
+        The control variate weights
+
+    nbootstraps : integer
+        The number of boostraps used to compute estimator variance
+
+    verbose:
+        If True print the estimator mean and +/- 2 standard deviation interval
+
+    Returns
+    -------
+    bootstrap_mean : float
+        The bootstrap estimate of the estimator mean
+
+    bootstrap_variance : float
+        The bootstrap estimate of the estimator variance
+    """
+    assert acv_modification
+    nmodels = len(values)
+    assert len(values)==nmodels
+    # high fidelity monte carlo estimate of mean
+    bootstrap_means = []
+    for jj in range(nbootstraps):
+        vals = values[0][0]; nhf_samples=vals.shape[0]
+        I1 = np.random.choice(
+            np.arange(nhf_samples),size=(nhf_samples),replace=True)
+        est = vals[I1].mean()
+        nprev_samples=nhf_samples
+        for ii in range(nmodels-1):
+            vals1 = values[ii+1][0]; nsamples1=vals1.shape[0]
+            vals2 = values[ii+1][1]; nsamples2=vals2.shape[0]
+            assert nsamples1==nhf_samples
+            I2 = np.random.choice(
+                np.arange(nhf_samples,nsamples2),size=(nsamples2-nhf_samples),
+                replace=True)
+            #maks sure same shared samples are still used.
+            vals2_boot = np.vstack([vals2[I1],vals2[I2]])
+            est += weights[ii]*(vals1[I1].mean()-vals2_boot.mean())
+            if acv_modification:
+                nprev_samples = nhf_samples
+            else:
+                nprev_samples=nsamples2
+        bootstrap_means.append(est)
+    bootstrap_means = np.array(bootstrap_means)
+    bootstrap_mean = np.mean(bootstrap_means)
+    bootstrap_variance = np.var(bootstrap_means)
+    return bootstrap_mean, bootstrap_variance
+
+def compute_covariance_from_control_variate_samples(values):
+    r"""
+    Compute the covariance between information sources from a set
+    of evaluations of each information source.
+
+    Parameters
+    ----------
+    values : list (nmodels)
+        The evaluations of each information source seperated in form
+        necessary for control variate estimators. 
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate 
+             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+    Returns
+    -------
+    cov : np.ndarray (nmodels)
+        The covariance between the information sources
+    """
+    shared_samples_values = np.hstack(
+        [v[0].squeeze()[:,np.newaxis] for v in values])
+    cov = np.cov(shared_samples_values,rowvar=False)
+    #print(cov,'\n',cov_matrix)
+    return cov
