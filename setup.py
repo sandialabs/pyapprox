@@ -72,9 +72,11 @@ setuptools.setup(
         'seaborn',
         'pymc3',
         'scikit-learn',
-        'pytest',
         'pytest-cov',
-        'networkx'
+        'pytest',
+        'networkx',
+        #'MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master'
+        'active_subspaces @ https://github.com/paulcon/active_subspaces@master'
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
@@ -85,45 +87,6 @@ setuptools.setup(
     #for some reason pytest will not work on github actions. It is discovering a test which
     #causes an error which I cannot reproduce on my machine or find a way which test
     #is causing the issue
-    #tests_require=['pytest'],
+    #tests_require=['pytest-cov'],
     license='MIT',
 )
-
-# mshr needed for test_helmholtz consider removing as required dependency
-# mshr can only be installed using conda
-# conda install -c conda-forge mshr
-
-#conda create -n default -c conda-forge python=3.6 numpy scipy cython matplotlib  mpi4py fenics=2019 mshr pymc3 mkl-service
-
-# mkl-service needed for pymc3
-
-#replicate previous environ where pymc3 worked
-#conda create -n redhat -c conda-forge python=3.7 numpy=1.15 scipy cython matplotlib=3.1  mpi4py fenics=2018 mshr pymc3=3.8 theano=1.0.4
-
-# install tools needed to generate documentation
-# conda install -c conda forge sphinx sphinx-gallery numpydoc sphinx-automodapi sphinx_rtd_theme
-
-#install torch with
-#conda install pytorch torchvision -c pytorch
-
-#install cvxopt with conda install -c conda-forge cvxopt
-
-#pip install -e .
-#pip install -e .[docs]
-
-#get code coverage of all directories
-#pytest --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/fenics_models/tests pyapprox/models pyapprox/benchmarks
-
-#get code coverage of one directory
-#pytest --cov-report term --cov=pyapprox pyapprox/tests/
-
-#to apply to a single file
-#pytest --cov-report term --cov=pyapprox pyapprox/tests/test_utilities.py
-#This will print code covarage of all functions in pyapprox that are accessed by
-#test_utilities
-#Use term-missing intead of term to get line numbers of missing coverage
-
-#create development environment
-#conda env create -f environment.yml
-
-#http://www.yamllint.com/ can be used to check syntax of yml files

@@ -666,6 +666,111 @@ class RectangularMeshPeriodicBoundary(dl.SubDomain):
         y[0] = x[0]
         y[1] = x[1]-self.Ly
 
+def get_vertices_of_polygon(ampothem,nedges):
+    assert np.issubdtype(type(nedges),np.integer)
+    circumradius = ampothem / np.cos(np.pi/nedges)
+    vertices = []
+    for t in np.linspace(0,2*np.pi,nedges+1)[:-1]+np.pi/nedges:
+        vertex = [circumradius*np.cos(t), circumradius*np.sin(t)]
+        vertices.append(vertex)
+    vertices = np.array(vertices).T
+    #print(vertices.T)
+    #plt.plot(vertices[0,:],vertices[1,:],'o-')
+    #plt.show()
+    return vertices
+
+
+def generate_polygonal_mesh(resolution,ampothem,nedges,radius,plot_mesh=False):
+    """
+    Sometimes segault is thrown when mshr.generate_mesh() is 
+    called. This is because resolution is to low to resolve
+    smaller inner-most circle.
+    """
+    import mshr
+    vertices = get_vertices_of_polygon(ampothem,nedges)
+
+    domain_vertices = []
+    for vertex in vertices.T:
+        domain_vertices.append(dl.Point(vertex[0],vertex[1]))
+        
+    domain = mshr.Polygon(domain_vertices)
+
+    cx1, cy1= 0.0, 0.0
+    circle1 = mshr.Circle(dl.Point(cx1, cy1), radius)
+    domain.set_subdomain(1, circle1)
+    cx2,cy2=cx1-radius/np.sqrt(8),cy1-radius/np.sqrt(8)
+    circle2 = mshr.Circle(dl.Point(cx2, cy2), radius/2)
+    domain.set_subdomain(2, circle2)
+    mesh = mshr.generate_mesh(domain, resolution)
+
+    if plot_mesh:
+        subdomains = dl.MeshFunction('size_t',mesh,mesh.topology().dim(),2)
+        subdomains.set_all(0)
+        subdomain1 = dl.AutoSubDomain(
+            lambda x: np.sqrt((x[0]-cx1)**2+(x[1]-cy1)**2) < radius+1e-8)
+        subdomain1.mark(subdomains,1)
+        subdomain2 = dl.AutoSubDomain(
+            lambda x: np.sqrt((x[0]-cx2)**2+(x[1]-cy2)**2) < radius/2+1e-8)
+        subdomain2.mark(subdomains,2)
+        dl.plot(mesh)
+        dl.plot(subdomains)
+        plt.show()
+        
+    return mesh
+
+def get_polygon_boundary_segments(ampothem,nedges,nsegments_per_edge=None,
+                                  cumulative_segment_sizes=None):
+    bndry_obj=[]
+    vertices = get_vertices_of_polygon(ampothem,nedges)
+    if cumulative_segment_sizes is None:
+        assert nsegments_per_edge is not None
+        cumulative_segment_sizes=np.arange(
+            1,nsegments_per_edge+1)/nsegments_per_edge
+    else:
+        assert (nsegments_per_edge is None or
+                nsegments_per_edge==len(cumulative_segment_sizes))
+        nsegments_per_edge=len(cumulative_segment_sizes)
+    x1,y1 = vertices[:,-1]
+    for ii in range(vertices.shape[1]):
+        x2,y2 = vertices[:,ii]
+        pt_begin,pt_end =  np.array([x1,y1]),np.array([x2,y2]);
+        pt_diff = pt_end-pt_begin
+        p1 = pt_begin
+        for jj in range(nsegments_per_edge):
+            #p2 = pt_begin+pt_diff*(jj+1)/nsegments_per_edge
+            p2 = pt_begin+pt_diff*cumulative_segment_sizes[jj]
+            bndry_seg = get_2d_bndry_segment(p1[0],p1[1],p2[0],p2[1])
+            bndry_obj.append(bndry_seg)
+            p1 = p2.copy()
+        x1,y1 = x2,y2
+    return bndry_obj
+
+def get_2d_bndry_segment(x1,y1,x2,y2):
+    """
+    Define boundary segment along the line between (x1,y1) and (x2,y2)
+    Assumes x1,y1 x2,y2 come in clockwise order
+    """
+    #print(dl.DOLFIN_EPS)
+    tol=1e-12
+    if abs(x2-x1)>tol and abs(y2-y1)>tol:
+        m = (y2-y1)/(x2-x1)
+        bndry = dl.CompiledSubDomain(
+            "near(x[1]-m*(x[0]-x1)-y1,0,tol)&&((m*(x[0]-x1)+y1)<std::max(y1,y2)+DOLFIN_EPS)&&((m*(x[0]-x1)+y1)>std::min(y1,y2)-DOLFIN_EPS)&&on_boundary",m=m,x1=x1,y1=y1,x2=x2,y2=y2,tol=tol)
+    elif abs(x2-x1)<tol:
+        I = np.argsort([y1,y2])
+        x1,x2 = np.array([x1,x2])[I]
+        y1,y2 = np.array([y1,y2])[I]
+        bndry  = dl.CompiledSubDomain(
+            "near(x[0],x1,tol)&&((x[1]-y1)>-DOLFIN_EPS)&&((x[1]-y2)<DOLFIN_EPS)&&on_boundary",x1=x1,y1=y1,y2=y2,tol=tol)   
+    else:
+        I = np.argsort([x1,x2])
+        x1,x2 = np.array([x1,x2])[I]
+        y1,y2 = np.array([y1,y2])[I]
+        bndry  = dl.CompiledSubDomain(
+            "near(x[1],y1,tol)&&((x[0]-x1)>-DOLFIN_EPS)&&((x[0]-x2)<DOLFIN_EPS)&&on_boundary",y1=y1,x1=x1,x2=x2,tol=tol)   
+        
+    return bndry
+
 """
 NOTES
 If we want to set Dirichlet conditions for individual components of the

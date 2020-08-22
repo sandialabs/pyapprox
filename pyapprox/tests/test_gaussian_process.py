@@ -11,7 +11,7 @@ class TestGaussianProcess(unittest.TestCase):
     
     def test_integrate_gaussian_process_gaussian(self):
 
-        nvars=1
+        nvars=2
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         mu_scalar,sigma_scalar=3,1
@@ -20,7 +20,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.norm(mu_scalar,sigma_scalar)]*nvars
         variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
-        lb,ub = univariate_variables[0].interval(0.999)
+        lb,ub = univariate_variables[0].interval(0.99999)
 
         ntrain_samples = 20
         
@@ -61,7 +61,7 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.show()
 
 
-        expected_random_mean, variance_random_mean=integrate_gaussian_process(
+        expected_random_mean, variance_random_mean, expected_random_var=integrate_gaussian_process(
             gp,variable)
 
         true_mean = nvars*(sigma_scalar**2+mu_scalar**2)
@@ -115,6 +115,14 @@ class TestGaussianProcess(unittest.TestCase):
 
         assert ((true_mean>expected_random_mean-3*std_random_mean) and 
                 (true_mean<expected_random_mean+3*std_random_mean))
+        #(x^2+y^2)^2=x_1^4+x_2^4+2x_1^2x_2^2
+        #first term below is sum of x_i^4 terms
+        #second term is um of 2x_i^2x_j^2
+        #third term is mean x_i^2
+        true_var = nvars*(mu_scalar**4+6*mu_scalar**2*sigma_scalar**2+3*sigma_scalar**2)+2*pya.nchoosek(nvars,2)*(mu_scalar**2+sigma_scalar**2)**2-true_mean**2
+        print('True var',true_var)
+        print('Expected random var',expected_random_var)
+        assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
     def test_integrate_gaussian_process_uniform(self):
         np.random.seed(1)
@@ -138,10 +146,11 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(-1,2)]
         variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
-        expected_random_mean, variance_random_mean=integrate_gaussian_process(
+        expected_random_mean, variance_random_mean, expected_random_var=integrate_gaussian_process(
             gp,variable)
 
         true_mean = 1/3
+        true_var = 1/5-1/3**2
         
         print('True mean',true_mean)
         print('Expected random mean',expected_random_mean)
@@ -151,10 +160,14 @@ class TestGaussianProcess(unittest.TestCase):
         print('Expected random mean +/- 3 stdev',
               [expected_random_mean-3*std_random_mean,
                expected_random_mean+3*std_random_mean])
-        assert abs(true_mean-expected_random_mean)<1e-4
+        assert np.allclose(true_mean,expected_random_mean,rtol=1e-4)
 
         assert ((true_mean>expected_random_mean-3*std_random_mean) and 
                 (true_mean<expected_random_mean+3*std_random_mean))
+        
+        print('True var',true_var)
+        print('Expected random var',expected_random_var)
+        assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
 if __name__== "__main__":    
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(
