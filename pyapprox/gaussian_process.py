@@ -156,6 +156,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     
     length_scale = np.atleast_1d(length_scale)
     T,U=1,1
+    P=np.ones((X_train.shape[1],X_train.shape[1]))
     from scipy.spatial.distance import cdist
     quad_points = []
     for ii in range(nvars):
@@ -171,6 +172,11 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         K = np.exp(-.5*dists)
         # T in Haylock is defined without kernel_var
         T*=ww.dot(K)
+
+        for mm in range(X_train.shape[1]):
+            for nn in range(mm,X_train.shape[1]):
+                P[mm,nn]*=ww.dot(K[:,mm]*K[:,nn])
+                P[nn,mm]=P[mm,nn]
         
         XX = cartesian_product([xx]*2)
         WW = outer_product([ww]*2)
@@ -184,4 +190,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     expected_random_mean = T.dot(A_inv.dot(Y_train))
 
     variance_random_mean = kernel_var*(U-T.dot(A_inv).dot(T.T))
-    return expected_random_mean, variance_random_mean
+
+    expected_random_var = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)+kernel_var*(1-np.trace(A_inv.dot(P)))-expected_random_mean**2-variance_random_mean
+
+    return expected_random_mean, variance_random_mean, expected_random_var
