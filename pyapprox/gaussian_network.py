@@ -569,9 +569,18 @@ def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
     All list arguments must contain high-fidelity info in last entry
     """
     graph = nx.DiGraph()
+    nnodes = len(prior_covs)
+    if model_labels is None:
+        model_labels = [f'M{ii}' for ii in range(nnodes)]
+    assert len(model_labels)==nnodes
+    cpd_mats  = [None]+[
+        cpd_scales[ii]*np.eye(nparams[ii+1],nparams[ii])
+        for ii in range(nnodes-1)]
+    prior_means = np.zeros(nnodes)
+    
     for ii in range(nnodes-1):
         graph.add_node(
-            ii,label=node_labels[ii],
+            ii,label=model_labels[ii],
             cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
             nparams=nparams[ii],cpd_mat=cpd_mats[ii],
             cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
@@ -580,7 +589,7 @@ def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
     cov=np.eye(nparams[ii])*max(1e-8,prior_covs[ii]-np.dot(
         np.asarray(cpd_scales)**2,prior_covs[:ii]))
     graph.add_node(
-        ii,label=node_labels[ii],cpd_cov=cov,nparams=nparams[ii],
+        ii,label=model_labels[ii],cpd_cov=cov,nparams=nparams[ii],
         cpd_mat=cpd_mats[ii],
         cpd_mean=(prior_means[ii]-np.dot(cpd_scales[:ii],prior_means[:ii]))*\
         np.ones((nparams[ii],1)))
@@ -612,7 +621,7 @@ def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
     # for ii in range(nmodels-1):
     #     graph.add_edge(ii, nmodels-1, cpd_scale=cpd_scales[ii])
 
-    network = BayesianNetwork(graph)
+    network = GaussianNetwork(graph)
     return network
 
 def nonlinear_constraint_peer(covs,scales):
