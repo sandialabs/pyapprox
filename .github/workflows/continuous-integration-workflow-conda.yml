@@ -30,12 +30,13 @@ jobs:
     - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
       uses: goanpeca/setup-miniconda@v1
       with:
+      
         activate-environment: pyapprox-dev
         python-version: ${{ matrix.python-version }}
         channels: defaults,conda-forge
         environment-file: environment.yml
-        use-only-tar-bz2: true
-        auto-update-conda: true
+	auto-update-conda: true
+#       use-only-tar-bz2: true
         auto-activate-base: false
     - name: Conda list
       shell: bash -l {0} # - l {0} is needed to activate created env
