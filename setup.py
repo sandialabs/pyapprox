@@ -74,9 +74,7 @@ setuptools.setup(
         'scikit-learn',
         'pytest-cov',
         'pytest',
-        'networkx',
-        #'MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master'
-        'active_subspaces @ https://github.com/paulcon/active_subspaces@master'
+        'networkx'
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
