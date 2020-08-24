@@ -34,6 +34,15 @@ class GaussianProcess(GaussianProcessRegressor):
         """
         return self.predict(samples.T,return_std,return_cov)
 
+    def predict_random_realization(self,samples):
+        mean,cov = self(samples,return_cov=True)
+        #add small number to diagonal to ensure covariance matrix is positive definite
+        cov[np.arange(cov.shape[0]),np.arange(cov.shape[0])]+=1e-14
+        L = np.linalg.cholesky(cov)
+        return mean + L.dot(np.random.normal(0,1,mean.shape))
+        
+        
+
 def is_covariance_kernel(kernel,kernel_types):
     return (type(kernel) in kernel_types)
 
@@ -192,5 +201,14 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     variance_random_mean = kernel_var*(U-T.dot(A_inv).dot(T.T))
 
     expected_random_var = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)+kernel_var*(1-np.trace(A_inv.dot(P)))-expected_random_mean**2-variance_random_mean
+
+    # #[C]
+    # C=variance_random_mean/kernel_var
+    # #[M]
+    # M=T.dot(A_inv.dot(Y_train))
+    # #[M^2]
+    # M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
+    # #[V]
+    # V = (1-np.trace(A_inv.dot(P)))
 
     return expected_random_mean, variance_random_mean, expected_random_var

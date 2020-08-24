@@ -129,7 +129,7 @@ class TestGaussianProcess(unittest.TestCase):
         nvars=1
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        ntrain_samples = 10
+        ntrain_samples = 7
         train_samples = np.linspace(-1,1,ntrain_samples)[np.newaxis,:]
         train_vals = func(train_samples)
 
@@ -154,21 +154,44 @@ class TestGaussianProcess(unittest.TestCase):
         
         print('True mean',true_mean)
         print('Expected random mean',expected_random_mean)
-        print(variance_random_mean)
         std_random_mean = np.sqrt(variance_random_mean)
+        print('Variance random mean',variance_random_mean)
         print('Stdev random mean',std_random_mean)
         print('Expected random mean +/- 3 stdev',
               [expected_random_mean-3*std_random_mean,
                expected_random_mean+3*std_random_mean])
-        assert np.allclose(true_mean,expected_random_mean,rtol=1e-4)
+        assert np.allclose(true_mean,expected_random_mean,rtol=1e-2)
 
-        assert ((true_mean>expected_random_mean-3*std_random_mean) and 
-                (true_mean<expected_random_mean+3*std_random_mean))
-        
         print('True var',true_var)
         print('Expected random var',expected_random_var)
-        assert np.allclose(expected_random_var,true_var,rtol=1e-3)
+        assert np.allclose(expected_random_var,true_var,rtol=1e-2)
 
+        nsamples = 1000
+        random_means = []
+        xx,ww=pya.gauss_jacobi_pts_wts_1D(100,0,0)
+        quad_points = pya.cartesian_product([xx]*nvars)
+        quad_weights = pya.outer_product([ww]*nvars)
+        for ii in range(nsamples):
+            vals = gp.predict_random_realization(quad_points)[:,0]
+            random_means.append(vals.dot(quad_weights))
+
+        print('MC expected random mean',np.mean(random_means))
+        print('MC variance random mean',np.var(random_means))
+        assert np.allclose(np.mean(random_means),expected_random_mean,rtol=1e-2)
+        assert np.allclose(np.var(random_means),variance_random_mean,rtol=1e-2)
+            
+        
+        # xx=np.linspace(-1,1,101)
+        # plt.plot(xx,func(xx[np.newaxis,:]))
+        # gp_mean,gp_std = gp(xx[np.newaxis,:],return_std=True)
+        # gp_mean = gp_mean[:,0]
+        # plt.plot(xx,gp_mean)
+        # plt.plot(train_samples[0,:],train_vals[:,0],'o')
+        # plt.fill_between(xx,gp_mean-2*gp_std,gp_mean+2*gp_std,alpha=0.5)
+        # vals = gp.predict_random_realization(xx[np.newaxis,:])
+        # plt.plot(xx,vals)
+        # plt.show()
+        
 if __name__== "__main__":    
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
