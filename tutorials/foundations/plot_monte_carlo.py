@@ -132,3 +132,32 @@ _ = plt.colorbar(cset,ax=ax)
 
 #%%
 #As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
+
+#%%
+#We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
+ntrials=1000
+m0_means = np.empty((ntrials,1))
+for ii in range(ntrials):
+    samples = pya.generate_independent_random_samples(
+        variable,nsamples)
+    values = model.m0(samples)
+    m0_means[ii] = values[:10].mean()
+
+fig,ax = plt.subplots()
+textstr = '\n'.join([r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$'%means[:,0].mean(),
+                     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$'%means[:,0].var(),
+                     r'$\mathbb{E}[Q_{0,10}]=\mathrm{%.2e}$'%m0_means[:,0].mean(),
+                     r'$\mathbb{V}[Q_{0,10}]=\mathrm{%.2e}$'%m0_means[:,0].var()])
+ax.hist(means[:,0],bins=ntrials//100,density=True)
+ax.hist(m0_means[:,0],bins=ntrials//100,density=True,alpha=0.5)
+ax.axvline(x=shifts[0],c='r',label=r'$\mathbb{E}[Q_1]$')
+ax.axvline(x=0,c='k',label=r'$\mathbb{E}[Q_0]$')
+props = {'boxstyle':'round','facecolor':'white','alpha':1}
+ax.text(0.65,0.8,textstr,transform=ax.transAxes,bbox=props)
+ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
+ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
+_ = ax.legend(loc='upper left')
+#plt.show()
+
+#%%
+#In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.

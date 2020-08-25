@@ -1476,3 +1476,42 @@ def evaluate_quadratic_form(matrix,samples):
         Evaluations of the quadratic form for each vector x
     """
     return (samples.T.dot(matrix)*samples.T).sum(axis=1)
+
+def split_dataset(samples,values,ndata1):
+    """
+    Split a data set into two sets.
+
+    Parameters
+    ----------
+    samples : np.ndarray (nvars,nsamples)
+        The samples to be split
+
+    values : np.ndarray (nsamples,nqoi)
+        Values of the data at ``samples``
+
+    ndata1 : integer
+        The number of samples allocated to the first split. All remaining
+        samples will be added to the second split.
+
+    Returns
+    -------
+    samples1 : np.ndarray (nvars,ndata1)
+        The samples of the first split data set
+
+    values1 : np.ndarray (nvars,ndata1)
+        The values of the first split data set
+
+    samples2 : np.ndarray (nvars,ndata1)
+        The samples of the first split data set
+
+    values2 : np.ndarray (nvars,ndata1)
+        The values of the first split data set
+    """
+    assert ndata1<=samples.shape[1]
+    assert values.shape[0]==samples.shape[1]
+    I = np.random.permutation(samples.shape[1])
+    samples1 = samples[:,I[:ndata1]]
+    samples2 = samples[:,I[ndata1:]]
+    values1 = values[I[:ndata1],:]
+    values2 = values[I[ndata1:],:]
+    return samples1,samples2,values1,values2

@@ -9,7 +9,7 @@ try:
     has_ipopt = True
 except:
     has_ipopt = False
-print('has_ipopt',has_ipopt)
+#print('has_ipopt',has_ipopt)
 
 def get_method(options):
     method = options.get('method','slsqp')

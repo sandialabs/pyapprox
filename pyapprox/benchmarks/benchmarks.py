@@ -355,6 +355,8 @@ try:
         setup_advection_diffusion_benchmark,\
         setup_advection_diffusion_source_inversion_benchmark,\
         setup_multi_level_advection_diffusion_benchmark
+    from pyapprox.fenics_models.helmholtz_benchmarks import \
+        setup_mfnets_helmholtz_benchmark
 except:
     pass
 
@@ -371,7 +373,8 @@ def setup_benchmark(name,**kwargs):
         fenics_benchmarks={
             'multi_index_advection_diffusion':setup_advection_diffusion_benchmark,
             'multi_index_advection_diffusion_source_inversion':setup_advection_diffusion_source_inversion_benchmark,
-            'multi_level_advection_diffusion':setup_multi_level_advection_diffusion_benchmark}
+            'multi_level_advection_diffusion':setup_multi_level_advection_diffusion_benchmark,
+            'mfnets_helmholtz':setup_mfnets_helmholtz_benchmark}
         benchmarks.update(fenics_benchmarks)
     except:
         pass
