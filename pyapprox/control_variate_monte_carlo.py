@@ -1357,6 +1357,13 @@ class ACVMF(object):
             return rsquared
 
     def variance_reduction(self,nsample_ratios):
+        """
+        This is not the variance reduction relative to the equivalent
+        Monte Carlo estimator. A variance reduction can be smaller than
+        one and still correspond to a multi-fidelity estimator that
+        has a larger variance than the single fidelity Monte Carlo 
+        that uses the equivalent number of high-fidelity samples
+        """
         return 1-self.get_rsquared(nsample_ratios)
 
     def objective(self,x):
@@ -1373,7 +1380,7 @@ class ACVMF(object):
         return np.concatenate([[nhf_samples],nsample_ratios*nhf_samples])
 
     def get_variance(self,nhf_samples,nsample_ratios):
-        gamma = (1-self.get_rsquared(nsample_ratios))
+        gamma = self.variance_reduction(nsample_ratios)
         return gamma*self.get_covariance()[0,0]/nhf_samples
 
     def generate_data(self,nhf_samples,nsample_ratios,generate_samples,
@@ -1449,11 +1456,16 @@ class ACVMFKLBest(ACVMF):
 
 
 class MFMC(ACVMF):
+    def __init__(self,cov,costs):
+        super().__init__(cov, costs)
+    
     def get_rsquared(self,nsample_ratios):
-        return get_rsquared_mfmc(self.cov,nsample_ratios)
+        rsquared =  get_rsquared_mfmc(self.get_covariance(),nsample_ratios)
+        return rsquared
 
     def allocate_samples(self,target_cost):
-        return allocate_samples_mfmc(self.cov, self.costs, target_cost)
+        return allocate_samples_mfmc(
+            self.get_covariance(), self.costs, target_cost)
 
 
 class MLMC(ACVMF):
@@ -1478,7 +1490,10 @@ class MLMC(ACVMF):
             pkg=torch
         else:
             pkg=np
-        return get_rsquared_mlmc(self.cov,nsample_ratios,pkg)
+        rsquared = get_rsquared_mlmc(self.cov,nsample_ratios,pkg)
+        if use_torch:
+            rsquared=rsquared.numpy()
+        return rsquared
 
     def allocate_samples(self,target_cost):
         return allocate_samples_mlmc(self.cov, self.costs, target_cost)

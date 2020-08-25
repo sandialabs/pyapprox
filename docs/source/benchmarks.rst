@@ -46,5 +46,7 @@ Multi-fidelity Modeling
 -----------------------
 :func:`pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark`
 :func:`pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark`
+:func:`pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark`
+
 
 

@@ -16,6 +16,9 @@
 .. automodapi:: pyapprox.fenics_models.advection_diffusion_wrappers
    :no-heading:
 
+.. automodapi:: pyapprox.fenics_models.helmholtz_benchmarks
+   :no-heading:
+
 .. automodapi:: pyapprox.multivariate_polynomials
    :no-heading:		
 
