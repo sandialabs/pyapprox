@@ -1264,6 +1264,7 @@ class GaussianFactor(object):
 
 
     def condition(self,data_ids,data):
+        print(self.var_ids)
         # Find array indices of any data_ids found in self.var_ids. 
         relevant_data_ids,relevant_data_indices,relevant_var_indices = \
             np.intersect1d(data_ids,self.var_ids,return_indices=True)
