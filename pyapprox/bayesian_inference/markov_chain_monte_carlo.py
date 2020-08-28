@@ -12,9 +12,8 @@ class GaussianLogLike(object):
     """
     def __init__(self,model,data,noise_covar):
         r"""
-        Initialise the Op with various things that our log-likelihood function
-        requires. Below are the things that are needed in this particular
-        example.
+        Initialise the Op with various things that our log-likelihood 
+        function requires.
 
         Parameters
         ----------
@@ -24,7 +23,7 @@ class GaussianLogLike(object):
         data : np.ndarray (nobs)
             The "observed" data
 
-        noise_covar : float
+        noise_covar : float, np.ndarray (nobs), np.ndarray (nobs,nobs)
             The noise covariance
         """
         self.model=model
@@ -63,19 +62,20 @@ class GaussianLogLike(object):
         vals = np.empty((model_vals.shape[0],1))
         for ii in range(model_vals.shape[0]):
             residual = self.data - model_vals[ii,:]
-            if np.isscalar(self.noise_covar_inv) or self.noise_covar_inv.ndim==1:
-                vals[ii] = (residual.T*self.noise_covar_inv).dot(residual)
+            if (np.isscalar(self.noise_covar_inv) or
+                self.noise_covar_inv.ndim==1):
+                vals[ii]=(residual.T*self.noise_covar_inv).dot(residual)
             else:
-                vals[ii] = residual.T.dot(self.noise_covar_inv).dot(residual)
+                vals[ii]=residual.T.dot(self.noise_covar_inv).dot(residual)
         vals *= -0.5
         return vals
 
 class LogLike(tt.Op):
     r"""
-    Specify what type of object will be passed and returned to the Op when it is
-    called. In our case we will be passing it a vector of values (the parameters
-    that define our model) and returning a single "scalar" value (the
-    log-likelihood)
+    Specify what type of object will be passed and returned to the Op 
+    when it is called. In our case we will be passing it a vector of 
+    values (the parameters that define our model) and returning a 
+    single "scalar" value (the log-likelihood)
     """
     itypes = [tt.dvector] # expects a vector of parameter values when called
     otypes = [tt.dscalar] # outputs a single scalar value (the log likelihood)
@@ -124,8 +124,8 @@ class LogLikeWithGrad(LogLike):
 class LogLikeGrad(tt.Op):
 
     r"""
-    This Op will be called with a vector of values and also return a vector of
-    values - the gradients in each dimension.
+    This Op will be called with a vector of values and also return a 
+    vector of values - the gradients in each dimension.
     """
     itypes = [tt.dvector]
     otypes = [tt.dvector]
@@ -152,7 +152,8 @@ class LogLikeGrad(tt.Op):
             # derivative function
             def lnlike(values):
                 return self.likelihood(values)
-            grads = approx_fprime(samples,lnlike,2*np.sqrt(np.finfo(float).eps))
+            grads = approx_fprime(
+                samples,lnlike,2*np.sqrt(np.finfo(float).eps))
         else:
             grads = self.likelihood_grad(samples)
         outputs[0][0] = grads
@@ -187,13 +188,15 @@ def get_pymc_variables(variables,pymc_var_names=None):
     assert len(pymc_var_names)==nvars
     pymc_vars = []
     for ii in range(nvars):
-        pymc_vars.append(get_pymc_variable(variables[ii],pymc_var_names[ii]))
+        pymc_vars.append(
+            get_pymc_variable(variables[ii],pymc_var_names[ii]))
     return pymc_vars, pymc_var_names
 
 def get_pymc_variable(rv,pymc_var_name):
     name, scales, shapes = get_distribution_info(rv)
     if rv.dist.name=='norm':
-        return pm.Normal(pymc_var_name,mu=scales['loc'],sigma=scales['scale'])
+        return pm.Normal(
+            pymc_var_name,mu=scales['loc'],sigma=scales['scale'])
     if rv.dist.name=='uniform':        
         return pm.Uniform(pymc_var_name,lower=scales['loc'],
                           upper=scales['loc']+scales['scale'])
@@ -205,12 +208,14 @@ def run_bayesian_inference_gaussian_error_model(
         algorithm='nuts',get_map=False,print_summary=False,loglike_grad=None,
         seed=None):
     r"""
-    Draw samples from the posterior distribution using Markov Chain Monte Carlo
-    for data that satisfies
+    Draw samples from the posterior distribution using Markov Chain Monte 
+    Carlo for data that satisfies
 
     .. math:: y=f(z)+\epsilon
 
-    where :math:`y` is a vector of observations, :math:`z` are the parameters of a function which are to be inferred, and :math:`\epsilon` is Gaussian noise.
+    where :math:`y` is a vector of observations, :math:`z` are the 
+    parameters of a function which are to be inferred, and :math:`\epsilon`
+    is Gaussian noise.
 
     Parameters
     ----------
@@ -287,9 +292,10 @@ def run_bayesian_inference_gaussian_error_model(
             elif algorithm=='nuts':
                 step=pm.NUTS(pymc_variables)
             
-            trace = pm.sample(ndraws, tune=nburn, discard_tuned_samples=True,
-                              start=None,cores=njobs,step=step,
-                              compute_convergence_checks=False,random_seed=seed)
+            trace = pm.sample(
+                ndraws, tune=nburn, discard_tuned_samples=True,
+                start=None,cores=njobs,step=step,
+                compute_convergence_checks=False,random_seed=seed)
             # compute_convergence_checks=False avoids bugs in theano
             
         if print_summary:
@@ -298,7 +304,7 @@ def run_bayesian_inference_gaussian_error_model(
             except:
                 print('could not print summary. likely issue with theano')
         
-        samples, effective_sample_size = extract_mcmc_chain_from_pymc3_trace(
+        samples, effective_sample_size=extract_mcmc_chain_from_pymc3_trace(
             trace,pymc_var_names,ndraws,nburn,njobs)
     
         if get_map:

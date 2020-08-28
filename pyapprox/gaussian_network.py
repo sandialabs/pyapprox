@@ -7,7 +7,7 @@ def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
                              evidence_ids=None):
     """
     Get the ids of variables in a network which are not being queried.
-    This function will always exclude from elimiation any ids which are in 
+    This function will always exclude from elimination any ids which are in 
     evidence_ids.
 
     Parameters
@@ -221,10 +221,20 @@ def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_fun
     graph.add_edges_from(
         [(ii,ii+1,{'cpd_scale':cpd_scales[ii]}) for ii in range(nmodels-1)])
 
-    network = BayesianNetwork(graph)
+    network = GaussianNetwork(graph)
     return network
 
 class GaussianNetwork(object):
+    """
+    Notes
+    -----
+    Currently only entire (dataless) nodes can be marginalized.
+    self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number 
+    of nodes (variable indexing starts at 0). k<= number of vars associated 
+    with dataless nodes. For example if k=2 and each node has two 
+    vars number of dataless variables is 4, yet self.evidence_ids starts at 2.
+    """
+    
     def __init__(self, graph):
         self.graph=copy.deepcopy(graph)
         self.construct_dataless_network()
@@ -304,6 +314,8 @@ class GaussianNetwork(object):
         # retain copy of old dataless graph
         dataless_graph = copy.deepcopy(self.graph)
         kk = len(self.graph.nodes)
+        dataless_nodes_nvars = np.sum(self.node_nvars)
+        #jj=dataless_nodes_nvars
         jj=kk
         for ii in dataless_graph.nodes:
             assert data_cpd_mats[ii].shape[1]==self.graph.nodes[ii]['nparams']
@@ -322,6 +334,7 @@ class GaussianNetwork(object):
             self.node_var_ids.append(np.arange(jj,jj+self.ndata[ii]))
             jj+=self.ndata[ii]
             kk+=1
+        #self.evidence_ids = np.arange(dataless_nodes_nvars,jj)
         self.evidence_ids = np.arange(len(dataless_graph.nodes),jj)
 
     def assemble_evidence(self,data):
@@ -488,6 +501,7 @@ def sum_product_eliminate_variable(factors, var_id_to_eliminate):
     # Get list of factors which contain the variable to eliminate
     fp,fpp = [],[]
     for factor in factors:
+        print('f',factor.var_ids)
         if var_id_to_eliminate in factor.var_ids:
             fp.append(factor)
         else:
@@ -531,7 +545,7 @@ def sum_product_variable_elimination(factors,var_ids_to_eliminate):
 
     assert len(fup) > 0, "no factors left after elimination"
     assert len(fup[0].var_ids) != 0, "factor k = {0}".format(
-        factor_ret.precision_matrix)
+        fup[0].precision_matrix)
 
     factor_ret = fup[0]
     #print('f[0].K\n',factor_ret.precision_matrix,factor_ret.var_ids)
@@ -548,7 +562,7 @@ def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
     """
     eliminate_ids = get_var_ids_to_eliminate(
         network.node_ids,network.node_labels,query_labels,evidence_ids)
-    print(eliminate_ids)
+    print(query_labels,network.node_labels,eliminate_ids)#,network.evidence_ids)
 
     factors = copy.deepcopy(network.factors)
 
@@ -995,3 +1009,26 @@ def set_polynomial_ensemble_coef_from_flattened(polys,coefs):
         polys[ii].set_coefficients(coefs[idx1:idx2])
         idx1=idx2
     return polys
+
+def plot_3_node_fully_connected_network(ax,labels_str=None):
+    nmodels = 3
+    options={'node_size':2000,'width':3,'arrowsize':20,'ax':ax}
+    coords = list(itertools.product(
+        np.linspace(-(nmodels-1)/64,(nmodels-1)/64,nmodels-1),[0]))
+    coords += [[0,1/16]]
+    pos = dict(zip(np.arange(nmodels,dtype=int),coords))
+
+    graph = nx.DiGraph()
+    for ii in range(nmodels):
+        graph.add_node(ii)
+        
+    for ii in range(nmodels-1):
+        graph.add_edge(ii, nmodels-1)
+
+    graph.add_edge(0,1)
+    
+    nx.draw(graph,pos,**options)
+    if labels_str is None:
+        labels_str=[r'$\theta_{%d}$'%(ii+1) for ii in range(nmodels)]
+    labels=dict(zip(np.arange(nmodels,dtype=int),labels_str))
+    nx.draw_networkx_labels(graph, pos, labels, font_size=20, ax=ax)
