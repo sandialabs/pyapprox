@@ -119,7 +119,7 @@ plot_1d_lvn_approx(xx,nmodels,polys[2].basis_matrix,hf_posterior,hf_prior,
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
 plt.plot(xx,f3(xx),'k',label=r'$f_3$')
-plt.show()
+#plt.show()
 
 #%%
 #Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
@@ -173,7 +173,7 @@ prior_cov=np.vstack(rows)
 # Plot the structure of the prior covariance
 fig, axs = plt.subplots(1,1,figsize=(8,6))
 plt.spy(prior_cov,cmap='coolwarm')
-plt.show()
+#plt.show()
 
 #%% Now lets compute the posterior distribution and plot the resulting approximations
 post_mean,post_cov = laplace_posterior_approximation_for_linear_models(
@@ -194,7 +194,7 @@ plot_1d_lvn_approx(xx,nmodels,polys[2].basis_matrix,hf_posterior,hf_prior,
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
 plt.plot(xx,f3(xx),'k',label=r'$f_3$')
-plt.show()
+#plt.show()
 
 #%%
 #Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.
@@ -213,9 +213,9 @@ plt.show()
 #
 
 nmodels=3
-f1 = lambda x: np.cos(3*np.pi*x[0,:]+0.1*x[1,:])
-f2 = lambda x: np.exp(-(x-.5)**2/0.5)
-f3 = lambda x: f2(x)+np.cos(3*np.pi*x)
+f1 = lambda x: np.cos(3*np.pi*x[0,:]+0.1*x[1,:])[:,np.newaxis]
+f2 = lambda x: np.exp(-(x-.5)**2/0.5).T
+f3 = lambda x: f2(x)+np.cos(3*np.pi*x).T
 functions = [f1,f2,f3]
 
 ensemble_univariate_variables=[[stats.uniform(0,1)]*2]+[[stats.uniform(0,1)]]*2
@@ -235,90 +235,129 @@ s11,s22,s33=[1]*nmodels
 a31,a32=[0.7]*(nmodels-1)
 cpd_scales=[a31,a32]
 prior_covs=[s11,s22,s33]
+
+nnodes = 3
+graph = nx.DiGraph()
+prior_covs = [1,1,1]
+prior_means = [0,0,0]
+cpd_scales  =[a31,a32]
+node_labels = [f'Node_{ii}' for ii in range(nnodes)]
+cpd_mats  = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
+             cpd_scales[1]*np.eye(nparams[2],nparams[1])]
+
+ii=0
+graph.add_node(
+    ii,label=node_labels[ii],cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
+    nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+    cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
+for ii in range(1,nnodes):
+    cpd_mean = np.ones((nparams[ii],1))*(
+        prior_means[ii]-cpd_scales[ii-1]*prior_means[ii-1])
+    cpd_cov = np.eye(nparams[ii])*max(
+        1e-8,prior_covs[ii]-cpd_scales[ii-1]**2*prior_covs[ii-1])
+    graph.add_node(ii,label=node_labels[ii],cpd_cov=cpd_cov,
+                   nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+                   cpd_mean=cpd_mean)
+
+graph.add_edges_from([(ii,ii+1) for ii in range(nnodes-1)])
+network = GaussianNetwork(graph)
 # network = build_peer_polynomial_network(
 #     prior_covs,cpd_scales,basis_matrix_funcs,nparams)
 
-# #%%
-# #We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
-# network.convert_to_compact_factors()
-# labels = [l[1] for l in network.graph.nodes.data('label')]
-# factor_prior = cond_prob_variable_elimination(
-#     network,labels)
-# prior_mean,prior_cov = convert_gaussian_from_canonical_form(
-#     factor_prior.precision_matrix,factor_prior.shift)
-# print(prior_cov)
+#%%
+#We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
+network.convert_to_compact_factors()
+labels = [l[1] for l in network.graph.nodes.data('label')]
+factor_prior = cond_prob_variable_elimination(
+    network,labels)
+prior = convert_gaussian_from_canonical_form(
+    factor_prior.precision_matrix,factor_prior.shift)
+#print('Prior covariance',prior[1])
 
-# #To infer the uncertain coefficients we must add training data to the network.
-# nsamples = [10,10,2]
-# samples_train = [pya.generate_independent_random_samples(p.var_trans.variable,n)
-#            for p,n in zip(polys,nsamples)]
-# noise_std=[0.01]*nmodels
-# noise = [noise_std[ii]*np.random.normal(
-#     0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
-# values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
-# network.add_data_to_network(samples_train,np.array(noise_std)**2)
+#To infer the uncertain coefficients we must add training data to the network.
+nsamples = [10,10,2]
+samples_train = [pya.generate_independent_random_samples(p.var_trans.variable,n)
+           for p,n in zip(polys,nsamples)]
+noise_std=[0.01]*nmodels
+noise = [noise_std[ii]*np.random.normal(
+    0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
+values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
+print(values_train[0].shape,functions[0](samples_train[0]).shape,samples_train[0].shape)
+
+data_cpd_mats=[
+    b(s) for b,s in zip(basis_matrix_funcs,samples_train)]
+data_cpd_vecs=[np.zeros(nsamples[ii]) for ii in range(nmodels)]
+noise_covs=[np.eye(nsamples[ii])*noise_std[ii]**2
+            for ii in range(nnodes)]
+
+network.add_data_to_network(data_cpd_mats,data_cpd_vecs,noise_covs)
 # fig,ax = plt.subplots(1,1,figsize=(8,5))
 # plot_peer_network_with_data(network.graph,ax)
 # plt.show()
 
 
 
-# #For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
-# #
-# #.. math:: \mathbb{P}(\theta_3\mid \theta_1,\theta_2) \sim \mathcal{N}\left(A_{31}\theta_1+A_{32}\theta_2+b_3,\Sigma_{v3}\right),
-# #
-# #with :math:`b_3=0`.
-# #
-# #We refer to a Gaussian network based upon this DAG as a peer network. Consider the case where a high fidelity simulation model incorporates two sets of active physics, and the two low-fidelity peer models each contain one of these components. If the high-fidelity model is given, then the low-fidelity models are no longer independent of one another. In other words, information about the parameters used in one set of physics will inform the other set of physics because they are coupled together in a known way through the high-fidelity model.
-# #
-# #The joint density of the network is given by
-# #
-# #.. math:: \mathbb{P}(\theta_1,\theta_2,\theta_3)=\mathbb{P}(\theta_3\mid \theta_1,\theta_2)\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)
+#For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
+#
+#.. math:: \mathbb{P}(\theta_3\mid \theta_1,\theta_2) \sim \mathcal{N}\left(A_{31}\theta_1+A_{32}\theta_2+b_3,\Sigma_{v3}\right),
+#
+#with :math:`b_3=0`.
+#
+#We refer to a Gaussian network based upon this DAG as a peer network. Consider the case where a high fidelity simulation model incorporates two sets of active physics, and the two low-fidelity peer models each contain one of these components. If the high-fidelity model is given, then the low-fidelity models are no longer independent of one another. In other words, information about the parameters used in one set of physics will inform the other set of physics because they are coupled together in a known way through the high-fidelity model.
+#
+#The joint density of the network is given by
+#
+#.. math:: \mathbb{P}(\theta_1,\theta_2,\theta_3)=\mathbb{P}(\theta_3\mid \theta_1,\theta_2)\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)
 
-# #convert_to_compact_factors must be after add_data when doing inference
-# network.convert_to_compact_factors()
-# evidence, evidence_ids = network.assemble_evidence(values_train)
-# factor_post = cond_prob_variable_elimination(
-#     network,labels,evidence_ids=evidence_ids,evidence=evidence)    
-# #post_mean,post_cov = convert_gaussian_from_canonical_form(
-# #    factor_post.precision_matrix,factor_post.shift)
-# print(prior_cov)
-# print(post_cov,'post_cov')
+#convert_to_compact_factors must be after add_data when doing inference
+network.convert_to_compact_factors()
+labels = ['Node_2']
+evidence, evidence_ids = network.assemble_evidence(values_train)
+factor_post = cond_prob_variable_elimination(
+    network,labels,evidence_ids=evidence_ids,evidence=evidence)
+hf_posterior = convert_gaussian_from_canonical_form(
+    factor_post.precision_matrix,factor_post.shift)
+factor_prior = cond_prob_variable_elimination(
+    network,labels)
+hf_prior = convert_gaussian_from_canonical_form(
+    factor_prior.precision_matrix,factor_prior.shift)
+print(nparams,hf_posterior[1].shape,hf_prior[1].shape)
 
-# #assert False
+#print(prior_cov)
+#print(post_cov,'post_cov')
 
-
-# hf_prior=(prior_mean[nparams[:-1].sum():],
-#           prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
-# hf_posterior=(post_mean[nparams[:-1].sum():],
-#               post_cov[nparams[:-1].sum():,nparams[:-1].sum():])
-# xx=np.linspace(0,1,101)
-# fig,axs=plt.subplots(1,1,figsize=(8,6))
-# plot_1d_lvn_approx(xx,nmodels,polys[2].basis_matrix,hf_posterior,hf_prior,
-#                    axs,samples_train,values_train,None,[0,1])
-# axs.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
-# plt.show()
-
-# polys = set_polynomial_ensemble_coef_from_flattened(polys,post_mean)
-# #assert False
-
-# xx=np.linspace(0,1,1101)
-# plt.plot(xx,polys[2](xx[np.newaxis,:]),'k--',label=r'$\mathrm{MFNet}$')
-# plt.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
-# plt.plot(samples_train[2][0,:],values_train[2][:,0],'o')
-# plt.plot(xx,sf_poly(xx[np.newaxis,:]),'b:',label=r'$\mathrm{SF}$')
-# plt.xlabel(r'$z$')
-# plt.ylabel(r'$f(z)$')
-# plt.legend()
-# plt.show()
-
-# #Before computing the multi-fidelity approximation, let's first contruct an approximation using only the high fidelity data.
-
-# #
+#assert False
 
 
-# #%%
-# #Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. 
+hf_prior=(prior_mean[nparams[:-1].sum():],
+          prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
+xx=np.linspace(0,1,101)
+fig,axs=plt.subplots(1,1,figsize=(8,6))
+plot_1d_lvn_approx(xx,nmodels,polys[2].basis_matrix,hf_posterior,hf_prior,
+                   axs,samples_train,values_train,None,[0,1])
+axs.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
+plt.show()
+
+polys = set_polynomial_ensemble_coef_from_flattened(polys,post_mean)
+#assert False
+
+xx=np.linspace(0,1,1101)
+plt.plot(xx,polys[2](xx[np.newaxis,:]),'k--',label=r'$\mathrm{MFNet}$')
+plt.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
+plt.plot(samples_train[2][0,:],values_train[2][:,0],'o')
+plt.plot(xx,sf_poly(xx[np.newaxis,:]),'b:',label=r'$\mathrm{SF}$')
+plt.xlabel(r'$z$')
+plt.ylabel(r'$f(z)$')
+plt.legend()
+plt.show()
+
+#Before computing the multi-fidelity approximation, let's first contruct an approximation using only the high fidelity data.
+
+#
+
+
+#%%
+#Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. 
 
 
 #%%

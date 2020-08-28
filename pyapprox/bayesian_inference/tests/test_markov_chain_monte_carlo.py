@@ -53,7 +53,8 @@ class TestMCMC(unittest.TestCase):
         Amatrix = np.hstack([np.ones((nobs,1)),x[:,np.newaxis]])
 
         univariate_variables = [norm(1,1),norm(0,4)]
-        variables = IndependentMultivariateRandomVariable(univariate_variables)
+        variables = IndependentMultivariateRandomVariable(
+            univariate_variables)
 
         mtrue = 0.4  # true gradient
         ctrue = 2.   # true y-intercept
@@ -80,7 +81,8 @@ class TestMCMC(unittest.TestCase):
                 loglike,variables,ndraws,nburn,njobs,
                 algorithm=algorithm,get_map=True,print_summary=False)
 
-        prior_mean = np.asarray([rv.mean() for rv in variables.all_variables()])
+        prior_mean = np.asarray(
+            [rv.mean() for rv in variables.all_variables()])
         prior_hessian = np.diag(
             [1./rv.var() for rv in variables.all_variables()])
         noise_covariance_inv = 1./noise_stdev**2*np.eye(nobs)
@@ -113,7 +115,8 @@ class TestMCMC(unittest.TestCase):
         
         univariate_variables = [uniform(-2,4),uniform(-2,4)]
         plot_range = np.asarray([-1,1,-1,1])*2
-        variables = IndependentMultivariateRandomVariable(univariate_variables)
+        variables = IndependentMultivariateRandomVariable(
+            univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
         loglike = PYMC3LogLikeWrapper(loglike,loglike.gradient)

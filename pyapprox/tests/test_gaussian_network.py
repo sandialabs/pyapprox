@@ -217,6 +217,13 @@ class TestGaussianNetwork(unittest.TestCase):
              np.hstack([A21.dot(S11),S22,S22.dot(A32.T)]),
              np.hstack([A32.dot(A21).dot(S11),A32.dot(S22),S33])])
         assert np.allclose(true_prior_cov,prior_cov)
+
+        print(network.node_labels)
+        factor_prior = cond_prob_variable_elimination(network, ['Node_2'])
+        prior = convert_gaussian_from_canonical_form(
+            factor_prior.precision_matrix,factor_prior.shift)
+        assert np.allclose(prior[0],true_prior_mean[nparams[:-1].sum():])
+        assert np.allclose(prior[1],true_prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
     
 
     def test_peer_graph_prior(self):
@@ -428,6 +435,16 @@ class TestGaussianNetwork(unittest.TestCase):
         #print(true_post[1])
         assert np.allclose(gauss_post[1],true_post[1])
         assert np.allclose(gauss_post[0],true_post[0].squeeze())
+
+        #check ability to marginalize prior after data has
+        #been added. Must add evidence ids. TODO add condition member function to GaussianNetwork that always does this
+        #if add_datato newtowrk has been called
+        print(network.node_labels)
+        factor_prior = cond_prob_variable_elimination(network, ['Node_2'])
+        prior = convert_gaussian_from_canonical_form(
+            factor_prior.precision_matrix,factor_prior.shift)
+        assert np.allclose(prior[0],prior_mean[nparams[:-1].sum():])
+        assert np.allclose(prior[1],prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
         
         
 if __name__ == '__main__':

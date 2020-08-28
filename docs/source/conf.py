@@ -63,8 +63,8 @@ example_filenames_in_order = [
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
     'plot_sensitivity_analysis.py',
-    'plot_design_under_uncertainty.py',
     'plot_bayesian_networks.py',
+    #'plot_design_under_uncertainty.py'
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
@@ -77,19 +77,20 @@ example_filenames_in_order = [
     'plot_gaussian_mfnets.py'
 ]
 class ExamplesExplicitOrder(_SortKey):
-    
+
     def __call__(self, filename):
-        #src_file = os.path.normpath(os.path.join(self.src_dir, filename))
         return example_filenames_in_order.index(filename)
+
+    
     
 # Note sphink-gallery only runs examples in files that start with plot_
 # To add subfolders in examples must add README.rst to that subfolder in
 # addition to .py files
 sphinx_gallery_conf = {
     # path to your example scripts
-    'examples_dirs': ['../../examples','../../tutorials'],
+    'examples_dirs': ['../../tutorials'],#'../../examples',
     # path to where to save gallery generated output
-    'gallery_dirs': ['auto_examples','auto_tutorials'],
+    'gallery_dirs': ['auto_tutorials'],#'auto_examples',
     #'first_notebook_cell' : "%matplotlib inline",
     'within_subsection_order': ExamplesExplicitOrder,
 }
@@ -126,7 +127,7 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['control_variate_monte_carlo.rst','adaptive_leja_sequences.rst','examples.rst','cantilever_beam.rst','parameter_sweeps.rst','tensor_product_lagrange_interpolation.rst','polynomial_chaos_interpolation.rst','isotropic_sparse_grid_quadrature_example.rst',] # temporarily do not create function documentation
+exclude_patterns = ['control_variate_monte_carlo.rst','adaptive_leja_sequences.rst','examples.rst','cantilever_beam.rst','parameter_sweeps.rst','tensor_product_lagrange_interpolation.rst','polynomial_chaos_interpolation.rst','isotropic_sparse_grid_quadrature_example.rst','plot_design_under_uncertainty.rst'] # temporarily do not create function documentation
 
 #exclude_patterns += ['modules.rst']
 

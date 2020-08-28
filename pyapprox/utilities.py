@@ -1212,7 +1212,7 @@ def halton_sequence(num_vars, index1, index2):
     assert num_vars<=100
 
     primes = get_first_n_primes(num_vars)
-    
+
     try:
         from pyapprox.cython.utilities import halton_sequence_pyx
         return halton_sequence_pyx(primes,index1,index2)
@@ -1399,6 +1399,7 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
     ratios = np.zeros_like(d2_vals)+1e-15
     ratios[I] = d1_vals[I]/d2_vals[I]
     if not np.all(np.isfinite(ratios)):
+        print(d1_vals[I],d2_vals[I])
         msg = 'Densities are not absolutely continuous. '
         msg += 'Ensure that density2(z)=0 implies density1(z)=0'
         raise Exception(msg)
