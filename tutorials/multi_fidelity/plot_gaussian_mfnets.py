@@ -242,27 +242,33 @@ prior_covs = [1,1,1]
 prior_means = [0,0,0]
 cpd_scales  =[a31,a32]
 node_labels = [f'Node_{ii}' for ii in range(nnodes)]
-cpd_mats  = [None,cpd_scales[0]*np.eye(nparams[1],nparams[0]),
-             cpd_scales[1]*np.eye(nparams[2],nparams[1])]
+cpd_mats  = [None,None,
+             np.hstack([cpd_scales[0]*np.eye(nparams[2],nparams[0]),
+                        cpd_scales[1]*np.eye(nparams[2],nparams[1])])]
 
-ii=0
+for ii in range(nnodes-1):
+    graph.add_node(
+        ii,label=node_labels[ii],
+        cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
+        nparams=nparams[ii],cpd_mat=cpd_mats[ii],
+        cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
+#WARNING Nodes have to be added in order their information appears in lists.
+#i.e. high-fidelity node must be added last.
+ii=nnodes-1
+cov=np.eye(nparams[ii])*(prior_covs[ii]-np.dot(
+        np.asarray(cpd_scales)**2,prior_covs[:ii]))
 graph.add_node(
-    ii,label=node_labels[ii],cpd_cov=prior_covs[ii]*np.eye(nparams[ii]),
-    nparams=nparams[ii],cpd_mat=cpd_mats[ii],
-    cpd_mean=prior_means[ii]*np.ones((nparams[ii],1)))
-for ii in range(1,nnodes):
-    cpd_mean = np.ones((nparams[ii],1))*(
-        prior_means[ii]-cpd_scales[ii-1]*prior_means[ii-1])
-    cpd_cov = np.eye(nparams[ii])*max(
-        1e-8,prior_covs[ii]-cpd_scales[ii-1]**2*prior_covs[ii-1])
-    graph.add_node(ii,label=node_labels[ii],cpd_cov=cpd_cov,
-                   nparams=nparams[ii],cpd_mat=cpd_mats[ii],
-                   cpd_mean=cpd_mean)
+    ii,label=node_labels[ii],cpd_cov=cov,nparams=nparams[ii],
+    cpd_mat=cpd_mats[ii],
+    cpd_mean=(prior_means[ii]-np.dot(cpd_scales[:ii],prior_means[:ii]))*\
+    np.ones((nparams[ii],1)))
 
-graph.add_edges_from([(ii,ii+1) for ii in range(nnodes-1)])
+    
+graph.add_edges_from([(ii,nnodes-1) for ii in range(nnodes-1)])
+
+
+
 network = GaussianNetwork(graph)
-# network = build_peer_polynomial_network(
-#     prior_covs,cpd_scales,basis_matrix_funcs,nparams)
 
 #%%
 #We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.
@@ -282,7 +288,6 @@ noise_std=[0.01]*nmodels
 noise = [noise_std[ii]*np.random.normal(
     0,noise_std[ii],(samples_train[ii].shape[1],1)) for ii in range(nmodels)]
 values_train = [f(s)+n for s,f,n in zip(samples_train,functions,noise)]
-print(values_train[0].shape,functions[0](samples_train[0]).shape,samples_train[0].shape)
 
 data_cpd_mats=[
     b(s) for b,s in zip(basis_matrix_funcs,samples_train)]
@@ -291,12 +296,12 @@ noise_covs=[np.eye(nsamples[ii])*noise_std[ii]**2
             for ii in range(nnodes)]
 
 network.add_data_to_network(data_cpd_mats,data_cpd_vecs,noise_covs)
-# fig,ax = plt.subplots(1,1,figsize=(8,5))
-# plot_peer_network_with_data(network.graph,ax)
-# plt.show()
+fig,ax = plt.subplots(1,1,figsize=(8,5))
+plot_peer_network_with_data(network.graph,ax)
+plt.show()
 
 
-
+#%%
 #For this network we have :math:`\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}` and the graph has one CPDs which for this example is given by
 #
 #.. math:: \mathbb{P}(\theta_3\mid \theta_1,\theta_2) \sim \mathcal{N}\left(A_{31}\theta_1+A_{32}\theta_2+b_3,\Sigma_{v3}\right),
@@ -322,38 +327,12 @@ factor_prior = cond_prob_variable_elimination(
 hf_prior = convert_gaussian_from_canonical_form(
     factor_prior.precision_matrix,factor_prior.shift)
 
-#print(prior_cov)
-#print(post_cov,'post_cov')
-
-hf_prior=(prior_mean[nparams[:-1].sum():],
-          prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
 xx=np.linspace(0,1,101)
 fig,axs=plt.subplots(1,1,figsize=(8,6))
 plot_1d_lvn_approx(xx,nmodels,polys[2].basis_matrix,hf_posterior,hf_prior,
                    axs,samples_train,values_train,None,[0,1])
 axs.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
 plt.show()
-
-polys = set_polynomial_ensemble_coef_from_flattened(polys,post_mean)
-#assert False
-
-xx=np.linspace(0,1,1101)
-plt.plot(xx,polys[2](xx[np.newaxis,:]),'k--',label=r'$\mathrm{MFNet}$')
-plt.plot(xx,functions[2](xx[np.newaxis,:]),'r',label=r'$f_3$')
-plt.plot(samples_train[2][0,:],values_train[2][:,0],'o')
-plt.plot(xx,sf_poly(xx[np.newaxis,:]),'b:',label=r'$\mathrm{SF}$')
-plt.xlabel(r'$z$')
-plt.ylabel(r'$f(z)$')
-plt.legend()
-plt.show()
-
-#Before computing the multi-fidelity approximation, let's first contruct an approximation using only the high fidelity data.
-
-#
-
-
-#%%
-#Using this graph we can infer the posterior distribution of the information source coefficients using the conditional probability variable elimination algorithm. The algorithm begins by conditioning the each factor of the graph with any data associated with that factor. The graph above will have 3 factors involving data associated with the CPDs :math:`\mathbb{P}(\theta_1\mid y_1),\mathbb{P}(\theta_2\mid y_2),\mathbb{P}(\theta_3\mid y_3)`. 
 
 
 #%%
