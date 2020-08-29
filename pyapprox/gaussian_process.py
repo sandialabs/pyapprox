@@ -63,7 +63,7 @@ from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
 from pyapprox import get_polynomial_from_variable, \
     get_univariate_quadrature_rules_from_pce
 from pyapprox.utilities import cartesian_product, outer_product
-def integrate_gaussian_process(gp,variable):
+def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
     kernel = extract_covariance_kernel(gp.kernel_,kernel_types)
 
@@ -93,16 +93,21 @@ def integrate_gaussian_process(gp,variable):
     
     return integrate_gaussian_process_squared_exponential_kernel(
         gp.X_train_.T,gp.y_train_,K_inv,kernel.length_scale,kernel_var,
-        variable)
+        variable,return_full)
 
 def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
                                                           length_scale,
                                                           kernel_var,
-                                                          variable):
+                                                          variable,
+                                                          return_full=False):
     """
     Compute
 
     .. math:: I = \int \eta(\rv) \rho(\rv) ;d\rv
+
+    and 
+
+    .. math:: \Sigma = I_2 - I^2, \qquad I_2 = \int \eta^2(\rv) \rho(\rv) ;d\rv
 
     where :math:`\rho(\rv)` is the joint density of independent random 
     variables and :math:`\eta(\rv)` is a Gaussian process (GP) 
@@ -113,10 +118,12 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     with :math:`L` being a np.ndarray of shape (nvars) containing the 
     length scales of the covariance kernel.
 
-    Because the GP is a random process, the expectation :math:`I` of the GP 
-    with respect to :math:`\rv` is itself a random variable. Specifically the
-    expectation is a Gaussian random variable with mean :math:`\mu` and variance
-    :math:`v^2`.
+    Because the GP is a random process, the expectation :math:`I` and the 
+    variance :math:`\Sigma` of the GP with respect to :math:`\rv` are 
+    themselves  random variables. Specifically the expectation is a Gaussian 
+    random  variable with mean :math:`\mu` and variance :math:`v^2`. The 
+    distribution of :math:`\Sigma` is harder to compute, but we can compute 
+    its mean and variance
 
     Parameters
     ----------
@@ -140,15 +147,27 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         A set of independent univariate random variables. The tensor-product 
         of the 1D PDFs yields the joint density :math:`\rho`
 
+    return_full : boolean
+       If true return intermediate quantities used to compute statistics. 
+       This is only necessary for testing
+
     Returns
     -------
     expected_random_mean : float
-        The mean :math:`\mu` of the Gaussian random variable representing the 
+        The mean :math:`\mu_I` of the Gaussian random variable representing the 
         expectation :math:`I`
 
     variance_random_mean : float
-        The variance :math:`v^2` of the Gaussian random variable representing 
+        The variance :math:`v_I^2` of the Gaussian random variable representing 
         the expectation :math:`I`
+
+    expected_random_var : float
+        The mean :math:`\mu_\Sigma` of the Gaussian random variable 
+        representing the variance :math:`\Sigma`
+
+    variance_random_var : float
+        The variance :math:`v_\Sigma^2` of the Gaussian random variable 
+        representing the variance :math:`\Sigma`
     """
     
     nvars = variable.num_vars()
@@ -163,35 +182,67 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     univariate_quad_rules=get_univariate_quadrature_rules_from_pce(
         pce,degrees)
     
-    length_scale = np.atleast_1d(length_scale)
+    lscale = np.atleast_1d(length_scale)
     T,U=1,1
     P=np.ones((X_train.shape[1],X_train.shape[1]))
+    MC2=np.ones(X_train.shape[1])
+    MMC3=np.ones((X_train.shape[1],X_train.shape[1]))
+    CC1,C1_sq=1,1
+    
     from scipy.spatial.distance import cdist
     quad_points = []
     for ii in range(nvars):
-        xx,ww=univariate_quad_rules[ii](degrees[ii]+1)
+        xx2,ww2=univariate_quad_rules[ii](degrees[ii]+1)
         jj = pce.basis_type_index_map[ii]
         loc,scale = pce.var_trans.scale_parameters[jj,:]
-        xx = xx*scale+loc
-        quad_points.append(xx)
+        xx2 = xx2*scale+loc
+        quad_points.append(xx2)
         dists = cdist(
-            xx[:,np.newaxis]/length_scale[ii],
-            X_train[ii:ii+1,:].T/length_scale[ii],
+            xx2[:,np.newaxis]/lscale[ii],
+            X_train[ii:ii+1,:].T/lscale[ii],
             metric='sqeuclidean')
         K = np.exp(-.5*dists)
         # T in Haylock is defined without kernel_var
-        T*=ww.dot(K)
+        T*=ww2.dot(K)
 
         for mm in range(X_train.shape[1]):
             for nn in range(mm,X_train.shape[1]):
-                P[mm,nn]*=ww.dot(K[:,mm]*K[:,nn])
+                P[mm,nn]*=ww2.dot(K[:,mm]*K[:,nn])
                 P[nn,mm]=P[mm,nn]
-        
-        XX = cartesian_product([xx]*2)
-        WW = outer_product([ww]*2)
-        dists = (XX[0,:].T/length_scale[ii]-XX[1,:].T/length_scale[ii])**2
+
+        XX2 = cartesian_product([xx2]*2)
+        WW2 = outer_product([ww2]*2)
+        dists = (XX2[0,:].T/lscale[ii]-XX2[1,:].T/lscale[ii])**2
         K = np.exp(-.5*dists)
-        U*=WW.dot(K)
+        U*=WW2.dot(K)
+
+        for mm in range(X_train.shape[1]):
+            print(X_train[ii,mm])
+            dists1 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
+            dists2 = (XX2[1,:]/lscale[ii]-X_train[ii,mm]/lscale[ii])**2
+            MC2[mm] *= np.exp(-.5*dists1-.5*dists2).dot(WW2)
+
+        for mm in range(X_train.shape[1]):
+            for nn in range(X_train.shape[1]):
+                dists1 = (X_train[ii,mm]/lscale[ii]-XX2[0,:]/lscale[ii])**2
+                dists2 = (X_train[ii,nn]/lscale[ii]-XX2[1,:]/lscale[ii])**2
+                dists3 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
+                MMC3[mm,nn]*=np.exp(-.5*dists1-.5*dists3-.5*dists2).dot(WW2)
+
+        dists1 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
+        #C1_sq *= np.exp(-.5*dists1)*np.exp(-.5*dists1).dot(WW2)
+        C1_sq *= np.exp(-dists1).dot(WW2)
+
+        xx3,ww3=univariate_quad_rules[ii](30)
+        jj = pce.basis_type_index_map[ii]
+        loc,scale = pce.var_trans.scale_parameters[jj,:]
+        xx3 = xx3*scale+loc
+        XX3 = cartesian_product([xx3]*3)
+        WW3 =  outer_product([ww3]*3)
+        dists1 = (XX3[0,:]-XX3[1,:])**2
+        dists2 = (XX3[1,:]-XX3[2,:])**2
+        CC1 *= np.exp(-.5*dists1-.5*dists2).dot(WW3)
+
 
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
@@ -202,13 +253,40 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
 
     expected_random_var = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)+kernel_var*(1-np.trace(A_inv.dot(P)))-expected_random_mean**2-variance_random_mean
 
-    # #[C]
-    # C=variance_random_mean/kernel_var
-    # #[M]
-    # M=T.dot(A_inv.dot(Y_train))
-    # #[M^2]
-    # M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
-    # #[V]
-    # V = (1-np.trace(A_inv.dot(P)))
+    #[C]
+    C=U
+    #[M]
+    M=T.dot(A_inv.dot(Y_train))
+    #[M^2]
+    M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
+    #[V]
+    V = (1-np.trace(A_inv.dot(P)))
+    #[MC]
+    A = np.linalg.inv(A_inv)
+    MC = MC2.T.dot(A.dot(Y_train))
+    #[MMC]
+    MMC = Y_train.T.dot(A_inv).dot(MMC3).dot(A_inv).dot(Y_train)
+    #[CC]
+    CC = CC1
+    #[C^2]
+    C_sq = C1_sq
 
-    return expected_random_mean, variance_random_mean, expected_random_var
+    #E[I_2^2]
+    variance_random_var = 4*MMC*kernel_var + 2*C_sq*kernel_var**2+(
+        M_sq+V*kernel_var)**2
+    #-2E[I_2I^2]
+    variance_random_var += -2*(4*M*MC*kernel_var+2*CC*kernel_var**2+M_sq*M**2+
+        V*C*kernel_var**2 + M**2*V*kernel_var+M_sq*C*kernel_var)
+    #E[I^4]
+    variance_random_var += 3*C**2*kernel_var**2+6*M**2*C*kernel_var+M**4
+
+    variance_random_var -= expected_random_var**2
+
+    if not return_full:
+        return expected_random_mean, variance_random_mean, expected_random_var,\
+            variance_random_var
+
+    intermeadiate_quantities={'C':C,'M':M,'M_sq':M_sq,'V':V,'MC':MC,'MMC':MMC,
+                              'CC':CC,'C_sq':C_sq,'MC2':MC2,'MMC3':MMC3}
+    return expected_random_mean, variance_random_mean, expected_random_var,\
+            variance_random_var, intermeadiate_quantities
