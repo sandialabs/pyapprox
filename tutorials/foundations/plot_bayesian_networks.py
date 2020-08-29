@@ -14,6 +14,7 @@ import pyapprox as pya
 from pyapprox.gaussian_network import *
 import copy
 from pyapprox.configure_plots import *
+np.random.seed(1)
 
 nnodes=3
 fig,ax=plt.subplots(1,1,figsize=(8,3))
@@ -406,8 +407,8 @@ for factor in network.factors:
      factor.condition(evidence_ids,evidence)
 
 query_labels = [node_labels[2]]
-eliminate_ids = get_var_ids_to_eliminate(
-    network.node_ids,network.node_labels,query_labels,evidence_ids)
+eliminate_ids = get_var_ids_to_eliminate_from_node_query(
+    network.node_var_ids,network.node_labels,query_labels,evidence_ids)
 
 #%%
 #Once the variables to eliminate have been identified, they are marginalized out of any factor in which they are present; other factors are left untouched. The marginalized factors are then multiplied with the remaining factors to compute the desired marginal density using the sum product variable elimination algorithm.
@@ -416,7 +417,7 @@ factor_post = sum_product_variable_elimination(network.factors,eliminate_ids)
 gauss_post = convert_gaussian_from_canonical_form(
     factor_post.precision_matrix,factor_post.shift)
 
-print('Posterior Meen\n',gauss_post[0])
+print('Posterior Mean\n',gauss_post[0])
 print('Posterior Covariance\n',gauss_post[1])
 
 

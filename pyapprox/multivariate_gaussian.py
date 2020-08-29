@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 import copy
 def get_operator_diagonal(operator,num_vars,eval_concurrency,transpose=False,
@@ -1191,8 +1189,9 @@ class GaussianFactor(object):
         
     def _initialize(self,precision_matrix,shift,normalization,var_ids,
                     nvars_per_var):
+        assert np.asarray(nvars_per_var).ndim==1
         assert shift.shape[0]==precision_matrix.shape[0]
-        assert sum(nvars_per_var)==precision_matrix.shape[0]
+        assert np.sum(nvars_per_var)==precision_matrix.shape[0]
         assert len(nvars_per_var)==len(var_ids)
         
         self.precision_matrix=precision_matrix
@@ -1264,7 +1263,6 @@ class GaussianFactor(object):
 
 
     def condition(self,data_ids,data):
-        print(self.var_ids)
         # Find array indices of any data_ids found in self.var_ids. 
         relevant_data_ids,relevant_data_indices,relevant_var_indices = \
             np.intersect1d(data_ids,self.var_ids,return_indices=True)

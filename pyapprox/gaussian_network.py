@@ -3,6 +3,68 @@ import networkx as nx
 import copy
 from pyapprox.multivariate_gaussian import *
 
+def get_var_ids_to_eliminate_from_node_query(network_node_var_ids,network_labels,query_labels,evidence_node_ids=None):
+    """
+    Get the ids of all variables in a network not associated with nodes being
+    queried. A given node can consist of multiple variables.
+    This function will always exclude from elimination any ids which are in 
+    evidence_ids.
+
+    Parameters
+    ----------
+    network_node_var_ids: list
+        List with entries containing  containing the integer ids 
+        np.ndarray (nnetwork_vars) of all variables of a node.
+
+    network_labels: list (nnodes)
+       A list of strings containing the names of each node in the network.
+       ith network labels must be associated with the ith node in the network
+       ordering matters.
+
+    query_labels : list (nqueries)
+        A list of strings containing the node labels which must remain 
+        after elimination. nqueries<=nnodes. The network labels not in this
+        list will be identified for elimination from the scope of the network.
+        This list must not contain nodes associated with data.
+
+    evidence_node_ids : np.ndarray (ndata)
+       The node ids of the data nodes in the network.
+
+    Returns
+    -------
+    eliminate_var_ids : list
+       A list of labels of variables to be eliminated. Labels associated with
+       evidence (data) will not be eliminated. Variables associated with data
+       will never be identified for elimination
+    """
+    assert len(network_node_var_ids)==len(network_labels)
+    nvars_to_query = len(query_labels)
+    query_ids = np.empty(nvars_to_query,dtype=int)
+    for ii in range(nvars_to_query):
+        found = False
+        label = query_labels[ii]
+        for jj in range(len(network_labels)):
+            if label==network_labels[jj]:
+                query_ids[ii]=jj
+                found=True
+                break
+        if not found:
+            msg = f'query label {label} was not found in network_labels '
+            msg += f'{network_labels}'
+            raise Exception(msg)
+
+    if evidence_node_ids is not None:
+        assert np.intersect1d(query_ids,evidence_node_ids).shape[0]==0
+        query_ids = np.concatenate((query_ids,evidence_node_ids))
+
+    eliminate_node_ids = np.setdiff1d(np.arange(len(network_labels)),query_ids)
+
+    if eliminate_node_ids.shape[0]>0:
+        eliminate_var_ids = np.concatenate([network_node_var_ids[idx] for idx in eliminate_node_ids])
+    else:
+        eliminate_var_ids = np.empty(0,dtype=int)
+    return eliminate_var_ids
+
 def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
                              evidence_ids=None):
     """
@@ -38,7 +100,7 @@ def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
     """
     assert len(network_ids)==len(network_labels)
     nvars_to_query = len(query_labels)
-    query_ids = np.empty(nvars_to_query,dtype=float)
+    query_ids = np.empty(nvars_to_query,dtype=int)
     for ii in range(nvars_to_query):
         found = False
         label = query_labels[ii]
@@ -64,26 +126,6 @@ def get_nparams_of_nodes(vands):
     num_nodes = len(vands)
     nparams = np.asarray([vands[ii].shape[1] for ii in range(num_nodes)])
     return nparams
-
-from scipy import stats
-def basis_matrix(ranges,degree,samples):
-    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-        define_poly_options_from_variable_transformation
-    from pyapprox.variable_transformations import \
-        define_iid_random_variable_transformation 
-    from pyapprox.indexing import compute_hyperbolic_indices
-    #from pyapprox.configure_plots import *
-    samples = np.atleast_2d(samples)
-    num_vars = samples.shape[0]; alpha_poly = 0; beta_poly = 0
-    assert (num_vars==len(ranges)/2)
-    poly = PolynomialChaosExpansion()
-    var_trans = define_iid_random_variable_transformation(
-        stats.uniform(),num_vars)
-    poly_opts = define_poly_options_from_variable_transformation(var_trans)
-    poly.configure(poly_opts)
-    indices = compute_hyperbolic_indices(num_vars,degree,1.0)
-    poly.set_indices(indices)
-    return poly.basis_matrix(samples)
 
 def basis_matrix_cols(nvars,degree):
     from pyapprox.utilities import total_degree_space_dimension
@@ -168,7 +210,7 @@ def get_cpd_prior_covariance(graph,node_index):
     return prior_cov
 
 def get_gaussian_factor_in_canonical_form(Amat,bvec,cov2g1,
-                                          var1_ids,nvars_per_var1,
+                                          var1_ids, nvars_per_var1,
                                           var2_ids, nvars_per_var2):
     """
     Todo consider massing inv(cov2g1) to function so can leverage structure
@@ -249,6 +291,8 @@ class GaussianNetwork(object):
         self.Amats,self.cpd_covs = [None]*nnodes,[None]*nnodes
         self.node_childs, self.node_nvars = [None]*nnodes,[None]*nnodes
         self.node_labels, self.node_ids = [None]*nnodes, list(np.arange(nnodes))
+        self.node_var_ids = []
+        self.nnetwork_vars=0
         for ii in self.graph.nodes:
             # Extract node information from graph
             nparams = self.graph.nodes[ii]['nparams']
@@ -258,13 +302,28 @@ class GaussianNetwork(object):
             self.cpd_covs[ii] = self.graph.nodes[ii]['cpd_cov']
             self.node_labels[ii] = self.graph.nodes[ii]['label']
             self.node_nvars[ii] = self.cpd_covs[ii].shape[0]
+            self.node_var_ids += [list(
+                range(self.nnetwork_vars,
+                      self.nnetwork_vars+self.node_nvars[ii]))]
+            self.nnetwork_vars+=self.node_nvars[ii]
 
             # check the validity of the graph
             if self.node_childs[ii] is not None:
                 for child in self.node_childs[ii]:
                     assert child < ii
 
-        self.node_var_ids=[[ii] for ii in range(nnodes)]
+        #self.node_var_ids=[[ii] for ii in range(nnodes)]
+
+    def num_vars(self):
+        """
+        Return number of uncertain variables in the network
+        
+        Returns
+        -------
+        nnetwork_vars : integer
+            The number of uncertain variables in the network
+        """
+        return self.nnetwork_vars
 
     def convert_to_compact_factors(self):
         """
@@ -273,18 +332,13 @@ class GaussianNetwork(object):
         self.factors = []
         for ii in self.graph.nodes:
             if len(self.node_childs[ii])>0:
-                # Not a leaf node - at least one child (predecessor in networkx)
-                # Generate a Gaussian conditional probability density
-                if len(self.node_var_ids[ii])==self.node_nvars[ii]:
-                    # node contains data
-                    nvars_per_var2 = [[1] for kk in range(self.node_nvars[ii])]
-                else:
-                    # node does not contain data
-                    nvars_per_var2 = [self.node_nvars[ii]]
+                var_ids1 = np.concatenate(
+                    [self.node_var_ids[jj] for jj in self.node_childs[ii]])
+                nvars_per_var1 = [1 for jj in range(var_ids1.shape[0])]
+                nvars_per_var2 = [1 for kk in range(self.node_nvars[ii])]  
                 cpd = get_gaussian_factor_in_canonical_form(
                     self.Amats[ii],self.bvecs[ii],self.cpd_covs[ii],
-                    self.node_childs[ii],
-                    [self.node_nvars[jj]for jj in self.node_childs[ii]],
+                    var_ids1,nvars_per_var1,
                     self.node_var_ids[ii],nvars_per_var2)
                 self.factors.append(cpd)
             else:
@@ -296,9 +350,10 @@ class GaussianNetwork(object):
                 shift = precision_matrix.dot(mean)
                 normalization=compute_gaussian_pdf_canonical_form_normalization(
                     self.bvecs[ii],shift,precision_matrix)
+                nvars_per_var = [1 for kk in range(self.node_nvars[ii])]    
                 self.factors.append(GaussianFactor(
                     precision_matrix,shift,normalization,self.node_var_ids[ii],
-                    [self.node_nvars[ii]]))
+                    nvars_per_var))
 
     def add_data_to_network(self,data_cpd_mats,data_cpd_vecs,noise_covariances):
         """
@@ -315,9 +370,9 @@ class GaussianNetwork(object):
         dataless_graph = copy.deepcopy(self.graph)
         kk = len(self.graph.nodes)
         dataless_nodes_nvars = np.sum(self.node_nvars)
-        #jj=dataless_nodes_nvars
-        jj=kk
+        jj=dataless_nodes_nvars
         for ii in dataless_graph.nodes:
+            #Note: this assumes that every node has data. This can be relaxed
             assert data_cpd_mats[ii].shape[1]==self.graph.nodes[ii]['nparams']
             assert data_cpd_vecs[ii].shape[0]==self.ndata[ii]
             assert noise_covariances[ii].shape[0]==self.ndata[ii]
@@ -334,16 +389,28 @@ class GaussianNetwork(object):
             self.node_var_ids.append(np.arange(jj,jj+self.ndata[ii]))
             jj+=self.ndata[ii]
             kk+=1
-        #self.evidence_ids = np.arange(dataless_nodes_nvars,jj)
-        self.evidence_ids = np.arange(len(dataless_graph.nodes),jj)
+        self.evidence_var_ids =np.arange(dataless_nodes_nvars,jj,dtype=int)
+        self.evidence_node_ids=np.arange(len(dataless_graph.nodes),kk,dtype=int)
 
     def assemble_evidence(self,data):
         """
-        Relies on order vandermondes are added in network.add_data_to_network
+        Assemble the evidence in the form needed to condition the network
+
+        Returns
+        -------
+        evidence : np.ndarray (nevidence)
+            The data used to condition the network
+
+        evidence_var_ids : np.ndarray (nevidence)
+            The variable ids containing each data
+
+        Notes
+        -----
+        Relies on order vandermondes are added in network.add_data_to_network 
         """
         assert len(data)==len(self.ndata)
         nevidence = np.sum([d.shape[0] for d in data])
-        assert nevidence==len(self.evidence_ids)
+        assert nevidence==len(self.evidence_var_ids)
         evidence = np.empty((nevidence))
         kk = 0
         for ii in range(len(data)):
@@ -352,125 +419,7 @@ class GaussianNetwork(object):
             for jj in range(data[ii].shape[0]):
                 evidence[kk] = data[ii][jj]
                 kk += 1
-        return evidence, self.evidence_ids
-
-
-
-class BayesianNetwork(object):
-    def __init__(self, graph):
-        self.graph=graph
-        self.ndata=None
-        
-        self.construct_dataless_network()
-
-    def construct_dataless_network(self):
-        """
-        """
-        nnodes = len(self.graph.nodes)
-        if len(self.graph.nodes)>1:
-            assert (np.max(self.graph.nodes)==nnodes-1 and
-                    np.min(self.graph.nodes)==0)
-
-        self.Amats, self.cpd_covs = [None]*nnodes,[None]*nnodes
-        self.node_childs, self.node_nvars = [None]*nnodes,[None]*nnodes
-        self.node_labels, self.node_ids = [None]*nnodes, list(np.arange(nnodes))
-        for ii in self.graph.nodes:
-            # Extract node information from graph
-            nparams = self.graph.nodes[ii]['nparams']
-            self.Amats[ii],self.node_childs[ii] = get_cpd_linear_matrix(
-                self.graph,ii)
-            self.cpd_covs[ii] = get_cpd_prior_covariance(
-                self.graph,ii)
-            self.node_labels[ii] = self.graph.nodes[ii]['label']
-            self.node_nvars[ii] = self.cpd_covs[ii].shape[0]
-
-            # check the validity of the graph
-            if self.node_childs[ii] is not None:
-                for child in self.node_childs[ii]:
-                    assert child < ii
-
-        self.node_var_ids=[[ii] for ii in range(nnodes)]
-
-    def add_data_to_network(self,samples,noise_variances):
-        """
-        """
-        nnodes = len(self.graph.nodes)
-        assert len(samples)==nnodes
-        assert len(noise_variances)==nnodes
-        self.samples=samples
-        #self.build_matrix_functions = build_matrix_functions
-        self.ndata = [samples[ii].shape[1] for ii in range(nnodes)]
-        
-        # retain copy of old dataless graph
-        dataless_graph = copy.deepcopy(self.graph)
-        kk = len(self.graph.nodes)
-        jj=kk
-        self.evidence_ids = []
-        for ii in dataless_graph.nodes:
-            vand = self.graph.nodes[ii]['basis_matrix_func'](samples[ii])
-            assert vand.shape[1]==self.graph.nodes[ii]['nparams']
-            self.node_ids.append(kk)
-            label=self.graph.nodes[ii]['label']+'_data'
-            self.graph.add_node(len(self.Amats),label=label)
-            self.graph.add_edge(ii,kk)
-            self.Amats.append(vand),self.node_childs.append([ii])
-            self.cpd_covs.append(
-                noise_variances[ii]*np.eye(vand.shape[0]))
-            self.node_labels.append(label)
-            self.node_nvars.append(self.cpd_covs[-1].shape[0])
-            self.node_var_ids.append(np.arange(jj,jj+vand.shape[0]))
-            jj+=vand.shape[0]
-            kk+=1
-        self.evidence_ids = np.arange(len(dataless_graph.nodes),jj)
-
-    def assemble_evidence(self,data):
-        """
-        Relies on order vandermondes are added in network.add_data_to_network
-        """
-        nnodes = len(data)
-        nevidence = np.sum([d.shape[0] for d in data])
-        evidence = np.empty((nevidence))
-        kk = 0
-        for ii in range(nnodes):
-            assert (data[ii].ndim==1 or data[ii].shape[1]==1),(
-                ii,data[ii].shape)
-            for jj in range(data[ii].shape[0]):
-                evidence[kk] = data[ii][jj]
-                kk += 1
-        return evidence, self.evidence_ids
-                
-    def convert_to_compact_factors(self):
-        """
-        Compute the factors of the network
-        """
-        self.factors = []
-        for ii in self.graph.nodes:
-            if self.node_childs[ii] is not None:
-                # Not a leaf node - at least one child (predecessor in networkx)
-                # Generate a Gaussian conditional probability density
-                if len(self.node_var_ids[ii])==self.node_nvars[ii]:
-                    # node contains data
-                    nvars_per_var2 = [[1] for kk in range(self.node_nvars[ii])]
-                else:
-                    # node does not contain data
-                    nvars_per_var2 = [self.node_nvars[ii]]
-                cpd = get_gaussian_factor_in_canonical_form(
-                    self.Amats[ii],None,self.cpd_covs[ii],
-                    self.node_childs[ii],
-                    [self.node_nvars[jj]for jj in self.node_childs[ii]],
-                    self.node_var_ids[ii],nvars_per_var2)
-                self.factors.append(cpd)
-            else:
-                # Leaf nodes - no children (predecessors in networkx)
-                # TODO: replace inverse by method that takes advantage of matrix
-                # structure, e.g. diagonal, constant diagonal
-                precision_matrix = np.linalg.inv(self.cpd_covs[ii])
-                shift = np.zeros(self.cpd_covs[ii].shape[0]); mean=shift
-                normalization=compute_gaussian_pdf_canonical_form_normalization(
-                    mean,shift,precision_matrix)
-                self.factors.append(GaussianFactor(
-                    precision_matrix,shift,normalization,self.node_var_ids[ii],
-                    [self.node_nvars[ii]]))
+        return evidence, self.evidence_var_ids
                 
 def sum_product_eliminate_variable(factors, var_id_to_eliminate):
     """
@@ -501,7 +450,6 @@ def sum_product_eliminate_variable(factors, var_id_to_eliminate):
     # Get list of factors which contain the variable to eliminate
     fp,fpp = [],[]
     for factor in factors:
-        print('f',factor.var_ids)
         if var_id_to_eliminate in factor.var_ids:
             fp.append(factor)
         else:
@@ -560,9 +508,11 @@ def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
     """
     Marginalize out variables not in query labels.
     """
-    eliminate_ids = get_var_ids_to_eliminate(
-        network.node_ids,network.node_labels,query_labels,evidence_ids)
-    print(query_labels,network.node_labels,eliminate_ids)#,network.evidence_ids)
+    #eliminate_ids = get_var_ids_to_eliminate(
+    #    network.node_ids,network.node_var_ids,network.node_labels,query_labels,
+    #    evidence_ids)
+    eliminate_ids = get_var_ids_to_eliminate_from_node_query(
+        network.node_var_ids,network.node_labels,query_labels,evidence_ids)
 
     factors = copy.deepcopy(network.factors)
 
@@ -664,8 +614,7 @@ def infer(build_network, scales, samples_train, data_train, noise_std):
     # high fidelity model is always last label of models. It will not
     # be last lable in graph. These will be data
     hf_label = network.graph.nodes[len(samples_train)-1]['label']
-    #print(network.graph.nodes.data('label'))
-    #print(hf_label)
+
     factor_post = cond_prob_variable_elimination(
         network,[hf_label],evidence_ids=evidence_ids,evidence=evidence)    
     gauss_post = convert_gaussian_from_canonical_form(
@@ -709,7 +658,7 @@ def estimate_mse_from_posterior(held_inputs,held_out_data,ignore_variance,
     assert np.allclose(ypred.shape,held_out_data.shape)
     if vand.shape[1]==1:
         l2err = (ypred.mean()-held_out_data.mean())**2
-        #print(l2err,'bias')
+
     else:
         l2err = np.linalg.norm(ypred - held_out_data)**2/ypred.shape[0]
         
@@ -750,7 +699,7 @@ def regression(noise_std, data_train, samples_train, build_network,
     build_network : callable
         A function used to build the network with signature 
        
-        ``build_network(scales) - > BayesianNetwork
+        ``build_network(scales) - > GaussianNetwork
 
     where scales is a np.ndarray (nscales) matrix of CPD scales which will be 
     treated as hyper-parameters and optimized.
@@ -765,7 +714,7 @@ def regression(noise_std, data_train, samples_train, build_network,
     
         ``fit_metric(network) -> float``
 
-        where network is a BayesianNetwork.
+        where network is a GaussianNetwork.
 
     optimize : boolean
         True - optimize the hyper-parameters
@@ -779,7 +728,7 @@ def regression(noise_std, data_train, samples_train, build_network,
     scales : np.ndarray (nscales)
         The final cpd_scales found by the optimizer.
 
-    network : BayesianNetwork
+    network : GaussianNetwork
         The Bayesian network built using ``scales``
 
     gauss_post : tuple

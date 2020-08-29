@@ -321,13 +321,9 @@ factor_prior = cond_prob_variable_elimination(
     network,labels)
 hf_prior = convert_gaussian_from_canonical_form(
     factor_prior.precision_matrix,factor_prior.shift)
-print(nparams,hf_posterior[1].shape,hf_prior[1].shape)
 
 #print(prior_cov)
 #print(post_cov,'post_cov')
-
-#assert False
-
 
 hf_prior=(prior_mean[nparams[:-1].sum():],
           prior_cov[nparams[:-1].sum():,nparams[:-1].sum():])
