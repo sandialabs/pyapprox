@@ -335,7 +335,7 @@ class GaussianNetwork(object):
                 var_ids1 = np.concatenate(
                     [self.node_var_ids[jj] for jj in self.node_childs[ii]])
                 nvars_per_var1 = [1 for jj in range(var_ids1.shape[0])]
-                nvars_per_var2 = [1 for kk in range(self.node_nvars[ii])]  
+                nvars_per_var2 = [1 for kk in range(self.node_nvars[ii])]
                 cpd = get_gaussian_factor_in_canonical_form(
                     self.Amats[ii],self.bvecs[ii],self.cpd_covs[ii],
                     var_ids1,nvars_per_var1,
@@ -350,7 +350,7 @@ class GaussianNetwork(object):
                 shift = precision_matrix.dot(mean)
                 normalization=compute_gaussian_pdf_canonical_form_normalization(
                     self.bvecs[ii],shift,precision_matrix)
-                nvars_per_var = [1 for kk in range(self.node_nvars[ii])]    
+                nvars_per_var = [1 for kk in range(self.node_nvars[ii])]
                 self.factors.append(GaussianFactor(
                     precision_matrix,shift,normalization,self.node_var_ids[ii],
                     nvars_per_var))
@@ -508,9 +508,6 @@ def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
     """
     Marginalize out variables not in query labels.
     """
-    #eliminate_ids = get_var_ids_to_eliminate(
-    #    network.node_ids,network.node_var_ids,network.node_labels,query_labels,
-    #    evidence_ids)
     eliminate_ids = get_var_ids_to_eliminate_from_node_query(
         network.node_var_ids,network.node_labels,query_labels,evidence_ids)
 
