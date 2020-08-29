@@ -9,6 +9,22 @@ import unittest
 class TestGaussianNetwork(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_get_var_ids_to_eliminate_from_node_query(self):
+        nmodels,nvars_per_model=4,2
+        network_labels = ['M%d'%ii for ii in range(nmodels)]
+        network_ids = np.arange(len(network_labels))
+        network_node_var_ids = [list(range(nvars_per_model*ii,nvars_per_model*(ii+1))) for ii in range(nmodels)]
+        query_labels_idx = [1]
+        
+        query_labels = [network_labels[idx] for idx in query_labels_idx]
+        var_ids_to_eliminate = get_var_ids_to_eliminate_from_node_query(
+            network_node_var_ids,network_labels,query_labels,
+            evidence_node_ids=None)
+        true_var_ids_to_eliminate = np.concatenate(
+            [network_node_var_ids[ii] for ii in range(nmodels)
+             if ii not in query_labels_idx])
+        assert np.allclose(var_ids_to_eliminate,true_var_ids_to_eliminate)
     
     def test_get_var_ids_to_eliminate(self):
         nmodels,nvars_per_model=4,2
@@ -139,7 +155,7 @@ class TestGaussianNetwork(unittest.TestCase):
 
         true_prior_mean = np.hstack(
             [[prior_means[ii]]*nparams[ii] for ii in range(nnodes)])
-        #print(true_prior_mean)
+        print(true_prior_mean)
         assert np.allclose(true_prior_mean,prior_mean)
         true_prior_var = np.hstack(
             [[prior_covs[ii]]*nparams[ii] for ii in range(nnodes)])
@@ -281,7 +297,7 @@ class TestGaussianNetwork(unittest.TestCase):
         #print(true_prior_mean)
         assert np.allclose(true_prior_mean,prior_mean)
 
-    def one_node_inference(self):
+    def test_one_node_inference(self):
         nnodes=1
         prior_covs = [1]
         prior_means = [-1]
@@ -437,9 +453,7 @@ class TestGaussianNetwork(unittest.TestCase):
         assert np.allclose(gauss_post[0],true_post[0].squeeze())
 
         #check ability to marginalize prior after data has
-        #been added. Must add evidence ids. TODO add condition member function to GaussianNetwork that always does this
-        #if add_datato newtowrk has been called
-        print(network.node_labels)
+        #been added. 
         factor_prior = cond_prob_variable_elimination(network, ['Node_2'])
         prior = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix,factor_prior.shift)
