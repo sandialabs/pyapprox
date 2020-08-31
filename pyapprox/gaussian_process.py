@@ -63,6 +63,52 @@ from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
 from pyapprox import get_polynomial_from_variable, \
     get_univariate_quadrature_rules_from_pce
 from pyapprox.utilities import cartesian_product, outer_product
+def mean_of_mean_gaussian_T(train_samples,delta,mu,sigma):
+    dists = (train_samples-mu)**2
+    return np.prod(np.sqrt(delta/(delta+2*sigma**2))*np.exp(
+        -(dists)/(delta+2*sigma**2)),axis=0)
+
+def mean_of_mean_gaussian_U(delta,sigma):
+    return np.sqrt(delta/(delta+4*sigma**2)).prod()
+
+def variance_of_variance_gaussian_CC(delta,sigma):
+    return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
+
+def variance_of_variance_gaussian_C_sq(delta,sigma):
+    return np.sqrt(delta/(delta+8.*sigma**2)).prod()
+
+def variance_of_variance_gaussian_MC2(train_samples,delta,mu,sigma):
+    nvars = train_samples.shape[0]
+    MC2 = 1
+    for ii in range(nvars):
+        xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
+        numer1 = (xxi**2+mi**2)
+        denom1,denom2 = 4*si**2+6*di*si**2+di**2,di+2*si**2
+        MC2 *= np.exp(-((8*si**4+6*si**2*di)*numer1)/(denom1*denom2))
+        MC2 *= np.exp(-(numer1*di**2-16*xxi*si**4*mi-12*xxi*si**2*mi*di-2*xxi*si**2*mi)/(denom1*denom2))
+        MC2 *= np.sqrt(di/denom2)*np.sqrt(di*denom2/denom1)
+    return MC2
+
+def variance_of_variance_gaussian_C(delta,sigma):
+    return np.sqrt(delta/(delta+4*sigma**2)).prod()
+
+def variance_of_variance_gaussian_MMC3(train_samples,delta,mu,sigma):
+    nvars,ntrain_samples = train_samples.shape
+    MMC3=np.ones((ntrain_samples,ntrain_samples))
+    for ii in range(nvars):
+        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
+        denom1,denom2 = (12*si**4+8*di*si**2+di**2),di*(di+4*si)
+        for mm in range(ntrain_samples):
+            xm = train_samples[ii,mm]
+            for nn in range(ntrain_samples):
+                zn = train_samples[ii,nn]
+                MMC3[mm,nn]*=np.exp(-(32*xm*si**6*zn+20*mi*di**2*si**2+2*mi*di**3)/(denom1*denom2))
+                MMC3[mm,nn]*=np.exp(-(8*xm*si**4*zn*di+48*mi**2*di*si**4)/(denom1*denom2))
+                MMC3[mm,nn]*=np.exp(-((xm**2+zn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3))/(denom1*denom2))
+                MMC3[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
+    return MMC3
+
+
 def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
     kernel = extract_covariance_kernel(gp.kernel_,kernel_types)
@@ -217,7 +263,6 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         U*=WW2.dot(K)
 
         for mm in range(X_train.shape[1]):
-            print(X_train[ii,mm])
             dists1 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
             dists2 = (XX2[1,:]/lscale[ii]-X_train[ii,mm]/lscale[ii])**2
             MC2[mm] *= np.exp(-.5*dists1-.5*dists2).dot(WW2)
@@ -239,31 +284,33 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         xx3 = xx3*scale+loc
         XX3 = cartesian_product([xx3]*3)
         WW3 =  outer_product([ww3]*3)
-        dists1 = (XX3[0,:]-XX3[1,:])**2
-        dists2 = (XX3[1,:]-XX3[2,:])**2
+        dists1 = (XX3[0,:]/lscale[ii]-XX3[1,:]/lscale[ii])**2
+        dists2 = (XX3[1,:]/lscale[ii]-XX3[2,:]/lscale[ii])**2
         CC1 *= np.exp(-.5*dists1-.5*dists2).dot(WW3)
 
-
+    
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
     A_inv = K_inv*kernel_var
     expected_random_mean = T.dot(A_inv.dot(Y_train))
 
-    variance_random_mean = kernel_var*(U-T.dot(A_inv).dot(T.T))
+    W = U-T.dot(A_inv).dot(T.T)
+    variance_random_mean = kernel_var*(W)
 
     expected_random_var = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)+kernel_var*(1-np.trace(A_inv.dot(P)))-expected_random_mean**2-variance_random_mean
 
     #[C]
     C=U
     #[M]
-    M=T.dot(A_inv.dot(Y_train))
+    M=expected_random_mean
     #[M^2]
     M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
     #[V]
     V = (1-np.trace(A_inv.dot(P)))
     #[MC]
     A = np.linalg.inv(A_inv)
-    MC = MC2.T.dot(A.dot(Y_train))
+    MC = MC2.T.dot(A.dot(Y_train))#haylock
+    #MC = MC2.T.dot(A_inv.dot(Y_train))#if Haylock has a typo
     #[MMC]
     MMC = Y_train.T.dot(A_inv).dot(MMC3).dot(A_inv).dot(Y_train)
     #[CC]
@@ -271,15 +318,33 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     #[C^2]
     C_sq = C1_sq
 
+    # mu = np.ones((nvars,1))*loc
+    # sigma = np.ones((nvars,1))*scale
+    # delta = 2*lscale[:,np.newaxis]**2
+    # #CC = variance_of_variance_gaussian_CC(delta,sigma)
+    # #C_sq = variance_of_variance_gaussian_C_sq(delta,sigma)
+    # MC2 = variance_of_variance_gaussian_MC2(X_train,delta,mu,sigma)
+    # #C = variance_of_variance_gaussian_C(delta,sigma)
+    # MMC3_true=variance_of_variance_gaussian_MMC3(
+    #     X_train,delta,mu,sigma)
+    # A = np.linalg.inv(A_inv)
+    # MC = MC2.T.dot(A.dot(Y_train))#haylock
+    # #MC = MC2.T.dot(A_inv.dot(Y_train))#maybe a typo
+    # MMC = Y_train.T.dot(A_inv).dot(MMC3).dot(A_inv).dot(Y_train)
+
     #E[I_2^2]
     variance_random_var = 4*MMC*kernel_var + 2*C_sq*kernel_var**2+(
         M_sq+V*kernel_var)**2
+    print('v',variance_random_var)
     #-2E[I_2I^2]
     variance_random_var += -2*(4*M*MC*kernel_var+2*CC*kernel_var**2+M_sq*M**2+
         V*C*kernel_var**2 + M**2*V*kernel_var+M_sq*C*kernel_var)
+    print((4*M*MC*kernel_var+2*CC*kernel_var**2+M_sq*M**2+
+        V*C*kernel_var**2 + M**2*V*kernel_var+M_sq*C*kernel_var))
     #E[I^4]
+    print(3*C**2*kernel_var**2+6*M**2*C*kernel_var+M**4)
     variance_random_var += 3*C**2*kernel_var**2+6*M**2*C*kernel_var+M**4
-
+    #E[I_2-I^2]^2
     variance_random_var -= expected_random_var**2
 
     if not return_full:

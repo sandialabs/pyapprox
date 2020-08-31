@@ -35,8 +35,9 @@ class TestGaussianProcess(unittest.TestCase):
         length_scale = np.array([1]*nvars)
         kernel = Matern(length_scale,length_scale_bounds=(1e-2, 10), nu=nu)
         # fix kernel variance
+        print('set constant_value =2')
         kernel = ConstantKernel(
-            constant_value=2.,constant_value_bounds='fixed')*kernel
+            constant_value=1.,constant_value_bounds='fixed')*kernel
         # optimize kernel variance
         #kernel = ConstantKernel(
         #    constant_value=3,constant_value_bounds=(0.1,10))*kernel
@@ -91,10 +92,7 @@ class TestGaussianProcess(unittest.TestCase):
         # Halyok sq exp kernel is exp(-dists/delta). Sklearn RBF kernel is
         # exp(-.5*dists/L**2)
         delta = 2*length_scale[:,np.newaxis]**2
-        dists = (train_samples-mu)**2
-        T = np.prod(
-            np.sqrt(delta/(delta+2*sigma**2))*np.exp(
-                -(dists)/(delta+2*sigma**2)),axis=0)
+        T = mean_of_mean_gaussian_T(train_samples,delta,mu,sigma)
         #Kinv_y is inv(kernel_var*A).dot(y). Thus multiply by kernel_var to get
         #Haylock formula
         Ainv_y = Kinv_y*kernel_var
@@ -103,7 +101,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(
             true_expected_random_mean,expected_random_mean,rtol=1e-5)
 
-        U = np.sqrt(delta/(delta+4*sigma**2)).prod()
+        U = mean_of_mean_gaussian_U(delta,sigma)
         from scipy.linalg import solve_triangular
         L_inv = solve_triangular(gp.L_.T,np.eye(gp.L_.shape[0]))
         K_inv = L_inv.dot(L_inv.T)
@@ -122,52 +120,54 @@ class TestGaussianProcess(unittest.TestCase):
         #second term is um of 2x_i^2x_j^2
         #third term is mean x_i^2
         true_var = nvars*(mu_scalar**4+6*mu_scalar**2*sigma_scalar**2+3*sigma_scalar**2)+2*pya.nchoosek(nvars,2)*(mu_scalar**2+sigma_scalar**2)**2-true_mean**2
-        print('True var',true_var)
-        print('Expected random var',expected_random_var)
+        #print('True var',true_var)
+        #print('Expected random var',expected_random_var)
         #assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
-        #print(variance_random_var, intermediate_quantities)
-        MC2_true = 1
-        for ii in range(nvars):
-            xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
-            numer1 = (xxi**2+mi**2)
-            #print(numer1,train_samples)
-            denom1,denom2 = 4*si**2+6*di*si**2+di**2,di+2*si**2
-            MC2_true *= np.exp(-((8*si**4+6*si**2*di)*numer1)/(denom1*denom2))
-            MC2_true *= np.exp(-(numer1*di**2-16*xxi*si**4*mi-12*xxi*si**2*mi*di-2*xxi*si**2*mi)/(denom1*denom2))
-            MC2_true *= np.sqrt(di/denom2)*np.sqrt(di*denom2/denom1)
-        print('MC2',MC2_true,intermediate_quantities['MC2'])
+        CC_true = variance_of_variance_gaussian_CC(delta,sigma)
+        #print(CC_true,intermediate_quantities['CC'])
+        assert np.allclose(CC_true,intermediate_quantities['CC'])
+        
+        C_sq_true = variance_of_variance_gaussian_C_sq(delta,sigma)
+        #print(C_sq_true,intermediate_quantities['C_sq'])
+        assert np.allclose(C_sq_true,intermediate_quantities['C_sq'])
 
-        C_true = np.sqrt(delta/(delta+4*sigma**2)).prod()
+        #print(variance_random_var, intermediate_quantities)
+        MC2_true=variance_of_variance_gaussian_MC2(train_samples,delta,mu,sigma)
+        #print('MC2',MC2_true,intermediate_quantities['MC2'])
+
+        C_true = variance_of_variance_gaussian_C(delta,sigma)
         assert np.allclose(C_true,intermediate_quantities['C'])
 
-        MMC3_true=np.ones((ntrain_samples,ntrain_samples))
-        for ii in range(nvars):
-            si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
-            denom1,denom2 = (12*si**4+8*di*si**2+di**2),di*(di+4*si)
-            for mm in range(ntrain_samples):
-                xm = train_samples[ii,mm]
-                for nn in range(ntrain_samples):
-                    zn = train_samples[ii,nn]
-                    MMC3_true[mm,nn]*=np.exp(-(32*xm*si**6*zn+20*mi*di**2*si**2+2*mi*di**3)/(denom1*denom2))
-                    MMC3_true[mm,nn]*=np.exp(-(8*xm*si**4*zn*di+48*mi**2*di*si**4)/(denom1*denom2))
-                    MMC3_true[mm,nn]*=np.exp(-((xm**2+zn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3))/(denom1*denom2))
-                    MMC3_true[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
-                    
-        print(MMC3_true,'\n',intermediate_quantities['MMC3'])
+        MMC3_true=variance_of_variance_gaussian_MMC3(
+            train_samples,delta,mu,sigma)        
+        #print(MMC3_true,'\n',intermediate_quantities['MMC3'])
+
+
+        #TODO use Monte carlo to verify intermediate quantities, even ones
+        #where my answer agrees with Haylock. Check that when these MC
+        #quantities are used in E[I_2^2] etc. those expressions are correct.
 
         nsamples = 1000
         random_means, random_variances = [],[]
+        random_I2sq,random_I4,random_I2Isq = [],[],[]
         xx,ww=pya.gauss_hermite_pts_wts_1D(100)
         xx = xx*sigma_scalar + mu_scalar
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
         for ii in range(nsamples):
             vals = gp.predict_random_realization(quad_points)[:,0]
-            random_means.append(vals.dot(quad_weights))
-            random_variances.append(
-                (vals**2).dot(quad_weights)-random_means[-1]**2)
-            
+            I,I2 = vals.dot(quad_weights),(vals**2).dot(quad_weights)
+            random_means.append(I)
+            random_variances.append(I2-I**2)
+            random_I2sq.append(I2**2)
+            random_I2Isq.append(I2*I**2)
+            random_I4.append(I**4)
+
+        print(np.mean(random_I2sq))
+        print(np.mean(random_I2Isq))
+        print(np.mean(random_I4))
+        print(np.mean(random_I2sq)-2*np.mean(random_I2Isq)+np.mean(random_I4)-np.mean(random_variances)**2)
 
         print('MC expected random mean',np.mean(random_means))
         print('MC variance random mean',np.var(random_means))
