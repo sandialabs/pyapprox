@@ -57,15 +57,15 @@ def get_M0_and_M1_matrices(
 
     For least squares
 
-    .. math:: M_0 = \sum_{i=1}^M\eta(x_i)^2f(x_i)f(x_i)^T\r_i
+    .. math:: M_0 = \sum_{i=1}^M\eta(x_i)^2f(x_i)f(x_i)^Tr_i
 
-    .. math:: M_1 = \sum_{i=1}^Mf(x_i)f(x_i)^T\r_i
+    .. math:: M_1 = \sum_{i=1}^Mf(x_i)f(x_i)^Tr_i
     
     and for quantile regression
 
     .. math:: M_0 = \sum_{i=1}^M\frac{1}{\eta(x_i)}f(x_i)f(x_i)^Tr_i
 
-    .. math:: M_1 = \sum_{i=1}^Mf(x_i)f(x_i)^T\r_i
+    .. math:: M_1 = \sum_{i=1}^Mf(x_i)f(x_i)^Tr_i
 
     Parameters
     ----------

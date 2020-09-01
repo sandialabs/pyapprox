@@ -1,50 +1,53 @@
 import os, numpy as np, tempfile, subprocess, shutil, re, glob
 class AsynchronousEvaluationModel(object):
+    """
+    Evaluate a model in parallel when model instances are invoked by a shell
+    script.
+
+    Parameters
+    ----------
+    process sample: callable function (default=None)
+        Function that overwrites the basic implementation
+        which reads the sample in from a file called params_filename.
+        This is useful if there are a number of pre-processing steps
+        needed by the model before shall command is executed.
+
+    load_results: callable function (default=None)
+        Function that overwrites the basic implementation
+        which reads the results from a files called results_filename
+        This is useful if there are a number of post-processing steps
+        needed by the model after the shell command is executed.
+        If evaluation fails this function must return None
+
+    workdir_basename: string (default=None):
+        The name of the directory to store local copies or soft links
+        of files. The shell command will be executed in these directories.
+        If None temporary directories with python generated names
+        will be created and then deleted once the shell command has been
+        run.
+
+    save_workdirs : string (default=True)
+        'no'      - do not save workdirs
+        'yes'     - save all files in each workdir
+        'limited' - save only params and results files
+        If workdir_basename is None this variable is ignored
+        the tmp directories that are created will always be deleted.
+
+    model_name :  string (default=None)
+        A identifier used when printing model evaluation info
+
+    saved_data_basename : string (default=None)
+        The basename of the file used to store the output data from the 
+        model. A new file is created every time __call__ is exceuted.
+        a unique identifier is created based upon the value of evaluation id
+        when __call__ is started.
+    """
     def __init__(self, shell_command, max_eval_concurrency=1,
                  workdir_basename=None,link_filenames=[],
                  params_filename='params.in',results_filename='results.out',
                  params_file_header='',process_sample=None,
                  load_results=None, saved_data_basename=None,
                  save_workdirs='yes', model_name=None):
-        """
-        Parameters
-        ----------
-        process sample: callable function (default=None)
-            Function that overwrites the basic implementation
-            which reads the sample in from a file called params_filename.
-            This is useful if there are a number of pre-processing steps
-            needed by the model before shall command is executed.
-
-        load_results: callable function (default=None)
-            Function that overwrites the basic implementation
-            which reads the results from a files called results_filename
-            This is useful if there are a number of post-processing steps
-            needed by the model after the shell command is executed.
-            If evaluation fails this function must return None
-
-        workdir_basename: string (default=None):
-            The name of the directory to store local copies or soft links
-            of files. The shell command will be executed in these directories.
-            If None temporary directories with python generated names
-            will be created and then deleted once the shell command has been
-            run.
-
-        save_workdirs : string (default=True)
-            'no'      - do not save workdirs
-            'yes'     - save all files in each workdir
-            'limited' - save only params and results files
-            If workdir_basename is None this variable is ignored
-            the tmp directories that are created will always be deleted.
-
-        model_name :  string (default=None)
-            A identifier used when printing model evaluation info
-
-        saved_data_basename : string (default=None)
-            The basename of the file used to store the output data from the 
-            model. A new file is created every time __call__ is exceuted.
-            a unique identifier is created based upon the value of evaluation id
-            when __call__ is started.
-        """
 
         self.shell_command = shell_command
         self.max_eval_concurrency = max_eval_concurrency

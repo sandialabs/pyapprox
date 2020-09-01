@@ -124,6 +124,21 @@ class TestGaussianProcess(unittest.TestCase):
         #print('Expected random var',expected_random_var)
         #assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
+        xx = np.random.normal(mu_scalar,sigma_scalar,(nvars,10000))
+        from scipy.spatial.distance import cdist
+        dists = cdist(train_samples.T/length_scale,xx.T/length_scale,
+                      metric='sqeuclidean')
+        t = np.exp(-.5*dists)
+        V_mc = (kernel_var - np.diag(t.T.dot(K_inv).dot(t))).mean()
+        print(t.shape)
+        P_mc = (t.dot(t.T))/xx.shape[1]
+
+        P_true = mean_of_mean_gaussian_P(train_samples,delta,mu,sigma)
+        print(P_true,intermediate_quantities['P'],P_mc)
+        assert np.allclose(P_true,intermediate_quantities['P'])
+        
+        V_true = kernel_var*(1-np.trace(A_inv.dot(P_true)))
+
         CC_true = variance_of_variance_gaussian_CC(delta,sigma)
         #print(CC_true,intermediate_quantities['CC'])
         assert np.allclose(CC_true,intermediate_quantities['CC'])
@@ -138,6 +153,12 @@ class TestGaussianProcess(unittest.TestCase):
 
         C_true = variance_of_variance_gaussian_C(delta,sigma)
         assert np.allclose(C_true,intermediate_quantities['C'])
+        assert np.allclose(V_mc,intermediate_quantities['V'],rtol=1e-2)
+
+        M_sq_mc = np.mean((t.T.dot(Kinv_y))**2)
+        print(M_sq_mc,intermediate_quantities['M_sq'])
+        assert np.allclose(M_sq_mc,intermediate_quantities['M_sq'],rtol=2e-2)
+        #assert False
 
         MMC3_true=variance_of_variance_gaussian_MMC3(
             train_samples,delta,mu,sigma)        
@@ -204,8 +225,8 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(-1,2)]
         variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
 
-        expected_random_mean, variance_random_mean, expected_random_var=integrate_gaussian_process(
-            gp,variable)
+        expected_random_mean, variance_random_mean, expected_random_var, \
+            variance_random_var=integrate_gaussian_process(gp,variable)
 
         true_mean = 1/3
         true_var = 1/5-1/3**2

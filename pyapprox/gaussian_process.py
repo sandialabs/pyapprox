@@ -108,6 +108,22 @@ def variance_of_variance_gaussian_MMC3(train_samples,delta,mu,sigma):
                 MMC3[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
     return MMC3
 
+def mean_of_mean_gaussian_P(train_samples,delta,mu,sigma):
+    #haylock has typo. had to derive expression myself
+    nvars,ntrain_samples = train_samples.shape
+    P=np.ones((ntrain_samples,ntrain_samples))
+    for ii in range(nvars):
+        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
+        denom1 = 4*(di+4*si**2)
+        term2 = np.sqrt(di/(di+4*si**2))
+        for mm in range(ntrain_samples):
+            xm = train_samples[ii,mm]
+            for nn in range(mm,ntrain_samples):
+                xn = train_samples[ii,nn]
+                P[mm,nn]*=np.exp(-1/(2*si**2*di)*(2*si**2*(xm**2+xn**2)+di*mi**2-(4*si**2*(xm+xn)+2*di*mi)**2/denom1))*term2
+                P[nn,mm]=P[mm,nn]
+    return P
+        
 
 def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
@@ -297,16 +313,17 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     W = U-T.dot(A_inv).dot(T.T)
     variance_random_mean = kernel_var*(W)
 
-    expected_random_var = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)+kernel_var*(1-np.trace(A_inv.dot(P)))-expected_random_mean**2-variance_random_mean
+    #[V]
+    V = kernel_var*(1-np.trace(A_inv.dot(P)))
+    #[M^2]
+    M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
+    
+    expected_random_var = M_sq+V-expected_random_mean**2-variance_random_mean
 
     #[C]
     C=U
     #[M]
     M=expected_random_mean
-    #[M^2]
-    M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
-    #[V]
-    V = (1-np.trace(A_inv.dot(P)))
     #[MC]
     A = np.linalg.inv(A_inv)
     MC = MC2.T.dot(A.dot(Y_train))#haylock
@@ -352,6 +369,6 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
             variance_random_var
 
     intermeadiate_quantities={'C':C,'M':M,'M_sq':M_sq,'V':V,'MC':MC,'MMC':MMC,
-                              'CC':CC,'C_sq':C_sq,'MC2':MC2,'MMC3':MMC3}
+                              'CC':CC,'C_sq':C_sq,'MC2':MC2,'MMC3':MMC3,'P':P}
     return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermeadiate_quantities
