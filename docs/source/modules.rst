@@ -1,38 +1,54 @@
+Developer Reference Guide
+=========================
+
 .. automodapi:: pyapprox.approximate
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.sensitivity_analysis
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.quadrature
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.benchmarks.benchmarks
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.benchmarks.sensitivity_benchmarks
-   :no-heading:		
+   :no-inheritance-diagram:
+   		
 
 .. automodapi:: pyapprox.fenics_models.advection_diffusion_wrappers
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.fenics_models.helmholtz_benchmarks
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.multivariate_polynomials
-   :no-heading:		
+   :no-inheritance-diagram:
+   		
 
 .. automodapi:: pyapprox.bayesian_inference.markov_chain_monte_carlo
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.optimal_experimental_design
-   :no-heading:	
+   :no-inheritance-diagram:
+   	
 
 .. automodapi:: pyapprox.models.wrappers
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.models.async_model
-   :no-heading:
+   :no-inheritance-diagram:
+   
 
 .. automodapi:: pyapprox.control_variate_monte_carlo
-   :no-heading:
+   :no-inheritance-diagram:
+   

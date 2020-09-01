@@ -529,8 +529,8 @@ def get_discrepancy_covariances_KL(cov,nsample_ratios,K,L,pkg=np):
 
     The ACV-KL estimator partitions all of the control variates into two 
     groups; the first K variables form a K -level approximate control 
-    variate, and the last M − K variables are used to reduce the variance of 
-    estimating :math:`\mu_L` some :math:`L \le K` . The resulting estimator 
+    variate, and the last :math:`M-K` variables are used to reduce the variance
+    of estimating :math:`\mu_L` some :math:`L \le K` . The resulting estimator 
     accelerates convergence to OCV-K , and L provides a degree of freedom 
     for targeting a control variate level that contributes the greatest to 
     the estimator variance.
@@ -906,9 +906,9 @@ def generate_samples_and_values_mfmc(nhf_samples,nsample_ratios,functions,
     Returns
     =======
     samples : list 
-        List containing the samples :math:`\matchcal{Z}_{i,1}` and 
-        :math:`\matchcal{Z}_{i,2}` for each model :math:`i=0,\ldots,M-1`.
-        The list is [[:math:`\matchcal{Z}_{0,1}`,:math:`\matchcal{Z}_{0,2}`],...,[:math:`\matchcal{Z}_{M-1,1}`,:math:`\matchcal{Z}_{M-1,2}`]], 
+        List containing the samples :math:`\mathcal{Z}_{i,1}` and 
+        :math:`\mathcal{Z}_{i,2}` for each model :math:`i=0,\ldots,M-1`.
+        The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]], 
         where :math:`M` is the number of models
 
     values : list 

@@ -62,9 +62,9 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_dirs=[np.get_include()],
-    setup_requires=['numpy >= 1.16.1','Cython','scipy >= 1.0.0'],
+    setup_requires=['numpy >= 1.16.4','Cython','scipy >= 1.0.0'],
     install_requires=[
-        'numpy >= 1.16.1',
+        'numpy >= 1.16.4',
         'matplotlib',
         'scipy >= 1.0.0',
         'Cython',
@@ -74,10 +74,11 @@ setuptools.setup(
         'scikit-learn',
         'pytest-cov',
         'pytest',
-        'networkx'
+        'networkx',
         ],
     extras_require={'docs':['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                             'sphinx-gallery','jupyter']
+    #                'mfnets':['MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master']
       },
     ext_modules = extensions,
     test_suite='nose.collector',

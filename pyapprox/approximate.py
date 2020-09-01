@@ -290,7 +290,7 @@ def compute_l2_error(f,g,variable,nsamples,rel=False):
     r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
 
-    .. math:: \lVertf(z)-g(z)\rVert\approx \sum_{m=1}^M f(z^{(m)})
+    .. math:: \lVert f(z)-g(z)\rVert\approx \sum_{m=1}^M f(z^{(m)})
 
     from a set of random draws :math:`\mathcal{Z}=\{z^{(m)}\}_{m=1}^M` 
     from the PDF of :math:`z`.
