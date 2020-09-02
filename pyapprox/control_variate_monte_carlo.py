@@ -1115,8 +1115,8 @@ def solve_allocate_samples_acv_slsqp_optimization(
     #                        'fun':acv_sample_allocation_ratio_constraint_all,
     #                        'args':[jj]}))
     if optim_options is None:
-        optim_options = {'disp':True,'ftol':1e-12,
-                         'maxiter':1000,'iprint':0}
+        optim_options = {'disp':True,'ftol':1e-8,
+                         'maxiter':10000,'iprint':0}
         #set iprint=2 to printing iteration info
     
     bounds = [(1,np.inf)] + [(1.1, np.inf)]*(nmodels-1)
@@ -1135,7 +1135,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
         options = optim_options)
     if opt.success == False:
         print(opt)
-        raise Exception('SLSQP optimizer failed')
+        raise Exception('SLSQP optimizer failed'+f'{opt}')
     return opt
         
 
@@ -1631,7 +1631,7 @@ def plot_acv_sample_allocation(nsamples_history,costs,labels,ax):
     ax.set_xticks(xlocs)
     ax.set_xticklabels(['$%d$'%t for t in total_costs])
     ax.set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
-    ax.set_ylabel(r'$\mathrm{Percentage}\;\mathrm{of}\;\mathrm{Total}\;\mathrm{Cost}$ / $N_\alpha$')
+    ax.set_ylabel(r'$\mathrm{Percentage}\;\mathrm{of}\;\mathrm{Total}\;\mathrm{Cost}$')# / $N_\alpha$')
     ax.legend(loc=[0.925,0.25])
 
 from pyapprox.probability_measure_sampling import \
@@ -1819,3 +1819,32 @@ def compute_covariance_from_control_variate_samples(values):
     cov = np.cov(shared_samples_values,rowvar=False)
     #print(cov,'\n',cov_matrix)
     return cov
+
+def compare_estimator_variances(target_costs,estimators,cov_matrix,model_costs):
+    variances, nsamples_history = [],[]
+    for target_cost in target_costs:
+        for estimator in estimators:
+            est = estimator(cov_matrix,model_costs)
+            nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
+            variances.append(est.get_variance(nhf_samples,nsample_ratios))
+            nsamples_history.append(
+                est.get_nsamples(nhf_samples,nsample_ratios))
+    variances = np.asarray(variances)
+    nsamples_history = np.asarray(nsamples_history)
+    return nsamples_history, variances
+
+def plot_estimator_variances(nsamples_history, variances, model_costs,
+                             est_labels, ax):
+    linestyles=['-','--',':','-.']
+    nestimators = len(est_labels)
+    assert len(nsamples_history)==len(variances)
+    assert len(nsamples_history)%nestimators==0
+    for ii in range(nestimators):
+        est_total_costs = np.array(nsamples_history[ii::nestimators]).dot(
+            model_costs)
+        est_variances = variances[ii::nestimators]
+        ax.loglog(est_total_costs,est_variances,':',label=est_labels[ii],
+                  ls=linestyles[ii])
+    ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
+    ax.set_ylabel(r'$\mathrm{Estimator\;Variance}$')
+    ax.legend()
