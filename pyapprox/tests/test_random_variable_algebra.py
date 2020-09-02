@@ -120,9 +120,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         critical_points = get_all_local_extrema_of_monomial_expansion_1d(poly,lb,ub)
         xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));axs[0].plot(critical_points,poly(critical_points),'o')
 
-        axs[1].plot(zz_rand,ecdf,label='ECDF')
-        axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
-        plt.legend();plt.show()
+        #axs[1].plot(zz_rand,ecdf,label='ECDF')
+        #axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
+        #plt.legend();plt.show()
 
     def test_get_inverse_derivatives_x_squared(self):
         lb,ub = -np.inf, np.inf
@@ -187,10 +187,10 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         conv_pdf = sum_of_independent_random_variables_pdf(
             pdf2,[[x,w]],zz)
 
-        plt.plot(zz, pdf1(zz), label='Uniform')
-        plt.plot(zz, pdf2(zz), label='Gaussian')
-        plt.plot(zz,conv_pdf, label='Sum')
-        plt.legend(loc='best'), plt.suptitle('PDFs')
+        #plt.plot(zz, pdf1(zz), label='Uniform')
+        #plt.plot(zz, pdf2(zz), label='Gaussian')
+        #plt.plot(zz,conv_pdf, label='Sum')
+        #plt.legend(loc='best'), plt.suptitle('PDFs')
         #plt.show()
 
     def test_sum_of_independent_gaussian_variables(self):
