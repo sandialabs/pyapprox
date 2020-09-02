@@ -1,0 +1,6 @@
+plot_mfnets_helmholtz_benchmark_data
+====================================
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autofunction:: plot_mfnets_helmholtz_benchmark_data

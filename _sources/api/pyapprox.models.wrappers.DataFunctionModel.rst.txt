@@ -1,0 +1,21 @@
+DataFunctionModel
+=================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: DataFunctionModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~DataFunctionModel.__call__
+      ~DataFunctionModel.add_new_data
+      ~DataFunctionModel.hash_sample
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: add_new_data
+   .. automethod:: hash_sample

@@ -5,18 +5,20 @@
 
 Computation times
 =================
-**00:08.608** total execution time for **auto_tutorials_multi_fidelity** files:
+**00:01.487** total execution time for **auto_tutorials_multi_fidelity** files:
 
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py` (``plot_many_model_approximate_control_variate_monte_carlo.py``) | 00:02.878 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py` (``plot_multi_fidelity_monte_carlo.py``)                                                 | 00:01.487 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` (``plot_multi_index_collocation.py``)                                                       | 00:01.766 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` (``plot_approximate_control_variate_monte_carlo.py``)                       | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` (``plot_multi_level_monte_carlo.py``)                                                       | 00:01.508 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` (``plot_control_variate_monte_carlo.py``)                                               | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py` (``plot_multi_fidelity_monte_carlo.py``)                                                 | 00:01.140 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py` (``plot_gaussian_mfnets.py``)                                                                       | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py` (``plot_approximate_control_variate_monte_carlo.py``)                       | 00:00.912 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py` (``plot_many_model_approximate_control_variate_monte_carlo.py``) | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` (``plot_control_variate_monte_carlo.py``)                                               | 00:00.404 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py` (``plot_multi_index_collocation.py``)                                                       | 00:00.000 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py` (``plot_multi_level_monte_carlo.py``)                                                       | 00:00.000 | 0.0 MB |
 +---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------+--------+

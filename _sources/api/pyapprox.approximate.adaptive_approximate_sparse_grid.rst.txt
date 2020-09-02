@@ -1,0 +1,6 @@
+adaptive_approximate_sparse_grid
+================================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: adaptive_approximate_sparse_grid

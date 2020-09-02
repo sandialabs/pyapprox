@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py:
 
 
 Adaptive Leja Sequences
@@ -234,6 +236,17 @@ Now we are in a position to start the adaptive process
 
 
 
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    [2 2]
+    Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
+    [1 3]
+    Accuracy misleadingly appears reached because admissibility  criterion is preventing new subspaces from being added to the active set
+
 
 
 
@@ -263,12 +276,14 @@ And finally we plot the final polynomial index set :math:`\Lambda` the subspace 
     *
 
       .. image:: /auto_tutorials/polynomial_chaos/images/sphx_glr_plot_adaptive_leja_interpolation_001.png
-            :class: sphx-glr-multi-img
+          :alt: plot adaptive leja interpolation
+          :class: sphx-glr-multi-img
 
     *
 
       .. image:: /auto_tutorials/polynomial_chaos/images/sphx_glr_plot_adaptive_leja_interpolation_002.png
-            :class: sphx-glr-multi-img
+          :alt: plot adaptive leja interpolation
+          :class: sphx-glr-multi-img
 
 
 
@@ -277,7 +292,7 @@ And finally we plot the final polynomial index set :math:`\Lambda` the subspace 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.338 seconds)
+   **Total running time of the script:** ( 0 minutes  1.569 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py:
@@ -290,13 +305,13 @@ And finally we plot the final polynomial index set :math:`\Lambda` the subspace 
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_adaptive_leja_interpolation.py <plot_adaptive_leja_interpolation.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_adaptive_leja_interpolation.ipynb <plot_adaptive_leja_interpolation.ipynb>`
 

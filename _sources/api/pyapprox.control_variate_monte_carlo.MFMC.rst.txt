@@ -1,0 +1,19 @@
+MFMC
+====
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: MFMC
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MFMC.allocate_samples
+      ~MFMC.get_rsquared
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: allocate_samples
+   .. automethod:: get_rsquared

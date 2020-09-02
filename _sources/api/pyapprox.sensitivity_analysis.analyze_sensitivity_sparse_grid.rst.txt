@@ -1,0 +1,6 @@
+analyze_sensitivity_sparse_grid
+===============================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: analyze_sensitivity_sparse_grid

@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:
 
 
 Multi-fidelity Monte Carlo
@@ -112,8 +114,8 @@ Let us use MFMC to estimate the mean of our high-fidelity model.
 
  .. code-block:: none
 
-    MLMC error 0.01750809639141926
-    MC error 0.00964055173277023
+    MLMC error 0.017508096391419592
+    MC error 0.009640551732770564
 
 
 
@@ -143,7 +145,6 @@ Now lets us compare MC with MFMC using optimal sample allocations
     target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
     costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
     model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
-    print(pya.compute_correlations_from_covariance(cov))
     variances, nsamples_history = [],[]
     npilot_samples = 5
     estimators = [pya.MC,pya.MFMC]
@@ -153,7 +154,6 @@ Now lets us compare MC with MFMC using optimal sample allocations
             nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
             variances.append(est.get_variance(nhf_samples,nsample_ratios))
             nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-            print(nsamples_history[-1])
     variances = np.asarray(variances)
     nsamples_history = np.asarray(nsamples_history)
 
@@ -174,28 +174,9 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_fidelity_monte_carlo_001.png
+    :alt: plot multi fidelity monte carlo
     :class: sphx-glr-single-img
 
-
-.. rst-class:: sphx-glr-script-out
-
- Out:
-
- .. code-block:: none
-
-    [[1.         0.99498744 0.97499604 0.92702481 0.82065181]
-     [0.99498744 1.         0.99215674 0.95831485 0.8660254 ]
-     [0.97499604 0.99215674 1.         0.9860133  0.91651514]
-     [0.92702481 0.95831485 0.9860133  1.         0.96824584]
-     [0.82065181 0.8660254  0.91651514 0.96824584 1.        ]]
-    [10.  0.  0.  0.  0.]
-    [   4.   29.  140.  634. 3820.]
-    [100.   0.   0.   0.   0.]
-    [   46.   292.  1406.  6347. 38204.]
-    [1000.    0.    0.    0.    0.]
-    [   465.   2921.  14062.  63475. 382048.]
-    [10000.     0.     0.     0.     0.]
-    [   4655.   29215.  140623.  634754. 3820481.]
 
 
 
@@ -203,7 +184,7 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.140 seconds)
+   **Total running time of the script:** ( 0 minutes  1.487 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py:
@@ -216,13 +197,13 @@ Now lets us compare MC with MFMC using optimal sample allocations
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_multi_fidelity_monte_carlo.py <plot_multi_fidelity_monte_carlo.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_multi_fidelity_monte_carlo.ipynb <plot_multi_fidelity_monte_carlo.ipynb>`
 

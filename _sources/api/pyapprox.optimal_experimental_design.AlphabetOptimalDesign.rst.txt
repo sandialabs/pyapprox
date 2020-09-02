@@ -1,0 +1,27 @@
+AlphabetOptimalDesign
+=====================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autoclass:: AlphabetOptimalDesign
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AlphabetOptimalDesign.bayesian_objective_jacobian_components
+      ~AlphabetOptimalDesign.get_objective_and_jacobian
+      ~AlphabetOptimalDesign.minimax_nonlinear_constraints
+      ~AlphabetOptimalDesign.solve
+      ~AlphabetOptimalDesign.solve_nonlinear_bayesian
+      ~AlphabetOptimalDesign.solve_nonlinear_minimax
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: bayesian_objective_jacobian_components
+   .. automethod:: get_objective_and_jacobian
+   .. automethod:: minimax_nonlinear_constraints
+   .. automethod:: solve
+   .. automethod:: solve_nonlinear_bayesian
+   .. automethod:: solve_nonlinear_minimax

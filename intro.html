@@ -1,8 +1,7 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8">
   
@@ -12,31 +11,35 @@
   
 
   
-  
-  
-  
-
-  
-  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script type="text/javascript" src="_static/jquery.js"></script>
-        <script type="text/javascript" src="_static/underscore.js"></script>
-        <script type="text/javascript" src="_static/doctools.js"></script>
-        <script type="text/javascript" src="_static/language_data.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-
-    
-
-  
   <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
   <link rel="stylesheet" href="_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Installation" href="install.html" />
@@ -54,7 +57,7 @@
           
 
           
-            <a href="index.html" class="icon icon-home"> PyApprox
+            <a href="index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
           
 
           
@@ -80,6 +83,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -101,10 +105,23 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">PyApprox Tutorials</a></li>
 </ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Developer Reference Guide</a></li>
+</ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -143,7 +160,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="index.html">Docs</a> &raquo;</li>
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
         
       <li>About</li>
     
@@ -168,12 +185,11 @@
 <h1>About<a class="headerlink" href="#about" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>PyApprox provides flexible and efficient tools for high-dimensional approximation and uncertainty quantification. PyApprox implements methods addressing various issues surrounding high-dimensional parameter spaces and limited evaluations of expensive simulation models with the goal of facilitating simulation-aided knowledge discovery, prediction and design. Tools are provided for: (1) building surrogates using polynomial chaos expansions using least squares, compressive sensing and interpolation; (2) sparse grid interpolation and quadrature; (3) low-rank tensor-decompositions; (4) multi-fidelity approximation and sampling; (5) large-scale Bayesian inference; (6) numerical solvers for canonical ordinary and partial differential equations useful for demonstration purposes; (7) compressive sensing solvers; and (8) visualization. The code is intended to as a python toolbox but provides c++ code with Python interfaces to computationally expensive algorithms to increase performance</p>
-<p>The software provides foundational numerical algorithms for approximation of multivariate functions and quantifying uncertainty in numerical models. The software is primarily used to build surrogates of generic functions. Often such functions are quantities of interest of numerical simulation models of, for example, sea-level change due to ice-sheet evolution, or ground-water flow. Once surrogates are generated they are used to undertake sensitivity analysis to identity important model parameters and to compute statistics of the variable model output caused by sources of uncertainty.</p>
+<p>PyApprox provides flexible and efficient tools for credible data-informed decision making. PyApprox implements methods addressing various issues surrounding high-dimensional parameter spaces and limited evaluations of expensive simulation models with the goal of facilitating simulation-aided knowledge discovery, prediction and design. Methods are available for: low-rank tensor-decomposition; Gaussian processes; polynomial chaos expansions; sparse-grids; risk-adverse regression; compressed sensing; Bayesian inference; push-forward based inference; optimal design of computer experiments for interpolation regression and compressed sensing; and risk-adverse optimal experimental design.</p>
 </div>
 <div class="section" id="team">
 <h2>Team<a class="headerlink" href="#team" title="Permalink to this headline">¶</a></h2>
-<p>PyApprox was written and developed by Dr. John D. Jakeman. John is a Senior Member of Techincal Staff at Sandia National Laboratories, Albuquerque USA. A list of his publications can be found at <a class="reference external" href="https://scholar.google.com/citations?hl=en&amp;user=tupqTFgAAAAJ">Google Scholar</a>.</p>
+<p>PyApprox was written and developed by Dr. John D. Jakeman. John is a Principle Member of Technical Staff at Sandia National Laboratories, Albuquerque USA. A list of his publications can be found at <a class="reference external" href="https://scholar.google.com/citations?hl=en&amp;user=tupqTFgAAAAJ">Google Scholar</a>.</p>
 </div>
 <div class="section" id="acknowledgments">
 <h2>Acknowledgments<a class="headerlink" href="#acknowledgments" title="Permalink to this headline">¶</a></h2>
@@ -201,11 +217,19 @@
 
   <div role="contentinfo">
     <p>
+        
         &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -216,7 +240,6 @@
 
   </div>
   
-
 
   <script type="text/javascript">
       jQuery(function () {

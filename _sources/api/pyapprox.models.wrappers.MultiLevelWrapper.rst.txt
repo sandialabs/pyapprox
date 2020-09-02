@@ -1,0 +1,27 @@
+MultiLevelWrapper
+=================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: MultiLevelWrapper
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~MultiLevelWrapper.num_evaluations
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MultiLevelWrapper.__call__
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: num_evaluations
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

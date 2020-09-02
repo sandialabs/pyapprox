@@ -1,0 +1,335 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>generate_samples_and_values_mlmc &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="get_allocate_samples_acv_trust_region_constraints" href="pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints.html" />
+    <link rel="prev" title="generate_samples_and_values_mfmc" href="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#id42">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint.html">acv_sample_allocation_cost_constraint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_all.html">acv_sample_allocation_cost_constraint_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_jacobian_all.html">acv_sample_allocation_cost_constraint_jacobian_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_lagrange_torch.html">acv_sample_allocation_jacobian_all_lagrange_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_torch.html">acv_sample_allocation_jacobian_all_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_torch.html">acv_sample_allocation_jacobian_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective.html">acv_sample_allocation_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all.html">acv_sample_allocation_objective_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all_lagrange.html">acv_sample_allocation_objective_all_lagrange</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_sample_ratio_constraint.html">acv_sample_allocation_sample_ratio_constraint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.allocate_samples_acv.html">allocate_samples_acv</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.allocate_samples_acv_best_kl.html">allocate_samples_acv_best_kl</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.allocate_samples_mfmc.html">allocate_samples_mfmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.allocate_samples_mlmc.html">allocate_samples_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.bootstrap_mfmc_estimator.html">bootstrap_mfmc_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.bootstrap_monte_carlo_estimator.html">bootstrap_monte_carlo_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compare_estimator_variances.html">compare_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compute_approximate_control_variate_mean_estimate.html">compute_approximate_control_variate_mean_estimate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compute_control_variate_mean_estimate.html">compute_control_variate_mean_estimate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compute_correlations_from_covariance.html">compute_correlations_from_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compute_covariance_from_control_variate_samples.html">compute_covariance_from_control_variate_samples</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.compute_single_fidelity_and_approximate_control_variate_mean_estimates.html">compute_single_fidelity_and_approximate_control_variate_mean_estimates</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.estimate_variance_reduction.html">estimate_variance_reduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_IS.html">generate_samples_and_values_acv_IS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_KL.html">generate_samples_and_values_acv_KL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc.html">generate_samples_and_values_mfmc</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">generate_samples_and_values_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints.html">get_allocate_samples_acv_trust_region_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_approximate_control_variate_weights.html">get_approximate_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_control_variate_rsquared.html">get_control_variate_rsquared</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_control_variate_weights.html">get_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_IS.html">get_discrepancy_covariances_IS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_KL.html">get_discrepancy_covariances_KL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_MF.html">get_discrepancy_covariances_MF</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_initial_guess.html">get_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_lagrange_multiplier_mlmc.html">get_lagrange_multiplier_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights.html">get_mfmc_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights_pool_wrapper.html">get_mfmc_control_variate_weights_pool_wrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights.html">get_mlmc_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights_pool_wrapper.html">get_mlmc_control_variate_weights_pool_wrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_pilot_covariance.html">get_pilot_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_rsquared_acv.html">get_rsquared_acv</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_rsquared_acv_KL_best.html">get_rsquared_acv_KL_best</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_rsquared_mfmc.html">get_rsquared_mfmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_rsquared_mlmc.html">get_rsquared_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.get_variance_reduction.html">get_variance_reduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.plot_acv_sample_allocation.html">plot_acv_sample_allocation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.plot_estimator_variances.html">plot_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_slsqp_optimization.html">solve_allocate_samples_acv_slsqp_optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_trust_region_optimization.html">solve_allocate_samples_acv_trust_region_optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.standardize_sample_ratios.html">standardize_sample_ratios</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.control_variate_monte_carlo.validate_nsample_ratios.html">validate_nsample_ratios</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#id43">Classes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>generate_samples_and_values_mlmc</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="generate-samples-and-values-mlmc">
+<h1>generate_samples_and_values_mlmc<a class="headerlink" href="#generate-samples-and-values-mlmc" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc">
+<code class="sig-prename descclassname">pyapprox.control_variate_monte_carlo.</code><code class="sig-name descname">generate_samples_and_values_mlmc</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">nhf_samples</span></em>, <em class="sig-param"><span class="n">nsample_ratios</span></em>, <em class="sig-param"><span class="n">functions</span></em>, <em class="sig-param"><span class="n">generate_samples</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/control_variate_monte_carlo.html#generate_samples_and_values_mlmc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>nhf_samples</strong><span class="classifier">integer</span></dt><dd><p>The number of samples of the high fidelity model</p>
+</dd>
+<dt><strong>nsample_ratios</strong><span class="classifier">np.ndarray (nmodels-1)</span></dt><dd><p>The sample ratios r used to specify the number of samples of the 
+lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,…,nmodels-1</p>
+</dd>
+<dt><strong>functions</strong><span class="classifier">list of callables</span></dt><dd><p>The functions used to evaluate each model</p>
+</dd>
+<dt><strong>generate_samples</strong><span class="classifier">callable</span></dt><dd><p>Function used to generate realizations of the random variables</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints.html" class="btn btn-neutral float-right" title="get_allocate_samples_acv_trust_region_constraints" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc.html" class="btn btn-neutral float-left" title="generate_samples_and_values_mfmc" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

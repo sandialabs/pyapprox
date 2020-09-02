@@ -1,8 +1,7 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8">
   
@@ -12,31 +11,35 @@
   
 
   
-  
-  
-  
-
-  
-  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script type="text/javascript" src="../../_static/language_data.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
-    
-
-  
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Surrogate Modeling" href="plot_tensor_product_interpolation.html" />
@@ -54,7 +57,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
           
 
           
@@ -80,6 +83,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -96,6 +100,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#foundations">Foundations</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_advection_diffusion_model.html">Numerical Approximations of Governing Equations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
@@ -105,17 +110,31 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Surrogate Modeling</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_sensitivity_analysis.html">Sensitivity Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-monte-carlo-methods">Multi-Fidelity Monte Carlo Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
 </ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -154,7 +173,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
         
           <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
         
@@ -179,7 +198,7 @@
             
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-push-forward-based-inference-py"><span class="std std-ref">here</span></a> to download the full example code</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-push-forward-based-inference-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
 </div>
 <div class="sphx-glr-example-title section" id="push-forward-based-inference">
 <span id="sphx-glr-auto-tutorials-foundations-plot-push-forward-based-inference-py"></span><h1>Push Forward Based Inference<a class="headerlink" href="#push-forward-based-inference" title="Permalink to this headline">¶</a></h1>
@@ -328,7 +347,7 @@ x_1^2-\rv_2x_2^2&amp;=1\end{split}\]</div>
     <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">coolwarm</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_push_forward_based_inference_001.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_001.png" />
+<img alt="plot push forward based inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_0011.png" />
 <p>Note that to plot the posterior we had to evaluate the model at each plot points. This can be expensive. To avoid this surrogate models can be used to replace the expensive model <a class="reference internal" href="#bjwsisc2018b" id="id2"><span>[BJWSISC2018b]</span></a>. But ignoring such approaches we can still obtain useful information without additional model evaluations as is done above. For example, we can easily and with no additional model evaluations evaluate the posterior density at the prior samples</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prior_prob_at_prior_samples</span><span class="o">=</span><span class="n">prior_pdf</span><span class="p">(</span><span class="n">prior_samples</span><span class="p">)</span>
 <span class="n">obs_prob_at_prior_samples</span><span class="o">=</span><span class="n">obs_pdf</span><span class="p">(</span><span class="n">response_vals_at_prior_samples</span><span class="p">)</span>
@@ -357,7 +376,7 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ranges</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_002.png" />
+<img alt="plot push forward based inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_0021.png" />
 <p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>0.1693
 </pre></div>
@@ -376,7 +395,7 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_003.png" />
+<img alt="plot push forward based inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_push_forward_based_inference_0031.png" />
 <p>Explore the number effect of changing the number of prior samples on the posterior and its push-forward.</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
@@ -388,12 +407,12 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 <dd><p><a class="reference external" href="https://doi.org/10.1137/18M1181675">T Butler, J Jakeman, T Wildey. Convergence of probability densities using approximate models for forward and inverse problems in uncertainty quantification. SIAM Journal on Scientific Computing, 40 (5), A3523-A3548 (2018).</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.253 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.068 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-foundations-plot-push-forward-based-inference-py">
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/c853f388014f957db158ac17b917b966/plot_push_forward_based_inference.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_push_forward_based_inference.py</span></code></a></p>
 </div>
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/5661c4144fe704ae468a1262a56082b8/plot_push_forward_based_inference.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_push_forward_based_inference.ipynb</span></code></a></p>
 </div>
 </div>
@@ -421,11 +440,19 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 
   <div role="contentinfo">
     <p>
+        
         &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -436,7 +463,6 @@ Given a random number <span class="math notranslate nohighlight">\(u\sim U[0,1]\
 
   </div>
   
-
 
   <script type="text/javascript">
       jQuery(function () {

@@ -1,0 +1,396 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>AdvectionDiffusionModel &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="AdvectionDiffusionSourceInversionModel" href="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html" />
+    <link rel="prev" title="setup_zero_flux_neumann_boundary_conditions" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#id17">Functions</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#id18">Classes</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">AdvectionDiffusionModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html">AdvectionDiffusionSourceInversionModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>AdvectionDiffusionModel</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="advectiondiffusionmodel">
+<h1>AdvectionDiffusionModel<a class="headerlink" href="#advectiondiffusionmodel" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel">
+<em class="property">class </em><code class="sig-prename descclassname">pyapprox.fenics_models.advection_diffusion_wrappers.</code><code class="sig-name descname">AdvectionDiffusionModel</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">final_time</span></em>, <em class="sig-param"><span class="n">degree</span></em>, <em class="sig-param"><span class="n">qoi_functional</span></em>, <em class="sig-param"><span class="n">second_order_timestepping</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">options</span><span class="o">=</span><span class="default_value">{}</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.__call__" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples)</p></td>
+<td><p>Call self as a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_boundary_conditions_and_function_space" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_boundary_conditions_and_function_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_boundary_conditions_and_function_space</span></code></a>(…)</p></td>
+<td><p>By Default the boundary conditions are deterministic, Dirichlet and  and set to zero</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_diffusivity" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_diffusivity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_diffusivity</span></code></a>(random_sample)</p></td>
+<td><p>Use the random diffusivity specified in [JEGGIJNME2020].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_forcing" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_forcing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_forcing</span></code></a>(random_sample)</p></td>
+<td><p>By Default the forcing is deterministic and set to</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_initial_condition" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_initial_condition"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_condition</span></code></a>(random_sample)</p></td>
+<td><p>By Default the initial condition is deterministic and set to zero</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mesh</span></code></a>(resolution_levels)</p></td>
+<td><p>The arguments to this function are the outputs of  get_degrees_of_freedom_and_timestep()</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh_resolution" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh_resolution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mesh_resolution</span></code></a>(mesh_levels)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_timestep" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_timestep"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_timestep</span></code></a>(dt_level)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_velocity" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_velocity</span></code></a>(random_sample)</p></td>
+<td><p>By Default the advection is deterministic and set to zero</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.initialize_random_expressions" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.initialize_random_expressions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">initialize_random_expressions</span></code></a>(random_sample)</p></td>
+<td><p>Overide this class to split random_samples into the parts that effect the 5 random quantities</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.set_num_config_vars" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.set_num_config_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_num_config_vars</span></code></a>()</p></td>
+<td><p>Should be equal to the number of physical dimensions + 1  (for the temporal resolution)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.solve" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.solve"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve</span></code></a>(samples)</p></td>
+<td><p>Run the simulation</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call self as a function.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_boundary_conditions_and_function_space">
+<code class="sig-name descname">get_boundary_conditions_and_function_space</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_boundary_conditions_and_function_space"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_boundary_conditions_and_function_space" title="Permalink to this definition">¶</a></dt>
+<dd><p>By Default the boundary conditions are deterministic, Dirichlet and 
+and set to zero</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_diffusivity">
+<code class="sig-name descname">get_diffusivity</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_diffusivity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_diffusivity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use the random diffusivity specified in [JEGGIJNME2020].</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_forcing">
+<code class="sig-name descname">get_forcing</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_forcing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_forcing" title="Permalink to this definition">¶</a></dt>
+<dd><p>By Default the forcing is deterministic and set to</p>
+<div class="math notranslate nohighlight">
+\[(1.5+\cos(2\pi t))*cos(x_1)\]</div>
+<p>where <span class="math notranslate nohighlight">\(t\)</span> is time and <span class="math notranslate nohighlight">\(x_1\)</span> is the first spatial dimension.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_initial_condition">
+<code class="sig-name descname">get_initial_condition</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_initial_condition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_initial_condition" title="Permalink to this definition">¶</a></dt>
+<dd><p>By Default the initial condition is deterministic and set to zero</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh">
+<code class="sig-name descname">get_mesh</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">resolution_levels</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_mesh"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh" title="Permalink to this definition">¶</a></dt>
+<dd><p>The arguments to this function are the outputs of 
+get_degrees_of_freedom_and_timestep()</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh_resolution">
+<code class="sig-name descname">get_mesh_resolution</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">mesh_levels</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_mesh_resolution"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh_resolution" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_timestep">
+<code class="sig-name descname">get_timestep</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">dt_level</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_timestep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_timestep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_velocity">
+<code class="sig-name descname">get_velocity</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.get_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_velocity" title="Permalink to this definition">¶</a></dt>
+<dd><p>By Default the advection is deterministic and set to zero</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.initialize_random_expressions">
+<code class="sig-name descname">initialize_random_expressions</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">random_sample</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.initialize_random_expressions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.initialize_random_expressions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Overide this class to split random_samples into the parts that effect
+the 5 random quantities</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.set_num_config_vars">
+<code class="sig-name descname">set_num_config_vars</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.set_num_config_vars"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.set_num_config_vars" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should be equal to the number of physical dimensions + 1 
+(for the temporal resolution)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.solve">
+<code class="sig-name descname">solve</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#AdvectionDiffusionModel.solve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.solve" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the simulation</p>
+<p class="rubric">Notes</p>
+<p>Dolfin objects must be initialized inside this function otherwise 
+this object cannot be pickled and used with multiprocessing.Pool</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html" class="btn btn-neutral float-right" title="AdvectionDiffusionSourceInversionModel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html" class="btn btn-neutral float-left" title="setup_zero_flux_neumann_boundary_conditions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

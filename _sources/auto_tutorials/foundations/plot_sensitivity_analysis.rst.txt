@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_sensitivity_analysis.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_foundations_plot_sensitivity_analysis.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_sensitivity_analysis.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_foundations_plot_sensitivity_analysis.py:
 
 
 Sensitivity Analysis
@@ -29,7 +31,7 @@ The functions :math:`\hat{f}_\V{u}` can be obtained by integration, specifically
 
 where :math:`\dx{\pdf_{\mathcal{D} \setminus \V{u}}(\rv)}=\prod_{j\notin\V{u}}\dx{\pdf_j(\rv)}` and :math:`\rvdom_{\mathcal{D} \setminus \V{u}}=\bigotimes_{j\notin\V{u}}\rvdom_j`.
 
-The first-order terms :math:`\hat{f}_{\V{u}}(\rv_i)`, :math:`\norm{\V{u}}{0}=1` represent the effect of a single variable acting independently of all others. Similarly, the second-order terms :math:`\norm{\V{u}}{0}=2` represent the contributions of two variables acting together, and so on.
+The first-order terms :math:`\hat{f}_{\V{u}}(\rv_i)`, :math:`\lVert \V{u}\rVert_{0}=1` represent the effect of a single variable acting independently of all others. Similarly, the second-order terms :math:`\lVert\V{u}\rVert_{0}=2` represent the contributions of two variables acting together, and so on.
 
  The terms of the ANOVA expansion are orthogonal, i.e. the weighted :math:`L^2` inner product :math:`(\hat{f}_\V{u},\hat{f}_\V{v})_{L^2_\pdf}=0`, for :math:`\V{u}\neq\V{v}`. This orthogonality facilitates the following decomposition of the variance of the function :math:`f` 
 
@@ -39,27 +41,110 @@ where :math:`\dx{\pdf_{\V{u}}(\rv)}=\prod_{j\in\V{u}}\dx{\pdf_j(\rv)}`.
 
 The quantities :math:`\var{\hat{f}_\V{u}}/ \var{f}` are referred to as Sobol indices [SMCS2001]_ and are frequently used to estimate the sensitivity of :math:`f` to single, or combinations of input parameters. Note that this is a *global* sensitivity, reflecting a variance attribution over the range of the input parameters, as opposed to the local sensitivity reflected by a derivative. Two popular measures of sensitivity are the main effect and total effect indices given respectively by
 
-.. math:: S_{i} = \frac{\var{\hat{f}_{\V{e}_i}}}{\var{f}}, \qquad
- S^T_{i} = \frac{\sum_{\V{u}\in\mathcal{J}}\var{\hat{f}_{\V{u}}}}{\var{f}}
+.. math:: S_{i} = \frac{\var{\hat{f}_{\V{e}_i}}}{\var{f}}, \qquad S^T_{i} = \frac{\sum_{\V{u}\in\mathcal{J}}\var{\hat{f}_{\V{u}}}}{\var{f}}
 
 where :math:`\V{e}_i` is the unit vector, with only one non-zero entry located at the :math:`i`-th element, and :math:`\mathcal{J} = \{\V{u}:i\in\V{u}\}`.
 
 Sobol indices can be computed different ways. In the following we will use polynomial chaos expansions, as in [SRESS2008]_.
 
-Morris One-at-a-time
---------------------
-[MT1991]_
+
+.. code-block:: default
+
+    import numpy as np
+    import pyapprox as pya
+    from pyapprox.benchmarks.benchmarks import setup_benchmark
+    from pyapprox.approximate import approximate
+    benchmark = setup_benchmark("ishigami",a=7,b=0.1)
+
+    num_samples = 1000
+    train_samples=pya.generate_independent_random_samples(
+        benchmark.variable,num_samples)
+    train_vals = benchmark.fun(train_samples)
+
+    approx_res = approximate(
+        train_samples,train_vals,'polynomial_chaos',
+        {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
+         'options':{'max_degree':8}})
+    pce = approx_res.approx
+
+    res = pya.analyze_sensitivity_polynomial_chaos(pce)
+
+
+
+
+
+
+
+
+Now lets compare the estimated values with the exact value
+
+
+.. code-block:: default
+
+    print(res.main_effects[:,0])
+    print(benchmark.main_effects[:,0])
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    [3.14720223e-01 4.41237311e-01 7.54746362e-07]
+    [0.31390519 0.44241114 0.        ]
+
+
+
+
+We can visualize the sensitivity indices using the following
+
+
+.. code-block:: default
+
+
+    import matplotlib.pyplot as plt
+    fig,axs = plt.subplots(1,3,figsize=(3*8,6))
+    pya.plot_main_effects(benchmark.main_effects,axs[0])
+    pya.plot_total_effects(benchmark.total_effects,axs[1])
+    pya.plot_interaction_values(benchmark.sobol_indices,benchmark.sobol_interaction_indices,axs[2])
+    axs[0].set_title(r'$\mathrm{Main\;Effects}$')
+    axs[1].set_title(r'$\mathrm{Total\;Effects}$')
+    axs[2].set_title(r'$\mathrm{Sobol\;Indices}$')
+    plt.show()
+
+
+
+
+
+
+.. image:: /auto_tutorials/foundations/images/sphx_glr_plot_sensitivity_analysis_001.png
+    :alt: $\mathrm{Main\;Effects}$, $\mathrm{Total\;Effects}$, $\mathrm{Sobol\;Indices}$
+    :class: sphx-glr-single-img
+
+
+
+
+
+..
+  Morris One-at-a-time
+  --------------------
+  [MT1991]_
 
 References
 ^^^^^^^^^^
-.. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_ 
 .. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
 .. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
+..
+  .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_ 
 
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.000 seconds)
+   **Total running time of the script:** ( 0 minutes  1.694 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_foundations_plot_sensitivity_analysis.py:
@@ -72,13 +157,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_sensitivity_analysis.py <plot_sensitivity_analysis.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_sensitivity_analysis.ipynb <plot_sensitivity_analysis.ipynb>`
 

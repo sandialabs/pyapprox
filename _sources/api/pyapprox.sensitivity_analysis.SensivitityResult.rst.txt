@@ -1,0 +1,7 @@
+SensivitityResult
+=================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autoclass:: SensivitityResult
+   :show-inheritance:

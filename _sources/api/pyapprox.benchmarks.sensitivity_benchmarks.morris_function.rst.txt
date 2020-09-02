@@ -1,0 +1,6 @@
+morris_function
+===============
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: morris_function

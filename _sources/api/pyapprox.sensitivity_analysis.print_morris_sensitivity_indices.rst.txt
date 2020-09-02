@@ -1,0 +1,6 @@
+print_morris_sensitivity_indices
+================================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: print_morris_sensitivity_indices

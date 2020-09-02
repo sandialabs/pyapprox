@@ -1,0 +1,6 @@
+acv_sample_allocation_sample_ratio_constraint
+=============================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: acv_sample_allocation_sample_ratio_constraint

@@ -1,0 +1,295 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>extract_minimax_design_from_optimize_result &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="extract_r_oed_design_from_optimize_result" href="pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result.html" />
+    <link rel="prev" title="doptimality_criterion" href="pyapprox.optimal_experimental_design.doptimality_criterion.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#id29">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.aoptimality_criterion.html">aoptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.compute_homoscedastic_outer_products.html">compute_homoscedastic_outer_products</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.compute_prediction_variance.html">compute_prediction_variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.coptimality_criterion.html">coptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.doptimality_criterion.html">doptimality_criterion</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">extract_minimax_design_from_optimize_result</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result.html">extract_r_oed_design_from_optimize_result</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_M0_and_M1_matrices.html">get_M0_and_M1_matrices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_minimax_bounds.html">get_minimax_bounds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_minimax_default_initial_guess.html">get_minimax_default_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_minimax_linear_constraints.html">get_minimax_linear_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_r_oed_bounds.html">get_r_oed_bounds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_r_oed_default_initial_guess.html">get_r_oed_default_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_r_oed_jacobian_structure.html">get_r_oed_jacobian_structure</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.get_r_oed_linear_constraints.html">get_r_oed_linear_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.goptimality_criterion.html">goptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.ioptimality_criterion.html">ioptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.minimax_oed_constraint_jacobian.html">minimax_oed_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.minimax_oed_constraint_objective.html">minimax_oed_constraint_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.minimax_oed_objective.html">minimax_oed_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.minimax_oed_objective_jacobian.html">minimax_oed_objective_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.optimal_experimental_design.html">optimal_experimental_design</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.r_oed_constraint_jacobian.html">r_oed_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.r_oed_constraint_objective.html">r_oed_constraint_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.r_oed_objective.html">r_oed_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.r_oed_objective_jacobian.html">r_oed_objective_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.r_oed_sparse_constraint_jacobian.html">r_oed_sparse_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.optimal_experimental_design.roptimality_criterion.html">roptimality_criterion</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#id30">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>extract_minimax_design_from_optimize_result</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="extract-minimax-design-from-optimize-result">
+<h1>extract_minimax_design_from_optimize_result<a class="headerlink" href="#extract-minimax-design-from-optimize-result" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result">
+<code class="sig-prename descclassname">pyapprox.optimal_experimental_design.</code><code class="sig-name descname">extract_minimax_design_from_optimize_result</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">res</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/optimal_experimental_design.html#extract_minimax_design_from_optimize_result"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result.html" class="btn btn-neutral float-right" title="extract_r_oed_design_from_optimize_result" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.optimal_experimental_design.doptimality_criterion.html" class="btn btn-neutral float-left" title="doptimality_criterion" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

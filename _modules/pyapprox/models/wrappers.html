@@ -1,0 +1,932 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyapprox.models.wrappers &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyapprox.models.wrappers</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyapprox.models.wrappers</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span>
+                        <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">subprocess</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">glob</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Pool</span>
+
+<div class="viewcode-block" id="get_num_args"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.get_num_args.html#pyapprox.models.wrappers.get_num_args">[docs]</a><span class="k">def</span> <span class="nf">get_num_args</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the number of arguments of a function.</span>
+<span class="sd">    If function is a member function of a class the self argument is not </span>
+<span class="sd">    counted.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : callable</span>
+<span class="sd">        The Python callable to be interrogated</span>
+
+<span class="sd">    Return</span>
+<span class="sd">    ------</span>
+<span class="sd">    num_args : integer</span>
+<span class="sd">        The number of arguments to the function including</span>
+<span class="sd">        args, varargs, keywords</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">inspect</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getfullargspec</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+    <span class="n">num_args</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">num_args</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;self&#39;</span> <span class="ow">in</span>  <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">num_args</span><span class="o">-=</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">num_args</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">num_args</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="c1"># do not count defaults of keywords conatined in args[3]</span>
+    <span class="c1">#if args[3] is not None:</span>
+    <span class="c1">#    num_args += len(args[3])</span>
+    <span class="k">return</span> <span class="n">num_args</span></div>
+
+
+<div class="viewcode-block" id="evaluate_1darray_function_on_2d_array"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array.html#pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array">[docs]</a><span class="k">def</span> <span class="nf">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">function</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span><span class="n">opts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate a function at a set of samples using a function that only takes</span>
+<span class="sd">    one sample at a time</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : callable</span>
+<span class="sd">        A function with signature</span>
+
+<span class="sd">        ``function(sample) -&gt; np.ndarray```</span>
+
+<span class="sd">        where sample is a 1d np.ndarray of shape (num_vars) and the output is</span>
+<span class="sd">        a np.ndarray of values of shape (num_qoi). The output can also be a </span>
+<span class="sd">        scalar</span>
+
+<span class="sd">    samples : np.ndarray (num_vars, num_samples)</span>
+<span class="sd">        The samples at which to evaluate the model</span>
+
+<span class="sd">    opts : dictionary</span>
+<span class="sd">        A set of options that are needed to evaluate the model</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values : np.ndarray (num_samples, num_qoi)</span>
+<span class="sd">        The value of each requested QoI of the model for each sample</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_args</span> <span class="o">=</span> <span class="n">get_num_args</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">num_args</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+        <span class="n">values_0</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">opts</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">values_0</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">values_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">values_0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">values_0</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+    <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">values_0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">,</span><span class="n">num_qoi</span><span class="p">),</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span><span class="o">=</span><span class="n">values_0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">num_args</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">i</span><span class="p">],</span> <span class="n">opts</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">values</span></div>
+
+<div class="viewcode-block" id="PyFunction"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.PyFunction.html#pyapprox.models.wrappers.PyFunction">[docs]</a><span class="k">class</span> <span class="nc">PyFunction</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">=</span><span class="n">function</span>
+        
+<div class="viewcode-block" id="PyFunction.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.PyFunction.html#pyapprox.models.wrappers.PyFunction.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span><span class="n">opts</span><span class="o">=</span><span class="nb">dict</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span><span class="n">opts</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="run_shell_command"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.run_shell_command.html#pyapprox.models.wrappers.run_shell_command">[docs]</a><span class="k">def</span> <span class="nf">run_shell_command</span><span class="p">(</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">opts</span><span class="o">=</span><span class="p">{}):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Execulte a shell command.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shell_command : string</span>
+<span class="sd">        The command that you want executed</span>
+
+<span class="sd">    output_verbosity : integer (default=0)</span>
+<span class="sd">        0 - supress all model output</span>
+<span class="sd">        1 - write output to file</span>
+<span class="sd">        2 - write output to stdout</span>
+
+<span class="sd">    filename : string (default=None)</span>
+<span class="sd">        The filename to which the output of the shell command is written.</span>
+<span class="sd">        A file is only written if output_verbosity=1.</span>
+<span class="sd">        If output_verbosity=1 and filename is None then</span>
+<span class="sd">        filename = shell_command.out</span>
+
+<span class="sd">    env : os.environ (default=None)</span>
+<span class="sd">        Mapping that defines the environment variables for the new process;</span>
+<span class="sd">        these are used instead of inheriting the current process environment,</span>
+<span class="sd">        which is the default behavior.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">output_verbosity</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;verbosity&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;env&#39;</span><span class="p">,</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;filename&#39;</span><span class="p">,</span><span class="kc">None</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">output_verbosity</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">output_verbosity</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">filename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;shell_command.out&#39;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span> <span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span> <span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">f</span><span class="p">,</span>
+                            <span class="n">stderr</span><span class="o">=</span><span class="n">f</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">shell_command</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox.utilities</span> <span class="kn">import</span> <span class="n">hash_array</span>
+<div class="viewcode-block" id="DataFunctionModel"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.DataFunctionModel.html#pyapprox.models.wrappers.DataFunctionModel">[docs]</a><span class="k">class</span> <span class="nc">DataFunctionModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="DataFunctionModel.hash_sample"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.DataFunctionModel.html#pyapprox.models.wrappers.DataFunctionModel.hash_sample">[docs]</a>    <span class="k">def</span> <span class="nf">hash_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">sample</span><span class="p">):</span>
+        <span class="c1"># if samples have undergone a transformation thier value</span>
+        <span class="c1"># may not be exactly the same so make hash on samples</span>
+        <span class="c1"># with fixed precision</span>
+        <span class="c1"># sample = np.round(sample, self.digits)</span>
+        <span class="c1"># I = np.where(np.abs(sample)&lt;self.tol)[0]</span>
+        <span class="c1"># sample[I] = 0.</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span><span class="c1">#,decimals=self.digits)</span>
+        <span class="k">return</span> <span class="n">key</span></div>
+    
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">,</span><span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">data_basename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">save_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">use_hash</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">digits</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">=</span><span class="n">function</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span><span class="o">=</span><span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations</span><span class="o">=</span><span class="mi">0</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">digits</span> <span class="o">=</span> <span class="n">digits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tol</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">digits</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_hash</span><span class="o">=</span><span class="n">use_hash</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span> <span class="o">=</span> <span class="n">data_basename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span><span class="o">=</span><span class="n">save_frequency</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">save_frequency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Warning save_frequency not being used because data_basename&#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39; is None&#39;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">data_basename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">file_data</span><span class="o">=</span><span class="n">combine_saved_model_data</span><span class="p">(</span><span class="n">data_basename</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">file_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">add_new_data</span><span class="p">(</span><span class="n">file_data</span><span class="p">)</span>
+            
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="n">data</span>
+            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_new_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DataFunctionModel.add_new_data"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.DataFunctionModel.html#pyapprox.models.wrappers.DataFunctionModel.add_new_data">[docs]</a>    <span class="k">def</span> <span class="nf">add_new_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">data</span><span class="p">):</span>
+        <span class="n">samples</span><span class="p">,</span><span class="n">values</span><span class="o">=</span><span class="n">data</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_hash</span><span class="p">:</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash_sample</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]],</span><span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">]):</span>
+                        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Duplicate samples found but values do not match&#39;</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                    <span class="n">found</span><span class="o">=</span><span class="kc">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="n">ii</span>
+                    <span class="n">found</span><span class="o">=</span><span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[:,</span><span class="n">jj</span><span class="p">],</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span>
+                                   <span class="n">atol</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">):</span>
+                        <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">]])</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">,</span><span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,:]])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,:]</span>
+                                           
+        <span class="c1"># set counter so that next file takes into account all previously</span>
+        <span class="c1"># ran samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_batch_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span><span class="o">&gt;</span><span class="mi">0</span>
+        <span class="n">num_batch_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span>
+        <span class="n">lb</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="n">lb</span><span class="o">&lt;</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">ub</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">lb</span><span class="o">+</span><span class="n">num_batch_samples</span><span class="p">,</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">num_evaluations_ran</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span>
+            <span class="n">batch_vals</span><span class="p">,</span> <span class="n">new_sample_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">lb</span><span class="p">:</span><span class="n">ub</span><span class="p">])</span>
+            <span class="n">data_filename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_basename</span><span class="o">+</span><span class="s1">&#39;-</span><span class="si">%d</span><span class="s1">-</span><span class="si">%d</span><span class="s1">.npz&#39;</span><span class="o">%</span><span class="p">(</span>
+                <span class="n">num_evaluations_ran</span><span class="p">,</span>
+                <span class="n">num_evaluations_ran</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savez</span><span class="p">(</span><span class="n">data_filename</span><span class="p">,</span><span class="n">vals</span><span class="o">=</span><span class="n">batch_vals</span><span class="p">[</span><span class="n">new_sample_indices</span><span class="p">],</span>
+                     <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">[:,</span><span class="n">lb</span><span class="p">:</span><span class="n">ub</span><span class="p">][:,</span><span class="n">new_sample_indices</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">vals</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="n">batch_vals</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span><span class="n">batch_vals</span><span class="p">))</span>
+            <span class="n">lb</span><span class="o">=</span><span class="n">ub</span>
+        <span class="k">return</span> <span class="n">vals</span>
+
+    <span class="k">def</span> <span class="nf">_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">evaluated_sample_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">new_sample_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_hash</span><span class="p">:</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash_sample</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+                    <span class="n">evaluated_sample_indices</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ii</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new_sample_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[:,</span><span class="n">jj</span><span class="p">],</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span>
+                                   <span class="n">atol</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">):</span>
+                        <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">found</span><span class="p">:</span>
+                    <span class="n">evaluated_sample_indices</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">ii</span><span class="p">,</span><span class="n">jj</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new_sample_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+                    
+        <span class="n">evaluated_sample_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">evaluated_sample_indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">new_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[:,</span><span class="n">new_sample_indices</span><span class="p">]</span>
+            <span class="n">new_values</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">new_samples</span><span class="p">)</span>
+            <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">new_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_qoi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">num_qoi</span><span class="p">),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">new_sample_indices</span><span class="p">,:]</span><span class="o">=</span><span class="n">new_values</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">&lt;</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">evaluated_sample_indices</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">evaluated_sample_indices</span><span class="p">[:,</span><span class="mi">1</span><span class="p">],:]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+                <span class="n">jj</span><span class="o">=</span><span class="mi">0</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">=</span><span class="n">samples</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="n">values</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">jj</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span><span class="n">samples</span><span class="p">[:,</span><span class="n">new_sample_indices</span><span class="p">]))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">,</span><span class="n">new_values</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)):</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">new_sample_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="n">jj</span><span class="o">+</span><span class="n">ii</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations_ran</span><span class="o">+=</span><span class="nb">len</span><span class="p">(</span><span class="n">new_sample_indices</span><span class="p">)</span>
+        <span class="c1"># increment the number of samples pass to __call__ since object created</span>
+        <span class="c1"># includes samples drawn from arxiv and samples used to evaluate</span>
+        <span class="c1"># self.function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations</span><span class="o">+=</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">new_sample_indices</span>
+
+<div class="viewcode-block" id="DataFunctionModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.DataFunctionModel.html#pyapprox.models.wrappers.DataFunctionModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_frequency</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_batch_call</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call</span><span class="p">(</span><span class="n">samples</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">values</span></div></div>
+
+
+<div class="viewcode-block" id="run_model_samples_in_parallel"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.run_model_samples_in_parallel.html#pyapprox.models.wrappers.run_model_samples_in_parallel">[docs]</a><span class="k">def</span> <span class="nf">run_model_samples_in_parallel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span><span class="n">pool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">assert_omp</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Warning</span>
+<span class="sd">    -------</span>
+<span class="sd">    pool.map serializes each argument and so if model is a class, </span>
+<span class="sd">    any of its member variables that are updated in __call__ will not</span>
+<span class="sd">    persist once each __call__ to pool completes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">assert_omp</span> <span class="ow">and</span> <span class="n">max_eval_concurrency</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;OMP_NUM_THREADS&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">or</span>
+            <span class="ow">not</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;OMP_NUM_THREADS&#39;</span><span class="p">])</span><span class="o">==</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;User set assert_omp=True but OMP_NUM_THREADS has not been &#39;</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;set to 1. Run script with OMP_NUM_THREADS=1 python script.py&#39;</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        
+    <span class="k">if</span> <span class="n">pool</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,[(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])])</span>
+    <span class="n">num_qoi</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">num_samples</span><span class="p">,</span><span class="n">num_qoi</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)):</span>
+        <span class="n">values</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span><span class="o">=</span><span class="n">result</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">,:]</span>
+    <span class="k">return</span> <span class="n">values</span></div>
+
+
+<span class="kn">import</span> <span class="nn">time</span>
+<div class="viewcode-block" id="time_function_evaluations"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.time_function_evaluations.html#pyapprox.models.wrappers.time_function_evaluations">[docs]</a><span class="k">def</span> <span class="nf">time_function_evaluations</span><span class="p">(</span><span class="n">function</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">times</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">,:]</span>
+        <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="n">times</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">t1</span><span class="o">-</span><span class="n">t0</span><span class="p">])</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span>
+    <span class="n">times</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">times</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">vals</span><span class="p">,</span><span class="n">times</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="TimerModelWrapper"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.TimerModelWrapper.html#pyapprox.models.wrappers.TimerModelWrapper">[docs]</a><span class="k">class</span> <span class="nc">TimerModelWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">,</span><span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="o">=</span><span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span>
+        
+<div class="viewcode-block" id="TimerModelWrapper.x__getattr__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.TimerModelWrapper.html#pyapprox.models.wrappers.TimerModelWrapper.x__getattr__">[docs]</a>    <span class="k">def</span> <span class="nf">x__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cannot get following to work </span>
+
+<span class="sd">        If defining a custom __getattr__ it seems I cannot have member</span>
+<span class="sd">        variables with the same name in this class and class definition</span>
+<span class="sd">        of function</span>
+
+<span class="sd">        if self.function is itself a model object allow the access of </span>
+<span class="sd">        self.function.name using self.name</span>
+
+<span class="sd">        Note  __getattr__ </span>
+<span class="sd">        will be invoked on python objects only when the requested </span>
+<span class="sd">        attribute is not found in the particular object&#39;s space.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="p">,</span><span class="n">name</span><span class="p">):</span>
+            <span class="n">attr</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="p">,</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">attr</span>
+
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="si">}</span><span class="s2"> or its member </span><span class="si">{</span><span class="bp">self</span><span class="si">}</span><span class="s2">.function has no attribute &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TimerModelWrapper.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.TimerModelWrapper.html#pyapprox.models.wrappers.TimerModelWrapper.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">time_function_evaluations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function_to_time</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="WorkTracker"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTracker.html#pyapprox.models.wrappers.WorkTracker">[docs]</a><span class="k">class</span> <span class="nc">WorkTracker</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Store the cost needed to evaluate a function under different configurations,</span>
+<span class="sd">    e.g. mesh resolution of a finite element model used to solve a PDE.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">costs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+<div class="viewcode-block" id="WorkTracker.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTracker.html#pyapprox.models.wrappers.WorkTracker.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">config_samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read the cost of evaluating the functions with the ids given in</span>
+<span class="sd">        a set of config_samples.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        config_samples : np.ndarray (nconfig_vars,nsamples)</span>
+<span class="sd">            The configuration indices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">num_config_vars</span><span class="p">,</span> <span class="n">nqueries</span> <span class="o">=</span> <span class="n">config_samples</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">costs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nqueries</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqueries</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">config_samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="p">:</span>
+                <span class="n">msg</span><span class="o">=</span><span class="s1">&#39;Asking for cost before function cost has been provided&#39;</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">costs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+            
+        <span class="k">return</span> <span class="n">costs</span></div>
+
+<div class="viewcode-block" id="WorkTracker.update"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTracker.html#pyapprox.models.wrappers.WorkTracker.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">config_samples</span><span class="p">,</span><span class="n">costs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the cost of evaluating the functions with the ids given in</span>
+<span class="sd">        a set of config_samples.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        config_samples : np.ndarray (nconfig_vars,nsamples)</span>
+<span class="sd">            The configuration indices</span>
+<span class="sd">        </span>
+<span class="sd">        costs : np.ndarray (nsamples)</span>
+<span class="sd">            The costs of evaluating the function index by each index in </span>
+<span class="sd">            ``config_samples``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">num_config_vars</span><span class="p">,</span> <span class="n">nqueries</span> <span class="o">=</span> <span class="n">config_samples</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">assert</span> <span class="n">costs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="n">nqueries</span>
+        <span class="k">assert</span> <span class="n">costs</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqueries</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">ll</span><span class="p">)</span> <span class="k">for</span> <span class="n">ll</span> <span class="ow">in</span> <span class="n">config_samples</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">costs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">costs</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span></div>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;WorkTracker Cost Summary</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="si">{:&lt;10}</span><span class="s1"> </span><span class="si">{:&lt;10}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;Funtion ID&#39;</span><span class="p">,</span><span class="s1">&#39;Median Cost&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="si">{:&lt;10}</span><span class="s1"> </span><span class="si">{:&lt;10}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">msg</span></div>
+
+<div class="viewcode-block" id="eval"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.eval.html#pyapprox.models.wrappers.eval">[docs]</a><span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="n">function</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div>
+                
+<div class="viewcode-block" id="WorkTrackingModel"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel">[docs]</a><span class="k">class</span> <span class="nc">WorkTrackingModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">,</span><span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">num_config_vars</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Keep track of the wall time needed to evaluate a function.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        function : callable</span>
+<span class="sd">            A function with signature </span>
+
+<span class="sd">            ``function(w) -&gt; np.ndarray (nsamples,nqoi+1)``</span>
+
+<span class="sd">             where ``w`` is a np.ndarray of shape (nvars,nsamples).</span>
+<span class="sd">             The last qoi returned by function (i.e. the last column of the </span>
+<span class="sd">             output array) must be the cost of the simulation. This column</span>
+<span class="sd">             is removed from the output of __call__.</span>
+
+<span class="sd">        base_model : callable</span>
+<span class="sd">            A function with signature </span>
+
+<span class="sd">            ``base_model(w) -&gt; float``</span>
+
+<span class="sd">             where ``w`` is a np.ndarray of shape (nvars,nsamples).</span>
+
+<span class="sd">             This is useful when function is a wrapper of another model, i.e.</span>
+<span class="sd">             base_model and algorithms or the user want access to the attribtes</span>
+<span class="sd">             of the base_model.</span>
+
+<span class="sd">        num_config_vars : integer</span>
+<span class="sd">             The number of configuration variables of fun. For most functions </span>
+<span class="sd">             this will be zero.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        If defining a custom __getattr__ it seems I cannot have member</span>
+<span class="sd">        variables with the same name in this class and class definition</span>
+<span class="sd">        of function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="o">=</span><span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">work_tracker</span> <span class="o">=</span> <span class="n">WorkTracker</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="o">=</span><span class="n">num_config_vars</span>
+
+<div class="viewcode-block" id="WorkTrackingModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate self.function</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">            Samples used to evaluate self.function</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        values : np.ndarray (nsamples,nqoi)</span>
+<span class="sd">            The values of self.function. The last qoi returned by self.function </span>
+<span class="sd">            (i.e. the last column of the output array of size (nsamples,nqoi+1) </span>
+<span class="sd">            is the cost of the simulation. This column is not included in</span>
+<span class="sd">            values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#data = self.wt_function(samples)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wt_function</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">work</span>   <span class="o">=</span> <span class="n">data</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">config_samples</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">:,:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">config_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config_samples</span><span class="p">,</span><span class="n">work</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+<div class="viewcode-block" id="WorkTrackingModel.cost_function"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel.cost_function">[docs]</a>    <span class="k">def</span> <span class="nf">cost_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">config_samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrun the cost of evaluating the functions with the ids given in</span>
+<span class="sd">        a set of config_samples.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        config_samples : np.ndarray (nconfig_vars,nsamples)</span>
+<span class="sd">            The configuration indices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">config_samples</span><span class="p">)</span></div></div>
+
+    
+        
+<div class="viewcode-block" id="PoolModel"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.PoolModel.html#pyapprox.models.wrappers.PoolModel">[docs]</a><span class="k">class</span> <span class="nc">PoolModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">assert_omp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                 <span class="n">base_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate a function at multiple samples in parallel using </span>
+<span class="sd">        multiprocessing.Pool</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        function : callable</span>
+<span class="sd">            A function with signature </span>
+
+<span class="sd">            ``function(w) -&gt; np.ndarray (nsamples,nqoi+1)``</span>
+
+<span class="sd">             where ``w`` is a np.ndarray of shape (nvars,nsamples).</span>
+
+<span class="sd">        max_eval_concurrency : integer</span>
+<span class="sd">            The maximum number of simulations that can be run in parallel. </span>
+<span class="sd">            Should be no more than the maximum number of cores on the computer </span>
+<span class="sd">            being used</span>
+
+<span class="sd">        assert_omp : boolean</span>
+<span class="sd">            If True make sure that python is only using one thread per model </span>
+<span class="sd">            instance. On OSX and Linux machines this means that the environement</span>
+<span class="sd">            variable OMP_NUM_THREADS has been set to 1 with, e.g. </span>
+<span class="sd">            export OMP_NUM_THREADS=1</span>
+<span class="sd">        </span>
+<span class="sd">            This is useful because often many python packages, e.g. SciPy, NumPy</span>
+<span class="sd">            use multiple threads and this can cause running multiple evaluations</span>
+<span class="sd">            of function to be slow because of resource allocation issues.</span>
+
+<span class="sd">        base_model : callable</span>
+<span class="sd">            A function with signature </span>
+
+<span class="sd">            ``base_model(w) -&gt; float``</span>
+
+<span class="sd">             where ``w`` is a np.ndarray of shape (nvars,nsamples).</span>
+
+<span class="sd">             This is useful when function is a wrapper of another model, i.e.</span>
+<span class="sd">             base_model and algorithms or the user want access to the attribtes</span>
+<span class="sd">             of the base_model.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        If defining a custom __getattr__ it seems I cannot have member</span>
+<span class="sd">        variables with the same name in this class and class definition</span>
+<span class="sd">        of function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_max_eval_concurrency</span><span class="p">(</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations</span><span class="o">=</span><span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assert_omp</span><span class="o">=</span><span class="n">assert_omp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="o">=</span><span class="n">function</span>
+
+<div class="viewcode-block" id="PoolModel.set_max_eval_concurrency"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.PoolModel.html#pyapprox.models.wrappers.PoolModel.set_max_eval_concurrency">[docs]</a>    <span class="k">def</span> <span class="nf">set_max_eval_concurrency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the number of threads used to evaluate the function</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_eval_concurrency : integer</span>
+<span class="sd">            The maximum number of simulations that can be run in parallel. </span>
+<span class="sd">            Should be no more than the maximum number of cores on the computer </span>
+<span class="sd">            being used</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="n">max_eval_concurrency</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_eval_concurrency</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PoolModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.PoolModel.html#pyapprox.models.wrappers.PoolModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate a function at multiple samples in parallel using </span>
+<span class="sd">        multiprocessing.Pool</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">            Samples used to evaluate self.function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">run_model_samples_in_parallel</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pool_function</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span>
+            <span class="n">pool</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="p">,</span><span class="n">assert_omp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">assert_omp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vals</span></div></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox.utilities</span> <span class="kn">import</span> <span class="n">get_all_sample_combinations</span>
+<div class="viewcode-block" id="ActiveSetVariableModel"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.ActiveSetVariableModel.html#pyapprox.models.wrappers.ActiveSetVariableModel">[docs]</a><span class="k">class</span> <span class="nc">ActiveSetVariableModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">function</span><span class="p">,</span><span class="n">num_vars</span><span class="p">,</span><span class="n">inactive_var_values</span><span class="p">,</span>
+                 <span class="n">active_var_indices</span><span class="p">):</span>
+        <span class="c1"># num_vars can de determined from inputs but making it</span>
+        <span class="c1"># necessary allows for better error checking</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="k">assert</span> <span class="n">inactive_var_values</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_values</span> <span class="o">=</span> <span class="n">inactive_var_values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span> <span class="o">=</span> <span class="n">active_var_indices</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="n">num_vars</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="o">=</span><span class="n">num_vars</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span><span class="o">&lt;</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_vars</span><span class="p">),</span><span class="n">active_var_indices</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="ActiveSetVariableModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.ActiveSetVariableModel.html#pyapprox.models.wrappers.ActiveSetVariableModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">reduced_samples</span><span class="p">):</span>
+        <span class="n">raw_samples</span> <span class="o">=</span> <span class="n">get_all_sample_combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_values</span><span class="p">,</span><span class="n">reduced_samples</span><span class="p">)</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">raw_samples</span><span class="p">)</span>
+        <span class="n">samples</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">raw_samples</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="n">samples</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">active_var_indices</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">raw_samples</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">inactive_var_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="combine_saved_model_data"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.combine_saved_model_data.html#pyapprox.models.wrappers.combine_saved_model_data">[docs]</a><span class="k">def</span> <span class="nf">combine_saved_model_data</span><span class="p">(</span><span class="n">saved_data_basename</span><span class="p">):</span>
+    <span class="n">filenames</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">saved_data_basename</span><span class="o">+</span><span class="s1">&#39;*.npz&#39;</span><span class="p">)</span>
+    <span class="n">ii</span> <span class="o">=</span><span class="mi">0</span>
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">filenames</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ii</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;vals&#39;</span><span class="p">]</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;samples&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">vals</span><span class="p">,</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;vals&#39;</span><span class="p">]))</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">samples</span><span class="p">,</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;samples&#39;</span><span class="p">]))</span>
+        <span class="n">ii</span><span class="o">+=</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">filenames</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span><span class="kc">None</span>
+    
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span><span class="n">vals</span></div>
+
+<div class="viewcode-block" id="SingleFidelityWrapper"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.SingleFidelityWrapper.html#pyapprox.models.wrappers.SingleFidelityWrapper">[docs]</a><span class="k">class</span> <span class="nc">SingleFidelityWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">model</span><span class="p">,</span><span class="n">config_values</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">=</span><span class="n">model</span>
+        <span class="k">assert</span> <span class="n">config_values</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config_values</span> <span class="o">=</span> <span class="n">config_values</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+<div class="viewcode-block" id="SingleFidelityWrapper.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.SingleFidelityWrapper.html#pyapprox.models.wrappers.SingleFidelityWrapper.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">multif_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">samples</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_values</span><span class="p">,(</span><span class="mi">1</span><span class="p">,</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">multif_samples</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="default_map_to_multidimensional_index"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.default_map_to_multidimensional_index.html#pyapprox.models.wrappers.default_map_to_multidimensional_index">[docs]</a><span class="k">def</span> <span class="nf">default_map_to_multidimensional_index</span><span class="p">(</span><span class="n">num_config_vars</span><span class="p">,</span><span class="n">indices</span><span class="p">):</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">indices</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span> <span class="ow">and</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span>
+    <span class="n">multiindex_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">num_config_vars</span><span class="p">,</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span><span class="n">dtype</span><span class="o">=</span><span class="n">indices</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">multiindex_indices</span><span class="p">[:,</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">jj</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">multiindex_indices</span></div>
+
+<div class="viewcode-block" id="MultiLevelWrapper"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.MultiLevelWrapper.html#pyapprox.models.wrappers.MultiLevelWrapper">[docs]</a><span class="k">class</span> <span class="nc">MultiLevelWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Specify a one-dimension model hierachy from a multiple dimensional </span>
+<span class="sd">    hierarchy</span>
+<span class="sd">    For example if model has configure variables which refine the x and y</span>
+<span class="sd">    physical directions then one can specify a multilevel hierarchy by creating</span>
+<span class="sd">    new indices with the mapping k=(i,i).</span>
+
+<span class="sd">    map_to_multidimensional_index : callable</span>
+<span class="sd">        Function which maps 1D model index to multi-dimensional index</span>
+
+<span class="sd">    See function default_map_to_multidimensional_index</span>
+<span class="sd">    &quot;&quot;&quot;</span>    
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">model</span><span class="p">,</span><span class="n">multiindex_num_config_vars</span><span class="p">,</span>
+                 <span class="n">map_to_multidimensional_index</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">=</span><span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">multiindex_num_config_vars</span><span class="o">=</span><span class="n">multiindex_num_config_vars</span>
+        <span class="k">if</span> <span class="n">map_to_multidimensional_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">map_to_multidimensional_index</span><span class="o">=</span>\
+                <span class="n">partial</span><span class="p">(</span><span class="n">default_map_to_multidimensional_index</span><span class="p">,</span><span class="n">multiindex_num_config_vars</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">map_to_multidimensional_index</span><span class="o">=</span><span class="n">map_to_multidimensional_index</span>
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_evaluations</span><span class="o">=</span><span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span>
+
+<div class="viewcode-block" id="MultiLevelWrapper.__call__"><a class="viewcode-back" href="../../../api/pyapprox.models.wrappers.MultiLevelWrapper.html#pyapprox.models.wrappers.MultiLevelWrapper.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">config_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_to_multidimensional_index</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:,:])</span>
+        <span class="k">assert</span> <span class="n">config_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">multiindex_num_config_vars</span>
+        <span class="n">multi_index_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span><span class="n">config_values</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">multi_index_samples</span><span class="p">)</span></div>
+    
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">num_evaluations</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">num_evaluations</span>
+
+    <span class="nd">@num_evaluations</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">num_evaluations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">nn</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__num_evaluations</span><span class="o">=</span><span class="n">nn</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">num_evaluations</span><span class="o">=</span><span class="n">nn</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

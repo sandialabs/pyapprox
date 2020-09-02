@@ -1,8 +1,7 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8">
   
@@ -12,31 +11,35 @@
   
 
   
-  
-  
-  
-
-  
-  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script type="text/javascript" src="../../_static/language_data.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
-    
-
-  
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Multi-index Stochastic Collocation" href="plot_multi_index_collocation.html" />
@@ -54,7 +57,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
           
 
           
@@ -80,6 +83,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -96,7 +100,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#foundations">Foundations</a></li>
-<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-monte-carlo-methods">Multi-Fidelity Monte Carlo Methods</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
@@ -104,20 +108,35 @@
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Generalized Approximate Control Variate Monte Carlo</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlmc-and-mfmc-are-control-variate-estimators">MLMC and MFMC are Control Variate Estimators</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#a-new-acv-estimator">A New ACV Estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#accelerated-approximate-control-variate-monte-carlo">Accelerated Approximate Control Variate Monte Carlo</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#optimal-sample-allocation">Optimal Sample Allocation</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_index_collocation.html">Multi-index Stochastic Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
 </ul>
 </li>
 </ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -156,7 +175,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
         
           <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
         
@@ -181,7 +200,7 @@
             
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"><span class="std std-ref">here</span></a> to download the full example code</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
 </div>
 <div class="sphx-glr-example-title section" id="generalized-approximate-control-variate-monte-carlo">
 <span id="sphx-glr-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py"></span><h1>Generalized Approximate Control Variate Monte Carlo<a class="headerlink" href="#generalized-approximate-control-variate-monte-carlo" title="Permalink to this headline">¶</a></h1>
@@ -257,14 +276,14 @@ In the following we detail a straightforward way to obtain an ACV estimator, whi
 <col style="width: 50%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><div class="figure align-center" id="id3">
-<span id="mlmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mlmc.png"><img alt="../../_images/mlmc.png" src="../../_images/mlmc.png" style="width: 100%;" /></a>
-<p class="caption"><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+<tr class="row-odd"><td><div class="figure align-center" id="id4">
+<span id="mlmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mlmc1.png"><img alt="../../_images/mlmc1.png" src="../../_images/mlmc1.png" style="width: 100%;" /></a>
+<p class="caption"><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </div>
 </td>
-<td><div class="figure align-center" id="id4">
-<span id="acv-is-sample-allocation-mlmc-comparison"></span><a class="reference internal image-reference" href="../../_images/acv_is.png"><img alt="../../_images/acv_is.png" src="../../_images/acv_is.png" style="width: 100%;" /></a>
-<p class="caption"><span class="caption-text">ACV IS sampling strategy</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<td><div class="figure align-center" id="id5">
+<span id="acv-is-sample-allocation-mlmc-comparison"></span><a class="reference internal image-reference" href="../../_images/acv_is1.png"><img alt="../../_images/acv_is1.png" src="../../_images/acv_is1.png" style="width: 100%;" /></a>
+<p class="caption"><span class="caption-text">ACV IS sampling strategy</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
 </div>
 </td>
 </tr>
@@ -284,9 +303,8 @@ In the following we detail a straightforward way to obtain an ACV estimator, whi
 <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">uniform</span><span class="p">,</span><span class="n">norm</span><span class="p">,</span><span class="n">lognorm</span>
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
-<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">shifts</span><span class="o">=</span> <span class="p">[</span><span class="o">.</span><span class="mi">1</span><span class="p">,</span><span class="o">.</span><span class="mi">2</span><span class="p">]</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">TunableModelEnsemble</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">shifts</span><span class="o">=</span><span class="n">shifts</span><span class="p">)</span>
 <span class="n">exact_integral_f0</span><span class="o">=</span><span class="mi">0</span>
@@ -371,20 +389,18 @@ Achieved ACV variance reduction 0.32457699608558893
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\theta_1$&#39;</span><span class="p">)</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Correlation}</span><span class="s1">$&#39;</span><span class="p">)</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\theta_1$&#39;</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{Variance reduction ratio} \ \gamma$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{Variance\;reduction\;ratio} \; \gamma$&#39;</span><span class="p">)</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 <span class="n">_</span> <span class="o">=</span> <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_001.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_001.png" />
+<img alt="plot many model approximate control variate monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_0011.png" />
 <p>The variance reduction clearly depends on the correlation between all the models.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#Let us now compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble</span>
-<span class="c1">#</span>
-<span class="c1">#.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4</span>
-<span class="c1">#</span>
-<span class="c1">#where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.</span>
-
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<p>Let us now compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble</p>
+<div class="math notranslate nohighlight">
+\[f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4\]</div>
+<p>where each model is the function of a single uniform random variable defined on the unit interval <span class="math notranslate nohighlight">\([0,1]\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
 <span class="n">poly_model</span> <span class="o">=</span> <span class="n">PolynomialModelEnsemble</span><span class="p">()</span>
 <span class="n">cov</span> <span class="o">=</span> <span class="n">poly_model</span><span class="o">.</span><span class="n">get_covariance_matrix</span><span class="p">()</span>
 <span class="n">nhf_samples</span> <span class="o">=</span> <span class="mi">10</span>
@@ -420,56 +436,44 @@ Achieved ACV variance reduction 0.32457699608558893
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Variance}</span><span class="s1">$ $\mathrm</span><span class="si">{reduction}</span><span class="s1">$ $\mathrm</span><span class="si">{ratio}</span><span class="s1">$ $\gamma$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_002.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_002.png" />
+<img alt="plot many model approximate control variate monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_0021.png" />
 <p>As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the optimal 2 model CV estimator OCV-2. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#Accelerated Approximate Control Variate Monte Carlo</span>
-<span class="c1">#---------------------------------------------------</span>
-<span class="c1">#The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-KL that combines the strengths of these methods.</span>
-<span class="c1">#</span>
-<span class="c1">#Let :math:`K,L \leq M` with :math:`0 \leq L \leq K`. The ACV-KL estimator is</span>
-<span class="c1">#</span>
-<span class="c1">#.. math::</span>
-<span class="c1">#</span>
-<span class="c1">#   Q^{\mathrm{ACV-KL}}_{0,\mathcal{Z}}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^K\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{0}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)+\sum_{\alpha=K+1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{L}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)</span>
-<span class="c1">#</span>
-<span class="c1">#We allocate samples to the terms of this estimator using a modified version of the MFMC sampling scheme. The sample allocation for K=2,L=2 is shown in :ref:`acv_mf-kl-sample-allocation-kl-comparison`. Note the subtle difference between this sampling scheme and the one used for MFMC. We also note that the sample sets can be chosen in several ways, this is just one choice.</span>
-<span class="c1">#</span>
-<span class="c1">#.. list-table::</span>
-<span class="c1">#</span>
-<span class="c1">#   * -</span>
-<span class="c1">#       .. _mfmc-sample-allocation-kl-comparison:</span>
-<span class="c1">#</span>
-<span class="c1">#       .. figure:: ../../figures/mfmc.png</span>
-<span class="c1">#          :width: 100%</span>
-<span class="c1">#          :align: center</span>
-<span class="c1">#</span>
-<span class="c1">#          MFMC sampling strategy</span>
-<span class="c1">#</span>
-<span class="c1">#     -</span>
-<span class="c1">#       .. _acv_mf-kl-sample-allocation-kl-comparison:</span>
-<span class="c1">#</span>
-<span class="c1">#       .. figure:: ../../figures/acv_kl_22.png</span>
-<span class="c1">#          :width: 100%</span>
-<span class="c1">#          :align: center</span>
-<span class="c1">#</span>
-<span class="c1">#          ACV KL MF sampling strategy K=2,L=2</span>
-<span class="c1">#</span>
-<span class="c1">#This estimator differs from the previous recursive estimators because the first two terms in correspond to an ACV-MF estimator with :math:`K` CVs and the last term adds a CV scheme to the ACV-MF estimator.</span>
-<span class="c1">#</span>
-<span class="c1">#The inclusion of the ACV-MF estimator enables the ACV-KL estimator to converge to the CV estimator and the last term reduces the variance of :math:`\mu_{L}`, thereby accelerating convergence of the scheme. The optimal weights and variance reduction for the ACV-KL estimator are now provided.</span>
-<span class="c1">#</span>
-<span class="c1">#The matrix :math:`F` used to compute the covariances of the control variate discrepancies, i.e.</span>
-<span class="c1">#</span>
-<span class="c1">#.. math::</span>
-<span class="c1">#</span>
-<span class="c1">#   \covar{\V{\Delta}}{Q_0}&amp;=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\</span>
-<span class="c1">#   \covar{\V{\Delta}}{\V{\Delta}}&amp;=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F\right)\\</span>
-<span class="c1">#</span>
-<span class="c1">#can be found in  [GGEJJCP2020]_.</span>
-<span class="c1">#</span>
-<span class="c1">#Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators. Note in the following plot OCV-K denotews the optimal CV estimator using K low-fidelity models with known means)</span>
-
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+</div>
+<div class="section" id="accelerated-approximate-control-variate-monte-carlo">
+<h2>Accelerated Approximate Control Variate Monte Carlo<a class="headerlink" href="#accelerated-approximate-control-variate-monte-carlo" title="Permalink to this headline">¶</a></h2>
+<p>The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-KL that combines the strengths of these methods.</p>
+<p>Let <span class="math notranslate nohighlight">\(K,L \leq M\)</span> with <span class="math notranslate nohighlight">\(0 \leq L \leq K\)</span>. The ACV-KL estimator is</p>
+<div class="math notranslate nohighlight">
+\[Q^{\mathrm{ACV-KL}}_{0,\mathcal{Z}}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^K\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{0}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)+\sum_{\alpha=K+1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{L}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)\]</div>
+<p>We allocate samples to the terms of this estimator using a modified version of the MFMC sampling scheme. The sample allocation for K=2,L=2 is shown in <a class="reference internal" href="#acv-mf-kl-sample-allocation-kl-comparison"><span class="std std-ref">ACV KL MF sampling strategy K=2,L=2</span></a>. Note the subtle difference between this sampling scheme and the one used for MFMC. We also note that the sample sets can be chosen in several ways, this is just one choice.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><div class="figure align-center" id="id6">
+<span id="mfmc-sample-allocation-kl-comparison"></span><a class="reference internal image-reference" href="../../_images/mfmc1.png"><img alt="../../_images/mfmc1.png" src="../../_images/mfmc1.png" style="width: 100%;" /></a>
+<p class="caption"><span class="caption-text">MFMC sampling strategy</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+</div>
+</td>
+<td><div class="figure align-center" id="id7">
+<span id="acv-mf-kl-sample-allocation-kl-comparison"></span><a class="reference internal image-reference" href="../../_images/acv_kl_221.png"><img alt="../../_images/acv_kl_221.png" src="../../_images/acv_kl_221.png" style="width: 100%;" /></a>
+<p class="caption"><span class="caption-text">ACV KL MF sampling strategy K=2,L=2</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p>This estimator differs from the previous recursive estimators because the first two terms in correspond to an ACV-MF estimator with <span class="math notranslate nohighlight">\(K\)</span> CVs and the last term adds a CV scheme to the ACV-MF estimator.</p>
+<p>The inclusion of the ACV-MF estimator enables the ACV-KL estimator to converge to the CV estimator and the last term reduces the variance of <span class="math notranslate nohighlight">\(\mu_{L}\)</span>, thereby accelerating convergence of the scheme. The optimal weights and variance reduction for the ACV-KL estimator are now provided.</p>
+<p>The matrix <span class="math notranslate nohighlight">\(F\)</span> used to compute the covariances of the control variate discrepancies, i.e.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\covar{\V{\Delta}}{Q_0}&amp;=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
+\covar{\V{\Delta}}{\V{\Delta}}&amp;=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F\right)\\\end{split}\]</div>
+<p>can be found in  <a class="reference internal" href="#ggejjcp2020" id="id3"><span>[GGEJJCP2020]</span></a>.</p>
+<p>Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators. Note in the following plot OCV-K denotews the optimal CV estimator using K low-fidelity models with known means)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
 <span class="n">cv_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{OCV-1}$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{OCV-2}$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$\mathrm{OCV-4}$&#39;</span><span class="p">]</span>
 <span class="n">cv_rsquared_funcs</span><span class="o">=</span><span class="p">[</span>
     <span class="k">lambda</span> <span class="n">cov</span><span class="p">:</span> <span class="n">pya</span><span class="o">.</span><span class="n">get_control_variate_rsquared</span><span class="p">(</span><span class="n">cov</span><span class="p">[:</span><span class="mi">2</span><span class="p">,:</span><span class="mi">2</span><span class="p">]),</span>
@@ -502,7 +506,7 @@ Achieved ACV variance reduction 0.32457699608558893
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\mathrm</span><span class="si">{Variance}</span><span class="s1">$ $\mathrm</span><span class="si">{reduction}</span><span class="s1">$ $\mathrm</span><span class="si">{ratio}</span><span class="s1">$ $\gamma$&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_003.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_003.png" />
+<img alt="plot many model approximate control variate monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_0031.png" />
 <p>The variance of the best ACV-KL still converges to the lowest possible variance. But its variance at small sample sizes is better than ACV-MF  and comparable to MLMC.</p>
 <p>TODO Make note about how this scheme is useful when one model may have multiple discretizations.!!!!</p>
 </div>
@@ -539,22 +543,22 @@ Achieved ACV variance reduction 0.32457699608558893
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png" />
+<img alt="plot many model approximate control variate monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_0041.png" />
 <p>In this example ACV-KL is a more efficient estimator, i.e. it has a smaller variance for a fixed cost. However this improvement is problem dependent. For other model ensembles another estimator may be more efficient. Modify the above example to use another model to explore this more. The left plot shows the relative costs of evaluating each model using the ACVMF sampling strategy. Compare this to the MLMC sample allocation. Also edit above code to plot the MFMC sample allocation.</p>
 <p>Before this tutorial ends it is worth noting that a section of the MLMC literature explores adaptive methods which do not assume there is a fixed high-fidelity model but rather attempt to balance the estimator variance with the deterministic bias. These methods add a higher-fidelity model, e.g. a finer finite element mesh, when the variance is made smaller than the bias. We will not explore this here, but an example of this is shown in the tutorial on multi-index collocation.</p>
 <div class="section" id="references">
 <h3>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h3>
 <dl class="citation">
-<dt class="label" id="ggejjcp2020"><span class="brackets">GGEJJCP2020</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dt class="label" id="ggejjcp2020"><span class="brackets">GGEJJCP2020</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>,<a href="#id3">3</a>)</span></dt>
 <dd><p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2020.109257">A generalized approximate control variate framework for multifidelity uncertainty quantification, Journal of Computational Physics, In press, 2020.</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.878 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  4.227 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-many-model-approximate-control-variate-monte-carlo-py">
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/07a14619e25e0504c2e7e19cde82ad9d/plot_many_model_approximate_control_variate_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_many_model_approximate_control_variate_monte_carlo.py</span></code></a></p>
 </div>
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bdcc2f9ed9e50aa032840dd167064519/plot_many_model_approximate_control_variate_monte_carlo.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_many_model_approximate_control_variate_monte_carlo.ipynb</span></code></a></p>
 </div>
 </div>
@@ -583,11 +587,19 @@ Achieved ACV variance reduction 0.32457699608558893
 
   <div role="contentinfo">
     <p>
+        
         &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -598,7 +610,6 @@ Achieved ACV variance reduction 0.32457699608558893
 
   </div>
   
-
 
   <script type="text/javascript">
       jQuery(function () {

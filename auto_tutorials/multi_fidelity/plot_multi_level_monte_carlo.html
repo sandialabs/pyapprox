@@ -1,8 +1,7 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8">
   
@@ -12,31 +11,35 @@
   
 
   
-  
-  
-  
-
-  
-  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script type="text/javascript" src="../../_static/language_data.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
-    
-
-  
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Multi-fidelity Monte Carlo" href="plot_multi_fidelity_monte_carlo.html" />
@@ -54,7 +57,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
           
 
           
@@ -80,6 +83,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -96,7 +100,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../index.html#foundations">Foundations</a></li>
-<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-monte-carlo-methods">Multi-Fidelity Monte Carlo Methods</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Multi-level Monte Carlo</a><ul>
@@ -109,16 +113,30 @@
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_multi_index_collocation.html">Multi-index Stochastic Collocation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_gaussian_mfnets.html">MFNets: Multi-fidelity networks</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
 </ul>
 </li>
 </ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -157,7 +175,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
         
           <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
         
@@ -182,7 +200,7 @@
             
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">here</span></a> to download the full example code</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
 </div>
 <div class="sphx-glr-example-title section" id="multi-level-monte-carlo">
 <span id="sphx-glr-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py"></span><h1>Multi-level Monte Carlo<a class="headerlink" href="#multi-level-monte-carlo" title="Permalink to this headline">¶</a></h1>
@@ -230,7 +248,7 @@ The variance of this estimator is given by</p>
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><div class="figure align-center" id="id11">
-<span id="mlmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mlmc.png"><img alt="../../_images/mlmc.png" src="../../_images/mlmc.png" style="width: 50%;" /></a>
+<span id="mlmc-sample-allocation"></span><a class="reference internal image-reference" href="../../_images/mlmc1.png"><img alt="../../_images/mlmc1.png" src="../../_images/mlmc1.png" style="width: 50%;" /></a>
 <p class="caption"><span class="caption-text">MLMC sampling strategy</span><a class="headerlink" href="#id11" title="Permalink to this image">¶</a></p>
 </div>
 </td>
@@ -293,8 +311,8 @@ f_4(z)&amp;=(1 - M/(b(h^2)Y) - (P(1 + M)/(hY))^2)\end{split}\]</div>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MLMC error 0.017085105945350842
-MC error 0.01987966439383082
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>MLMC error 0.017085105945351176
+MC error 0.019879664393831153
 </pre></div>
 </div>
 <p>These errors are comparable. However these errors are only for one realization of the samples sets. To obtain a clearer picture on the benefits of MLMC we need to look at the variance of the estimator.</p>
@@ -317,7 +335,7 @@ MC error 0.01987966439383082
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 2 model MLMC variance reduction 0.027332583950334555
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 2 model MLMC variance reduction 0.02733258395033522
 Achieved 2 model MLMC variance reduction 0.040306711980366165
 </pre></div>
 </div>
@@ -328,7 +346,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction 0.02468110121400635
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction 0.024681101214007017
 </pre></div>
 </div>
 <p>The variance reduction obtained using three models is only slightly better than when using two models. The difference in variance reduction is dependent on the correlations between the models and the number of samples assigned to each model.</p>
@@ -342,7 +360,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction for a pathalogical example 11467238870623.88
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Theoretical 3 model MLMC variance reduction for a pathalogical example 11467238870623.877
 </pre></div>
 </div>
 <p>Using MLMC for this ensemble of models creates an estimate with a variance orders of magnitude larger than just using the high-fidelity model. When using models that do not admit a hierarchical structure, alternative approaches are needed. We will introduce such estimators in future tutorials.</p>
@@ -457,7 +475,7 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_multi_level_monte_carlo_001.png" />
+<img alt="plot multi level monte carlo" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_multi_level_monte_carlo_0011.png" />
 <p>The left plot shows that the variance of the MLMC estimator is over and order of magnitude smaller than the variance of the single fidelity MC estimator for a fixed cost. The impact of using the approximate covariance is more significant for small samples sizes.</p>
 <p>The right plot depicts the percentage of the computational cost due to evaluating each model. The numbers in the bars represent the number of samples allocated to each model. Relative to the low fidelity models only a small number of samples are allocated to the high-fidelity model, however evaluating these samples represents approximately 50% of the total cost.</p>
 </div>
@@ -480,12 +498,12 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 <dd><p><a class="reference external" href="https://doi.org/10.1007/s00211-015-0734-5">A. Haji-Ali, F. Nobile and R. Tempone. Multi-index Monte Carlo: when sparsity meets sampling. Numerische Mathematik, 132(4), 767-806, 2016.</a></p>
 </dd>
 </dl>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.508 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  1.076 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-multi-level-monte-carlo-py">
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/bb1275901dfaafa79dd0bbce6a0f1ae4/plot_multi_level_monte_carlo.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_multi_level_monte_carlo.py</span></code></a></p>
 </div>
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/40dea2eaf8a95e3cf6ebe9d969e08ab7/plot_multi_level_monte_carlo.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_multi_level_monte_carlo.ipynb</span></code></a></p>
 </div>
 </div>
@@ -514,11 +532,19 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 
   <div role="contentinfo">
     <p>
+        
         &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -529,7 +555,6 @@ Now let us compute the theoretical variance reduction using 3 models</p>
 
   </div>
   
-
 
   <script type="text/javascript">
       jQuery(function () {

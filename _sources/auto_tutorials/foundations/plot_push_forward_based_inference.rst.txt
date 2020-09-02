@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_push_forward_based_inference.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_foundations_plot_push_forward_based_inference.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_push_forward_based_inference.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_foundations_plot_push_forward_based_inference.py:
 
 
 Push Forward Based Inference
@@ -212,6 +214,7 @@ using the approximate push forward PDF :math:`\hat{\pi}_\text{model}(f(\rv))`. L
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_push_forward_based_inference_001.png
+    :alt: plot push forward based inference
     :class: sphx-glr-single-img
 
 
@@ -265,6 +268,7 @@ for some proposal density :math:`\pi_\text{prop}(\rv)` such that :math:`M\pi_\te
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_push_forward_based_inference_002.png
+    :alt: plot push forward based inference
     :class: sphx-glr-single-img
 
 
@@ -301,6 +305,7 @@ The goal of inverse problem was to define the posterior density that when push f
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_push_forward_based_inference_003.png
+    :alt: plot push forward based inference
     :class: sphx-glr-single-img
 
 
@@ -318,7 +323,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.253 seconds)
+   **Total running time of the script:** ( 0 minutes  2.068 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_foundations_plot_push_forward_based_inference.py:
@@ -331,13 +336,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_push_forward_based_inference.py <plot_push_forward_based_inference.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_push_forward_based_inference.ipynb <plot_push_forward_based_inference.ipynb>`
 

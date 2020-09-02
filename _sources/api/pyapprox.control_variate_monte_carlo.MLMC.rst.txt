@@ -1,0 +1,21 @@
+MLMC
+====
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: MLMC
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MLMC.allocate_samples
+      ~MLMC.get_rsquared
+      ~MLMC.use_lagrange_formulation
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: allocate_samples
+   .. automethod:: get_rsquared
+   .. automethod:: use_lagrange_formulation

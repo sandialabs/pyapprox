@@ -1,0 +1,19 @@
+HelmholtzBasis
+==============
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autoclass:: HelmholtzBasis
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~HelmholtzBasis.__call__
+      ~HelmholtzBasis.get_indices
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: get_indices

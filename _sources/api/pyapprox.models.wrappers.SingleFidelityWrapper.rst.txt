@@ -1,0 +1,17 @@
+SingleFidelityWrapper
+=====================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: SingleFidelityWrapper
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~SingleFidelityWrapper.__call__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

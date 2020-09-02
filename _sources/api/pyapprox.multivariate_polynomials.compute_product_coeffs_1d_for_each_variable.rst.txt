@@ -1,0 +1,6 @@
+compute_product_coeffs_1d_for_each_variable
+===========================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: compute_product_coeffs_1d_for_each_variable

@@ -1,0 +1,6 @@
+adaptive_approximate_polynomial_chaos
+=====================================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: adaptive_approximate_polynomial_chaos

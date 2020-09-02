@@ -1,0 +1,6 @@
+compute_covariance_from_control_variate_samples
+===============================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: compute_covariance_from_control_variate_samples

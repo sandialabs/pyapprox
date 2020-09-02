@@ -1,0 +1,25 @@
+MC
+==
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: MC
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MC.__call__
+      ~MC.allocate_samples
+      ~MC.generate_data
+      ~MC.get_nsamples
+      ~MC.get_variance
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: allocate_samples
+   .. automethod:: generate_data
+   .. automethod:: get_nsamples
+   .. automethod:: get_variance

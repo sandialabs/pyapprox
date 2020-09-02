@@ -1,0 +1,6 @@
+oakley_function_statistics
+==========================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: oakley_function_statistics

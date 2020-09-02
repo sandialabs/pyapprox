@@ -1,0 +1,17 @@
+ActiveSetVariableModel
+======================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: ActiveSetVariableModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ActiveSetVariableModel.__call__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

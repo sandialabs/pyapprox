@@ -28,11 +28,33 @@ Below is a gallery of foundational tutorials on model and data analysis.
 
 .. raw:: html
 
+    <div class="sphx-glr-thumbcontainer" tooltip="We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. ...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_setup_model_thumb.png
+     :alt: Model Definition
+
+     :ref:`sphx_glr_auto_tutorials_foundations_plot_setup_model.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/foundations/plot_setup_model
+
+.. raw:: html
+
     <div class="sphx-glr-thumbcontainer" tooltip="Partial Differential Equations ------------------------------ We seek to quantify uncertainty i...">
 
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_advection_diffusion_model_thumb.png
+     :alt: Numerical Approximations of Governing Equations
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_advection_diffusion_model.py`
 
@@ -53,6 +75,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_monte_carlo_thumb.png
+     :alt: Monte Carlo Quadrature
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py`
 
@@ -73,6 +96,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_bayesian_inference_thumb.png
+     :alt: Bayesian Inference
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py`
 
@@ -93,6 +117,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_push_forward_based_inference_thumb.png
+     :alt: Push Forward Based Inference
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_push_forward_based_inference.py`
 
@@ -113,6 +138,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_tensor_product_interpolation_thumb.png
+     :alt: Surrogate Modeling
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_tensor_product_interpolation.py`
 
@@ -133,6 +159,7 @@ Below is a gallery of foundational tutorials on model and data analysis.
 .. only:: html
 
  .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_sensitivity_analysis_thumb.png
+     :alt: Sensitivity Analysis
 
      :ref:`sphx_glr_auto_tutorials_foundations_plot_sensitivity_analysis.py`
 
@@ -145,6 +172,27 @@ Below is a gallery of foundational tutorials on model and data analysis.
    :hidden:
 
    /auto_tutorials/foundations/plot_sensitivity_analysis
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Directed Acyclic Graphs ----------------------- A Bayesian network (BN) structure is a directed...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/foundations/images/thumb/sphx_glr_plot_bayesian_networks_thumb.png
+     :alt: Gaussian Networks
+
+     :ref:`sphx_glr_auto_tutorials_foundations_plot_bayesian_networks.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/foundations/plot_bayesian_networks
 .. raw:: html
 
     <div class="sphx-glr-clear"></div>
@@ -153,8 +201,8 @@ Below is a gallery of foundational tutorials on model and data analysis.
 
 .. _sphx_glr_auto_tutorials_multi_fidelity:
 
-Multi-Fidelity Monte Carlo Methods
-----------------------------------
+Multi-Fidelity Methods
+----------------------
 
 Multi-fidelity methods utilize an ensemble of models, enriching a small number of high-fidelity simulations with larger numbers of simulations from models of varying prediction accuracy and reduced cost, to enable greater exploration and resolution of uncertainty while maintaining deterministic prediction accuracy. The effectiveness of multi-fidelity approaches depends on the ability to identify and exploit relationships among models within the ensemble.
 
@@ -177,6 +225,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_control_variate_monte_carlo_thumb.png
+     :alt: Control Variate Monte Carlo
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py`
 
@@ -197,6 +246,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_approximate_control_variate_monte_carlo_thumb.png
+     :alt: Approximate Control Variate Monte Carlo
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py`
 
@@ -217,6 +267,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multi_level_monte_carlo_thumb.png
+     :alt: Multi-level Monte Carlo
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py`
 
@@ -237,6 +288,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multi_fidelity_monte_carlo_thumb.png
+     :alt: Multi-fidelity Monte Carlo
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_fidelity_monte_carlo.py`
 
@@ -257,6 +309,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_thumb.png
+     :alt: Generalized Approximate Control Variate Monte Carlo
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py`
 
@@ -277,6 +330,7 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
 .. only:: html
 
  .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_multi_index_collocation_thumb.png
+     :alt: Multi-index Stochastic Collocation
 
      :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py`
 
@@ -289,6 +343,27 @@ This gallery of tutorials discusses the most popular multi-fidelity methods for 
    :hidden:
 
    /auto_tutorials/multi_fidelity/plot_multi_index_collocation
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="In the sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py tutorial we showe...">
+
+.. only:: html
+
+ .. figure:: /auto_tutorials/multi_fidelity/images/thumb/sphx_glr_plot_gaussian_mfnets_thumb.png
+     :alt: MFNets: Multi-fidelity networks
+
+     :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_gaussian_mfnets.py`
+
+.. raw:: html
+
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   /auto_tutorials/multi_fidelity/plot_gaussian_mfnets
 .. raw:: html
 
     <div class="sphx-glr-clear"></div>
@@ -309,6 +384,7 @@ Polynomial Chaos Expansions
 .. only:: html
 
  .. figure:: /auto_tutorials/polynomial_chaos/images/thumb/sphx_glr_plot_adaptive_leja_interpolation_thumb.png
+     :alt: Adaptive Leja Sequences
 
      :ref:`sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py`
 
@@ -333,13 +409,13 @@ Polynomial Chaos Expansions
     :class: sphx-glr-footer-gallery
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
     :download:`Download all examples in Python source code: auto_tutorials_python.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_tutorials/auto_tutorials_python.zip>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
     :download:`Download all examples in Jupyter notebooks: auto_tutorials_jupyter.zip <//Users/jdjakem/software/pyapprox/docs/source/auto_tutorials/auto_tutorials_jupyter.zip>`
 

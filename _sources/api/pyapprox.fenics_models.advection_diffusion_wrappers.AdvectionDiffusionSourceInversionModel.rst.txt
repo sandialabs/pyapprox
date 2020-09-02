@@ -1,0 +1,23 @@
+AdvectionDiffusionSourceInversionModel
+======================================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autoclass:: AdvectionDiffusionSourceInversionModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AdvectionDiffusionSourceInversionModel.get_boundary_conditions_and_function_space
+      ~AdvectionDiffusionSourceInversionModel.get_diffusivity
+      ~AdvectionDiffusionSourceInversionModel.get_forcing
+      ~AdvectionDiffusionSourceInversionModel.initialize_random_expressions
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: get_boundary_conditions_and_function_space
+   .. automethod:: get_diffusivity
+   .. automethod:: get_forcing
+   .. automethod:: initialize_random_expressions

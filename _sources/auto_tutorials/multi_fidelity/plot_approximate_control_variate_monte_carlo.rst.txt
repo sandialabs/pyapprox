@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py:
 
 
 Approximate Control Variate Monte Carlo
@@ -71,7 +73,6 @@ which is found when
    \eta&=-\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa},N,r}\right)}}\\
   &=-\frac{N^{-1}\frac{r-1}{r}\covar{f_\V{\alpha}}{f_\V{\kappa}}}{N^{-1}\frac{r-1}{r}\var{f_\V{\kappa}}}\\
   &=-\frac{\covar{f_\V{\alpha}}{f_\V{\kappa}}}{\var{f_\V{\kappa}}}
-
 
 Lets setup the problem and compute an ACV estimate of :math:`\mean{f_0}`
 
@@ -154,6 +155,7 @@ Now lets plot the samples assigned to each model.
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_approximate_control_variate_monte_carlo_001.png
+    :alt: plot approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -288,6 +290,7 @@ Let us also plot the distribution of these estimators
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_approximate_control_variate_monte_carlo_002.png
+    :alt: plot approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -303,7 +306,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.912 seconds)
+   **Total running time of the script:** ( 0 minutes  0.667 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_approximate_control_variate_monte_carlo.py:
@@ -316,13 +319,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_approximate_control_variate_monte_carlo.py <plot_approximate_control_variate_monte_carlo.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_approximate_control_variate_monte_carlo.ipynb <plot_approximate_control_variate_monte_carlo.ipynb>`
 

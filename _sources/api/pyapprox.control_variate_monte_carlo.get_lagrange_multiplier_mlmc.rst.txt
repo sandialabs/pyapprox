@@ -1,0 +1,6 @@
+get_lagrange_multiplier_mlmc
+============================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_lagrange_multiplier_mlmc

@@ -1,0 +1,6 @@
+conditional_moments_of_polynomial_chaos_expansion
+=================================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: conditional_moments_of_polynomial_chaos_expansion

@@ -1,0 +1,26 @@
+
+:orphan:
+
+.. _sphx_glr_auto_examples_foundations_sg_execution_times:
+
+Computation times
+=================
+**04:20.240** total execution time for **auto_examples_foundations** files:
+
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_advection_diffusion_model.py` (``plot_advection_diffusion_model.py``)       | 03:52.557 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_bayesian_inference.py` (``plot_bayesian_inference.py``)                     | 00:17.433 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_setup_model.py` (``plot_setup_model.py``)                                   | 00:02.291 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_push_forward_based_inference.py` (``plot_push_forward_based_inference.py``) | 00:02.258 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_tensor_product_interpolation.py` (``plot_tensor_product_interpolation.py``) | 00:02.247 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_sensitivity_analysis.py` (``plot_sensitivity_analysis.py``)                 | 00:01.806 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_monte_carlo.py` (``plot_monte_carlo.py``)                                   | 00:01.125 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_foundations_plot_bayesian_networks.py` (``plot_bayesian_networks.py``)                       | 00:00.523 | 0.0 MB |
++---------------------------------------------------------------------------------------------------------------------------+-----------+--------+

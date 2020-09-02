@@ -1,0 +1,19 @@
+WorkTracker
+===========
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: WorkTracker
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~WorkTracker.__call__
+      ~WorkTracker.update
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: update

@@ -1,0 +1,6 @@
+compute_correlations_from_covariance
+====================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: compute_correlations_from_covariance

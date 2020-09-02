@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_advection_diffusion_model.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_foundations_plot_advection_diffusion_model.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_advection_diffusion_model.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_foundations_plot_advection_diffusion_model.py:
 
 
 Numerical Approximations of Governing Equations
@@ -126,7 +128,7 @@ The following function can be used to setup the numerical approximation of the a
         timer_model = pya.TimerModelWrapper(base_model,base_model)
         # add wraper to allow model runs to be run on independent threads
         model = pya.PoolModel(timer_model,max_eval_concurrency,
-                          base_model=base_model)
+                              base_model=base_model)
         # add wrapper that tracks execution times.
         model = pya.WorkTrackingModel(model,model.base_model)
         return model
@@ -134,14 +136,6 @@ The following function can be used to setup the numerical approximation of the a
 
 
 
-
-.. rst-class:: sphx-glr-script-out
-
- Out:
-
- .. code-block:: none
-
-    Could not import Torch
 
 
 
@@ -177,8 +171,10 @@ The following code computes the expectation of the QoI for a set of model discre
         for ii in range(len(keys)):
             key=keys[ii]
             costs.append(np.median(model.work_tracker.costs[key]))
-            nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
-                np.asarray(key))
+            #nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
+            #    np.asarray(key))
+            nx,ny = model.base_model.get_mesh_resolution(np.asarray(key)[:2])
+            dt = model.base_model.get_timestep(key[2])
             ndofs.append(nx*ny*model.base_model.final_time/dt)
             means.append(np.mean(values[ii::config_vars.shape[1],0]))
             errors.append(abs(means[-1]-reference_mean)/abs(reference_mean))
@@ -234,7 +230,7 @@ We can use this function to plot the error in the QoI mean as a function of the 
         mpl.rcParams['axes.titlesize'] = 30
         mpl.rcParams['xtick.labelsize'] = 30
         mpl.rcParams['ytick.labelsize'] = 30
-
+        mpl.rcParams['text.latex.preamble'] = [r'\usepackage{siunitx}', r'\usepackage{amsmath}',r'\usepackage{amssymb}']
         validation_levels = costs.shape
         fig,axs = plt.subplots(1,len(validation_levels),
                                figsize=(len(validation_levels)*8,6),
@@ -279,8 +275,8 @@ We can use this function to plot the error in the QoI mean as a function of the 
         axs[1].legend()
         axs[2].legend()
         for ii in range(len(validation_levels)):
-            axs[ii].set_xlabel(r'$\mathrm{Work}$ $W_{\boldsymbol{\alpha}}$')
-        axs[0].set_ylabel(r'$\left\lvert \mathbb{E}[f]-\mathbb{E}[f_{\boldsymbol{\alpha}}]\right\rvert / \left\lvert \mathbb{E}[f]\right\rvert$')
+            axs[ii].set_xlabel(r'$\mathrm{Work}$ $W_{\alpha}$')
+            axs[0].set_ylabel(r'$\left| \mathbb{E}[f]-\mathbb{E}[f_{\alpha}]\right| / \left| \mathbb{E}[f]\right|$')
         return fig,axs
 
     def generate_random_samples(m,n):
@@ -290,11 +286,15 @@ We can use this function to plot the error in the QoI mean as a function of the 
 
     from functools import partial
     import matplotlib.pyplot as plt
-    num_vars = 2
-    model = setup_model(num_vars,corr_len=0.1,max_eval_concurrency=1)
+    nvars,corr_len = 2,0.1
+    #model = setup_model(nvars,corr_len,max_eval_concurrency=1)
+    from pyapprox.benchmarks.benchmarks import setup_benchmark
+    benchmark = setup_benchmark(
+        'multi_index_advection_diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
+    model = benchmark.fun
     validation_levels = [5]*3
     data = error_vs_cost(
-        model,partial(generate_random_samples,model.base_model.num_vars),
+        model,partial(generate_random_samples,benchmark.variable.num_vars()),
         validation_levels)
     plot_error_vs_cost(data,'time')
     plt.show()
@@ -303,8 +303,17 @@ We can use this function to plot the error in the QoI mean as a function of the 
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_advection_diffusion_model_001.png
+    :alt: plot advection diffusion model
     :class: sphx-glr-single-img
 
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    halton_sequence extension failed
 
 
 
@@ -323,7 +332,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 3 minutes  29.561 seconds)
+   **Total running time of the script:** ( 3 minutes  7.723 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_foundations_plot_advection_diffusion_model.py:
@@ -336,13 +345,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_advection_diffusion_model.py <plot_advection_diffusion_model.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_advection_diffusion_model.ipynb <plot_advection_diffusion_model.ipynb>`
 

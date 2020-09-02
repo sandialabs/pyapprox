@@ -1,0 +1,1153 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyapprox.approximate &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyapprox.approximate</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyapprox.approximate</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pyapprox.adaptive_sparse_grid</span> <span class="kn">import</span> <span class="n">variance_refinement_indicator</span><span class="p">,</span> \
+    <span class="n">CombinationSparseGrid</span><span class="p">,</span> \
+    <span class="n">get_sparse_grid_univariate_leja_quadrature_rules_economical</span><span class="p">,</span> \
+    <span class="n">max_level_admissibility_function</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variable_transformations</span> <span class="kn">import</span> <span class="n">AffineRandomVariableTransformation</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">OptimizeResult</span>
+<div class="viewcode-block" id="ApproximateResult"><a class="viewcode-back" href="../../api/pyapprox.approximate.ApproximateResult.html#pyapprox.approximate.ApproximateResult">[docs]</a><span class="k">class</span> <span class="nc">ApproximateResult</span><span class="p">(</span><span class="n">OptimizeResult</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="adaptive_approximate_sparse_grid"><a class="viewcode-back" href="../../api/pyapprox.approximate.adaptive_approximate_sparse_grid.html#pyapprox.approximate.adaptive_approximate_sparse_grid">[docs]</a><span class="k">def</span> <span class="nf">adaptive_approximate_sparse_grid</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span><span class="n">univariate_variables</span><span class="p">,</span><span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">refinement_indicator</span><span class="o">=</span><span class="n">variance_refinement_indicator</span><span class="p">,</span><span class="n">univariate_quad_rule_info</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">config_variables_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">config_var_trans</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">cost_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">max_level_1d</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute a sparse grid approximation of a function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function to be minimized</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,nqoi)</span>
+
+<span class="sd">    univariate_variables : list</span>
+<span class="sd">        A list of scipy.stats random variables of size (nvars)</span>
+
+<span class="sd">    callback : callable</span>
+<span class="sd">        Function called after each iteration with the signature</span>
+<span class="sd">        </span>
+<span class="sd">        ``callback(approx_k)``</span>
+
+<span class="sd">        where approx_k is the current approximation object.</span>
+
+<span class="sd">    refinement_indicator : callable</span>
+<span class="sd">        A function that retuns an estimate of the error of a sparse grid subspace</span>
+<span class="sd">        with signature</span>
+<span class="sd">    </span>
+<span class="sd">        ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -&gt; float, float``</span>
+
+<span class="sd">        where ``subspace_index`` is 1D np.ndarray of size (nvars), </span>
+<span class="sd">        ``nnew_subspace_samples`` is an integer specifying the number</span>
+<span class="sd">        of new samples that will be added to the sparse grid by adding the </span>
+<span class="sd">        subspace specified by subspace_index and ``sparse_grid`` is the current </span>
+<span class="sd">        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. </span>
+<span class="sd">        The two outputs are, respectively, the indicator used to control </span>
+<span class="sd">        refinement of the sparse grid and the change in error from adding the </span>
+<span class="sd">        current subspace. The indicator is typically but now always dependent on </span>
+<span class="sd">        the error.</span>
+
+<span class="sd">    univariate_quad_rule_info : list</span>
+<span class="sd">        List containing two entries. The first entry is a list </span>
+<span class="sd">        (or single callable) of univariate quadrature rules for each variable</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        ``quad_rule(l)-&gt;np.ndarray,np.ndarray``</span>
+
+<span class="sd">        where the integer ``l`` specifies the level of the quadrature rule and </span>
+<span class="sd">        ``x`` and ``w`` are 1D np.ndarray of size (nsamples) containing the </span>
+<span class="sd">        quadrature rule points and weights, respectively.</span>
+
+<span class="sd">        The second entry is a list (or single callable) of growth rules</span>
+<span class="sd">        with signature</span>
+
+<span class="sd">        ``growth_rule(l)-&gt;integer``</span>
+
+<span class="sd">        where the output ``nsamples`` specifies the number of samples in the </span>
+<span class="sd">        quadrature rule of level ``l``.</span>
+
+<span class="sd">        If either entry is a callable then the same quad or growth rule is </span>
+<span class="sd">        applied to every variable.</span>
+
+<span class="sd">    max_nsamples : float</span>
+<span class="sd">        If ``cost_function==None`` then this argument is the maximum number of </span>
+<span class="sd">        evaluations of fun. If fun has configure variables</span>
+
+<span class="sd">        If ``cost_function!=None`` Then max_nsamples is the maximum cost of </span>
+<span class="sd">        constructing the sparse grid, i.e. the sum of the cost of evaluating</span>
+<span class="sd">        each point in the sparse grid.</span>
+
+<span class="sd">        The ``cost_function!=None` same behavior as ``cost_function==None``</span>
+<span class="sd">        can be obtained by setting cost_function = lambda config_sample: 1.</span>
+
+<span class="sd">        This is particularly useful if ``fun`` has configure variables</span>
+<span class="sd">        and evaluating ``fun`` at these different values of these configure</span>
+<span class="sd">        variables has different cost. For example if there is one configure</span>
+<span class="sd">        variable that can take two different values with cost 0.5, and 1</span>
+<span class="sd">        then 10 samples of both models will be measured as 15 samples and</span>
+<span class="sd">        so if max_nsamples is 19 the algorithm will not terminate because</span>
+<span class="sd">        even though the number of samples is the sparse grid is 20.</span>
+
+<span class="sd">    tol : float</span>
+<span class="sd">        Tolerance for termination. The construction of the sparse grid is </span>
+<span class="sd">        terminated when the estimate error in the sparse grid (determined by </span>
+<span class="sd">        ``refinement_indicator`` is below tol.</span>
+
+<span class="sd">    verbose : integer</span>
+<span class="sd">        Controls messages printed during construction.</span>
+
+<span class="sd">    config_variable_idx : integer</span>
+<span class="sd">        The position in a sample array that the configure variables start</span>
+
+<span class="sd">    config_var_trans : pyapprox.adaptive_sparse_grid.ConfigureVariableTransformation</span>
+<span class="sd">        An object that takes configure indices in [0,1,2,3...] </span>
+<span class="sd">        and maps them to the configure values accepted by ``fun``</span>
+
+<span class="sd">    cost_function : callable </span>
+<span class="sd">        A function with signature</span>
+
+<span class="sd">        ``cost_function(config_sample) -&gt; float``</span>
+<span class="sd">    </span>
+<span class="sd">        where config_sample is a np.ndarray of shape (nconfig_vars). The output</span>
+<span class="sd">        is the cost of evaluating ``fun`` at ``config_sample``. The units can be</span>
+<span class="sd">        anything but the units must be consistent with the units of max_nsamples</span>
+<span class="sd">        which specifies the maximum cost of constructing the sparse grid.</span>
+
+<span class="sd">    max_level_1d : np.ndarray (nvars)</span>
+<span class="sd">        The maximum level of the sparse grid in each dimension. If None</span>
+<span class="sd">        There is no limit</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object with the following attributes</span>
+
+<span class="sd">    approx : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`</span>
+<span class="sd">        The sparse grid approximation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span>
+        <span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineRandomVariableTransformation</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">config_var_trans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nvars</span> <span class="o">+=</span> <span class="n">config_var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="n">sparse_grid</span> <span class="o">=</span> <span class="n">CombinationSparseGrid</span><span class="p">(</span><span class="n">nvars</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">univariate_quad_rule_info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">quad_rules</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">unique_quadrule_indices</span> <span class="o">=</span> \
+            <span class="n">get_sparse_grid_univariate_leja_quadrature_rules_economical</span><span class="p">(</span>
+            <span class="n">var_trans</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">quad_rules</span><span class="p">,</span><span class="n">growth_rules</span><span class="o">=</span><span class="n">univariate_quad_rule_info</span>
+        <span class="n">unique_quadrule_indices</span><span class="o">=</span><span class="kc">None</span>
+    <span class="k">if</span> <span class="n">max_level_1d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">max_level_1d</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">max_level_1d</span><span class="p">)</span><span class="o">==</span><span class="n">nvars</span>
+    <span class="n">admissibility_function</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">max_level_admissibility_function</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span><span class="n">max_level_1d</span><span class="p">,</span><span class="n">max_nsamples</span><span class="p">,</span>
+        <span class="n">tol</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+    <span class="n">sparse_grid</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span>
+        <span class="n">fun</span><span class="p">,</span> <span class="n">config_variables_idx</span><span class="p">,</span> <span class="n">refinement_indicator</span><span class="p">,</span>
+        <span class="n">admissibility_function</span><span class="p">,</span> <span class="n">growth_rules</span><span class="p">,</span> <span class="n">quad_rules</span><span class="p">,</span>
+        <span class="n">var_trans</span><span class="p">,</span><span class="n">unique_quadrule_indices</span><span class="o">=</span><span class="n">unique_quadrule_indices</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span><span class="n">cost_function</span><span class="o">=</span><span class="n">cost_function</span><span class="p">,</span>
+        <span class="n">config_var_trans</span><span class="o">=</span><span class="n">config_var_trans</span><span class="p">)</span>
+    <span class="n">sparse_grid</span><span class="o">.</span><span class="n">build</span><span class="p">(</span><span class="n">callback</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span><span class="n">sparse_grid</span><span class="p">})</span></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox.adaptive_polynomial_chaos</span> <span class="kn">import</span> <span class="n">AdaptiveLejaPCE</span><span class="p">,</span>\
+    <span class="n">variance_pce_refinement_indicator</span>
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">is_bounded_continuous_variable</span>
+<span class="kn">from</span> <span class="nn">pyapprox.univariate_quadrature</span> <span class="kn">import</span> <span class="n">clenshaw_curtis_rule_growth</span>
+<div class="viewcode-block" id="adaptive_approximate_polynomial_chaos"><a class="viewcode-back" href="../../api/pyapprox.approximate.adaptive_approximate_polynomial_chaos.html#pyapprox.approximate.adaptive_approximate_polynomial_chaos">[docs]</a><span class="k">def</span> <span class="nf">adaptive_approximate_polynomial_chaos</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span><span class="n">univariate_variables</span><span class="p">,</span><span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">refinement_indicator</span><span class="o">=</span><span class="n">variance_pce_refinement_indicator</span><span class="p">,</span><span class="n">growth_rules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">max_nsamples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">tol</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">ncandidate_samples</span><span class="o">=</span><span class="mf">1e4</span><span class="p">,</span><span class="n">generate_candidate_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute an adaptive Polynomial Chaos Expansion of a function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function to be minimized</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,nqoi)</span>
+
+<span class="sd">    univariate_variables : list</span>
+<span class="sd">        A list of scipy.stats random variables of size (nvars)</span>
+
+<span class="sd">    callback : callable</span>
+<span class="sd">        Function called after each iteration with the signature</span>
+<span class="sd">        </span>
+<span class="sd">        ``callback(approx_k)``</span>
+
+<span class="sd">        where approx_k is the current approximation object.</span>
+
+<span class="sd">    refinement_indicator : callable</span>
+<span class="sd">        A function that retuns an estimate of the error of a sparse grid subspace</span>
+<span class="sd">        with signature</span>
+<span class="sd">    </span>
+<span class="sd">        ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -&gt; float, float``</span>
+
+<span class="sd">        where ``subspace_index`` is 1D np.ndarray of size (nvars), </span>
+<span class="sd">        ``nnew_subspace_samples`` is an integer specifying the number</span>
+<span class="sd">        of new samples that will be added to the sparse grid by adding the </span>
+<span class="sd">        subspace specified by subspace_index and ``sparse_grid`` is the current </span>
+<span class="sd">        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. </span>
+<span class="sd">        The two outputs are, respectively, the indicator used to control </span>
+<span class="sd">        refinement of the sparse grid and the change in error from adding the </span>
+<span class="sd">        current subspace. The indicator is typically but now always dependent on </span>
+<span class="sd">        the error.</span>
+
+<span class="sd">    growth_rules : list or callable</span>
+<span class="sd">        a list (or single callable) of growth rules with signature</span>
+
+<span class="sd">        ``growth_rule(l)-&gt;integer``</span>
+
+<span class="sd">        where the output ``nsamples`` specifies the number of indices of the </span>
+<span class="sd">        univariate basis of level ``l``.</span>
+
+<span class="sd">        If the entry is a callable then the same growth rule is </span>
+<span class="sd">        applied to every variable.</span>
+
+<span class="sd">    max_nsamples : integer</span>
+<span class="sd">        The maximum number of evaluations of fun.</span>
+
+<span class="sd">    tol : float</span>
+<span class="sd">        Tolerance for termination. The construction of the sparse grid is </span>
+<span class="sd">        terminated when the estimate error in the sparse grid (determined by </span>
+<span class="sd">        ``refinement_indicator`` is below tol.</span>
+
+<span class="sd">    verbose : integer</span>
+<span class="sd">        Controls messages printed during construction.</span>
+
+<span class="sd">    ncandidate_samples : integer</span>
+<span class="sd">        The number of candidate samples used to generate the Leja sequence</span>
+<span class="sd">        The Leja sequence will be a subset of these samples.</span>
+
+<span class="sd">    generate_candidate_samples : callable</span>
+<span class="sd">        A function that generates the candidate samples used to build the Leja</span>
+<span class="sd">        sequence with signature</span>
+
+<span class="sd">        ``generate_candidate_samples(ncandidate_samples) -&gt; np.ndarray``</span>
+<span class="sd">    </span>
+<span class="sd">        The output is a 2D np.ndarray with size(nvars,ncandidate_samples)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object with the following attributes</span>
+
+<span class="sd">    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`</span>
+<span class="sd">        The PCE approximation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span>
+        <span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineRandomVariableTransformation</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">var_trans</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+
+    <span class="n">bounded_variables</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="n">rv</span> <span class="ow">in</span> <span class="n">univariate_variables</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_bounded_continuous_variable</span><span class="p">(</span><span class="n">rv</span><span class="p">):</span>
+            <span class="n">bounded_variables</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;For now leja sampling based PCE is only supported for bounded continouous random variablesfor now leja sampling based PCE is only supported for bounded continouous random variables&quot;</span>
+            <span class="k">if</span> <span class="n">generate_candidate_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span> <span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+    <span class="k">if</span> <span class="n">generate_candidate_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Todo implement default for non-bounded variables that uses induced</span>
+        <span class="c1"># sampling</span>
+        <span class="c1"># candidate samples must be in canonical domain</span>
+        <span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">halton_sequence</span>
+        <span class="n">candidate_samples</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">halton_sequence</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="n">ncandidate_samples</span><span class="o">+</span><span class="mi">1</span><span class="p">)))</span>
+        <span class="c1">#candidate_samples = -np.cos(</span>
+        <span class="c1">#    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">candidate_samples</span> <span class="o">=</span> <span class="n">generate_candidate_samples</span><span class="p">(</span><span class="n">ncandidate_samples</span><span class="p">)</span>
+        
+    <span class="n">pce</span> <span class="o">=</span> <span class="n">AdaptiveLejaPCE</span><span class="p">(</span>
+        <span class="n">nvars</span><span class="p">,</span><span class="n">candidate_samples</span><span class="p">,</span><span class="n">factorization_type</span><span class="o">=</span><span class="s1">&#39;fast&#39;</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span>
+    <span class="n">admissibility_function</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">max_level_admissibility_function</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,[</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">,</span><span class="n">max_nsamples</span><span class="p">,</span>
+        <span class="n">tol</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_function</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span><span class="n">var_trans</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">growth_rules</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">growth_rules</span> <span class="o">=</span> <span class="n">clenshaw_curtis_rule_growth</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_refinement_functions</span><span class="p">(</span>
+        <span class="n">refinement_indicator</span><span class="p">,</span><span class="n">admissibility_function</span><span class="p">,</span><span class="n">growth_rules</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">build</span><span class="p">(</span><span class="n">callback</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span><span class="n">pce</span><span class="p">})</span></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox.probability_measure_sampling</span> <span class="kn">import</span> \
+    <span class="n">generate_independent_random_samples</span>
+<div class="viewcode-block" id="compute_l2_error"><a class="viewcode-back" href="../../api/pyapprox.approximate.compute_l2_error.html#pyapprox.approximate.compute_l2_error">[docs]</a><span class="k">def</span> <span class="nf">compute_l2_error</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">g</span><span class="p">,</span><span class="n">variable</span><span class="p">,</span><span class="n">nsamples</span><span class="p">,</span><span class="n">rel</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.</span>
+
+<span class="sd">    .. math:: \lVert f(z)-g(z)\rVert\approx \sum_{m=1}^M f(z^{(m)})</span>
+
+<span class="sd">    from a set of random draws :math:`\mathcal{Z}=\{z^{(m)}\}_{m=1}^M` </span>
+<span class="sd">    from the PDF of :math:`z`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : callable</span>
+<span class="sd">        Function with signature</span>
+<span class="sd">    </span>
+<span class="sd">        ``g(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shaoe (nsamples,nqoi)</span>
+
+<span class="sd">    g : callable</span>
+<span class="sd">        Function with signature</span>
+<span class="sd">    </span>
+<span class="sd">        ``f(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shaoe (nsamples,nqoi)</span>
+
+<span class="sd">    variable : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z.</span>
+<span class="sd">        This is used to generate random samples from this join density</span>
+
+<span class="sd">    nsamples : integer</span>
+<span class="sd">        The number of samples used to compute the :math:`\ell^2` error</span>
+
+<span class="sd">    rel : boolean</span>
+<span class="sd">        True - compute relative error</span>
+<span class="sd">        False - compute absolute error</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    error : np.ndarray (nqoi)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">validation_samples</span> <span class="o">=</span> <span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)</span>
+    <span class="n">validation_vals</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="n">approx_vals</span> <span class="o">=</span> <span class="n">g</span><span class="p">(</span><span class="n">validation_samples</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">validation_vals</span><span class="o">.</span><span class="n">shape</span><span class="o">==</span><span class="n">approx_vals</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">error</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">approx_vals</span><span class="o">-</span><span class="n">validation_vals</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rel</span><span class="p">:</span>
+        <span class="n">error</span> <span class="o">/=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">validation_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">error</span> <span class="o">/=</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">validation_vals</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">error</span></div>
+
+<div class="viewcode-block" id="adaptive_approximate"><a class="viewcode-back" href="../../api/pyapprox.approximate.adaptive_approximate.html#pyapprox.approximate.adaptive_approximate">[docs]</a><span class="k">def</span> <span class="nf">adaptive_approximate</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span><span class="n">variable</span><span class="p">,</span><span class="n">method</span><span class="p">,</span><span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Adaptive approximation of a scalar or vector-valued function of one or </span>
+<span class="sd">    more variables. These methods choose the samples to at which to </span>
+<span class="sd">    evaluate the function being approximated.</span>
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fun : callable</span>
+<span class="sd">        The function to be minimized</span>
+
+<span class="sd">        ``fun(z) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shaoe (nsamples,nqoi)</span>
+
+<span class="sd">    method : string</span>
+<span class="sd">        Type of approximation. Should be one of</span>
+
+<span class="sd">        - &#39;sparse_grid&#39;</span>
+<span class="sd">        - &#39;polynomial_chaos&#39;</span>
+<span class="sd">        - &#39;gaussian_process&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object. For more details see </span>
+<span class="sd">    </span>
+<span class="sd">         - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` </span>
+
+<span class="sd">         - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">methods</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sparse_grid&#39;</span><span class="p">:</span><span class="n">adaptive_approximate_sparse_grid</span><span class="p">,</span>
+               <span class="s1">&#39;polynomial_chaos&#39;</span><span class="p">:</span><span class="n">adaptive_approximate_polynomial_chaos</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">methods</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Method </span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s1"> not found.</span><span class="se">\n</span><span class="s1"> Available methods are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">methods</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">return</span> <span class="n">methods</span><span class="p">[</span><span class="n">method</span><span class="p">](</span><span class="n">fun</span><span class="p">,</span><span class="n">variable</span><span class="p">,</span><span class="o">**</span><span class="n">options</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="approximate_polynomial_chaos"><a class="viewcode-back" href="../../api/pyapprox.approximate.approximate_polynomial_chaos.html#pyapprox.approximate.approximate_polynomial_chaos">[docs]</a><span class="k">def</span> <span class="nf">approximate_polynomial_chaos</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                 <span class="n">basis_type</span><span class="o">=</span><span class="s1">&#39;expanding_basis&#39;</span><span class="p">,</span>
+                                 <span class="n">variable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute a Polynomial Chaos Expansion of a function from a fixed data set.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The inputs of the function used to train the approximation</span>
+
+<span class="sd">    train_vals : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The values of the function at ``train_samples``</span>
+
+<span class="sd">    basis_type : string</span>
+<span class="sd">        Type of approximation. Should be one of</span>
+
+<span class="sd">        - &#39;expanding_basis&#39; see :func:`pyapprox.approximate.cross_validate_pce_degree` </span>
+<span class="sd">        - &#39;hyperbolic_cross&#39; see :func:`pyapprox.approximate.expanding_basis_omp_pce`</span>
+
+<span class="sd">    variable : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z.</span>
+<span class="sd">        This is used to generate random samples from this join density</span>
+
+<span class="sd">    verbosity : integer</span>
+<span class="sd">        Controls the amount of information printed to screen</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object. For more details see </span>
+<span class="sd">    </span>
+<span class="sd">         - :func:`pyapprox.approximate.cross_validate_pce_degree` </span>
+
+<span class="sd">         - :func:`pyapprox.approximate.expanding_basis_omp_pce`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">funcs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;expanding_basis&#39;</span><span class="p">:</span><span class="n">expanding_basis_omp_pce</span><span class="p">,</span>
+             <span class="s1">&#39;hyperbolic_cross&#39;</span><span class="p">:</span><span class="n">cross_validate_pce_degree</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;pce requires that variable be defined&#39;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">basis_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Basis type </span><span class="si">{</span><span class="n">basis_type</span><span class="si">}</span><span class="s1"> not found.</span><span class="se">\n</span><span class="s1"> Available types are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">funcs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    
+    <span class="kn">from</span> <span class="nn">pyapprox.multivariate_polynomials</span> <span class="kn">import</span> <span class="n">PolynomialChaosExpansion</span><span class="p">,</span> \
+        <span class="n">define_poly_options_from_variable_transformation</span>
+    <span class="n">var_trans</span> <span class="o">=</span> <span class="n">AffineRandomVariableTransformation</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+    <span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialChaosExpansion</span><span class="p">()</span>
+    <span class="n">poly_opts</span> <span class="o">=</span> <span class="n">define_poly_options_from_variable_transformation</span><span class="p">(</span>
+        <span class="n">var_trans</span><span class="p">)</span>
+    <span class="n">poly</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">poly_opts</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">res</span> <span class="o">=</span> <span class="n">funcs</span><span class="p">[</span><span class="n">basis_type</span><span class="p">](</span><span class="n">poly</span><span class="p">,</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span></div>
+
+<div class="viewcode-block" id="approximate"><a class="viewcode-back" href="../../api/pyapprox.approximate.approximate.html#pyapprox.approximate.approximate">[docs]</a><span class="k">def</span> <span class="nf">approximate</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">method</span><span class="p">,</span><span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Approximate a scalar or vector-valued function of one or </span>
+<span class="sd">    more variables from a set of points provided by the user</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The inputs of the function used to train the approximation</span>
+
+<span class="sd">    train_vals : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The values of the function at ``train_samples``</span>
+
+<span class="sd">    method : string</span>
+<span class="sd">        Type of approximation. Should be one of</span>
+
+<span class="sd">        - &#39;polynomial_chaos&#39;</span>
+<span class="sd">        - &#39;gaussian_process&#39;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">methods</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;polynomial_chaos&#39;</span><span class="p">:</span><span class="n">approximate_polynomial_chaos</span><span class="p">,</span>
+               <span class="s1">&#39;gaussian_process&#39;</span><span class="p">:</span><span class="n">approximate_gaussian_process</span><span class="p">}</span>
+               <span class="c1">#&#39;tensor-train&#39;:approximate_tensor_train,</span>
+
+    <span class="k">if</span> <span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">methods</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Method </span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s1"> not found.</span><span class="se">\n</span><span class="s1"> Available methods are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">methods</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">return</span> <span class="n">methods</span><span class="p">[</span><span class="n">method</span><span class="p">](</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="o">**</span><span class="n">options</span><span class="p">)</span></div>
+
+
+<span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LassoCV</span><span class="p">,</span> <span class="n">LassoLarsCV</span><span class="p">,</span> <span class="n">LarsCV</span><span class="p">,</span> \
+    <span class="n">OrthogonalMatchingPursuitCV</span>
+
+<div class="viewcode-block" id="fit_linear_model"><a class="viewcode-back" href="../../api/pyapprox.approximate.fit_linear_model.html#pyapprox.approximate.fit_linear_model">[docs]</a><span class="k">def</span> <span class="nf">fit_linear_model</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">solvers</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lasso_lars&#39;</span><span class="p">:</span><span class="n">LassoLarsCV</span><span class="p">(</span><span class="n">cv</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;cv&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">fit</span><span class="p">,</span>
+               <span class="s1">&#39;lasso&#39;</span><span class="p">:</span><span class="n">LassoCV</span><span class="o">.</span><span class="n">fit</span><span class="p">,</span>
+               <span class="s1">&#39;lars&#39;</span><span class="p">:</span><span class="n">LarsCV</span><span class="o">.</span><span class="n">fit</span><span class="p">,</span><span class="s1">&#39;omp&#39;</span><span class="p">:</span><span class="n">OrthogonalMatchingPursuitCV</span><span class="o">.</span><span class="n">fit</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="n">train_vals</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span>
+    <span class="k">if</span> <span class="n">solver_type</span> <span class="ow">in</span> <span class="n">solvers</span><span class="p">:</span>
+        <span class="n">fit</span> <span class="o">=</span> <span class="n">solvers</span><span class="p">[</span><span class="n">solver_type</span><span class="p">]</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">fit</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Solver type </span><span class="si">{</span><span class="n">solver_type</span><span class="si">}</span><span class="s1"> not supported</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;Supported solvers are:</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">solvers</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">\t</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">cv_score</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">coef</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">coef_</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">];</span> <span class="n">coef</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">=</span><span class="n">res</span><span class="o">.</span><span class="n">intercept_</span>
+    <span class="k">return</span> <span class="n">coef</span><span class="p">,</span> <span class="n">cv_score</span></div>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">compute_hyperbolic_indices</span>
+<div class="viewcode-block" id="cross_validate_pce_degree"><a class="viewcode-back" href="../../api/pyapprox.approximate.cross_validate_pce_degree.html#pyapprox.approximate.cross_validate_pce_degree">[docs]</a><span class="k">def</span> <span class="nf">cross_validate_pce_degree</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">min_degree</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">max_degree</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">hcross_strength</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span><span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso_lars&#39;</span><span class="p">,</span><span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use cross validation to find the polynomial degree which best fits the data.</span>
+<span class="sd">    A polynomial is constructed for each degree and the degree with the highest</span>
+<span class="sd">    cross validation score is returned.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The inputs of the function used to train the approximation</span>
+
+<span class="sd">    train_vals : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The values of the function at ``train_samples``</span>
+<span class="sd">    </span>
+<span class="sd">    min_degree : integer</span>
+<span class="sd">        The minimum degree to consider</span>
+
+<span class="sd">    min_degree : integer</span>
+<span class="sd">        The maximum degree to consider. </span>
+<span class="sd">        All degrees in ``range(min_degree,max_deree+1)`` are considered</span>
+
+<span class="sd">    hcross_strength : float</span>
+<span class="sd">       The strength of the hyperbolic cross index set. hcross_strength must be </span>
+<span class="sd">       in (0,1]. A value of 1 produces total degree polynomials</span>
+
+<span class="sd">    cv : integer</span>
+<span class="sd">        The number of cross validation folds used to compute the cross </span>
+<span class="sd">        validation error</span>
+
+<span class="sd">    solver_type : string</span>
+<span class="sd">        The type of regression used to train the polynomial</span>
+
+<span class="sd">        - &#39;lasso_lars&#39;</span>
+<span class="sd">        - &#39;lars&#39;</span>
+<span class="sd">        - &#39;lasso&#39;</span>
+<span class="sd">        - &#39;omp&#39;</span>
+
+<span class="sd">    verbosity : integer</span>
+<span class="sd">        Controls the amount of information printed to screen</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object with the following attributes</span>
+
+<span class="sd">    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`</span>
+<span class="sd">        The PCE approximation</span>
+
+<span class="sd">    scores : np.ndarray (nqoi)</span>
+<span class="sd">        The best cross validation score for each QoI</span>
+
+<span class="sd">    degrees : np.ndarray (nqoi)</span>
+<span class="sd">        The best degree for each QoI</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coefs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">degrees</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indices_dict</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span>
+    <span class="n">unique_indices</span><span class="o">=</span><span class="p">[]</span>
+    <span class="n">nqoi</span> <span class="o">=</span> <span class="n">train_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Approximating QoI: </span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">pce_ii</span><span class="p">,</span><span class="n">score_ii</span><span class="p">,</span><span class="n">degree_ii</span> <span class="o">=</span> <span class="n">_cross_validate_pce_degree</span><span class="p">(</span>
+            <span class="n">pce</span><span class="p">,</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span><span class="n">min_degree</span><span class="p">,</span><span class="n">max_degree</span><span class="p">,</span>
+            <span class="n">hcross_strength</span><span class="p">,</span><span class="n">cv</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="n">verbosity</span><span class="p">)</span>
+        <span class="n">coefs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pce_ii</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">())</span>
+        <span class="n">scores</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">score_ii</span><span class="p">)</span>
+        <span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pce_ii</span><span class="o">.</span><span class="n">get_indices</span><span class="p">())</span>
+        <span class="n">degrees</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">degree_ii</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">indices_dict</span><span class="p">:</span>
+                <span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span>
+                <span class="n">unique_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="n">unique_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">all_coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">unique_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">nqoi</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">jj</span><span class="p">,</span><span class="n">index</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="n">all_coefs</span><span class="p">[</span><span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">],</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">coefs</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">jj</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">all_coefs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span><span class="n">pce</span><span class="p">,</span><span class="s1">&#39;scores&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">scores</span><span class="p">),</span>
+                              <span class="s1">&#39;degrees&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">degrees</span><span class="p">)})</span></div>
+    
+<span class="k">def</span> <span class="nf">_cross_validate_pce_degree</span><span class="p">(</span>
+        <span class="n">pce</span><span class="p">,</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">min_degree</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">max_degree</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">hcross_strength</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span><span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso_lars&#39;</span><span class="p">,</span><span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">train_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span>
+    <span class="n">num_samples</span> <span class="o">=</span> <span class="n">train_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">min_degree</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">min_degree</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">max_degree</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">max_degree</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">iinfo</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="o">-</span><span class="mi">1</span>
+
+    <span class="n">best_coef</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">best_cv_score</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span><span class="o">.</span><span class="n">max</span>
+    <span class="n">best_degree</span> <span class="o">=</span> <span class="n">min_degree</span>
+    <span class="n">prev_num_terms</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{:&lt;8}</span><span class="s2"> </span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;18}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;degree&#39;</span><span class="p">,</span><span class="s1">&#39;num_terms&#39;</span><span class="p">,</span><span class="s1">&#39;cv score&#39;</span><span class="p">,))</span>
+    <span class="k">for</span> <span class="n">degree</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_degree</span><span class="p">,</span><span class="n">max_degree</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">compute_hyperbolic_indices</span><span class="p">(</span>
+            <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">degree</span><span class="p">,</span><span class="n">hcross_strength</span><span class="p">)</span>
+        <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">((</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span><span class="o">&gt;</span><span class="mi">100000</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="p">(</span><span class="mi">100000</span><span class="o">-</span><span class="n">prev_num_terms</span><span class="o">&lt;</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span><span class="o">-</span><span class="mi">100000</span><span class="p">)</span> <span class="p">):</span> <span class="k">break</span>
+
+        <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+        <span class="n">coef</span><span class="p">,</span> <span class="n">cv_score</span> <span class="o">=</span> <span class="n">fit_linear_model</span><span class="p">(</span>
+            <span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="n">cv</span><span class="o">=</span><span class="n">cv</span><span class="p">)</span>
+        <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{:&lt;8}</span><span class="s2"> </span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;18}</span><span class="s2"> &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">(),</span><span class="n">cv_score</span><span class="p">))</span>
+        <span class="k">if</span> <span class="p">(</span> <span class="n">cv_score</span> <span class="o">&gt;</span> <span class="n">best_cv_score</span> <span class="p">):</span>
+            <span class="n">best_cv_score</span> <span class="o">=</span> <span class="n">cv_score</span>
+            <span class="n">best_coef</span> <span class="o">=</span> <span class="n">coef</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">best_degree</span> <span class="o">=</span> <span class="n">degree</span>
+        <span class="k">if</span> <span class="p">(</span> <span class="p">(</span> <span class="n">cv_score</span> <span class="o">&gt;=</span> <span class="n">best_cv_score</span> <span class="p">)</span> <span class="ow">and</span> <span class="p">(</span> <span class="n">degree</span><span class="o">-</span><span class="n">best_degree</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">)</span> <span class="p">):</span>
+            <span class="k">break</span>
+        <span class="n">prev_num_terms</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span>
+
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">compute_hyperbolic_indices</span><span class="p">(</span>
+        <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">(),</span><span class="n">best_degree</span><span class="p">,</span><span class="n">hcross_strength</span><span class="p">))</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">best_coef</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span> <span class="p">(</span><span class="s1">&#39;best degree:&#39;</span><span class="p">,</span> <span class="n">best_degree</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pce</span><span class="p">,</span> <span class="n">best_cv_score</span><span class="p">,</span> <span class="n">best_degree</span>
+
+<div class="viewcode-block" id="restrict_basis"><a class="viewcode-back" href="../../api/pyapprox.approximate.restrict_basis.html#pyapprox.approximate.restrict_basis">[docs]</a><span class="k">def</span> <span class="nf">restrict_basis</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span><span class="n">coefficients</span><span class="p">,</span><span class="n">tol</span><span class="p">):</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">coefficients</span><span class="p">)</span><span class="o">&gt;</span><span class="n">tol</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">restricted_indices</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span><span class="n">I</span><span class="p">]</span>
+    <span class="n">degrees</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">degrees</span><span class="o">==</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">J</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="n">J</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">I</span><span class="p">:</span>
+        <span class="c1">#always include zero degree polynomial in restricted_indices</span>
+        <span class="n">restricted_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">indices</span><span class="p">[:</span><span class="n">J</span><span class="p">],</span><span class="n">restrict_indices</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">restricted_indices</span></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox</span> <span class="kn">import</span> <span class="n">hash_array</span><span class="p">,</span> <span class="n">get_forward_neighbor</span><span class="p">,</span> <span class="n">get_backward_neighbor</span>
+<div class="viewcode-block" id="expand_basis"><a class="viewcode-back" href="../../api/pyapprox.approximate.expand_basis.html#pyapprox.approximate.expand_basis">[docs]</a><span class="k">def</span> <span class="nf">expand_basis</span><span class="p">(</span><span class="n">indices</span><span class="p">):</span>
+    <span class="n">nvars</span><span class="p">,</span><span class="n">nindices</span><span class="o">=</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">indices_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nindices</span><span class="p">):</span>
+        <span class="n">indices_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">hash_array</span><span class="p">(</span><span class="n">indices</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]))</span>
+    
+    <span class="n">new_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nindices</span><span class="p">):</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">active_vars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dd</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+            <span class="n">forward_index</span> <span class="o">=</span> <span class="n">get_forward_neighbor</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="n">dd</span><span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">forward_index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">indices_set</span><span class="p">:</span>
+                <span class="n">admissible</span><span class="o">=</span><span class="kc">True</span>
+                <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="n">active_vars</span><span class="p">:</span>
+                    <span class="n">backward_index</span> <span class="o">=</span> <span class="n">get_backward_neighbor</span><span class="p">(</span><span class="n">forward_index</span><span class="p">,</span><span class="n">kk</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">backward_index</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">indices_set</span><span class="p">:</span>
+                        <span class="n">admissible</span><span class="o">=</span><span class="kc">False</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">admissible</span><span class="p">:</span>
+                    <span class="n">indices_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="n">new_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">forward_index</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">new_indices</span><span class="p">)</span><span class="o">.</span><span class="n">T</span></div>
+    
+
+<div class="viewcode-block" id="expanding_basis_omp_pce"><a class="viewcode-back" href="../../api/pyapprox.approximate.expanding_basis_omp_pce.html#pyapprox.approximate.expanding_basis_omp_pce">[docs]</a><span class="k">def</span> <span class="nf">expanding_basis_omp_pce</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">hcross_strength</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                            <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">max_num_terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso_lars&#39;</span><span class="p">,</span><span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                            <span class="n">restriction_tol</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="o">*</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Iteratively expand and restrict the polynomial basis and use </span>
+<span class="sd">    cross validation to find the best basis [JESJCP2015]_</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The inputs of the function used to train the approximation</span>
+
+<span class="sd">    train_vals : np.ndarray (nvars,nqoi)</span>
+<span class="sd">        The values of the function at ``train_samples``</span>
+<span class="sd">    </span>
+<span class="sd">    hcross_strength : float</span>
+<span class="sd">       The strength of the hyperbolic cross index set. hcross_strength must be </span>
+<span class="sd">       in (0,1]. A value of 1 produces total degree polynomials</span>
+
+<span class="sd">    cv : integer</span>
+<span class="sd">        The number of cross validation folds used to compute the cross </span>
+<span class="sd">        validation error</span>
+
+<span class="sd">    solver_type : string</span>
+<span class="sd">        The type of regression used to train the polynomial</span>
+
+<span class="sd">        - &#39;lasso_lars&#39;</span>
+<span class="sd">        - &#39;lars&#39;</span>
+<span class="sd">        - &#39;lasso&#39;</span>
+<span class="sd">        - &#39;omp&#39;</span>
+
+<span class="sd">    verbosity : integer</span>
+<span class="sd">        Controls the amount of information printed to screen</span>
+
+<span class="sd">    restriction_tol : float</span>
+<span class="sd">        The tolerance used to prune inactive indices</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object with the following attributes</span>
+
+<span class="sd">    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`</span>
+<span class="sd">        The PCE approximation</span>
+
+<span class="sd">    scores : np.ndarray (nqoi)</span>
+<span class="sd">        The best cross validation score for each QoI</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [JESJCP2015] `J.D. Jakeman, M.S. Eldred, and K. Sargsyan. Enhancing l1-minimization estimates of polynomial chaos expansions using basis selection. Journal of Computational Physics, 289(0):18 – 34, 2015 &lt;https://doi.org/10.1016/j.jcp.2015.02.025&gt;`_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coefs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indices_dict</span><span class="o">=</span><span class="nb">dict</span><span class="p">()</span>
+    <span class="n">unique_indices</span><span class="o">=</span><span class="p">[]</span>
+    <span class="n">nqoi</span> <span class="o">=</span> <span class="n">train_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Approximating QoI: </span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">pce_ii</span><span class="p">,</span><span class="n">score_ii</span> <span class="o">=</span> <span class="n">_expanding_basis_omp_pce</span><span class="p">(</span>
+            <span class="n">pce</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">[:,</span><span class="n">ii</span><span class="p">:</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="n">hcross_strength</span><span class="p">,</span>
+            <span class="n">verbosity</span><span class="p">,</span><span class="n">max_num_terms</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="n">cv</span><span class="p">,</span><span class="n">restriction_tol</span><span class="p">)</span>
+        <span class="n">coefs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pce_ii</span><span class="o">.</span><span class="n">get_coefficients</span><span class="p">())</span>
+        <span class="n">scores</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">score_ii</span><span class="p">)</span>
+        <span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pce_ii</span><span class="o">.</span><span class="n">get_indices</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">indices_dict</span><span class="p">:</span>
+                <span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span>
+                <span class="n">unique_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="n">unique_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">all_coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">unique_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">nqoi</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nqoi</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">jj</span><span class="p">,</span><span class="n">index</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">hash_array</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="n">all_coefs</span><span class="p">[</span><span class="n">indices_dict</span><span class="p">[</span><span class="n">key</span><span class="p">],</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">coefs</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">jj</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">all_coefs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span><span class="n">pce</span><span class="p">,</span><span class="s1">&#39;scores&#39;</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">scores</span><span class="p">)})</span></div>
+
+<span class="k">def</span> <span class="nf">_expanding_basis_omp_pce</span><span class="p">(</span><span class="n">pce</span><span class="p">,</span> <span class="n">train_samples</span><span class="p">,</span> <span class="n">train_vals</span><span class="p">,</span> <span class="n">hcross_strength</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                             <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span><span class="n">max_num_terms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">solver_type</span><span class="o">=</span><span class="s1">&#39;lasso_lars&#39;</span><span class="p">,</span><span class="n">cv</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                             <span class="n">restriction_tol</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="o">*</span><span class="mi">2</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">train_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span>
+    <span class="n">num_vars</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_vars</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">max_num_terms</span>  <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">max_num_terms</span> <span class="o">=</span> <span class="mi">10</span><span class="o">*</span><span class="n">train_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">degree</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">prev_num_terms</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">indices</span> <span class="o">=</span><span class="n">compute_hyperbolic_indices</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">hcross_strength</span><span class="p">)</span>
+        <span class="n">num_terms</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span> <span class="n">num_terms</span> <span class="o">&gt;</span> <span class="n">max_num_terms</span> <span class="p">):</span> <span class="k">break</span>
+        <span class="n">degree</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">prev_num_terms</span> <span class="o">=</span> <span class="n">num_terms</span>
+
+    <span class="k">if</span> <span class="p">(</span> <span class="nb">abs</span><span class="p">(</span> <span class="n">num_terms</span> <span class="o">-</span> <span class="n">max_num_terms</span> <span class="p">)</span> <span class="o">&gt;</span> 
+         <span class="nb">abs</span><span class="p">(</span> <span class="n">prev_num_terms</span> <span class="o">-</span> <span class="n">max_num_terms</span> <span class="p">)</span> <span class="p">):</span>
+        <span class="n">degree</span> <span class="o">-=</span><span class="mi">1</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span>
+        <span class="n">compute_hyperbolic_indices</span><span class="p">(</span><span class="n">num_vars</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">hcross_strength</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Initializing basis with hyperbolic cross of degree </span><span class="si">{</span><span class="n">degree</span><span class="si">}</span><span class="s1"> and &#39;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39; strength </span><span class="si">{</span><span class="n">hcross_strength</span><span class="si">}</span><span class="s1"> with </span><span class="si">{</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span><span class="si">}</span><span class="s1"> terms&#39;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+    <span class="n">best_coef</span><span class="p">,</span> <span class="n">best_cv_score</span> <span class="o">=</span> <span class="n">fit_linear_model</span><span class="p">(</span>
+        <span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="n">cv</span><span class="o">=</span><span class="n">cv</span><span class="p">)</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">best_coef</span><span class="p">)</span>
+    <span class="n">best_indices</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">get_indices</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;18}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;nterms&#39;</span><span class="p">,</span> <span class="s1">&#39;nnz terms&#39;</span><span class="p">,</span> <span class="s1">&#39;cv score&#39;</span><span class="p">))</span>
+        <span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;18}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">(),</span><span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">coefficients</span><span class="p">),</span><span class="n">best_cv_score</span><span class="p">))</span>
+
+    <span class="n">best_cv_score_iter</span> <span class="o">=</span> <span class="n">best_cv_score</span>
+    <span class="n">best_num_expansion_steps</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">it</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">best_it</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">max_num_expansion_steps</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">best_num_expansion_steps_iter</span> <span class="o">=</span> <span class="n">best_num_expansion_steps</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># -------------- #</span>
+            <span class="c1">#  Expand basis  #</span>
+            <span class="c1"># -------------- #</span>
+            <span class="n">num_expansion_steps</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">indices</span><span class="o">=</span><span class="n">restrict_basis</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span><span class="n">pce</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span><span class="n">restriction_tol</span><span class="p">)</span>
+            <span class="k">while</span> <span class="p">(</span> <span class="p">(</span> <span class="n">num_expansion_steps</span> <span class="o">&lt;</span> <span class="n">max_num_expansion_steps</span> <span class="p">)</span> <span class="ow">and</span>
+                    <span class="p">(</span> <span class="n">num_expansion_steps</span> <span class="o">&lt;</span> <span class="n">best_num_expansion_steps</span> <span class="p">)</span> <span class="p">):</span>
+                <span class="n">new_indices</span> <span class="o">=</span> <span class="n">expand_basis</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+                <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span><span class="n">new_indices</span><span class="p">]))</span>
+                <span class="n">num_terms</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span>
+                <span class="n">num_expansion_steps</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="c1"># -----------------#</span>
+            <span class="c1"># Compute solution #</span>
+            <span class="c1"># -----------------#</span>
+            <span class="n">basis_matrix</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">train_samples</span><span class="p">)</span>
+            <span class="n">coef</span><span class="p">,</span> <span class="n">cv_score</span> <span class="o">=</span> <span class="n">fit_linear_model</span><span class="p">(</span>
+                <span class="n">basis_matrix</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">solver_type</span><span class="p">,</span><span class="n">cv</span><span class="o">=</span><span class="n">cv</span><span class="p">)</span>
+            <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;</span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;10}</span><span class="s2"> </span><span class="si">{:&lt;18}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">(),</span><span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">pce</span><span class="o">.</span><span class="n">coefficients</span><span class="p">),</span><span class="n">cv_score</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="p">(</span> <span class="n">cv_score</span> <span class="o">&gt;</span> <span class="n">best_cv_score_iter</span> <span class="p">):</span>
+                <span class="n">best_cv_score_iter</span> <span class="o">=</span> <span class="n">cv_score</span>
+                <span class="n">best_indices_iter</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">best_coef_iter</span> <span class="o">=</span> <span class="n">pce</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">best_num_expansion_steps_iter</span> <span class="o">=</span> <span class="n">num_expansion_steps</span> 
+
+            <span class="k">if</span> <span class="p">(</span> <span class="n">num_terms</span> <span class="o">&gt;=</span> <span class="n">max_num_terms</span> <span class="p">):</span> <span class="k">break</span>
+            <span class="k">if</span> <span class="p">(</span> <span class="n">max_num_expansion_steps</span> <span class="o">&gt;=</span> <span class="mi">3</span> <span class="p">):</span> <span class="k">break</span>
+
+            <span class="n">max_num_expansion_steps</span> <span class="o">+=</span> <span class="mi">1</span>
+
+
+        <span class="k">if</span> <span class="p">(</span> <span class="n">best_cv_score_iter</span> <span class="o">&gt;</span> <span class="n">best_cv_score</span><span class="p">):</span>
+            <span class="n">best_cv_score</span> <span class="o">=</span> <span class="n">best_cv_score_iter</span>
+            <span class="n">best_coef</span> <span class="o">=</span> <span class="n">best_coef_iter</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">best_indices</span> <span class="o">=</span> <span class="n">best_indices_iter</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">best_num_expansion_steps</span> <span class="o">=</span> <span class="n">best_num_expansion_steps_iter</span>
+            <span class="n">best_it</span> <span class="o">=</span> <span class="n">it</span>
+        <span class="k">elif</span> <span class="p">(</span> <span class="n">it</span> <span class="o">-</span> <span class="n">best_it</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="p">):</span>
+            <span class="k">break</span>
+
+        <span class="n">it</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">nindices</span> <span class="o">=</span> <span class="n">best_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">best_coef</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_indices</span><span class="p">(</span><span class="n">best_indices</span><span class="p">[:,</span><span class="n">I</span><span class="p">])</span>
+    <span class="n">pce</span><span class="o">.</span><span class="n">set_coefficients</span><span class="p">(</span><span class="n">best_coef</span><span class="p">[</span><span class="n">I</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Final basis has </span><span class="si">{</span><span class="n">pce</span><span class="o">.</span><span class="n">num_terms</span><span class="p">()</span><span class="si">}</span><span class="s1"> terms selected from </span><span class="si">{</span><span class="n">nindices</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">msg</span><span class="o">+=</span><span class="sa">f</span><span class="s1">&#39; using </span><span class="si">{</span><span class="n">train_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1"> samples&#39;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pce</span><span class="p">,</span> <span class="n">best_cv_score</span>
+
+<div class="viewcode-block" id="approximate_gaussian_process"><a class="viewcode-back" href="../../api/pyapprox.approximate.approximate_gaussian_process.html#pyapprox.approximate.approximate_gaussian_process">[docs]</a><span class="k">def</span> <span class="nf">approximate_gaussian_process</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">,</span><span class="n">nu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span><span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute a Gaussian process approximation of a function from a fixed data </span>
+<span class="sd">    set using the Matern kernel</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       k(z_i, z_j) =  \frac{1}{\Gamma(\nu)2^{\nu-1}}\Bigg(</span>
+<span class="sd">       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)^\nu K_\nu\Bigg(</span>
+<span class="sd">       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)</span>
+
+<span class="sd">    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance, </span>
+<span class="sd">    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the </span>
+<span class="sd">    modified Bessel function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_samples : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The inputs of the function used to train the approximation</span>
+
+<span class="sd">    train_vals : np.ndarray (nvars,nsamples)</span>
+<span class="sd">        The values of the function at ``train_samples``</span>
+
+<span class="sd">    kernel_nu : string</span>
+<span class="sd">        The parameter :math:`\nu` of the Matern kernel. When :math:`\nu\to\inf`</span>
+<span class="sd">        the Matern kernel is equivalent to the squared-exponential kernel.</span>
+
+<span class="sd">    n_restarts_optimizer : int</span>
+<span class="sd">        The number of local optimizeation problems solved to find the </span>
+<span class="sd">        GP hyper-parameters</span>
+
+<span class="sd">    verbosity : integer</span>
+<span class="sd">        Controls the amount of information printed to screen</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : :class:`pyapprox.approximate.ApproximateResult`</span>
+<span class="sd">         Result object with the following attributes</span>
+
+<span class="sd">    approx : :class:`pyapprox.gaussian_process.GaussianProcess`</span>
+<span class="sd">        The Gaussian process</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sklearn.gaussian_process.kernels</span> <span class="kn">import</span> <span class="n">Matern</span><span class="p">,</span> <span class="n">WhiteKernel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.gaussian_process</span> <span class="kn">import</span> <span class="n">GaussianProcess</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">Matern</span><span class="p">(</span><span class="n">length_scale_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-2</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">nu</span><span class="o">=</span><span class="n">nu</span><span class="p">)</span>
+    <span class="c1"># optimize variance</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">kernel</span>
+    <span class="c1"># optimize gp noise</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">train_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">length_scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">nvars</span><span class="p">)</span>
+    <span class="n">kernel</span> <span class="o">+=</span> <span class="n">WhiteKernel</span><span class="p">(</span><span class="n">length_scale</span><span class="p">,</span><span class="n">noise_level_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">gp</span> <span class="o">=</span> <span class="n">GaussianProcess</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span><span class="n">n_restarts_optimizer</span><span class="o">=</span><span class="n">n_restarts_optimizer</span><span class="p">)</span>
+    <span class="n">gp</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_samples</span><span class="p">,</span><span class="n">train_vals</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ApproximateResult</span><span class="p">({</span><span class="s1">&#39;approx&#39;</span><span class="p">:</span><span class="n">gp</span><span class="p">})</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

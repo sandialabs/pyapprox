@@ -1,0 +1,6 @@
+eval
+====
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: eval

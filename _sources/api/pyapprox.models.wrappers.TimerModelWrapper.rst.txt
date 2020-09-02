@@ -1,0 +1,19 @@
+TimerModelWrapper
+=================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: TimerModelWrapper
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~TimerModelWrapper.__call__
+      ~TimerModelWrapper.x__getattr__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: x__getattr__

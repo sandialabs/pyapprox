@@ -1,0 +1,6 @@
+qoi_functional_source_inversion
+===============================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autofunction:: qoi_functional_source_inversion

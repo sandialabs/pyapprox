@@ -1,0 +1,12 @@
+
+:orphan:
+
+.. _sphx_glr_auto_examples_polynomial_chaos_sg_execution_times:
+
+Computation times
+=================
+**00:01.780** total execution time for **auto_examples_polynomial_chaos** files:
+
++------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
+| :ref:`sphx_glr_auto_examples_polynomial_chaos_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``) | 00:01.780 | 0.0 MB |
++------------------------------------------------------------------------------------------------------------------------------+-----------+--------+

@@ -1,0 +1,17 @@
+ModelEnsemble
+=============
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: ModelEnsemble
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ModelEnsemble.__call__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

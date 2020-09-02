@@ -1,0 +1,6 @@
+get_tensor_product_quadrature_rule_from_pce
+===========================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: get_tensor_product_quadrature_rule_from_pce

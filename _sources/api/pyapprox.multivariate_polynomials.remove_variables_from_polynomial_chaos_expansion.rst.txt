@@ -1,0 +1,6 @@
+remove_variables_from_polynomial_chaos_expansion
+================================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: remove_variables_from_polynomial_chaos_expansion

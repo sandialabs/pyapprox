@@ -1,0 +1,7 @@
+LogLikeGrad
+===========
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autoclass:: LogLikeGrad
+   :show-inheritance:

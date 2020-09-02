@@ -1,0 +1,6 @@
+get_sobol_g_function_statistics
+===============================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: get_sobol_g_function_statistics

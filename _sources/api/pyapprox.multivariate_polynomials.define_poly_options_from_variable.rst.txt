@@ -1,0 +1,6 @@
+define_poly_options_from_variable
+=================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: define_poly_options_from_variable

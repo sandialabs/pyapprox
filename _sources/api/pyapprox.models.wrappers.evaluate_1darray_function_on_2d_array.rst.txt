@@ -1,0 +1,6 @@
+evaluate_1darray_function_on_2d_array
+=====================================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: evaluate_1darray_function_on_2d_array

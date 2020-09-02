@@ -1,0 +1,678 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Gaussian Networks &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Control Variate Monte Carlo" href="../multi_fidelity/plot_control_variate_monte_carlo.html" />
+    <link rel="prev" title="Sensitivity Analysis" href="plot_sensitivity_analysis.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#foundations">Foundations</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_advection_diffusion_model.html">Numerical Approximations of Governing Equations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Surrogate Modeling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_sensitivity_analysis.html">Sensitivity Analysis</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Gaussian Networks</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#directed-acyclic-graphs">Directed Acyclic Graphs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#conditional-probability-distributions">Conditional probability distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#the-canonical-form">The Canonical Form</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multiplying-canonical-forms">Multiplying Canonical Forms</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#conditioning-the-canonical-form">Conditioning The Canonical Form</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#marginalizing-canonical-forms">Marginalizing Canonical Forms</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
+        
+      <li>Gaussian Networks</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/auto_tutorials/foundations/plot_bayesian_networks.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-bayesian-networks-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
+</div>
+<div class="sphx-glr-example-title section" id="gaussian-networks">
+<span id="sphx-glr-auto-tutorials-foundations-plot-bayesian-networks-py"></span><h1>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this headline">¶</a></h1>
+<p>This tutorial describes how to perform efficient inference on a network of Gaussian-linear models using Bayesian networks, often referred to as Gaussian networks. Bayesian networks can be constructed to provide a compact representation of joint distribution, which can be used to marginalize out variables and condition on observational data without the need to construct a full representation of the joint density over all variables.</p>
+<div class="section" id="directed-acyclic-graphs">
+<h2>Directed Acyclic Graphs<a class="headerlink" href="#directed-acyclic-graphs" title="Permalink to this headline">¶</a></h2>
+<p>A Bayesian network (BN) structure is a directed acyclic graphs (DAG) whose nodes represent random variables and whose edges represent probabilistic relationships between them. The graph can be represented by a tuple of vertices (or nodes) and edges <span class="math notranslate nohighlight">\(\mathcal{G} = \left( \mathbf{V}, \mathbf{E} \right)\)</span>. A node <span class="math notranslate nohighlight">\(\theta_{j} \in \mathbf{V}\)</span> is a parent of a random variable <span class="math notranslate nohighlight">\(\theta_{i} \in \mathbf{V}\)</span> if there is a directed edge <span class="math notranslate nohighlight">\([\theta_{j} \to \theta_{i}] \in \mathbf{E}\)</span>. The set of parents of random variable <span class="math notranslate nohighlight">\(\theta_{i}\)</span> is denoted by <span class="math notranslate nohighlight">\(\theta_{\mathrm{pa}(i)}\)</span>.</p>
+<p>Lets import some necessary modules and then construct a DAG consisting of 3 groups of variables.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
+<span class="kn">from</span> <span class="nn">pyapprox.gaussian_network</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">pyapprox.configure_plots</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">nnodes</span><span class="o">=</span><span class="mi">3</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span>
+<span class="n">_</span><span class="o">=</span><span class="n">plot_hierarchical_network</span><span class="p">(</span><span class="n">nnodes</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot bayesian networks" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_networks_0011.png" />
+<p>For this network we have <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_1)=\emptyset,\;\mathrm{pa}(\theta_2)=\{\theta_1\},\;\mathrm{pa}(\theta_3)=\{\theta_2\}\)</span>.</p>
+</div>
+<div class="section" id="conditional-probability-distributions">
+<h2>Conditional probability distributions<a class="headerlink" href="#conditional-probability-distributions" title="Permalink to this headline">¶</a></h2>
+<p>Bayesian networks use onditional probability distributions (CPDs) to encode the relationships between variables of the graph. Let <span class="math notranslate nohighlight">\(A,B,C\)</span> denote three random variables. <span class="math notranslate nohighlight">\(A\)</span> is conditionally independent of <span class="math notranslate nohighlight">\(B\)</span> given <span class="math notranslate nohighlight">\(C\)</span> in distribution <span class="math notranslate nohighlight">\(\mathbb{P}\)</span>, denoted by <span class="math notranslate nohighlight">\(A \mathrel{\perp\mspace{-10mu}\perp} B \mid C\)</span>, if</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\mathbb{P}(A = a, B = b \mid C = c)  = \mathbb{P}(A = a\mid C=c) \mathbb{P}(B = b \mid C = c).\]</div>
+</div></blockquote>
+<p>The above graph encodes that <span class="math notranslate nohighlight">\(\theta_1\mathrel{\perp\mspace{-10mu}\perp} \theta_3 \mid \theta_2\)</span>. CPDs, such as this, can be used to form a compact representation of the joint density between all variables in the graph. Specifically, the joint distribution of the variables can be expressed as a product of the set of conditional probability distributions</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_{1}, \ldots \theta_{M}) = \prod_{i=1}^M \mathbb{P}(\theta_{i} \mid \theta_{\mathrm{pa}(i)}).\]</div>
+</div></blockquote>
+<p>For our example we have</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\theta_2,\theta_3)= \mathbb{P}(\theta_1\mid\mathrm{pa}(\theta_1))\mathbb{P}(\theta_2\mid\mathrm{pa}(\theta_2))\mathbb{P}(\theta_3\mid\mathrm{pa}(\theta_3))=\mathbb{P}(\theta_1)\mathbb{P}(\theta_2\mid \theta_1)\mathbb{P}(\theta_3\mid\theta_2)\]</div>
+<p>Any Bayesian networks can be made up of three types of structures. The hierarchical (or serial) structure we just plotted and the diverging and peer (or V-) structure.</p>
+<p>For the peer network plotted using the code below we have <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_1)=\emptyset,\;\mathrm{pa}(\theta_2)=\emptyset,\;\mathrm{pa}(\theta_3)=\{\theta_1,\theta_2\}\)</span> and</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\theta_2,\theta_3)= \mathbb{P}(\theta_1\mid\mathrm{pa}(\theta_1))\mathbb{P}(\theta_2\mid\mathrm{pa}(\theta_2))\mathbb{P}(\theta_3\mid\mathrm{pa}(\theta_3))=\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)\mathbb{P}(\theta_3\mid\theta_1,\theta_2)\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span><span class="o">=</span><span class="mi">3</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span>
+<span class="n">_</span><span class="o">=</span><span class="n">plot_peer_network</span><span class="p">(</span><span class="n">nnodes</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot bayesian networks" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_networks_0021.png" />
+<p>For the diverging network plotted using the code below we have <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_1)=\{\theta_3\},\;\mathrm{pa}(\theta_2)=\{\theta_3\},\;\mathrm{pa}(\theta_3)=\emptyset\)</span> and</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\theta_2,\theta_3)= \mathbb{P}(\theta_1\mid\mathrm{pa}(\theta_1))\mathbb{P}(\theta_2\mid\mathrm{pa}(\theta_2))\mathbb{P}(\theta_3\mid\mathrm{pa}(\theta_3))=\mathbb{P}(\theta_3)\mathbb{P}(\theta_1\mid \theta_3)\mathbb{P}(\theta_2\mid\theta_3)\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span><span class="o">=</span><span class="mi">3</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span>
+<span class="n">_</span><span class="o">=</span><span class="n">plot_diverging_network</span><span class="p">(</span><span class="n">nnodes</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot bayesian networks" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_networks_0031.png" />
+<p>For Gaussian networks we assume that the parameters of each node <span class="math notranslate nohighlight">\(\theta_i=[\theta_{i,1},\ldots,\theta_{i,P_i}]^T\)</span> are related by</p>
+<div class="math notranslate nohighlight">
+\[\theta_i = \sum_{j\in\mathrm{pa}(i)} A_{ij}\theta_j + b_i + v_i,\]</div>
+<p>where <span class="math notranslate nohighlight">\(b_i\in\reals^{P_i}\)</span> is a deterministic shift, <span class="math notranslate nohighlight">\(v_i\)</span> is a Gaussian noise with mean zero and covariance <span class="math notranslate nohighlight">\(\Sigma_{v_i}\in\reals^{P_i\times P_i}\)</span>. Consequently, the CPDs take the form</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_{i} \mid \theta_{\mathrm{pa}(i)}) \sim \mathcal{N}\left(\sum_{j\in\mathrm{pa}(i)} A_{ij}\theta_j + b_i,\Sigma_{vi}\right)\]</div>
+<p>which means that <span class="math notranslate nohighlight">\(\theta_{i}\sim\mathcal{N}\left(\mu_i,\Sigma_{ii}\right)\)</span> where</p>
+<div class="math notranslate nohighlight">
+\[\mu_i=b_i+A_{ij}\mu_j, \qquad \Sigma_{ii}=\Sigma_{vi}+A_{ij}\Sigma_{jj}A_{ij}^T\]</div>
+</div></blockquote>
+</div>
+<div class="section" id="the-canonical-form">
+<h2>The Canonical Form<a class="headerlink" href="#the-canonical-form" title="Permalink to this headline">¶</a></h2>
+<p>Unless a variable <span class="math notranslate nohighlight">\(\theta_i\)</span> is a root node of a network, i.e. <span class="math notranslate nohighlight">\(\mathrm{pa}(\theta_i)=\emptyset\)</span> the CPD is in general not Gaussian; for root nodes the CPD is just the density of <span class="math notranslate nohighlight">\(\theta_i\)</span>. However we can represent the CPDs of no-root nodes and the Gaussian density of root nodes with a consistent reprsentation. Specifically we will use the canonical form of a set of variables <span class="math notranslate nohighlight">\(X\)</span></p>
+<div class="math notranslate nohighlight">
+\[\mathcal{\phi}(x;K,h,g) = \exp\left(g+h^T x-\frac{1}{2} x^T K x\right)\]</div>
+<p>This canonical form can be used to represent each CPD in a graph such that</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\ldots,\theta_M) = \prod_{i=1}^M \phi_i\]</div>
+<p>For example, the hierarchical structure can be represented by three canonical factors <span class="math notranslate nohighlight">\(\phi_1(\theta_1),\phi_2(\theta_1,\theta_2),\phi_3(\theta_2,\theta_3)\)</span> such that</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\theta_2,\theta_3) = \phi_1(\theta_1)\phi_2(\theta_1,\theta_2)\phi_3(\theta_2,\theta_3)\]</div>
+<p>where we have dropped the dependence on <span class="math notranslate nohighlight">\(K,h,g\)</span> for convenience. These three factors respectively correspond to the three CPDs <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_1),\mathbb{P}(\theta_2\mid\theta_1),\mathbb{P}(\theta_3\mid\theta_2)\)</span></p>
+<p>To form the joint density (which we want to avoid in practice) and perform inference and marginalization of a Gaussian graph we must first understand the notion of <strong>scope</strong> and three basic operations on canonical factors: <strong>multiplication</strong>, <strong>marginalization</strong> and <strong>conditioning</strong> also knows as reduction.</p>
+</div>
+<div class="section" id="multiplying-canonical-forms">
+<h2>Multiplying Canonical Forms<a class="headerlink" href="#multiplying-canonical-forms" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-scope-of-canonical-forms">
+<h3>The scope of canonical forms<a class="headerlink" href="#the-scope-of-canonical-forms" title="Permalink to this headline">¶</a></h3>
+<p>The <strong>scope</strong> of a canonical form <span class="math notranslate nohighlight">\(\phi(x)\)</span> is the set of variables <span class="math notranslate nohighlight">\(X\)</span> and is denoted <span class="math notranslate nohighlight">\(\mathrm{Scope}[\phi]\)</span>. Consider the hierarchical structure, just discussed the scope of the 3 factors are</p>
+<div class="math notranslate nohighlight">
+\[\mathrm{Scope}[\phi_1]=\{\theta_1\},\quad\mathrm{Scope}[\phi_2]=\{\theta_1,\theta_2\},\quad\mathrm{Scope}[\phi_3]=\{\theta_2,\theta_3\}.\]</div>
+<p>The multiplication of canonical factors with the same scope is simple <span class="math notranslate nohighlight">\(X\)</span> is simple</p>
+<div class="math notranslate nohighlight">
+\[\phi_1(X;K_1,h_1,g_1)\phi_2(X;K_2,h_2,g_2)=\phi_1(X;K_1+K_2,h_1+h_2,g_1+g_2).\]</div>
+<p>To multiply two canonical forms with different scopes we must extend the scopes to match and then apply the previous formula. This can be done by adding zeros in <span class="math notranslate nohighlight">\(K\)</span> and <span class="math notranslate nohighlight">\(h\)</span> of the canonical form. For example consider the two canonical factors of the <span class="math notranslate nohighlight">\(\theta_1,\theta_2\)</span> with <span class="math notranslate nohighlight">\(P_1=1,P_2=1\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\phi_2\left(\theta_1,\theta_2;\begin{bmatrix}K_{2,11} &amp; K_{2,12}\\ K_{2,21} &amp; K_{2,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2} \end{bmatrix},g_2\right), \phi_3\left(\theta_2,\theta_3;\begin{bmatrix}K_{3,11} &amp; K_{3,12}\\ K_{3,21} &amp; K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{3,2} \end{bmatrix},g_3\right)\end{split}\]</div>
+<p>Extending the scope and multiplying proceeds as follows</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}&amp;\phi_2\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} &amp; K_{2,12} &amp; 0\\ K_{2,21} &amp; K_{2,22} &amp; 0\\ 0 &amp; 0 &amp; 0\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}\\0 \end{bmatrix},g_2\right)\phi_3\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}0 &amp; 0 &amp; 0 \\ 0 &amp; K_{3,11} &amp; K_{3,12}\\ 0 &amp;K_{3,21} &amp; K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{3,2} \end{bmatrix},g_3\right)\\=&amp;\phi_{2\times 3}\left(\theta_1,\theta_2,\theta_3;\begin{bmatrix}K_{2,11} &amp; K_{2,12} &amp; 0\\ K_{2,21} &amp; K_{2,22}+K_{3,11} &amp; K_{3,12}\\ 0 &amp; K_{3,21} &amp; K_{3,22}\end{bmatrix},\begin{bmatrix}h_{2,1}\\ h_{2,2}+h_{3,1}\\h_{3,2} \end{bmatrix},g_2+g_3\right)\end{split}\]</div>
+</div>
+<div class="section" id="the-canonical-form-of-a-gaussian-distribution">
+<h3>The canonical form of a Gaussian distribution<a class="headerlink" href="#the-canonical-form-of-a-gaussian-distribution" title="Permalink to this headline">¶</a></h3>
+<p>Now we understand how to multiply two factors of different scope we can now discuss how to convert CPDs into canonical factors. The canonical form of a normal distribution with mean <span class="math notranslate nohighlight">\(m\)</span> and covariance <span class="math notranslate nohighlight">\(C\)</span> has the parameters <span class="math notranslate nohighlight">\(K=C^{-1}\)</span>, <span class="math notranslate nohighlight">\(h = K m\)</span> and</p>
+<div class="math notranslate nohighlight">
+\[g = -\frac{1}{2} m^T h -\frac{1}{2} n\log(2\pi) +\frac{1}{2} \log |K|.\]</div>
+<p>The derivation of these expressions is simple and we leave to the reader. The derivation of the canonical form of a linear-Gaussian CPD is more involved however and we derive it here.</p>
+</div>
+<div class="section" id="the-canonical-form-of-a-cpd">
+<h3>The canonical form of a CPD<a class="headerlink" href="#the-canonical-form-of-a-cpd" title="Permalink to this headline">¶</a></h3>
+<p>First we assume that the joint density of two Gaussian variables <span class="math notranslate nohighlight">\(\theta_i,\theta_j\)</span> can be represented as the product of two canonical forms referred to as factors. Specifically let <span class="math notranslate nohighlight">\(\phi_{i}(\theta_i,\theta_j)\)</span> be the factor representing the CPD <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i\mid\theta_j)\)</span>, let <span class="math notranslate nohighlight">\(\phi_{j}\)</span> be the canonical form of the Gaussian <span class="math notranslate nohighlight">\(\theta_j\)</span>, and assume</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_i,\theta_j)=\mathbb{P}(\theta_i\mid\theta_j)\mathbb{P}(\theta_j)=\phi_{\theta_i}\phi_{\theta_j}\]</div>
+<p>Given the linear relationship of the CPD <span class="math notranslate nohighlight">\(\theta_i=A_ij\theta_j+v_i\)</span> the inverse of the covariance of the Gaussian joint density <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i,\theta_j)\)</span> is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}K_{i}&amp;=\begin{bmatrix}\Sigma_{jj} &amp; \Sigma_{jj}A_{ij}^T\\ A_{ij}\Sigma_{jj} &amp; A_{ij}\Sigma_{jj}A_{ij}^T + \Sigma_{vi}\end{bmatrix}^{-1}\\
+ &amp;=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} &amp; -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} &amp; \Sigma_{vi}^{-1}\end{bmatrix}\end{split}\]</div>
+<p>where the second equality is derived using the matrix inversion lemma. Because <span class="math notranslate nohighlight">\(\mathbb{P}(\theta_i)\)</span>phi_j` has <span class="math notranslate nohighlight">\(K_j=\Sigma_{jj}^{-1}\in\reals^{P_j\times P_j}\)</span>. Multiply he two canonical factors, making sure to account for the different scopes we have</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}\Sigma_{jj}^{-1} &amp; 0 \\ 0 &amp; 0\end{bmatrix}\begin{bmatrix}K_{i11} &amp; K_{i12} \\ K_{i21} &amp; K_{i22}\end{bmatrix}=\begin{bmatrix}\Sigma_{jj}^{-1}+ A_{ij}^T\Sigma_{vi}^{-1}A_{ij} &amp; -A_{ij}^T\Sigma_{vi}^{-1}\\ -\Sigma_{vi}^{-1}A_{ij} &amp; \Sigma_{vi}^{-1}\end{bmatrix}\end{split}\]</div>
+<p>Equating terms in the above equation yields</p>
+<div class="math notranslate nohighlight" id="equation-eq-canonical-k-cpd">
+<span class="eqno">(1)<a class="headerlink" href="#equation-eq-canonical-k-cpd" title="Permalink to this equation">¶</a></span>\[ K_{i11}=A_{ij}^T\Sigma_{vi}^{-1}A_{ij},\quad K_{i12}=K_{i21}^T=-A_{ij}^T\Sigma_{vi}^{-1},\quad K_{i22}=\Sigma_{vi}^{-1}.\]</div>
+<p>A similar procedure can be used to find <span class="math notranslate nohighlight">\(h=[(A_{ij}^T\Sigma_{vi}^{-1}b)^T,(\Sigma_{vi}^{-1}b)^T]^T\)</span> and <span class="math notranslate nohighlight">\(g\)</span>.</p>
+</div>
+<div class="section" id="computing-the-joint-density-with-the-canonical-forms">
+<h3>Computing the joint density with the canonical forms<a class="headerlink" href="#computing-the-joint-density-with-the-canonical-forms" title="Permalink to this headline">¶</a></h3>
+<p>We are now in a position to be able to compute the joint density of all the variables in a Gaussian Network. Note that we would never want to do this in practice because it negates the benefit of having the compact representation provided by the Gaussian network.</p>
+<p>The following builds a hierarchical network with three ndoes. Each node has <span class="math notranslate nohighlight">\(P_i=2\)</span> variables.  We set the matrices <span class="math notranslate nohighlight">\(A_{ij}=a_{i}jI\)</span> to be a diagonal matrix with the same entries <span class="math notranslate nohighlight">\(a_{ij}\)</span> along the diagonal. This means that we are saying that only the <span class="math notranslate nohighlight">\(k\)</span>-th variable <span class="math notranslate nohighlight">\(k=1,\ldots,P_i\)</span> of the <span class="math notranslate nohighlight">\(i\)</span>-th node is related to the <span class="math notranslate nohighlight">\(k\)</span>-th variable of the <span class="math notranslate nohighlight">\(j\)</span>-th node.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+<span class="n">prior_covs</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">prior_means</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">cpd_scales</span>  <span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.4</span><span class="p">]</span>
+<span class="n">node_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;Node_</span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">nparams</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">cpd_mats</span>  <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span><span class="n">cpd_scales</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+             <span class="n">cpd_scales</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
+</pre></div>
+</div>
+<p>Now we set up the directed acyclic graph providing the information to construct
+the CPDs. Specifically we specify the Gaussian distributions of all the root nodes. in this example there is just one root node <span class="math notranslate nohighlight">\(\theta_i\)</span>. We then specify the parameters of the CPDs for the remaining two nodes. Here we specify the CPD covariance <span class="math notranslate nohighlight">\(\Sigma_{vi}\)</span> and shift <span class="math notranslate nohighlight">\(b_i\)</span> such that the mean and variance of the paramters matches those specified above. To do this we note that</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\mean{\theta_2}&amp;=\mean{A_{21}\theta_1+b_2}=A_{21}\mean{\theta_1}+b_2\\
+\mean{\theta_3}&amp;=A_{32}\mean{\theta_2}+b_3\end{split}\]</div>
+<p>and so set</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}b_2&amp;=\mean{\theta_2}-A_{21}\mean{\theta_1}\\
+b_3&amp;=\mean{\theta_3}-A_{32}\mean{\theta_2}.\end{split}\]</div>
+<p>Similarly we define the CPD covariance so that the diagonal of the prior covariance matches the values specified</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}  \var{\theta_2}=\Sigma_{v2}+A_{21}\var{\theta_1}A_{21}^T,\qquad \var{\theta_3}=\Sigma_{32}+A_{32}\var{\theta_2}A_{32}^T\\so\end{aligned}\end{align} \]</div>
+<div class="math notranslate nohighlight">
+\[\Sigma_{21}=\var{\theta_2}-A_{21}\var{\theta_1}A_{21}^T,\qquad \Sigma_{32}=\var{\theta_3}-A_{32}\var{\theta_2}A_{32}^T\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ii</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+    <span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+    <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+    <span class="n">cpd_mean</span><span class="o">=</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">)))</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">nnodes</span><span class="p">):</span>
+    <span class="n">cpd_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span><span class="o">*</span><span class="p">(</span>
+        <span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">cpd_cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span>
+        <span class="mf">1e-8</span><span class="p">,</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">cpd_cov</span><span class="p">,</span>
+                   <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                   <span class="n">cpd_mean</span><span class="o">=</span><span class="n">cpd_mean</span><span class="p">)</span>
+
+<span class="n">graph</span><span class="o">.</span><span class="n">add_edges_from</span><span class="p">([(</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+
+<span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+<span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">)]</span>
+<span class="n">factor_prior</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">)):</span>
+    <span class="n">factor_prior</span> <span class="o">*=</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+<span class="n">prior_mean</span><span class="p">,</span><span class="n">prior_cov</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_prior</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_prior</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Prior Mean</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">prior_mean</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Prior Covariance</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">prior_cov</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Prior Mean
+ [-1. -1. -2. -2. -3. -3.]
+Prior Covariance
+ [[1.  0.  0.5 0.  0.2 0. ]
+ [0.  1.  0.  0.5 0.  0.2]
+ [0.5 0.  2.  0.  0.8 0. ]
+ [0.  0.5 0.  2.  0.  0.8]
+ [0.2 0.  0.8 0.  3.  0. ]
+ [0.  0.2 0.  0.8 0.  3. ]]
+</pre></div>
+</div>
+<p>We can check the mean and covariance  diagonal  of the prior match the values we specified</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">true_prior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+    <span class="p">[[</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">*</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">true_prior_mean</span><span class="p">,</span><span class="n">prior_mean</span><span class="p">)</span>
+<span class="n">true_prior_var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+    <span class="p">[[</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">*</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">true_prior_var</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">prior_cov</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>If the reader is interested they can also compare the entire prior covariance with</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}\Sigma_{11} &amp; \Sigma_{11}A_{12}^T &amp; \Sigma_{11}A_{12}^TA_{32}^T \\ A_{21}\Sigma_{11} &amp; \Sigma_{22} &amp; \Sigma_{22}A_{32}^T\\ A_{32}A_{21}\Sigma_{11} &amp; A_{32}\Sigma_{22} &amp; \Sigma_{33}\end{bmatrix}\end{split}\]</div>
+</div>
+</div>
+<div class="section" id="conditioning-the-canonical-form">
+<h2>Conditioning The Canonical Form<a class="headerlink" href="#conditioning-the-canonical-form" title="Permalink to this headline">¶</a></h2>
+<p>Using the canonical form of these factors we can easily condition them on available data. Given a canonical form over two variables <span class="math notranslate nohighlight">\(X,Y\)</span> with</p>
+<div class="math notranslate nohighlight" id="equation-eq-canonical-xy">
+<span class="eqno">(2)<a class="headerlink" href="#equation-eq-canonical-xy" title="Permalink to this equation">¶</a></span>\[\begin{split}K=\begin{bmatrix} K_{XX} &amp; K_{XY}\\ K_{YX} &amp; K_{YY}\end{bmatrix}, \qquad h=\begin{bmatrix}h_{X} \\h_{Y}\end{bmatrix}\end{split}\]</div>
+<p>and given data <span class="math notranslate nohighlight">\(y\)</span> (also called evidence in the literature) the paramterization of the canonical form of the factor conditioned on the data is simply</p>
+<div class="math notranslate nohighlight" id="equation-eq-condition-canonical">
+<span class="eqno">(3)<a class="headerlink" href="#equation-eq-condition-canonical" title="Permalink to this equation">¶</a></span>\[K^\prime=K_{XX}, \quad h^\prime=h_X-K_{XY}y, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{yy}y\]</div>
+<div class="section" id="classical-inference-for-linear-gaussian-models-as-a-two-node-network">
+<h3>Classical inference for linear Gaussian models as a two node network<a class="headerlink" href="#classical-inference-for-linear-gaussian-models-as-a-two-node-network" title="Permalink to this headline">¶</a></h3>
+<p>Gaussian networks enable efficient inference of the unknown variables using observational data. Classical inference for linear-Gaussian models can be represented with a graph consiting of two nodes. First setup a dataless graph of one node</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+<span class="n">ii</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+    <span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+    <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+    <span class="n">cpd_mean</span><span class="o">=</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">)))</span>
+
+<span class="n">nsamples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">]</span>
+<span class="n">noise_std</span><span class="o">=</span><span class="p">[</span><span class="mf">0.01</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+<span class="n">data_cpd_mats</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]))</span>
+               <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">data_cpd_vecs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">true_coefs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]),(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">noise_covs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+
+<span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now lets add data and plot the new graph. Specifically we will add data</p>
+<div class="math notranslate nohighlight">
+\[Y=\Phi\theta_1+b+\epsilon\]</div>
+<p>Which has the form of a CPD. Here epsilon is mean zero Gaussian noise with covariance <span class="math notranslate nohighlight">\(\Sigma_{\epsilon}=\sigma^2I\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">network</span><span class="o">.</span><span class="n">add_data_to_network</span><span class="p">(</span><span class="n">data_cpd_mats</span><span class="p">,</span><span class="n">data_cpd_vecs</span><span class="p">,</span><span class="n">noise_covs</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">plot_hierarchical_network_network_with_data</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+</pre></div>
+</div>
+<img alt="plot bayesian networks" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_networks_0041.png" />
+<p>As you can see we have added a new CPD <span class="math notranslate nohighlight">\(\mathbb{P}(Y_1\mid \theta_1)\)</span> reprented by the canonical form <span class="math notranslate nohighlight">\(\phi_2(Y_1,\theta_1,K^\prime,h^\prime,g^\prime)\)</span> which by using <a class="reference internal" href="#equation-eq-canonical-k-cpd">(1)</a> and <a class="reference internal" href="#equation-eq-condition-canonical">(3)</a> we can see has</p>
+<div class="math notranslate nohighlight">
+\[K^\prime=\Phi\Sigma_{\epsilon}^{-1}\Phi^T, \qquad h^\prime=\Phi^T\Sigma_{\epsilon}^{-1}b,\]</div>
+<p>We then combine this conditioned CPD factor with its parent factor (associated with the prior distribution of the parameters <span class="math notranslate nohighlight">\(\theta_i\)</span> by multiplying these two factors together after eliminating the data variables from the scope of the CPD. The combined factor has parameters</p>
+<div class="math notranslate nohighlight">
+\[K=\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}, \qquad h=\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y\]</div>
+<p>which represents a Gaussian with mean and covariance given by</p>
+<div class="math notranslate nohighlight">
+\[\Sigma^\mathrm{post}=\left(\Phi_i\Sigma_{\epsilon_i}^{-1}\Phi_i^T+\Sigma_{ii}^{-1}\right)^{-1}, \qquad \mu^\mathrm{post} = \Sigma^\mathrm{post}\left(\Sigma_{ii}^{-1}\mu_i+\Phi_i^T\Sigma_{\epsilon_i}^{-1}y\right)\]</div>
+<p>which is just the usual expression for the posterior of a gaussian linear model using only the linear model, noise and prior associated with a single node. Here we used the relationship between the canonical factors and the covariance <span class="math notranslate nohighlight">\(C\)</span> and mean <span class="math notranslate nohighlight">\(m\)</span> of the equivalent Gaussian distribution</p>
+<div class="math notranslate nohighlight">
+\[C=K^{-1}, \qquad m=Ch\]</div>
+<p>Let’s compute the posterior with this procedure</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+
+<span class="n">noise</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+    <span class="mi">0</span><span class="p">,</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">],(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))]</span>
+<span class="n">values_train</span><span class="o">=</span><span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">+</span><span class="n">s</span><span class="o">+</span><span class="n">n</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">s</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+    <span class="n">data_cpd_mats</span><span class="p">,</span><span class="n">true_coefs</span><span class="p">,</span><span class="n">data_cpd_vecs</span><span class="p">,</span><span class="n">noise</span><span class="p">)]</span>
+
+<span class="n">evidence</span><span class="p">,</span> <span class="n">evidence_ids</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">assemble_evidence</span><span class="p">(</span><span class="n">values_train</span><span class="p">)</span>
+
+
+<span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">:</span>
+    <span class="n">factor</span><span class="o">.</span><span class="n">condition</span><span class="p">(</span><span class="n">evidence_ids</span><span class="p">,</span><span class="n">evidence</span><span class="p">)</span>
+<span class="n">factor_post</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">)):</span>
+    <span class="n">factor_post</span> <span class="o">*=</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="n">jj</span><span class="p">]</span>
+<span class="n">gauss_post</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_post</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_post</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can check this matches the posterior returned by the classical formulas</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.bayesian_inference.laplace</span> <span class="kn">import</span> \
+    <span class="n">laplace_posterior_approximation_for_linear_models</span>
+<span class="n">true_post</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
+    <span class="n">data_cpd_mats</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="mi">1</span><span class="p">)),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_covs</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span><span class="n">values_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">data_cpd_vecs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">gauss_post</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">true_post</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">gauss_post</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">true_post</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">squeeze</span><span class="p">())</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="marginalizing-canonical-forms">
+<h2>Marginalizing Canonical Forms<a class="headerlink" href="#marginalizing-canonical-forms" title="Permalink to this headline">¶</a></h2>
+<p>Gaussian networks are best used when one wants to comute a marginal of the joint density of parameters, possibly conditioned on data. The following describes the process of marginalization and conditioning often referred to as the sum-product eliminate variable algorithm.</p>
+<p>First lets discuss how to marginalize a canoncial form, e.g. compute</p>
+<div class="math notranslate nohighlight">
+\[\int \phi(X,Y,K,h,g)dY\]</div>
+<p>which marginalizes out the variable <span class="math notranslate nohighlight">\(Y\)</span> from a canonical form also involving the variable <span class="math notranslate nohighlight">\(X\)</span>. Provided <span class="math notranslate nohighlight">\(K_{YY}\)</span> in <a class="reference internal" href="#equation-eq-canonical-xy">(2)</a> is positive definite the marginalized canonical form has parameters</p>
+<div class="math notranslate nohighlight">
+\[K^\prime=K_{XX}-K_{XY}K_{YY}^{-1}K_{YX},\quad h^\prime=h_X-K_{XY}K_{YY}^{-1}h_{Y}, \quad g^\prime=g+h_Y^Ty-\frac{1}{2}y^TK_{YY}y\]</div>
+<div class="section" id="computing-the-marginal-density-of-a-network-conditioned-on-data">
+<h3>Computing the marginal density of a network conditioned on data<a class="headerlink" href="#computing-the-marginal-density-of-a-network-conditioned-on-data" title="Permalink to this headline">¶</a></h3>
+<p>Again consider a three model recursive network</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nnodes</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+<span class="n">prior_covs</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">prior_means</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">cpd_scales</span>  <span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.4</span><span class="p">]</span>
+<span class="n">node_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;Node_</span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">nparams</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">cpd_mats</span>  <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span><span class="n">cpd_scales</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+             <span class="n">cpd_scales</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
+
+<span class="n">ii</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+    <span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+    <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+    <span class="n">cpd_mean</span><span class="o">=</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">)))</span>
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">nnodes</span><span class="p">):</span>
+    <span class="n">cpd_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span><span class="o">*</span><span class="p">(</span>
+        <span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">cpd_cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span>
+        <span class="mf">1e-8</span><span class="p">,</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">cpd_scales</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">cpd_cov</span><span class="p">,</span>
+                   <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                   <span class="n">cpd_mean</span><span class="o">=</span><span class="n">cpd_mean</span><span class="p">)</span>
+
+<span class="n">graph</span><span class="o">.</span><span class="n">add_edges_from</span><span class="p">([(</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+<span class="n">nsamples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+<span class="n">noise_std</span><span class="o">=</span><span class="p">[</span><span class="mf">0.01</span><span class="p">]</span><span class="o">*</span><span class="n">nnodes</span>
+<span class="n">data_cpd_mats</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]))</span>
+               <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">data_cpd_vecs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">true_coefs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]),(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">noise_covs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+
+<span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+<span class="n">network</span><span class="o">.</span><span class="n">add_data_to_network</span><span class="p">(</span><span class="n">data_cpd_mats</span><span class="p">,</span><span class="n">data_cpd_vecs</span><span class="p">,</span><span class="n">noise_covs</span><span class="p">)</span>
+
+<span class="n">noise</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+    <span class="mi">0</span><span class="p">,</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">],(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">values_train</span><span class="o">=</span><span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">+</span><span class="n">s</span><span class="o">+</span><span class="n">n</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">s</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+    <span class="n">data_cpd_mats</span><span class="p">,</span><span class="n">true_coefs</span><span class="p">,</span><span class="n">data_cpd_vecs</span><span class="p">,</span><span class="n">noise</span><span class="p">)]</span>
+
+<span class="n">evidence</span><span class="p">,</span> <span class="n">evidence_ids</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">assemble_evidence</span><span class="p">(</span><span class="n">values_train</span><span class="p">)</span>
+
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">plot_hierarchical_network_network_with_data</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="c1">#plt.show()</span>
+</pre></div>
+</div>
+<img alt="plot bayesian networks" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_networks_0051.png" />
+<p>The sum-product eliminate variable algorithm begins by first conditioning all the network factors on the available data and then finding the ids of the variables o eliminate from the factors. Let the scope of the entire network be <span class="math notranslate nohighlight">\(\Psi\)</span>, e.g. for this example <span class="math notranslate nohighlight">\(\Phi=\{\theta_1,\theta_2,\theta_3,Y_1,Y_2,Y_3\}\)</span> if we wish to compute the <span class="math notranslate nohighlight">\(\theta_3\)</span> marginal, i.e. marginalize out all other variables, the variables that need to be eliminated will be associated with the nodes <span class="math notranslate nohighlight">\(\Phi\setminus\; \left(\{\theta_3\}\cap\{Y_1,Y_2,Y_3\}\right) =\{\theta_1,\theta_2\}\)</span>. Variables associated with evidence (data) should not be identified for elimination (marginalization).</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">:</span>
+     <span class="n">factor</span><span class="o">.</span><span class="n">condition</span><span class="p">(</span><span class="n">evidence_ids</span><span class="p">,</span><span class="n">evidence</span><span class="p">)</span>
+
+<span class="n">query_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">node_labels</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+<span class="n">eliminate_ids</span> <span class="o">=</span> <span class="n">get_var_ids_to_eliminate_from_node_query</span><span class="p">(</span>
+    <span class="n">network</span><span class="o">.</span><span class="n">node_var_ids</span><span class="p">,</span><span class="n">network</span><span class="o">.</span><span class="n">node_labels</span><span class="p">,</span><span class="n">query_labels</span><span class="p">,</span><span class="n">evidence_ids</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Once the variables to eliminate have been identified, they are marginalized out of any factor in which they are present; other factors are left untouched. The marginalized factors are then multiplied with the remaining factors to compute the desired marginal density using the sum product variable elimination algorithm.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">factor_post</span> <span class="o">=</span> <span class="n">sum_product_variable_elimination</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">factors</span><span class="p">,</span><span class="n">eliminate_ids</span><span class="p">)</span>
+
+<span class="n">gauss_post</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_post</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_post</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Posterior Mean</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">gauss_post</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Posterior Covariance</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">gauss_post</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Posterior Mean
+ [-0.36647195  1.0164208 ]
+Posterior Covariance
+ [[ 6.33358021e-03 -5.39518433e-04]
+ [-5.39518433e-04  6.51970946e-05]]
+</pre></div>
+</div>
+</div>
+<div class="section" id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h3>
+<dl class="citation">
+<dt class="label" id="kfpgm2009"><span class="brackets">KFPGM2009</span></dt>
+<dd><p><a class="reference external" href="https://mitpress.mit.edu/books/probabilistic-graphical-models">Probabilistic Graphical Models: Principles and Techinques. 2009</a></p>
+</dd>
+</dl>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.879 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-foundations-plot-bayesian-networks-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/5bfb33a0d80c01c9ea2eb215732823ce/plot_bayesian_networks.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_bayesian_networks.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/1732d692a4d2ec4d2cfd2e289249fd75/plot_bayesian_networks.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_bayesian_networks.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../multi_fidelity/plot_control_variate_monte_carlo.html" class="btn btn-neutral float-right" title="Control Variate Monte Carlo" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="plot_sensitivity_analysis.html" class="btn btn-neutral float-left" title="Sensitivity Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

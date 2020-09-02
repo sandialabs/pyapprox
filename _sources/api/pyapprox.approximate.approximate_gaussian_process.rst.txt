@@ -1,0 +1,6 @@
+approximate_gaussian_process
+============================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: approximate_gaussian_process

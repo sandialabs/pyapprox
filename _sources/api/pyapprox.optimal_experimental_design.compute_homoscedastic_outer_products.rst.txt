@@ -1,0 +1,6 @@
+compute_homoscedastic_outer_products
+====================================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: compute_homoscedastic_outer_products

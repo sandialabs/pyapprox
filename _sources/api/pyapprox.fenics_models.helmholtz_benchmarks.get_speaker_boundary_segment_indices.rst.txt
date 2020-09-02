@@ -1,0 +1,6 @@
+get_speaker_boundary_segment_indices
+====================================
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autofunction:: get_speaker_boundary_segment_indices

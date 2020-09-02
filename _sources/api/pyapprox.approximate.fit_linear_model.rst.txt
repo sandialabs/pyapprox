@@ -1,0 +1,6 @@
+fit_linear_model
+================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: fit_linear_model

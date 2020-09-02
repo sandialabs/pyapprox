@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py:
 
 
 Multi-index Stochastic Collocation
@@ -41,32 +43,33 @@ where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}` and :math:`L_c=0.5`.
 
 We choose a random field which is effectively one-dimensional so that the error in the finite element solution is more sensitive to refinement of the mesh in the :math:`x_1`-direction than to refinement in the :math:`x_2`-direction.
 
-The advection diffusion equation \eqref{eq:advection-diffusion} is solved using linear finite elements and implicit backward-Euler timestepping implemented using `Fenics <https://fenicsproject.org/>`_. In the following we will show how solving the PDE with varying numbers of finite elements and timesteps can reduce the cost of approximating the quantity of interest
+The advection diffusion equation is solved using linear finite elements and implicit backward-Euler timestepping implemented using `Fenics <https://fenicsproject.org/>`_. In the following we will show how solving the PDE with varying numbers of finite elements and timesteps can reduce the cost of approximating the quantity of interest
 
 .. math:: f(\rv)=\int_D u(\rv)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x^\star \rVert_2^2}{\sigma^2}\right)\,dx,
 
 where :math:`x^\star=(0.3,0.5)` and :math:`\sigma=0.16`.
-The advection diffusion model, defined here, can be inexpensively evaluated and therefore allows for exhaustive exploration of the behavior of our proposed multi-index collocation approach.
 
-Lets first consider a simple 1D example. The following sets up the problem
+Lets first consider a simple example with one unknown parameter. The following sets up the problem
 
 
 .. code-block:: default
 
+    import numpy as np
     import pyapprox as pya
     from scipy.stats import uniform
-    from pyapprox.examples.multi_index_advection_diffusion import *
     from pyapprox.models.wrappers import MultiLevelWrapper
+    import matplotlib.pyplot as plt
 
     nmodels  = 3
-    num_vars = 1
+    nrandom_vars, corr_len = 1, 1/2
     max_eval_concurrency = 1
-    base_model = setup_model(num_vars,max_eval_concurrency)
-    multilevel_model=MultiLevelWrapper(
-        base_model,base_model.base_model.num_config_vars,
-        base_model.cost_function)
-    variable = pya.IndependentMultivariateRandomVariable(
-        [uniform(-np.sqrt(3),2*np.sqrt(3))],[np.arange(num_vars)])
+    from pyapprox.benchmarks.benchmarks import setup_benchmark
+    benchmark = setup_benchmark(
+        'multi_level_advection_diffusion',nvars=nrandom_vars,corr_len=corr_len,
+        max_eval_concurrency=max_eval_concurrency)
+    model = benchmark.fun
+    variable = benchmark.variable
+
 
 
 
@@ -84,15 +87,15 @@ Now lets us plot each model as a function of the random variable
     random_samples = np.linspace(lb,ub,nsamples)[np.newaxis,:]
     config_vars = np.arange(nmodels)[np.newaxis,:]
     samples = pya.get_all_sample_combinations(random_samples,config_vars)
-    values = multilevel_model(samples)
+    values = model(samples)
     values = np.reshape(values,(nsamples,nmodels))
 
     import dolfin as dl
     plt.figure(figsize=(nmodels*8,2*6))
-    config_samples = multilevel_model.map_to_multidimensional_index(config_vars)
+    config_samples = benchmark['multi_level_model'].map_to_multidimensional_index(config_vars)
     for ii in range(nmodels):
-        nx,ny,dt = base_model.base_model.get_degrees_of_freedom_and_timestep(
-            config_samples[:,ii])
+        nx,ny = model.base_model.get_mesh_resolution(config_samples[:2,ii])
+        dt = model.base_model.get_timestep(config_samples[2,ii])
         mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
         plt.subplot(2,nmodels,ii+1)
         dl.plot(mesh)
@@ -106,19 +109,289 @@ Now lets us plot each model as a function of the random variable
             label=r'$f_%d-f_%d$'%(ii,ii-1)
             plt.plot(random_samples[0,:],values[:,ii]-values[:,ii-1],label=label)
         plt.legend()
-    plt.show()
+    #plt.show()
 
 
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_index_collocation_001.png
+    :alt: plot multi index collocation
     :class: sphx-glr-single-img
 
 
 
 
 
-The first row shows the spatial mesh of each model and the second row depicts the model response and the discrepancy between two consecutive models. The difference between the model output decreases as the resolution of the mesh is increased. Thus as the cost of the model increases (with increasing resolution) we need less samples to resolve 
+The first row shows the spatial mesh of each model and the second row depicts the model response and the discrepancy between two consecutive models. The difference between the model output decreases as the resolution of the mesh is increased. Thus as the cost of the model increases (with increasing resolution) we need less samples to resolve
+
+Lets now construct a multi-level approximation with the same model but more random variables. We will need a model that takes in only 1 configuration variable. We can do this with the :class:`MultiLevelWrapper`. Here we will call another benchmark which is the same advection diffusion problem but with the multi-level wrapper already in place. Here the levels have the one-to-one mapping [0,1,2,...]->[[0,0,0],[1,1,1],[2,2,2],...]
+
+
+.. code-block:: default
+
+    nrandom_vars = 10
+    benchmark = setup_benchmark(
+        'multi_level_advection_diffusion',nvars=nrandom_vars,corr_len=corr_len,
+        max_eval_concurrency=max_eval_concurrency)
+    model = benchmark.fun
+    variable = benchmark.variable
+
+
+
+
+
+
+
+
+First define the levels of the multi-level model we will use. Will will skip level 0 and use levels 1,2, and 3. Thus we must define a transformation that converts the sparse grid indices starting at 0 to these levels. We can do this with
+
+
+.. code-block:: default
+
+    from pyapprox.adaptive_sparse_grid import ConfigureVariableTransformation
+    level_indices = [[1,2,3,4]]
+    config_var_trans = ConfigureVariableTransformation(level_indices)
+
+
+
+
+
+
+
+
+Before building the sparse grid approximation let us define a callback to compute the error and total cost at each step of the sparse grid construction. To do this we will precompute some validation data. Specifically we will evaluate the model using a discretization on level higher than the discretization used to construct the sparse grid. We first generate random samples and then append in the configure variable to each of these samples
+
+
+.. code-block:: default
+
+
+    validation_level = level_indices[0][-1]+1
+    nvalidation_samples = 20
+    random_validation_samples = pya.generate_independent_random_samples(variable,nvalidation_samples)
+    validation_samples = np.vstack([random_validation_samples,validation_level*np.ones((1,nvalidation_samples))])
+    validation_values = model(validation_samples)
+
+    #print(model.work_tracker.costs)
+
+    errors,total_cost = [],[]
+    def callback(approx):
+        approx_values=approx.evaluate_using_all_data(
+            validation_samples)
+        error = np.linalg.norm(
+            validation_values-approx_values)/np.sqrt(validation_samples.shape[1])
+        errors.append(error)
+        total_cost.append(approx.num_equivalent_function_evaluations)
+
+
+
+
+
+
+
+
+We can add this callback to the sparse grid options. We define ``max_nsamples``
+to be the total cost used to evaluate all samples in the sparse grid
+
+
+.. code-block:: default
+
+
+    max_nsamples = 100
+    from pyapprox.multifidelity import adaptive_approximate_multi_index_sparse_grid
+    cost_function = model.cost_function
+    def cost_function(multilevel_config_sample):
+        config_sample = benchmark.multi_level_model.map_to_multidimensional_index(
+            multilevel_config_sample)
+        nx,ny=model.base_model.get_mesh_resolution(config_sample[:2])
+        dt = model.base_model.get_timestep(config_sample[2])
+        ndofs = nx*ny*model.base_model.final_time/dt
+        return ndofs/1e5
+
+    options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
+               'config_variables_idx':nrandom_vars,'verbose':0,
+               'cost_function':cost_function,
+               'max_level_1d':[np.inf]*nrandom_vars+[
+                   len(level_indices[0])-1]*len(level_indices),
+               'callback':callback}
+
+
+
+
+
+
+
+
+Now lets us build the sparse grid
+
+
+.. code-block:: default
+
+    sparse_grid = adaptive_approximate_multi_index_sparse_grid(
+        model,variable.all_variables(),options)
+
+    # #%%
+    # #Lets plot the errors
+    # fig, ax = plt.subplots(1,1,figsize=(8,6))
+    # plt.loglog(total_cost,errors)
+    # plt.show()
+
+
+
+
+
+
+
+
+Now lets build a single fidelity approximation
+
+
+.. code-block:: default
+
+    multi_level_indices = level_indices.copy()
+    level_indices = [[level_indices[0][-1]]]
+    config_var_trans = ConfigureVariableTransformation(level_indices)
+    #cost_function = model.cost_function
+    options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
+               'config_variables_idx':nrandom_vars,'verbose':0,
+               'cost_function':cost_function,
+               'max_level_1d':[np.inf]*nrandom_vars+[
+                   len(level_indices[0])-1]*len(level_indices),
+               'callback':callback}
+
+
+
+
+
+
+
+
+Now lets us build the sparse grid. First reset the callback counters and save the previous errors
+
+
+.. code-block:: default
+
+    multi_level_errors,multi_level_total_cost = errors.copy(), total_cost.copy()
+    errors,total_cost = [],[]
+    sparse_grid = adaptive_approximate_multi_index_sparse_grid(
+        model,variable.all_variables(),options)
+
+
+
+
+
+
+
+
+Lets plot the errors
+
+
+.. code-block:: default
+
+    fig, ax = plt.subplots(1,1,figsize=(8,6))
+    plt.loglog(multi_level_total_cost,multi_level_errors,
+               label=r'$\mathrm{Multi}-\mathrm{level}$')
+    plt.loglog(total_cost,errors,
+               label=r'$\mathrm{Single}-\mathrm{Fidelity}$')
+    plt.legend()
+
+
+
+
+.. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_index_collocation_002.png
+    :alt: plot multi index collocation
+    :class: sphx-glr-single-img
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+
+    <matplotlib.legend.Legend object at 0x12fb034d0>
+
+
+
+Now lets build a multi-index approximation of the same model but now with more random variables. We again create the same benchmark but this time one that allows us to vary the two spatial mesh resolutions and the timestep independently
+
+
+.. code-block:: default
+
+    benchmark = setup_benchmark(
+        'multi_index_advection_diffusion',nvars=nrandom_vars,corr_len=corr_len,
+        max_eval_concurrency=max_eval_concurrency)
+    model = benchmark.fun
+    variable = benchmark.variable
+
+
+
+
+
+
+
+
+Again we define the ConfigureVariableTransformation and define the appropriate options. Notice the different in max_level_1d. (print it; it should be longer than the single fidelity and multi-level versions)
+
+
+.. code-block:: default
+
+
+    from pyapprox.adaptive_sparse_grid import ConfigureVariableTransformation
+    level_indices = multi_level_indices*3
+    config_var_trans = ConfigureVariableTransformation(level_indices)
+
+    from pyapprox.multifidelity import adaptive_approximate_multi_index_sparse_grid
+    #cost_function = model.cost_function
+    def cost_function(config_sample):
+        nx,ny=model.base_model.get_mesh_resolution(config_sample[:2])
+        dt = model.base_model.get_timestep(config_sample[2])
+        ndofs = nx*ny*model.base_model.final_time/dt
+        return ndofs/1e5
+    options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
+               'config_variables_idx':nrandom_vars,'verbose':0,
+               'cost_function':cost_function,
+               'max_level_1d':[np.inf]*nrandom_vars+[
+                   len(level_indices[0])-1]*len(level_indices),
+               'callback':callback}
+
+    single_fidelity_errors,single_fidelity_total_cost = errors.copy(), total_cost.copy()
+    errors,total_cost = [],[]
+    sparse_grid = adaptive_approximate_multi_index_sparse_grid(
+        model,variable.all_variables(),options)
+
+
+
+
+
+
+
+
+Lets plot the errors
+
+
+.. code-block:: default
+
+    fig, ax = plt.subplots(1,1,figsize=(8,6))
+    plt.loglog(multi_level_total_cost,multi_level_errors,
+               label=r'$\mathrm{Multi}-\mathrm{level}$')
+    plt.loglog(single_fidelity_total_cost,single_fidelity_errors,
+               label=r'$\mathrm{Single}-\mathrm{Fidelity}$')
+    plt.loglog(total_cost,errors,label=r'$\mathrm{Multi}-\mathrm{index}$')
+    plt.legend()
+    plt.show()
+
+
+
+
+
+.. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_index_collocation_003.png
+    :alt: plot multi index collocation
+    :class: sphx-glr-single-img
+
+
+
+
 
 References
 ^^^^^^^^^^
@@ -126,10 +399,12 @@ References
 
 .. [HNTTCMAME2016] `Haji-Ali, A. and Nobile, F. and Tamellini, L. and Tempone, R. Multi-Index Stochastic Collocation for random PDEs. Computer Methods in Applied Mechanics and Engineering, 306, 95-122, 2016. <https://doi.org/10.1016/j.cma.2016.03.029>`_
 
+.. [JEGGIJNME2020] `Jakeman, J.D., Eldred, M.S., Geraci, G., Gorodetsky, A. Adaptive multi-index collocation for uncertainty quantification and sensitivity analysis. Int J Numer Methods Eng. 2020; 121: 1314– 1343. <https://doi.org/10.1002/nme.6268>`_
+
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.766 seconds)
+   **Total running time of the script:** ( 11 minutes  6.265 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_index_collocation.py:
@@ -142,13 +417,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_multi_index_collocation.py <plot_multi_index_collocation.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_multi_index_collocation.ipynb <plot_multi_index_collocation.ipynb>`
 

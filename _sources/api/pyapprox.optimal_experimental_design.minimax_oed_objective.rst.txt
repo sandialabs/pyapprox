@@ -1,0 +1,6 @@
+minimax_oed_objective
+=====================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: minimax_oed_objective

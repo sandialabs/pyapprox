@@ -1,0 +1,39 @@
+AdvectionDiffusionModel
+=======================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autoclass:: AdvectionDiffusionModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AdvectionDiffusionModel.__call__
+      ~AdvectionDiffusionModel.get_boundary_conditions_and_function_space
+      ~AdvectionDiffusionModel.get_diffusivity
+      ~AdvectionDiffusionModel.get_forcing
+      ~AdvectionDiffusionModel.get_initial_condition
+      ~AdvectionDiffusionModel.get_mesh
+      ~AdvectionDiffusionModel.get_mesh_resolution
+      ~AdvectionDiffusionModel.get_timestep
+      ~AdvectionDiffusionModel.get_velocity
+      ~AdvectionDiffusionModel.initialize_random_expressions
+      ~AdvectionDiffusionModel.set_num_config_vars
+      ~AdvectionDiffusionModel.solve
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: get_boundary_conditions_and_function_space
+   .. automethod:: get_diffusivity
+   .. automethod:: get_forcing
+   .. automethod:: get_initial_condition
+   .. automethod:: get_mesh
+   .. automethod:: get_mesh_resolution
+   .. automethod:: get_timestep
+   .. automethod:: get_velocity
+   .. automethod:: initialize_random_expressions
+   .. automethod:: set_num_config_vars
+   .. automethod:: solve

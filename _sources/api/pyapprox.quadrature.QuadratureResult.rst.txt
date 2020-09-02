@@ -1,0 +1,7 @@
+QuadratureResult
+================
+
+.. currentmodule:: pyapprox.quadrature
+
+.. autoclass:: QuadratureResult
+   :show-inheritance:

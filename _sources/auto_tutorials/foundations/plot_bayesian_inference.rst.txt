@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_bayesian_inference.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_bayesian_inference.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_foundations_plot_bayesian_inference.py:
 
 
 Bayesian Inference
@@ -36,7 +38,7 @@ The density :math:`\pi (\rv\mid d)` is referred to as the posterior density.
 
 .. math::
 
-   \pi_\text{post}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
+   \pi_{\text{post}}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
    \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
 Prior
@@ -175,6 +177,7 @@ and print the sample covariance of the joint distribution
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_bayesian_inference_001.png
+    :alt: plot bayesian inference
     :class: sphx-glr-single-img
 
 
@@ -184,7 +187,7 @@ and print the sample covariance of the joint distribution
 
  .. code-block:: none
 
-    /Users/jdjakem/software/pyapprox/pyapprox/visualization.py:278: UserWarning: The following kwargs were not used by contour: 'zdir', 'offset'
+    /Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: 'zdir', 'offset'
       cmap=cmap, zorder=zorder)
 
 
@@ -259,8 +262,18 @@ Now lets plot the prior and posterior of the parameters as well as the joint dis
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_bayesian_inference_002.png
+    :alt: plot bayesian inference
     :class: sphx-glr-single-img
 
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    /Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: 'zdir', 'offset'
+      cmap=cmap, zorder=zorder)
 
 
 
@@ -305,6 +318,7 @@ Lets also plot the joint distribution and marginals in a 3d plot
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_bayesian_inference_003.png
+    :alt: plot bayesian inference
     :class: sphx-glr-single-img
 
 
@@ -363,8 +377,18 @@ And now lets again plot the joint density before the last data was added and fin
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_bayesian_inference_004.png
+    :alt: plot bayesian inference
     :class: sphx-glr-single-img
 
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    /Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: 'zdir', 'offset'
+      cmap=cmap, zorder=zorder)
 
 
 
@@ -426,19 +450,10 @@ We can sample the posterior using Sequential Markov Chain Monte Carlo using the 
 
  .. code-block:: none
 
-    WARNING (theano.configdefaults): install mkl with `conda install mkl-service`: No module named 'mkl'
-    Warning: gradient not available.(E.g. vars contains discrete variables). MAP estimates may not be accurate for the default parameters. Defaulting to non-gradient minimization 'Powell'.
-      0%|          | 0/5000 [00:00<?, ?it/s]    logp = -2.7726:   0%|          | 0/5000 [00:00<?, ?it/s]    logp = -2.7726:   0%|          | 10/5000 [00:00<00:00, 6385.97it/s]    logp = -2.7726:   0%|          | 20/5000 [00:00<00:00, 7871.45it/s]    logp = -2.7726:   1%|          | 30/5000 [00:00<00:00, 8410.48it/s]    logp = -2.7726:   1%|          | 40/5000 [00:00<00:00, 8816.66it/s]    logp = -2.7726:   1%|1         | 50/5000 [00:00<00:00, 9091.17it/s]    logp = -2.7726:   1%|1         | 60/5000 [00:00<00:00, 9274.99it/s]    logp = -2.7726: 100%|##########| 62/62 [00:00<00:00, 9174.35it/s]  
-    Sample initial stage: ...
-    Stage:   0 Beta: 0.586 Steps:  25 Acce: 1.000
-    Stage:   1 Beta: 1.000 Steps:  25 Acce: 0.443
-    arviz.stats.stats_utils - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-    arviz.stats.stats_utils - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-          mean     sd  hpd_3%  ...  ess_bulk  ess_tail  r_hat
-    z_0 -0.060  0.967  -1.606  ...     398.0     460.0    NaN
-    z_1  0.424  0.648  -0.736  ...     603.0     515.0    NaN
-
-    [2 rows x 11 columns]
+      0%|          | 0/5000 [00:00<?, ?it/s]    logp = -2.7726:   0%|          | 0/5000 [00:00<?, ?it/s]    logp = -2.7726:   0%|          | 10/5000 [00:00<00:00, 7188.18it/s]    logp = -2.7726:   0%|          | 20/5000 [00:00<00:00, 8702.78it/s]    logp = -2.7726:   1%|          | 30/5000 [00:00<00:00, 9241.95it/s]    logp = -2.7726:   1%|          | 40/5000 [00:00<00:00, 9617.76it/s]    logp = -2.7726:   1%|1         | 50/5000 [00:00<00:00, 9165.47it/s]    logp = -2.7726:   1%|1         | 60/5000 [00:00<00:00, 9384.98it/s]    logp = -2.7726: 100%|##########| 62/62 [00:00<00:00, 9267.53it/s]  
+    could not print summary. likely issue with theano
+    could not compute ess. likely issue with theano
+    could not compute ess. likely issue with theano
     MAP sample [ 1.23767663e-11 -7.43454187e-11]
 
 
@@ -480,6 +495,7 @@ Lets plot the posterior distribution and the MCMC samples. First we must compute
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_bayesian_inference_005.png
+    :alt: plot bayesian inference
     :class: sphx-glr-single-img
 
 
@@ -516,7 +532,7 @@ Now lets compute the mean of the posterior using a highly accurate quadrature ru
  .. code-block:: none
 
     mcmc mean [-0.04713958  0.42756304]
-    exact mean [-1.14421559e-16  4.33326051e-01]
+    exact mean [-1.23718604e-16  4.33326051e-01]
 
 
 
@@ -524,7 +540,7 @@ Now lets compute the mean of the posterior using a highly accurate quadrature ru
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  31.345 seconds)
+   **Total running time of the script:** ( 0 minutes  7.892 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_foundations_plot_bayesian_inference.py:
@@ -537,13 +553,13 @@ Now lets compute the mean of the posterior using a highly accurate quadrature ru
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_bayesian_inference.py <plot_bayesian_inference.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_bayesian_inference.ipynb <plot_bayesian_inference.ipynb>`
 

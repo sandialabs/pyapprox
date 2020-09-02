@@ -1,0 +1,6 @@
+get_recursion_coefficients
+==========================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: get_recursion_coefficients

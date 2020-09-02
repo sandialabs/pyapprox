@@ -1,0 +1,6 @@
+compute_control_variate_mean_estimate
+=====================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: compute_control_variate_mean_estimate

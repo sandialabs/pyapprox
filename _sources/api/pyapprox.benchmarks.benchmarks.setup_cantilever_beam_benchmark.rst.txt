@@ -1,0 +1,6 @@
+setup_cantilever_beam_benchmark
+===============================
+
+.. currentmodule:: pyapprox.benchmarks.benchmarks
+
+.. autofunction:: setup_cantilever_beam_benchmark

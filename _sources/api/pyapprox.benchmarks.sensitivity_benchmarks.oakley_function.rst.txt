@@ -1,0 +1,6 @@
+oakley_function
+===============
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: oakley_function

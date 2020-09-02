@@ -1,0 +1,369 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>adaptive_approximate_sparse_grid &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="approximate" href="pyapprox.approximate.approximate.html" />
+    <link rel="prev" title="adaptive_approximate_polynomial_chaos" href="pyapprox.approximate.adaptive_approximate_polynomial_chaos.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#functions">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.adaptive_approximate.html">adaptive_approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.adaptive_approximate_polynomial_chaos.html">adaptive_approximate_polynomial_chaos</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">adaptive_approximate_sparse_grid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate.html">approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate_gaussian_process.html">approximate_gaussian_process</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate_polynomial_chaos.html">approximate_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.compute_l2_error.html">compute_l2_error</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.cross_validate_pce_degree.html">cross_validate_pce_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.expand_basis.html">expand_basis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.expanding_basis_omp_pce.html">expanding_basis_omp_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.fit_linear_model.html">fit_linear_model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.restrict_basis.html">restrict_basis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#classes">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>adaptive_approximate_sparse_grid</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.approximate.adaptive_approximate_sparse_grid.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="adaptive-approximate-sparse-grid">
+<h1>adaptive_approximate_sparse_grid<a class="headerlink" href="#adaptive-approximate-sparse-grid" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="pyapprox.approximate.adaptive_approximate_sparse_grid">
+<code class="sig-prename descclassname">pyapprox.approximate.</code><code class="sig-name descname">adaptive_approximate_sparse_grid</code><span class="sig-paren">(</span><em class="sig-param">fun</em>, <em class="sig-param">univariate_variables</em>, <em class="sig-param">callback=None</em>, <em class="sig-param">refinement_indicator=&lt;function variance_refinement_indicator&gt;</em>, <em class="sig-param">univariate_quad_rule_info=None</em>, <em class="sig-param">max_nsamples=100</em>, <em class="sig-param">tol=0</em>, <em class="sig-param">verbose=0</em>, <em class="sig-param">config_variables_idx=None</em>, <em class="sig-param">config_var_trans=None</em>, <em class="sig-param">cost_function=None</em>, <em class="sig-param">max_level_1d=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/approximate.html#adaptive_approximate_sparse_grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.approximate.adaptive_approximate_sparse_grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute a sparse grid approximation of a function.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The function to be minimized</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(z)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">z</span></code> is a 2D np.ndarray with shape (nvars,nsamples) and the
+output is a 2D np.ndarray with shape (nsamples,nqoi)</p>
+</dd>
+<dt><strong>univariate_variables</strong><span class="classifier">list</span></dt><dd><p>A list of scipy.stats random variables of size (nvars)</p>
+</dd>
+<dt><strong>callback</strong><span class="classifier">callable</span></dt><dd><p>Function called after each iteration with the signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">callback(approx_k)</span></code></p>
+<p>where approx_k is the current approximation object.</p>
+</dd>
+<dt><strong>refinement_indicator</strong><span class="classifier">callable</span></dt><dd><p>A function that retuns an estimate of the error of a sparse grid subspace
+with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid)</span> <span class="pre">-&gt;</span> <span class="pre">float,</span> <span class="pre">float</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">subspace_index</span></code> is 1D np.ndarray of size (nvars), 
+<code class="docutils literal notranslate"><span class="pre">nnew_subspace_samples</span></code> is an integer specifying the number
+of new samples that will be added to the sparse grid by adding the 
+subspace specified by subspace_index and <code class="docutils literal notranslate"><span class="pre">sparse_grid</span></code> is the current 
+<code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.adaptive_sparse_grid.CombinationSparseGrid</span></code> object. 
+The two outputs are, respectively, the indicator used to control 
+refinement of the sparse grid and the change in error from adding the 
+current subspace. The indicator is typically but now always dependent on 
+the error.</p>
+</dd>
+<dt><strong>univariate_quad_rule_info</strong><span class="classifier">list</span></dt><dd><p>List containing two entries. The first entry is a list 
+(or single callable) of univariate quadrature rules for each variable
+with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">quad_rule(l)-&gt;np.ndarray,np.ndarray</span></code></p>
+<p>where the integer <code class="docutils literal notranslate"><span class="pre">l</span></code> specifies the level of the quadrature rule and 
+<code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">w</span></code> are 1D np.ndarray of size (nsamples) containing the 
+quadrature rule points and weights, respectively.</p>
+<p>The second entry is a list (or single callable) of growth rules
+with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">growth_rule(l)-&gt;integer</span></code></p>
+<p>where the output <code class="docutils literal notranslate"><span class="pre">nsamples</span></code> specifies the number of samples in the 
+quadrature rule of level <code class="docutils literal notranslate"><span class="pre">l</span></code>.</p>
+<p>If either entry is a callable then the same quad or growth rule is 
+applied to every variable.</p>
+</dd>
+<dt><strong>max_nsamples</strong><span class="classifier">float</span></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">cost_function==None</span></code> then this argument is the maximum number of 
+evaluations of fun. If fun has configure variables</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">cost_function!=None</span></code> Then max_nsamples is the maximum cost of 
+constructing the sparse grid, i.e. the sum of the cost of evaluating
+each point in the sparse grid.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">cost_function!=None`</span> <span class="pre">same</span> <span class="pre">behavior</span> <span class="pre">as</span> <span class="pre">``cost_function==None</span></code>
+can be obtained by setting cost_function = lambda config_sample: 1.</p>
+<p>This is particularly useful if <code class="docutils literal notranslate"><span class="pre">fun</span></code> has configure variables
+and evaluating <code class="docutils literal notranslate"><span class="pre">fun</span></code> at these different values of these configure
+variables has different cost. For example if there is one configure
+variable that can take two different values with cost 0.5, and 1
+then 10 samples of both models will be measured as 15 samples and
+so if max_nsamples is 19 the algorithm will not terminate because
+even though the number of samples is the sparse grid is 20.</p>
+</dd>
+<dt><strong>tol</strong><span class="classifier">float</span></dt><dd><p>Tolerance for termination. The construction of the sparse grid is 
+terminated when the estimate error in the sparse grid (determined by 
+<code class="docutils literal notranslate"><span class="pre">refinement_indicator</span></code> is below tol.</p>
+</dd>
+<dt><strong>verbose</strong><span class="classifier">integer</span></dt><dd><p>Controls messages printed during construction.</p>
+</dd>
+<dt><strong>config_variable_idx</strong><span class="classifier">integer</span></dt><dd><p>The position in a sample array that the configure variables start</p>
+</dd>
+<dt><strong>config_var_trans</strong><span class="classifier">pyapprox.adaptive_sparse_grid.ConfigureVariableTransformation</span></dt><dd><p>An object that takes configure indices in [0,1,2,3…] 
+and maps them to the configure values accepted by <code class="docutils literal notranslate"><span class="pre">fun</span></code></p>
+</dd>
+<dt><strong>cost_function</strong><span class="classifier">callable</span></dt><dd><p>A function with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">cost_function(config_sample)</span> <span class="pre">-&gt;</span> <span class="pre">float</span></code></p>
+<p>where config_sample is a np.ndarray of shape (nconfig_vars). The output
+is the cost of evaluating <code class="docutils literal notranslate"><span class="pre">fun</span></code> at <code class="docutils literal notranslate"><span class="pre">config_sample</span></code>. The units can be
+anything but the units must be consistent with the units of max_nsamples
+which specifies the maximum cost of constructing the sparse grid.</p>
+</dd>
+<dt><strong>max_level_1d</strong><span class="classifier">np.ndarray (nvars)</span></dt><dd><p>The maximum level of the sparse grid in each dimension. If None
+There is no limit</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl>
+<dt><strong>result</strong><span class="classifier"><a class="reference internal" href="pyapprox.approximate.ApproximateResult.html#pyapprox.approximate.ApproximateResult" title="pyapprox.approximate.ApproximateResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.approximate.ApproximateResult</span></code></a></span></dt><dd><p>Result object with the following attributes</p>
+</dd>
+<dt><strong>approx</strong><span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.adaptive_sparse_grid.CombinationSparseGrid</span></code></span></dt><dd><p>The sparse grid approximation</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.approximate.approximate.html" class="btn btn-neutral float-right" title="approximate" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.approximate.adaptive_approximate_polynomial_chaos.html" class="btn btn-neutral float-left" title="adaptive_approximate_polynomial_chaos" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

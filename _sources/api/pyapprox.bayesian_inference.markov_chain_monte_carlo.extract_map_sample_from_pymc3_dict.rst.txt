@@ -1,0 +1,6 @@
+extract_map_sample_from_pymc3_dict
+==================================
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autofunction:: extract_map_sample_from_pymc3_dict

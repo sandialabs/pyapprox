@@ -1,0 +1,6 @@
+roptimality_criterion
+=====================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: roptimality_criterion

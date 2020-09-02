@@ -1,0 +1,6 @@
+adaptive_approximate
+====================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: adaptive_approximate

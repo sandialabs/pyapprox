@@ -1,0 +1,6 @@
+get_minimax_default_initial_guess
+=================================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: get_minimax_default_initial_guess

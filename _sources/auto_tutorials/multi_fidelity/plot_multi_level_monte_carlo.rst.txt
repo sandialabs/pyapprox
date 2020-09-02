@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:
 
 
 Multi-level Monte Carlo
@@ -147,8 +149,8 @@ where :math:`z = (b,h,P,M,Y)^T`
 
  .. code-block:: none
 
-    MLMC error 0.017085105945350842
-    MC error 0.01987966439383082
+    MLMC error 0.017085105945351176
+    MC error 0.019879664393831153
 
 
 
@@ -190,7 +192,7 @@ The following code computes the variance reduction of the MLMC estimator, using 
 
  .. code-block:: none
 
-    Theoretical 2 model MLMC variance reduction 0.027332583950334555
+    Theoretical 2 model MLMC variance reduction 0.02733258395033522
     Achieved 2 model MLMC variance reduction 0.040306711980366165
 
 
@@ -216,7 +218,7 @@ Now let us compute the theoretical variance reduction using 3 models
 
  .. code-block:: none
 
-    Theoretical 3 model MLMC variance reduction 0.02468110121400635
+    Theoretical 3 model MLMC variance reduction 0.024681101214007017
 
 
 
@@ -246,7 +248,7 @@ MLMC works extremely well when the variance between the model discrepancies deca
 
  .. code-block:: none
 
-    Theoretical 3 model MLMC variance reduction for a pathalogical example 11467238870623.88
+    Theoretical 3 model MLMC variance reduction for a pathalogical example 11467238870623.877
 
 
 
@@ -398,6 +400,7 @@ where each model is the function of a single uniform random variable defined on 
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_multi_level_monte_carlo_001.png
+    :alt: plot multi level monte carlo
     :class: sphx-glr-single-img
 
 
@@ -425,7 +428,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  1.508 seconds)
+   **Total running time of the script:** ( 0 minutes  1.076 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_multi_level_monte_carlo.py:
@@ -438,13 +441,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_multi_level_monte_carlo.py <plot_multi_level_monte_carlo.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_multi_level_monte_carlo.ipynb <plot_multi_level_monte_carlo.ipynb>`
 

@@ -1,0 +1,6 @@
+get_discrepancy_covariances_IS
+==============================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_discrepancy_covariances_IS

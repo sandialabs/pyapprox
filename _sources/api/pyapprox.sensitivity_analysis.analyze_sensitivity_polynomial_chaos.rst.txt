@@ -1,0 +1,6 @@
+analyze_sensitivity_polynomial_chaos
+====================================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: analyze_sensitivity_polynomial_chaos

@@ -1,0 +1,6 @@
+doptimality_criterion
+=====================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: doptimality_criterion

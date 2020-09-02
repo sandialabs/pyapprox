@@ -1,0 +1,6 @@
+bootstrap_mfmc_estimator
+========================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: bootstrap_mfmc_estimator

@@ -1,0 +1,6 @@
+estimate_variance_reduction
+===========================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: estimate_variance_reduction

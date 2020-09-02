@@ -1,0 +1,357 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>AsynchronousEvaluationModel &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="acv_sample_allocation_cost_constraint" href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint.html" />
+    <link rel="prev" title="WorkTrackingModel" href="pyapprox.models.wrappers.WorkTrackingModel.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#id41">Classes</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">AsynchronousEvaluationModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>AsynchronousEvaluationModel</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.models.async_model.AsynchronousEvaluationModel.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="asynchronousevaluationmodel">
+<h1>AsynchronousEvaluationModel<a class="headerlink" href="#asynchronousevaluationmodel" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel">
+<em class="property">class </em><code class="sig-prename descclassname">pyapprox.models.async_model.</code><code class="sig-name descname">AsynchronousEvaluationModel</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">shell_command</span></em>, <em class="sig-param"><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">workdir_basename</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">link_filenames</span><span class="o">=</span><span class="default_value">[]</span></em>, <em class="sig-param"><span class="n">params_filename</span><span class="o">=</span><span class="default_value">'params.in'</span></em>, <em class="sig-param"><span class="n">results_filename</span><span class="o">=</span><span class="default_value">'results.out'</span></em>, <em class="sig-param"><span class="n">params_file_header</span><span class="o">=</span><span class="default_value">''</span></em>, <em class="sig-param"><span class="n">process_sample</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">load_results</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">saved_data_basename</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">save_workdirs</span><span class="o">=</span><span class="default_value">'yes'</span></em>, <em class="sig-param"><span class="n">model_name</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Evaluate a model in parallel when model instances are invoked by a shell
+script.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>process sample: callable function (default=None)</strong></dt><dd><p>Function that overwrites the basic implementation
+which reads the sample in from a file called params_filename.
+This is useful if there are a number of pre-processing steps
+needed by the model before shall command is executed.</p>
+</dd>
+<dt><strong>load_results: callable function (default=None)</strong></dt><dd><p>Function that overwrites the basic implementation
+which reads the results from a files called results_filename
+This is useful if there are a number of post-processing steps
+needed by the model after the shell command is executed.
+If evaluation fails this function must return None</p>
+</dd>
+<dt><strong>workdir_basename: string (default=None):</strong></dt><dd><p>The name of the directory to store local copies or soft links
+of files. The shell command will be executed in these directories.
+If None temporary directories with python generated names
+will be created and then deleted once the shell command has been
+run.</p>
+</dd>
+<dt><strong>save_workdirs</strong><span class="classifier">string (default=True)</span></dt><dd><p>‘no’      - do not save workdirs
+‘yes’     - save all files in each workdir
+‘limited’ - save only params and results files
+If workdir_basename is None this variable is ignored
+the tmp directories that are created will always be deleted.</p>
+</dd>
+<dt><strong>model_name</strong><span class="classifier">string (default=None)</span></dt><dd><p>A identifier used when printing model evaluation info</p>
+</dd>
+<dt><strong>saved_data_basename</strong><span class="classifier">string (default=None)</span></dt><dd><p>The basename of the file used to store the output data from the 
+model. A new file is created every time __call__ is exceuted.
+a unique identifier is created based upon the value of evaluation id
+when __call__ is started.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Methods Summary</p>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.__call__" title="pyapprox.models.async_model.AsynchronousEvaluationModel.__call__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__call__</span></code></a>(samples[, opts])</p></td>
+<td><p>Call self as a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command" title="pyapprox.models.async_model.AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asynchronous_evaluate_using_shell_command</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.cleanup_threads" title="pyapprox.models.async_model.AsynchronousEvaluationModel.cleanup_threads"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cleanup_threads</span></code></a>(opts)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.create_work_dir" title="pyapprox.models.async_model.AsynchronousEvaluationModel.create_work_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_work_dir</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.prepare_values" title="pyapprox.models.async_model.AsynchronousEvaluationModel.prepare_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prepare_values</span></code></a>(samples, vals, …)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="n">opts</span><span class="o">=</span><span class="default_value">{}</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call self as a function.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command">
+<code class="sig-name descname">asynchronous_evaluate_using_shell_command</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">sample</span></em>, <em class="sig-param"><span class="n">opts</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel.cleanup_threads">
+<code class="sig-name descname">cleanup_threads</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">opts</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel.cleanup_threads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.cleanup_threads" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel.create_work_dir">
+<code class="sig-name descname">create_work_dir</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel.create_work_dir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.create_work_dir" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pyapprox.models.async_model.AsynchronousEvaluationModel.prepare_values">
+<code class="sig-name descname">prepare_values</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">samples</span></em>, <em class="sig-param"><span class="n">vals</span></em>, <em class="sig-param"><span class="n">completed_function_eval_ids</span></em>, <em class="sig-param"><span class="n">data_filename</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/models/async_model.html#AsynchronousEvaluationModel.prepare_values"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.models.async_model.AsynchronousEvaluationModel.prepare_values" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint.html" class="btn btn-neutral float-right" title="acv_sample_allocation_cost_constraint" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.models.wrappers.WorkTrackingModel.html" class="btn btn-neutral float-left" title="WorkTrackingModel" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

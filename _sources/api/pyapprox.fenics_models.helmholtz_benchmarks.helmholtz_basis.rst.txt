@@ -1,0 +1,6 @@
+helmholtz_basis
+===============
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autofunction:: helmholtz_basis

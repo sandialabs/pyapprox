@@ -1,0 +1,6 @@
+r_oed_objective_jacobian
+========================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: r_oed_objective_jacobian

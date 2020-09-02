@@ -1,0 +1,6 @@
+compute_multivariate_orthonormal_basis_product
+==============================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: compute_multivariate_orthonormal_basis_product

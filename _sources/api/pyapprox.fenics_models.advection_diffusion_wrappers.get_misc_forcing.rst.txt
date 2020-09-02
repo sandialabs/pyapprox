@@ -1,0 +1,6 @@
+get_misc_forcing
+================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autofunction:: get_misc_forcing

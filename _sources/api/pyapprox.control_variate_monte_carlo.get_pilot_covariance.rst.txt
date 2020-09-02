@@ -1,0 +1,6 @@
+get_pilot_covariance
+====================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_pilot_covariance

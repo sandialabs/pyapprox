@@ -1,0 +1,6 @@
+get_r_oed_default_initial_guess
+===============================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: get_r_oed_default_initial_guess

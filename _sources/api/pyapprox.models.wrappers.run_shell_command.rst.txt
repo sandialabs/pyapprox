@@ -1,0 +1,6 @@
+run_shell_command
+=================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: run_shell_command

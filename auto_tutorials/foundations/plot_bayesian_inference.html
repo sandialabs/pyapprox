@@ -1,8 +1,7 @@
 
 
 <!DOCTYPE html>
-<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8">
   
@@ -12,31 +11,35 @@
   
 
   
-  
-  
-  
-
-  
-  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
-  
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script type="text/javascript" src="../../_static/language_data.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["\\lVert #1 \\rVert", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
-    
-    <script type="text/javascript" src="../../_static/js/theme.js"></script>
-
-    
-
-  
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Push Forward Based Inference" href="plot_push_forward_based_inference.html" />
@@ -54,7 +57,7 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> PyApprox
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
           
 
           
@@ -80,6 +83,7 @@
           
         </div>
 
+        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -96,6 +100,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html#foundations">Foundations</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_setup_model.html">Model Definition</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_advection_diffusion_model.html">Numerical Approximations of Governing Equations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Bayesian Inference</a><ul>
@@ -107,17 +112,31 @@
 <li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Surrogate Modeling</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plot_sensitivity_analysis.html">Sensitivity Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-monte-carlo-methods">Multi-Fidelity Monte Carlo Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
 </ul>
 
             
           
         </div>
+        
       </div>
     </nav>
 
@@ -156,7 +175,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
         
           <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
         
@@ -181,7 +200,7 @@
             
   <div class="sphx-glr-download-link-note admonition note">
 <p class="admonition-title">Note</p>
-<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-bayesian-inference-py"><span class="std std-ref">here</span></a> to download the full example code</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-bayesian-inference-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
 </div>
 <div class="sphx-glr-example-title section" id="bayesian-inference">
 <span id="sphx-glr-auto-tutorials-foundations-plot-bayesian-inference-py"></span><h1>Bayesian Inference<a class="headerlink" href="#bayesian-inference" title="Permalink to this headline">¶</a></h1>
@@ -202,7 +221,7 @@ observational data <span class="math notranslate nohighlight">\(\V{y}=(y_1,\ldot
 &amp;=\frac{\pi (d\mid \rv)\,\pi (\rv)}{\int_{\mathbb{R}^d} \pi (d\mid \rv)\,\pi (\rv)\,d\rv}\end{split}\]</div>
 <p>The density <span class="math notranslate nohighlight">\(\pi (\rv\mid d)\)</span> is referred to as the posterior density.</p>
 <div class="math notranslate nohighlight">
-\[\pi_\text{post}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
+\[\pi_{\text{post}}(\rv)=\pi_\text(\rv\mid\V{y})=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom}
 \pi(\V{y}|\rv)\pi(\rv)d\rv}\]</div>
 </div>
 <div class="section" id="prior">
@@ -308,9 +327,9 @@ and print the sample covariance of the joint distribution</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">theta_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:</span><span class="mi">100</span><span class="p">],</span><span class="n">data_samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,:</span><span class="mi">100</span><span class="p">],</span><span class="s1">&#39;o&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_bayesian_inference_001.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_001.png" />
+<img alt="plot bayesian inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_0011.png" />
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>/Users/jdjakem/software/pyapprox/pyapprox/visualization.py:278: UserWarning: The following kwargs were not used by contour: &#39;zdir&#39;, &#39;offset&#39;
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>/Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: &#39;zdir&#39;, &#39;offset&#39;
   cmap=cmap, zorder=zorder)
 </pre></div>
 </div>
@@ -357,7 +376,12 @@ and print the sample covariance of the joint distribution</p>
 <span class="n">axplot</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x_truth</span><span class="p">,</span><span class="n">data_obs</span><span class="p">,</span><span class="s1">&#39;ok&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_bayesian_inference_002.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_002.png" />
+<img alt="plot bayesian inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_0021.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>/Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: &#39;zdir&#39;, &#39;offset&#39;
+  cmap=cmap, zorder=zorder)
+</pre></div>
+</div>
 <p>Lets also plot the joint distribution and marginals in a 3d plot</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">data_obs_limit_state</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">data_obs</span><span class="p">):</span>
     <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span><span class="nb">float</span><span class="p">)</span>
@@ -389,7 +413,7 @@ and print the sample covariance of the joint distribution</p>
 <span class="n">_</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">x_truth</span><span class="p">],[</span><span class="n">data_obs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]],[</span><span class="n">offset</span><span class="p">],</span><span class="n">zorder</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span><span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_bayesian_inference_003.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_003.png" />
+<img alt="plot bayesian inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_0031.png" />
 <p>Now lets assume another piece of observational data becomes available we can use the posterior as a new prior.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">num_obs</span><span class="o">=</span><span class="mi">5</span>
 <span class="n">posteriors</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">num_obs</span>
@@ -423,7 +447,12 @@ and print the sample covariance of the joint distribution</p>
 <span class="n">axplot</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x_truth</span><span class="p">,</span><span class="n">data_obs</span><span class="p">,</span><span class="s1">&#39;ok&#39;</span><span class="p">,</span><span class="n">ms</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_bayesian_inference_004.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_004.png" />
+<img alt="plot bayesian inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_0041.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>/Users/jdjakem/software/pyapprox/pyapprox/visualization.py:279: UserWarning: The following kwargs were not used by contour: &#39;zdir&#39;, &#39;offset&#39;
+  cmap=cmap, zorder=zorder)
+</pre></div>
+</div>
 <p>As you can see the variance of the joint density decreases as more data is added. The posterior variance also decreases and the posterior will converge to a Dirac-delta function as the number of observations tends to infinity. Currently the mean of the posterior is not near the true parameter value (the horizontal line). Try increasing <code class="docutils literal notranslate"><span class="pre">num_obs1</span></code> to see what happens.</p>
 </div>
 </div>
@@ -467,28 +496,18 @@ and print the sample covariance of the joint distribution</p>
 </pre></div>
 </div>
 <p class="sphx-glr-script-out">Out:</p>
-<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WARNING (theano.configdefaults): install mkl with `conda install mkl-service`: No module named &#39;mkl&#39;
-Warning: gradient not available.(E.g. vars contains discrete variables). MAP estimates may not be accurate for the default parameters. Defaulting to non-gradient minimization &#39;Powell&#39;.
-
-  0%|          | 0/5000 [00:00&lt;?, ?it/s]
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>  0%|          | 0/5000 [00:00&lt;?, ?it/s]
 logp = -2.7726:   0%|          | 0/5000 [00:00&lt;?, ?it/s]
-logp = -2.7726:   0%|          | 10/5000 [00:00&lt;00:00, 6385.97it/s]
-logp = -2.7726:   0%|          | 20/5000 [00:00&lt;00:00, 7871.45it/s]
-logp = -2.7726:   1%|          | 30/5000 [00:00&lt;00:00, 8410.48it/s]
-logp = -2.7726:   1%|          | 40/5000 [00:00&lt;00:00, 8816.66it/s]
-logp = -2.7726:   1%|1         | 50/5000 [00:00&lt;00:00, 9091.17it/s]
-logp = -2.7726:   1%|1         | 60/5000 [00:00&lt;00:00, 9274.99it/s]
-logp = -2.7726: 100%|##########| 62/62 [00:00&lt;00:00, 9174.35it/s]
-Sample initial stage: ...
-Stage:   0 Beta: 0.586 Steps:  25 Acce: 1.000
-Stage:   1 Beta: 1.000 Steps:  25 Acce: 0.443
-arviz.stats.stats_utils - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-arviz.stats.stats_utils - WARNING - Shape validation failed: input_shape: (1, 500), minimum_shape: (chains=2, draws=4)
-      mean     sd  hpd_3%  ...  ess_bulk  ess_tail  r_hat
-z_0 -0.060  0.967  -1.606  ...     398.0     460.0    NaN
-z_1  0.424  0.648  -0.736  ...     603.0     515.0    NaN
-
-[2 rows x 11 columns]
+logp = -2.7726:   0%|          | 10/5000 [00:00&lt;00:00, 7188.18it/s]
+logp = -2.7726:   0%|          | 20/5000 [00:00&lt;00:00, 8702.78it/s]
+logp = -2.7726:   1%|          | 30/5000 [00:00&lt;00:00, 9241.95it/s]
+logp = -2.7726:   1%|          | 40/5000 [00:00&lt;00:00, 9617.76it/s]
+logp = -2.7726:   1%|1         | 50/5000 [00:00&lt;00:00, 9165.47it/s]
+logp = -2.7726:   1%|1         | 60/5000 [00:00&lt;00:00, 9384.98it/s]
+logp = -2.7726: 100%|##########| 62/62 [00:00&lt;00:00, 9267.53it/s]
+could not print summary. likely issue with theano
+could not compute ess. likely issue with theano
+could not compute ess. likely issue with theano
 MAP sample [ 1.23767663e-11 -7.43454187e-11]
 </pre></div>
 </div>
@@ -520,7 +539,7 @@ MAP sample [ 1.23767663e-11 -7.43454187e-11]
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
-<img alt="../../_images/sphx_glr_plot_bayesian_inference_005.png" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_005.png" />
+<img alt="plot bayesian inference" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_bayesian_inference_0051.png" />
 <p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>evidence 0.014953532968320147
 </pre></div>
@@ -534,15 +553,15 @@ MAP sample [ 1.23767663e-11 -7.43454187e-11]
 </div>
 <p class="sphx-glr-script-out">Out:</p>
 <div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>mcmc mean [-0.04713958  0.42756304]
-exact mean [-1.14421559e-16  4.33326051e-01]
+exact mean [-1.23718604e-16  4.33326051e-01]
 </pre></div>
 </div>
-<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  31.345 seconds)</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  7.892 seconds)</p>
 <div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-foundations-plot-bayesian-inference-py">
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/8a156b55b05d907cf968b0872294f736/plot_bayesian_inference.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_bayesian_inference.py</span></code></a></p>
 </div>
-<div class="sphx-glr-download docutils container">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
 <p><a class="reference download internal" download="" href="../../_downloads/ae79b3eb887f5a30afb5d0fdb0b9f3e1/plot_bayesian_inference.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_bayesian_inference.ipynb</span></code></a></p>
 </div>
 </div>
@@ -570,11 +589,19 @@ exact mean [-1.14421559e-16  4.33326051e-01]
 
   <div role="contentinfo">
     <p>
+        
         &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
 
     </p>
   </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -585,7 +612,6 @@ exact mean [-1.14421559e-16  4.33326051e-01]
 
   </div>
   
-
 
   <script type="text/javascript">
       jQuery(function () {

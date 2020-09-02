@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_tensor_product_interpolation.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_foundations_plot_tensor_product_interpolation.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_foundations_plot_tensor_product_interpolation.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_foundations_plot_tensor_product_interpolation.py:
 
 
 Surrogate Modeling
@@ -41,7 +43,7 @@ Constructing the interpolant requires evaluating the function :math:`\hat{f}_{\b
 
    \mathcal{Z}_{\boldsymbol{\beta}} = \bigotimes_{i=1}^d \mathcal{Z}_{\beta_i}^i=\begin{bmatrix}\mathbf{z}^{(1)} & \cdots&\mathbf{z}^{(M_{\boldsymbol{\beta}})}\end{bmatrix}\in\mathbb{R}^{d\times M_{\boldsymbol{\beta}}}
 
-	  
+          
 We denote the resulting function evaluations by
 
 .. math:: \mathcal{F}_{\boldsymbol{\alpha},\boldsymbol{\beta}}=\hat{f}_{\boldsymbol{\alpha}}(\mathcal{Z}_{\boldsymbol{\beta}})=\begin{bmatrix}\hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(1)}) \quad \cdots\quad \hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(M_{\boldsymbol{\beta}})})\end{bmatrix}^T\in\mathbb{R}^{M_{\boldsymbol{\beta}}\times q},
@@ -76,6 +78,7 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_tensor_product_interpolation_001.png
+    :alt: plot tensor product interpolation
     :class: sphx-glr-single-img
 
 
@@ -141,6 +144,7 @@ To construct a surrogate using tensor product interpolation we simply multiply a
 
 
 .. image:: /auto_tutorials/foundations/images/sphx_glr_plot_tensor_product_interpolation_002.png
+    :alt: plot tensor product interpolation
     :class: sphx-glr-single-img
 
 
@@ -240,7 +244,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.441 seconds)
+   **Total running time of the script:** ( 0 minutes  1.768 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_foundations_plot_tensor_product_interpolation.py:
@@ -253,13 +257,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_tensor_product_interpolation.py <plot_tensor_product_interpolation.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_tensor_product_interpolation.ipynb <plot_tensor_product_interpolation.ipynb>`
 

@@ -1,0 +1,6 @@
+get_univariate_quadrature_rules_from_pce
+========================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: get_univariate_quadrature_rules_from_pce

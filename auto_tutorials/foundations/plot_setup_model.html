@@ -1,0 +1,486 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Model Definition &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Numerical Approximations of Governing Equations" href="plot_advection_diffusion_model.html" />
+    <link rel="prev" title="PyApprox Tutorials" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#foundations">Foundations</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Model Definition</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#user-defined-functions">User defined functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#timing-function-evaluations">Timing function evaluations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#evaluating-multiple-models">Evaluating multiple models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#evaluating-functions-at-multiple-samples-in-parallel">Evaluating functions at multiple samples in parallel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#note">Note</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="plot_advection_diffusion_model.html">Numerical Approximations of Governing Equations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_monte_carlo.html">Monte Carlo Quadrature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_inference.html">Bayesian Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_push_forward_based_inference.html">Push Forward Based Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_tensor_product_interpolation.html">Surrogate Modeling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_sensitivity_analysis.html">Sensitivity Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_bayesian_networks.html">Gaussian Networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
+        
+      <li>Model Definition</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/auto_tutorials/foundations/plot_setup_model.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-foundations-plot-setup-model-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
+</div>
+<div class="sphx-glr-example-title section" id="model-definition">
+<span id="sphx-glr-auto-tutorials-foundations-plot-setup-model-py"></span><h1>Model Definition<a class="headerlink" href="#model-definition" title="Permalink to this headline">¶</a></h1>
+<p>This tutorial describes how to setup a function with random inputs. It also provides examples of how to use model wrappers to time function calls and evaluate a function at multiple samples in parallel.</p>
+<p>We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. See <a class="reference internal" href="../../api/pyapprox.benchmarks.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.benchmarks.setup_rosenbrock_function" title="pyapprox.benchmarks.benchmarks.setup_rosenbrock_function"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.benchmarks.benchmarks.setup_rosenbrock_function()</span></code></a></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="n">benchmark</span> <span class="o">=</span> <span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;rosenbrock&#39;</span><span class="p">,</span><span class="n">nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Print the attributes of the benchmark with</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>dict_keys([&#39;fun&#39;, &#39;jac&#39;, &#39;hessp&#39;, &#39;variable&#39;, &#39;mean&#39;, &#39;loglike&#39;, &#39;loglike_grad&#39;])
+</pre></div>
+</div>
+<p>Any of these attributes, e.g. the Rosenbrock function (the attribute <code class="docutils literal notranslate"><span class="pre">fun</span></code> can be accessed using benchmark.fun.</p>
+<p>Now lets define the inputs to the function of interest. For independent random variables we use SciPy random variablest to represent each one-dimensional variables. For documentation refer to the <a class="reference external" href="https://docs.scipy.org/doc/scipy/reference/stats.html">scipy.stats module</a>.</p>
+<p>We define multivariate random variables by specifying each 1D variable in a list. Here we will setup a 2D variable which is the tensor product of two independent and identically distributed uniform random variables</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">),</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">)]</span>
+<span class="n">variable</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This variable is also defined in the benchmark.variable attribute. To print a summary of the random variable</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>I.I.D. Variable
+Number of variables: 2
+Unique variables and global id:
+    uniform(loc=-2,scale=4): z0, z1
+</pre></div>
+</div>
+<p>We can draw random samples from variable and evaluate the function using</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsamples</span>  <span class="o">=</span> <span class="mi">10</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">benchmark</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="section" id="user-defined-functions">
+<h2>User defined functions<a class="headerlink" href="#user-defined-functions" title="Permalink to this headline">¶</a></h2>
+<p>Pyapprox can be used with pretty much any function provided an appropriate interface is defined. Here will show how to setup a simple function.</p>
+<p>PyApprox requires all functions to take 2D np.ndarray with shape (nvars,nsamples) and requires a function to return a 2D np.ndarray with shape (nsampels,nqoi). nqoi==1 for scalar valued functions and nqoi&gt;1 for vectored value functions.</p>
+<p>Lets define a function which does not match this criteria and use wrappers provided by PyApprox to convert it to the correct format. Specifically we will define a function that only takes a 1D np.ndarray and returns a scalar</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="k">def</span> <span class="nf">fun</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">evaluate_1darray_function_on_2d_array</span>
+<span class="k">def</span> <span class="nf">pyapprox_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+<span class="n">values</span> <span class="o">=</span> <span class="n">pyapprox_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The function <a class="reference internal" href="../../api/pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array.html#pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array" title="pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array()</span></code></a> avoids the need to write a for loop but we can do this also and does some checking to make sure values is the correct shape</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">values_loop</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">fun</span><span class="p">(</span><span class="n">s</span><span class="p">))</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">samples</span><span class="o">.</span><span class="n">T</span><span class="p">])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="p">,</span><span class="n">values_loop</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="timing-function-evaluations">
+<h2>Timing function evaluations<a class="headerlink" href="#timing-function-evaluations" title="Permalink to this headline">¶</a></h2>
+<p>It is often useful to be able to track the time needed to evaluate a function. We can track this using the <a class="reference internal" href="../../api/pyapprox.models.wrappers.TimerModelWrapper.html#pyapprox.models.wrappers.TimerModelWrapper" title="pyapprox.models.wrappers.TimerModelWrapper"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.TimerModelWrapper</span></code></a> and <a class="reference internal" href="../../api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel" title="pyapprox.models.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.WorkTrackingModel</span></code></a> objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.</p>
+<p>Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">time</span>
+<span class="k">def</span> <span class="nf">fun_pause</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="o">.</span><span class="mi">05</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">pyapprox_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">TimerModelWrapper</span><span class="p">,</span> <span class="n">WorkTrackingModel</span>
+<span class="n">timer_fun</span> <span class="o">=</span> <span class="n">TimerModelWrapper</span><span class="p">(</span><span class="n">pyapprox_fun</span><span class="p">)</span>
+<span class="n">worktracking_fun</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">timer_fun</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="../../api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel" title="pyapprox.models.wrappers.WorkTrackingModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.WorkTrackingModel</span></code></a> has an attribute <a class="reference internal" href="../../api/pyapprox.models.wrappers.WorkTracker.html#pyapprox.models.wrappers.WorkTracker" title="pyapprox.models.wrappers.WorkTracker"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.WorkTracker</span></code></a> which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">costs</span> <span class="o">=</span> <span class="n">worktracking_fun</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">costs</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0,): [0.0445559024810791, 0.0033240318298339844, 0.03546309471130371, 0.05207014083862305, 0.037081241607666016, 0.01415395736694336, 0.030753135681152344, 0.001789093017578125, 0.017220020294189453, 0.007019758224487305]}
+</pre></div>
+</div>
+<p>We can also call the work tracker to query the median cost for a model with a given id. The default id is 0.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fun_id</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">fun_id</span><span class="p">))</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[0.02398658]
+</pre></div>
+</div>
+</div>
+<div class="section" id="evaluating-multiple-models">
+<h2>Evaluating multiple models<a class="headerlink" href="#evaluating-multiple-models" title="Permalink to this headline">¶</a></h2>
+<p>Now let apply this two an ensemble of models to explore the use of model ids. First create a second function.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">fun_pause_2</span><span class="p">(</span><span class="n">sample</span><span class="p">):</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">.</span><span class="mi">05</span><span class="p">,</span><span class="o">.</span><span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">pyapprox_fun_2</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">evaluate_1darray_function_on_2d_array</span><span class="p">(</span><span class="n">fun_pause_2</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now using <a class="reference internal" href="../../api/pyapprox.control_variate_monte_carlo.ModelEnsemble.html#pyapprox.control_variate_monte_carlo.ModelEnsemble" title="pyapprox.control_variate_monte_carlo.ModelEnsemble"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.control_variate_monte_carlo.ModelEnsemble</span></code></a> we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evalaute the second model at the remaining samples</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.control_variate_monte_carlo</span> <span class="kn">import</span> <span class="n">ModelEnsemble</span>
+<span class="n">model_ensemble</span> <span class="o">=</span> <span class="n">ModelEnsemble</span><span class="p">([</span><span class="n">pyapprox_fun</span><span class="p">,</span><span class="n">pyapprox_fun_2</span><span class="p">])</span>
+<span class="n">timer_fun_ensemble</span> <span class="o">=</span> <span class="n">TimerModelWrapper</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">)</span>
+<span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
+    <span class="n">timer_fun_ensemble</span><span class="p">,</span><span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">fun_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nsamples</span><span class="p">);</span> <span class="n">fun_ids</span><span class="p">[:</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">]</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">ensemble_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">samples</span><span class="p">,</span><span class="n">fun_ids</span><span class="p">])</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun_ensemble</span><span class="p">(</span><span class="n">ensemble_samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Here we had to pass the number (1) of configure variables to the
+WorkTrackingModel. PyApprox assumes that the configure variables are the last rows of the samples 2D array</p>
+<p>Now check that the new values are the same as when using the individual functions directly</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="p">[:</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">],</span><span class="n">pyapprox_fun</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,:</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">]))</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">:],</span><span class="n">pyapprox_fun_2</span><span class="p">(</span><span class="n">samples</span><span class="p">[:,</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">:]))</span>
+</pre></div>
+</div>
+<p>Again we can query the exection times of each model</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">costs</span> <span class="o">=</span> <span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">costs</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">costs</span><span class="p">)</span>
+
+<span class="n">query_fun_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">(</span><span class="n">query_fun_ids</span><span class="p">))</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>{(0,): [0.013247966766357422, 0.013377904891967773, 0.020057201385498047, 0.05009603500366211, 0.05231881141662598], (1,): [0.09871411323547363, 0.08461213111877441, 0.06339883804321289, 0.09815406799316406, 0.07094907760620117]}
+[0.0200572  0.08461213]
+</pre></div>
+</div>
+<p>As expected there are 5 samples tracked for each model and the median evaluation time of the second function is about twice as large as for the first function.</p>
+</div>
+<div class="section" id="evaluating-functions-at-multiple-samples-in-parallel">
+<h2>Evaluating functions at multiple samples in parallel<a class="headerlink" href="#evaluating-functions-at-multiple-samples-in-parallel" title="Permalink to this headline">¶</a></h2>
+<p>For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using <a class="reference internal" href="../../api/pyapprox.models.wrappers.PoolModel.html#pyapprox.models.wrappers.PoolModel" title="pyapprox.models.wrappers.PoolModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.wrappers.PoolModel</span></code></a>. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See <a class="reference internal" href="../../api/pyapprox.models.async_model.AsynchronousEvaluationModel.html#pyapprox.models.async_model.AsynchronousEvaluationModel" title="pyapprox.models.async_model.AsynchronousEvaluationModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.models.async_model.AsynchronousEvaluationModel</span></code></a> if you are interested in running multiple simulations in parallel on a distributed memory system.</p>
+<p>PoolModel cannot be used to wrap WorkTrackingModel. However it can still
+be used with WorkTrackingModel using the sequence of wrappers below.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">PoolModel</span>
+<span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="c1">#set higher</span>
+<span class="c1">#clear WorkTracker counters</span>
+<span class="n">pool_model</span> <span class="o">=</span> <span class="n">PoolModel</span><span class="p">(</span><span class="n">timer_fun_ensemble</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">assert_omp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="o">.</span><span class="n">costs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+<span class="n">worktracking_fun_ensemble</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
+    <span class="n">pool_model</span><span class="p">,</span><span class="n">num_config_vars</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1">#create more samples to notice improvement in wall time</span>
+<span class="n">nsamples</span>  <span class="o">=</span> <span class="mi">10</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">pya</span><span class="o">.</span><span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">variable</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)</span>
+<span class="n">fun_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nsamples</span><span class="p">);</span> <span class="n">fun_ids</span><span class="p">[:</span><span class="n">nsamples</span><span class="o">//</span><span class="mi">2</span><span class="p">]</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">ensemble_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">samples</span><span class="p">,</span><span class="n">fun_ids</span><span class="p">])</span>
+
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="n">t0</span><span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun_ensemble</span><span class="p">(</span><span class="n">ensemble_samples</span><span class="p">)</span>
+<span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;With </span><span class="si">{</span><span class="n">max_eval_concurrency</span><span class="si">}</span><span class="s1"> threads that took </span><span class="si">{</span><span class="n">t1</span><span class="o">-</span><span class="n">t0</span><span class="si">}</span><span class="s1"> seconds&#39;</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="k">if</span> <span class="p">(</span><span class="s1">&#39;OMP_NUM_THREADS&#39;</span> <span class="ow">not</span> <span class="ow">in</span>  <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">or</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;OMP_NUM_THREADS&#39;</span><span class="p">])</span><span class="o">!=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="c1">#make sure to set OMP_NUM_THREADS=1 to maximize benefit of pool model</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Warning set OMP_NUM_THREADS=1 for best performance&#39;</span><span class="p">)</span>
+<span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">4</span>
+<span class="n">pool_model</span><span class="o">.</span><span class="n">set_max_eval_concurrency</span><span class="p">(</span><span class="n">max_eval_concurrency</span><span class="p">)</span>
+<span class="n">t0</span><span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">worktracking_fun_ensemble</span><span class="p">(</span><span class="n">ensemble_samples</span><span class="p">)</span>
+<span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;With </span><span class="si">{</span><span class="n">max_eval_concurrency</span><span class="si">}</span><span class="s1"> threads that took </span><span class="si">{</span><span class="n">t1</span><span class="o">-</span><span class="n">t0</span><span class="si">}</span><span class="s1"> seconds&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>With 1 threads that took 0.5142409801483154 seconds
+Warning set OMP_NUM_THREADS=1 for best performance
+With 4 threads that took 0.2192528247833252 seconds
+</pre></div>
+</div>
+<p>Lets print a summary of the costs to make sure individual function evaluation
+costs are still being recorded correctly</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">worktracking_fun_ensemble</span><span class="o">.</span><span class="n">work_tracker</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>WorkTracker Cost Summary
+Funtion ID Median Cost
+(0,)       0.025630712509155273
+(1,)       0.09358561038970947
+</pre></div>
+</div>
+</div>
+<div class="section" id="note">
+<h2>Note<a class="headerlink" href="#note" title="Permalink to this headline">¶</a></h2>
+<p>PoolModel cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can’t pickle &lt;function &lt;lambda&gt; at 0x12b4e6440&gt;: attribute lookup &lt;lambda&gt; on __main__ failed</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># sphinx_gallery_thumbnail_path = &#39;./figures/cantilever-beam.png&#39;</span>
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  2.199 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-foundations-plot-setup-model-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/cbc81c8cad9f6f43aeed17aaa9f699ec/plot_setup_model.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_setup_model.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/c620f6b003c773e5fb82eddc4ee16336/plot_setup_model.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_setup_model.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="plot_advection_diffusion_model.html" class="btn btn-neutral float-right" title="Numerical Approximations of Governing Equations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../index.html" class="btn btn-neutral float-left" title="PyApprox Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

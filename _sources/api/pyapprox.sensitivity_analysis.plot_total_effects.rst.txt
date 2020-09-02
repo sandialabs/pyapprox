@@ -1,0 +1,6 @@
+plot_total_effects
+==================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: plot_total_effects

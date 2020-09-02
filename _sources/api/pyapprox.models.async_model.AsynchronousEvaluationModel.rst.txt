@@ -1,0 +1,25 @@
+AsynchronousEvaluationModel
+===========================
+
+.. currentmodule:: pyapprox.models.async_model
+
+.. autoclass:: AsynchronousEvaluationModel
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~AsynchronousEvaluationModel.__call__
+      ~AsynchronousEvaluationModel.asynchronous_evaluate_using_shell_command
+      ~AsynchronousEvaluationModel.cleanup_threads
+      ~AsynchronousEvaluationModel.create_work_dir
+      ~AsynchronousEvaluationModel.prepare_values
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: asynchronous_evaluate_using_shell_command
+   .. automethod:: cleanup_threads
+   .. automethod:: create_work_dir
+   .. automethod:: prepare_values

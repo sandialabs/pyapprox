@@ -1,0 +1,6 @@
+ishigami_function
+=================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: ishigami_function

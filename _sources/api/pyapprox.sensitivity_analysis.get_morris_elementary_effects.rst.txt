@@ -1,0 +1,6 @@
+get_morris_elementary_effects
+=============================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: get_morris_elementary_effects

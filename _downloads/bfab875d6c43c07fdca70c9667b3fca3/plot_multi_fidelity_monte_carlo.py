@@ -113,7 +113,6 @@ cov = poly_model.get_covariance_matrix()
 target_costs = np.array([1e1,1e2,1e3,1e4],dtype=int)
 costs = np.asarray([10**-ii for ii in range(cov.shape[0])])
 model_labels=[r'$f_0$',r'$f_1$',r'$f_2$',r'$f_3$',r'$f_4$']
-print(pya.compute_correlations_from_covariance(cov))
 variances, nsamples_history = [],[]
 npilot_samples = 5
 estimators = [pya.MC,pya.MFMC]
@@ -123,7 +122,6 @@ for target_cost in target_costs:
         nhf_samples,nsample_ratios = est.allocate_samples(target_cost)[:2]
         variances.append(est.get_variance(nhf_samples,nsample_ratios))
         nsamples_history.append(est.get_nsamples(nhf_samples,nsample_ratios))
-        print(nsamples_history[-1])
 variances = np.asarray(variances)
 nsamples_history = np.asarray(nsamples_history)
 

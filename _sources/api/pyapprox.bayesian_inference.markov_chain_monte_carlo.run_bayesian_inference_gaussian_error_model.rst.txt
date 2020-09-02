@@ -1,0 +1,6 @@
+run_bayesian_inference_gaussian_error_model
+===========================================
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autofunction:: run_bayesian_inference_gaussian_error_model

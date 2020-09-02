@@ -1,0 +1,6 @@
+get_helmholtz_speaker_boundary_conditions
+=========================================
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autofunction:: get_helmholtz_speaker_boundary_conditions

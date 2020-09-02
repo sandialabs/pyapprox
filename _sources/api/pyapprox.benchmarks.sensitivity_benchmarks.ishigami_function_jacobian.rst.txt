@@ -1,0 +1,6 @@
+ishigami_function_jacobian
+==========================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: ishigami_function_jacobian

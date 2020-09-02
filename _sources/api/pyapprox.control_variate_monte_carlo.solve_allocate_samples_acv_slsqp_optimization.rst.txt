@@ -1,0 +1,6 @@
+solve_allocate_samples_acv_slsqp_optimization
+=============================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: solve_allocate_samples_acv_slsqp_optimization

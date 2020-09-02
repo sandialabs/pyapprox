@@ -1,0 +1,6 @@
+setup_advection_diffusion_benchmark
+===================================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autofunction:: setup_advection_diffusion_benchmark

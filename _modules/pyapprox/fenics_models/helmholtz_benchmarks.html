@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyapprox.fenics_models.helmholtz_benchmarks &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyapprox.fenics_models.helmholtz_benchmarks</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyapprox.fenics_models.helmholtz_benchmarks</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">dolfin</span> <span class="k">as</span> <span class="nn">dl</span>
+<span class="kn">import</span> <span class="nn">pathlib</span><span class="o">,</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">pyapprox.fenics_models.fenics_utilities</span> <span class="kn">import</span> <span class="n">generate_polygonal_mesh</span><span class="p">,</span> <span class="n">get_polygon_boundary_segments</span>
+<span class="kn">from</span> <span class="nn">pyapprox.fenics_models.helmholtz</span> <span class="kn">import</span> <span class="n">run_model</span>
+<span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">Benchmark</span>
+
+<div class="viewcode-block" id="generate_helmholtz_bases"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases.html#pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases">[docs]</a><span class="k">def</span> <span class="nf">generate_helmholtz_bases</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span><span class="n">mesh_resolution</span><span class="o">=</span><span class="mi">51</span><span class="p">):</span>
+    <span class="n">frequency</span><span class="o">=</span><span class="mi">400</span><span class="p">;</span><span class="n">speaker_amplitudes</span><span class="o">=</span><span class="mi">1</span>
+    <span class="n">sound_speed</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">343</span><span class="p">,</span><span class="mi">6320</span><span class="p">,</span><span class="mi">343</span><span class="p">])</span>
+    <span class="n">kappa</span><span class="p">,</span><span class="n">forcing</span><span class="p">,</span><span class="n">function_space</span><span class="p">,</span><span class="n">boundary_conditions</span><span class="p">,</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">,</span><span class="n">bndry_obj</span><span class="o">=</span>\
+        <span class="n">setup_helmholtz_model</span><span class="p">(</span>
+            <span class="n">mesh_resolution</span><span class="p">,</span><span class="n">frequency</span><span class="p">,</span><span class="n">speaker_amplitudes</span><span class="p">,</span>
+            <span class="n">sound_speed</span><span class="p">)</span>
+
+    <span class="n">speaker_segment_indices</span><span class="p">,</span> <span class="n">cabinet_segment_indices</span> <span class="o">=</span> \
+        <span class="n">get_speaker_boundary_segment_indices</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">)</span>
+
+    <span class="n">sols</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="n">speaker_segment_indices</span><span class="p">:</span>
+        <span class="n">boundary_conditions</span> <span class="o">=</span><span class="n">get_helmholtz_speaker_boundary_conditions</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">,</span><span class="n">speaker_amplitudes</span><span class="p">,</span><span class="n">frequency</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">kk</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nedges</span><span class="o">*</span><span class="n">nsegments_per_edge</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">jj</span><span class="o">!=</span><span class="n">kk</span><span class="p">:</span>
+                <span class="n">boundary_conditions</span><span class="p">[</span><span class="n">kk</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">pii</span><span class="o">=</span><span class="n">run_model</span><span class="p">(</span><span class="n">kappa</span><span class="p">,</span><span class="n">forcing</span><span class="p">,</span><span class="n">function_space</span><span class="p">,</span><span class="n">boundary_conditions</span><span class="p">)</span>
+        <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pii</span><span class="p">)</span>
+
+    <span class="n">basis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">)),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">)):</span>
+            <span class="n">basis</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">sols</span><span class="p">[</span><span class="n">jj</span><span class="p">](</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">ii</span><span class="p">],</span><span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">ii</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">basis</span><span class="p">,</span> <span class="n">sols</span><span class="p">,</span> <span class="n">function_space</span></div>
+
+<div class="viewcode-block" id="helmholtz_basis"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis.html#pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis">[docs]</a><span class="k">def</span> <span class="nf">helmholtz_basis</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span><span class="n">active_speakers</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+    <span class="n">sols</span> <span class="o">=</span> <span class="p">[</span><span class="n">sols</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">active_speakers</span><span class="p">]</span>
+    <span class="n">basis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">)),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">)):</span>
+            <span class="n">basis</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">jj</span><span class="p">]</span> <span class="o">=</span> <span class="n">sols</span><span class="p">[</span><span class="n">jj</span><span class="p">](</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">ii</span><span class="p">],</span><span class="n">samples</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">ii</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">basis</span></div>
+
+<div class="viewcode-block" id="HelmholtzBasis"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.html#pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis">[docs]</a><span class="k">class</span> <span class="nc">HelmholtzBasis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">sols</span><span class="p">,</span><span class="n">active_speakers</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sols</span><span class="o">=</span><span class="n">sols</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">active_speakers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">active_speakers</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="HelmholtzBasis.__call__"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.html#pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">helmholtz_basis</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sols</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">active_speakers</span><span class="p">,</span><span class="n">samples</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="HelmholtzBasis.get_indices"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.html#pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.get_indices">[docs]</a>    <span class="k">def</span> <span class="nf">get_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">active_speakers</span><span class="o">.</span><span class="n">copy</span><span class="p">()[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:]</span></div></div>
+
+<div class="viewcode-block" id="get_helmholtz_speaker_boundary_conditions"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions.html#pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions">[docs]</a><span class="k">def</span> <span class="nf">get_helmholtz_speaker_boundary_conditions</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">,</span><span class="n">speaker_amplitudes</span><span class="p">,</span><span class="n">frequency</span><span class="p">):</span>
+    <span class="n">speaker_segment_indices</span><span class="p">,</span> <span class="n">cabinet_segment_indices</span> <span class="o">=</span> \
+        <span class="n">get_speaker_boundary_segment_indices</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">speaker_amplitudes</span><span class="p">):</span>
+        <span class="n">speaker_amplitudes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">speaker_amplitudes</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">speaker_segment_indices</span><span class="p">))</span>
+
+    <span class="c1">#1.204 is the standard atmospheric pressure</span>
+    <span class="n">omega</span> <span class="o">=</span> <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">frequency</span>
+    <span class="n">boundary_conditions</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+         <span class="p">[</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.204</span><span class="o">*</span><span class="n">omega</span><span class="o">*</span><span class="n">speaker_amplitudes</span><span class="p">[</span><span class="n">jj</span><span class="p">])]]</span>
+        <span class="k">for</span> <span class="n">jj</span><span class="p">,</span><span class="n">ii</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">speaker_segment_indices</span><span class="p">)]</span>
+
+    <span class="c1">#gamma=8.4e-4</span>
+    <span class="c1">#alpha=kappa*dl.Constant(gamma)</span>
+    <span class="c1">#make solution entirely imaginary, i.e. real part is zero</span>
+    <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span>
+    <span class="k">if</span> <span class="n">alpha</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+        <span class="c1">#print(&#39;neumann&#39;)</span>
+        <span class="n">boundary_conditions</span><span class="o">+=</span><span class="p">[</span>
+            <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="p">[</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)]]</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">cabinet_segment_indices</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">boundary_conditions</span><span class="o">+=</span><span class="p">[</span>
+            <span class="p">[</span><span class="s1">&#39;robin&#39;</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+             <span class="p">[</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],[</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="n">alpha</span><span class="p">]]</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">cabinet_segment_indices</span><span class="p">]</span>
+
+    <span class="n">tmp</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">boundary_conditions</span><span class="p">))]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">speaker_segment_indices</span><span class="p">)):</span>
+        <span class="n">tmp</span><span class="p">[</span><span class="n">speaker_segment_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">=</span><span class="n">boundary_conditions</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cabinet_segment_indices</span><span class="p">)):</span>
+        <span class="n">tmp</span><span class="p">[</span><span class="n">cabinet_segment_indices</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">=</span>\
+            <span class="n">boundary_conditions</span><span class="p">[</span><span class="n">ii</span><span class="o">+</span><span class="nb">len</span><span class="p">(</span><span class="n">speaker_segment_indices</span><span class="p">)]</span>
+    <span class="n">boundary_conditions</span><span class="o">=</span><span class="n">tmp</span>
+    <span class="k">return</span> <span class="n">boundary_conditions</span></div>
+
+<div class="viewcode-block" id="get_speaker_boundary_segment_indices"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices.html#pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices">[docs]</a><span class="k">def</span> <span class="nf">get_speaker_boundary_segment_indices</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">nsegments_per_edge</span><span class="o">&gt;</span><span class="mi">2</span>
+    <span class="n">speaker_segment_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nedges</span><span class="p">):</span>
+        <span class="n">speaker_segment_indices</span><span class="o">+=</span><span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ii</span><span class="o">*</span><span class="n">nsegments_per_edge</span><span class="p">,(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">nsegments_per_edge</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">cabinet_segment_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nedges</span><span class="o">*</span><span class="n">nsegments_per_edge</span><span class="p">),</span><span class="n">speaker_segment_indices</span><span class="p">)</span>
+    <span class="c1">#print(speaker_segment_indices, cabinet_segment_indices)</span>
+    <span class="k">return</span> <span class="n">speaker_segment_indices</span><span class="p">,</span> <span class="n">cabinet_segment_indices</span></div>
+
+<div class="viewcode-block" id="setup_helmholtz_model"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model.html#pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model">[docs]</a><span class="k">def</span> <span class="nf">setup_helmholtz_model</span><span class="p">(</span><span class="n">mesh_resolution</span><span class="p">,</span><span class="n">frequency</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span><span class="n">speaker_amplitudes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                          <span class="n">sound_speed</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">343</span><span class="p">,</span><span class="mi">6320</span><span class="p">,</span><span class="mi">343</span><span class="p">])):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    # 6320 speed of sound in aluminium</span>
+<span class="sd">    # 343 speed of sound of air at 20 degrees celsius</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nedges</span><span class="o">=</span><span class="mi">8</span>
+    <span class="n">ampothem</span><span class="o">=</span><span class="mf">1.5</span>
+    <span class="n">radius</span><span class="o">=</span><span class="mf">0.5</span>
+    <span class="c1">#edge_length = 2*np.tan(180/nedges)</span>
+    <span class="c1">#print(edge_length)</span>
+
+    <span class="c1"># mesh creation uses random ray tracing so load mesh from file</span>
+    <span class="n">mesh_filename</span> <span class="o">=</span> <span class="s1">&#39;helmholtz-mesh-res-</span><span class="si">%d</span><span class="s1">.xml&#39;</span><span class="o">%</span><span class="n">mesh_resolution</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">mesh_filename</span><span class="p">):</span>
+        <span class="c1">#print(&#39;generating mesh&#39;)</span>
+        <span class="n">mesh</span> <span class="o">=</span> <span class="n">generate_polygonal_mesh</span><span class="p">(</span>
+            <span class="n">mesh_resolution</span><span class="p">,</span><span class="n">ampothem</span><span class="p">,</span><span class="n">nedges</span><span class="p">,</span><span class="n">radius</span><span class="p">,</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">mesh_file</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">mesh_filename</span><span class="p">)</span>
+        <span class="n">mesh_file</span> <span class="o">&lt;&lt;</span> <span class="n">mesh</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1">#print(&#39;loading mesh&#39;, mesh_filename)</span>
+        <span class="n">mesh</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">mesh_filename</span><span class="p">)</span>
+
+    <span class="n">degree</span><span class="o">=</span><span class="mi">1</span>
+    <span class="n">P1</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">FiniteElement</span><span class="p">(</span><span class="s1">&#39;Lagrange&#39;</span><span class="p">,</span><span class="n">mesh</span><span class="o">.</span><span class="n">ufl_cell</span><span class="p">(),</span><span class="n">degree</span><span class="p">)</span>
+    <span class="n">element</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">MixedElement</span><span class="p">([</span><span class="n">P1</span><span class="p">,</span><span class="n">P1</span><span class="p">])</span>
+    <span class="n">function_space</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span><span class="n">element</span><span class="p">)</span>
+
+    <span class="n">omega</span> <span class="o">=</span> <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">frequency</span>
+
+    <span class="n">kappas</span> <span class="o">=</span> <span class="n">omega</span><span class="o">/</span><span class="n">sound_speed</span>
+    <span class="n">cx1</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">cx2</span> <span class="o">=</span> <span class="n">cx1</span><span class="o">-</span><span class="n">radius</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="n">kappa</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span><span class="s1">&#39;((x[0]-c1)*(x[0]-c1)+(x[1]-c1)*(x[1]-c1) &gt;= r*r + tol) ? k_0 : ((x[0]-c2)*(x[0]-c2)+(x[1]-c2)*(x[1]-c2)&gt;=r*r/4+tol ? k_1 : k_2)&#39;</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-14</span><span class="p">,</span> <span class="n">k_0</span><span class="o">=</span><span class="n">kappas</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k_1</span><span class="o">=</span><span class="n">kappas</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">k_2</span><span class="o">=</span><span class="n">kappas</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">r</span><span class="o">=</span><span class="n">radius</span><span class="p">,</span><span class="n">c1</span><span class="o">=</span><span class="n">cx1</span><span class="p">,</span><span class="n">c2</span><span class="o">=</span><span class="n">cx2</span><span class="p">)</span>
+
+    <span class="c1">#pp=dl.plot(kappa,mesh=mesh)</span>
+    <span class="c1">#plt.colorbar(pp)</span>
+    <span class="c1">#plt.show()</span>
+
+    <span class="n">forcing</span><span class="o">=</span><span class="p">[</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)]</span>
+
+    <span class="n">nsegments_per_edge</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">cumulative_segment_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0625</span><span class="p">,</span><span class="mf">0.9375</span><span class="p">,</span><span class="mf">1.</span><span class="p">]</span>
+    <span class="n">bndry_obj</span> <span class="o">=</span> <span class="n">get_polygon_boundary_segments</span><span class="p">(</span><span class="n">ampothem</span><span class="p">,</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">)</span>
+    <span class="n">boundary_conditions</span> <span class="o">=</span> <span class="n">get_helmholtz_speaker_boundary_conditions</span><span class="p">(</span><span class="n">nedges</span><span class="p">,</span><span class="n">nsegments_per_edge</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">,</span><span class="n">speaker_amplitudes</span><span class="p">,</span><span class="n">frequency</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">kappa</span><span class="p">,</span><span class="n">forcing</span><span class="p">,</span><span class="n">function_space</span><span class="p">,</span><span class="n">boundary_conditions</span><span class="p">,</span><span class="n">nedges</span><span class="p">,</span>\
+        <span class="n">nsegments_per_edge</span><span class="p">,</span> <span class="n">bndry_obj</span></div>
+
+<div class="viewcode-block" id="setup_mfnets_helmholtz_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark.html#pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_mfnets_helmholtz_benchmark</span><span class="p">(</span><span class="n">mesh_resolution</span><span class="o">=</span><span class="mi">51</span><span class="p">,</span><span class="n">noise_std</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup the multi-fidelity benchmark used to combine helmholtz data.</span>
+
+<span class="sd">    .. figure:: ../figures/helmholtz-octagon.png</span>
+<span class="sd">       :align: center</span>
+
+<span class="sd">       Experimental configuration. Speaker cones (green speakers), speaker cabinets (black segments), scatterer (red and blue circles).</span>
+
+<span class="sd">    For a fixed angular velocity :math:`\omega = 2\pi f`, the acoustic pressure :math:`u` is modeled using the (real) Helmholtz equation defined on an open regular octagon domain :math:`D` with apothem equal to 1.5 meters. The interior of :math:`D` contains a scatterer (red and blue circles) and each side of the octagon consists of an individual speaker and its cabinet; the centered green boundary segments are speaker cones which comprise 0.875 of the total edge length and the black segments are the cabinet walls. To simplify the problem, we model the scatterer as a dense fluid and ignore the impedance of the speaker cabinet.</span>
+
+<span class="sd">    .. math::  \Delta u + \kappa^2 u = 0 \quad\text{in }D, \qquad\qquad\frac{\partial u}{\partial n} = \rho_0\omega\sum_{j=1}^8 \theta_j\chi_j \quad\text{on }\partial D</span>
+
+<span class="sd">    where :math:`\kappa=\omega/c` is the wave number, :math:`c` is the speed of sound, :math:`\rho_0` is the fluid density, :math:`\chi_j:\partial D\to\{0,1\}` is the characteristic function of the :math:`j^{\text{th}}` speaker cone (green boundary segments in the figure), and :math:`\theta_j` is the acoustic velocity output by the :math:`j^{\text{th}}` speaker for :math:`j=1,\ldots,8` --- in other words, the :math:`j^{\text{th}}` speaker cone oscillates with velocity :math:`\theta_j\cos(\omega t)`. In this example we assume that the material in the red circle is made of aluminum for which the speed of sound is 6320 m/s and that the regions in the blue circle and exterior to the red circle are comprised of air at :math:`20^\circ\text{C}` which has a speed of sound of 343 m/s.  In addition, we set the frequency to be :math:`f=400` Hz and the fluid density to be that of air at :math:`20^\circ\text{C}` and standard atmospheric pressure, i.e. :math:`\rho_0=1.204 \text{kg/m}^3`.</span>
+
+<span class="sd">    The benchmark consists of data from three experiments each consisting of measurements of the acoustic pressure data :math:`u(x)`, at 5000 microphone locations :math:`x`. For the high-fideliy experiment we set the speaker amplitudes as :math:`\theta_{1,i}=1`, :math:`i=1,\ldots,8` and for the low-fidelity experiments we set :math:`\theta_{2,i}=1`, :math:`i=3,5,7` and :math:`\theta_{3,i}=3`, :math:`i=2,4,6,8`; all other speaker amplitudes are set to zero. Speakers are ordered counter clockwise with the first speaker located on the right vertical edge of the octagon. </span>
+
+<span class="sd">    Under these conditions each information source</span>
+
+<span class="sd">    .. math:: </span>
+
+<span class="sd">        u_1(x)=\sum_{i=1}^8 \phi_i(x)\theta_{1,i} \qquad   u_2(x)=\sum_{i=3,5,7} \phi_i(x)\theta_{2,i} \qquad   u_3(x)=\sum_{i=2,4,6,8} \phi_i(x)\theta_{3,i}</span>
+
+<span class="sd">    is a linear sum of basis functions :math:`\phi_i(x)` which correspond to solving the Helmholtz equation using only one active speaker. Specifically the basis :math:`\phi_i` is obtained by solving</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \Delta \phi + \kappa^2 \phi = 0 \quad\text{in }D,</span>
+<span class="sd">       \qquad\qquad\frac{\partial \phi}{\partial n} =  </span>
+<span class="sd">       \rho_0\omega\theta_i \quad\text{on }\partial D</span>
+
+<span class="sd">    The measurements of each experiment, taken at locations :math:`x_k^{(i)}` in the domain :math:`D`, are given by :math:`y_k^{(i)}=u_k(x_k^{(i)})+\epsilon_k^{(i)}` for each information source :math:`k=1,2,3`, where the noise :math:`\epsilon_k^{(i)}` is normally distributed with mean zero and unit variance. </span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mesh_resolution : integer</span>
+<span class="sd">        Specifies the resolution of the finite element mesh</span>
+
+<span class="sd">    noise_std : float</span>
+<span class="sd">        The standard deviation of the IID noise in the observations</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">        Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    samples : list </span>
+<span class="sd">        List with entries np.ndarray (nvars,nsamples) which contain the </span>
+<span class="sd">        locations :math:`x_k^{(i)}` of the observations of each </span>
+<span class="sd">        information source</span>
+
+<span class="sd">    obs : list np.ndarray (nsamples,1)</span>
+<span class="sd">        List with entries np.ndarray (nsamples,1) containing the values of</span>
+<span class="sd">        the noisy observations :math:`y_k^{(i)}` of each information source</span>
+
+<span class="sd">    bases : np.ndarray (nsamples,8)</span>
+<span class="sd">        The basis functions :math:`\phi_i` used to model the observations</span>
+<span class="sd">        </span>
+<span class="sd">    noise_std : float</span>
+<span class="sd">        The standard deviation of the IID noise in the observations. </span>
+<span class="sd">        This is just the value passed in to this function, stored for </span>
+<span class="sd">        convienience.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">active_speakers</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">6</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">7</span><span class="p">]]</span>
+    <span class="n">amplitudes</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">]]</span>
+    <span class="n">nsources</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">active_speakers</span><span class="p">)</span>
+
+    <span class="n">data_path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span><span class="s1">&#39;helmholtz_noise_data.txt&#39;</span><span class="p">)</span>
+    <span class="n">samples</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">)[:,:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nsources</span><span class="p">)]</span>
+
+    <span class="n">basis</span><span class="p">,</span><span class="n">sols</span><span class="p">,</span><span class="n">function_space</span><span class="o">=</span><span class="n">generate_helmholtz_bases</span><span class="p">(</span>
+        <span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">mesh_resolution</span><span class="p">)</span>
+    
+    <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">basis</span><span class="p">[:,</span><span class="n">active_speakers</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">amplitudes</span><span class="p">[</span><span class="n">ii</span><span class="p">])[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+              <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nsources</span><span class="p">)]</span>
+    
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">noise_std</span><span class="p">):</span>
+        <span class="n">noise_std</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">]</span><span class="o">*</span><span class="n">nsources</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">s</span><span class="p">,(</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span>
+              <span class="k">for</span> <span class="n">v</span><span class="p">,</span><span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">values</span><span class="p">,</span><span class="n">noise_std</span><span class="p">)]</span>
+
+    <span class="n">bases</span> <span class="o">=</span> <span class="p">[</span><span class="n">HelmholtzBasis</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span><span class="n">active_speakers</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+                   <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nsources</span><span class="p">)]</span>
+        
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">({</span><span class="s1">&#39;samples&#39;</span><span class="p">:</span><span class="n">samples</span><span class="p">,</span><span class="s1">&#39;obs&#39;</span><span class="p">:</span><span class="n">values</span><span class="p">,</span>
+                      <span class="s1">&#39;bases&#39;</span><span class="p">:</span><span class="n">bases</span><span class="p">,</span><span class="s1">&#39;noise_std&#39;</span><span class="p">:</span><span class="n">noise_std</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="plot_mfnets_helmholtz_benchmark_data"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data.html#pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data">[docs]</a><span class="k">def</span> <span class="nf">plot_mfnets_helmholtz_benchmark_data</span><span class="p">(</span><span class="n">benchmark</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.fenics_models.fenics_utilities</span> <span class="kn">import</span> \
+        <span class="n">get_vertices_of_polygon</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="n">ampothem</span><span class="p">,</span><span class="n">nedges</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span><span class="mi">8</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">get_vertices_of_polygon</span><span class="p">(</span><span class="n">ampothem</span><span class="p">,</span><span class="n">nedges</span><span class="p">)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">vertices</span><span class="p">,</span><span class="n">vertices</span><span class="p">[:,:</span><span class="mi">1</span><span class="p">]])</span>
+    <span class="n">active_speakers</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">6</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">7</span><span class="p">]]</span>
+
+    <span class="n">fig</span><span class="p">,</span><span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">plt</span><span class="o">.</span><span class="n">Circle</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">),</span><span class="mf">0.5</span><span class="p">,</span><span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+        <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">add_artist</span><span class="p">(</span><span class="n">plt</span><span class="o">.</span><span class="n">Circle</span><span class="p">((</span><span class="o">-</span><span class="mf">0.5</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">8</span><span class="p">),</span><span class="o">-</span><span class="mf">0.5</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">8</span><span class="p">)),</span><span class="mf">0.25</span><span class="p">,</span><span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">active_speakers</span><span class="p">[</span><span class="n">ii</span><span class="p">])):</span>
+            <span class="n">I</span> <span class="o">=</span> <span class="p">[</span><span class="n">active_speakers</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">jj</span><span class="p">],</span><span class="n">active_speakers</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">jj</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">I</span><span class="p">],</span><span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">I</span><span class="p">],</span><span class="s1">&#39;k-&#39;</span><span class="p">,</span><span class="n">lw</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+        <span class="n">p</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">0</span><span class="p">,:],</span><span class="n">benchmark</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="mi">1</span><span class="p">,:],</span><span class="n">c</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">ii</span><span class="p">][:,</span><span class="mi">0</span><span class="p">]),</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;viridis_r&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">ax</span><span class="o">=</span><span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+        <span class="n">axs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;off&#39;</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

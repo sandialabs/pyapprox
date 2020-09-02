@@ -1,0 +1,6 @@
+get_pymc_variable
+=================
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autofunction:: get_pymc_variable

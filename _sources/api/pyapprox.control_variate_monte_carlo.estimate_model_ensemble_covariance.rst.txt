@@ -1,0 +1,6 @@
+estimate_model_ensemble_covariance
+==================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: estimate_model_ensemble_covariance

@@ -1,0 +1,6 @@
+compute_mean_and_variance_sparse_grid
+=====================================
+
+.. currentmodule:: pyapprox.quadrature
+
+.. autofunction:: compute_mean_and_variance_sparse_grid

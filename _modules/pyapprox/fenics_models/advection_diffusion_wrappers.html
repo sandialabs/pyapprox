@@ -1,0 +1,827 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyapprox.fenics_models.advection_diffusion_wrappers &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyapprox.fenics_models.advection_diffusion_wrappers</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyapprox.fenics_models.advection_diffusion_wrappers</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">pyapprox.fenics_models.advection_diffusion</span> <span class="kn">import</span> <span class="o">*</span>
+
+<div class="viewcode-block" id="qoi_functional_misc"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc.html#pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc">[docs]</a><span class="k">def</span> <span class="nf">qoi_functional_misc</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use the QoI from [JEGGIJNME2020]</span>
+
+<span class="sd">    To reproduce adaptive multi index results use following </span>
+<span class="sd">    expr = dl.Expression(</span>
+<span class="sd">        &#39;1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)&#39;,</span>
+<span class="sd">        xk=0.3,yk=0.5,sigma=0.16,degree=2)</span>
+
+<span class="sd">    The /sigma*sigma is an error it should be 1/(2*sigma*sigma)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span>
+        <span class="s1">&#39;1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sigma*sigma))&#39;</span><span class="p">,</span>
+        <span class="n">xk</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span><span class="n">yk</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span><span class="n">sigma</span><span class="o">=</span><span class="mf">0.16</span><span class="p">,</span><span class="n">degree</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">qoi</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">assemble</span><span class="p">(</span><span class="n">u</span><span class="o">*</span><span class="n">expr</span><span class="o">*</span><span class="n">dl</span><span class="o">.</span><span class="n">dx</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">function_space</span><span class="p">()</span><span class="o">.</span><span class="n">mesh</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">qoi</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="get_misc_forcing"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing">[docs]</a><span class="k">def</span> <span class="nf">get_misc_forcing</span><span class="p">(</span><span class="n">degree</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use the forcing from [JEGGIJNME2020]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">forcing</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span>
+        <span class="s1">&#39;(1.5+cos(2*pi*t))*cos(x[0])&#39;</span><span class="p">,</span><span class="n">degree</span><span class="o">=</span><span class="n">degree</span><span class="p">,</span><span class="n">t</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">forcing</span></div>
+
+<div class="viewcode-block" id="get_gaussian_source_forcing"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing">[docs]</a><span class="k">def</span> <span class="nf">get_gaussian_source_forcing</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+    <span class="n">forcing</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span>
+        <span class="s1">&#39;A/(sig2*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sig2))&#39;</span><span class="p">,</span><span class="n">xk</span><span class="o">=</span><span class="n">random_sample</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">yk</span><span class="o">=</span><span class="n">random_sample</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">sig2</span><span class="o">=</span><span class="mf">0.05</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span><span class="n">A</span><span class="o">=</span><span class="mf">2.</span><span class="p">,</span><span class="n">degree</span><span class="o">=</span><span class="n">degree</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">forcing</span></div>
+
+<div class="viewcode-block" id="get_nobile_diffusivity"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity">[docs]</a><span class="k">def</span> <span class="nf">get_nobile_diffusivity</span><span class="p">(</span><span class="n">corr_len</span><span class="p">,</span><span class="n">degree</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="n">random_sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+    <span class="k">if</span> <span class="s1">&#39;2017&#39;</span> <span class="ow">in</span> <span class="n">dl</span><span class="o">.</span><span class="n">__version__</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">path</span><span class="p">,</span><span class="s2">&quot;src,&quot;&quot;nobile_diffusivity_fenics_class_2017.cpp&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">path</span><span class="p">,</span><span class="s2">&quot;src&quot;</span><span class="p">,</span><span class="s2">&quot;nobile_diffusivity_fenics_class.cpp&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">kappa_file</span><span class="p">:</span>
+        <span class="n">kappa_code</span><span class="o">=</span><span class="n">kappa_file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s1">&#39;2017&#39;</span> <span class="ow">in</span> <span class="n">dl</span><span class="o">.</span><span class="n">__version__</span><span class="p">:</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">UserExpression</span><span class="p">(</span><span class="n">kappa_code</span><span class="p">,</span><span class="n">degree</span><span class="o">=</span><span class="n">degree</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">CompiledExpression</span><span class="p">(</span>
+            <span class="n">dl</span><span class="o">.</span><span class="n">compile_cpp_code</span><span class="p">(</span><span class="n">kappa_code</span><span class="p">)</span><span class="o">.</span><span class="n">NobileDiffusivityExpression</span><span class="p">(),</span>
+            <span class="n">degree</span><span class="o">=</span><span class="n">degree</span><span class="p">)</span>
+    <span class="n">kappa</span><span class="o">.</span><span class="n">initialize_kle</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span><span class="n">corr_len</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s1">&#39;2017&#39;</span> <span class="ow">in</span> <span class="n">dl</span><span class="o">.</span><span class="n">__version__</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">random_sample</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">kappa</span><span class="o">.</span><span class="n">set_random_sample</span><span class="p">(</span><span class="n">random_sample</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">ii</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kappa</span><span class="o">.</span><span class="n">set_random_sample</span><span class="p">(</span><span class="n">random_sample</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">kappa</span></div>
+
+<div class="viewcode-block" id="get_default_velocity"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity">[docs]</a><span class="k">def</span> <span class="nf">get_default_velocity</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span><span class="n">vel_vec</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">vel_vec</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">((</span><span class="nb">str</span><span class="p">(</span><span class="n">vel_vec</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span><span class="nb">str</span><span class="p">(</span><span class="n">vel_vec</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span><span class="n">degree</span><span class="o">=</span><span class="n">degree</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="n">velocity</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">beta</span></div>
+
+<div class="viewcode-block" id="setup_dirichlet_and_periodic_boundary_conditions_and_function_space"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space">[docs]</a><span class="k">def</span> <span class="nf">setup_dirichlet_and_periodic_boundary_conditions_and_function_space</span><span class="p">(</span>
+        <span class="n">degree</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="n">pbc</span> <span class="o">=</span>  <span class="n">RectangularMeshPeriodicBoundary</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">function_space</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">(</span>
+        <span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">constrained_domain</span><span class="o">=</span><span class="n">pbc</span><span class="p">)</span>
+    <span class="n">bndry_obj</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">CompiledSubDomain</span><span class="p">(</span>
+        <span class="s2">&quot;on_boundary&amp;&amp;(near(x[0],0)||near(x[0],1))&quot;</span><span class="p">)</span>
+    <span class="n">boundary_conditions</span> <span class="o">=</span> <span class="p">[[</span><span class="s1">&#39;dirichlet&#39;</span><span class="p">,</span><span class="n">bndry_obj</span><span class="p">,</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)]]</span>
+    <span class="k">return</span> <span class="n">boundary_conditions</span></div>
+
+<div class="viewcode-block" id="setup_zero_flux_neumann_boundary_conditions"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions">[docs]</a><span class="k">def</span> <span class="nf">setup_zero_flux_neumann_boundary_conditions</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="n">function_space</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="n">degree</span><span class="p">)</span>
+    <span class="n">bndry_objs</span> <span class="o">=</span> <span class="n">get_2d_rectangular_mesh_boundaries</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">boundary_conditions</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+        <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+        <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+        <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)]]</span>
+    <span class="k">return</span> <span class="n">boundary_conditions</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel">[docs]</a><span class="k">class</span> <span class="nc">AdvectionDiffusionModel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>   
+
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+    <span class="c1"># Change the following functions to modify governing equations</span>
+    <span class="c1">#     initialize_random_expressions()</span>
+    <span class="c1">#     get_initial_condition()</span>
+    <span class="c1">#     get_boundary_conditions_and_function_space()</span>
+    <span class="c1">#     get_velocity()</span>
+    <span class="c1">#     get_forcing()</span>
+    <span class="c1">#     get_diffusivity()</span>
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.initialize_random_expressions"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.initialize_random_expressions">[docs]</a>    <span class="k">def</span> <span class="nf">initialize_random_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Overide this class to split random_samples into the parts that effect</span>
+<span class="sd">        the 5 random quantities</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">init_condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_initial_condition</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">function_space</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_boundary_conditions_and_function_space</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_velocity</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">forcing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_forcing</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_diffusivity</span><span class="p">(</span><span class="n">random_sample</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">init_condition</span><span class="p">,</span> <span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">function_space</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> \
+            <span class="n">forcing</span><span class="p">,</span> <span class="n">kappa</span></div>
+            
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_initial_condition"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_initial_condition">[docs]</a>    <span class="k">def</span> <span class="nf">get_initial_condition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;By Default the initial condition is deterministic and set to zero&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">initial_condition</span><span class="o">=</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">initial_condition</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_boundary_conditions_and_function_space"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_boundary_conditions_and_function_space">[docs]</a>    <span class="k">def</span> <span class="nf">get_boundary_conditions_and_function_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;By Default the boundary conditions are deterministic, Dirichlet and </span>
+<span class="sd">           and set to zero&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">function_space</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="n">boundary_conditions</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">boundary_conditions</span><span class="p">,</span><span class="n">function_space</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_velocity"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_velocity">[docs]</a>    <span class="k">def</span> <span class="nf">get_velocity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;By Default the advection is deterministic and set to zero&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">((</span><span class="nb">str</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="nb">str</span><span class="p">(</span><span class="mi">0</span><span class="p">)),</span><span class="n">degree</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">beta</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_forcing"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_forcing">[docs]</a>    <span class="k">def</span> <span class="nf">get_forcing</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;By Default the forcing is deterministic and set to </span>
+
+<span class="sd">        .. math:: (1.5+\cos(2\pi t))*cos(x_1)</span>
+<span class="sd">        </span>
+<span class="sd">        where :math:`t` is time and :math:`x_1` is the first spatial dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">forcing</span> <span class="o">=</span> <span class="n">get_misc_forcing</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">forcing</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_diffusivity"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_diffusivity">[docs]</a>    <span class="k">def</span> <span class="nf">get_diffusivity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Use the random diffusivity specified in [JEGGIJNME2020].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="n">get_nobile_diffusivity</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;corr_len&#39;</span><span class="p">],</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span><span class="n">random_sample</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">kappa</span></div>
+
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+    <span class="c1"># Change the following functions to modify mapping of discretization</span>
+    <span class="c1"># parameters to mesh and timestep resolution</span>
+    <span class="c1">#     get_timestep()</span>
+    <span class="c1">#     get_mesh_resolution()</span>
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_timestep"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_timestep">[docs]</a>    <span class="k">def</span> <span class="nf">get_timestep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">dt_level</span><span class="p">):</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_time</span><span class="o">/</span><span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">dt_level</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dt</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_mesh_resolution"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh_resolution">[docs]</a>    <span class="k">def</span> <span class="nf">get_mesh_resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">mesh_levels</span><span class="p">):</span>
+        <span class="n">nx_level</span><span class="p">,</span><span class="n">ny_level</span> <span class="o">=</span> <span class="n">mesh_levels</span>
+        <span class="n">nx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">nx_level</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">ny</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">ny_level</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nx</span><span class="p">,</span><span class="n">ny</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.get_mesh"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.get_mesh">[docs]</a>    <span class="k">def</span> <span class="nf">get_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">resolution_levels</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;The arguments to this function are the outputs of </span>
+<span class="sd">        get_degrees_of_freedom_and_timestep()&quot;&quot;&quot;</span>
+        <span class="n">nx</span><span class="p">,</span><span class="n">ny</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">resolution_levels</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">mesh</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">RectangleMesh</span><span class="p">(</span><span class="n">dl</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span><span class="n">dl</span><span class="o">.</span><span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mesh</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.set_num_config_vars"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.set_num_config_vars">[docs]</a>    <span class="k">def</span> <span class="nf">set_num_config_vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Should be equal to the number of physical dimensions + 1 </span>
+<span class="sd">        (for the temporal resolution)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="o">=</span><span class="mi">3</span></div>
+
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+    <span class="c1"># Do not change the following functions</span>
+    <span class="c1">#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">final_time</span><span class="p">,</span><span class="n">degree</span><span class="p">,</span><span class="n">qoi_functional</span><span class="p">,</span>
+                 <span class="n">second_order_timestepping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">options</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">final_time</span><span class="o">=</span><span class="n">final_time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">qoi_functional</span><span class="o">=</span><span class="n">qoi_functional</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="o">=</span><span class="n">degree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">second_order_timestepping</span><span class="o">=</span><span class="n">second_order_timestepping</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_num_config_vars</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">=</span><span class="n">options</span>
+
+<div class="viewcode-block" id="AdvectionDiffusionModel.solve"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.solve">[docs]</a>    <span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the simulation</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Dolfin objects must be initialized inside this function otherwise </span>
+<span class="sd">        this object cannot be pickled and used with multiprocessing.Pool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="mi">1</span>
+
+        <span class="n">resolution_levels</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_timestep</span><span class="p">(</span><span class="n">resolution_levels</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mesh</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mesh</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_mesh_resolution</span><span class="p">(</span><span class="n">resolution_levels</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+        
+        <span class="n">random_sample</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[:</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">init_condition</span><span class="p">,</span> <span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">function_space</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> \
+            <span class="n">forcing</span><span class="p">,</span> <span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialize_random_expressions</span><span class="p">(</span><span class="n">random_sample</span><span class="p">)</span>
+
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">run_model</span><span class="p">(</span>
+            <span class="n">function_space</span><span class="p">,</span><span class="n">kappa</span><span class="p">,</span><span class="n">forcing</span><span class="p">,</span>
+            <span class="n">init_condition</span><span class="p">,</span><span class="n">dt</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">final_time</span><span class="p">,</span>
+            <span class="n">boundary_conditions</span><span class="p">,</span><span class="n">velocity</span><span class="o">=</span><span class="n">beta</span><span class="p">,</span>
+            <span class="n">second_order_timestepping</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">second_order_timestepping</span><span class="p">,</span>
+            <span class="n">intermediate_times</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;intermediate_times&#39;</span><span class="p">,</span><span class="kc">None</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">sol</span></div>
+        
+<div class="viewcode-block" id="AdvectionDiffusionModel.__call__"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">qoi_functional</span><span class="p">(</span><span class="n">sol</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">vals</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">vals</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">vals</span></div></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionSourceInversionModel"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel">[docs]</a><span class="k">class</span> <span class="nc">AdvectionDiffusionSourceInversionModel</span><span class="p">(</span><span class="n">AdvectionDiffusionModel</span><span class="p">):</span>
+<div class="viewcode-block" id="AdvectionDiffusionSourceInversionModel.initialize_random_expressions"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.initialize_random_expressions">[docs]</a>    <span class="k">def</span> <span class="nf">initialize_random_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Overide this class to split random_samples into the parts that effect</span>
+<span class="sd">        the 5 random quantities</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">init_condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_initial_condition</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">function_space</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_boundary_conditions_and_function_space</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_velocity</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">forcing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_forcing</span><span class="p">(</span><span class="n">random_sample</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_diffusivity</span><span class="p">(</span><span class="n">random_sample</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+        <span class="k">return</span> <span class="n">init_condition</span><span class="p">,</span> <span class="n">boundary_conditions</span><span class="p">,</span> <span class="n">function_space</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> \
+            <span class="n">forcing</span><span class="p">,</span> <span class="n">kappa</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionSourceInversionModel.get_forcing"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.get_forcing">[docs]</a>    <span class="k">def</span> <span class="nf">get_forcing</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="n">source_stop_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_time</span>
+        <span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;source_strength&#39;</span><span class="p">]</span>
+        <span class="n">h</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;source_width&#39;</span><span class="p">]</span>
+        <span class="n">forcing</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Expression</span><span class="p">(</span>
+            <span class="s1">&#39;((t&gt;ft)?0.:1.)*s/(2.*pi*h*h)*std::exp(-(pow(x[0]-x0,2)+pow(x[1]-x1,2))/(2.*h*h))&#39;</span><span class="p">,</span><span class="n">x0</span><span class="o">=</span><span class="n">random_sample</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x1</span><span class="o">=</span><span class="n">random_sample</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">t</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">ft</span><span class="o">=</span><span class="n">source_stop_time</span><span class="p">,</span><span class="n">s</span><span class="o">=</span><span class="n">s</span><span class="p">,</span><span class="n">h</span><span class="o">=</span><span class="n">h</span><span class="p">,</span><span class="n">degree</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">forcing</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionSourceInversionModel.get_diffusivity"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.get_diffusivity">[docs]</a>    <span class="k">def</span> <span class="nf">get_diffusivity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Use the random diffusivity specified in [JEGGIJNME2020].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">kappa</span></div>
+
+<div class="viewcode-block" id="AdvectionDiffusionSourceInversionModel.get_boundary_conditions_and_function_space"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.get_boundary_conditions_and_function_space">[docs]</a>    <span class="k">def</span> <span class="nf">get_boundary_conditions_and_function_space</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span><span class="n">random_sample</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;By Default the boundary conditions are deterministic, Dirichlet and </span>
+<span class="sd">           and set to zero&quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">random_sample</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">function_space</span> <span class="o">=</span> <span class="n">dl</span><span class="o">.</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="n">bndry_objs</span> <span class="o">=</span> <span class="n">get_2d_rectangular_mesh_boundaries</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">boundary_conditions</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+            <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+            <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)],</span>
+            <span class="p">[</span><span class="s1">&#39;neumann&#39;</span><span class="p">,</span>  <span class="n">bndry_objs</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span><span class="n">dl</span><span class="o">.</span><span class="n">Constant</span><span class="p">(</span><span class="mi">0</span><span class="p">)]]</span>
+        <span class="k">return</span> <span class="n">boundary_conditions</span><span class="p">,</span><span class="n">function_space</span></div></div>
+
+<div class="viewcode-block" id="qoi_functional_source_inversion"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion.html#pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion">[docs]</a><span class="k">def</span> <span class="nf">qoi_functional_source_inversion</span><span class="p">(</span><span class="n">sols</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR </span>
+<span class="sd">    THE BAYESIAN SOLUTION OF INVERSE PROBLEMS</span>
+
+<span class="sd">    sensor_times t=0.1, t=0.2</span>
+<span class="sd">    noise std = 0.1</span>
+<span class="sd">    true source location = 0.25,0.25</span>
+<span class="sd">    source strength and width</span>
+<span class="sd">    s=2, sigma=0.05</span>
+<span class="sd">    difusivity = 1</span>
+
+<span class="sd">    Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn,</span>
+<span class="sd">    Stochastic spectral methods for efficient Bayesian solution of inverse problems,</span>
+<span class="sd">    Journal of Computational Physics,</span>
+<span class="sd">    Volume 224, Issue 2,</span>
+<span class="sd">    2007,</span>
+<span class="sd">    Pages 560-586,https://doi.org/10.1016/j.jcp.2006.10.010</span>
+
+<span class="sd">    noise_std = 0.4</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sensor_locations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">0.5</span><span class="p">,</span><span class="mf">1.</span><span class="p">],</span>
+         <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">1</span><span class="p">,</span><span class="mf">0.5</span><span class="p">],[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">sensor_locations</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">sols</span><span class="p">))</span>
+    <span class="n">kk</span><span class="o">=</span><span class="mi">0</span>
+    <span class="k">for</span> <span class="n">jj</span><span class="p">,</span><span class="n">sol</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sols</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span><span class="n">loc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sensor_locations</span><span class="o">.</span><span class="n">T</span><span class="p">):</span>
+            <span class="n">vals</span><span class="p">[</span><span class="n">kk</span><span class="p">]</span><span class="o">=</span><span class="n">sol</span><span class="p">(</span><span class="n">loc</span><span class="p">)</span>
+            <span class="n">kk</span><span class="o">+=</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="n">vals</span></div>
+
+<div class="viewcode-block" id="setup_advection_diffusion_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_advection_diffusion_benchmark</span><span class="p">(</span><span class="n">nvars</span><span class="p">,</span><span class="n">corr_len</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+
+<span class="sd">    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set </span>
+
+<span class="sd">    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),</span>
+
+<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.</span>
+
+<span class="sd">    and we model the diffusivity :math:`k` as a random field represented by the</span>
+<span class="sd">    Karhunen-Loeve (like) expansion (KLE)</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,</span>
+
+<span class="sd">    with</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k&gt;1,  \qquad\qquad  \phi(x)=</span>
+<span class="sd">       \begin{cases}</span>
+<span class="sd">       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ even}\,,\\</span>
+<span class="sd">       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) &amp; k \text{ odd}\,.</span>
+<span class="sd">       \end{cases}</span>
+
+<span class="sd">    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.</span>
+
+<span class="sd">    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional</span>
+
+<span class="sd">    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nvars : integer</span>
+<span class="sd">        The number of variables of the KLE</span>
+
+<span class="sd">    corr_len : float</span>
+<span class="sd">        The correlation length :math:`L_c` of the covariance kernel</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
+
+<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars`` </span>
+<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
+<span class="sd">        are configuration variables specifying the numerical discretization of </span>
+<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
+<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
+<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and </span>
+<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}` </span>
+<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration </span>
+<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
+<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep </span>
+<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
+
+<span class="sd">    variable : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed </span>
+<span class="sd">        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from pyapprox.benchmarks.benchmarks import setup_benchmark</span>
+<span class="sd">    &gt;&gt;&gt; benchmark=setup_benchmark(&#39;advection-diffusion&#39;,nvars=2)</span>
+<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
+<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">TimerModelWrapper</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> \
+        <span class="n">WorkTrackingModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">PoolModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">Benchmark</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">))]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span><span class="o">=</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">final_time</span><span class="p">,</span> <span class="n">degree</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span><span class="mi">1</span>
+    <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;corr_len&#39;</span><span class="p">:</span><span class="n">corr_len</span><span class="p">}</span>
+    <span class="n">base_model</span> <span class="o">=</span> <span class="n">AdvectionDiffusionModel</span><span class="p">(</span>
+        <span class="n">final_time</span><span class="p">,</span><span class="n">degree</span><span class="p">,</span><span class="n">qoi_functional_misc</span><span class="p">,</span><span class="n">second_order_timestepping</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+    <span class="c1"># add wrapper to allow execution times to be captured</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModelWrapper</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="n">pool_model</span><span class="o">=</span><span class="n">PoolModel</span><span class="p">(</span><span class="n">timer_model</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+
+    <span class="c1"># add wrapper that tracks execution times.</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">,</span><span class="n">base_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">)</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">model</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="setup_multi_level_advection_diffusion_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_multi_level_advection_diffusion_benchmark</span><span class="p">(</span>
+        <span class="n">nvars</span><span class="p">,</span><span class="n">corr_len</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep). An integer increase in the configure variable value will raise the 3 numerical discretiation paramaters by the same integer.</span>
+
+<span class="sd">    See :func:`pyapprox.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">TimerModelWrapper</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> \
+        <span class="n">WorkTrackingModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">PoolModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">Benchmark</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">MultiLevelWrapper</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">3</span><span class="p">))]</span><span class="o">*</span><span class="n">nvars</span>
+    <span class="n">variable</span><span class="o">=</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">final_time</span><span class="p">,</span> <span class="n">degree</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span><span class="mi">1</span>
+    <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;corr_len&#39;</span><span class="p">:</span><span class="n">corr_len</span><span class="p">}</span>
+    <span class="n">base_model</span> <span class="o">=</span> <span class="n">AdvectionDiffusionModel</span><span class="p">(</span>
+        <span class="n">final_time</span><span class="p">,</span><span class="n">degree</span><span class="p">,</span><span class="n">qoi_functional_misc</span><span class="p">,</span><span class="n">second_order_timestepping</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">multilevel_model</span><span class="o">=</span><span class="n">MultiLevelWrapper</span><span class="p">(</span>
+        <span class="n">base_model</span><span class="p">,</span><span class="n">base_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">)</span>
+    <span class="c1"># add wrapper to allow execution times to be captured</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModelWrapper</span><span class="p">(</span><span class="n">multilevel_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="n">pool_model</span><span class="o">=</span><span class="n">PoolModel</span><span class="p">(</span><span class="n">timer_model</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span>
+        <span class="n">pool_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">,</span><span class="n">multilevel_model</span><span class="o">.</span><span class="n">num_config_vars</span><span class="p">)</span>
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">model</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span>
+                  <span class="s1">&#39;multi_level_model&#39;</span><span class="p">:</span><span class="n">multilevel_model</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="setup_advection_diffusion_source_inversion_benchmark"><a class="viewcode-back" href="../../../api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark">[docs]</a><span class="k">def</span> <span class="nf">setup_advection_diffusion_source_inversion_benchmark</span><span class="p">(</span><span class="n">measurement_times</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.05</span><span class="p">,</span><span class="mf">0.15</span><span class="p">]),</span><span class="n">source_strength</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span><span class="n">source_width</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span><span class="n">true_sample</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.25</span><span class="p">,</span><span class="mf">0.75</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="n">noise_stdev</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute functionals of the following model of transient diffusion of </span>
+<span class="sd">    a contaminant</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\</span>
+<span class="sd">       \mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\</span>
+<span class="sd">       u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom</span>
+
+<span class="sd">    Following [MNRJCP2006]_, [LMSISC2014]_ we set </span>
+
+<span class="sd">    .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)</span>
+
+<span class="sd">    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero Neumann boundary conditions, i.e.</span>
+
+<span class="sd">    .. math:: \nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D</span>
+
+<span class="sd">    and we model the diffusivity :math:`k=1` as a constant.</span>
+
+<span class="sd">    The quantities of interest are point observations :math:`u(x_l)` </span>
+<span class="sd">    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L` </span>
+<span class="sd">    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last </span>
+<span class="sd">    observation time.</span>
+
+<span class="sd">    These functionals can be used to define the posterior distribution </span>
+
+<span class="sd">    .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}</span>
+
+<span class="sd">    where the prior is the tensor product of independent and identically </span>
+<span class="sd">    distributed uniform variables on :math:`[0,1]` i.e. </span>
+<span class="sd">    :math:`\pi(\rv)=1`, and the likelihood is given by</span>
+
+<span class="sd">    .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)</span>
+
+<span class="sd">    and :math:`y` are noisy observations of the solution `u` at the 9 </span>
+<span class="sd">    points of a uniform :math:`3\times 3` grid covering the physical domain </span>
+<span class="sd">    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is indepenent and Normally distrbuted with mean </span>
+<span class="sd">    zero and variance :math:`\sigma^2`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    measurement_times : np.ndarray (P)</span>
+<span class="sd">        The times :math:`\{t_p\}_{p=1}^P` at which measurements of the </span>
+<span class="sd">        contaminant concentration are taken</span>
+
+<span class="sd">    source_strength : float</span>
+<span class="sd">        The source strength :math:`s`</span>
+
+<span class="sd">    source_width : float</span>
+<span class="sd">        The source width :math:`h`</span>
+
+<span class="sd">    true_sample : np.ndarray (2)</span>
+<span class="sd">        The true location of the source used to generate the observations</span>
+<span class="sd">        used in the likelihood function</span>
+<span class="sd">    </span>
+<span class="sd">    noise_stdev : float</span>
+<span class="sd">        The standard deviation :math:`sigma` of the observational noise</span>
+
+<span class="sd">    max_eval_concurrency : integer</span>
+<span class="sd">        The maximum number of simulations that can be run in parallel. Should </span>
+<span class="sd">        be no more than the maximum number of cores on the computer being used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    benchmark : pya.Benchmark</span>
+<span class="sd">       Object containing the benchmark attributes documented below</span>
+
+<span class="sd">    fun : callable</span>
+
+<span class="sd">        The quantity of interest :math:`f(w)` with signature</span>
+
+<span class="sd">        ``fun(w) -&gt; np.ndarray``</span>
+
+<span class="sd">        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the</span>
+<span class="sd">        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars`` </span>
+<span class="sd">        rows of ``w`` are realizations of the random variables. The last 3 rows</span>
+<span class="sd">        are configuration variables specifying the numerical discretization of </span>
+<span class="sd">        the PDE model. Specifically the first and second configuration variables</span>
+<span class="sd">        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate</span>
+<span class="sd">        the resolution of the FEM mesh in the directions :math:`{x_1}` and </span>
+<span class="sd">        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}` </span>
+<span class="sd">        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration </span>
+<span class="sd">        variable specifies the level :math:`l_t` of the temporal discretization.</span>
+<span class="sd">        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep </span>
+<span class="sd">        size is and :math:`T/2^{l_{t}+2}`.</span>
+
+<span class="sd">    variable : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z</span>
+<span class="sd">        which is the tensor product of independent and identically distributed </span>
+<span class="sd">        uniform variables on :math:`[0,1]`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from pyapprox.benchmarks.benchmarks import setup_benchmark</span>
+<span class="sd">    &gt;&gt;&gt; benchmark=setup_benchmark(&#39;advection-diffusion&#39;,nvars=2)</span>
+<span class="sd">    &gt;&gt;&gt; print(benchmark.keys())</span>
+<span class="sd">    dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [MNRJCP2006] `Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn, Stochastic spectral methods for efficient Bayesian solution of inverse problems, Journal of Computational Physics, Volume 224, Issue 2, 2007, Pages 560-586, &lt;https://doi.org/10.1016/j.jcp.2006.10.010&gt;`_</span>
+
+<span class="sd">    .. [LMSISC2014] `Jinglai Li and Youssef M. Marzouk. Adaptive Construction of Surrogates for the Bayesian Solution of Inverse Problems, SIAM Journal on Scientific Computing 2014 36:3, A1163-A1186 &lt;https://doi.org/10.1137/130938189&gt;`_</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The example from [MNRJCP2006]_ can be obtained by setting `s=0.5`, `h=0.1`,</span>
+<span class="sd">    `measurement_times=np.array([0.05,0.15])` and `noise_stdev=0.1`</span>
+
+<span class="sd">    The example from [LMSISC2014]_ can be obtained by setting `s=2`, `h=0.05`,</span>
+<span class="sd">    `measurement_times=np.array([0.1,0.2])` and `noise_stdev=0.1`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">TimerModelWrapper</span><span class="p">,</span> <span class="n">PoolModel</span><span class="p">,</span> \
+        <span class="n">WorkTrackingModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.models.wrappers</span> <span class="kn">import</span> <span class="n">PoolModel</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">IndependentMultivariateRandomVariable</span>
+    <span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">Benchmark</span>
+    <span class="n">univariate_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+    <span class="n">variable</span><span class="o">=</span><span class="n">IndependentMultivariateRandomVariable</span><span class="p">(</span><span class="n">univariate_variables</span><span class="p">)</span>
+    <span class="n">final_time</span><span class="p">,</span> <span class="n">degree</span> <span class="o">=</span> <span class="n">measurement_times</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span><span class="mi">2</span>
+    <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;intermediate_times&#39;</span><span class="p">:</span><span class="n">measurement_times</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+             <span class="s1">&#39;source_strength&#39;</span><span class="p">:</span><span class="n">source_strength</span><span class="p">,</span><span class="s1">&#39;source_width&#39;</span><span class="p">:</span><span class="n">source_width</span><span class="p">}</span>
+    <span class="n">base_model</span> <span class="o">=</span> <span class="n">AdvectionDiffusionSourceInversionModel</span><span class="p">(</span>
+        <span class="n">final_time</span><span class="p">,</span><span class="n">degree</span><span class="p">,</span><span class="n">qoi_functional_source_inversion</span><span class="p">,</span>
+        <span class="n">second_order_timestepping</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+    <span class="c1"># add wrapper to allow execution times to be captured</span>
+    <span class="n">timer_model</span> <span class="o">=</span> <span class="n">TimerModelWrapper</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">)</span>
+    <span class="n">pool_model</span><span class="o">=</span><span class="n">PoolModel</span><span class="p">(</span><span class="n">timer_model</span><span class="p">,</span><span class="n">max_eval_concurrency</span><span class="p">,</span><span class="n">base_model</span><span class="o">=</span><span class="n">base_model</span><span class="p">)</span>
+    
+    <span class="c1"># add wrapper that tracks execution times.</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">WorkTrackingModel</span><span class="p">(</span><span class="n">pool_model</span><span class="p">,</span><span class="n">base_model</span><span class="p">)</span>
+    
+    <span class="kn">from</span> <span class="nn">pyapprox.bayesian_inference.markov_chain_monte_carlo</span> <span class="kn">import</span> \
+        <span class="n">GaussianLogLike</span>
+    <span class="k">if</span> <span class="n">true_sample</span><span class="o">.</span><span class="n">shape</span><span class="o">!=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;true_sample must be the concatenation of random sample and the &#39;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s1">&#39;configure sample&#39;</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">noiseless_data</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">true_sample</span><span class="p">)[</span><span class="mi">0</span><span class="p">,:]</span>
+    <span class="n">noise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">noise_stdev</span><span class="p">,(</span><span class="n">noiseless_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">noiseless_data</span> <span class="o">+</span> <span class="n">noise</span>
+    <span class="n">loglike</span> <span class="o">=</span> <span class="n">GaussianLogLike</span><span class="p">(</span><span class="n">model</span><span class="p">,</span><span class="n">data</span><span class="p">,</span><span class="n">noise_stdev</span><span class="p">)</span>
+    
+    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;fun&#39;</span><span class="p">:</span><span class="n">model</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="p">:</span><span class="n">variable</span><span class="p">,</span><span class="s1">&#39;loglike&#39;</span><span class="p">:</span><span class="n">loglike</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">attributes</span><span class="p">)</span></div>
+
+
+     
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

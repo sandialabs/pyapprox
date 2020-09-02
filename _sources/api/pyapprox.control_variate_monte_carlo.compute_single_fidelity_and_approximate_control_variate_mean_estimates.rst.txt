@@ -1,0 +1,6 @@
+compute_single_fidelity_and_approximate_control_variate_mean_estimates
+======================================================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: compute_single_fidelity_and_approximate_control_variate_mean_estimates

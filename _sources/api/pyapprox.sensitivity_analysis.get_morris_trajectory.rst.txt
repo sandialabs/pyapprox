@@ -1,0 +1,6 @@
+get_morris_trajectory
+=====================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: get_morris_trajectory

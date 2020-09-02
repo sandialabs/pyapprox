@@ -1,0 +1,1930 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Developer Reference Guide &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="adaptive_approximate" href="api/pyapprox.approximate.adaptive_approximate.html" />
+    <link rel="prev" title="User Reference Guide" href="user_reference_guide.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Developer Reference Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.approximate">pyapprox.approximate Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#functions">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate.html">adaptive_approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_polynomial_chaos.html">adaptive_approximate_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_sparse_grid.html">adaptive_approximate_sparse_grid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.approximate.html">approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.approximate_gaussian_process.html">approximate_gaussian_process</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.approximate_polynomial_chaos.html">approximate_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.compute_l2_error.html">compute_l2_error</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.cross_validate_pce_degree.html">cross_validate_pce_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.expand_basis.html">expand_basis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.expanding_basis_omp_pce.html">expanding_basis_omp_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.fit_linear_model.html">fit_linear_model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.restrict_basis.html">restrict_basis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#classes">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.approximate.ApproximateResult.html">ApproximateResult</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id6">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_morris.html">analyze_sensitivity_morris</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos.html">analyze_sensitivity_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid.html">analyze_sensitivity_sparse_grid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.downselect_morris_trajectories.html">downselect_morris_trajectories</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_main_and_total_effect_indices_from_pce.html">get_main_and_total_effect_indices_from_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_elementary_effects.html">get_morris_elementary_effects</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_samples.html">get_morris_samples</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_sensitivity_indices.html">get_morris_sensitivity_indices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_trajectory.html">get_morris_trajectory</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_sobol_indices.html">get_sobol_indices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_interaction_values.html">plot_interaction_values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_main_effects.html">plot_main_effects</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_total_effects.html">plot_total_effects</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.print_morris_sensitivity_indices.html">print_morris_sensitivity_indices</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.sensitivity_analysis.SensivitityResult.html">SensivitityResult</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.quadrature">pyapprox.quadrature Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id8">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.quadrature.compute_mean_and_variance_sparse_grid.html">compute_mean_and_variance_sparse_grid</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id9">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.quadrature.QuadratureResult.html">QuadratureResult</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id10">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_benchmark.html">setup_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark.html">setup_cantilever_beam_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_genz_function.html">setup_genz_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_ishigami_function.html">setup_ishigami_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_oakley_function.html">setup_oakley_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_rosenbrock_function.html">setup_rosenbrock_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_sobol_g_function.html">setup_sobol_g_function</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id11">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.Benchmark.html">Benchmark</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id16">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_ishigami_funciton_statistics.html">get_ishigami_funciton_statistics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data.html">get_oakley_function_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_sobol_g_function_statistics.html">get_sobol_g_function_statistics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function.html">ishigami_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_hessian.html">ishigami_function_hessian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_jacobian.html">ishigami_function_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.morris_function.html">morris_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.oakley_function.html">oakley_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.oakley_function_statistics.html">oakley_function_statistics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.sobol_g_function.html">sobol_g_function</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.variance_linear_combination_of_indendent_variables.html">variance_linear_combination_of_indendent_variables</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id17">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity.html">get_default_velocity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing.html">get_gaussian_source_forcing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing.html">get_misc_forcing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity.html">get_nobile_diffusivity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc.html">qoi_functional_misc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion.html">qoi_functional_source_inversion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html">setup_advection_diffusion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark.html">setup_advection_diffusion_source_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html">setup_dirichlet_and_periodic_boundary_conditions_and_function_space</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark.html">setup_multi_level_advection_diffusion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html">setup_zero_flux_neumann_boundary_conditions</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id18">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html">AdvectionDiffusionModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html">AdvectionDiffusionSourceInversionModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id19">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases.html">generate_helmholtz_bases</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions.html">get_helmholtz_speaker_boundary_conditions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices.html">get_speaker_boundary_segment_indices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis.html">helmholtz_basis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data.html">plot_mfnets_helmholtz_benchmark_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model.html">setup_helmholtz_model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark.html">setup_mfnets_helmholtz_benchmark</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id20">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.html">HelmholtzBasis</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id21">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_multivariate_orthonormal_basis_product.html">compute_multivariate_orthonormal_basis_product</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_product_coeffs_1d_for_each_variable.html">compute_product_coeffs_1d_for_each_variable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_univariate_orthonormal_basis_products.html">compute_univariate_orthonormal_basis_products</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion.html">conditional_moments_of_polynomial_chaos_expansion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.define_poly_options_from_variable.html">define_poly_options_from_variable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.define_poly_options_from_variable_transformation.html">define_poly_options_from_variable_transformation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial.html">evaluate_multivariate_orthonormal_polynomial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs.html">evaluate_multivariate_orthonormal_polynomial_derivs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs_deprecated.html">evaluate_multivariate_orthonormal_polynomial_derivs_deprecated</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values.html">evaluate_multivariate_orthonormal_polynomial_values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values_deprecated.html">evaluate_multivariate_orthonormal_polynomial_values_deprecated</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_polynomial_from_variable.html">get_polynomial_from_variable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_recursion_coefficients.html">get_recursion_coefficients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_tensor_product_quadrature_rule_from_pce.html">get_tensor_product_quadrature_rule_from_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_univariate_quadrature_rules_from_pce.html">get_univariate_quadrature_rules_from_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.multiply_multivariate_orthonormal_polynomial_expansions.html">multiply_multivariate_orthonormal_polynomial_expansions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values.html">precompute_multivariate_orthonormal_polynomial_univariate_values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated.html">precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.remove_variables_from_polynomial_chaos_expansion.html">remove_variables_from_polynomial_chaos_expansion</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id22">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html">PolynomialChaosExpansion</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id27">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict.html">extract_map_sample_from_pymc3_dict</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace.html">extract_mcmc_chain_from_pymc3_trace</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable.html">get_pymc_variable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables.html">get_pymc_variables</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model.html">run_bayesian_inference_gaussian_error_model</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id28">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.html">GaussianLogLike</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike.html">LogLike</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad.html">LogLikeGrad</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad.html">LogLikeWithGrad</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.html">PYMC3LogLikeWrapper</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id29">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.aoptimality_criterion.html">aoptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.compute_homoscedastic_outer_products.html">compute_homoscedastic_outer_products</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.compute_prediction_variance.html">compute_prediction_variance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.coptimality_criterion.html">coptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.doptimality_criterion.html">doptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result.html">extract_minimax_design_from_optimize_result</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result.html">extract_r_oed_design_from_optimize_result</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_M0_and_M1_matrices.html">get_M0_and_M1_matrices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_bounds.html">get_minimax_bounds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_default_initial_guess.html">get_minimax_default_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_linear_constraints.html">get_minimax_linear_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_bounds.html">get_r_oed_bounds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_default_initial_guess.html">get_r_oed_default_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_jacobian_structure.html">get_r_oed_jacobian_structure</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_linear_constraints.html">get_r_oed_linear_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.goptimality_criterion.html">goptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.ioptimality_criterion.html">ioptimality_criterion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_constraint_jacobian.html">minimax_oed_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_constraint_objective.html">minimax_oed_constraint_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_objective.html">minimax_oed_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_objective_jacobian.html">minimax_oed_objective_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.optimal_experimental_design.html">optimal_experimental_design</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_constraint_jacobian.html">r_oed_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_constraint_objective.html">r_oed_constraint_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_objective.html">r_oed_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_objective_jacobian.html">r_oed_objective_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_sparse_constraint_jacobian.html">r_oed_sparse_constraint_jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.roptimality_criterion.html">roptimality_criterion</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id30">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.optimal_experimental_design.AlphabetOptimalDesign.html">AlphabetOptimalDesign</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id35">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.combine_saved_model_data.html">combine_saved_model_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.default_map_to_multidimensional_index.html">default_map_to_multidimensional_index</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.eval.html">eval</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array.html">evaluate_1darray_function_on_2d_array</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.get_num_args.html">get_num_args</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.run_model_samples_in_parallel.html">run_model_samples_in_parallel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.run_shell_command.html">run_shell_command</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.time_function_evaluations.html">time_function_evaluations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id36">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.ActiveSetVariableModel.html">ActiveSetVariableModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.DataFunctionModel.html">DataFunctionModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.MultiLevelWrapper.html">MultiLevelWrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.PoolModel.html">PoolModel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.PyFunction.html">PyFunction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.SingleFidelityWrapper.html">SingleFidelityWrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.TimerModelWrapper.html">TimerModelWrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.WorkTracker.html">WorkTracker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.wrappers.WorkTrackingModel.html">WorkTrackingModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id41">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.models.async_model.AsynchronousEvaluationModel.html">AsynchronousEvaluationModel</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id42">Functions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint.html">acv_sample_allocation_cost_constraint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_all.html">acv_sample_allocation_cost_constraint_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_jacobian_all.html">acv_sample_allocation_cost_constraint_jacobian_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_lagrange_torch.html">acv_sample_allocation_jacobian_all_lagrange_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_torch.html">acv_sample_allocation_jacobian_all_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_torch.html">acv_sample_allocation_jacobian_torch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective.html">acv_sample_allocation_objective</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all.html">acv_sample_allocation_objective_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all_lagrange.html">acv_sample_allocation_objective_all_lagrange</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_sample_ratio_constraint.html">acv_sample_allocation_sample_ratio_constraint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_acv.html">allocate_samples_acv</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_acv_best_kl.html">allocate_samples_acv_best_kl</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_mfmc.html">allocate_samples_mfmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_mlmc.html">allocate_samples_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.bootstrap_mfmc_estimator.html">bootstrap_mfmc_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.bootstrap_monte_carlo_estimator.html">bootstrap_monte_carlo_estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compare_estimator_variances.html">compare_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_approximate_control_variate_mean_estimate.html">compute_approximate_control_variate_mean_estimate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_control_variate_mean_estimate.html">compute_control_variate_mean_estimate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_correlations_from_covariance.html">compute_correlations_from_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_covariance_from_control_variate_samples.html">compute_covariance_from_control_variate_samples</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_single_fidelity_and_approximate_control_variate_mean_estimates.html">compute_single_fidelity_and_approximate_control_variate_mean_estimates</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.estimate_model_ensemble_covariance.html">estimate_model_ensemble_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.estimate_variance_reduction.html">estimate_variance_reduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_IS.html">generate_samples_and_values_acv_IS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_KL.html">generate_samples_and_values_acv_KL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc.html">generate_samples_and_values_mfmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc.html">generate_samples_and_values_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints.html">get_allocate_samples_acv_trust_region_constraints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_approximate_control_variate_weights.html">get_approximate_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_control_variate_rsquared.html">get_control_variate_rsquared</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_control_variate_weights.html">get_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_IS.html">get_discrepancy_covariances_IS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_KL.html">get_discrepancy_covariances_KL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_MF.html">get_discrepancy_covariances_MF</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_initial_guess.html">get_initial_guess</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_lagrange_multiplier_mlmc.html">get_lagrange_multiplier_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights.html">get_mfmc_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights_pool_wrapper.html">get_mfmc_control_variate_weights_pool_wrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights.html">get_mlmc_control_variate_weights</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights_pool_wrapper.html">get_mlmc_control_variate_weights_pool_wrapper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_pilot_covariance.html">get_pilot_covariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_acv.html">get_rsquared_acv</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_acv_KL_best.html">get_rsquared_acv_KL_best</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_mfmc.html">get_rsquared_mfmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_mlmc.html">get_rsquared_mlmc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_variance_reduction.html">get_variance_reduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.plot_acv_sample_allocation.html">plot_acv_sample_allocation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.plot_estimator_variances.html">plot_estimator_variances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_slsqp_optimization.html">solve_allocate_samples_acv_slsqp_optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_trust_region_optimization.html">solve_allocate_samples_acv_trust_region_optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.standardize_sample_ratios.html">standardize_sample_ratios</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.validate_nsample_ratios.html">validate_nsample_ratios</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id43">Classes</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMF.html">ACVMF</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMFKL.html">ACVMFKL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMFKLBest.html">ACVMFKLBest</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MC.html">MC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MFMC.html">MFMC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MLMC.html">MLMC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ModelEnsemble.html">ModelEnsemble</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Developer Reference Guide</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/modules.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="developer-reference-guide">
+<h1>Developer Reference Guide<a class="headerlink" href="#developer-reference-guide" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-pyapprox.approximate">
+<span id="pyapprox-approximate-module"></span><h2>pyapprox.approximate Module<a class="headerlink" href="#module-pyapprox.approximate" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate.html#pyapprox.approximate.adaptive_approximate" title="pyapprox.approximate.adaptive_approximate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">adaptive_approximate</span></code></a>(fun, variable, method)</p></td>
+<td><p>Adaptive approximation of a scalar or vector-valued function of one or  more variables.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_polynomial_chaos.html#pyapprox.approximate.adaptive_approximate_polynomial_chaos" title="pyapprox.approximate.adaptive_approximate_polynomial_chaos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">adaptive_approximate_polynomial_chaos</span></code></a>(fun, …)</p></td>
+<td><p>Compute an adaptive Polynomial Chaos Expansion of a function.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_sparse_grid.html#pyapprox.approximate.adaptive_approximate_sparse_grid" title="pyapprox.approximate.adaptive_approximate_sparse_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">adaptive_approximate_sparse_grid</span></code></a>(fun, …[, …])</p></td>
+<td><p>Compute a sparse grid approximation of a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.approximate.approximate.html#pyapprox.approximate.approximate" title="pyapprox.approximate.approximate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">approximate</span></code></a>(train_samples, train_vals, method)</p></td>
+<td><p>Approximate a scalar or vector-valued function of one or  more variables from a set of points provided by the user</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.approximate_gaussian_process.html#pyapprox.approximate.approximate_gaussian_process" title="pyapprox.approximate.approximate_gaussian_process"><code class="xref py py-obj docutils literal notranslate"><span class="pre">approximate_gaussian_process</span></code></a>(train_samples, …)</p></td>
+<td><p>Compute a Gaussian process approximation of a function from a fixed data  set using the Matern kernel</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.approximate.approximate_polynomial_chaos.html#pyapprox.approximate.approximate_polynomial_chaos" title="pyapprox.approximate.approximate_polynomial_chaos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">approximate_polynomial_chaos</span></code></a>(train_samples, …)</p></td>
+<td><p>Compute a Polynomial Chaos Expansion of a function from a fixed data set.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">clenshaw_curtis_rule_growth</span></code>(level)</p></td>
+<td><p>The number of samples in the 1D Clenshaw-Curtis quadrature rule of a given level.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_hyperbolic_indices</span></code>(num_vars, level)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.compute_l2_error.html#pyapprox.approximate.compute_l2_error" title="pyapprox.approximate.compute_l2_error"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_l2_error</span></code></a>(f, g, variable, nsamples[, rel])</p></td>
+<td><p>Compute the <span class="math notranslate nohighlight">\(\ell^2\)</span> error of the output of two functions f and g, i.e.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.approximate.cross_validate_pce_degree.html#pyapprox.approximate.cross_validate_pce_degree" title="pyapprox.approximate.cross_validate_pce_degree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cross_validate_pce_degree</span></code></a>(pce, …[, …])</p></td>
+<td><p>Use cross validation to find the polynomial degree which best fits the data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.expand_basis.html#pyapprox.approximate.expand_basis" title="pyapprox.approximate.expand_basis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">expand_basis</span></code></a>(indices)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.approximate.expanding_basis_omp_pce.html#pyapprox.approximate.expanding_basis_omp_pce" title="pyapprox.approximate.expanding_basis_omp_pce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">expanding_basis_omp_pce</span></code></a>(pce, train_samples, …)</p></td>
+<td><p>Iteratively expand and restrict the polynomial basis and use  cross validation to find the best basis <a class="reference internal" href="api/pyapprox.approximate.expanding_basis_omp_pce.html#r7617a192da2c-jesjcp2015" id="id1"><span>[R7617a192da2c-JESJCP2015]</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.fit_linear_model.html#pyapprox.approximate.fit_linear_model" title="pyapprox.approximate.fit_linear_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fit_linear_model</span></code></a>(basis_matrix, train_vals, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_independent_random_samples</span></code>(…[, …])</p></td>
+<td><p>Generate samples from a tensor-product probability measure.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_backward_neighbor</span></code>(subspace_index, var_num)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_forward_neighbor</span></code>(subspace_index, var_num)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sparse_grid_univariate_leja_quadrature_rules_economical</span></code>(…)</p></td>
+<td><p>Return a list of unique quadrature rules.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">hash_array</span></code>(array[, decimals])</p></td>
+<td><p>Hash an array for dictionary or set based lookup</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_bounded_continuous_variable</span></code>(rv)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_level_admissibility_function</span></code>(max_level, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.restrict_basis.html#pyapprox.approximate.restrict_basis" title="pyapprox.approximate.restrict_basis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">restrict_basis</span></code></a>(indices, coefficients, tol)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">variance_pce_refinement_indicator</span></code>(…[, …])</p></td>
+<td><p>Set pce coefficients of new subspace poly indices to zero to compute previous mean then set them to be non-zero</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">variance_refinement_indicator</span></code>(…[, …])</p></td>
+<td><p>when config index is increased but the other indices are 0 the subspace will only have one random sample.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdaptiveLejaPCE</span></code>(num_vars, candidate_samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">AffineRandomVariableTransformation</span></code>(variable)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.approximate.ApproximateResult.html#pyapprox.approximate.ApproximateResult" title="pyapprox.approximate.ApproximateResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ApproximateResult</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">CombinationSparseGrid</span></code>(num_vars)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">IndependentMultivariateRandomVariable</span></code>(…[, …])</p></td>
+<td><p>Class representing independent random variables</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">LarsCV</span></code>(**kwargs)</p></td>
+<td><p>Cross-validated Least Angle Regression model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">LassoCV</span></code>(**kwargs)</p></td>
+<td><p>Lasso linear model with iterative fitting along a regularization path.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">LassoLarsCV</span></code>(**kwargs)</p></td>
+<td><p>Cross-validated Lasso, using the LARS algorithm.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OptimizeResult</span></code></p></td>
+<td><p>Represents the optimization result.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OrthogonalMatchingPursuitCV</span></code>(**kwargs)</p></td>
+<td><p>Cross-validated Orthogonal Matching Pursuit model (OMP).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id2"><span class="problematic" id="id3">*</span></a>args, <a href="#id4"><span class="problematic" id="id5">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.sensitivity_analysis">
+<span id="pyapprox-sensitivity-analysis-module"></span><h2>pyapprox.sensitivity_analysis Module<a class="headerlink" href="#module-pyapprox.sensitivity_analysis" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id6">
+<h3>Functions<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_morris.html#pyapprox.sensitivity_analysis.analyze_sensitivity_morris" title="pyapprox.sensitivity_analysis.analyze_sensitivity_morris"><code class="xref py py-obj docutils literal notranslate"><span class="pre">analyze_sensitivity_morris</span></code></a>(fun, …[, nlevels])</p></td>
+<td><p>Compute sensitivity indices by constructing an adaptive polynomial chaos expansion.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos.html#pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos" title="pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">analyze_sensitivity_polynomial_chaos</span></code></a>(pce[, …])</p></td>
+<td><p>Compute variance based sensitivity metrics from a polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid.html#pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid" title="pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">analyze_sensitivity_sparse_grid</span></code></a>(sparse_grid)</p></td>
+<td><p>Compute sensitivity indices from a sparse grid by converting it to a polynomial chaos expansion</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cdist</span></code>(XA, XB[, metric])</p></td>
+<td><p>Compute distance between each pair of the two collections of inputs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_hyperbolic_indices</span></code>(num_vars, level)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.downselect_morris_trajectories.html#pyapprox.sensitivity_analysis.downselect_morris_trajectories" title="pyapprox.sensitivity_analysis.downselect_morris_trajectories"><code class="xref py py-obj docutils literal notranslate"><span class="pre">downselect_morris_trajectories</span></code></a>(samples, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_main_and_total_effect_indices_from_pce.html#pyapprox.sensitivity_analysis.get_main_and_total_effect_indices_from_pce" title="pyapprox.sensitivity_analysis.get_main_and_total_effect_indices_from_pce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_main_and_total_effect_indices_from_pce</span></code></a>(…)</p></td>
+<td><p>Assume basis is orthonormal Assume first coefficient is the coefficient of the constant basis.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_elementary_effects.html#pyapprox.sensitivity_analysis.get_morris_elementary_effects" title="pyapprox.sensitivity_analysis.get_morris_elementary_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_morris_elementary_effects</span></code></a>(samples, values)</p></td>
+<td><p>Get the Morris elementary effects from a set of trajectories.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_samples.html#pyapprox.sensitivity_analysis.get_morris_samples" title="pyapprox.sensitivity_analysis.get_morris_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_morris_samples</span></code></a>(nvars, nlevels, ntrajectories)</p></td>
+<td><p>Compute a set of Morris trajectories used to compute elementary effects</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_sensitivity_indices.html#pyapprox.sensitivity_analysis.get_morris_sensitivity_indices" title="pyapprox.sensitivity_analysis.get_morris_sensitivity_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_morris_sensitivity_indices</span></code></a>(elem_effects)</p></td>
+<td><p>Compute the Morris sensitivity indices mu and sigma from the elementary  effects computed for a set of trajectories.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_morris_trajectory.html#pyapprox.sensitivity_analysis.get_morris_trajectory" title="pyapprox.sensitivity_analysis.get_morris_trajectory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_morris_trajectory</span></code></a>(nvars, nlevels[, eps])</p></td>
+<td><p>Compute a morris trajectory used to compute elementary effects</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.get_sobol_indices.html#pyapprox.sensitivity_analysis.get_sobol_indices" title="pyapprox.sensitivity_analysis.get_sobol_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sobol_indices</span></code></a>(coefficients, indices[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">hash_array</span></code>(array[, decimals])</p></td>
+<td><p>Hash an array for dictionary or set based lookup</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">nchoosek</span></code>(nn, kk)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_interaction_values.html#pyapprox.sensitivity_analysis.plot_interaction_values" title="pyapprox.sensitivity_analysis.plot_interaction_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_interaction_values</span></code></a>(interaction_values, …)</p></td>
+<td><p>Plot sobol indices in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_main_effects.html#pyapprox.sensitivity_analysis.plot_main_effects" title="pyapprox.sensitivity_analysis.plot_main_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_main_effects</span></code></a>(main_effects, ax[, …])</p></td>
+<td><p>Plot the main effects in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_total_effects.html#pyapprox.sensitivity_analysis.plot_total_effects" title="pyapprox.sensitivity_analysis.plot_total_effects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_total_effects</span></code></a>(total_effects, ax[, …])</p></td>
+<td><p>Plot the total effects in a pie chart showing relative size.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.print_morris_sensitivity_indices.html#pyapprox.sensitivity_analysis.print_morris_sensitivity_indices" title="pyapprox.sensitivity_analysis.print_morris_sensitivity_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_morris_sensitivity_indices</span></code></a>(mu, sigma)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id7">
+<h3>Classes<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OptimizeResult</span></code></p></td>
+<td><p>Represents the optimization result.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.SensivitityResult.html#pyapprox.sensitivity_analysis.SensivitityResult" title="pyapprox.sensitivity_analysis.SensivitityResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SensivitityResult</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">combinations</span></code></p></td>
+<td><p>combinations(iterable, r) –&gt; combinations object</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.quadrature">
+<span id="pyapprox-quadrature-module"></span><h2>pyapprox.quadrature Module<a class="headerlink" href="#module-pyapprox.quadrature" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id8">
+<h3>Functions<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.quadrature.compute_mean_and_variance_sparse_grid.html#pyapprox.quadrature.compute_mean_and_variance_sparse_grid" title="pyapprox.quadrature.compute_mean_and_variance_sparse_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_mean_and_variance_sparse_grid</span></code></a>(…[, …])</p></td>
+<td><p>Compute the mean and variance of a sparse_grid by converting it to  a polynomial chaos expansion</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id9">
+<h3>Classes<a class="headerlink" href="#id9" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OptimizeResult</span></code></p></td>
+<td><p>Represents the optimization result.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.quadrature.QuadratureResult.html#pyapprox.quadrature.QuadratureResult" title="pyapprox.quadrature.QuadratureResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">QuadratureResult</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.benchmarks.benchmarks">
+<span id="pyapprox-benchmarks-benchmarks-module"></span><h2>pyapprox.benchmarks.benchmarks Module<a class="headerlink" href="#module-pyapprox.benchmarks.benchmarks" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id10">
+<h3>Functions<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">beam_constraint_I</span></code>(samples)</p></td>
+<td><p>Desired behavior is when constraint is less than 0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">beam_constraint_II</span></code>(samples)</p></td>
+<td><p>Desired behavior is when constraint is less than 0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">beam_constraint_II_design_jac</span></code>(samples)</p></td>
+<td><p>Jacobian with respect to the design variables Desired behavior is when constraint is less than 0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">beam_constraint_I_design_jac</span></code>(samples)</p></td>
+<td><p>Jacobian with respect to the design variables Desired behavior is when constraint is less than 0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cantilever_beam_constraints</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cantilever_beam_constraints_jacobian</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cantilever_beam_objective</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cantilever_beam_objective_grad</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_beam_random_variables</span></code>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_quadratic_form</span></code>(matrix, samples)</p></td>
+<td><p>Evaluate x.T.dot(A).dot(x) for several vectors x</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ishigami_funciton_statistics</span></code>([a, b])</p></td>
+<td><p>p_i(X_i) ~ U[-pi,pi]</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_oakley_function_data</span></code>()</p></td>
+<td><p>Get the data <span class="math notranslate nohighlight">\(a_1,a_2,a_3\)</span> and <span class="math notranslate nohighlight">\(M\)</span> of the Oakley function</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sobol_g_function_statistics</span></code>(a[, …])</p></td>
+<td><p>See article: Variance based sensitivity analysis of model output.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function</span></code>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function_hessian</span></code>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function_jacobian</span></code>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">morris_function</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">oakley_function</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">oakley_function_statistics</span></code>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosen</span></code>(x)</p></td>
+<td><p>The Rosenbrock function.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosen_der</span></code>(x)</p></td>
+<td><p>The derivative (i.e.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosen_hess_prod</span></code>(x, p)</p></td>
+<td><p>Product of the Hessian matrix of the Rosenbrock function with a vector.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosenbrock_function</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosenbrock_function_hessian_prod</span></code>(samples, vec)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosenbrock_function_jacobian</span></code>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rosenbrock_function_mean</span></code>(nvars)</p></td>
+<td><p>Mean of rosenbrock function with uniform variables in [-2,2]^d</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_advection_diffusion_benchmark</span></code>(nvars, …)</p></td>
+<td><p>Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_advection_diffusion_source_inversion_benchmark</span></code>([…])</p></td>
+<td><p>Compute functionals of the following model of transient diffusion of  a contaminant</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_benchmark.html#pyapprox.benchmarks.benchmarks.setup_benchmark" title="pyapprox.benchmarks.benchmarks.setup_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_benchmark</span></code></a>(name, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark.html#pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark" title="pyapprox.benchmarks.benchmarks.setup_cantilever_beam_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_cantilever_beam_benchmark</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_genz_function.html#pyapprox.benchmarks.benchmarks.setup_genz_function" title="pyapprox.benchmarks.benchmarks.setup_genz_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_genz_function</span></code></a>(nvars, test_name[, …])</p></td>
+<td><p>Setup the Genz Benchmarks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_ishigami_function.html#pyapprox.benchmarks.benchmarks.setup_ishigami_function" title="pyapprox.benchmarks.benchmarks.setup_ishigami_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_ishigami_function</span></code></a>(a, b)</p></td>
+<td><p>Setup the Ishigami function benchmark</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_mfnets_helmholtz_benchmark</span></code>([…])</p></td>
+<td><p>Setup the multi-fidelity benchmark used to combine helmholtz data.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_multi_level_advection_diffusion_benchmark</span></code>(…)</p></td>
+<td><p>Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_oakley_function.html#pyapprox.benchmarks.benchmarks.setup_oakley_function" title="pyapprox.benchmarks.benchmarks.setup_oakley_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_oakley_function</span></code></a>()</p></td>
+<td><p>Setup the Oakely function benchmark</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_rosenbrock_function.html#pyapprox.benchmarks.benchmarks.setup_rosenbrock_function" title="pyapprox.benchmarks.benchmarks.setup_rosenbrock_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_rosenbrock_function</span></code></a>(nvars)</p></td>
+<td><p>Setup the Rosenbrock function benchmark</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.setup_sobol_g_function.html#pyapprox.benchmarks.benchmarks.setup_sobol_g_function" title="pyapprox.benchmarks.benchmarks.setup_sobol_g_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_sobol_g_function</span></code></a>(nvars)</p></td>
+<td><p>Setup the Sobol-G function benchmark</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">sobol_g_function</span></code>(coefficients, samples)</p></td>
+<td><p>The coefficients control the sensitivity of each variable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">variance_linear_combination_of_indendent_variables</span></code>(…)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id11">
+<h3>Classes<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.benchmarks.Benchmark.html#pyapprox.benchmarks.benchmarks.Benchmark" title="pyapprox.benchmarks.benchmarks.Benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Benchmark</span></code></a></p></td>
+<td><p>Contains functions and results needed to implement known benchmarks.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">DesignVariable</span></code>(bounds)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">GenzFunction</span></code>(func_type, num_vars[, c, w, name])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">IndependentMultivariateRandomVariable</span></code>(…[, …])</p></td>
+<td><p>Class representing independent random variables</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">OptimizeResult</span></code></p></td>
+<td><p>Represents the optimization result.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id12"><span class="problematic" id="id13">*</span></a>args, <a href="#id14"><span class="problematic" id="id15">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.benchmarks.sensitivity_benchmarks">
+<span id="pyapprox-benchmarks-sensitivity-benchmarks-module"></span><h2>pyapprox.benchmarks.sensitivity_benchmarks Module<a class="headerlink" href="#module-pyapprox.benchmarks.sensitivity_benchmarks" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id16">
+<h3>Functions<a class="headerlink" href="#id16" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_quadratic_form</span></code>(matrix, samples)</p></td>
+<td><p>Evaluate x.T.dot(A).dot(x) for several vectors x</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_ishigami_funciton_statistics.html#pyapprox.benchmarks.sensitivity_benchmarks.get_ishigami_funciton_statistics" title="pyapprox.benchmarks.sensitivity_benchmarks.get_ishigami_funciton_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ishigami_funciton_statistics</span></code></a>([a, b])</p></td>
+<td><p>p_i(X_i) ~ U[-pi,pi]</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data.html#pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data" title="pyapprox.benchmarks.sensitivity_benchmarks.get_oakley_function_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_oakley_function_data</span></code></a>()</p></td>
+<td><p>Get the data <span class="math notranslate nohighlight">\(a_1,a_2,a_3\)</span> and <span class="math notranslate nohighlight">\(M\)</span> of the Oakley function</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.get_sobol_g_function_statistics.html#pyapprox.benchmarks.sensitivity_benchmarks.get_sobol_g_function_statistics" title="pyapprox.benchmarks.sensitivity_benchmarks.get_sobol_g_function_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_sobol_g_function_statistics</span></code></a>(a[, …])</p></td>
+<td><p>See article: Variance based sensitivity analysis of model output.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function.html#pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function" title="pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function</span></code></a>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_hessian.html#pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_hessian" title="pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_hessian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function_hessian</span></code></a>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_jacobian.html#pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_jacobian" title="pyapprox.benchmarks.sensitivity_benchmarks.ishigami_function_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ishigami_function_jacobian</span></code></a>(samples[, a, b])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.morris_function.html#pyapprox.benchmarks.sensitivity_benchmarks.morris_function" title="pyapprox.benchmarks.sensitivity_benchmarks.morris_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">morris_function</span></code></a>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.oakley_function.html#pyapprox.benchmarks.sensitivity_benchmarks.oakley_function" title="pyapprox.benchmarks.sensitivity_benchmarks.oakley_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">oakley_function</span></code></a>(samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.oakley_function_statistics.html#pyapprox.benchmarks.sensitivity_benchmarks.oakley_function_statistics" title="pyapprox.benchmarks.sensitivity_benchmarks.oakley_function_statistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">oakley_function_statistics</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.sobol_g_function.html#pyapprox.benchmarks.sensitivity_benchmarks.sobol_g_function" title="pyapprox.benchmarks.sensitivity_benchmarks.sobol_g_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sobol_g_function</span></code></a>(coefficients, samples)</p></td>
+<td><p>The coefficients control the sensitivity of each variable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.benchmarks.sensitivity_benchmarks.variance_linear_combination_of_indendent_variables.html#pyapprox.benchmarks.sensitivity_benchmarks.variance_linear_combination_of_indendent_variables" title="pyapprox.benchmarks.sensitivity_benchmarks.variance_linear_combination_of_indendent_variables"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variance_linear_combination_of_indendent_variables</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.fenics_models.advection_diffusion_wrappers">
+<span id="pyapprox-fenics-models-advection-diffusion-wrappers-module"></span><h2>pyapprox.fenics_models.advection_diffusion_wrappers Module<a class="headerlink" href="#module-pyapprox.fenics_models.advection_diffusion_wrappers" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id17">
+<h3>Functions<a class="headerlink" href="#id17" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">collect_dirichlet_boundaries</span></code>(function_space, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_convergence_rates</span></code>(run_model, u_e[, …])</p></td>
+<td><p>Compute convergences rates for various error norms Adapted from <a class="reference external" href="https://fenicsproject.org/pub/tutorial/html/._ftut1020.html">https://fenicsproject.org/pub/tutorial/html/._ftut1020.html</a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_errors</span></code>(u_e, u)</p></td>
+<td><p>Compute various measures of the error u - u_e, where u is a finite element Function and u_e is an Expression.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">constrained_newton_energy_solve</span></code>(F, uh[, …])</p></td>
+<td><p>See <a class="reference external" href="https://uvilla.github.io/inverse15/UnconstrainedMinimization.html">https://uvilla.github.io/inverse15/UnconstrainedMinimization.html</a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">convergence_order</span></code>(errors[, base])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_expression</span></code>(expr)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_polygonal_mesh</span></code>(resolution, …[, …])</p></td>
+<td><p>Sometimes segault is thrown when mshr.generate_mesh() is  called.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_1d_dirichlet_boundary_conditions_from_expression</span></code>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_2d_bndry_segment</span></code>(x1, y1, x2, y2)</p></td>
+<td><p>Define boundary segment along the line between (x1,y1) and (x2,y2) Assumes x1,y1 x2,y2 come in clockwise order</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_2d_rectangular_mesh_boundaries</span></code>(xl, xr, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_2d_rectangular_mesh_boundary_segment</span></code>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_2d_unit_square_mesh_boundaries</span></code>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_all_boundaries</span></code>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_boundary_indices</span></code>(function_space)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity" title="pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_default_velocity</span></code></a>(degree, vel_vec)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dirichlet_boundary_conditions_from_expression</span></code>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing" title="pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_gaussian_source_forcing</span></code></a>(degree, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing" title="pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_misc_forcing</span></code></a>(degree)</p></td>
+<td><p>Use the forcing from [JEGGIJNME2020]</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity.html#pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity" title="pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_nobile_diffusivity</span></code></a>(corr_len, degree, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_num_subdomain_dofs</span></code>(Vh, subdomain)</p></td>
+<td><p>Get the number of dofs on a subdomain</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_polygon_boundary_segments</span></code>(ampothem, nedges)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_robin_boundary_conditions_from_expression</span></code>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_surface_of_3d_function</span></code>(Vh_2d, z, function)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_vertices_of_polygon</span></code>(ampothem, nedges)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">homogenize_boundaries</span></code>(bcs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">info_blue</span></code>(msg)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">info_green</span></code>(msg)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">info_red</span></code>(msg)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_fenics_function</span></code>(function_space, filename)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">mark_boundaries</span></code>(mesh, boundary_conditions)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">on_any_boundary</span></code>(x, on_boundary)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_functions</span></code>(functions[, nrows])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc.html#pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc" title="pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">qoi_functional_misc</span></code></a>(u)</p></td>
+<td><p>Use the QoI from [JEGGIJNME2020]</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion.html#pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion" title="pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">qoi_functional_source_inversion</span></code></a>(sols)</p></td>
+<td><p>JINGLAI LI AND YOUSSEF M.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_model</span></code>(function_space, kappa, forcing, …)</p></td>
+<td><p>Use implicit euler to solve transient advection diffusion equation</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_steady_state_model</span></code>(function_space, …)</p></td>
+<td><p>Solve steady-state diffusion equation</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">save_fenics_function</span></code>(function, filename)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark" title="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_advection_diffusion_benchmark</span></code></a>(nvars, …)</p></td>
+<td><p>Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark" title="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_advection_diffusion_source_inversion_benchmark</span></code></a>([…])</p></td>
+<td><p>Compute functionals of the following model of transient diffusion of  a contaminant</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space" title="pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_dirichlet_and_periodic_boundary_conditions_and_function_space</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark" title="pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_multi_level_advection_diffusion_benchmark</span></code></a>(…)</p></td>
+<td><p>Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html#pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions" title="pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_zero_flux_neumann_boundary_conditions</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">split_function_recursively</span></code>(function)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">unconstrained_newton_solve</span></code>(F, J, uh[, …])</p></td>
+<td><p>F: dl.Expression</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id18">
+<h3>Classes<a class="headerlink" href="#id18" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdvectionDiffusionModel</span></code></a>(final_time, degree, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel.html#pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel" title="pyapprox.fenics_models.advection_diffusion_wrappers.AdvectionDiffusionSourceInversionModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdvectionDiffusionSourceInversionModel</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Diffusivity</span></code>(*args, **kwargs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">RectangularMeshPeriodicBoundary</span></code>(Ly, **kwargs)</p></td>
+<td><p>domain [0,Lx],[0,Ly] y-boundary is periodic, i.e. top and bottom boundaries.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.fenics_models.helmholtz_benchmarks">
+<span id="pyapprox-fenics-models-helmholtz-benchmarks-module"></span><h2>pyapprox.fenics_models.helmholtz_benchmarks Module<a class="headerlink" href="#module-pyapprox.fenics_models.helmholtz_benchmarks" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id19">
+<h3>Functions<a class="headerlink" href="#id19" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases.html#pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases" title="pyapprox.fenics_models.helmholtz_benchmarks.generate_helmholtz_bases"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_helmholtz_bases</span></code></a>(samples[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_polygonal_mesh</span></code>(resolution, …[, …])</p></td>
+<td><p>Sometimes segault is thrown when mshr.generate_mesh() is  called.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions.html#pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions" title="pyapprox.fenics_models.helmholtz_benchmarks.get_helmholtz_speaker_boundary_conditions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_helmholtz_speaker_boundary_conditions</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_polygon_boundary_segments</span></code>(ampothem, nedges)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices.html#pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices" title="pyapprox.fenics_models.helmholtz_benchmarks.get_speaker_boundary_segment_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_speaker_boundary_segment_indices</span></code></a>(nedges, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis.html#pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis" title="pyapprox.fenics_models.helmholtz_benchmarks.helmholtz_basis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">helmholtz_basis</span></code></a>(sols, active_speakers, samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data.html#pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data" title="pyapprox.fenics_models.helmholtz_benchmarks.plot_mfnets_helmholtz_benchmark_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_mfnets_helmholtz_benchmark_data</span></code></a>(benchmark)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_model</span></code>(kappa, forcing, function_space[, …])</p></td>
+<td><p>Solve complex valued Helmholtz equation by solving coupled system, one for the real part of the solution one for the imaginary part.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model.html#pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model" title="pyapprox.fenics_models.helmholtz_benchmarks.setup_helmholtz_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_helmholtz_model</span></code></a>(mesh_resolution[, …])</p></td>
+<td><p># 6320 speed of sound in aluminium # 343 speed of sound of air at 20 degrees celsius</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark.html#pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark" title="pyapprox.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_mfnets_helmholtz_benchmark</span></code></a>([…])</p></td>
+<td><p>Setup the multi-fidelity benchmark used to combine helmholtz data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id20">
+<h3>Classes<a class="headerlink" href="#id20" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Benchmark</span></code></p></td>
+<td><p>Contains functions and results needed to implement known benchmarks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis.html#pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis" title="pyapprox.fenics_models.helmholtz_benchmarks.HelmholtzBasis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HelmholtzBasis</span></code></a>(sols, active_speakers)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.multivariate_polynomials">
+<span id="pyapprox-multivariate-polynomials-module"></span><h2>pyapprox.multivariate_polynomials Module<a class="headerlink" href="#module-pyapprox.multivariate_polynomials" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id21">
+<h3>Functions<a class="headerlink" href="#id21" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_polynomials</span></code>(indices_list, coeffs_list)</p></td>
+<td><p>Add many polynomials together.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">cartesian_product</span></code>(input_sets[, elem_size])</p></td>
+<td><p>Compute the cartesian product of an arbitray number of sets.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_hyperbolic_indices</span></code>(num_vars, level)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_multivariate_orthonormal_basis_product.html#pyapprox.multivariate_polynomials.compute_multivariate_orthonormal_basis_product" title="pyapprox.multivariate_polynomials.compute_multivariate_orthonormal_basis_product"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_multivariate_orthonormal_basis_product</span></code></a>(…)</p></td>
+<td><p>Compute the product of two multivariate orthonormal bases and re-express  as an expansion using the orthnormal basis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_product_coeffs_1d_for_each_variable.html#pyapprox.multivariate_polynomials.compute_product_coeffs_1d_for_each_variable" title="pyapprox.multivariate_polynomials.compute_product_coeffs_1d_for_each_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_product_coeffs_1d_for_each_variable</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.compute_univariate_orthonormal_basis_products.html#pyapprox.multivariate_polynomials.compute_univariate_orthonormal_basis_products" title="pyapprox.multivariate_polynomials.compute_univariate_orthonormal_basis_products"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_univariate_orthonormal_basis_products</span></code></a>(…)</p></td>
+<td><p>Compute all the products of univariate orthonormal bases and re-express  them as expansions using the orthnormal basis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion.html#pyapprox.multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion" title="pyapprox.multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">conditional_moments_of_polynomial_chaos_expansion</span></code></a>(…)</p></td>
+<td><p>Return mean and variance of polynomial chaos expansion with some variables fixed at specified values.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.define_poly_options_from_variable.html#pyapprox.multivariate_polynomials.define_poly_options_from_variable" title="pyapprox.multivariate_polynomials.define_poly_options_from_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_poly_options_from_variable</span></code></a>(variable)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.define_poly_options_from_variable_transformation.html#pyapprox.multivariate_polynomials.define_poly_options_from_variable_transformation" title="pyapprox.multivariate_polynomials.define_poly_options_from_variable_transformation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_poly_options_from_variable_transformation</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">discrete_chebyshev_recurrence</span></code>(N, Ntrials)</p></td>
+<td><p>Compute the recursion coefficients of the polynomials which are  orthonormal with respect to the probability measure</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial.html#pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial" title="pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_multivariate_orthonormal_polynomial</span></code></a>(…)</p></td>
+<td><p>Evaluate a multivaiate orthonormal polynomial and its s-derivatives  (s=1,…,num_derivs) using a three-term recurrence coefficients.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs.html#pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs" title="pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_multivariate_orthonormal_polynomial_derivs</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs_deprecated.html#pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs_deprecated" title="pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_derivs_deprecated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_multivariate_orthonormal_polynomial_derivs_deprecated</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values.html#pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values" title="pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_multivariate_orthonormal_polynomial_values</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values_deprecated.html#pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values_deprecated" title="pyapprox.multivariate_polynomials.evaluate_multivariate_orthonormal_polynomial_values_deprecated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_multivariate_orthonormal_polynomial_values_deprecated</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_orthonormal_polynomial_1d</span></code>(x, nmax, ab)</p></td>
+<td><p>Evaluate univariate orthonormal polynomials using their three-term recurrence coefficients.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_orthonormal_polynomial_deriv_1d</span></code>(x, …)</p></td>
+<td><p>Evaluate the univariate orthonormal polynomials and its s-derivatives  (s=1,…,num_derivs) using a three-term recurrence coefficients.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">flattened_rectangular_lower_triangular_matrix_index</span></code>(ii, …)</p></td>
+<td><p>Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">gauss_quadrature</span></code>(recursion_coeffs, N)</p></td>
+<td><p>Computes Gauss quadrature from recurrence coefficients</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_independent_random_samples</span></code>(…[, …])</p></td>
+<td><p>Generate samples from a tensor-product probability measure.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_distribution_info</span></code>(rv)</p></td>
+<td><p>Shapes and scales can appear in either args of kwargs depending on how user initializes frozen object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_polynomial_from_variable.html#pyapprox.multivariate_polynomials.get_polynomial_from_variable" title="pyapprox.multivariate_polynomials.get_polynomial_from_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_polynomial_from_variable</span></code></a>(variable)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_recursion_coefficients.html#pyapprox.multivariate_polynomials.get_recursion_coefficients" title="pyapprox.multivariate_polynomials.get_recursion_coefficients"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_recursion_coefficients</span></code></a>(opts, num_coefs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tensor_product_quadrature_rule</span></code>(degrees, …)</p></td>
+<td><p>if get error about outer product failing it may be because  univariate_quadrature rule is returning a weights array for every level,  i.e. l=0,…level.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_tensor_product_quadrature_rule_from_pce.html#pyapprox.multivariate_polynomials.get_tensor_product_quadrature_rule_from_pce" title="pyapprox.multivariate_polynomials.get_tensor_product_quadrature_rule_from_pce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_tensor_product_quadrature_rule_from_pce</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.get_univariate_quadrature_rules_from_pce.html#pyapprox.multivariate_polynomials.get_univariate_quadrature_rules_from_pce" title="pyapprox.multivariate_polynomials.get_univariate_quadrature_rules_from_pce"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_univariate_quadrature_rules_from_pce</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">hahn_recurrence</span></code>(Nterms, N, alphaPoly, betaPoly)</p></td>
+<td><p>Compute the recursion coefficients of the polynomials which are  orthonormal with respect to the hypergeometric probability mass function</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">hermite_recurrence</span></code>(Nterms[, rho, probability])</p></td>
+<td><p>Compute the recursion coefficients of for the Hermite polynomial family.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">jacobi_recurrence</span></code>(N[, alpha, beta, probability])</p></td>
+<td><p>Compute the recursion coefficients of Jacobi polynomials which are  orthonormal with respect to the Beta random variables</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">krawtchouk_recurrence</span></code>(Nterms, Ntrials, p)</p></td>
+<td><p>Compute the recursion coefficients of the polynomials which are  orthonormal with respect to the binomial probability mass function</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">lanczos</span></code>(nodes, weights, N)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">modified_chebyshev_orthonormal</span></code>(nterms, …)</p></td>
+<td><p>Use the modified Chebyshev algorithm to compute the recursion coefficients of the orthonormal polynomials p_i(x) orthogonal to a target measure w(x)  with the modified moments</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">monomial_basis_matrix</span></code>(indices, samples[, …])</p></td>
+<td><p>Evaluate a multivariate monomial basis at a set of samples.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.multiply_multivariate_orthonormal_polynomial_expansions.html#pyapprox.multivariate_polynomials.multiply_multivariate_orthonormal_polynomial_expansions" title="pyapprox.multivariate_polynomials.multiply_multivariate_orthonormal_polynomial_expansions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">multiply_multivariate_orthonormal_polynomial_expansions</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">outer_product</span></code>(input_sets)</p></td>
+<td><p>Construct the outer product of an arbitary number of sets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values.html#pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values" title="pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">precompute_multivariate_orthonormal_polynomial_univariate_values</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated.html#pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated" title="pyapprox.multivariate_polynomials.precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated"><code class="xref py py-obj docutils literal notranslate"><span class="pre">precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.remove_variables_from_polynomial_chaos_expansion.html#pyapprox.multivariate_polynomials.remove_variables_from_polynomial_chaos_expansion" title="pyapprox.multivariate_polynomials.remove_variables_from_polynomial_chaos_expansion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_variables_from_polynomial_chaos_expansion</span></code></a>(…)</p></td>
+<td><p>This function is not optimal.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id22">
+<h3>Classes<a class="headerlink" href="#id22" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">AffineRandomVariableTransformation</span></code>(variable)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PolynomialChaosExpansion</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id23"><span class="problematic" id="id24">*</span></a>args, <a href="#id25"><span class="problematic" id="id26">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.bayesian_inference.markov_chain_monte_carlo">
+<span id="pyapprox-bayesian-inference-markov-chain-monte-carlo-module"></span><h2>pyapprox.bayesian_inference.markov_chain_monte_carlo Module<a class="headerlink" href="#module-pyapprox.bayesian_inference.markov_chain_monte_carlo" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id27">
+<h3>Functions<a class="headerlink" href="#id27" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">approx_fprime</span></code>(xk, f, epsilon, *args)</p></td>
+<td><p>Finite-difference approximation of the gradient of a scalar function.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extract_map_sample_from_pymc3_dict</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extract_mcmc_chain_from_pymc3_trace</span></code></a>(trace, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_distribution_info</span></code>(rv)</p></td>
+<td><p>Shapes and scales can appear in either args of kwargs depending on how user initializes frozen object.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pymc_variable</span></code></a>(rv, pymc_var_name)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pymc_variables</span></code></a>(variables[, pymc_var_names])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_bayesian_inference_gaussian_error_model</span></code></a>(…)</p></td>
+<td><p>Draw samples from the posterior distribution using Markov Chain Monte  Carlo for data that satisfies</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id28">
+<h3>Classes<a class="headerlink" href="#id28" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianLogLike</span></code></a>(model, data, noise_covar)</p></td>
+<td><p>A Gaussian log-likelihood function for a model with parameters given in  sample</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LogLike</span></code></a>(loglike)</p></td>
+<td><p>Specify what type of object will be passed and returned to the Op  when it is called.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LogLikeGrad</span></code></a>(loglike[, loglike_grad])</p></td>
+<td><p>This Op will be called with a vector of values and also return a  vector of values - the gradients in each dimension.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LogLikeWithGrad</span></code></a>(loglike[, loglike_grad])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PYMC3LogLikeWrapper</span></code></a>(loglike[, loglike_grad])</p></td>
+<td><p>Turn pyapprox model in to one which can be used by PYMC3.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.optimal_experimental_design">
+<span id="pyapprox-optimal-experimental-design-module"></span><h2>pyapprox.optimal_experimental_design Module<a class="headerlink" href="#module-pyapprox.optimal_experimental_design" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id29">
+<h3>Functions<a class="headerlink" href="#id29" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.aoptimality_criterion.html#pyapprox.optimal_experimental_design.aoptimality_criterion" title="pyapprox.optimal_experimental_design.aoptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">aoptimality_criterion</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>Evaluate the A-optimality criterion for a given design probability measure  for the linear model</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.compute_homoscedastic_outer_products.html#pyapprox.optimal_experimental_design.compute_homoscedastic_outer_products" title="pyapprox.optimal_experimental_design.compute_homoscedastic_outer_products"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_homoscedastic_outer_products</span></code></a>(factors)</p></td>
+<td><p>Compute</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.compute_prediction_variance.html#pyapprox.optimal_experimental_design.compute_prediction_variance" title="pyapprox.optimal_experimental_design.compute_prediction_variance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_prediction_variance</span></code></a>(…[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.coptimality_criterion.html#pyapprox.optimal_experimental_design.coptimality_criterion" title="pyapprox.optimal_experimental_design.coptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">coptimality_criterion</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>Evaluate the C-optimality criterion for a given design probability measure  for the linear model</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.doptimality_criterion.html#pyapprox.optimal_experimental_design.doptimality_criterion" title="pyapprox.optimal_experimental_design.doptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">doptimality_criterion</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>Evaluate the D-optimality criterion for a given design probability measure for the linear model</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result.html#pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result" title="pyapprox.optimal_experimental_design.extract_minimax_design_from_optimize_result"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extract_minimax_design_from_optimize_result</span></code></a>(res)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result.html#pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result" title="pyapprox.optimal_experimental_design.extract_r_oed_design_from_optimize_result"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extract_r_oed_design_from_optimize_result</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_M0_and_M1_matrices.html#pyapprox.optimal_experimental_design.get_M0_and_M1_matrices" title="pyapprox.optimal_experimental_design.get_M0_and_M1_matrices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_M0_and_M1_matrices</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>Compute the matrices <span class="math notranslate nohighlight">\(M_0\)</span> and <span class="math notranslate nohighlight">\(M_1\)</span> used to compute the asymptotic covariance matrix <span class="math notranslate nohighlight">\(C(\mu) = M_1^{-1} M_0 M^{-1}\)</span> of the linear model</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_bounds.html#pyapprox.optimal_experimental_design.get_minimax_bounds" title="pyapprox.optimal_experimental_design.get_minimax_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_minimax_bounds</span></code></a>(num_design_pts)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_default_initial_guess.html#pyapprox.optimal_experimental_design.get_minimax_default_initial_guess" title="pyapprox.optimal_experimental_design.get_minimax_default_initial_guess"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_minimax_default_initial_guess</span></code></a>(num_design_pts)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_minimax_linear_constraints.html#pyapprox.optimal_experimental_design.get_minimax_linear_constraints" title="pyapprox.optimal_experimental_design.get_minimax_linear_constraints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_minimax_linear_constraints</span></code></a>(num_design_pts)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_bounds.html#pyapprox.optimal_experimental_design.get_r_oed_bounds" title="pyapprox.optimal_experimental_design.get_r_oed_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_r_oed_bounds</span></code></a>(num_pred_pts, num_design_pts)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_default_initial_guess.html#pyapprox.optimal_experimental_design.get_r_oed_default_initial_guess" title="pyapprox.optimal_experimental_design.get_r_oed_default_initial_guess"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_r_oed_default_initial_guess</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_jacobian_structure.html#pyapprox.optimal_experimental_design.get_r_oed_jacobian_structure" title="pyapprox.optimal_experimental_design.get_r_oed_jacobian_structure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_r_oed_jacobian_structure</span></code></a>(num_pred_pts, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.get_r_oed_linear_constraints.html#pyapprox.optimal_experimental_design.get_r_oed_linear_constraints" title="pyapprox.optimal_experimental_design.get_r_oed_linear_constraints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_r_oed_linear_constraints</span></code></a>(num_pred_pts, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.goptimality_criterion.html#pyapprox.optimal_experimental_design.goptimality_criterion" title="pyapprox.optimal_experimental_design.goptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">goptimality_criterion</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>valuate the G-optimality criterion for a given design probability measure  for the linear model</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.ioptimality_criterion.html#pyapprox.optimal_experimental_design.ioptimality_criterion" title="pyapprox.optimal_experimental_design.ioptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ioptimality_criterion</span></code></a>(homog_outer_prods, …)</p></td>
+<td><p>Evaluate the I-optimality criterion for a given design probability measure for the linear model</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_constraint_jacobian.html#pyapprox.optimal_experimental_design.minimax_oed_constraint_jacobian" title="pyapprox.optimal_experimental_design.minimax_oed_constraint_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimax_oed_constraint_jacobian</span></code></a>(local_oed_jac, x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_constraint_objective.html#pyapprox.optimal_experimental_design.minimax_oed_constraint_objective" title="pyapprox.optimal_experimental_design.minimax_oed_constraint_objective"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimax_oed_constraint_objective</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_objective.html#pyapprox.optimal_experimental_design.minimax_oed_objective" title="pyapprox.optimal_experimental_design.minimax_oed_objective"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimax_oed_objective</span></code></a>(x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.minimax_oed_objective_jacobian.html#pyapprox.optimal_experimental_design.minimax_oed_objective_jacobian" title="pyapprox.optimal_experimental_design.minimax_oed_objective_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimax_oed_objective_jacobian</span></code></a>(x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimize</span></code>(fun, x0[, args, method, jac, hess, …])</p></td>
+<td><p>Minimization of scalar function of one or more variables.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.optimal_experimental_design.html#pyapprox.optimal_experimental_design.optimal_experimental_design" title="pyapprox.optimal_experimental_design.optimal_experimental_design"><code class="xref py py-obj docutils literal notranslate"><span class="pre">optimal_experimental_design</span></code></a>(design_pts, fun, …)</p></td>
+<td><p>Compute optimal experimental designs for models of the form</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_constraint_jacobian.html#pyapprox.optimal_experimental_design.r_oed_constraint_jacobian" title="pyapprox.optimal_experimental_design.r_oed_constraint_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">r_oed_constraint_jacobian</span></code></a>(num_design_pts, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_constraint_objective.html#pyapprox.optimal_experimental_design.r_oed_constraint_objective" title="pyapprox.optimal_experimental_design.r_oed_constraint_objective"><code class="xref py py-obj docutils literal notranslate"><span class="pre">r_oed_constraint_objective</span></code></a>(num_design_pts, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_objective.html#pyapprox.optimal_experimental_design.r_oed_objective" title="pyapprox.optimal_experimental_design.r_oed_objective"><code class="xref py py-obj docutils literal notranslate"><span class="pre">r_oed_objective</span></code></a>(beta, pred_weights, x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_objective_jacobian.html#pyapprox.optimal_experimental_design.r_oed_objective_jacobian" title="pyapprox.optimal_experimental_design.r_oed_objective_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">r_oed_objective_jacobian</span></code></a>(beta, pred_weights, x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.r_oed_sparse_constraint_jacobian.html#pyapprox.optimal_experimental_design.r_oed_sparse_constraint_jacobian" title="pyapprox.optimal_experimental_design.r_oed_sparse_constraint_jacobian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">r_oed_sparse_constraint_jacobian</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.roptimality_criterion.html#pyapprox.optimal_experimental_design.roptimality_criterion" title="pyapprox.optimal_experimental_design.roptimality_criterion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">roptimality_criterion</span></code></a>(beta, …[, …])</p></td>
+<td><p>Evaluate the R-optimality criterion for a given design probability measure  for the linear model</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_triangular</span></code>(a, b[, trans, lower, …])</p></td>
+<td><p>Solve the equation <cite>a x = b</cite> for <cite>x</cite>, assuming a is a triangular matrix.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id30">
+<h3>Classes<a class="headerlink" href="#id30" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.AlphabetOptimalDesign.html#pyapprox.optimal_experimental_design.AlphabetOptimalDesign" title="pyapprox.optimal_experimental_design.AlphabetOptimalDesign"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AlphabetOptimalDesign</span></code></a>(criteria, design_factors)</p></td>
+<td><p><p class="rubric">Notes</p>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Bounds</span></code>(lb, ub[, keep_feasible])</p></td>
+<td><p>Bounds constraint on the variables.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">LinearConstraint</span></code>(A, lb, ub[, keep_feasible])</p></td>
+<td><p>Linear constraint on the variables.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">NonlinearConstraint</span></code>(fun, lb, ub[, jac, …])</p></td>
+<td><p>Nonlinear constraint on the variables.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id31"><span class="problematic" id="id32">*</span></a>args, <a href="#id33"><span class="problematic" id="id34">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.models.wrappers">
+<span id="pyapprox-models-wrappers-module"></span><h2>pyapprox.models.wrappers Module<a class="headerlink" href="#module-pyapprox.models.wrappers" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id35">
+<h3>Functions<a class="headerlink" href="#id35" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Pool</span></code>([processes, initializer, initargs, …])</p></td>
+<td><p>Returns a process pool object</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.combine_saved_model_data.html#pyapprox.models.wrappers.combine_saved_model_data" title="pyapprox.models.wrappers.combine_saved_model_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">combine_saved_model_data</span></code></a>(saved_data_basename)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.default_map_to_multidimensional_index.html#pyapprox.models.wrappers.default_map_to_multidimensional_index" title="pyapprox.models.wrappers.default_map_to_multidimensional_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_map_to_multidimensional_index</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.eval.html#pyapprox.models.wrappers.eval" title="pyapprox.models.wrappers.eval"><code class="xref py py-obj docutils literal notranslate"><span class="pre">eval</span></code></a>(function, samples)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array.html#pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array" title="pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">evaluate_1darray_function_on_2d_array</span></code></a>(…[, …])</p></td>
+<td><p>Evaluate a function at a set of samples using a function that only takes one sample at a time</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_all_sample_combinations</span></code>(samples1, samples2)</p></td>
+<td><p>For two sample sets of different random variables loop over all combinations</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.get_num_args.html#pyapprox.models.wrappers.get_num_args" title="pyapprox.models.wrappers.get_num_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_num_args</span></code></a>(function)</p></td>
+<td><p>Return the number of arguments of a function.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">hash_array</span></code>(array[, decimals])</p></td>
+<td><p>Hash an array for dictionary or set based lookup</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.run_model_samples_in_parallel.html#pyapprox.models.wrappers.run_model_samples_in_parallel" title="pyapprox.models.wrappers.run_model_samples_in_parallel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_model_samples_in_parallel</span></code></a>(model, …[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.run_shell_command.html#pyapprox.models.wrappers.run_shell_command" title="pyapprox.models.wrappers.run_shell_command"><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_shell_command</span></code></a>(shell_command[, opts])</p></td>
+<td><p>Execulte a shell command.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.time_function_evaluations.html#pyapprox.models.wrappers.time_function_evaluations" title="pyapprox.models.wrappers.time_function_evaluations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_function_evaluations</span></code></a>(function, samples)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id36">
+<h3>Classes<a class="headerlink" href="#id36" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.ActiveSetVariableModel.html#pyapprox.models.wrappers.ActiveSetVariableModel" title="pyapprox.models.wrappers.ActiveSetVariableModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ActiveSetVariableModel</span></code></a>(function, num_vars, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.DataFunctionModel.html#pyapprox.models.wrappers.DataFunctionModel" title="pyapprox.models.wrappers.DataFunctionModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFunctionModel</span></code></a>(function[, data, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.MultiLevelWrapper.html#pyapprox.models.wrappers.MultiLevelWrapper" title="pyapprox.models.wrappers.MultiLevelWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiLevelWrapper</span></code></a>(model, …[, …])</p></td>
+<td><p>Specify a one-dimension model hierachy from a multiple dimensional  hierarchy For example if model has configure variables which refine the x and y physical directions then one can specify a multilevel hierarchy by creating new indices with the mapping k=(i,i).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.PoolModel.html#pyapprox.models.wrappers.PoolModel" title="pyapprox.models.wrappers.PoolModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PoolModel</span></code></a>(function, max_eval_concurrency[, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.PyFunction.html#pyapprox.models.wrappers.PyFunction" title="pyapprox.models.wrappers.PyFunction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PyFunction</span></code></a>(function)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.SingleFidelityWrapper.html#pyapprox.models.wrappers.SingleFidelityWrapper" title="pyapprox.models.wrappers.SingleFidelityWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SingleFidelityWrapper</span></code></a>(model, config_values)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.TimerModelWrapper.html#pyapprox.models.wrappers.TimerModelWrapper" title="pyapprox.models.wrappers.TimerModelWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimerModelWrapper</span></code></a>(function[, base_model])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.WorkTracker.html#pyapprox.models.wrappers.WorkTracker" title="pyapprox.models.wrappers.WorkTracker"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WorkTracker</span></code></a>()</p></td>
+<td><p>Store the cost needed to evaluate a function under different configurations, e.g.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.wrappers.WorkTrackingModel.html#pyapprox.models.wrappers.WorkTrackingModel" title="pyapprox.models.wrappers.WorkTrackingModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WorkTrackingModel</span></code></a>(function[, base_model, …])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id37"><span class="problematic" id="id38">*</span></a>args, <a href="#id39"><span class="problematic" id="id40">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.models.async_model">
+<span id="pyapprox-models-async-model-module"></span><h2>pyapprox.models.async_model Module<a class="headerlink" href="#module-pyapprox.models.async_model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id41">
+<h3>Classes<a class="headerlink" href="#id41" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.models.async_model.AsynchronousEvaluationModel.html#pyapprox.models.async_model.AsynchronousEvaluationModel" title="pyapprox.models.async_model.AsynchronousEvaluationModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AsynchronousEvaluationModel</span></code></a>(shell_command[, …])</p></td>
+<td><p>Evaluate a model in parallel when model instances are invoked by a shell script.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="section" id="module-pyapprox.control_variate_monte_carlo">
+<span id="pyapprox-control-variate-monte-carlo-module"></span><h2>pyapprox.control_variate_monte_carlo Module<a class="headerlink" href="#module-pyapprox.control_variate_monte_carlo" title="Permalink to this headline">¶</a></h2>
+<p>Functions for estimating expectations using frequentist control-variate Monte-Carlo based methods such as multi-level Monte-Carlo, control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.</p>
+<div class="section" id="id42">
+<h3>Functions<a class="headerlink" href="#id42" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_cost_constraint</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_all.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_all" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_cost_constraint_all</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_jacobian_all.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_jacobian_all" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_cost_constraint_jacobian_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_cost_constraint_jacobian_all</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_lagrange_torch.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_lagrange_torch" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_lagrange_torch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_jacobian_all_lagrange_torch</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_torch.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_torch" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_all_torch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_jacobian_all_torch</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_torch.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_torch" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_jacobian_torch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_jacobian_torch</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_objective</span></code></a>(estimator, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_objective_all</span></code></a>(estimator, x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all_lagrange.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all_lagrange" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_objective_all_lagrange"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_objective_all_lagrange</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.acv_sample_allocation_sample_ratio_constraint.html#pyapprox.control_variate_monte_carlo.acv_sample_allocation_sample_ratio_constraint" title="pyapprox.control_variate_monte_carlo.acv_sample_allocation_sample_ratio_constraint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">acv_sample_allocation_sample_ratio_constraint</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_acv.html#pyapprox.control_variate_monte_carlo.allocate_samples_acv" title="pyapprox.control_variate_monte_carlo.allocate_samples_acv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">allocate_samples_acv</span></code></a>(cov, costs, …[, …])</p></td>
+<td><p>Determine the samples to be allocated to each model</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_acv_best_kl.html#pyapprox.control_variate_monte_carlo.allocate_samples_acv_best_kl" title="pyapprox.control_variate_monte_carlo.allocate_samples_acv_best_kl"><code class="xref py py-obj docutils literal notranslate"><span class="pre">allocate_samples_acv_best_kl</span></code></a>(cov, costs, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_mfmc.html#pyapprox.control_variate_monte_carlo.allocate_samples_mfmc" title="pyapprox.control_variate_monte_carlo.allocate_samples_mfmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">allocate_samples_mfmc</span></code></a>(cov, costs, target_cost)</p></td>
+<td><p>Determine the samples to be allocated to each model when using MFMC</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.allocate_samples_mlmc.html#pyapprox.control_variate_monte_carlo.allocate_samples_mlmc" title="pyapprox.control_variate_monte_carlo.allocate_samples_mlmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">allocate_samples_mlmc</span></code></a>(cov, costs, target_cost)</p></td>
+<td><p>Determine the samples to be allocated to each model when using MLMC</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.bootstrap_mfmc_estimator.html#pyapprox.control_variate_monte_carlo.bootstrap_mfmc_estimator" title="pyapprox.control_variate_monte_carlo.bootstrap_mfmc_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bootstrap_mfmc_estimator</span></code></a>(values, weights[, …])</p></td>
+<td><p>Boostrap the approximate MFMC estimate of the mean of  high-fidelity data with low-fidelity models with unknown means</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.bootstrap_monte_carlo_estimator.html#pyapprox.control_variate_monte_carlo.bootstrap_monte_carlo_estimator" title="pyapprox.control_variate_monte_carlo.bootstrap_monte_carlo_estimator"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bootstrap_monte_carlo_estimator</span></code></a>(values[, …])</p></td>
+<td><p>Approxiamte the variance of the Monte Carlo estimate of the mean using  bootstraping</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compare_estimator_variances.html#pyapprox.control_variate_monte_carlo.compare_estimator_variances" title="pyapprox.control_variate_monte_carlo.compare_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_estimator_variances</span></code></a>(target_costs, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_approximate_control_variate_mean_estimate.html#pyapprox.control_variate_monte_carlo.compute_approximate_control_variate_mean_estimate" title="pyapprox.control_variate_monte_carlo.compute_approximate_control_variate_mean_estimate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_approximate_control_variate_mean_estimate</span></code></a>(…)</p></td>
+<td><p>Use approximate control variate Monte Carlo to estimate the mean of  high-fidelity data with low-fidelity models with unknown means</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_control_variate_mean_estimate.html#pyapprox.control_variate_monte_carlo.compute_control_variate_mean_estimate" title="pyapprox.control_variate_monte_carlo.compute_control_variate_mean_estimate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_control_variate_mean_estimate</span></code></a>(…)</p></td>
+<td><p>Use control variate Monte Carlo to estimate the mean of  high-fidelity data with low-fidelity models with known means</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_correlations_from_covariance.html#pyapprox.control_variate_monte_carlo.compute_correlations_from_covariance" title="pyapprox.control_variate_monte_carlo.compute_correlations_from_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_correlations_from_covariance</span></code></a>(cov)</p></td>
+<td><p>Compute the correlation matrix of a covariance matrix.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_covariance_from_control_variate_samples.html#pyapprox.control_variate_monte_carlo.compute_covariance_from_control_variate_samples" title="pyapprox.control_variate_monte_carlo.compute_covariance_from_control_variate_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_covariance_from_control_variate_samples</span></code></a>(values)</p></td>
+<td><p>Compute the covariance between information sources from a set of evaluations of each information source.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.compute_single_fidelity_and_approximate_control_variate_mean_estimates.html#pyapprox.control_variate_monte_carlo.compute_single_fidelity_and_approximate_control_variate_mean_estimates" title="pyapprox.control_variate_monte_carlo.compute_single_fidelity_and_approximate_control_variate_mean_estimates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute_single_fidelity_and_approximate_control_variate_mean_estimates</span></code></a>(…)</p></td>
+<td><p>Compute the approximate control variate estimate of a high-fidelity model from using it and a set of lower fidelity models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.estimate_model_ensemble_covariance.html#pyapprox.control_variate_monte_carlo.estimate_model_ensemble_covariance" title="pyapprox.control_variate_monte_carlo.estimate_model_ensemble_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_model_ensemble_covariance</span></code></a>(…)</p></td>
+<td><p>Estimate the covariance of a model ensemble from a set of pilot samples</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.estimate_variance_reduction.html#pyapprox.control_variate_monte_carlo.estimate_variance_reduction" title="pyapprox.control_variate_monte_carlo.estimate_variance_reduction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_variance_reduction</span></code></a>(model_ensemble, …)</p></td>
+<td><p>Numerically estimate the variance of an approximate control variate estimator and compare its value to the estimator using only the high-fidelity data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_independent_random_samples</span></code>(…[, …])</p></td>
+<td><p>Generate samples from a tensor-product probability measure.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_IS.html#pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_IS" title="pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_IS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_samples_and_values_acv_IS</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_KL.html#pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_KL" title="pyapprox.control_variate_monte_carlo.generate_samples_and_values_acv_KL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_samples_and_values_acv_KL</span></code></a>(…)</p></td>
+<td><p>K : integer (K&lt;=nmodels-1)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc.html#pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc" title="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mfmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_samples_and_values_mfmc</span></code></a>(…[, …])</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc.html#pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc" title="pyapprox.control_variate_monte_carlo.generate_samples_and_values_mlmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_samples_and_values_mlmc</span></code></a>(…)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_all_sample_combinations</span></code>(samples1, samples2)</p></td>
+<td><p>For two sample sets of different random variables loop over all combinations</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints.html#pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints" title="pyapprox.control_variate_monte_carlo.get_allocate_samples_acv_trust_region_constraints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_allocate_samples_acv_trust_region_constraints</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_approximate_control_variate_weights.html#pyapprox.control_variate_monte_carlo.get_approximate_control_variate_weights" title="pyapprox.control_variate_monte_carlo.get_approximate_control_variate_weights"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_approximate_control_variate_weights</span></code></a>(cov, …)</p></td>
+<td><p>Get the weights used by the approximate control variate estimator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_control_variate_rsquared.html#pyapprox.control_variate_monte_carlo.get_control_variate_rsquared" title="pyapprox.control_variate_monte_carlo.get_control_variate_rsquared"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_control_variate_rsquared</span></code></a>(cov)</p></td>
+<td><p>Compute <span class="math notranslate nohighlight">\(r^2\)</span> used to compute the variance reduction of  control variate Monte Carlo</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_control_variate_weights.html#pyapprox.control_variate_monte_carlo.get_control_variate_weights" title="pyapprox.control_variate_monte_carlo.get_control_variate_weights"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_control_variate_weights</span></code></a>(cov)</p></td>
+<td><p>Get the weights used by the control variate estimator with known low  fidelity means.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_correlation_from_covariance</span></code>(cov)</p></td>
+<td><p>Compute the correlation matrix from a covariance matrix</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_IS.html#pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_IS" title="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_IS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_discrepancy_covariances_IS</span></code></a>(cov, …[, pkg])</p></td>
+<td><p>Get the covariances of the discrepancies <span class="math notranslate nohighlight">\(\delta\)</span>  between each low-fidelity model and its estimated mean when the same  <span class="math notranslate nohighlight">\(N\)</span> samples are used to compute the covariance between each models  and <span class="math notranslate nohighlight">\(N-r_\alpha\)</span> samples are allocated to  estimate the low-fidelity means, and each of these sets are drawn independently from one another.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_KL.html#pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_KL" title="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_KL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_discrepancy_covariances_KL</span></code></a>(cov, …[, pkg])</p></td>
+<td><p>Get the covariances of the discrepancies <span class="math notranslate nohighlight">\(\delta\)</span>  between each low-fidelity model and its estimated mean using the MFMC sampling strategy and the ACV KL estimator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_MF.html#pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_MF" title="pyapprox.control_variate_monte_carlo.get_discrepancy_covariances_MF"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_discrepancy_covariances_MF</span></code></a>(cov, …[, pkg])</p></td>
+<td><p>Get the covariances of the discrepancies <span class="math notranslate nohighlight">\(\delta\)</span>  between each low-fidelity model and its estimated mean using the MFMC sampling strategy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_initial_guess.html#pyapprox.control_variate_monte_carlo.get_initial_guess" title="pyapprox.control_variate_monte_carlo.get_initial_guess"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_guess</span></code></a>(initial_guess, cov, costs, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_lagrange_multiplier_mlmc.html#pyapprox.control_variate_monte_carlo.get_lagrange_multiplier_mlmc" title="pyapprox.control_variate_monte_carlo.get_lagrange_multiplier_mlmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_lagrange_multiplier_mlmc</span></code></a>(cov, costs, …)</p></td>
+<td><p>Given an optimal sample allocation recover the optimal value of the  Lagrange multiplier.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights.html#pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights" title="pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mfmc_control_variate_weights</span></code></a>(cov)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights_pool_wrapper.html#pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights_pool_wrapper" title="pyapprox.control_variate_monte_carlo.get_mfmc_control_variate_weights_pool_wrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mfmc_control_variate_weights_pool_wrapper</span></code></a>(…)</p></td>
+<td><p>Create interface that adhears to assumed api for variance reduction check cannot be defined as a lambda locally in a test when using with  multiprocessing pool because python cannot pickle such lambda functions</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights.html#pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights" title="pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mlmc_control_variate_weights</span></code></a>(nmodels)</p></td>
+<td><p>Get the weights used by the MLMC control variate estimator</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights_pool_wrapper.html#pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights_pool_wrapper" title="pyapprox.control_variate_monte_carlo.get_mlmc_control_variate_weights_pool_wrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mlmc_control_variate_weights_pool_wrapper</span></code></a>(…)</p></td>
+<td><p>Create interface that adhears to assumed api for variance reduction check cannot be defined as a lambda locally in a test when using with  multiprocessing pool because python cannot pickle such lambda functions</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_pilot_covariance.html#pyapprox.control_variate_monte_carlo.get_pilot_covariance" title="pyapprox.control_variate_monte_carlo.get_pilot_covariance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_pilot_covariance</span></code></a>(nmodels, variable, …)</p></td>
+<td><p><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_acv.html#pyapprox.control_variate_monte_carlo.get_rsquared_acv" title="pyapprox.control_variate_monte_carlo.get_rsquared_acv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_rsquared_acv</span></code></a>(cov, nsample_ratios, …)</p></td>
+<td><p>Compute r^2 used to compute the variance reduction  of  Approximate Control Variate Algorithms</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_acv_KL_best.html#pyapprox.control_variate_monte_carlo.get_rsquared_acv_KL_best" title="pyapprox.control_variate_monte_carlo.get_rsquared_acv_KL_best"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_rsquared_acv_KL_best</span></code></a>(cov, nsample_ratios)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_mfmc.html#pyapprox.control_variate_monte_carlo.get_rsquared_mfmc" title="pyapprox.control_variate_monte_carlo.get_rsquared_mfmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_rsquared_mfmc</span></code></a>(cov, nsample_ratios)</p></td>
+<td><p>Compute r^2 used to compute the variance reduction  of  Multifidelity Monte Carlo (MFMC)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_rsquared_mlmc.html#pyapprox.control_variate_monte_carlo.get_rsquared_mlmc" title="pyapprox.control_variate_monte_carlo.get_rsquared_mlmc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_rsquared_mlmc</span></code></a>(cov, nsample_ratios[, pkg])</p></td>
+<td><p>Compute r^2 used to compute the variance reduction of  Multilevel Monte Carlo (MLMC)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.get_variance_reduction.html#pyapprox.control_variate_monte_carlo.get_variance_reduction" title="pyapprox.control_variate_monte_carlo.get_variance_reduction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_variance_reduction</span></code></a>(get_rsquared, cov, …)</p></td>
+<td><p>Compute the variance reduction:</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">minimize</span></code>(fun, x0[, args, method, jac, hess, …])</p></td>
+<td><p>Minimization of scalar function of one or more variables.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.plot_acv_sample_allocation.html#pyapprox.control_variate_monte_carlo.plot_acv_sample_allocation" title="pyapprox.control_variate_monte_carlo.plot_acv_sample_allocation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_acv_sample_allocation</span></code></a>(nsamples_history, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.plot_estimator_variances.html#pyapprox.control_variate_monte_carlo.plot_estimator_variances" title="pyapprox.control_variate_monte_carlo.plot_estimator_variances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_estimator_variances</span></code></a>(nsamples_history, …)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_slsqp_optimization.html#pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_slsqp_optimization" title="pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_slsqp_optimization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_allocate_samples_acv_slsqp_optimization</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_trust_region_optimization.html#pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_trust_region_optimization" title="pyapprox.control_variate_monte_carlo.solve_allocate_samples_acv_trust_region_optimization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_allocate_samples_acv_trust_region_optimization</span></code></a>(…)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.standardize_sample_ratios.html#pyapprox.control_variate_monte_carlo.standardize_sample_ratios" title="pyapprox.control_variate_monte_carlo.standardize_sample_ratios"><code class="xref py py-obj docutils literal notranslate"><span class="pre">standardize_sample_ratios</span></code></a>(nhf_samples, …)</p></td>
+<td><p>Ensure num high fidelity samples is positive (&gt;0) and then recompute  sample ratios.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.validate_nsample_ratios.html#pyapprox.control_variate_monte_carlo.validate_nsample_ratios" title="pyapprox.control_variate_monte_carlo.validate_nsample_ratios"><code class="xref py py-obj docutils literal notranslate"><span class="pre">validate_nsample_ratios</span></code></a>(nhf_samples, …)</p></td>
+<td><p>Check that nsample_ratios* nhf_samples are all integers and that nsample_ratios are all larger than 1</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="id43">
+<h3>Classes<a class="headerlink" href="#id43" title="Permalink to this headline">¶</a></h3>
+<table class="longtable docutils align-default">
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 90%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMF.html#pyapprox.control_variate_monte_carlo.ACVMF" title="pyapprox.control_variate_monte_carlo.ACVMF"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ACVMF</span></code></a>(cov, costs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMFKL.html#pyapprox.control_variate_monte_carlo.ACVMFKL" title="pyapprox.control_variate_monte_carlo.ACVMFKL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ACVMFKL</span></code></a>(cov, costs, target_cost, K, L)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ACVMFKLBest.html#pyapprox.control_variate_monte_carlo.ACVMFKLBest" title="pyapprox.control_variate_monte_carlo.ACVMFKLBest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ACVMFKLBest</span></code></a>(cov, costs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MC.html#pyapprox.control_variate_monte_carlo.MC" title="pyapprox.control_variate_monte_carlo.MC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MC</span></code></a>(cov, costs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MFMC.html#pyapprox.control_variate_monte_carlo.MFMC" title="pyapprox.control_variate_monte_carlo.MFMC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MFMC</span></code></a>(cov, costs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.MLMC.html#pyapprox.control_variate_monte_carlo.MLMC" title="pyapprox.control_variate_monte_carlo.MLMC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MLMC</span></code></a>(cov, costs)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/pyapprox.control_variate_monte_carlo.ModelEnsemble.html#pyapprox.control_variate_monte_carlo.ModelEnsemble" title="pyapprox.control_variate_monte_carlo.ModelEnsemble"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ModelEnsemble</span></code></a>(functions[, names])</p></td>
+<td><p>Wrapper class to allow easy one-dimensional  indexing of models in an ensemble.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial</span></code></p></td>
+<td><p>partial(func, <a href="#id44"><span class="problematic" id="id45">*</span></a>args, <a href="#id46"><span class="problematic" id="id47">**</span></a>keywords) - new function with partial application of the given arguments and keywords.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="api/pyapprox.approximate.adaptive_approximate.html" class="btn btn-neutral float-right" title="adaptive_approximate" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="user_reference_guide.html" class="btn btn-neutral float-left" title="User Reference Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

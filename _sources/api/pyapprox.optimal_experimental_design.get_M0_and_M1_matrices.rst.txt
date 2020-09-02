@@ -1,0 +1,6 @@
+get_M0_and_M1_matrices
+======================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: get_M0_and_M1_matrices

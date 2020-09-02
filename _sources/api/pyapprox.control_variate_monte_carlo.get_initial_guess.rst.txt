@@ -1,0 +1,6 @@
+get_initial_guess
+=================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_initial_guess

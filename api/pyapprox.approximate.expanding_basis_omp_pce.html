@@ -1,0 +1,325 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>expanding_basis_omp_pce &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="fit_linear_model" href="pyapprox.approximate.fit_linear_model.html" />
+    <link rel="prev" title="expand_basis" href="pyapprox.approximate.expand_basis.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#functions">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.adaptive_approximate.html">adaptive_approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.adaptive_approximate_polynomial_chaos.html">adaptive_approximate_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.adaptive_approximate_sparse_grid.html">adaptive_approximate_sparse_grid</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate.html">approximate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate_gaussian_process.html">approximate_gaussian_process</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.approximate_polynomial_chaos.html">approximate_polynomial_chaos</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.compute_l2_error.html">compute_l2_error</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.cross_validate_pce_degree.html">cross_validate_pce_degree</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.expand_basis.html">expand_basis</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">expanding_basis_omp_pce</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.fit_linear_model.html">fit_linear_model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.approximate.restrict_basis.html">restrict_basis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#classes">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>expanding_basis_omp_pce</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.approximate.expanding_basis_omp_pce.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="expanding-basis-omp-pce">
+<h1>expanding_basis_omp_pce<a class="headerlink" href="#expanding-basis-omp-pce" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="pyapprox.approximate.expanding_basis_omp_pce">
+<code class="sig-prename descclassname">pyapprox.approximate.</code><code class="sig-name descname">expanding_basis_omp_pce</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pce</span></em>, <em class="sig-param"><span class="n">train_samples</span></em>, <em class="sig-param"><span class="n">train_vals</span></em>, <em class="sig-param"><span class="n">hcross_strength</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">1</span></em>, <em class="sig-param"><span class="n">max_num_terms</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">solver_type</span><span class="o">=</span><span class="default_value">'lasso_lars'</span></em>, <em class="sig-param"><span class="n">cv</span><span class="o">=</span><span class="default_value">10</span></em>, <em class="sig-param"><span class="n">restriction_tol</span><span class="o">=</span><span class="default_value">4.440892098500626e-16</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/approximate.html#expanding_basis_omp_pce"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.approximate.expanding_basis_omp_pce" title="Permalink to this definition">¶</a></dt>
+<dd><p>Iteratively expand and restrict the polynomial basis and use 
+cross validation to find the best basis <a class="reference internal" href="#r7617a192da2c-jesjcp2015" id="id1">[JESJCP2015]</a></p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>train_samples</strong><span class="classifier">np.ndarray (nvars,nsamples)</span></dt><dd><p>The inputs of the function used to train the approximation</p>
+</dd>
+<dt><strong>train_vals</strong><span class="classifier">np.ndarray (nvars,nqoi)</span></dt><dd><p>The values of the function at <code class="docutils literal notranslate"><span class="pre">train_samples</span></code></p>
+</dd>
+<dt><strong>hcross_strength</strong><span class="classifier">float</span></dt><dd><p>The strength of the hyperbolic cross index set. hcross_strength must be 
+in (0,1]. A value of 1 produces total degree polynomials</p>
+</dd>
+<dt><strong>cv</strong><span class="classifier">integer</span></dt><dd><p>The number of cross validation folds used to compute the cross 
+validation error</p>
+</dd>
+<dt><strong>solver_type</strong><span class="classifier">string</span></dt><dd><p>The type of regression used to train the polynomial</p>
+<ul class="simple">
+<li><p>‘lasso_lars’</p></li>
+<li><p>‘lars’</p></li>
+<li><p>‘lasso’</p></li>
+<li><p>‘omp’</p></li>
+</ul>
+</dd>
+<dt><strong>verbosity</strong><span class="classifier">integer</span></dt><dd><p>Controls the amount of information printed to screen</p>
+</dd>
+<dt><strong>restriction_tol</strong><span class="classifier">float</span></dt><dd><p>The tolerance used to prune inactive indices</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl>
+<dt><strong>result</strong><span class="classifier"><a class="reference internal" href="pyapprox.approximate.ApproximateResult.html#pyapprox.approximate.ApproximateResult" title="pyapprox.approximate.ApproximateResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.approximate.ApproximateResult</span></code></a></span></dt><dd><p>Result object with the following attributes</p>
+</dd>
+<dt><strong>approx</strong><span class="classifier"><a class="reference internal" href="pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion"><code class="xref py py-class docutils literal notranslate"><span class="pre">pyapprox.multivariate_polynomials.PolynomialChaosExpansion</span></code></a></span></dt><dd><p>The PCE approximation</p>
+</dd>
+<dt><strong>scores</strong><span class="classifier">np.ndarray (nqoi)</span></dt><dd><p>The best cross validation score for each QoI</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<dl class="citation">
+<dt class="label" id="r7617a192da2c-jesjcp2015"><span class="brackets"><a class="fn-backref" href="#id1">JESJCP2015</a></span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2015.02.025">J.D. Jakeman, M.S. Eldred, and K. Sargsyan. Enhancing l1-minimization estimates of polynomial chaos expansions using basis selection. Journal of Computational Physics, 289(0):18 – 34, 2015</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.approximate.fit_linear_model.html" class="btn btn-neutral float-right" title="fit_linear_model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.approximate.expand_basis.html" class="btn btn-neutral float-left" title="expand_basis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

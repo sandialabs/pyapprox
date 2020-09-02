@@ -1,0 +1,333 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>User Reference Guide &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Developer Reference Guide" href="modules.html" />
+    <link rel="prev" title="Benchmarks" href="benchmarks.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">User Reference Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#surrogate-modeling">Surrogate modeling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#supervised-learning">Supervised learning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#supervised-active-learning">Supervised active learning</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#sensitivity-analysis">Sensitivity analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#surrogate-based-global-sensitivity-analysis">Surrogate based global sensitivity analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-sensitivity-analysis">Local sensitivity analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#multivariate-quadrature">Multivariate Quadrature</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#surrogate-based-quadrature">Surrogate based quadrature</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#inference">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optimal-experimental-design">Optimal experimental design</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>User Reference Guide</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/user_reference_guide.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="user-reference-guide">
+<h1>User Reference Guide<a class="headerlink" href="#user-reference-guide" title="Permalink to this headline">¶</a></h1>
+<p><code class="xref py py-mod docutils literal notranslate"><span class="pre">pyapprox</span></code> provides functions for surrogate modeling, sensitivity analysis, quadrature, inference, optimal experimental design and multi-fidelity modeling</p>
+<div class="section" id="surrogate-modeling">
+<h2>Surrogate modeling<a class="headerlink" href="#surrogate-modeling" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="supervised-learning">
+<h3>Supervised learning<a class="headerlink" href="#supervised-learning" title="Permalink to this headline">¶</a></h3>
+<p>The <a class="reference internal" href="api/pyapprox.approximate.approximate.html#pyapprox.approximate.approximate" title="pyapprox.approximate.approximate"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate()</span></code></a> function produces
+response surface approximations from training data.</p>
+<p>The <cite>approximate</cite> function supports the following methods</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.approximate.approximate_polynomial_chaos.html#pyapprox.approximate.approximate_polynomial_chaos" title="pyapprox.approximate.approximate_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate_polynomial_chaos()</span></code></a></p></li>
+<li><p>‘gaussian_process’ See <a class="reference internal" href="api/pyapprox.approximate.approximate_gaussian_process.html#pyapprox.approximate.approximate_gaussian_process" title="pyapprox.approximate.approximate_gaussian_process"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.approximate_gaussian_process()</span></code></a></p></li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="supervised-active-learning">
+<h3>Supervised active learning<a class="headerlink" href="#supervised-active-learning" title="Permalink to this headline">¶</a></h3>
+<p>The <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate.html#pyapprox.approximate.adaptive_approximate" title="pyapprox.approximate.adaptive_approximate"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate()</span></code></a> function produces adaptive
+response surface approximations of a function <code class="docutils literal notranslate"><span class="pre">fun</span></code>, As the approximation is built the function being approximated is sampled at locations that greedily minimize an estimate of error.</p>
+<p>The <cite>adaptive_approximate</cite> function supports the following methods</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>‘sparse_grid’ See <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_sparse_grid.html#pyapprox.approximate.adaptive_approximate_sparse_grid" title="pyapprox.approximate.adaptive_approximate_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate_sparse_grid()</span></code></a></p></li>
+<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.approximate.adaptive_approximate_polynomial_chaos.html#pyapprox.approximate.adaptive_approximate_polynomial_chaos" title="pyapprox.approximate.adaptive_approximate_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.approximate.adaptive_approximate_polynomial_chaos()</span></code></a></p></li>
+</ul>
+</div></blockquote>
+</div>
+</div>
+<div class="section" id="sensitivity-analysis">
+<h2>Sensitivity analysis<a class="headerlink" href="#sensitivity-analysis" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="surrogate-based-global-sensitivity-analysis">
+<h3>Surrogate based global sensitivity analysis<a class="headerlink" href="#surrogate-based-global-sensitivity-analysis" title="Permalink to this headline">¶</a></h3>
+<p>The following functions can be used to extract sensitivity metrics analytically from a surrogate.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>‘sparse_grid’  See <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid.html#pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid" title="pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid()</span></code></a></p></li>
+<li><p>‘polynomial_chaos’  See <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos.html#pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos" title="pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos()</span></code></a></p></li>
+</ul>
+</div></blockquote>
+<p>The following functions can be used to visualize variance based sensitivity measures</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_main_effects.html#pyapprox.sensitivity_analysis.plot_main_effects" title="pyapprox.sensitivity_analysis.plot_main_effects"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_main_effects()</span></code></a></p></li>
+<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_total_effects.html#pyapprox.sensitivity_analysis.plot_total_effects" title="pyapprox.sensitivity_analysis.plot_total_effects"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_total_effects()</span></code></a></p></li>
+<li><p><a class="reference internal" href="api/pyapprox.sensitivity_analysis.plot_interaction_values.html#pyapprox.sensitivity_analysis.plot_interaction_values" title="pyapprox.sensitivity_analysis.plot_interaction_values"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.plot_interaction_values()</span></code></a></p></li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="local-sensitivity-analysis">
+<h3>Local sensitivity analysis<a class="headerlink" href="#local-sensitivity-analysis" title="Permalink to this headline">¶</a></h3>
+<p>The <a class="reference internal" href="api/pyapprox.sensitivity_analysis.analyze_sensitivity_morris.html#pyapprox.sensitivity_analysis.analyze_sensitivity_morris" title="pyapprox.sensitivity_analysis.analyze_sensitivity_morris"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.sensitivity_analysis.analyze_sensitivity_morris()</span></code></a> computes
+morris sensitivity indices.</p>
+</div>
+</div>
+<div class="section" id="multivariate-quadrature">
+<h2>Multivariate Quadrature<a class="headerlink" href="#multivariate-quadrature" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="surrogate-based-quadrature">
+<h3>Surrogate based quadrature<a class="headerlink" href="#surrogate-based-quadrature" title="Permalink to this headline">¶</a></h3>
+<p>The following functions can be used to compute the mean and variance analytically from a surrogate.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>‘sparse_grid’  See <a class="reference internal" href="api/pyapprox.quadrature.compute_mean_and_variance_sparse_grid.html#pyapprox.quadrature.compute_mean_and_variance_sparse_grid" title="pyapprox.quadrature.compute_mean_and_variance_sparse_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.quadrature.compute_mean_and_variance_sparse_grid()</span></code></a></p></li>
+<li><p>‘polynomial_chaos’ See <a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean()</span></code></a> and <a class="reference internal" href="api/pyapprox.multivariate_polynomials.PolynomialChaosExpansion.html#pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance" title="pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance()</span></code></a></p></li>
+</ul>
+</div></blockquote>
+</div>
+</div>
+<div class="section" id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
+<p>The function <a class="reference internal" href="api/pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model" title="pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model()</span></code></a> can be used to draw samples from the posterior distribution of variables of a model conditioned on a set of observations with Gaussian noise.</p>
+</div>
+<div class="section" id="optimal-experimental-design">
+<h2>Optimal experimental design<a class="headerlink" href="#optimal-experimental-design" title="Permalink to this headline">¶</a></h2>
+<p>Optimal experimental designs for m-estimators such as least squares and quantile regression can be computed with</p>
+<p><a class="reference internal" href="api/pyapprox.optimal_experimental_design.optimal_experimental_design.html#pyapprox.optimal_experimental_design.optimal_experimental_design" title="pyapprox.optimal_experimental_design.optimal_experimental_design"><code class="xref py py-func docutils literal notranslate"><span class="pre">pyapprox.optimal_experimental_design.optimal_experimental_design()</span></code></a></p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="modules.html" class="btn btn-neutral float-right" title="Developer Reference Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="benchmarks.html" class="btn btn-neutral float-left" title="Benchmarks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

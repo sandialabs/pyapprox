@@ -1,0 +1,6 @@
+setup_genz_function
+===================
+
+.. currentmodule:: pyapprox.benchmarks.benchmarks
+
+.. autofunction:: setup_genz_function

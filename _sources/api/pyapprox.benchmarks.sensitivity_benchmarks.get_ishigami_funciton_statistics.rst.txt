@@ -1,0 +1,6 @@
+get_ishigami_funciton_statistics
+================================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: get_ishigami_funciton_statistics

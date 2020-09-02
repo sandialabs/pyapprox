@@ -1,0 +1,6 @@
+get_gaussian_source_forcing
+===========================
+
+.. currentmodule:: pyapprox.fenics_models.advection_diffusion_wrappers
+
+.. autofunction:: get_gaussian_source_forcing

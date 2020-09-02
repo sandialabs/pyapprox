@@ -1,0 +1,19 @@
+GaussianLogLike
+===============
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autoclass:: GaussianLogLike
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~GaussianLogLike.__call__
+      ~GaussianLogLike.noise_covariance_inverse
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: noise_covariance_inverse

@@ -1,0 +1,6 @@
+evaluate_multivariate_orthonormal_polynomial_values_deprecated
+==============================================================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: evaluate_multivariate_orthonormal_polynomial_values_deprecated

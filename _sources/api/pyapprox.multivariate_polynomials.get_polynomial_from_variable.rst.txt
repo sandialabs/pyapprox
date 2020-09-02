@@ -1,0 +1,6 @@
+get_polynomial_from_variable
+============================
+
+.. currentmodule:: pyapprox.multivariate_polynomials
+
+.. autofunction:: get_polynomial_from_variable

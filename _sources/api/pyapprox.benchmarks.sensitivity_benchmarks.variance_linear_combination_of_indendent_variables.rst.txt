@@ -1,0 +1,6 @@
+variance_linear_combination_of_indendent_variables
+==================================================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: variance_linear_combination_of_indendent_variables

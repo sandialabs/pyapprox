@@ -1,0 +1,17 @@
+ACVMFKL
+=======
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: ACVMFKL
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ACVMFKL.get_rsquared
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: get_rsquared

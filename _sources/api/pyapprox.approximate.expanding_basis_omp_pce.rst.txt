@@ -1,0 +1,6 @@
+expanding_basis_omp_pce
+=======================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: expanding_basis_omp_pce

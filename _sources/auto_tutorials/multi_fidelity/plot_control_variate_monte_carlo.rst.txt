@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py:
 
 
 Control Variate Monte Carlo
@@ -22,8 +24,8 @@ Here :math:`\eta` is a free parameter which can be optimized to the reduce the v
 .. math::
 
   \var{Q_{\V{\alpha},N}^{\text{CV}}} &= \var{Q_{\V{\alpha},N} + \eta \left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
-   &=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta^2\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
-   &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta^2\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).
+   &=\var{Q_{\V{\alpha},N}} + \eta^2\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}+ 2\eta\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}\\
+   &=\var{Q_{\V{\alpha},N}}\left(1+\eta^2\frac{\var{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}+ 2\eta\frac{\covar{Q_{\V{\alpha},N}}{\left( Q_{\V{\kappa},N} - \mu_{\V{\kappa}}\right)}}{\var{Q_{\V{\alpha},N}}}\right).
 
 The first line follows from the variance of sums of random variables.
 
@@ -161,6 +163,7 @@ The following plot shows that unlike the :ref:`Monte Carlo estimator <estimator-
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_control_variate_monte_carlo_001.png
+    :alt: plot control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -176,7 +179,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  0.404 seconds)
+   **Total running time of the script:** ( 0 minutes  0.273 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py:
@@ -189,13 +192,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_control_variate_monte_carlo.py <plot_control_variate_monte_carlo.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_control_variate_monte_carlo.ipynb <plot_control_variate_monte_carlo.ipynb>`
 

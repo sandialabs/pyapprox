@@ -1,0 +1,565 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyapprox.bayesian_inference.markov_chain_monte_carlo &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyapprox.bayesian_inference.markov_chain_monte_carlo</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyapprox.bayesian_inference.markov_chain_monte_carlo</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pymc3</span> <span class="k">as</span> <span class="nn">pm</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">theano</span>
+<span class="kn">import</span> <span class="nn">theano.tensor</span> <span class="k">as</span> <span class="nn">tt</span>
+<span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">approx_fprime</span>
+
+<div class="viewcode-block" id="GaussianLogLike"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike">[docs]</a><span class="k">class</span> <span class="nc">GaussianLogLike</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Gaussian log-likelihood function for a model with parameters given in </span>
+<span class="sd">    sample</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">model</span><span class="p">,</span><span class="n">data</span><span class="p">,</span><span class="n">noise_covar</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise the Op with various things that our log-likelihood </span>
+<span class="sd">        function requires.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        model : callable</span>
+<span class="sd">            The model relating the data and noise </span>
+
+<span class="sd">        data : np.ndarray (nobs)</span>
+<span class="sd">            The &quot;observed&quot; data</span>
+
+<span class="sd">        noise_covar : float, np.ndarray (nobs), np.ndarray (nobs,nobs)</span>
+<span class="sd">            The noise covariance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">=</span><span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">=</span><span class="n">data</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ndata</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise_covar_inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_covariance_inverse</span><span class="p">(</span><span class="n">noise_covar</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GaussianLogLike.noise_covariance_inverse"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.noise_covariance_inverse">[docs]</a>    <span class="k">def</span> <span class="nf">noise_covariance_inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">noise_covar</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">noise_covar</span><span class="p">):</span>
+            <span class="n">inv_covar</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">noise_covar</span>
+        <span class="k">elif</span> <span class="n">noise_covar</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">noise_covar</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">inv_covar</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">noise_covar</span>
+        <span class="k">elif</span> <span class="n">noise_covar</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">noise_covar</span><span class="o">.</span><span class="n">shape</span><span class="o">==</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span><span class="p">]</span>
+            <span class="n">inv_covar</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_covar</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">inv_covar</span></div>
+
+    <span class="c1"># def noise_covariance_determinant(self, noise_covar):</span>
+    <span class="c1">#     r&quot;&quot;&quot;The determinant is only necessary in log likelihood if the noise </span>
+    <span class="c1">#     covariance has a hyper-parameter which is being inferred which is</span>
+    <span class="c1">#     not currently supported&quot;&quot;&quot;</span>
+    <span class="c1">#     if np.isscalar(noise_covar):</span>
+    <span class="c1">#         determinant = noise_covar**self.ndata</span>
+    <span class="c1">#     elif noise_covar.ndim==1:</span>
+    <span class="c1">#         determinant = np.prod(noise_covar)</span>
+    <span class="c1">#     else:</span>
+    <span class="c1">#         determinant = np.linalg.det(noise_covar)</span>
+    <span class="c1">#     return determinant</span>
+
+<div class="viewcode-block" id="GaussianLogLike.__call__"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">model_vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">model_vals</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">2</span>
+        <span class="k">assert</span> <span class="n">model_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="bp">self</span><span class="o">.</span><span class="n">ndata</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">model_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">model_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">residual</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span> <span class="n">model_vals</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_covar_inv</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">noise_covar_inv</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">vals</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="p">(</span><span class="n">residual</span><span class="o">.</span><span class="n">T</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_covar_inv</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">residual</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">vals</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">residual</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_covar_inv</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">residual</span><span class="p">)</span>
+        <span class="n">vals</span> <span class="o">*=</span> <span class="o">-</span><span class="mf">0.5</span>
+        <span class="k">return</span> <span class="n">vals</span></div></div>
+
+<div class="viewcode-block" id="LogLike"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLike">[docs]</a><span class="k">class</span> <span class="nc">LogLike</span><span class="p">(</span><span class="n">tt</span><span class="o">.</span><span class="n">Op</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Specify what type of object will be passed and returned to the Op </span>
+<span class="sd">    when it is called. In our case we will be passing it a vector of </span>
+<span class="sd">    values (the parameters that define our model) and returning a </span>
+<span class="sd">    single &quot;scalar&quot; value (the log-likelihood)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">itypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dvector</span><span class="p">]</span> <span class="c1"># expects a vector of parameter values when called</span>
+    <span class="n">otypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dscalar</span><span class="p">]</span> <span class="c1"># outputs a single scalar value (the log likelihood)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loglike</span><span class="p">):</span>
+        <span class="c1"># add inputs as class attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span> <span class="o">=</span> <span class="n">loglike</span>
+
+    <span class="k">def</span> <span class="nf">perform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="o">=</span> <span class="n">inputs</span> <span class="c1"># important</span>
+        <span class="c1"># call the log-likelihood function</span>
+        <span class="n">logl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">logl</span><span class="p">)</span> <span class="c1"># output the log-likelihood</span></div>
+
+<span class="c1"># define a theano Op for our likelihood function</span>
+<div class="viewcode-block" id="LogLikeWithGrad"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeWithGrad">[docs]</a><span class="k">class</span> <span class="nc">LogLikeWithGrad</span><span class="p">(</span><span class="n">LogLike</span><span class="p">):</span>
+
+    <span class="n">itypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dvector</span><span class="p">]</span> <span class="c1"># expects a vector of parameter values when called</span>
+    <span class="n">otypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dscalar</span><span class="p">]</span> <span class="c1"># outputs a single scalar value (the log likelihood)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loglike</span><span class="p">,</span> <span class="n">loglike_grad</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise with various things that the function requires. Below</span>
+<span class="sd">        are the things that are needed in this particular example.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        loglike:</span>
+<span class="sd">            The log-likelihood (or whatever) function we&#39;ve defined</span>
+
+<span class="sd">        loglike:</span>
+<span class="sd">            The log-likelihood (or whatever) function we&#39;ve defined</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">loglike</span><span class="p">)</span>
+        
+        <span class="c1"># initialise the gradient Op (below)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logpgrad</span> <span class="o">=</span> <span class="n">LogLikeGrad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span><span class="p">,</span><span class="n">loglike_grad</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">grad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">g</span><span class="p">):</span>
+        <span class="c1"># the method that calculates the gradients - it actually returns the</span>
+        <span class="c1"># vector-Jacobian product - g[0] is a vector of parameter values</span>
+        <span class="n">samples</span><span class="p">,</span> <span class="o">=</span> <span class="n">inputs</span> <span class="c1"># important</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">logpgrad</span><span class="p">(</span><span class="n">samples</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="LogLikeGrad"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.LogLikeGrad">[docs]</a><span class="k">class</span> <span class="nc">LogLikeGrad</span><span class="p">(</span><span class="n">tt</span><span class="o">.</span><span class="n">Op</span><span class="p">):</span>
+
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This Op will be called with a vector of values and also return a </span>
+<span class="sd">    vector of values - the gradients in each dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">itypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dvector</span><span class="p">]</span>
+    <span class="n">otypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">tt</span><span class="o">.</span><span class="n">dvector</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loglike</span><span class="p">,</span> <span class="n">loglike_grad</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise with various things that the function requires. Below</span>
+<span class="sd">        are the things that are needed in this particular example.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        loglike:</span>
+<span class="sd">            The log-likelihood (or whatever) function we&#39;ve defined</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span> <span class="o">=</span> <span class="n">loglike</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_grad</span> <span class="o">=</span> <span class="n">loglike_grad</span>
+
+    <span class="k">def</span> <span class="nf">perform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+        <span class="n">samples</span><span class="p">,</span><span class="o">=</span><span class="n">inputs</span>
+        
+        <span class="c1"># calculate gradients</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_grad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># define version of likelihood function to pass to</span>
+            <span class="c1"># derivative function</span>
+            <span class="k">def</span> <span class="nf">lnlike</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">grads</span> <span class="o">=</span> <span class="n">approx_fprime</span><span class="p">(</span>
+                <span class="n">samples</span><span class="p">,</span><span class="n">lnlike</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">grads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_grad</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">grads</span></div>
+
+<div class="viewcode-block" id="extract_mcmc_chain_from_pymc3_trace"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_mcmc_chain_from_pymc3_trace">[docs]</a><span class="k">def</span> <span class="nf">extract_mcmc_chain_from_pymc3_trace</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span><span class="n">var_names</span><span class="p">,</span><span class="n">ndraws</span><span class="p">,</span><span class="n">nburn</span><span class="p">,</span><span class="n">njobs</span><span class="p">):</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">var_names</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nvars</span><span class="p">,(</span><span class="n">ndraws</span><span class="o">-</span><span class="n">nburn</span><span class="p">)</span><span class="o">*</span><span class="n">njobs</span><span class="p">))</span>
+    <span class="n">effective_sample_size</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">nvars</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+        <span class="n">samples</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span><span class="o">=</span><span class="n">trace</span><span class="o">.</span><span class="n">get_values</span><span class="p">(</span>
+            <span class="n">var_names</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">burn</span><span class="o">=</span><span class="n">nburn</span><span class="p">,</span><span class="n">chains</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">njobs</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">effective_sample_size</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="n">trace</span><span class="p">)[</span><span class="n">var_names</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;could not compute ess. likely issue with theano&#39;</span><span class="p">)</span>
+
+
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span><span class="n">effective_sample_size</span></div>
+
+<div class="viewcode-block" id="extract_map_sample_from_pymc3_dict"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.extract_map_sample_from_pymc3_dict">[docs]</a><span class="k">def</span> <span class="nf">extract_map_sample_from_pymc3_dict</span><span class="p">(</span><span class="n">map_sample_dict</span><span class="p">,</span><span class="n">var_names</span><span class="p">):</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">var_names</span><span class="p">)</span>
+    <span class="n">map_sample</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nvars</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+        <span class="n">map_sample</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">=</span><span class="n">map_sample_dict</span><span class="p">[</span><span class="n">var_names</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span>
+    <span class="k">return</span> <span class="n">map_sample</span></div>
+
+<span class="kn">from</span> <span class="nn">pyapprox.variables</span> <span class="kn">import</span> <span class="n">get_distribution_info</span>
+<div class="viewcode-block" id="get_pymc_variables"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variables">[docs]</a><span class="k">def</span> <span class="nf">get_pymc_variables</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span><span class="n">pymc_var_names</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">nvars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pymc_var_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">pymc_var_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;z_</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">ii</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">)]</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">pymc_var_names</span><span class="p">)</span><span class="o">==</span><span class="n">nvars</span>
+    <span class="n">pymc_vars</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nvars</span><span class="p">):</span>
+        <span class="n">pymc_vars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">get_pymc_variable</span><span class="p">(</span><span class="n">variables</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">pymc_var_names</span><span class="p">[</span><span class="n">ii</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">pymc_vars</span><span class="p">,</span> <span class="n">pymc_var_names</span></div>
+
+<div class="viewcode-block" id="get_pymc_variable"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.get_pymc_variable">[docs]</a><span class="k">def</span> <span class="nf">get_pymc_variable</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span><span class="n">pymc_var_name</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">shapes</span> <span class="o">=</span> <span class="n">get_distribution_info</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">dist</span><span class="o">.</span><span class="n">name</span><span class="o">==</span><span class="s1">&#39;norm&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span>
+            <span class="n">pymc_var_name</span><span class="p">,</span><span class="n">mu</span><span class="o">=</span><span class="n">scales</span><span class="p">[</span><span class="s1">&#39;loc&#39;</span><span class="p">],</span><span class="n">sigma</span><span class="o">=</span><span class="n">scales</span><span class="p">[</span><span class="s1">&#39;scale&#39;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">dist</span><span class="o">.</span><span class="n">name</span><span class="o">==</span><span class="s1">&#39;uniform&#39;</span><span class="p">:</span>        
+        <span class="k">return</span> <span class="n">pm</span><span class="o">.</span><span class="n">Uniform</span><span class="p">(</span><span class="n">pymc_var_name</span><span class="p">,</span><span class="n">lower</span><span class="o">=</span><span class="n">scales</span><span class="p">[</span><span class="s1">&#39;loc&#39;</span><span class="p">],</span>
+                          <span class="n">upper</span><span class="o">=</span><span class="n">scales</span><span class="p">[</span><span class="s1">&#39;loc&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">scales</span><span class="p">[</span><span class="s1">&#39;scale&#39;</span><span class="p">])</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Variable type: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1"> not supported&#39;</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="run_bayesian_inference_gaussian_error_model"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model">[docs]</a><span class="k">def</span> <span class="nf">run_bayesian_inference_gaussian_error_model</span><span class="p">(</span>
+        <span class="n">loglike</span><span class="p">,</span><span class="n">variables</span><span class="p">,</span><span class="n">ndraws</span><span class="p">,</span><span class="n">nburn</span><span class="p">,</span><span class="n">njobs</span><span class="p">,</span>
+        <span class="n">algorithm</span><span class="o">=</span><span class="s1">&#39;nuts&#39;</span><span class="p">,</span><span class="n">get_map</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">print_summary</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">loglike_grad</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Draw samples from the posterior distribution using Markov Chain Monte </span>
+<span class="sd">    Carlo for data that satisfies</span>
+
+<span class="sd">    .. math:: y=f(z)+\epsilon</span>
+
+<span class="sd">    where :math:`y` is a vector of observations, :math:`z` are the </span>
+<span class="sd">    parameters of a function which are to be inferred, and :math:`\epsilon`</span>
+<span class="sd">    is Gaussian noise.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    loglike : pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike</span>
+<span class="sd">        A log-likelihood function associated with a Gaussian error model</span>
+
+<span class="sd">    variables : pya.IndependentMultivariateRandomVariable</span>
+<span class="sd">        Object containing information of the joint density of the inputs z.</span>
+<span class="sd">        This is used to generate random samples from this join density</span>
+
+<span class="sd">    ndraws : integer</span>
+<span class="sd">        The number of posterior samples</span>
+
+<span class="sd">    nburn : integer</span>
+<span class="sd">        The number of samples to discard during initialization</span>
+
+<span class="sd">    njobs : integer</span>
+<span class="sd">        The number of prallel chains</span>
+
+<span class="sd">    algorithm : string</span>
+<span class="sd">        The MCMC algorithm should be one of</span>
+
+<span class="sd">        - &#39;nuts&#39;</span>
+<span class="sd">        - &#39;metropolis&#39;</span>
+<span class="sd">        - &#39;smc&#39;</span>
+
+<span class="sd">    get_map : boolean</span>
+<span class="sd">        If true return the MAP</span>
+<span class="sd">    </span>
+<span class="sd">    print_summary : boolean</span>
+<span class="sd">        If true print summary statistics about the posterior samples</span>
+
+<span class="sd">    loglike_grad : callable</span>
+<span class="sd">        Function with signature</span>
+<span class="sd">      </span>
+<span class="sd">       ``loglikegrad(z) -&gt; np.ndarray (nvars)``</span>
+
+<span class="sd">        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples</span>
+
+<span class="sd">    random_seed : int or list of ints</span>
+<span class="sd">        A list is accepted if ``cores`` is greater than one. PyMC3 does not </span>
+<span class="sd">        produce consistent results by setting numpy.random.seed instead</span>
+<span class="sd">        seed must be passed in</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c1"># create our Op</span>
+    <span class="k">if</span> <span class="n">algorithm</span><span class="o">!=</span><span class="s1">&#39;nuts&#39;</span><span class="p">:</span>
+        <span class="n">logl</span> <span class="o">=</span> <span class="n">LogLike</span><span class="p">(</span><span class="n">loglike</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logl</span> <span class="o">=</span> <span class="n">LogLikeWithGrad</span><span class="p">(</span><span class="n">loglike</span><span class="p">,</span><span class="n">loglike_grad</span><span class="p">)</span>
+
+    <span class="c1"># use PyMC3 to sampler from log-likelihood</span>
+    <span class="k">with</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">():</span>
+        <span class="c1"># must be defined inside with pm.Model() block</span>
+        <span class="n">pymc_variables</span><span class="p">,</span> <span class="n">pymc_var_names</span> <span class="o">=</span> <span class="n">get_pymc_variables</span><span class="p">(</span>
+            <span class="n">variables</span><span class="o">.</span><span class="n">all_variables</span><span class="p">())</span>
+
+        <span class="c1"># convert m and c to a tensor vector</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">tt</span><span class="o">.</span><span class="n">as_tensor_variable</span><span class="p">(</span><span class="n">pymc_variables</span><span class="p">)</span>
+
+        <span class="c1"># use a DensityDist (use a lamdba function to &quot;call&quot; the Op)</span>
+        <span class="n">pm</span><span class="o">.</span><span class="n">DensityDist</span><span class="p">(</span>
+            <span class="s1">&#39;likelihood&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">logl</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">observed</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;v&#39;</span><span class="p">:</span> <span class="n">theta</span><span class="p">})</span>
+
+        <span class="k">if</span> <span class="n">get_map</span><span class="p">:</span>
+            <span class="n">map_sample_dict</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">find_MAP</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">algorithm</span><span class="o">==</span><span class="s1">&#39;smc&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">njobs</span><span class="o">==</span><span class="mi">1</span> <span class="c1"># njobs is always 1 when using smc</span>
+            <span class="n">trace</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample_smc</span><span class="p">(</span><span class="n">ndraws</span><span class="p">);</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">algorithm</span><span class="o">==</span><span class="s1">&#39;metropolis&#39;</span><span class="p">:</span>
+                <span class="n">step</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">Metropolis</span><span class="p">(</span><span class="n">pymc_variables</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">algorithm</span><span class="o">==</span><span class="s1">&#39;nuts&#39;</span><span class="p">:</span>
+                <span class="n">step</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">NUTS</span><span class="p">(</span><span class="n">pymc_variables</span><span class="p">)</span>
+            
+            <span class="n">trace</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+                <span class="n">ndraws</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="n">nburn</span><span class="p">,</span> <span class="n">discard_tuned_samples</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">cores</span><span class="o">=</span><span class="n">njobs</span><span class="p">,</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span>
+                <span class="n">compute_convergence_checks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">random_seed</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+            <span class="c1"># compute_convergence_checks=False avoids bugs in theano</span>
+            
+        <span class="k">if</span> <span class="n">print_summary</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">pm</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">trace</span><span class="p">))</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;could not print summary. likely issue with theano&#39;</span><span class="p">)</span>
+        
+        <span class="n">samples</span><span class="p">,</span> <span class="n">effective_sample_size</span><span class="o">=</span><span class="n">extract_mcmc_chain_from_pymc3_trace</span><span class="p">(</span>
+            <span class="n">trace</span><span class="p">,</span><span class="n">pymc_var_names</span><span class="p">,</span><span class="n">ndraws</span><span class="p">,</span><span class="n">nburn</span><span class="p">,</span><span class="n">njobs</span><span class="p">)</span>
+    
+        <span class="k">if</span> <span class="n">get_map</span><span class="p">:</span>
+            <span class="n">map_sample</span> <span class="o">=</span> <span class="n">extract_map_sample_from_pymc3_dict</span><span class="p">(</span>
+                <span class="n">map_sample_dict</span><span class="p">,</span><span class="n">pymc_var_names</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">map_samples</span> <span class="o">=</span> <span class="kc">None</span>
+        
+    <span class="k">return</span> <span class="n">samples</span><span class="p">,</span> <span class="n">effective_sample_size</span><span class="p">,</span> <span class="n">map_sample</span></div>
+
+<div class="viewcode-block" id="PYMC3LogLikeWrapper"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper">[docs]</a><span class="k">class</span> <span class="nc">PYMC3LogLikeWrapper</span><span class="p">():</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Turn pyapprox model in to one which can be used by PYMC3.</span>
+<span class="sd">    Main difference is that PYMC3 often passes 1d arrays where as</span>
+<span class="sd">    Pyapprox assumes 2d arrays.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">loglike</span><span class="p">,</span><span class="n">loglike_grad</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loglike</span><span class="o">=</span><span class="n">loglike</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loglike_grad</span><span class="o">=</span><span class="n">loglike_grad</span>
+
+<div class="viewcode-block" id="PYMC3LogLikeWrapper.__call__"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">xr</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">xr</span><span class="o">=</span><span class="n">x</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loglike</span><span class="p">(</span><span class="n">xr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vals</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PYMC3LogLikeWrapper.gradient"><a class="viewcode-back" href="../../../api/pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.html#pyapprox.bayesian_inference.markov_chain_monte_carlo.PYMC3LogLikeWrapper.gradient">[docs]</a>    <span class="k">def</span> <span class="nf">gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">xr</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">xr</span><span class="o">=</span><span class="n">x</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loglike_grad</span><span class="p">(</span><span class="n">xr</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

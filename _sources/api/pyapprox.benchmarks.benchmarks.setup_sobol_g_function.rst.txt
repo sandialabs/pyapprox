@@ -1,0 +1,6 @@
+setup_sobol_g_function
+======================
+
+.. currentmodule:: pyapprox.benchmarks.benchmarks
+
+.. autofunction:: setup_sobol_g_function

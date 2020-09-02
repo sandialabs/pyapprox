@@ -1,0 +1,6 @@
+combine_saved_model_data
+========================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: combine_saved_model_data

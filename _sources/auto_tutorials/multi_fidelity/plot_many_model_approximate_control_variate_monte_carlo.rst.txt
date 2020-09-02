@@ -1,10 +1,12 @@
-.. note::
-    :class: sphx-glr-download-link-note
+.. only:: html
 
-    Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py>` to download the full example code
-.. rst-class:: sphx-glr-example-title
+    .. note::
+        :class: sphx-glr-download-link-note
 
-.. _sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py:
+        Click :ref:`here <sphx_glr_download_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py:
 
 
 Generalized Approximate Control Variate Monte Carlo
@@ -152,9 +154,8 @@ Lets apply ACV to the tunable model ensemble using some helper functions to redu
     from scipy.stats import uniform
     from functools import partial
     from scipy.stats import uniform,norm,lognorm
-    np.random.seed(1)
+    np.random.seed(2)
 
-    np.random.seed(1)
     shifts= [.1,.2]
     model = TunableModelEnsemble(1,shifts=shifts)
     exact_integral_f0=0
@@ -280,7 +281,7 @@ The benefit of using three models over two models depends on the correlation bet
     axs[0].set_xlabel(r'$\theta_1$')
     axs[0].set_ylabel(r'$\mathrm{Correlation}$')
     axs[1].set_xlabel(r'$\theta_1$')
-    axs[1].set_ylabel(r'$\mathrm{Variance reduction ratio} \ \gamma$')
+    axs[1].set_ylabel(r'$\mathrm{Variance\;reduction\;ratio} \; \gamma$')
     axs[0].legend()
     _ = axs[1].legend()
 
@@ -288,6 +289,7 @@ The benefit of using three models over two models depends on the correlation bet
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_001.png
+    :alt: plot many model approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -296,15 +298,15 @@ The benefit of using three models over two models depends on the correlation bet
 
 The variance reduction clearly depends on the correlation between all the models.
 
+Let us now compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble
+
+.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
+
+where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
+
 
 .. code-block:: default
 
-
-    #Let us now compare the variance reduction obtained by MLMC, MFMC and ACV with the MF sampling scheme as we increase the number of samples assigned to the low-fidelity models, while keeping the number of high-fidelity samples fixed. Here we will use the model ensemble
-    #
-    #.. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
-    #
-    #where each model is the function of a single uniform random variable defined on the unit interval :math:`[0,1]`.
 
     plt.figure()
     poly_model = PolynomialModelEnsemble()
@@ -345,6 +347,7 @@ The variance reduction clearly depends on the correlation between all the models
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_002.png
+    :alt: plot many model approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -353,56 +356,56 @@ The variance reduction clearly depends on the correlation between all the models
 
 As the theory suggests MLMC and MFMC use multiple models to increase the speed to which we converge to the optimal 2 model CV estimator OCV-2. These two approaches reduce the variance of the estimator more quickly than the ACV estimator, but cannot obtain the optimal variance reduction.
 
+Accelerated Approximate Control Variate Monte Carlo
+---------------------------------------------------
+The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-KL that combines the strengths of these methods.
+
+Let :math:`K,L \leq M` with :math:`0 \leq L \leq K`. The ACV-KL estimator is
+
+.. math::
+
+   Q^{\mathrm{ACV-KL}}_{0,\mathcal{Z}}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^K\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{0}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)+\sum_{\alpha=K+1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{L}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
+
+We allocate samples to the terms of this estimator using a modified version of the MFMC sampling scheme. The sample allocation for K=2,L=2 is shown in :ref:`acv_mf-kl-sample-allocation-kl-comparison`. Note the subtle difference between this sampling scheme and the one used for MFMC. We also note that the sample sets can be chosen in several ways, this is just one choice.
+
+.. list-table::
+
+   * - 
+       .. _mfmc-sample-allocation-kl-comparison:
+
+       .. figure:: ../../figures/mfmc.png
+          :width: 100%
+          :align: center
+
+          MFMC sampling strategy
+
+     - 
+       .. _acv_mf-kl-sample-allocation-kl-comparison:
+
+       .. figure:: ../../figures/acv_kl_22.png
+          :width: 100%
+          :align: center
+
+          ACV KL MF sampling strategy K=2,L=2
+
+This estimator differs from the previous recursive estimators because the first two terms in correspond to an ACV-MF estimator with :math:`K` CVs and the last term adds a CV scheme to the ACV-MF estimator.
+
+The inclusion of the ACV-MF estimator enables the ACV-KL estimator to converge to the CV estimator and the last term reduces the variance of :math:`\mu_{L}`, thereby accelerating convergence of the scheme. The optimal weights and variance reduction for the ACV-KL estimator are now provided.
+
+The matrix :math:`F` used to compute the covariances of the control variate discrepancies, i.e.
+
+.. math::
+
+   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
+   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F\right)\\
+
+can be found in  [GGEJJCP2020]_.
+
+Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators. Note in the following plot OCV-K denotews the optimal CV estimator using K low-fidelity models with known means)
+
 
 .. code-block:: default
 
-
-    #Accelerated Approximate Control Variate Monte Carlo
-    #---------------------------------------------------
-    #The recursive estimators work well when the number of low-fidelity samples are smal but ACV can achieve a greater variance reduction for a fixed number of high-fidelity samples. In this section we present an approach called ACV-KL that combines the strengths of these methods.
-    #
-    #Let :math:`K,L \leq M` with :math:`0 \leq L \leq K`. The ACV-KL estimator is
-    #
-    #.. math::
-    #
-    #   Q^{\mathrm{ACV-KL}}_{0,\mathcal{Z}}=Q_{0,\mathcal{Z}_{0}} + \sum_{\alpha=1}^K\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{0}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)+\sum_{\alpha=K+1}^M\eta_\alpha\left(Q_{\alpha,\mathcal{Z}_{L}}-\mu_{\alpha,\mathcal{Z}_{\alpha}}\right)
-    #
-    #We allocate samples to the terms of this estimator using a modified version of the MFMC sampling scheme. The sample allocation for K=2,L=2 is shown in :ref:`acv_mf-kl-sample-allocation-kl-comparison`. Note the subtle difference between this sampling scheme and the one used for MFMC. We also note that the sample sets can be chosen in several ways, this is just one choice.
-    #
-    #.. list-table::
-    #
-    #   * - 
-    #       .. _mfmc-sample-allocation-kl-comparison:
-    #
-    #       .. figure:: ../../figures/mfmc.png
-    #          :width: 100%
-    #          :align: center
-    #
-    #          MFMC sampling strategy
-    #
-    #     - 
-    #       .. _acv_mf-kl-sample-allocation-kl-comparison:
-    #
-    #       .. figure:: ../../figures/acv_kl_22.png
-    #          :width: 100%
-    #          :align: center
-    #
-    #          ACV KL MF sampling strategy K=2,L=2
-    #
-    #This estimator differs from the previous recursive estimators because the first two terms in correspond to an ACV-MF estimator with :math:`K` CVs and the last term adds a CV scheme to the ACV-MF estimator.
-    #
-    #The inclusion of the ACV-MF estimator enables the ACV-KL estimator to converge to the CV estimator and the last term reduces the variance of :math:`\mu_{L}`, thereby accelerating convergence of the scheme. The optimal weights and variance reduction for the ACV-KL estimator are now provided.
-    #
-    #The matrix :math:`F` used to compute the covariances of the control variate discrepancies, i.e.
-    #
-    #.. math::
-    #
-    #   \covar{\V{\Delta}}{Q_0}&=N^{-1}\left(\mathrm{diag}\left(F\right)\circ \covar{\V{Q}_\mathrm{LF}}{Q_0}\right)\\
-    #   \covar{\V{\Delta}}{\V{\Delta}}&=N^{-1}\left(\covar{\V{Q}_\mathrm{LF}}{\V{Q}_\mathrm{LF}}\circ F\right)\\
-    #
-    #can be found in  [GGEJJCP2020]_.
-    #
-    #Let us add the ACV KL estimator with the optimal choice of K and L to the previous plot. The optimal values can be obtained by a simple grid search, over all possible values of K and L, which returns the combination that results in the smallest estimator variance. This step only requires an estimate of the model covariance which is required for all ACV estimators. Note in the following plot OCV-K denotews the optimal CV estimator using K low-fidelity models with known means)
 
     plt.figure()
     cv_labels = [r'$\mathrm{OCV-1}$',r'$\mathrm{OCV-2}$',r'$\mathrm{OCV-4}$']
@@ -440,6 +443,7 @@ As the theory suggests MLMC and MFMC use multiple models to increase the speed t
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_003.png
+    :alt: plot many model approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -491,6 +495,7 @@ The previous results compared MLMC with MFMC and ACV-KL when the number of high-
 
 
 .. image:: /auto_tutorials/multi_fidelity/images/sphx_glr_plot_many_model_approximate_control_variate_monte_carlo_004.png
+    :alt: plot many model approximate control variate monte carlo
     :class: sphx-glr-single-img
 
 
@@ -508,7 +513,7 @@ References
 
 .. rst-class:: sphx-glr-timing
 
-   **Total running time of the script:** ( 0 minutes  2.878 seconds)
+   **Total running time of the script:** ( 0 minutes  4.227 seconds)
 
 
 .. _sphx_glr_download_auto_tutorials_multi_fidelity_plot_many_model_approximate_control_variate_monte_carlo.py:
@@ -521,13 +526,13 @@ References
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-python
 
      :download:`Download Python source code: plot_many_model_approximate_control_variate_monte_carlo.py <plot_many_model_approximate_control_variate_monte_carlo.py>`
 
 
 
-  .. container:: sphx-glr-download
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
 
      :download:`Download Jupyter notebook: plot_many_model_approximate_control_variate_monte_carlo.ipynb <plot_many_model_approximate_control_variate_monte_carlo.ipynb>`
 

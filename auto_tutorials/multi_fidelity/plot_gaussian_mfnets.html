@@ -1,0 +1,613 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>MFNets: Multi-fidelity networks &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Adaptive Leja Sequences" href="../polynomial_chaos/plot_adaptive_leja_interpolation.html" />
+    <link rel="prev" title="Multi-index Stochastic Collocation" href="plot_multi_index_collocation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">PyApprox Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../index.html#foundations">Foundations</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html#multi-fidelity-methods">Multi-Fidelity Methods</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="plot_control_variate_monte_carlo.html">Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_approximate_control_variate_monte_carlo.html">Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_level_monte_carlo.html">Multi-level Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_fidelity_monte_carlo.html">Multi-fidelity Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_many_model_approximate_control_variate_monte_carlo.html">Generalized Approximate Control Variate Monte Carlo</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plot_multi_index_collocation.html">Multi-index Stochastic Collocation</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">MFNets: Multi-fidelity networks</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#linear-gaussian-models">Linear-Gaussian models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gaussian-networks">Gaussian Networks</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../index.html#polynomial-chaos-expansions">Polynomial Chaos Expansions</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Developer Reference Guide</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">PyApprox Tutorials</a> &raquo;</li>
+        
+      <li>MFNets: Multi-fidelity networks</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/auto_tutorials/multi_fidelity/plot_gaussian_mfnets.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p>Click <a class="reference internal" href="#sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"><span class="std std-ref">here</span></a>     to download the full example code</p>
+</div>
+<div class="sphx-glr-example-title section" id="mfnets-multi-fidelity-networks">
+<span id="sphx-glr-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py"></span><h1>MFNets: Multi-fidelity networks<a class="headerlink" href="#mfnets-multi-fidelity-networks" title="Permalink to this headline">¶</a></h1>
+<p>This tutorial describes how to implement and deploy multi-fidelity networks to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost <a class="reference internal" href="#gjgeijuq2020" id="id1"><span>[GJGEIJUQ2020]</span></a>.</p>
+<p>In the <a class="reference internal" href="plot_multi_index_collocation.html#sphx-glr-auto-tutorials-multi-fidelity-plot-multi-index-collocation-py"><span class="std std-ref">Multi-index Stochastic Collocation</span></a> tutorial we showed how multi-index collocation takes adavantage of a specific type of relationship between models to build a surrogate. In some applications this structure may not exist and so methods that can exlpoit other types of structures are needed. MFNets provide a means to encode problem specific relationships between information sources.</p>
+<p>In the following we will approximate each information source with a linear subspace model. Specifically given a basis (features) <span class="math notranslate nohighlight">\(\phi_\alpha=\{\phi_{\alpha p}\}_{p=1}^P\)</span> for each information source <span class="math notranslate nohighlight">\(\alpha=1\ldots,M\)</span> we seek approximations of the form</p>
+<div class="math notranslate nohighlight">
+\[Y_\alpha = h(Z_\alpha)\theta_\alpha = \sum_{p=1}^{P_\alpha} \phi_p(Z_\alpha)\theta_{\alpha p}\]</div>
+<p>Given data for each model <span class="math notranslate nohighlight">\(y_\alpha=[(y_\alpha^{(1)})^T,(y_\alpha^{(N_\alpha)})^T]^T\)</span> where <span class="math notranslate nohighlight">\(y_\alpha^{(i)}=h(\rv_\alpha^{(i)})\theta_\alpha+\epsilon_\alpha^{(i)}\in\reals^{1\times Q}\)</span></p>
+<p>MFNets provides a framework to encode correlation between information sources to with the goal of producing high-fidelity approximations which are more accurate than single-fidelity approximations using ony high-fidelity data. The first part of this tutorial will show how to apply MFNets to a simple problem using standard results for the posterior of Gaussian linear models. The second part of this tutorial will show how to generalize the MFNets procedure using Bayesian Networks.</p>
+<div class="section" id="linear-gaussian-models">
+<h2>Linear-Gaussian models<a class="headerlink" href="#linear-gaussian-models" title="Permalink to this headline">¶</a></h2>
+<p>As our first example we will consider the following ensemble of three univariate information sources which are parameterized by the same variable <span class="math notranslate nohighlight">\(\rv_1\)</span></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f_0(\rv) &amp;= \cos\left(3\pi\rv_1+0.1\right), \\
+f_1(\rv) &amp;= \exp\left(-0.5(x-0.5)^2\right),\\
+f_2(\rv) &amp;= f_1(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
+<p>Let’s first import the necessary functions and modules and set the seed for reproducibility</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+<span class="kn">import</span> <span class="nn">scipy</span>
+<span class="kn">import</span> <span class="nn">pyapprox</span> <span class="k">as</span> <span class="nn">pya</span>
+<span class="kn">from</span> <span class="nn">pyapprox.gaussian_network</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">pyapprox.bayesian_inference.laplace</span> <span class="kn">import</span> \
+    <span class="n">laplace_posterior_approximation_for_linear_models</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pyapprox.configure_plots</span> <span class="kn">import</span> <span class="o">*</span>
+</pre></div>
+</div>
+<p>Now define the information sources and their inputs</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nmodels</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">f1</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="o">+</span><span class="mf">0.1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">f2</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">x</span><span class="o">-.</span><span class="mi">5</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">f3</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">f2</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">f1</span><span class="p">,</span><span class="n">f2</span><span class="p">,</span><span class="n">f3</span><span class="p">]</span>
+<span class="n">ensemble_univariate_variables</span> <span class="o">=</span> <span class="p">[[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]]</span><span class="o">*</span><span class="n">nmodels</span>
+</pre></div>
+</div>
+<p>Now setup the polynomial approximations of each information source</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">degrees</span><span class="o">=</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">*</span><span class="n">nmodels</span>
+<span class="n">polys</span><span class="p">,</span><span class="n">nparams</span> <span class="o">=</span> <span class="n">get_total_degree_polynomials</span><span class="p">(</span><span class="n">ensemble_univariate_variables</span><span class="p">,</span><span class="n">degrees</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Next generate the training data. Here we will set the noise to be independent Gaussian with mean zero and variance <span class="math notranslate nohighlight">\(0.01^2\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nsamples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>
+<span class="n">samples_train</span> <span class="o">=</span> <span class="p">[</span><span class="n">pya</span><span class="o">.</span><span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span><span class="n">n</span><span class="p">)</span>
+           <span class="k">for</span> <span class="n">p</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)]</span>
+<span class="n">noise_std</span><span class="o">=</span><span class="p">[</span><span class="mf">0.01</span><span class="p">]</span><span class="o">*</span><span class="n">nmodels</span>
+<span class="n">noise</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+    <span class="mi">0</span><span class="p">,</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">],(</span><span class="n">samples_train</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">values_train</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">+</span><span class="n">n</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span><span class="n">f</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">samples_train</span><span class="p">,</span><span class="n">functions</span><span class="p">,</span><span class="n">noise</span><span class="p">)]</span>
+</pre></div>
+</div>
+<p>In the following we will assume a Gaussian prior on the coefficients of each approximation. Because the noise is also Gaussian and we are using linear subspace models the posterior of the approximation coefficients will also be Gaussian.</p>
+<p>With the goal of applying classical formulas for the posterior of Gaussian-linear models let’s first define the linear model which involves all information sources</p>
+<div class="math notranslate nohighlight">
+\[y=\Phi\theta+\epsilon\]</div>
+<p>Specifically let <span class="math notranslate nohighlight">\(\Phi_\alpha\in\reals^{N_i\times P_i}\)</span> be Vandermonde-like matrices with entries <span class="math notranslate nohighlight">\(\phi_{\alpha p}(\rv_\alpha^{(n)})\)</span> in the nth row and pth column. Now define <span class="math notranslate nohighlight">\(\Phi=\mathrm{blockdiag}\left(\Phi_1,\ldots,\Phi_M\right)\)</span> and <span class="math notranslate nohighlight">\(\Sigma_\epsilon=\mathrm{blockdiag}\left(\Sigma_{\epsilon 1},\ldots,\Sigma_{\epsilon M}\right)\)</span>, <span class="math notranslate nohighlight">\(y=\left[y_1^T,\ldots,y_M^T\right]^T\)</span>,  <span class="math notranslate nohighlight">\(\theta=\left[\theta_1^T,\ldots,\theta_M^T\right]^T\)</span>, and <span class="math notranslate nohighlight">\(\epsilon=\left[\epsilon_1^T,\ldots,\epsilon_M^T\right]^T\)</span>.</p>
+<p>For our three model example we have</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\Phi=\begin{bmatrix}\Phi_1 &amp; 0_{M_1P_2} &amp; 0_{M_1P_3}\\ 0_{M_2P_1} &amp; \Phi_2 &amp; 0_{M_2P_3}\\0_{M_3P_1} &amp; 0_{M_3P_1} &amp; \Phi_3 \end{bmatrix} \qquad \Sigma_\epsilon=\begin{bmatrix}\Sigma_{\epsilon 1} &amp; 0_{M_1M_2} &amp; 0_{M_1M_3}\\ 0_{M_2M_1} &amp; \Sigma_{\epsilon 2} &amp; 0_{M_2M_3}\\0_{M_3M_1} &amp; 0_{M_3M_1} &amp; \Sigma_{\epsilon 3} \end{bmatrix}\qquad y= \begin{bmatrix}y_1\\y_2\\y_3 \end{bmatrix}\end{split}\]</div>
+<p>where the <span class="math notranslate nohighlight">\(0_{mp}\in\reals^{m\times p}\)</span> is a matrix of zeros.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">basis_matrices</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span><span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span><span class="n">samples_train</span><span class="p">)]</span>
+<span class="n">basis_mat</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">block_diag</span><span class="p">(</span><span class="o">*</span><span class="n">basis_matrices</span><span class="p">)</span>
+<span class="n">noise_matrices</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">samples_train</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                  <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">noise_cov</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">block_diag</span><span class="p">(</span><span class="o">*</span><span class="n">noise_matrices</span><span class="p">)</span>
+<span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">values_train</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now let the prior on the coefficients of <span class="math notranslate nohighlight">\(Y_\alpha\)</span> be Gaussian with mean <span class="math notranslate nohighlight">\(\mu_\alpha\)</span> and covariance <span class="math notranslate nohighlight">\(\Sigma_{\alpha\alpha}\)</span>, and the covariance between the coefficients of different information sources <span class="math notranslate nohighlight">\(Y_\alpha\)</span> and <span class="math notranslate nohighlight">\(Y_\beta\)</span> be <span class="math notranslate nohighlight">\(\Sigma_{\alpha\beta}\)</span>, such that the joint density of the coefficients of all information sources is Gaussian with mean and covariance given by</p>
+<blockquote>
+<div><div class="math notranslate nohighlight">
+\[\begin{split}\mu=\left[\mu_1^T,\ldots,\mu_M^T\right]^T` \qquad \Sigma=\begin{bmatrix}\Sigma_{11} &amp;\Sigma_{12} &amp;\ldots &amp;\Sigma_{1M} \\ \Sigma_{21} &amp;\Sigma_{22} &amp;\ldots &amp;\Sigma_{2M}\\\vdots &amp;\vdots &amp; \ddots &amp;\vdots \\ \Sigma_{M1} &amp;\Sigma_{M2} &amp;\ldots &amp;\Sigma_{MM}\end{bmatrix}\end{split}\]</div>
+</div></blockquote>
+<p>In the following we will set the prior mean to zero for all coefficients and first try setting all the coefficients to be independent</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nparams</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">prior_cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>With these definition the posterior distribution of the coefficients is (see <a class="reference internal" href="../foundations/plot_bayesian_inference.html#sphx-glr-auto-tutorials-foundations-plot-bayesian-inference-py"><span class="std std-ref">Bayesian Inference</span></a>)</p>
+<div class="math notranslate nohighlight">
+\[\Sigma^\mathrm{post}=\left(\Sigma^{-1}+\Phi^T\Sigma_\epsilon^{-1}\Phi\right)^{-1}, \qquad  \mu^\mathrm{post}=\Sigma^\mathrm{post}\left(\Phi^T\Sigma_\epsilon^{-1}y+\Sigma^{-1}\mu\right),\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">post_mean</span><span class="p">,</span><span class="n">post_cov</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
+    <span class="n">basis_mat</span><span class="p">,</span><span class="n">prior_mean</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">prior_cov</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_cov</span><span class="p">),</span>
+    <span class="n">values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now let’s plot the resulting approximation of the high-fidelity data.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hf_prior</span><span class="o">=</span><span class="p">(</span><span class="n">prior_mean</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():],</span>
+          <span class="n">prior_cov</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():,</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():])</span>
+<span class="n">hf_posterior</span><span class="o">=</span><span class="p">(</span><span class="n">post_mean</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():],</span>
+              <span class="n">post_cov</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():,</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():])</span>
+<span class="n">xx</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">101</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">training_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_1(z_1^{(i)})$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_2(z_2^{(i)})$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_2(z_2^{(i)})$&#39;</span><span class="p">]</span>
+<span class="n">plot_1d_lvn_approx</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">polys</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">hf_posterior</span><span class="p">,</span><span class="n">hf_prior</span><span class="p">,</span>
+                   <span class="n">axs</span><span class="p">,</span><span class="n">samples_train</span><span class="p">,</span><span class="n">values_train</span><span class="p">,</span><span class="n">training_labels</span><span class="p">,[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$z$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f(z)$&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">f3</span><span class="p">(</span><span class="n">xx</span><span class="p">),</span><span class="s1">&#39;k&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
+<span class="c1">#plt.show()</span>
+</pre></div>
+</div>
+<img alt="plot gaussian mfnets" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_gaussian_mfnets_0011.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x1d28ee9310&gt;]
+</pre></div>
+</div>
+<p>Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">single_hf_posterior</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
+    <span class="n">basis_matrices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span><span class="n">hf_prior</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">hf_prior</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_matrices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span><span class="n">values_train</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">single_hf_posterior</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">hf_posterior</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">single_hf_posterior</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">hf_posterior</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>We can improve the high-fidelity approximation by encoding a correlation between the coefficients of each information source. In the following we will assume that the cofficients of an information source is linearly related to the coefficients of the other information sources. Specifically we will assume that</p>
+<div class="math notranslate nohighlight">
+\[\theta_\alpha = \sum_{\beta\in\mathrm{pa}(\alpha)} A_{\alpha\beta}\theta_\beta + b_\alpha + v_\alpha,\]</div>
+<p>where <span class="math notranslate nohighlight">\(b_\alpha\in\reals^{P_\alpha}\)</span> is a deterministic shift, <span class="math notranslate nohighlight">\(v_\alpha\)</span> is a Gaussian noise with mean zero and covariance <span class="math notranslate nohighlight">\(\Sigma_{v_\alpha}\in\reals^{P_\alpha\times P_\alpha}\)</span>, and  <span class="math notranslate nohighlight">\(\mathrm{pa}(\alpha)\subset \{\beta : \beta=1,\ldots,M, \beta\neq\alpha\}\)</span> is a possibly empty subset of indices indexing the information sources upon which the <span class="math notranslate nohighlight">\(\alpha\)</span> information source is dependent. Here <span class="math notranslate nohighlight">\(A_{\alpha\beta}\in\reals^{P_\alpha\times P_\beta}\)</span> are matrices which, along with <span class="math notranslate nohighlight">\(\Sigma_{v\alpha}\)</span>, define the strength of the relationship between the coefficients of each information source. When these matrices are dense each coefficient of <span class="math notranslate nohighlight">\(Y_\alpha\)</span> is a function of all coefficients in <span class="math notranslate nohighlight">\(Y_\beta\)</span>. It is often more appropriate, however to impose a sparse structure. For example if <span class="math notranslate nohighlight">\(A\)</span> is diagonal this implies that the coefficient of a certain basis in the representation of one information source is only related to the coefficient of the same basis in the other information sources.</p>
+<p>Note this notation comes from the literature on Bayesian networks which we will use in the next section to generalize the procedure described in this tutorial to large ensembles of information sources with complex dependencies.</p>
+<p>The variable <span class="math notranslate nohighlight">\(v_\alpha\)</span> is a random variable that controls the correlation between the coefficients of the information sources. The MFNets framework in <a class="reference internal" href="#gjgeijuq2020" id="id2"><span>[GJGEIJUQ2020]</span></a> assumes that this variable is Gaussian with mean zero and covariance given by <span class="math notranslate nohighlight">\(\Sigma_{v\alpha}\)</span>. In this example we will set</p>
+<div class="math notranslate nohighlight">
+\[\theta_3=A_{31}\theta_1+A_{32}\theta_2+b_3+v_3\]</div>
+<p>and assume that <span class="math notranslate nohighlight">\(\covar{\theta_\alpha}{v_3}=0\: \forall \alpha\)</span> and  <span class="math notranslate nohighlight">\(\covar{\theta_1}{\theta_2}=0\)</span>. Note the later relationship does not mean data from the information from <span class="math notranslate nohighlight">\(Y_1\)</span> cannot be used to inform the coefficients of <span class="math notranslate nohighlight">\(Y_2\)</span>.</p>
+<p>Given the defined relationship between the coefficients of each information source we can compute the prior over the joint distribiution of the coefficients of all information sources. Without loss of generality we assume the variables have zero mean and <span class="math notranslate nohighlight">\(b_3=0\)</span> so that</p>
+<div class="math notranslate nohighlight">
+\[\covar{\theta_1}{\theta_3}=\mean{\theta_1\theta_3^T}=\mean{\theta_1\left(A_{31}\theta_1+A_{32}\theta_2+v_\alpha\right)^T}=\covar{\theta_1}{\theta_1}A_{31}^T\]</div>
+<p>similarly <span class="math notranslate nohighlight">\(\covar{\theta_2}{\theta_3}=\covar{\theta_2}{\theta_2}A_{32}^T\)</span>. We also have</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\covar{\theta_3}{\theta_3}&amp;=\mean{\theta_1\theta_1^T}=\mean{\left(A_{13}\theta_1+A_{12}\theta_2+v_\alpha\right)\left(A_{31}\theta_1+A_{32}\theta_2+v_3\right)^T}\\&amp;=A_{31}\covar{\theta_1}{\theta_1}A_{31}^T+A_{32}\covar{\theta_2}{\theta_2}A_{32}^T+\covar{v_3}{v_3}\end{split}\]</div>
+<p>In this tutorial we will set <span class="math notranslate nohighlight">\(A_{31}=a_{31} I\)</span>, <span class="math notranslate nohighlight">\(A_{32}=a_{32} I\)</span>, <span class="math notranslate nohighlight">\(\Sigma_{11}=s_{11} I\)</span>, <span class="math notranslate nohighlight">\(\Sigma_{22}=s_{22} I\)</span> and  <span class="math notranslate nohighlight">\(\Sigma_{v3}=v_{3} I\)</span> to be diagonal matrices with the same value for all entries on the diagonal which gives</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\Sigma=\begin{bmatrix}\Sigma_{11} &amp; 0 &amp; a_{31}\Sigma_{11}\\ 0 &amp; \Sigma_{22} &amp; a_{32}\Sigma_{22}\\ a_{31}\Sigma_{11} &amp; a_{32}\Sigma_{22} &amp; a_{31}^2\Sigma_{11}+a_{32}^2\Sigma_{22}+\Sigma_{v3}\end{bmatrix}\end{split}\]</div>
+<p>In the following we want to set the prior covariance of each individual information source to be the same, i.e. we set <span class="math notranslate nohighlight">\(s_{11}=s_{22}\)</span> and <span class="math notranslate nohighlight">\(v_3=s_{33}-(a_{31}^2\Sigma_{11}+a_{32}^2\Sigma_{22})\)</span></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">I1</span><span class="p">,</span><span class="n">I2</span><span class="p">,</span><span class="n">I3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">degrees</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">degrees</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">degrees</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">s11</span><span class="p">,</span><span class="n">s22</span><span class="p">,</span><span class="n">s33</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">nmodels</span>
+<span class="n">a31</span><span class="p">,</span><span class="n">a32</span><span class="o">=</span><span class="p">[</span><span class="mf">0.7</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="c1">#if a31==32 and s11=s22=s33=1 then a31&lt;=1/np.sqrt(2))</span>
+<span class="k">assert</span> <span class="p">(</span><span class="n">s33</span><span class="o">-</span><span class="n">a31</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">s11</span><span class="o">-</span><span class="n">a32</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">s22</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">s11</span><span class="o">*</span><span class="n">I1</span><span class="p">,</span><span class="mi">0</span><span class="o">*</span><span class="n">I1</span><span class="p">,</span><span class="n">a31</span><span class="o">*</span><span class="n">s11</span><span class="o">*</span><span class="n">I1</span><span class="p">]),</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="mi">0</span><span class="o">*</span><span class="n">I2</span><span class="p">,</span><span class="n">s22</span><span class="o">*</span><span class="n">I2</span><span class="p">,</span><span class="n">a32</span><span class="o">*</span><span class="n">s22</span><span class="o">*</span><span class="n">I2</span><span class="p">]),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">a31</span><span class="o">*</span><span class="n">s11</span><span class="o">*</span><span class="n">I3</span><span class="p">,</span><span class="n">a32</span><span class="o">*</span><span class="n">s22</span><span class="o">*</span><span class="n">I3</span><span class="p">,</span><span class="n">s33</span><span class="o">*</span><span class="n">I3</span><span class="p">])]</span>
+<span class="n">prior_cov</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Plot the structure of the prior covariance</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">spy</span><span class="p">(</span><span class="n">prior_cov</span><span class="p">,</span><span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;coolwarm&#39;</span><span class="p">)</span>
+<span class="c1">#plt.show()</span>
+</pre></div>
+</div>
+<img alt="plot gaussian mfnets" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_gaussian_mfnets_0021.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>&lt;matplotlib.image.AxesImage object at 0x1d28fc5ed0&gt;
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">post_mean</span><span class="p">,</span><span class="n">post_cov</span> <span class="o">=</span> <span class="n">laplace_posterior_approximation_for_linear_models</span><span class="p">(</span>
+    <span class="n">basis_mat</span><span class="p">,</span><span class="n">prior_mean</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">prior_cov</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">noise_cov</span><span class="p">),</span>
+    <span class="n">values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now let’s plot the resulting approximation of the high-fidelity data.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hf_prior</span><span class="o">=</span><span class="p">(</span><span class="n">prior_mean</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():],</span>
+         <span class="n">prior_cov</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():,</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():])</span>
+<span class="n">hf_posterior</span><span class="o">=</span><span class="p">(</span><span class="n">post_mean</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():],</span>
+             <span class="n">post_cov</span><span class="p">[</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():,</span><span class="n">nparams</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">():])</span>
+<span class="n">xx</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">101</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">training_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">r</span><span class="s1">&#39;$f_1(z_1^{(i)})$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_2(z_2^{(i)})$&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;$f_2(z_2^{(i)})$&#39;</span><span class="p">]</span>
+<span class="n">plot_1d_lvn_approx</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">polys</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">hf_posterior</span><span class="p">,</span><span class="n">hf_prior</span><span class="p">,</span>
+                   <span class="n">axs</span><span class="p">,</span><span class="n">samples_train</span><span class="p">,</span><span class="n">values_train</span><span class="p">,</span><span class="n">training_labels</span><span class="p">,[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$z$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$f(z)$&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">f3</span><span class="p">(</span><span class="n">xx</span><span class="p">),</span><span class="s1">&#39;k&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
+<span class="c1">#plt.show()</span>
+</pre></div>
+</div>
+<img alt="plot gaussian mfnets" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_gaussian_mfnets_0031.png" />
+<p class="sphx-glr-script-out">Out:</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[&lt;matplotlib.lines.Line2D object at 0x101d0fb90&gt;]
+</pre></div>
+</div>
+<p>Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.</p>
+</div>
+<div class="section" id="gaussian-networks">
+<h2>Gaussian Networks<a class="headerlink" href="#gaussian-networks" title="Permalink to this headline">¶</a></h2>
+<p>In this section of the tutorial we will use show how to use Gaussian (Bayesian networks to encode a large class of relationships between information sources and perform compuationally efficient inference. This tutorial builds on the material presented in the <a class="reference internal" href="../foundations/plot_bayesian_networks.html#sphx-glr-auto-tutorials-foundations-plot-bayesian-networks-py"><span class="std std-ref">Gaussian Networks</span></a> tutorial.</p>
+<p>In the following we will use use Gaussian networks to fuse information from a modification of the information enembles used in the previous section. Specifically consider the enemble</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f_0(\rv) &amp;= \cos\left(3\pi\rv_1+0.1\rv_2\right), \\
+f_1(\rv) &amp;= \exp\left(-0.5(x-0.5)^2\right),\\
+f_2(\rv) &amp;= f_1(\rv)+\cos(3\pi\rv_1)\end{split}\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">nmodels</span><span class="o">=</span><span class="mi">3</span>
+<span class="n">f1</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span><span class="o">+</span><span class="mf">0.1</span><span class="o">*</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">,:])[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+<span class="n">f2</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">x</span><span class="o">-.</span><span class="mi">5</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">f3</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">f2</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+<span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">f1</span><span class="p">,</span><span class="n">f2</span><span class="p">,</span><span class="n">f3</span><span class="p">]</span>
+
+<span class="n">ensemble_univariate_variables</span><span class="o">=</span><span class="p">[[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="p">[[</span><span class="n">stats</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)]]</span><span class="o">*</span><span class="mi">2</span>
+</pre></div>
+</div>
+<p>The difference between this example and the previous is that one of the low-fidelity information sources has two inputs in contrast to the other sources (functions) which have one. These types of sources CANNOT be fused by other multi-fidelity methods. Fusion is possible with MFNets because it relates information sources through correlation between the coefficients of the approximations of each information source. In the context of Bayesian networks the coefficients are called latent variables.</p>
+<p>Again assume that the coefficients of one source are only related to the coefficient of the corresponding basis function in the parent sources. Note that unlike before the <span class="math notranslate nohighlight">\(A_{ij}\)</span> matrices will not be diagonal. The polynomials have different numbers of terms and so the <span class="math notranslate nohighlight">\(A_{ij}\)</span> matrices will be rectangular. They are essentially a diagonal matrix concatenated with a matrix of zeros. Let <span class="math notranslate nohighlight">\(A^\mathrm{nz}_{31}=a_{31}I\in\reals^{P_1\times P_1}\)</span> be a diagonal matrix relating the coefficients of all the shared terms in <span class="math notranslate nohighlight">\(Y_1,Y_3\)</span>. Then <span class="math notranslate nohighlight">\(A^\mathrm{nz}_{31}=[A^\mathrm{nz}_{31} \: 0_{P_3\times(P_1-P_3)}]\in\reals^{P_1\times P_2}\)</span>.</p>
+<p>Use the following to setup a Gaussian network for our example</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">degrees</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span>
+<span class="n">polys</span><span class="p">,</span><span class="n">nparams</span> <span class="o">=</span> <span class="n">get_total_degree_polynomials</span><span class="p">(</span><span class="n">ensemble_univariate_variables</span><span class="p">,</span><span class="n">degrees</span><span class="p">)</span>
+<span class="n">basis_matrix_funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">basis_matrix</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">polys</span><span class="p">]</span>
+
+<span class="n">s11</span><span class="p">,</span><span class="n">s22</span><span class="p">,</span><span class="n">s33</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">nmodels</span>
+<span class="n">a31</span><span class="p">,</span><span class="n">a32</span><span class="o">=</span><span class="p">[</span><span class="mf">0.7</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">nmodels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">cpd_scales</span><span class="o">=</span><span class="p">[</span><span class="n">a31</span><span class="p">,</span><span class="n">a32</span><span class="p">]</span>
+<span class="n">prior_covs</span><span class="o">=</span><span class="p">[</span><span class="n">s11</span><span class="p">,</span><span class="n">s22</span><span class="p">,</span><span class="n">s33</span><span class="p">]</span>
+
+<span class="n">nnodes</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">()</span>
+<span class="n">prior_covs</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">prior_means</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">cpd_scales</span>  <span class="o">=</span><span class="p">[</span><span class="n">a31</span><span class="p">,</span><span class="n">a32</span><span class="p">]</span>
+<span class="n">node_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;Node_</span><span class="si">{</span><span class="n">ii</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+<span class="n">cpd_mats</span>  <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span><span class="kc">None</span><span class="p">,</span>
+             <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">cpd_scales</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                        <span class="n">cpd_scales</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">nparams</span><span class="p">[</span><span class="mi">1</span><span class="p">])])]</span>
+
+<span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+        <span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">cpd_cov</span><span class="o">=</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span>
+        <span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+        <span class="n">cpd_mean</span><span class="o">=</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">)))</span>
+<span class="c1">#WARNING Nodes have to be added in order their information appears in lists.</span>
+<span class="c1">#i.e. high-fidelity node must be added last.</span>
+<span class="n">ii</span><span class="o">=</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span>
+<span class="n">cov</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="p">(</span><span class="n">prior_covs</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">cpd_scales</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span><span class="n">prior_covs</span><span class="p">[:</span><span class="n">ii</span><span class="p">]))</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span>
+    <span class="n">ii</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="n">node_labels</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="n">cpd_cov</span><span class="o">=</span><span class="n">cov</span><span class="p">,</span><span class="n">nparams</span><span class="o">=</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+    <span class="n">cpd_mat</span><span class="o">=</span><span class="n">cpd_mats</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+    <span class="n">cpd_mean</span><span class="o">=</span><span class="p">(</span><span class="n">prior_means</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cpd_scales</span><span class="p">[:</span><span class="n">ii</span><span class="p">],</span><span class="n">prior_means</span><span class="p">[:</span><span class="n">ii</span><span class="p">]))</span><span class="o">*</span>\
+    <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">nparams</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span><span class="mi">1</span><span class="p">)))</span>
+
+
+<span class="n">graph</span><span class="o">.</span><span class="n">add_edges_from</span><span class="p">([(</span><span class="n">ii</span><span class="p">,</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+
+
+<span class="n">network</span> <span class="o">=</span> <span class="n">GaussianNetwork</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can compute the prior from this network using by instantiating the factors used to represent the joint density of the coefficients and then multiplying them together using the conditional probability variable elimination algorithm. We will describe this algorithm in more detail when infering the posterior distribution of the coefficients from data using the graph. When computing the prior this algorithm simply amounts to multiplying the factors of the graph together.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">)]</span>
+<span class="n">factor_prior</span> <span class="o">=</span> <span class="n">cond_prob_variable_elimination</span><span class="p">(</span>
+    <span class="n">network</span><span class="p">,</span><span class="n">labels</span><span class="p">)</span>
+<span class="n">prior</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_prior</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_prior</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+<span class="c1">#print(&#39;Prior covariance&#39;,prior[1])</span>
+
+<span class="c1">#To infer the uncertain coefficients we must add training data to the network.</span>
+<span class="n">nsamples</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span>
+<span class="n">samples_train</span> <span class="o">=</span> <span class="p">[</span><span class="n">pya</span><span class="o">.</span><span class="n">generate_independent_random_samples</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">var_trans</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span><span class="n">n</span><span class="p">)</span>
+           <span class="k">for</span> <span class="n">p</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span><span class="n">nsamples</span><span class="p">)]</span>
+<span class="n">noise_std</span><span class="o">=</span><span class="p">[</span><span class="mf">0.01</span><span class="p">]</span><span class="o">*</span><span class="n">nmodels</span>
+<span class="n">noise</span> <span class="o">=</span> <span class="p">[</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+    <span class="mi">0</span><span class="p">,</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">],(</span><span class="n">samples_train</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">values_train</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">+</span><span class="n">n</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span><span class="n">f</span><span class="p">,</span><span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">samples_train</span><span class="p">,</span><span class="n">functions</span><span class="p">,</span><span class="n">noise</span><span class="p">)]</span>
+
+<span class="n">data_cpd_mats</span><span class="o">=</span><span class="p">[</span>
+    <span class="n">b</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span><span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">basis_matrix_funcs</span><span class="p">,</span><span class="n">samples_train</span><span class="p">)]</span>
+<span class="n">data_cpd_vecs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmodels</span><span class="p">)]</span>
+<span class="n">noise_covs</span><span class="o">=</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nsamples</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span><span class="o">*</span><span class="n">noise_std</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nnodes</span><span class="p">)]</span>
+
+<span class="n">network</span><span class="o">.</span><span class="n">add_data_to_network</span><span class="p">(</span><span class="n">data_cpd_mats</span><span class="p">,</span><span class="n">data_cpd_vecs</span><span class="p">,</span><span class="n">noise_covs</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="n">plot_peer_network_with_data</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span><span class="n">ax</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot gaussian mfnets" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_gaussian_mfnets_004.png" />
+<p>For this network we have <span class="math notranslate nohighlight">\(\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(1)=\emptyset,\;\mathrm{pa}(2)=\{1,2\}\)</span> and the graph has one CPDs which for this example is given by</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_3\mid \theta_1,\theta_2) \sim \mathcal{N}\left(A_{31}\theta_1+A_{32}\theta_2+b_3,\Sigma_{v3}\right),\]</div>
+<p>with <span class="math notranslate nohighlight">\(b_3=0\)</span>.</p>
+<p>We refer to a Gaussian network based upon this DAG as a peer network. Consider the case where a high fidelity simulation model incorporates two sets of active physics, and the two low-fidelity peer models each contain one of these components. If the high-fidelity model is given, then the low-fidelity models are no longer independent of one another. In other words, information about the parameters used in one set of physics will inform the other set of physics because they are coupled together in a known way through the high-fidelity model.</p>
+<p>The joint density of the network is given by</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(\theta_1,\theta_2,\theta_3)=\mathbb{P}(\theta_3\mid \theta_1,\theta_2)\mathbb{P}(\theta_1)\mathbb{P}(\theta_2)\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#convert_to_compact_factors must be after add_data when doing inference</span>
+<span class="n">network</span><span class="o">.</span><span class="n">convert_to_compact_factors</span><span class="p">()</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node_2&#39;</span><span class="p">]</span>
+<span class="n">evidence</span><span class="p">,</span> <span class="n">evidence_ids</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">assemble_evidence</span><span class="p">(</span><span class="n">values_train</span><span class="p">)</span>
+<span class="n">factor_post</span> <span class="o">=</span> <span class="n">cond_prob_variable_elimination</span><span class="p">(</span>
+    <span class="n">network</span><span class="p">,</span><span class="n">labels</span><span class="p">,</span><span class="n">evidence_ids</span><span class="o">=</span><span class="n">evidence_ids</span><span class="p">,</span><span class="n">evidence</span><span class="o">=</span><span class="n">evidence</span><span class="p">)</span>
+<span class="n">hf_posterior</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_post</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_post</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+<span class="n">factor_prior</span> <span class="o">=</span> <span class="n">cond_prob_variable_elimination</span><span class="p">(</span>
+    <span class="n">network</span><span class="p">,</span><span class="n">labels</span><span class="p">)</span>
+<span class="n">hf_prior</span> <span class="o">=</span> <span class="n">convert_gaussian_from_canonical_form</span><span class="p">(</span>
+    <span class="n">factor_prior</span><span class="o">.</span><span class="n">precision_matrix</span><span class="p">,</span><span class="n">factor_prior</span><span class="o">.</span><span class="n">shift</span><span class="p">)</span>
+
+<span class="n">xx</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">101</span><span class="p">)</span>
+<span class="n">fig</span><span class="p">,</span><span class="n">axs</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">6</span><span class="p">))</span>
+<span class="n">plot_1d_lvn_approx</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">nmodels</span><span class="p">,</span><span class="n">polys</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">basis_matrix</span><span class="p">,</span><span class="n">hf_posterior</span><span class="p">,</span><span class="n">hf_prior</span><span class="p">,</span>
+                   <span class="n">axs</span><span class="p">,</span><span class="n">samples_train</span><span class="p">,</span><span class="n">values_train</span><span class="p">,</span><span class="kc">None</span><span class="p">,[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">axs</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span><span class="n">functions</span><span class="p">[</span><span class="mi">2</span><span class="p">](</span><span class="n">xx</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:]),</span><span class="s1">&#39;r&#39;</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;$f_3$&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img alt="plot gaussian mfnets" class="sphx-glr-single-img" src="../../_images/sphx_glr_plot_gaussian_mfnets_005.png" />
+<div class="section" id="references">
+<h3>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h3>
+<dl class="citation">
+<dt class="label" id="gjgeijuq2020"><span class="brackets">GJGEIJUQ2020</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://www.alexgorodetsky.com/static/papers/gorodetsky_jakeman_geraci_eldred_mfnets_2020.pdf">MFNets: Multi-fidelity data-driven networks for bayesian learning and prediction, International Journal for Uncertainty Quantification, 2020.</a></p>
+</dd>
+<dt class="label" id="gjgjcp2020"><span class="brackets">GJGJCP2020</span></dt>
+<dd><p><a class="reference external" href="https://res.arxiv.org/abs/2008.02672">MFNets: Learning network representations for multifidelity surrogate modeling, 2020.</a></p>
+</dd>
+</dl>
+</div>
+<div class="section" id="appendix">
+<h3>Appendix<a class="headerlink" href="#appendix" title="Permalink to this headline">¶</a></h3>
+<p>There is a strong connection between the mean of the Bayes posterior distribution of linear-Gaussian models with least squares regression. Specifically the mean of the posterior is equivalent to linear least-squares regression with a regulrization that penalizes deviations from the prior estimate of the parameters. Let the least squares objective function be</p>
+<div class="math notranslate nohighlight">
+\[f(\theta)=\frac{1}{2}(y-A\theta)^T\Sigma_\epsilon^{-1}(y-A\theta)+\frac{1}{2}(\mu_\theta-\theta)^T\Sigma_\theta^{-1}(\mu_\theta-\theta),\]</div>
+<p>where the first term on the right hand side is the usual least squares objective and the second is the regularization term. This regularized objective is minimized by setting its gradient to zero, i.e.</p>
+<div class="math notranslate nohighlight">
+\[\nabla_\theta f(\theta)=A^T\Sigma_\epsilon^{-1}(y-A\theta)+\Sigma_\theta^{-1}(\mu_\theta-\theta)=0,\]</div>
+<p>thus</p>
+<div class="math notranslate nohighlight">
+\[A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\theta=A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\]</div>
+<p>and so</p>
+<div class="math notranslate nohighlight">
+\[\theta=\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right).\]</div>
+<p>Noting that <span class="math notranslate nohighlight">\(\left(A^T\Sigma_\epsilon^{-1}A\theta+\Sigma_\theta^{-1}\right)^{-1}\)</span> is the posterior covariance we obtain the usual expression for the posterior mean</p>
+<div class="math notranslate nohighlight">
+\[\mu^\mathrm{post}=\Sigma^\mathrm{post}\left(A^T\Sigma_\epsilon^{-1}y+\Sigma_\theta^{-1}\mu_\theta\right)\]</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> ( 0 minutes  0.843 seconds)</p>
+<div class="sphx-glr-footer class sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-tutorials-multi-fidelity-plot-gaussian-mfnets-py">
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/61a19ff484b6fbbccbed5bda217b6b9b/plot_gaussian_mfnets.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">plot_gaussian_mfnets.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../../_downloads/0f514da924c449ee666cf7265e7e7121/plot_gaussian_mfnets.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">plot_gaussian_mfnets.ipynb</span></code></a></p>
+</div>
+</div>
+<p class="sphx-glr-signature"><a class="reference external" href="https://sphinx-gallery.github.io">Gallery generated by Sphinx-Gallery</a></p>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../polynomial_chaos/plot_adaptive_leja_interpolation.html" class="btn btn-neutral float-right" title="Adaptive Leja Sequences" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="plot_multi_index_collocation.html" class="btn btn-neutral float-left" title="Multi-index Stochastic Collocation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

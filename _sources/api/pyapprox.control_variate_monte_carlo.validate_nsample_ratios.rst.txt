@@ -1,0 +1,6 @@
+validate_nsample_ratios
+=======================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: validate_nsample_ratios

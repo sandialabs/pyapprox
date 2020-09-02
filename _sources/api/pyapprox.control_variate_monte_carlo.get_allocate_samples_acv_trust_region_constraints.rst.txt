@@ -1,0 +1,6 @@
+get_allocate_samples_acv_trust_region_constraints
+=================================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_allocate_samples_acv_trust_region_constraints

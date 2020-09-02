@@ -1,0 +1,10 @@
+numpy>=1.14
+matplotlib
+scipy>=1.0.0
+cython
+pandas
+cvxopt
+numpydoc
+sphinx
+sphinx_automodapi
+sphinx_rtd_theme

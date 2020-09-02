@@ -5,8 +5,8 @@
 
 Computation times
 =================
-**00:02.338** total execution time for **auto_tutorials_polynomial_chaos** files:
+**00:01.569** total execution time for **auto_tutorials_polynomial_chaos** files:
 
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+
-| :ref:`sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``) | 00:02.338 | 0.0 MB |
+| :ref:`sphx_glr_auto_tutorials_polynomial_chaos_plot_adaptive_leja_interpolation.py` (``plot_adaptive_leja_interpolation.py``) | 00:01.569 | 0.0 MB |
 +-------------------------------------------------------------------------------------------------------------------------------+-----------+--------+

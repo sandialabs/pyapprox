@@ -1,0 +1,6 @@
+setup_helmholtz_model
+=====================
+
+.. currentmodule:: pyapprox.fenics_models.helmholtz_benchmarks
+
+.. autofunction:: setup_helmholtz_model

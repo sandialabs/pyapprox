@@ -1,0 +1,7 @@
+Benchmark
+=========
+
+.. currentmodule:: pyapprox.benchmarks.benchmarks
+
+.. autoclass:: Benchmark
+   :show-inheritance:

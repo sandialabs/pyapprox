@@ -1,0 +1,6 @@
+run_model_samples_in_parallel
+=============================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: run_model_samples_in_parallel

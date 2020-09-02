@@ -1,0 +1,6 @@
+get_main_and_total_effect_indices_from_pce
+==========================================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: get_main_and_total_effect_indices_from_pce

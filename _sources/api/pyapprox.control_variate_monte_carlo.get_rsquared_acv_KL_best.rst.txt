@@ -1,0 +1,6 @@
+get_rsquared_acv_KL_best
+========================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: get_rsquared_acv_KL_best

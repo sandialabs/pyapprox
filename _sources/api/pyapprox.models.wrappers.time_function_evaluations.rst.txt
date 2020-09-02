@@ -1,0 +1,6 @@
+time_function_evaluations
+=========================
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: time_function_evaluations

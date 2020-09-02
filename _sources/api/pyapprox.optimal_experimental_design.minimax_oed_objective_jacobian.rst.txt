@@ -1,0 +1,6 @@
+minimax_oed_objective_jacobian
+==============================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: minimax_oed_objective_jacobian

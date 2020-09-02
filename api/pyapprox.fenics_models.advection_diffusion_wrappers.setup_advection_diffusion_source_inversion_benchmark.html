@@ -1,0 +1,374 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>setup_advection_diffusion_source_inversion_benchmark &mdash; PyApprox 1.0.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/graphviz.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-binder.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/gallery-dataframe.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"TeX": {"Macros": {"V": ["{\\boldsymbol{#1}}", 1], "mean": ["{\\mathbb{E}\\left[#1\\right]}", 1], "var": ["{\\mathbb{V}\\left[#1\\right]}", 1], "argmin": "{\\mathrm{argmin}}", "rv": "z", "reals": "\\mathbb{R}", "pdf": "\\rho", "rvdom": "\\Gamma", "coloneqq": "\\colon=", "norm": ["{\\lVert #1 \\rVert}", 1], "argmax": ["\\operatorname{argmax}"], "covar": ["\\mathbb{C}\\text{ov}\\left[#1,#2\\right]", 2], "corr": ["\\mathbb{C}\\text{or}\\left[#1,#2\\right]", 2], "ai": "\\alpha", "bi": "\\beta", "dx": ["\\;\\mathrm{d}#1", 1]}}})</script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="setup_dirichlet_and_periodic_boundary_conditions_and_function_space" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html" />
+    <link rel="prev" title="setup_advection_diffusion_benchmark" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> PyApprox
+          
+
+          
+            
+            <img src="../_static/pyapprox-logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../auto_tutorials/index.html">PyApprox Tutorials</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption"><span class="caption-text">User Reference Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_reference_guide.html">User Reference Guide</a></li>
+</ul>
+<p class="caption"><span class="caption-text">Developer Reference Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html">Developer Reference Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.approximate">pyapprox.approximate Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.sensitivity_analysis">pyapprox.sensitivity_analysis Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.quadrature">pyapprox.quadrature Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.benchmarks">pyapprox.benchmarks.benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.benchmarks.sensitivity_benchmarks">pyapprox.benchmarks.sensitivity_benchmarks Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.advection_diffusion_wrappers">pyapprox.fenics_models.advection_diffusion_wrappers Module</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="../modules.html#id17">Functions</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.get_default_velocity.html">get_default_velocity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.get_gaussian_source_forcing.html">get_gaussian_source_forcing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.get_misc_forcing.html">get_misc_forcing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.get_nobile_diffusivity.html">get_nobile_diffusivity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_misc.html">qoi_functional_misc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.qoi_functional_source_inversion.html">qoi_functional_source_inversion</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html">setup_advection_diffusion_benchmark</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">setup_advection_diffusion_source_inversion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html">setup_dirichlet_and_periodic_boundary_conditions_and_function_space</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_multi_level_advection_diffusion_benchmark.html">setup_multi_level_advection_diffusion_benchmark</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_zero_flux_neumann_boundary_conditions.html">setup_zero_flux_neumann_boundary_conditions</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../modules.html#id18">Classes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.fenics_models.helmholtz_benchmarks">pyapprox.fenics_models.helmholtz_benchmarks Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.multivariate_polynomials">pyapprox.multivariate_polynomials Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.bayesian_inference.markov_chain_monte_carlo">pyapprox.bayesian_inference.markov_chain_monte_carlo Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.optimal_experimental_design">pyapprox.optimal_experimental_design Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.wrappers">pyapprox.models.wrappers Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.models.async_model">pyapprox.models.async_model Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modules.html#module-pyapprox.control_variate_monte_carlo">pyapprox.control_variate_monte_carlo Module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PyApprox</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../modules.html">Developer Reference Guide</a> &raquo;</li>
+        
+      <li>setup_advection_diffusion_source_inversion_benchmark</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/api/pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="setup-advection-diffusion-source-inversion-benchmark">
+<h1>setup_advection_diffusion_source_inversion_benchmark<a class="headerlink" href="#setup-advection-diffusion-source-inversion-benchmark" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark">
+<code class="sig-prename descclassname">pyapprox.fenics_models.advection_diffusion_wrappers.</code><code class="sig-name descname">setup_advection_diffusion_source_inversion_benchmark</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">measurement_times</span><span class="o">=</span><span class="default_value">array([0.05, 0.15])</span></em>, <em class="sig-param"><span class="n">source_strength</span><span class="o">=</span><span class="default_value">0.5</span></em>, <em class="sig-param"><span class="n">source_width</span><span class="o">=</span><span class="default_value">0.1</span></em>, <em class="sig-param"><span class="n">true_sample</span><span class="o">=</span><span class="default_value">array([[0.25], [0.75], [4.0], [4.0], [4.0]])</span></em>, <em class="sig-param"><span class="n">noise_stdev</span><span class="o">=</span><span class="default_value">0.4</span></em>, <em class="sig-param"><span class="n">max_eval_concurrency</span><span class="o">=</span><span class="default_value">1</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pyapprox/fenics_models/advection_diffusion_wrappers.html#setup_advection_diffusion_source_inversion_benchmark"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute functionals of the following model of transient diffusion of 
+a contaminant</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &amp;=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+\mathcal{B}(x,t,\rv)&amp;=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+u(x,t,\rv)&amp;=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom\end{split}\]</div>
+<p>Following <a class="reference internal" href="#rf7c6269ca938-mnrjcp2006" id="id1">[MNRJCP2006]</a>, <a class="reference internal" href="#rf7c6269ca938-lmsisc2014" id="id2">[LMSISC2014]</a> we set</p>
+<div class="math notranslate nohighlight">
+\[g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)\]</div>
+<p>the initial condition as <span class="math notranslate nohighlight">\(u(x,z)=0\)</span>, <span class="math notranslate nohighlight">\(B(x,t,z)\)</span> to be zero Neumann boundary conditions, i.e.</p>
+<div class="math notranslate nohighlight">
+\[\nabla u\cdot n = 0 \quad\mathrm{on} \quad\partial D\]</div>
+<p>and we model the diffusivity <span class="math notranslate nohighlight">\(k=1\)</span> as a constant.</p>
+<p>The quantities of interest are point observations <span class="math notranslate nohighlight">\(u(x_l)\)</span> 
+taken at <span class="math notranslate nohighlight">\(P\)</span> points in time <span class="math notranslate nohighlight">\(\{t_p\}_{p=1}^P\)</span> at <span class="math notranslate nohighlight">\(L\)</span> 
+locations <span class="math notranslate nohighlight">\(\{x_l\}_{l=1}^L\)</span>. The final time <span class="math notranslate nohighlight">\(T\)</span> is the last 
+observation time.</p>
+<p>These functionals can be used to define the posterior distribution</p>
+<div class="math notranslate nohighlight">
+\[\pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}\]</div>
+<p>where the prior is the tensor product of independent and identically 
+distributed uniform variables on <span class="math notranslate nohighlight">\([0,1]\)</span> i.e. 
+<span class="math notranslate nohighlight">\(\pi(\rv)=1\)</span>, and the likelihood is given by</p>
+<div class="math notranslate nohighlight">
+\[\pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)\]</div>
+<p>and <span class="math notranslate nohighlight">\(y\)</span> are noisy observations of the solution <cite>u</cite> at the 9 
+points of a uniform <span class="math notranslate nohighlight">\(3\times 3\)</span> grid covering the physical domain 
+<span class="math notranslate nohighlight">\(D\)</span> at successive times <span class="math notranslate nohighlight">\(\{t_p\}_{p=1}^P\)</span>. Here the noise is indepenent and Normally distrbuted with mean 
+zero and variance <span class="math notranslate nohighlight">\(\sigma^2\)</span>.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>measurement_times</strong><span class="classifier">np.ndarray (P)</span></dt><dd><p>The times <span class="math notranslate nohighlight">\(\{t_p\}_{p=1}^P\)</span> at which measurements of the 
+contaminant concentration are taken</p>
+</dd>
+<dt><strong>source_strength</strong><span class="classifier">float</span></dt><dd><p>The source strength <span class="math notranslate nohighlight">\(s\)</span></p>
+</dd>
+<dt><strong>source_width</strong><span class="classifier">float</span></dt><dd><p>The source width <span class="math notranslate nohighlight">\(h\)</span></p>
+</dd>
+<dt><strong>true_sample</strong><span class="classifier">np.ndarray (2)</span></dt><dd><p>The true location of the source used to generate the observations
+used in the likelihood function</p>
+</dd>
+<dt><strong>noise_stdev</strong><span class="classifier">float</span></dt><dd><p>The standard deviation <span class="math notranslate nohighlight">\(sigma\)</span> of the observational noise</p>
+</dd>
+<dt><strong>max_eval_concurrency</strong><span class="classifier">integer</span></dt><dd><p>The maximum number of simulations that can be run in parallel. Should 
+be no more than the maximum number of cores on the computer being used</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><dl>
+<dt><strong>benchmark</strong><span class="classifier">pya.Benchmark</span></dt><dd><p>Object containing the benchmark attributes documented below</p>
+</dd>
+<dt><strong>fun</strong><span class="classifier">callable</span></dt><dd><p>The quantity of interest <span class="math notranslate nohighlight">\(f(w)\)</span> with signature</p>
+<p><code class="docutils literal notranslate"><span class="pre">fun(w)</span> <span class="pre">-&gt;</span> <span class="pre">np.ndarray</span></code></p>
+<p>where <code class="docutils literal notranslate"><span class="pre">w</span></code> is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+output is a 2D np.ndarray with shape (nsamples,1). The first <code class="docutils literal notranslate"><span class="pre">nvars</span></code> 
+rows of <code class="docutils literal notranslate"><span class="pre">w</span></code> are realizations of the random variables. The last 3 rows
+are configuration variables specifying the numerical discretization of 
+the PDE model. Specifically the first and second configuration variables
+specify the levels <span class="math notranslate nohighlight">\(l_{x_1}\)</span> and <span class="math notranslate nohighlight">\(l_{x_2}\)</span> which dictate
+the resolution of the FEM mesh in the directions <span class="math notranslate nohighlight">\({x_1}\)</span> and 
+<span class="math notranslate nohighlight">\({x_2}\)</span> respectively. The number of cells in the <span class="math notranslate nohighlight">\({x_i}\)</span> 
+direction is given by <span class="math notranslate nohighlight">\(2^{l_{x_i}+2}\)</span>. The third configuration 
+variable specifies the level <span class="math notranslate nohighlight">\(l_t\)</span> of the temporal discretization.
+The number of timesteps satisfies <span class="math notranslate nohighlight">\(2^{l_{t}+2}\)</span> so the timestep 
+size is and <span class="math notranslate nohighlight">\(T/2^{l_{t}+2}\)</span>.</p>
+</dd>
+<dt><strong>variable</strong><span class="classifier">pya.IndependentMultivariateRandomVariable</span></dt><dd><p>Object containing information of the joint density of the inputs z
+which is the tensor product of independent and identically distributed 
+uniform variables on <span class="math notranslate nohighlight">\([0,1]\)</span>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The example from <a class="reference internal" href="#rf7c6269ca938-mnrjcp2006" id="id3">[MNRJCP2006]</a> can be obtained by setting <cite>s=0.5</cite>, <cite>h=0.1</cite>,
+<cite>measurement_times=np.array([0.05,0.15])</cite> and <cite>noise_stdev=0.1</cite></p>
+<p>The example from <a class="reference internal" href="#rf7c6269ca938-lmsisc2014" id="id4">[LMSISC2014]</a> can be obtained by setting <cite>s=2</cite>, <cite>h=0.05</cite>,
+<cite>measurement_times=np.array([0.1,0.2])</cite> and <cite>noise_stdev=0.1</cite></p>
+<p class="rubric">References</p>
+<dl class="citation">
+<dt class="label" id="rf7c6269ca938-mnrjcp2006"><span class="brackets">MNRJCP2006</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id3">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1016/j.jcp.2006.10.010">Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn, Stochastic spectral methods for efficient Bayesian solution of inverse problems, Journal of Computational Physics, Volume 224, Issue 2, 2007, Pages 560-586,</a></p>
+</dd>
+<dt class="label" id="rf7c6269ca938-lmsisc2014"><span class="brackets">LMSISC2014</span><span class="fn-backref">(<a href="#id2">1</a>,<a href="#id4">2</a>)</span></dt>
+<dd><p><a class="reference external" href="https://doi.org/10.1137/130938189">Jinglai Li and Youssef M. Marzouk. Adaptive Construction of Surrogates for the Bayesian Solution of Inverse Problems, SIAM Journal on Scientific Computing 2014 36:3, A1163-A1186</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyapprox.benchmarks.benchmarks</span> <span class="kn">import</span> <span class="n">setup_benchmark</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">benchmark</span><span class="o">=</span><span class="n">setup_benchmark</span><span class="p">(</span><span class="s1">&#39;advection-diffusion&#39;</span><span class="p">,</span><span class="n">nvars</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">benchmark</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">dict_keys([&#39;fun&#39;, &#39;variable&#39;])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_dirichlet_and_periodic_boundary_conditions_and_function_space.html" class="btn btn-neutral float-right" title="setup_dirichlet_and_periodic_boundary_conditions_and_function_space" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="pyapprox.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark.html" class="btn btn-neutral float-left" title="setup_advection_diffusion_benchmark" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

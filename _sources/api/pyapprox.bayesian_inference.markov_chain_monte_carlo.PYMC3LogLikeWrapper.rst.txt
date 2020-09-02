@@ -1,0 +1,19 @@
+PYMC3LogLikeWrapper
+===================
+
+.. currentmodule:: pyapprox.bayesian_inference.markov_chain_monte_carlo
+
+.. autoclass:: PYMC3LogLikeWrapper
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PYMC3LogLikeWrapper.__call__
+      ~PYMC3LogLikeWrapper.gradient
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: gradient

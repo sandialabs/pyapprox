@@ -1,0 +1,35 @@
+ACVMF
+=====
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autoclass:: ACVMF
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~ACVMF.__call__
+      ~ACVMF.allocate_samples
+      ~ACVMF.generate_data
+      ~ACVMF.get_covariance
+      ~ACVMF.get_nsamples
+      ~ACVMF.get_rsquared
+      ~ACVMF.get_variance
+      ~ACVMF.jacobian
+      ~ACVMF.objective
+      ~ACVMF.variance_reduction
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__
+   .. automethod:: allocate_samples
+   .. automethod:: generate_data
+   .. automethod:: get_covariance
+   .. automethod:: get_nsamples
+   .. automethod:: get_rsquared
+   .. automethod:: get_variance
+   .. automethod:: jacobian
+   .. automethod:: objective
+   .. automethod:: variance_reduction

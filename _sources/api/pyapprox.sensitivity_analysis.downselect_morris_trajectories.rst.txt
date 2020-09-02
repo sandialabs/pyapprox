@@ -1,0 +1,6 @@
+downselect_morris_trajectories
+==============================
+
+.. currentmodule:: pyapprox.sensitivity_analysis
+
+.. autofunction:: downselect_morris_trajectories

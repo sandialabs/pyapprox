@@ -1,0 +1,6 @@
+sobol_g_function
+================
+
+.. currentmodule:: pyapprox.benchmarks.sensitivity_benchmarks
+
+.. autofunction:: sobol_g_function

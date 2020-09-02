@@ -1,0 +1,6 @@
+allocate_samples_acv
+====================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: allocate_samples_acv

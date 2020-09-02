@@ -1,0 +1,6 @@
+extract_minimax_design_from_optimize_result
+===========================================
+
+.. currentmodule:: pyapprox.optimal_experimental_design
+
+.. autofunction:: extract_minimax_design_from_optimize_result

@@ -1,0 +1,17 @@
+PyFunction
+==========
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autoclass:: PyFunction
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PyFunction.__call__
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: __call__

@@ -1,0 +1,6 @@
+cross_validate_pce_degree
+=========================
+
+.. currentmodule:: pyapprox.approximate
+
+.. autofunction:: cross_validate_pce_degree

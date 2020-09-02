@@ -1,0 +1,6 @@
+acv_sample_allocation_cost_constraint_all
+=========================================
+
+.. currentmodule:: pyapprox.control_variate_monte_carlo
+
+.. autofunction:: acv_sample_allocation_cost_constraint_all

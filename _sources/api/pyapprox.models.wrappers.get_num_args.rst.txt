@@ -1,0 +1,6 @@
+get_num_args
+============
+
+.. currentmodule:: pyapprox.models.wrappers
+
+.. autofunction:: get_num_args
