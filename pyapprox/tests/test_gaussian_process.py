@@ -124,23 +124,48 @@ class TestGaussianProcess(unittest.TestCase):
         #print('Expected random var',expected_random_var)
         #assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
-        xx = np.random.normal(mu_scalar,sigma_scalar,(nvars,10000))
+        nsamples_mc = 20000
+        xx = np.random.normal(mu_scalar,sigma_scalar,(nvars,nsamples_mc))
         from scipy.spatial.distance import cdist
         dists = cdist(train_samples.T/length_scale,xx.T/length_scale,
                       metric='sqeuclidean')
         t = np.exp(-.5*dists)
         V_mc = (kernel_var - np.diag(t.T.dot(K_inv).dot(t))).mean()
-        print(t.shape)
         P_mc = (t.dot(t.T))/xx.shape[1]
 
+        yy = np.random.normal(mu_scalar,sigma_scalar,(nvars,nsamples_mc))
+        zz = np.random.normal(mu_scalar,sigma_scalar,(nvars,nsamples_mc))
+        dists1a = (xx.T/length_scale-yy.T/length_scale)**2
+        dists1b = cdist(xx.T/length_scale,train_samples.T/length_scale,
+                        metric='sqeuclidean')
+        dists1c = cdist(yy.T/length_scale,train_samples.T/length_scale,
+                        metric='sqeuclidean')
+        L = np.linalg.cholesky(K_inv)
+        tKt1=np.sum(
+            np.exp(-.5*dists1b).dot(L)*np.exp(-.5*dists1b).dot(L),axis=1)
+        #assert np.allclose(np.diag(np.exp(-.5*dists1b).dot(K_inv).dot(np.exp(-.5*dists1b).T)),tKt)
+        CC_tmp1 = kernel_var*np.exp(-.5*dists1a)-tKt1
+        dists1d = (xx.T/length_scale-zz.T/length_scale)**2
+        dists1e = cdist(zz.T/length_scale,train_samples.T/length_scale,
+                        metric='sqeuclidean')
+        tKt2=np.sum(
+            np.exp(-.5*dists1b).dot(L)*np.exp(-.5*dists1e).dot(L),axis=1)
+        #assert np.allclose(np.diag(np.exp(-.5*dists1b).dot(K_inv).dot(np.exp(-.5*dists1e).T)),tKt2)
+        CC_tmp2 = kernel_var*np.exp(-.5*dists1d)-tKt2
+        CC_mc = (CC_tmp1*CC_tmp2).mean()
+
         P_true = mean_of_mean_gaussian_P(train_samples,delta,mu,sigma)
-        print(P_true,intermediate_quantities['P'],P_mc)
+        #print(P_true,intermediate_quantities['P'],P_mc)
         assert np.allclose(P_true,intermediate_quantities['P'])
+        assert np.allclose(P_true,P_mc,rtol=3e-2)
         
         V_true = kernel_var*(1-np.trace(A_inv.dot(P_true)))
+        assert np.allclose(V_true,intermediate_quantities['V'])
+        assert np.allclose(V_true,V_mc,rtol=2e-2)
 
         CC_true = variance_of_variance_gaussian_CC(delta,sigma)
         #print(CC_true,intermediate_quantities['CC'])
+        print('CC',CC_true,CC_mc)
         assert np.allclose(CC_true,intermediate_quantities['CC'])
         
         C_sq_true = variance_of_variance_gaussian_C_sq(delta,sigma)
