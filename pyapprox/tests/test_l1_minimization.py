@@ -15,7 +15,7 @@ class TestL1Minimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]]=1.
         vals = basis_matrix.dot(true_coef)
 
-        options=None
+        options={'presolve':True,'autoscale':True,'disp':True}
         coef = basis_pursuit(basis_matrix,vals,options)
         assert np.allclose(coef,true_coef)
 

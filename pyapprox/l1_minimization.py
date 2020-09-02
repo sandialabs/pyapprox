@@ -37,6 +37,7 @@ def basis_pursuit(Amat,bvec,options):
     bounds = [(-np.inf,np.inf)]*nunknowns + [(0,np.inf)]*nslack_variables
     
     res = linprog(c,A_ub=A_ub,b_ub=b_ub,A_eq=A_eq,b_eq=b_eq,bounds=bounds,options=options)
+    assert res.success, res
     
     return res.x[:nunknowns]
     

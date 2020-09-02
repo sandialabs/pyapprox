@@ -2,7 +2,7 @@ import numpy as np
 import copy
 def get_operator_diagonal(operator,num_vars,eval_concurrency,transpose=False,
                           active_indices=None):
-    """
+    r"""
     Dont want to solve for all vectors at once because this will 
     likely be to large to fit in memory.
 
@@ -36,7 +36,7 @@ def get_operator_diagonal(operator,num_vars,eval_concurrency,transpose=False,
 
 class GaussianSqrtCovarianceOperator(object):
     def apply(self, vectors):
-        """
+        r"""
         Apply the sqrt of the covariance to a set of vectors x.
         If the vectors are standard normal samples then the result
         will be a samples from the Gaussian.
@@ -66,7 +66,7 @@ class CholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
         self.eval_concurrency=eval_concurrency
 
     def apply(self, vectors, transpose):
-        """
+        r"""
 
         Apply the sqrt of the covariance to a st of vectors x.
         If a vector is a standard normal sample then the result
@@ -100,13 +100,13 @@ class CholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
         return result
 
     def num_vars(self):
-        """
+        r"""
         Return the number of variables of the multivariate Gaussian
         """
         return self.covariance.shape[0]
 
 class CovarianceOperator(object):
-    """
+    r"""
     Class to compute the action of the a covariance opearator on a 
     vector. 
 
@@ -117,7 +117,7 @@ class CovarianceOperator(object):
         self.sqrt_covariance_operator=sqrt_covariance_operator
 
     def apply(self, vectors, transpose):
-        """
+        r"""
         Compute action of covariance C by applying action of sqrt_covariance L
         twice, where C=L*L.T. E.g.
         C(x) = L(L.T(x))
@@ -128,7 +128,7 @@ class CovarianceOperator(object):
         return result
 
     def __call__(self, vectors, transpose):
-        """
+        r"""
         Tranpose is ignored because covariance operators are symmetric
         """
         return self.apply(vectors, None)
@@ -149,7 +149,7 @@ class MultivariateGaussian(object):
         self.mean=mean
 
     def num_vars(self):
-        """
+        r"""
         Return the number of variables of the multivariate Gaussian
         """
         return self.sqrt_covariance_operator.num_vars()
@@ -164,7 +164,7 @@ class MultivariateGaussian(object):
         return samples
 
     def pointwise_variance(self,active_indices=None):
-        """
+        r"""
         Get the diagonal of the Gaussian covariance matrix.
         Default implementation is two apply the sqrt operator twice.
         """
@@ -175,7 +175,7 @@ class MultivariateGaussian(object):
             active_indices=active_indices)
 
 def subselect_matrix_blocks(selected_block_indices,nentries_per_block):
-    """
+    r"""
     Return the vector indices of a subset of blocks from a block vector from 
     the block indices.
 
@@ -203,7 +203,7 @@ def subselect_matrix_blocks(selected_block_indices,nentries_per_block):
 
 def get_matrix_partition_indices(selected_block_ids,block_ids,
                                  nentries_per_block,issubset=True):
-    """
+    r"""
     Select a subset of blocks from a block vector from unique block ids.
 
     Warning: keep_rows and leave_rows will be returned in order they appear in
@@ -249,7 +249,7 @@ def get_matrix_partition_indices(selected_block_ids,block_ids,
     return selected_vector_indices,selected_vector_indices_reduced
 
 def condition_gaussian_on_data(mean, covariance, fixed_indices, values):
-    """ 
+    r""" 
     Compute conditional density of a multivariate Gaussian
 
     p(x1|x2)
@@ -309,7 +309,7 @@ def condition_gaussian_on_data(mean, covariance, fixed_indices, values):
     return new_mean, new_cov
 
 def multiply_gaussian_densities(mean1,covariance1,mean2,covariance2):
-    """
+    r"""
     Multiply two multivariate Gaussians with mean and covariance given by 
     m1, m2 and C1,C2. 
 
@@ -358,7 +358,7 @@ def multiply_gaussian_densities(mean1,covariance1,mean2,covariance2):
     return mean, covariance
 
 def get_unique_variable_blocks(var1_ids,nvars_per_var1,var2_ids,nvars_per_var2):
-    """
+    r"""
     Get the unique variable blocks in two multivariate variables x1 and x2.
     
 
@@ -398,7 +398,7 @@ def get_unique_variable_blocks(var1_ids,nvars_per_var1,var2_ids,nvars_per_var2):
 def expand_scope_of_gaussian(old_var_ids,new_var_ids,nvars_per_new_var,matrix,
                              vector):
                              
-    """
+    r"""
     Expand a compact representation of a multivariate Gaussian to include 
     a new set of inactive variables. This function can be used for Gaussians
     in canonical or traditional form.
@@ -446,7 +446,7 @@ def expand_scope_of_gaussian(old_var_ids,new_var_ids,nvars_per_new_var,matrix,
     return new_matrix, new_vector
 
 def compute_gaussian_pdf_canonical_form_normalization(mean,shift,precision):
-    """
+    r"""
     Compute the normalization factor 
 
     g = -0.5 m^T h -0.5 n\log(2\pi) +0.5 \log |K|,
@@ -483,7 +483,7 @@ def compute_gaussian_pdf_canonical_form_normalization(mean,shift,precision):
     return g
 
 def convert_gaussian_from_canonical_form(precision_matrix,shift):
-    """
+    r"""
     Convert a Gaussian in canonical form
 
     p(x|h,K) = exp(g+h^T x-0.5 x^T K x) x \in R^n
@@ -518,7 +518,7 @@ def convert_gaussian_from_canonical_form(precision_matrix,shift):
     return mean, covar
 
 def convert_gaussian_to_canonical_form(mean,covariance):
-    """
+    r"""
     Convert a Gaussian distribution specified by a mean m and a covariance C
 
     into canonical form
@@ -560,7 +560,7 @@ def convert_gaussian_to_canonical_form(mean,covariance):
 def condition_gaussian_in_canonical_form(fixed_indices, precision_matrix,
                                          shift, normalization, data,
                                          remain_indices=None):
-    """ 
+    r""" 
     Compute conditional density 
 
     p(x1|x2)
@@ -658,7 +658,7 @@ def condition_gaussian_in_canonical_form(fixed_indices, precision_matrix,
 def marginalize_gaussian_in_canonical_form(marg_indices, precision_matrix,
                                            shift, normalization, 
                                            remain_indices=None):
-    """
+    r"""
     Compute marginal density 
 
     p(x1)
@@ -752,7 +752,7 @@ def marginalize_gaussian_in_canonical_form(marg_indices, precision_matrix,
 
 def joint_density_from_linear_conditional_relationship(mean1,cov1,cov2g1,
                                                        Amat,bvec):
-    """
+    r"""
     Compute joint density :math:`P(x_1,x_2)`
 
     Given :math:`P(x_1)` normal with mean and covariance :math:`m_1, C_{11}`
@@ -828,7 +828,7 @@ def joint_density_from_linear_conditional_relationship(mean1,cov1,cov2g1,
 
 def marginal_density_from_linear_conditional_relationship(
         mean1,cov1,cov2g1,Amat,bvec):
-    """
+    r"""
     Compute the marginal density of P(x2)
     
     Given p(x1) normal with mean and covariance 
@@ -871,7 +871,7 @@ def marginal_density_from_linear_conditional_relationship(
 
 def conditional_density_from_linear_conditional_relationship(
         mean1,cov1,cov2g1,Amat,bvec,values):
-    """
+    r"""
     Compute conditional density P(x1|x2)
 
     Given p(x1) normal with mean and covariance 
@@ -927,7 +927,7 @@ def conditional_density_from_linear_conditional_relationship(
 
 def convert_conditional_probability_density_to_canonical_form(
         Amat,bvec,cov,var1_ids,nvars_per_var1,var2_ids,nvars_per_var2):
-    """ 
+    r""" 
     Convert a Gaussian conditional density (CPD) of the form
     :math:`P(x2|x1)`  with mean and covariance 
     :math:`m_{2\mid 1}=A*x_1+b, C_{2\mid 1}`
@@ -1003,7 +1003,7 @@ def convert_conditional_probability_density_to_canonical_form(
 def multiply_gaussian_densities_in_canonical_form(
         precision_matrix1,shift1,normalization1,
         precision_matrix2,shift2,normalization2):
-    """
+    r"""
     Multiply two multivariate Gaussian in canonical form. 
 
     Parameters
@@ -1047,7 +1047,7 @@ def multiply_gaussian_densities_in_compact_canonical_form(
         precision_matrix1,shift1,normalization1,var1_ids,nvars_per_var1,
         precision_matrix2,shift2,normalization2,var2_ids,nvars_per_var2):
 
-    """
+    r"""
     Multiply the compact representations of two multivariate Gaussian in 
     canonical form. 
 
@@ -1125,7 +1125,7 @@ def multiply_gaussian_densities_in_compact_canonical_form(
 
 def compute_joint_density_from_canonical_conditional_probability_densities(
         cpds):
-    """
+    r"""
     Compute the joint density from a factorization expressed as the
     products of conditional probability densities (CPDs).
 
@@ -1152,7 +1152,7 @@ def compute_joint_density_from_canonical_conditional_probability_densities(
     return joint_density
     
 class GaussianFactor(object):
-    """
+    r"""
     A Gaussian random variable in compact canonical form
 
     p(x|h,K) = exp(g+h^T x-0.5 x^T K x) x \in R^n.
@@ -1170,7 +1170,7 @@ class GaussianFactor(object):
     
     def __init__(self,precision_matrix,shift,normalization,var_ids,
                  nvars_per_var):
-        """
+        r"""
         Initialize the PDF.
 
         Parameters
@@ -1216,7 +1216,7 @@ class GaussianFactor(object):
         return self.precision_matrix.shape[0]
 
     def __call__(self,samples):
-        """
+        r"""
         Evaluate the PDF at a set of samples.
         """
         assert samples.ndim == 2

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 class GaussianProcess(GaussianProcessRegressor):       
     def fit(self,train_samples,train_values):
-        """
+        r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.fit
         function. See sklearn documentation for more info. This wrapper
         is needed because sklearn stores a unique sample in each row
@@ -20,7 +20,7 @@ class GaussianProcess(GaussianProcessRegressor):
         return super().fit(train_samples.T,train_values)
 
     def __call__(self, samples, return_std=False, return_cov=False):
-        """
+        r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.predict
         function. See sklearn documentation for more info. This wrapper
         is needed because sklearn stores a unique sample in each row
@@ -162,7 +162,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
                                                           kernel_var,
                                                           variable,
                                                           return_full=False):
-    """
+    r"""
     Compute
 
     .. math:: I = \int \eta(\rv) \rho(\rv) ;d\rv

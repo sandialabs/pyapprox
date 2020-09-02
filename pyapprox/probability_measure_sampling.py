@@ -167,15 +167,10 @@ def generate_independent_random_samples(variable,num_samples,
 
     samples = np.empty((num_vars,num_samples),dtype=float)
     for ii in range(variable.nunique_vars):
-        import time
-        t0=time.time()
-        print(ii,variable.nunique_vars)
         var = variable.unique_variables[ii]
         indices = variable.unique_variable_indices[ii]
-        print(num_samples,indices.shape)
         samples[indices,:] = var.rvs(
             size=(indices.shape[0],num_samples),random_state=random_state)
-        print(time.time()-t0)
         
     return samples
 
