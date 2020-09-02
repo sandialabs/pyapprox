@@ -4,7 +4,7 @@ import copy
 from pyapprox.multivariate_gaussian import *
 
 def get_var_ids_to_eliminate_from_node_query(network_node_var_ids,network_labels,query_labels,evidence_node_ids=None):
-    """
+    r"""
     Get the ids of all variables in a network not associated with nodes being
     queried. A given node can consist of multiple variables.
     This function will always exclude from elimination any ids which are in 
@@ -67,7 +67,7 @@ def get_var_ids_to_eliminate_from_node_query(network_node_var_ids,network_labels
 
 def get_var_ids_to_eliminate(network_ids,network_labels,query_labels,
                              evidence_ids=None):
-    """
+    r"""
     Get the ids of variables in a network which are not being queried.
     This function will always exclude from elimination any ids which are in 
     evidence_ids.
@@ -133,7 +133,7 @@ def basis_matrix_cols(nvars,degree):
     return ncols
 
 def get_cpd_block_diagonal_linear_matrix(graph,node_index):
-    """
+    r"""
     Get the mathrix :math:`A` from the conditional probability density
 
     .. math:: \mathbb{P}(\theta_i\mid \mathrm{pa}(theta_i))\sim\mathcal{A\theta+b,\Sigma_v}
@@ -212,7 +212,7 @@ def get_cpd_prior_covariance(graph,node_index):
 def get_gaussian_factor_in_canonical_form(Amat,bvec,cov2g1,
                                           var1_ids, nvars_per_var1,
                                           var2_ids, nvars_per_var2):
-    """
+    r"""
     Todo consider massing inv(cov2g1) to function so can leverage structure
     in matrix and not to inversion inside convert_conditional function
     """
@@ -228,7 +228,7 @@ def get_gaussian_factor_in_canonical_form(Amat,bvec,cov2g1,
 
 def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
                                        nparams,model_labels=None):
-    """
+    r"""
     prior_scales : list
         List of diagonal matrices (represented by either a scalar for a constant
         diagonal or a vector)
@@ -267,7 +267,7 @@ def build_hierarchical_polynomial_network(prior_covs,cpd_scales,basis_matrix_fun
     return network
 
 class GaussianNetwork(object):
-    """
+    r"""
     Notes
     -----
     Currently only entire (dataless) nodes can be marginalized.
@@ -315,7 +315,7 @@ class GaussianNetwork(object):
         #self.node_var_ids=[[ii] for ii in range(nnodes)]
 
     def num_vars(self):
-        """
+        r"""
         Return number of uncertain variables in the network
         
         Returns
@@ -326,7 +326,7 @@ class GaussianNetwork(object):
         return self.nnetwork_vars
 
     def convert_to_compact_factors(self):
-        """
+        r"""
         Compute the factors of the network
         """
         self.factors = []
@@ -356,7 +356,7 @@ class GaussianNetwork(object):
                     nvars_per_var))
 
     def add_data_to_network(self,data_cpd_mats,data_cpd_vecs,noise_covariances):
-        """
+        r"""
         Todo pass in argument containing nodes which have data for situations
         when not all nodes have data
         """
@@ -393,7 +393,7 @@ class GaussianNetwork(object):
         self.evidence_node_ids=np.arange(len(dataless_graph.nodes),kk,dtype=int)
 
     def assemble_evidence(self,data):
-        """
+        r"""
         Assemble the evidence in the form needed to condition the network
 
         Returns
@@ -422,7 +422,7 @@ class GaussianNetwork(object):
         return evidence, self.evidence_var_ids
                 
 def sum_product_eliminate_variable(factors, var_id_to_eliminate):
-    """
+    r"""
     Marginalize out a variable from a multivariate Gaussian defined by 
     the product of the gaussian variables in factors.
 
@@ -478,7 +478,7 @@ def sum_product_eliminate_variable(factors, var_id_to_eliminate):
 
 
 def sum_product_variable_elimination(factors,var_ids_to_eliminate):
-    """
+    r"""
     Marginalize out a list of variables from the multivariate Gaussian variable
     which is the product of all factors.
     """
@@ -505,7 +505,7 @@ def sum_product_variable_elimination(factors,var_ids_to_eliminate):
 
 def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
                                    evidence=None):
-    """
+    r"""
     Marginalize out variables not in query labels.
     """
     eliminate_ids = get_var_ids_to_eliminate_from_node_query(
@@ -526,7 +526,7 @@ def cond_prob_variable_elimination(network, query_labels, evidence_ids=None,
 from functools import partial
 def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
                                   nparams,model_labels=None):
-    """
+    r"""
     All list arguments must contain high-fidelity info in last entry
     """
     graph = nx.DiGraph()
@@ -586,14 +586,14 @@ def build_peer_polynomial_network(prior_covs,cpd_scales,basis_matrix_funcs,
     return network
 
 def nonlinear_constraint_peer(covs,scales):
-    """
+    r"""
     All list arguments must contain high-fidelity info in last entry
     """
     cpd_cov = [covs[-1]-np.dot(scales**2, covs[:-1])-1e-7]
     return cpd_cov # must be > 0 to ensure cpd_cov is positive
 
 def nonlinear_constraint_hierarchical(covs,scales):
-    """
+    r"""
     All list arguments must contain model info ordered lowest-highest fidelity
     """
     cpd_cov = [None]*len(scales)
@@ -674,7 +674,7 @@ def estimate_mse_from_posterior(held_inputs,held_out_data,ignore_variance,
 
 def regression(noise_std, data_train, samples_train, build_network,
                fit_metric, init_scales, optimize=True):
-    """
+    r"""
     Build a MFNets approximation.
 
 
