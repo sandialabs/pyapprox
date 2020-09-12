@@ -425,6 +425,12 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     #warnings.filterwarnings("ignore", message="numpy.dtype size changed")
     #warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
 
+    x = np.asarray(x,dtype=float)
+    from pyapprox.cython.orthonormal_polynomials_1d import \
+        evaluate_orthonormal_polynomial_deriv_1d_pyx
+    return evaluate_orthonormal_polynomial_deriv_1d_pyx(
+        x, nmax, ab, deriv_order)
+
     try:
         # necessary when discrete variables are define on integers
         x = np.asarray(x,dtype=float)

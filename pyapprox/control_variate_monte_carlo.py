@@ -1834,7 +1834,7 @@ def compare_estimator_variances(target_costs,estimators,cov_matrix,model_costs):
     return nsamples_history, variances
 
 def plot_estimator_variances(nsamples_history, variances, model_costs,
-                             est_labels, ax):
+                             est_labels, ax, ylabel=None):
     linestyles=['-','--',':','-.']
     nestimators = len(est_labels)
     assert len(nsamples_history)==len(variances)
@@ -1845,6 +1845,8 @@ def plot_estimator_variances(nsamples_history, variances, model_costs,
         est_variances = variances[ii::nestimators]
         ax.loglog(est_total_costs,est_variances,':',label=est_labels[ii],
                   ls=linestyles[ii])
+    if ylabel is None:
+        ylable=r'$\mathrm{Estimator\;Variance}$'
     ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
-    ax.set_ylabel(r'$\mathrm{Estimator\;Variance}$')
+    ax.set_ylabel(ylabel)
     ax.legend()

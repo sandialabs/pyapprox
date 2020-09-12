@@ -3,6 +3,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
+    ConstantKernel
+from pyapprox import get_polynomial_from_variable, \
+    get_univariate_quadrature_rules_from_pce
+from pyapprox.utilities import cartesian_product, outer_product
+from scipy.spatial.distance import cdist
+from functools import partial
+from scipy.linalg import solve_triangular
+
 class GaussianProcess(GaussianProcessRegressor):       
     def fit(self,train_samples,train_values):
         r"""
@@ -40,8 +49,6 @@ class GaussianProcess(GaussianProcessRegressor):
         cov[np.arange(cov.shape[0]),np.arange(cov.shape[0])]+=1e-14
         L = np.linalg.cholesky(cov)
         return mean + L.dot(np.random.normal(0,1,mean.shape))
-        
-        
 
 def is_covariance_kernel(kernel,kernel_types):
     return (type(kernel) in kernel_types)
@@ -58,58 +65,18 @@ def extract_covariance_kernel(kernel,kernel_types):
             cov_kernel = extract_covariance_kernel(kernel.k2,kernel_types)
     return cov_kernel
 
-from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
-    ConstantKernel
-from pyapprox import get_polynomial_from_variable, \
-    get_univariate_quadrature_rules_from_pce
-from pyapprox.utilities import cartesian_product, outer_product
-def mean_of_mean_gaussian_T(train_samples,delta,mu,sigma):
+def gaussian_tau(train_samples,delta,mu,sigma):
     dists = (train_samples-mu)**2
     return np.prod(np.sqrt(delta/(delta+2*sigma**2))*np.exp(
         -(dists)/(delta+2*sigma**2)),axis=0)
 
-def mean_of_mean_gaussian_U(delta,sigma):
+def gaussian_u(delta,sigma):
     return np.sqrt(delta/(delta+4*sigma**2)).prod()
 
-def variance_of_variance_gaussian_CC(delta,sigma):
-    return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
+def gaussian_sigma_sq(delta,sigma,tau,A_inv):
+    return np.sqrt(delta/(delta+4*sigma**2)).prod()-tau.dot(A_inv).dot(tau)
 
-def variance_of_variance_gaussian_C_sq(delta,sigma):
-    return np.sqrt(delta/(delta+8.*sigma**2)).prod()
-
-def variance_of_variance_gaussian_MC2(train_samples,delta,mu,sigma):
-    nvars = train_samples.shape[0]
-    MC2 = 1
-    for ii in range(nvars):
-        xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
-        numer1 = (xxi**2+mi**2)
-        denom1,denom2 = 4*si**2+6*di*si**2+di**2,di+2*si**2
-        MC2 *= np.exp(-((8*si**4+6*si**2*di)*numer1)/(denom1*denom2))
-        MC2 *= np.exp(-(numer1*di**2-16*xxi*si**4*mi-12*xxi*si**2*mi*di-2*xxi*si**2*mi)/(denom1*denom2))
-        MC2 *= np.sqrt(di/denom2)*np.sqrt(di*denom2/denom1)
-    return MC2
-
-def variance_of_variance_gaussian_C(delta,sigma):
-    return np.sqrt(delta/(delta+4*sigma**2)).prod()
-
-def variance_of_variance_gaussian_MMC3(train_samples,delta,mu,sigma):
-    nvars,ntrain_samples = train_samples.shape
-    MMC3=np.ones((ntrain_samples,ntrain_samples))
-    for ii in range(nvars):
-        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
-        denom1,denom2 = (12*si**4+8*di*si**2+di**2),di*(di+4*si)
-        for mm in range(ntrain_samples):
-            xm = train_samples[ii,mm]
-            for nn in range(ntrain_samples):
-                zn = train_samples[ii,nn]
-                MMC3[mm,nn]*=np.exp(-(32*xm*si**6*zn+20*mi*di**2*si**2+2*mi*di**3)/(denom1*denom2))
-                MMC3[mm,nn]*=np.exp(-(8*xm*si**4*zn*di+48*mi**2*di*si**4)/(denom1*denom2))
-                MMC3[mm,nn]*=np.exp(-((xm**2+zn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3))/(denom1*denom2))
-                MMC3[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
-    return MMC3
-
-def mean_of_mean_gaussian_P(train_samples,delta,mu,sigma):
-    #haylock has typo. had to derive expression myself
+def gaussian_P(train_samples,delta,mu,sigma):
     nvars,ntrain_samples = train_samples.shape
     P=np.ones((ntrain_samples,ntrain_samples))
     for ii in range(nvars):
@@ -123,6 +90,92 @@ def mean_of_mean_gaussian_P(train_samples,delta,mu,sigma):
                 P[mm,nn]*=np.exp(-1/(2*si**2*di)*(2*si**2*(xm**2+xn**2)+di*mi**2-(4*si**2*(xm+xn)+2*di*mi)**2/denom1))*term2
                 P[nn,mm]=P[mm,nn]
     return P
+
+def gaussian_nu(delta,sigma):
+    return np.sqrt(delta/(delta+8.*sigma**2)).prod()
+
+def gaussian_Pi(train_samples,delta,mu,sigma):
+    nvars,ntrain_samples = train_samples.shape
+    Pi=np.ones((ntrain_samples,ntrain_samples))
+    for ii in range(nvars):
+        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
+        denom1 = (12*si**4+8*di*si**2+di**2)
+        denom2 = (di+4*si**2)*di
+        for mm in range(ntrain_samples):
+            xm = train_samples[ii,mm]
+            for nn in range(mm,ntrain_samples):
+                xn = train_samples[ii,nn]
+                t1 = (-32*xm*si**6*xn+20*mi*di**2*si**2+2*mi*di**3)/denom1/denom2
+                t2 = (-8*xm*si**4*xn*di+48*mi**2*di*si**4)/denom1/denom2
+                t3 = (xm**2+xn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3)/denom1/denom2
+                t4 = -(xm+xn)*(48*si**4*mi*si+20*si**2*mi*di**2+2*di**3*mi)/denom1/denom2
+                Pi[mm,nn] = np.exp(-t1-t2-t3-t4)*np.sqrt(di/(denom1))
+                Pi[nn,mm]=Pi[mm,nn]
+    return Pi
+
+def compute_v_sq(A_inv,P):
+    return (1-np.trace(A_inv.dot(P)))
+
+def compute_zeta(y,A_inv,P):
+    return y.T.dot(A_inv.dot(P).dot(A_inv)).dot(y)
+
+def compute_rho(A_inv,P):
+    tmp = A_inv.dot(P)
+    rho = np.sum(tmp.T*tmp)
+    return rho
+
+def compute_psi(A_inv,Pi):
+    return np.sum(A_inv.T*Pi)
+
+def compute_chi(nu,rho,psi):
+    return nu+rho-2*psi
+
+def compute_phi(train_vals,A_inv,Pi,P):
+        return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_inv).dot(P).dot(A_inv).dot(P).dot(A_inv).dot(train_vals)
+
+def compute_varrho(lamda,A_inv,train_vals,P,tau):
+    #TODO reduce redundant computations by computing once and then storing
+    return lamda.T.dot(A_inv.dot(train_vals)) - tau.T.dot(A_inv.dot(P).dot(A_inv.dot(train_vals)))
+
+def variance_of_mean(kernel_var,sigma_sq):
+    return kernel_var*sigma_sq
+
+def mean_of_variance(zeta,v_sq,expected_random_mean,variance_random_mean):
+    return zeta+v_sq-expected_random_mean**2-variance_random_mean
+
+def variance_of_variance_gaussian_CC1(delta,sigma):
+    return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
+
+def variance_of_variance_gaussian_CC(delta,sigma,T,P,CC1,lamda,A_inv):
+    return CC1+T.dot(A_inv).dot(P).dot(A_inv).dot(T)-2*lamda.dot(A_inv).dot(T)
+
+def variance_of_variance_gaussian_lamda(train_samples,delta,mu,sigma):
+    nvars = train_samples.shape[0]
+    lamda = 1
+    for ii in range(nvars):
+        xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
+        numer1 = (xxi**2+mi**2)
+        denom1,denom2 = 4*si**2+6*di*si**2+di**2,di+2*si**2
+        lamda *= np.exp(-((8*si**4+6*si**2*di)*numer1)/(denom1*denom2))
+        lamda *= np.exp(-(numer1*di**2-16*xxi*si**4*mi-12*xxi*si**2*mi*di-2*xxi*si**2*mi)/(denom1*denom2))
+        lamda *= np.sqrt(di/denom2)*np.sqrt(di*denom2/denom1)
+    return lamda
+
+def variance_of_variance_gaussian_Pi(train_samples,delta,mu,sigma):
+    nvars,ntrain_samples = train_samples.shape
+    Pi=np.ones((ntrain_samples,ntrain_samples))
+    for ii in range(nvars):
+        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
+        denom1,denom2 = (12*si**4+8*di*si**2+di**2),di*(di+4*si)
+        for mm in range(ntrain_samples):
+            xm = train_samples[ii,mm]
+            for nn in range(ntrain_samples):
+                zn = train_samples[ii,nn]
+                Pi[mm,nn]*=np.exp(-(32*xm*si**6*zn+20*mi*di**2*si**2+2*mi*di**3)/(denom1*denom2))
+                Pi[mm,nn]*=np.exp(-(8*xm*si**4*zn*di+48*mi**2*di*si**4)/(denom1*denom2))
+                Pi[mm,nn]*=np.exp(-((xm**2+zn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3))/(denom1*denom2))
+                Pi[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
+    return Pi
         
 
 def integrate_gaussian_process(gp,variable,return_full=False):
@@ -146,7 +199,6 @@ def integrate_gaussian_process(gp,variable,return_full=False):
         msg = 'Mean of training data was not zero. This is not supported'
         raise Exception(msg)
 
-    from scipy.linalg import solve_triangular
     if gp._K_inv is None:
         L_inv = solve_triangular(gp.L_.T,np.eye(gp.L_.shape[0]))
         K_inv = L_inv.dot(L_inv.T)
@@ -231,9 +283,9 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         The variance :math:`v_\Sigma^2` of the Gaussian random variable 
         representing the variance :math:`\Sigma`
     """
-    
+    ntrain_samples = X_train.shape[1]
     nvars = variable.num_vars()
-    degrees = [100]*nvars
+    degrees = [50]*nvars
     pce = get_polynomial_from_variable(variable)
     indices = []
     for ii in range(pce.num_vars()):
@@ -245,122 +297,100 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         pce,degrees)
     
     lscale = np.atleast_1d(length_scale)
-    T,U=1,1
-    P=np.ones((X_train.shape[1],X_train.shape[1]))
-    MC2=np.ones(X_train.shape[1])
-    MMC3=np.ones((X_train.shape[1],X_train.shape[1]))
-    CC1,C1_sq=1,1
+    tau,u=1,1
+    P=np.ones((ntrain_samples,ntrain_samples))
+    lamda=np.ones(ntrain_samples)
+    Pi=np.ones((ntrain_samples,ntrain_samples))
+    CC1,nu=1,1
     
-    from scipy.spatial.distance import cdist
-    quad_points = []
     for ii in range(nvars):
-        xx2,ww2=univariate_quad_rules[ii](degrees[ii]+1)
+        #TODO only compute quadrature once for each unique quadrature rules
+        #But all quantities must be computed for all dimensions because
+        #distances depend on either of both dimension dependent length scale
+        #and training sample values
+        #But others like u only needed to be computed for each unique
+        #quadrature rule and raised to the power equal to the number of
+        #instances of a unique rule
+
+        #define distance function
+        dist_func = partial(cdist,metric='sqeuclidean')
+        
+        # Training samples of ith variable
+        xtr = X_train[ii:ii+1,:]
+        
+        # Get 1D quadrature rule
+        xx_1d,ww_1d=univariate_quad_rules[ii](degrees[ii]+1)
         jj = pce.basis_type_index_map[ii]
         loc,scale = pce.var_trans.scale_parameters[jj,:]
-        xx2 = xx2*scale+loc
-        quad_points.append(xx2)
-        dists = cdist(
-            xx2[:,np.newaxis]/lscale[ii],
-            X_train[ii:ii+1,:].T/lscale[ii],
-            metric='sqeuclidean')
-        K = np.exp(-.5*dists)
-        # T in Haylock is defined without kernel_var
-        T*=ww2.dot(K)
+        xx_1d = xx_1d*scale+loc
 
-        for mm in range(X_train.shape[1]):
-            for nn in range(mm,X_train.shape[1]):
-                P[mm,nn]*=ww2.dot(K[:,mm]*K[:,nn])
-                P[nn,mm]=P[mm,nn]
+        # Evaluate 1D integrals
+        dists_1d_x1_xtr=dist_func(
+            xx_1d[:,np.newaxis]/lscale[ii],xtr.T/lscale[ii])
+        K = np.exp(-.5*dists_1d_x1_xtr)
+        tau*=ww_1d.dot(K)
+        P*=K.T.dot(ww_1d[:,np.newaxis]*K)
 
-        XX2 = cartesian_product([xx2]*2)
-        WW2 = outer_product([ww2]*2)
-        dists = (XX2[0,:].T/lscale[ii]-XX2[1,:].T/lscale[ii])**2
-        K = np.exp(-.5*dists)
-        U*=WW2.dot(K)
+        # Get 2D tensor product quadrature rule
+        xx_2d = cartesian_product([xx_1d]*2)
+        ww_2d = outer_product([ww_1d]*2)
 
-        for mm in range(X_train.shape[1]):
-            dists1 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
-            dists2 = (XX2[1,:]/lscale[ii]-X_train[ii,mm]/lscale[ii])**2
-            MC2[mm] *= np.exp(-.5*dists1-.5*dists2).dot(WW2)
+        # Evaluate 2D integrals
+        dists_2d_x1_x2 = (xx_2d[0,:].T/lscale[ii]-xx_2d[1,:].T/lscale[ii])**2
+        K = np.exp(-.5*dists_2d_x1_x2)
+        u*=ww_2d.dot(K)
 
-        for mm in range(X_train.shape[1]):
-            for nn in range(X_train.shape[1]):
-                dists1 = (X_train[ii,mm]/lscale[ii]-XX2[0,:]/lscale[ii])**2
-                dists2 = (X_train[ii,nn]/lscale[ii]-XX2[1,:]/lscale[ii])**2
-                dists3 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
-                MMC3[mm,nn]*=np.exp(-.5*dists1-.5*dists3-.5*dists2).dot(WW2)
+        dists_2d_x1_x2=(xx_2d[0:1,:].T/lscale[ii]-xx_2d[1:2,:].T/lscale[ii])**2
+        dists_2d_x2_xtr=dist_func(xx_2d[1:2,:].T/lscale[ii],xtr.T/lscale[ii])
+        lamda*=np.exp(-.5*dists_2d_x1_x2.T-.5*dists_2d_x2_xtr.T).dot(ww_2d)
 
-        dists1 = (XX2[0,:]/lscale[ii]-XX2[1,:]/lscale[ii])**2
-        #C1_sq *= np.exp(-.5*dists1)*np.exp(-.5*dists1).dot(WW2)
-        C1_sq *= np.exp(-dists1).dot(WW2)
+        dists_2d_x1_xtr=dist_func(xx_2d[0:1,:].T/lscale[ii],xtr.T/lscale[ii])
+        for mm in range(ntrain_samples):
+            dists1=dists_2d_x1_xtr[:,mm:mm+1]
+            Pi[mm,:]*=np.exp(
+                -.5*dists1-.5*dists_2d_x1_x2-.5*dists_2d_x2_xtr).T.dot(ww_2d)
 
-        xx3,ww3=univariate_quad_rules[ii](30)
-        jj = pce.basis_type_index_map[ii]
-        loc,scale = pce.var_trans.scale_parameters[jj,:]
-        xx3 = xx3*scale+loc
-        XX3 = cartesian_product([xx3]*3)
-        WW3 =  outer_product([ww3]*3)
-        dists1 = (XX3[0,:]/lscale[ii]-XX3[1,:]/lscale[ii])**2
-        dists2 = (XX3[1,:]/lscale[ii]-XX3[2,:]/lscale[ii])**2
-        CC1 *= np.exp(-.5*dists1-.5*dists2).dot(WW3)
+        nu *= np.exp(-dists_2d_x1_x2)[:,0].dot(ww_2d)
 
+        # Create 3D tensor product quadrature rule
+        xx_3d = cartesian_product([xx_1d]*3)
+        ww_3d =  outer_product([ww_1d]*3)
+        dists_3d_x1_x2 = (xx_3d[0,:]/lscale[ii]-xx_3d[1,:]/lscale[ii])**2
+        dists_3d_x2_x3 = (xx_3d[1,:]/lscale[ii]-xx_3d[2,:]/lscale[ii])**2
+        CC1 *= np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
     
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
     A_inv = K_inv*kernel_var
-    expected_random_mean = T.dot(A_inv.dot(Y_train))
+    expected_random_mean = tau.dot(A_inv.dot(Y_train))
 
-    W = U-T.dot(A_inv).dot(T.T)
-    variance_random_mean = kernel_var*(W)
+    sigma_sq = u-tau.dot(A_inv).dot(tau.T)
+    variance_random_mean = variance_of_mean(kernel_var,sigma_sq)
 
-    #[V]
-    V = kernel_var*(1-np.trace(A_inv.dot(P)))
-    #[M^2]
-    M_sq = Y_train.T.dot(A_inv.dot(P).dot(A_inv)).dot(Y_train)
+    v_sq = compute_v_sq(A_inv,P)
+    zeta = compute_zeta(Y_train,A_inv,P)
     
-    expected_random_var = M_sq+V-expected_random_mean**2-variance_random_mean
+    expected_random_var = mean_of_variance(
+        zeta,v_sq,expected_random_mean,variance_random_mean)
 
-    #[C]
-    C=U
-    #[M]
-    M=expected_random_mean
-    #[MC]
-    A = np.linalg.inv(A_inv)
-    MC = MC2.T.dot(A.dot(Y_train))#haylock
-    #MC = MC2.T.dot(A_inv.dot(Y_train))#if Haylock has a typo
-    #[MMC]
-    MMC = Y_train.T.dot(A_inv).dot(MMC3).dot(A_inv).dot(Y_train)
+    rho = compute_rho(A_inv,P)
+    psi = compute_psi(A_inv,Pi)
+    chi = compute_chi(nu,rho,psi)
+    
+    mu = expected_random_mean
+    varrho = compute_varrho(lamda,A_inv,Y_train,P,tau)
+    phi = compute_phi(Y_train,A_inv,Pi,P)
     #[CC]
-    CC = CC1
-    #[C^2]
-    C_sq = C1_sq
+    CC = CC1+tau.dot(A_inv).dot(P).dot(A_inv).dot(tau)-2*lamda.dot(A_inv).dot(tau)
 
-    # mu = np.ones((nvars,1))*loc
-    # sigma = np.ones((nvars,1))*scale
-    # delta = 2*lscale[:,np.newaxis]**2
-    # #CC = variance_of_variance_gaussian_CC(delta,sigma)
-    # #C_sq = variance_of_variance_gaussian_C_sq(delta,sigma)
-    # MC2 = variance_of_variance_gaussian_MC2(X_train,delta,mu,sigma)
-    # #C = variance_of_variance_gaussian_C(delta,sigma)
-    # MMC3_true=variance_of_variance_gaussian_MMC3(
-    #     X_train,delta,mu,sigma)
-    # A = np.linalg.inv(A_inv)
-    # MC = MC2.T.dot(A.dot(Y_train))#haylock
-    # #MC = MC2.T.dot(A_inv.dot(Y_train))#maybe a typo
-    # MMC = Y_train.T.dot(A_inv).dot(MMC3).dot(A_inv).dot(Y_train)
-
-    #E[I_2^2]
-    variance_random_var = 4*MMC*kernel_var + 2*C_sq*kernel_var**2+(
-        M_sq+V*kernel_var)**2
-    print('v',variance_random_var)
-    #-2E[I_2I^2]
-    variance_random_var += -2*(4*M*MC*kernel_var+2*CC*kernel_var**2+M_sq*M**2+
-        V*C*kernel_var**2 + M**2*V*kernel_var+M_sq*C*kernel_var)
-    print((4*M*MC*kernel_var+2*CC*kernel_var**2+M_sq*M**2+
-        V*C*kernel_var**2 + M**2*V*kernel_var+M_sq*C*kernel_var))
+    #E[I_2^2] (term1)
+    variance_random_var = 4*phi*kernel_var + 2*chi*kernel_var**2+(
+        zeta+v_sq*kernel_var)**2
+    #-2E[I_2I^2] (term2)
+    variance_random_var += -2*(4*mu*varrho*kernel_var+2*CC*kernel_var**2+zeta*mu**2+
+        v_sq*sigma_sq*kernel_var**2 + mu**2*v_sq*kernel_var+zeta*sigma_sq*kernel_var)
     #E[I^4]
-    print(3*C**2*kernel_var**2+6*M**2*C*kernel_var+M**4)
-    variance_random_var += 3*C**2*kernel_var**2+6*M**2*C*kernel_var+M**4
+    variance_random_var += 3*sigma_sq**2*kernel_var**2+6*mu**2*sigma_sq*kernel_var+mu**4
     #E[I_2-I^2]^2
     variance_random_var -= expected_random_var**2
 
@@ -368,7 +398,6 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var
 
-    intermeadiate_quantities={'C':C,'M':M,'M_sq':M_sq,'V':V,'MC':MC,'MMC':MMC,
-                              'CC':CC,'C_sq':C_sq,'MC2':MC2,'MMC3':MMC3,'P':P}
+    intermeadiate_quantities=tau,u,sigma_sq,P,v_sq,zeta,nu,rho,Pi,psi,phi,varrho,CC,chi,lamda,Pi,CC1
     return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermeadiate_quantities
