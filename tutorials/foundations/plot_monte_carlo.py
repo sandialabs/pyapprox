@@ -1,9 +1,11 @@
 r"""
 Monte Carlo Quadrature
 ======================
-This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of an model. The following tutorials on multi-fidelity Monate Carlo methods assume the reader has understanding of the material presented here.
+This tutorial describes how to use Monte Carlo sampling to compute the expectations of the output of an model. Specifically, given a function :math:`f_\alpha(\rv):\reals^{d}\to\reals` parameterized by a set of variables :math:`\rv=[\rv_1,\ldots,\rv_d]^T` with joint density given by :math:`\rho(\rv):\reals^{d}\to\reals`, our goal is to approximate the integral
 
-We can approximate th integral :math:`Q_\alpha` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}_\alpha=f_\alpha(\rv^{(n)})`
+.. math:: Q_\alpha=\int_\rvdom f_\alpha(\rv)\pdf(\rv)\dx{\rv}
+
+We can approximate the integral :math:`Q_\alpha` using Monte Carlo quadrature by drawing :math:`N` random samples of :math:`\rv` from :math:`\pdf` and evaluating the function at each of these samples to obtain the data pairs :math:`\{(\rv^{(n)},f^{(n)}_\alpha)\}_{n=1}^N`, where :math:`f^{(n)}_\alpha=f_\alpha(\rv^{(n)})` and computing
 
 .. math::
 
