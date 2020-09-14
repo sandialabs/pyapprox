@@ -100,16 +100,13 @@ def gaussian_Pi(train_samples,delta,mu,sigma):
     for ii in range(nvars):
         si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
         denom1 = (12*si**4+8*di*si**2+di**2)
-        denom2 = (di+4*si**2)*di
+        denom2,denom3 = (di+2*si**2),(di+6*si**2)
         for mm in range(ntrain_samples):
             xm = train_samples[ii,mm]
             for nn in range(mm,ntrain_samples):
                 xn = train_samples[ii,nn]
-                t1 = (-32*xm*si**6*xn+20*mi*di**2*si**2+2*mi*di**3)/denom1/denom2
-                t2 = (-8*xm*si**4*xn*di+48*mi**2*di*si**4)/denom1/denom2
-                t3 = (xm**2+xn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3)/denom1/denom2
-                t4 = -(xm+xn)*(48*si**4*mi*si+20*si**2*mi*di**2+2*di**3*mi)/denom1/denom2
-                Pi[mm,nn] = np.exp(-t1-t2-t3-t4)*np.sqrt(di/(denom1))
+                t1=2*(xm-xn)**2/di+3*(-2*mi+xm+xn)**2/denom2+(xm-xn)**2/denom3
+                Pi[mm,nn] = np.exp(-t1/6)*np.sqrt(di**2/(denom1))
                 Pi[nn,mm]=Pi[mm,nn]
     return Pi
 
@@ -137,6 +134,16 @@ def compute_varrho(lamda,A_inv,train_vals,P,tau):
     #TODO reduce redundant computations by computing once and then storing
     return lamda.T.dot(A_inv.dot(train_vals)) - tau.T.dot(A_inv.dot(P).dot(A_inv.dot(train_vals)))
 
+def gaussian_lamda(train_samples,delta,mu,sigma):
+    nvars = train_samples.shape[0]
+    lamda = 1
+    for ii in range(nvars):
+        xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
+        denom1 = 4*si**4+6*di*si**2+di**2
+        t1 = (di+4*si**2)/denom1*(mi-xxi)**2
+        lamda *= di/np.sqrt(denom1)*np.exp(-t1)
+    return lamda
+
 def variance_of_mean(kernel_var,sigma_sq):
     return kernel_var*sigma_sq
 
@@ -147,36 +154,7 @@ def variance_of_variance_gaussian_CC1(delta,sigma):
     return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
 
 def variance_of_variance_gaussian_CC(delta,sigma,T,P,CC1,lamda,A_inv):
-    return CC1+T.dot(A_inv).dot(P).dot(A_inv).dot(T)-2*lamda.dot(A_inv).dot(T)
-
-def variance_of_variance_gaussian_lamda(train_samples,delta,mu,sigma):
-    nvars = train_samples.shape[0]
-    lamda = 1
-    for ii in range(nvars):
-        xxi,si,mi,di = train_samples[ii,:],sigma[ii,0],mu[ii,0],delta[ii,0]
-        numer1 = (xxi**2+mi**2)
-        denom1,denom2 = 4*si**2+6*di*si**2+di**2,di+2*si**2
-        lamda *= np.exp(-((8*si**4+6*si**2*di)*numer1)/(denom1*denom2))
-        lamda *= np.exp(-(numer1*di**2-16*xxi*si**4*mi-12*xxi*si**2*mi*di-2*xxi*si**2*mi)/(denom1*denom2))
-        lamda *= np.sqrt(di/denom2)*np.sqrt(di*denom2/denom1)
-    return lamda
-
-def variance_of_variance_gaussian_Pi(train_samples,delta,mu,sigma):
-    nvars,ntrain_samples = train_samples.shape
-    Pi=np.ones((ntrain_samples,ntrain_samples))
-    for ii in range(nvars):
-        si,mi,di = sigma[ii,0],mu[ii,0],delta[ii,0]
-        denom1,denom2 = (12*si**4+8*di*si**2+di**2),di*(di+4*si)
-        for mm in range(ntrain_samples):
-            xm = train_samples[ii,mm]
-            for nn in range(ntrain_samples):
-                zn = train_samples[ii,nn]
-                Pi[mm,nn]*=np.exp(-(32*xm*si**6*zn+20*mi*di**2*si**2+2*mi*di**3)/(denom1*denom2))
-                Pi[mm,nn]*=np.exp(-(8*xm*si**4*zn*di+48*mi**2*di*si**4)/(denom1*denom2))
-                Pi[mm,nn]*=np.exp(-((xm**2+zn**2)*(28*si**4*di+10*si**2*di**2+16*si**6+di**3))/(denom1*denom2))
-                Pi[mm,nn]*=np.exp(-(-(xm+zn)*(48*si**4*mi*si+20*si**2*di**2*mi+2*di**3*mi))/(denom1*denom2))*np.sqrt(di**2/denom1**2)
-    return Pi
-        
+    return CC1+T.dot(A_inv).dot(P).dot(A_inv).dot(T)-2*lamda.dot(A_inv).dot(T)        
 
 def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
@@ -398,6 +376,6 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var
 
-    intermeadiate_quantities=tau,u,sigma_sq,P,v_sq,zeta,nu,rho,Pi,psi,phi,varrho,CC,chi,lamda,Pi,CC1
+    intermeadiate_quantities=tau,u,sigma_sq,P,v_sq,zeta,nu,rho,Pi,psi,phi,chi,lamda,varrho,Pi,CC,CC1
     return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermeadiate_quantities
