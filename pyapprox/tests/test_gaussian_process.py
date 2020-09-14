@@ -204,18 +204,21 @@ class TestGaussianProcess(unittest.TestCase):
         #when initialing writing tests
         nu_true = gaussian_nu(delta,sigma)
         rho_true = compute_rho(A_inv,P_true)
-        #Pi_true = gaussian_Pi(train_samples,delta,mu,sigma)
-        Pi_true = intermediate_quantities[8]
+        Pi_true = gaussian_Pi(train_samples,delta,mu,sigma)
         psi_true = compute_psi(A_inv,Pi_true)
         phi_true = compute_phi(train_vals,A_inv,Pi_true,P_true)
+        chi_true = compute_chi(nu_true,rho_true,psi_true)
+        lamda_true = gaussian_lamda(train_samples,delta,mu,sigma)
+        varrho_true = compute_varrho(lamda_true,A_inv,train_vals,P_true,tau_true)
+        print(lamda_true)
         verify_quantities(
-            [zeta_true,nu_true,rho_true,Pi_true,psi_true,phi_true],
-            intermediate_quantities[5:11],
-            [1e-8]*6)
+            [zeta_true,nu_true,rho_true,Pi_true,psi_true,phi_true,chi_true,lamda_true,varrho_true],
+            intermediate_quantities[5:14],
+            [1e-8]*9)
 
         
 
-        #assert False
+        assert False
         #(x^2+y^2)^2=x_1^4+x_2^4+2x_1^2x_2^2
         #first term below is sum of x_i^4 terms
         #second term is sum of 2x_i^2x_j^2
