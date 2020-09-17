@@ -73,9 +73,6 @@ def gaussian_tau(train_samples,delta,mu,sigma):
 def gaussian_u(delta,sigma):
     return np.sqrt(delta/(delta+4*sigma**2)).prod()
 
-def gaussian_sigma_sq(delta,sigma,tau,A_inv):
-    return np.sqrt(delta/(delta+4*sigma**2)).prod()-tau.dot(A_inv).dot(tau)
-
 def gaussian_P(train_samples,delta,mu,sigma):
     nvars,ntrain_samples = train_samples.shape
     P=np.ones((ntrain_samples,ntrain_samples))
@@ -116,16 +113,22 @@ def compute_v_sq(A_inv,P):
 def compute_zeta(y,A_inv,P):
     return y.T.dot(A_inv.dot(P).dot(A_inv)).dot(y)
 
-def compute_rho(A_inv,P):
+def compute_varpi(tau,A_inv):
+    return tau.dot(A_inv).dot(tau.T)
+
+def compute_varsigma_sq(u,varpi):
+    return u-varpi
+
+def compute_varphi(A_inv,P):
     tmp = A_inv.dot(P)
-    rho = np.sum(tmp.T*tmp)
-    return rho
+    varphi = np.sum(tmp.T*tmp)
+    return varphi
 
 def compute_psi(A_inv,Pi):
     return np.sum(A_inv.T*Pi)
 
-def compute_chi(nu,rho,psi):
-    return nu+rho-2*psi
+def compute_chi(nu,varphi,psi):
+    return nu+varphi-2*psi
 
 def compute_phi(train_vals,A_inv,Pi,P):
         return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_inv).dot(P).dot(A_inv).dot(P).dot(A_inv).dot(train_vals)
@@ -133,6 +136,25 @@ def compute_phi(train_vals,A_inv,Pi,P):
 def compute_varrho(lamda,A_inv,train_vals,P,tau):
     #TODO reduce redundant computations by computing once and then storing
     return lamda.T.dot(A_inv.dot(train_vals)) - tau.T.dot(A_inv.dot(P).dot(A_inv.dot(train_vals)))
+
+def compute_xi(xi_1,lamda,tau,P,A_inv):
+    return xi_1+tau.dot(A_inv).dot(P).dot(A_inv).dot(tau)-\
+        2*lamda.dot(A_inv).dot(tau)
+
+def compute_var_of_var_term1(phi,kernel_var,chi,zeta,v_sq):
+    #E[I_2^2] (term1)
+    return 4*phi*kernel_var + 2*chi*kernel_var**2+(
+        zeta+v_sq*kernel_var)**2
+
+def compute_var_of_var_term2(eta,varrho,kernel_var,xi,zeta,v_sq,varsigma_sq):
+    #-2E[I_2I^2] (term2)
+    return 4*eta*varrho*kernel_var+2*xi*kernel_var**2+\
+        zeta*varsigma_sq*kernel_var+v_sq*varsigma_sq*kernel_var**2+\
+        zeta*eta**2+eta**2*v_sq*kernel_var
+
+def compute_var_of_var_term3(varsigma_sq,kernel_var,eta,v_sq):
+    #E[I^4]
+    return 3*varsigma_sq**2*kernel_var**2+6*eta**2*varsigma_sq*kernel_var+eta**4
 
 def gaussian_lamda(train_samples,delta,mu,sigma):
     nvars = train_samples.shape[0]
@@ -144,17 +166,14 @@ def gaussian_lamda(train_samples,delta,mu,sigma):
         lamda *= di/np.sqrt(denom1)*np.exp(-t1)
     return lamda
 
-def variance_of_mean(kernel_var,sigma_sq):
-    return kernel_var*sigma_sq
+def gaussian_xi_1(delta,sigma):
+    return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
+
+def variance_of_mean(kernel_var,varsigma_sq):
+    return kernel_var*varsigma_sq
 
 def mean_of_variance(zeta,v_sq,expected_random_mean,variance_random_mean):
     return zeta+v_sq-expected_random_mean**2-variance_random_mean
-
-def variance_of_variance_gaussian_CC1(delta,sigma):
-    return (delta/np.sqrt((delta+2*sigma**2)*(delta+6*sigma**2))).prod()
-
-def variance_of_variance_gaussian_CC(delta,sigma,T,P,CC1,lamda,A_inv):
-    return CC1+T.dot(A_inv).dot(P).dot(A_inv).dot(T)-2*lamda.dot(A_inv).dot(T)        
 
 def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
@@ -279,7 +298,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     P=np.ones((ntrain_samples,ntrain_samples))
     lamda=np.ones(ntrain_samples)
     Pi=np.ones((ntrain_samples,ntrain_samples))
-    CC1,nu=1,1
+    xi_1,nu=1,1
     
     for ii in range(nvars):
         #TODO only compute quadrature once for each unique quadrature rules
@@ -335,15 +354,16 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         ww_3d =  outer_product([ww_1d]*3)
         dists_3d_x1_x2 = (xx_3d[0,:]/lscale[ii]-xx_3d[1,:]/lscale[ii])**2
         dists_3d_x2_x3 = (xx_3d[1,:]/lscale[ii]-xx_3d[2,:]/lscale[ii])**2
-        CC1 *= np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
+        xi_1 *= np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
     
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
     A_inv = K_inv*kernel_var
     expected_random_mean = tau.dot(A_inv.dot(Y_train))
 
-    sigma_sq = u-tau.dot(A_inv).dot(tau.T)
-    variance_random_mean = variance_of_mean(kernel_var,sigma_sq)
+    varpi = compute_varpi(tau,A_inv)
+    varsigma_sq = compute_varsigma_sq(u,varpi)
+    variance_random_mean = variance_of_mean(kernel_var,varsigma_sq)
 
     v_sq = compute_v_sq(A_inv,P)
     zeta = compute_zeta(Y_train,A_inv,P)
@@ -351,31 +371,25 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     expected_random_var = mean_of_variance(
         zeta,v_sq,expected_random_mean,variance_random_mean)
 
-    rho = compute_rho(A_inv,P)
+    varphi = compute_varphi(A_inv,P)
     psi = compute_psi(A_inv,Pi)
-    chi = compute_chi(nu,rho,psi)
+    chi = compute_chi(nu,varphi,psi)
     
-    mu = expected_random_mean
+    eta = expected_random_mean
     varrho = compute_varrho(lamda,A_inv,Y_train,P,tau)
     phi = compute_phi(Y_train,A_inv,Pi,P)
-    #[CC]
-    CC = CC1+tau.dot(A_inv).dot(P).dot(A_inv).dot(tau)-2*lamda.dot(A_inv).dot(tau)
+    xi = compute_xi(xi_1,lamda,tau,P,A_inv)
 
-    #E[I_2^2] (term1)
-    variance_random_var = 4*phi*kernel_var + 2*chi*kernel_var**2+(
-        zeta+v_sq*kernel_var)**2
-    #-2E[I_2I^2] (term2)
-    variance_random_var += -2*(4*mu*varrho*kernel_var+2*CC*kernel_var**2+zeta*mu**2+
-        v_sq*sigma_sq*kernel_var**2 + mu**2*v_sq*kernel_var+zeta*sigma_sq*kernel_var)
-    #E[I^4]
-    variance_random_var += 3*sigma_sq**2*kernel_var**2+6*mu**2*sigma_sq*kernel_var+mu**4
-    #E[I_2-I^2]^2
+    term1 = compute_var_of_var_term1(phi,kernel_var,chi,zeta,v_sq)
+    term2 = compute_var_of_var_term2(eta,varrho,kernel_var,xi,zeta,v_sq,varsigma_sq)
+    term3 = compute_var_of_var_term3(varsigma_sq,kernel_var,eta,v_sq)
+    variance_random_var = term1-2*term2+term3
     variance_random_var -= expected_random_var**2
 
     if not return_full:
         return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var
 
-    intermeadiate_quantities=tau,u,sigma_sq,P,v_sq,zeta,nu,rho,Pi,psi,phi,chi,lamda,varrho,Pi,CC,CC1
+    intermeadiate_quantities=tau,u,varpi,varsigma_sq,P,v_sq,zeta,nu,varphi,Pi,psi,chi,phi,lamda,varrho,xi_1,xi
     return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermeadiate_quantities

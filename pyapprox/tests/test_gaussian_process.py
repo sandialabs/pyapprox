@@ -42,14 +42,14 @@ def compute_intermediate_quantities_with_monte_carlo(mu_scalar,sigma_scalar,
     post_cov_xx_zz = prior_cov_xx_zz - np.sum(
         t_xx.T.dot(L)*t_zz.T.dot(L),axis=1)
 
-    mu_mc = mean_gp_xx.mean()
+    eta_mc = mean_gp_xx.mean()
     varrho_mc = (mean_gp_xx*post_cov_xx_yy).mean()
     phi_mc = (mean_gp_xx*mean_gp_yy*post_cov_xx_yy).mean()
     CC_mc = (post_cov_xx_yy*post_cov_xx_zz).mean()
     chi_mc = (post_cov_xx_yy**2).mean()
     M_sq_mc = (mean_gp_xx**2).mean()
     v_sq_mc = (post_cov_xx_xx).mean()
-    sigma_sq_mc = (post_cov_xx_yy).mean()        
+    varsigma_sq_mc = (post_cov_xx_yy).mean()        
     P_mc = (t_xx.dot(t_xx.T))/xx.shape[1]
     lamda_mc = (prior_cov_xx_yy*t_yy).mean(axis=1)
     CC1_mc = (prior_cov_xx_yy*prior_cov_xx_zz).mean()
@@ -59,8 +59,8 @@ def compute_intermediate_quantities_with_monte_carlo(mu_scalar,sigma_scalar,
             Pi_mc[ii,jj]=(prior_cov_xx_yy*t_xx[ii,:]*t_yy[jj,:]).mean()
             Pi_mc[jj,ii]=Pi_mc[ii,jj]
 
-    return mu_mc, varrho_mc, phi_mc, CC_mc, chi_mc, M_sq_mc, v_sq_mc, \
-        sigma_sq_mc, P_mc, lamda_mc, CC1_mc, Pi_mc
+    return eta_mc, varrho_mc, phi_mc, CC_mc, chi_mc, M_sq_mc, v_sq_mc, \
+        varsigma_sq_mc, P_mc, lamda_mc, CC1_mc, Pi_mc
 
 def verify_quantities(reference_quantities,quantities,tols):
     assert len(reference_quantities)==len(quantities)==len(tols)
@@ -167,16 +167,17 @@ class TestGaussianProcess(unittest.TestCase):
         #when initialing writing tests
         tau_true = gaussian_tau(train_samples,delta,mu,sigma)
         u_true = gaussian_u(delta,sigma)
-        sigma_sq_true = gaussian_sigma_sq(delta,sigma,tau_true,A_inv)
+        varpi_true = compute_varpi(tau_true,A_inv)
+        varsigma_sq_true = compute_varsigma_sq(u_true,varpi_true)
         verify_quantities(
-            [tau_true,u_true,sigma_sq_true],
-            intermediate_quantities[:3],
-            [1e-8]*3)
+            [tau_true,u_true,varpi_true,varsigma_sq_true],
+            intermediate_quantities[:4],
+            [1e-8]*4)
 
         #Verify mean and variance of mean of GP
         true_expected_random_mean = tau_true.dot(Ainv_y)
         true_variance_random_mean=variance_of_mean(
-            kernel_var,sigma_sq_true)
+            kernel_var,varsigma_sq_true)
         assert np.allclose(
             true_expected_random_mean,expected_random_mean)
         #print(true_variance_random_mean,variance_random_mean)
@@ -191,7 +192,7 @@ class TestGaussianProcess(unittest.TestCase):
         zeta_true = compute_zeta(train_vals,A_inv,P_true)
         verify_quantities(
             [P_true,v_sq_true],
-            intermediate_quantities[3:5],
+            intermediate_quantities[4:6],
             [1e-8]*2)
 
         true_expected_random_var = mean_of_variance(
@@ -203,22 +204,23 @@ class TestGaussianProcess(unittest.TestCase):
         #This is redundant know but helped to isolate incorrect terms
         #when initialing writing tests
         nu_true = gaussian_nu(delta,sigma)
-        rho_true = compute_rho(A_inv,P_true)
+        varphi_true = compute_varphi(A_inv,P_true)
         Pi_true = gaussian_Pi(train_samples,delta,mu,sigma)
         psi_true = compute_psi(A_inv,Pi_true)
+        chi_true = compute_chi(nu_true,varphi_true,psi_true)
         phi_true = compute_phi(train_vals,A_inv,Pi_true,P_true)
-        chi_true = compute_chi(nu_true,rho_true,psi_true)
         lamda_true = gaussian_lamda(train_samples,delta,mu,sigma)
         varrho_true = compute_varrho(lamda_true,A_inv,train_vals,P_true,tau_true)
-        print(lamda_true)
+        xi_1_true = gaussian_xi_1(delta,sigma)
+        xi_true = compute_xi(xi_1_true,lamda_true,tau_true,P_true,A_inv)
         verify_quantities(
-            [zeta_true,nu_true,rho_true,Pi_true,psi_true,phi_true,chi_true,lamda_true,varrho_true],
-            intermediate_quantities[5:14],
-            [1e-8]*9)
+            [zeta_true,nu_true,varphi_true,Pi_true,psi_true,chi_true,phi_true,lamda_true,varrho_true,xi_1_true,xi_true],
+            intermediate_quantities[6:17],
+            [1e-8]*11)
 
         
 
-        assert False
+        #assert False
         #(x^2+y^2)^2=x_1^4+x_2^4+2x_1^2x_2^2
         #first term below is sum of x_i^4 terms
         #second term is sum of 2x_i^2x_j^2
@@ -228,8 +230,8 @@ class TestGaussianProcess(unittest.TestCase):
         #print('Expected random var',expected_random_var)
         #assert np.allclose(expected_random_var,true_var,rtol=1e-3)
 
-        mu_mc, varrho_mc, phi_mc, CC_mc, chi_mc, M_sq_mc, v_sq_mc, \
-            sigma_sq_mc, P_mc, lamda_mc, CC1_mc, Pi_mc = \
+        eta_mc, varrho_mc, phi_mc, CC_mc, chi_mc, M_sq_mc, v_sq_mc, \
+            varsigma_sq_mc, P_mc, lamda_mc, CC1_mc, Pi_mc = \
                 compute_intermediate_quantities_with_monte_carlo(
                     mu_scalar,sigma_scalar,length_scale,train_samples,
                     A_inv,kernel_var,train_vals)
@@ -270,10 +272,10 @@ class TestGaussianProcess(unittest.TestCase):
         # print('varrho',varrho_true,intermediate_quantities['varrho'],varrho_mc)
         # #assert np.allclose(varrho_mc,intermediate_quantities['varrho'],rtol=1e-2)
         
-        # sigma_sq_true = variance_of_variance_gaussian_sigma_sq(delta,sigma,A_inv,tau_true)
-        # #assert np.allclose(sigma_sq_true,intermediate_quantities['sigma_sq'])
-        # print(sigma_sq_mc,intermediate_quantities['sigma_sq'])
-        # #assert np.allclose(sigma_sq_mc,intermediate_quantities['sigma_sq'],rtol=1e-2)
+        # varsigma_sq_true = variance_of_variance_gaussian_varsigma_sq(delta,sigma,A_inv,tau_true)
+        # #assert np.allclose(varsigma_sq_true,intermediate_quantities['varsigma_sq'])
+        # print(varsigma_sq_mc,intermediate_quantities['varsigma_sq'])
+        # #assert np.allclose(varsigma_sq_mc,intermediate_quantities['varsigma_sq'],rtol=1e-2)
 
         # print('M_sq',M_sq_mc,intermediate_quantities['M_sq'])
         # assert np.allclose(M_sq_mc,intermediate_quantities['M_sq'],rtol=2e-2)
