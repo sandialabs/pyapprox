@@ -6,12 +6,41 @@ from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
 
-def compute_mean_and_variance_of_gaussian_process(gp,quad_samples,quad_weights):
-    gp_vals = gp(quad_samples)
+def compute_mean_and_variance_of_gaussian_process(gp,length_scale,train_samples,
+                                                  A_inv,kernel_var,train_vals,
+                                                  quad_samples,quad_weights):
+    #just use for testing purposes
+    #computing variance_of_variance requires splitting up terms
+    #like done in code so no point computing this quantity as it cannot
+    #test if the splitting procedure is correct.
+    nvars = quad_samples.shape[0]
+    gp_vals, gp_std = gp(quad_samples,return_std=True)
+    gp_vals = gp_vals[:,0]
     mean_of_mean = gp_vals.dot(quad_weights)
-    variance_of_mean = gp_vals.dot(quad_weights)
+    quad_samples_WWXX = pya.get_all_sample_combinations(
+        quad_samples,quad_samples)
+    quad_weights_WWXX = pya.outer_product([quad_weights]*2)
 
-    return mean_of_mean, variance_of_mean
+    L = np.linalg.cholesky(A_inv)
+
+    ww,xx = quad_samples_WWXX[:nvars],quad_samples_WWXX[nvars:]
+    dists_ww_xx = np.sum((ww.T/length_scale-xx.T/length_scale)**2,axis=1)
+    dists_ww_tt = cdist(train_samples.T/length_scale,ww.T/length_scale,
+                        metric='sqeuclidean')
+    dists_xx_tt = cdist(train_samples.T/length_scale,xx.T/length_scale,
+                        metric='sqeuclidean')
+    t_ww = np.exp(-.5*dists_ww_tt)
+    t_xx = np.exp(-.5*dists_xx_tt)
+    prior_cov_ww_xx = kernel_var*np.exp(-.5*dists_ww_xx)
+    post_cov_ww_xx =  prior_cov_ww_xx - kernel_var*np.sum(
+        t_ww.T.dot(L)*t_xx.T.dot(L),axis=1)
+
+    variance_of_mean = post_cov_ww_xx.dot(quad_weights_WWXX)
+    
+    mean_of_variance = (gp_vals**2+gp_std**2).dot(quad_weights) - (
+        variance_of_mean+mean_of_mean**2)
+    
+    return mean_of_mean, variance_of_mean, mean_of_variance
 
 def compute_intermediate_quantities_with_monte_carlo(mu_scalar,sigma_scalar,
                                                      length_scale,train_samples,
@@ -82,7 +111,7 @@ class TestGaussianProcess(unittest.TestCase):
 
     def test_integrate_gaussian_process_gaussian(self):
 
-        nvars=1#2
+        nvars=2
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         mu_scalar,sigma_scalar=3,1
@@ -104,9 +133,8 @@ class TestGaussianProcess(unittest.TestCase):
         length_scale = np.array([1]*nvars)
         kernel = Matern(length_scale,length_scale_bounds=(1e-2, 10), nu=nu)
         # fix kernel variance
-        print('set constant_value =2')
         kernel = ConstantKernel(
-            constant_value=1.,constant_value_bounds='fixed')*kernel
+            constant_value=2.,constant_value_bounds='fixed')*kernel
         # optimize kernel variance
         #kernel = ConstantKernel(
         #    constant_value=3,constant_value_bounds=(0.1,10))*kernel
@@ -132,15 +160,6 @@ class TestGaussianProcess(unittest.TestCase):
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermediate_quantities=\
                 integrate_gaussian_process(gp,variable,return_full=True)
-
-        true_mean = nvars*(sigma_scalar**2+mu_scalar**2)
-        print('True mean',true_mean)
-        print('Expected random mean',expected_random_mean)
-        std_random_mean = np.sqrt(variance_random_mean)
-        print('Stdev random mean',std_random_mean)
-        print('Expected random mean +/- 3 stdev',
-              [expected_random_mean-3*std_random_mean,
-               expected_random_mean+3*std_random_mean])
         
 
         #mu and sigma should match variable
@@ -183,7 +202,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         #Verify mean and variance of mean of GP
         true_expected_random_mean = tau_true.dot(Ainv_y)
-        true_variance_random_mean=variance_of_mean(
+        true_variance_random_mean = variance_of_mean(
             kernel_var,varsigma_sq_true)
         assert np.allclose(
             true_expected_random_mean,expected_random_mean)
@@ -203,7 +222,7 @@ class TestGaussianProcess(unittest.TestCase):
             [1e-8]*2)
 
         true_expected_random_var = mean_of_variance(
-            zeta_true,v_sq_true,true_expected_random_mean,
+            zeta_true,v_sq_true,kernel_var,true_expected_random_mean,
             true_variance_random_mean)
         assert np.allclose(true_expected_random_var,expected_random_var)
 
@@ -226,86 +245,27 @@ class TestGaussianProcess(unittest.TestCase):
             [1e-8]*11)
 
 
-        xx,ww=pya.gauss_hermite_pts_wts_1D(100)
+        if nvars==1:
+            nxx=100
+        else:
+            nxx=15
+        xx,ww=pya.gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
-        mean_of_mean, variance_of_mean = \
+        mean_of_mean_quad, variance_of_mean_quad, mean_of_variance_quad = \
             compute_mean_and_variance_of_gaussian_process(
-                gp,quad_points,quad_weights)
+                gp,length_scale,train_samples,A_inv,kernel_var,train_vals,
+                quad_points,quad_weights)
 
-        assert False
-        #(x^2+y^2)^2=x_1^4+x_2^4+2x_1^2x_2^2
-        #first term below is sum of x_i^4 terms
-        #second term is sum of 2x_i^2x_j^2
-        #third term is mean x_i^2
-        true_var = nvars*(mu_scalar**4+6*mu_scalar**2*sigma_scalar**2+3*sigma_scalar**2)+2*pya.nchoosek(nvars,2)*(mu_scalar**2+sigma_scalar**2)**2-true_mean**2
-        #print('True var',true_var)
-        #print('Expected random var',expected_random_var)
-        #assert np.allclose(expected_random_var,true_var,rtol=1e-3)
+        assert np.allclose(mean_of_mean_quad,expected_random_mean)
+        assert np.allclose(variance_of_mean_quad,variance_random_mean)
+        assert np.allclose(mean_of_variance_quad,expected_random_var)
 
-        eta_mc, varrho_mc, phi_mc, CC_mc, chi_mc, M_sq_mc, v_sq_mc, \
-            varsigma_sq_mc, P_mc, lamda_mc, CC1_mc, Pi_mc = \
-                compute_intermediate_quantities_with_monte_carlo(
-                    mu_scalar,sigma_scalar,length_scale,train_samples,
-                    A_inv,kernel_var,train_vals)
-
-        # #print(P_true,intermediate_quantities['P'],P_mc)
-        # assert np.allclose(P_true,intermediate_quantities['P'])
-        # assert np.allclose(P_true,P_mc,rtol=3e-2)
-        
-        # v_sq_true = kernel_var*(1-np.trace(A_inv.dot(P_true)))
-        # assert np.allclose(v_sq_true,intermediate_quantities['v_sq'])
-        # assert np.allclose(v_sq_true,v_sq_mc,rtol=2e-2)
-       
-        # chi_true = variance_of_variance_gaussian_chi(delta,sigma,A_inv,P_true,intermediate_quantities['Pi'])
-        # print(chi_true,intermediate_quantities['chi'],chi_mc)
-        # assert np.allclose(chi_true,intermediate_quantities['chi'])
-        # assert np.allclose(chi_mc,intermediate_quantities['chi'],rtol=1e-2)
-
-        # #print(variance_random_var, intermediate_quantities)
-        # lamda_true=variance_of_variance_gaussian_lamda(train_samples,delta,mu,sigma)
-        # #print('lamda',lamda_true,intermediate_quantities['lamda'],lamda_mc)
-        # assert np.allclose(intermediate_quantities['lamda'],lamda_mc,rtol=1e-2)
-
-        # CC1_true = variance_of_variance_gaussian_CC1(delta,sigma)
-        # assert np.allclose(CC1_true,intermediate_quantities['CC1'])
-        # #print('CC1',CC1_true,CC1_mc)
-        # assert np.allclose(CC1_true,CC1_mc,rtol=1e-2)
-
-        # #CC_true = variance_of_variance_gaussian_CC(delta,sigma,tau_true,P_true,CC1_true,lamda_true,A_inv)
-        # CC_true = variance_of_variance_gaussian_CC(delta,sigma,tau_true,P_true,CC1_true,intermediate_quantities['lamda'],A_inv)
-        # #print(CC_true,intermediate_quantities['CC'])
-        # print('CC',CC_true,CC_mc,intermediate_quantities['CC'])
-        # assert np.allclose(CC_true,intermediate_quantities['CC'])
-        # #assert np.allclose(CC_mc,intermediate_quantities['CC'],rtol=1e-2)
-
-        # #varrho_true = lamda_true.T.dot(Ainv_y)
-        # varrho_true = variance_of_variance_varrho(
-        #     intermediate_quantities['lamda'],A_inv,train_vals,P_true,tau_true)
-        # print('varrho',varrho_true,intermediate_quantities['varrho'],varrho_mc)
-        # #assert np.allclose(varrho_mc,intermediate_quantities['varrho'],rtol=1e-2)
-        
-        # varsigma_sq_true = variance_of_variance_gaussian_varsigma_sq(delta,sigma,A_inv,tau_true)
-        # #assert np.allclose(varsigma_sq_true,intermediate_quantities['varsigma_sq'])
-        # print(varsigma_sq_mc,intermediate_quantities['varsigma_sq'])
-        # #assert np.allclose(varsigma_sq_mc,intermediate_quantities['varsigma_sq'],rtol=1e-2)
-
-        # print('M_sq',M_sq_mc,intermediate_quantities['M_sq'])
-        # assert np.allclose(M_sq_mc,intermediate_quantities['M_sq'],rtol=2e-2)
-        # #assert False
-
-        # Pi_true=variance_of_variance_gaussian_Pi(
-        #     train_samples,delta,mu,sigma)        
-        # #print('Pi',Pi_true,'\n',intermediate_quantities['Pi'])
-        # #print('Pi',Pi_mc)
-        # assert np.allclose(Pi_mc,intermediate_quantities['Pi'],rtol=2e-2)
-
-
-        nsamples = 1000
+        nsamples = 4000
         random_means, random_variances = [],[]
         random_I2sq,random_I4,random_I2Isq = [],[],[]
-        xx,ww=pya.gauss_hermite_pts_wts_1D(100)
+        xx,ww=pya.gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
@@ -318,22 +278,22 @@ class TestGaussianProcess(unittest.TestCase):
             random_I2Isq.append(I2*I**2)
             random_I4.append(I**4)
 
-        print(np.mean(random_I2sq))
-        print(np.mean(random_I2Isq))
-        print(np.mean(random_I4))
-        print(np.mean(random_I2sq)-2*np.mean(random_I2Isq)+np.mean(random_I4)-np.mean(random_variances)**2)
-
-        print('MC expected random mean',np.mean(random_means))
-        print('MC variance random mean',np.var(random_means))
-        print('MC expected random variance',np.mean(random_variances))
-        print('MC variance random variance',np.var(random_variances))
-        print('expected random mean',expected_random_mean)
-        print('variance random mean',variance_random_mean)
-        print('expected random variance',expected_random_var)
-        print('variance random variance',variance_random_var)
-        
-        #assert np.allclose(np.mean(random_means),expected_random_mean,rtol=1e-2)
-        #assert np.allclose(np.var(random_means),variance_random_mean,rtol=1e-2)
+        # print('MC expected random mean',np.mean(random_means))
+        # print('MC variance random mean',np.var(random_means))
+        # print('MC expected random variance',np.mean(random_variances))
+        # print('MC variance random variance',np.var(random_variances))
+        # print('expected random mean',expected_random_mean)
+        # print('variance random mean',variance_random_mean)
+        # print('expected random variance',expected_random_var)
+        # print('variance random variance',variance_random_var)
+        # print((np.var(random_means)-variance_random_mean)/np.var(random_means))
+        # print((np.var(random_variances)-variance_random_var)/np.var(random_variances))
+        assert np.allclose(np.mean(random_means),expected_random_mean,rtol=1e-2)
+        assert np.allclose(np.var(random_means),variance_random_mean,rtol=2.1e-2)
+        assert np.allclose(
+            expected_random_var,np.mean(random_variances),rtol=1e-2)
+        assert np.allclose(
+            variance_random_var,np.var(random_variances),rtol=2.2e-2)
         
 
     def test_integrate_gaussian_process_uniform(self):
