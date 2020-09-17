@@ -103,7 +103,7 @@ def gaussian_Pi(train_samples,delta,mu,sigma):
             for nn in range(mm,ntrain_samples):
                 xn = train_samples[ii,nn]
                 t1=2*(xm-xn)**2/di+3*(-2*mi+xm+xn)**2/denom2+(xm-xn)**2/denom3
-                Pi[mm,nn] = np.exp(-t1/6)*np.sqrt(di**2/(denom1))
+                Pi[mm,nn] *= np.exp(-t1/6)*np.sqrt(di**2/(denom1))
                 Pi[nn,mm]=Pi[mm,nn]
     return Pi
 
@@ -172,8 +172,9 @@ def gaussian_xi_1(delta,sigma):
 def variance_of_mean(kernel_var,varsigma_sq):
     return kernel_var*varsigma_sq
 
-def mean_of_variance(zeta,v_sq,expected_random_mean,variance_random_mean):
-    return zeta+v_sq-expected_random_mean**2-variance_random_mean
+def mean_of_variance(zeta,v_sq,kernel_var,expected_random_mean,
+                     variance_random_mean):
+    return zeta+v_sq*kernel_var-expected_random_mean**2-variance_random_mean
 
 def integrate_gaussian_process(gp,variable,return_full=False):
     kernel_types = [RBF,Matern]
@@ -369,7 +370,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     zeta = compute_zeta(Y_train,A_inv,P)
     
     expected_random_var = mean_of_variance(
-        zeta,v_sq,expected_random_mean,variance_random_mean)
+        zeta,v_sq,kernel_var,expected_random_mean,variance_random_mean)
 
     varphi = compute_varphi(A_inv,P)
     psi = compute_psi(A_inv,Pi)
@@ -381,7 +382,8 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     xi = compute_xi(xi_1,lamda,tau,P,A_inv)
 
     term1 = compute_var_of_var_term1(phi,kernel_var,chi,zeta,v_sq)
-    term2 = compute_var_of_var_term2(eta,varrho,kernel_var,xi,zeta,v_sq,varsigma_sq)
+    term2 = compute_var_of_var_term2(
+        eta,varrho,kernel_var,xi,zeta,v_sq,varsigma_sq)
     term3 = compute_var_of_var_term3(varsigma_sq,kernel_var,eta,v_sq)
     variance_random_var = term1-2*term2+term3
     variance_random_var -= expected_random_var**2
