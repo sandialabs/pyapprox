@@ -6,6 +6,13 @@ from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
 
+def compute_mean_and_variance_of_gaussian_process(gp,quad_samples,quad_weights):
+    gp_vals = gp(quad_samples)
+    mean_of_mean = gp_vals.dot(quad_weights)
+    variance_of_mean = gp_vals.dot(quad_weights)
+
+    return mean_of_mean, variance_of_mean
+
 def compute_intermediate_quantities_with_monte_carlo(mu_scalar,sigma_scalar,
                                                      length_scale,train_samples,
                                                      A_inv,kernel_var,
@@ -218,9 +225,16 @@ class TestGaussianProcess(unittest.TestCase):
             intermediate_quantities[6:17],
             [1e-8]*11)
 
-        
 
-        #assert False
+        xx,ww=pya.gauss_hermite_pts_wts_1D(100)
+        xx = xx*sigma_scalar + mu_scalar
+        quad_points = pya.cartesian_product([xx]*nvars)
+        quad_weights = pya.outer_product([ww]*nvars)
+        mean_of_mean, variance_of_mean = \
+            compute_mean_and_variance_of_gaussian_process(
+                gp,quad_points,quad_weights)
+
+        assert False
         #(x^2+y^2)^2=x_1^4+x_2^4+2x_1^2x_2^2
         #first term below is sum of x_i^4 terms
         #second term is sum of 2x_i^2x_j^2
