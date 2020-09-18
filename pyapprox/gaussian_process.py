@@ -11,6 +11,8 @@ from pyapprox.utilities import cartesian_product, outer_product
 from scipy.spatial.distance import cdist
 from functools import partial
 from scipy.linalg import solve_triangular
+from pyapprox.utilities import transformed_halton_sequence, \
+    pivoted_cholesky_decomposition, continue_pivoted_cholesky_decomposition
 
 class GaussianProcess(GaussianProcessRegressor):       
     def fit(self,train_samples,train_values):
@@ -49,6 +51,27 @@ class GaussianProcess(GaussianProcessRegressor):
         cov[np.arange(cov.shape[0]),np.arange(cov.shape[0])]+=1e-14
         L = np.linalg.cholesky(cov)
         return mean + L.dot(np.random.normal(0,1,mean.shape))
+
+    def num_training_samples(self):
+        return self.X_train_.shape[0]
+
+
+class AdaptiveGaussianProcess(GaussianProcess):
+    def setup(self,func,sampler):
+        self.func=func
+        self.sampler=sampler
+
+    def refine(self,num_samples):
+        new_samples = self.sampler(num_samples)[0]
+        new_values = self.func(new_samples)
+        if hasattr(self, 'X_train_'):
+            train_samples = np.hstack([self.X_train_.T, new_samples])
+            train_values = np.vstack([self.y_train_, new_values])
+            #print(self.kernel_.length_scale)
+        else:
+            train_samples, train_values = new_samples, new_values
+        self.fit(train_samples, train_values)
+
 
 def is_covariance_kernel(kernel,kernel_types):
     return (type(kernel) in kernel_types)
@@ -110,8 +133,14 @@ def gaussian_Pi(train_samples,delta,mu,sigma):
 def compute_v_sq(A_inv,P):
     return (1-np.trace(A_inv.dot(P)))
 
+def compute_v_sq_econ(A_invP):
+    return (1-np.trace(A_invP))
+
 def compute_zeta(y,A_inv,P):
     return y.T.dot(A_inv.dot(P).dot(A_inv)).dot(y)
+
+def compute_zeta_econ(y,A_invP):
+    return y.T.dot(A_invP.dot(A_inv)).dot(y)
 
 def compute_varpi(tau,A_inv):
     return tau.dot(A_inv).dot(tau.T)
@@ -124,6 +153,10 @@ def compute_varphi(A_inv,P):
     varphi = np.sum(tmp.T*tmp)
     return varphi
 
+def compute_varphi_econ(A_invP):
+    varphi = np.sum(A_invP.T*A_invP)
+    return varphi
+
 def compute_psi(A_inv,Pi):
     return np.sum(A_inv.T*Pi)
 
@@ -132,6 +165,9 @@ def compute_chi(nu,varphi,psi):
 
 def compute_phi(train_vals,A_inv,Pi,P):
         return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_inv).dot(P).dot(A_inv).dot(P).dot(A_inv).dot(train_vals)
+
+def compute_phi_econ(train_vals,A_invP,Pi):
+    return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_invP).dot(A_invP).dot(A_inv).dot(train_vals)
 
 def compute_varrho(lamda,A_inv,train_vals,P,tau):
     #TODO reduce redundant computations by computing once and then storing
@@ -366,6 +402,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     varsigma_sq = compute_varsigma_sq(u,varpi)
     variance_random_mean = variance_of_mean(kernel_var,varsigma_sq)
 
+    Theta = A_inv.dot(P)
     v_sq = compute_v_sq(A_inv,P)
     zeta = compute_zeta(Y_train,A_inv,P)
     
@@ -395,3 +432,125 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     intermeadiate_quantities=tau,u,varpi,varsigma_sq,P,v_sq,zeta,nu,varphi,Pi,psi,chi,phi,lamda,varrho,xi_1,xi
     return expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermeadiate_quantities
+
+class CholeskySampler(object):
+    """
+    Compute samples for kernel based approximation using the power-function
+    method.
+
+    Parameters
+    ----------
+    num_vars : integer
+        The number of variables
+
+    num_candidate_samples : integer
+        The number of candidate samples from which final samples are chosen
+
+    variables : list
+        list of scipy.stats random variables used to transform candidate
+        samples. If variables == None candidates will be generated on [0,1]
+
+    max_num_samples : integer
+        The maximum number of samples to be generated
+
+    weight_function : callable
+        Function used to precondition kernel with the signature
+
+        ``weight_function(samples) -> np.ndarray (num_samples)``
+
+        where samples is a np.ndarray (num_vars,num_samples)
+
+    generate_random_samples : callable
+        Function used to generate samples to enrich default candidate set.
+        If this is not None then num_candidate_samples//2 will be created
+        by this function and the other half of samples will be from a Halton
+        sequence.
+    """
+    def __init__(self, num_vars, num_candidate_samples, variables=None,
+                 generate_random_samples=None):
+        self.num_vars = num_vars
+        self.kernel_theta = None
+        self.init_pivots = None
+        self.chol_flag = None
+        self.variables = variables
+        self.generate_random_samples = generate_random_samples
+        self.generate_candidate_samples(num_candidate_samples)
+        self.set_weight_function(None)
+
+    def generate_candidate_samples(self, num_candidate_samples):
+        self.num_candidate_samples = num_candidate_samples
+        if self.generate_random_samples is not None:
+            num_halton_candidates = num_candidate_samples//2
+            num_random_candidates = num_candidate_samples//2
+        else:
+            num_halton_candidates = num_candidate_samples
+            num_random_candidates = 0
+
+        if self.variables is None:
+            marginal_icdfs = None
+        else:
+            marginal_icdfs = [v.ppf for v in self.variables]
+        self.candidate_samples = transformed_halton_sequence(
+            marginal_icdfs, self.num_vars, num_halton_candidates)
+
+        if num_random_candidates > 0:
+            self.candidate_samples = np.hstack((
+                self.candidate_samples, generate_random_samples(
+                    num_random_candidates)))
+
+    def set_weight_function(self, weight_function):
+        self.pivot_weights = None
+        self.weight_function = weight_function
+        if self.weight_function is not None:
+            self.pivot_weights = weight_function(self.candidate_samples)
+        self.weight_function_changed = True
+
+    def set_kernel(self, kernel):
+        if not hasattr(self, 'kernel') or self.kernel != kernel:
+            self.kernel_changed = True
+        self.kernel = kernel
+        self.kernel_theta = self.kernel.theta
+
+    def __call__(self, num_samples):
+        if not hasattr(self, 'kernel'):
+            raise Exception('Must call set_kernel')
+        if not hasattr(self, 'weight_function'):
+            raise Exception('Must call set_weight_function')
+
+        if self.kernel_theta is None:
+            assert self.kernel_changed
+
+        if self.weight_function_changed or self.kernel_changed:
+            self.Kmatrix = self.kernel(self.candidate_samples.T)
+            self.L, self.pivots, error, self.chol_flag, self.diag, \
+                self.init_error, self.num_completed_pivots = \
+                pivoted_cholesky_decomposition(
+                    self.Kmatrix, num_samples, init_pivots=self.init_pivots,
+                    pivot_weights=self.pivot_weights,
+                    error_on_small_tol=False, return_full=True)
+
+            self.weight_function_changed = False
+            self.kernel_changed = False
+        else:
+            self.L, self.pivots, self.diag, self.chol_flag, \
+                self.num_completed_pivots, error = \
+                continue_pivoted_cholesky_decomposition(
+                    self.Kmatrix, self.L, num_samples, self.init_pivots,
+                    0., False, self.pivot_weights, self.pivots, self.diag,
+                    self.num_completed_pivots, self.init_error)
+
+        if self.chol_flag == 0:
+            assert self.num_completed_pivots == num_samples
+        if self.init_pivots is None:
+            num_prev_pivots = 0
+        else:
+            num_prev_pivots = self.init_pivots.shape[0]
+        self.init_pivots = self.pivots[:self.num_completed_pivots].copy()
+
+        # extract samples that were not already in sample set
+        # pivots has alreay been reduced to have the size of the number of
+        # samples requested
+        new_samples = \
+            self.candidate_samples[:, self.pivots[
+                num_prev_pivots:self.num_completed_pivots]]
+        return new_samples, self.chol_flag
