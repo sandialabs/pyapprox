@@ -122,7 +122,8 @@ class TestGaussianProcess(unittest.TestCase):
 
         lb,ub = univariate_variables[0].interval(0.99999)
 
-        ntrain_samples = 5#20
+        ntrain_samples = 5
+        #ntrain_samples = 10
         
         train_samples = pya.cartesian_product(
             [np.linspace(lb,ub,ntrain_samples)]*nvars)
@@ -157,10 +158,11 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.fill_between(xx,gp_mean-2*gp_std,gp_mean+2*gp_std,alpha=0.5)
         # plt.show()
 
+        import time;t0=time.time()
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermediate_quantities=\
                 integrate_gaussian_process(gp,variable,return_full=True)
-        
+        print('time',time.time()-t0)
 
         #mu and sigma should match variable
         kernel_types = [Matern]
@@ -363,9 +365,79 @@ class TestGaussianProcess(unittest.TestCase):
         # vals = gp.predict_random_realization(xx[np.newaxis,:])
         # plt.plot(xx,vals)
         # plt.show()
+
+class TestCholeskySampler(unittest.TestCase):
+
+    def test_basic_restart(self):
+        nvars = 1
+        variables = [stats.uniform(-1, 2)]*nvars
+        sampler = CholeskySampler(nvars, 100, variables)
+        kernel = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        sampler.set_kernel(kernel)
+
+        num_samples = 10
+        samples = sampler(num_samples)[0]
+
+        sampler2 = CholeskySampler(nvars, 100, variables)
+        sampler2.set_kernel(kernel)
+        samples2 = sampler2(num_samples//2)[0]
+        samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
+        assert np.allclose(samples2, samples)
+
+    def test_restart_with_changed_kernel(self):
+        nvars = 1
+        variables = [stats.uniform(-1, 2)]*nvars
+        kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        kernel2 = pya.Matern(0.1, length_scale_bounds='fixed', nu=np.inf)
+
+        num_samples = 10
+        sampler = CholeskySampler(nvars, 100, variables)
+        sampler.set_kernel(kernel1)
+        samples = sampler(num_samples)[0]
+
+        sampler2 = CholeskySampler(nvars, 100, variables)
+        sampler2.set_kernel(kernel1)
+        samples2 = sampler2(num_samples//2)[0]
+        sampler2.set_kernel(kernel2)
+        samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
+
+        # plt.plot(samples[0, :], samples[0, :]*0, 'o')
+        # plt.plot(samples2[0, :], samples2[0, :]*0,'x')
+        # plt.show()
+        assert np.allclose(sampler2.pivots[:num_samples//2],
+                           sampler.pivots[:num_samples//2])
+        assert not np.allclose(samples2, samples)
+
+    def test_restart_with_changed_weight_function(self):
+        nvars = 1
+        variables = [stats.uniform(-1, 2)]*nvars
+        kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        def wfunction1(x): return np.ones(x.shape[1])
+        def wfunction2(x): return x[0, :]**2
+
+        num_samples = 10
+        sampler = CholeskySampler(nvars, 100, variables)
+        sampler.set_kernel(kernel1)
+        sampler.set_weight_function(wfunction1)
+        samples = sampler(num_samples)[0]
+
+        sampler2 = CholeskySampler(nvars, 100, variables)
+        sampler2.set_kernel(kernel1)
+        sampler2.set_weight_function(wfunction1)
+        samples2 = sampler2(num_samples//2)[0]
+        sampler2.set_weight_function(wfunction2)
+        samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
+
+        assert np.allclose(sampler2.pivots[:num_samples//2],
+                           sampler.pivots[:num_samples//2])
+
+        assert not np.allclose(samples2, samples)
+
         
 if __name__== "__main__":    
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
-
+    cholesky_sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+        TestCholeskySampler)
+    unittest.TextTestRunner(verbosity=2).run(cholesky_sampler_test_suite)

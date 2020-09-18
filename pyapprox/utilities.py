@@ -1102,7 +1102,7 @@ def cholesky_decomposition(Amat):
 def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                                    error_on_small_tol=False,
                                    pivot_weights=None,
-                                   return_diag=False):
+                                   return_full=False):
     r"""
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
@@ -1117,19 +1117,40 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
     where P is the standard pivot matrix which can be obtained from the 
     pivot vector using the function 
     """
-    chol_flag = 0
     Amat = A.copy()
     nrows = Amat.shape[0]
     assert Amat.shape[1]==nrows
     assert npivots<=nrows
 
-    L = np.zeros(((nrows,npivots)))
+    #L = np.zeros(((nrows,npivots)))
+    L = np.zeros(((nrows,nrows)))
     #diag1 = np.diag(Amat).copy() # returns a copy of diag
     diag = Amat.ravel()[::Amat.shape[0]+1] #returns a view of diag
     #assert np.allclose(diag,diag1)
     pivots = np.arange(nrows)
     init_error = np.absolute(diag).sum()
-    for ii in range(npivots):
+    L, pivots, diag, chol_flag, ncompleted_pivots, error = \
+        continue_pivoted_cholesky_decomposition(
+            Amat, L, npivots, init_pivots, tol,
+            error_on_small_tol,
+            pivot_weights, pivots, diag,
+            0, init_error)
+
+    if not return_full:
+        return L[:,:ncompleted_pivots], pivots[:ncompleted_pivots], error,\
+            chol_flag
+    else:
+        return L, pivots, error, chol_flag, diag.copy(), init_error, \
+            ncompleted_pivots
+
+
+def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
+                                            error_on_small_tol,
+                                            pivot_weights, pivots, diag,
+                                            ncompleted_pivots, init_error):
+    chol_flag = 0
+    assert ncompleted_pivots<npivots
+    for ii in range(ncompleted_pivots,npivots):
         if init_pivots is None or ii>=len(init_pivots):
             if pivot_weights is None:
                 pivot = np.argmax(diag[pivots[ii:]])+ii
@@ -1148,7 +1169,7 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                 print(msg)
                 chol_flag=1
                 break
-            
+
         L[pivots[ii],ii] = np.sqrt(diag[pivots[ii]])
 
         L[pivots[ii+1:],ii]=(Amat[pivots[ii+1:],pivots[ii]]-
@@ -1172,13 +1193,8 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                 chol_flag = 1
                 print(msg)
                 break
-        
-    pivots = pivots[:ii+1]
-
-    if not return_diag:
-        return L, pivots, error, chol_flag
-    else:
-        return L, pivots, error, chol_flag, diag.copy()
+            
+    return L, pivots, diag, chol_flag, ii+1, error
 
 def get_pivot_matrix_from_vector(pivots,nrows):
     P = np.eye(nrows)

@@ -586,6 +586,33 @@ class TestUtilities(unittest.TestCase):
         L, pivots, error, flag = pivoted_cholesky_decomposition(A,A.shape[0])
         assert np.allclose(L[pivots,:],L_np)
 
+    def test_restart_pivoted_cholesky(self):
+        nrows = 10
+        A = np.random.normal(0,1,(nrows,nrows))
+        A = A.T.dot(A)
+
+        pivot_weights = np.random.uniform(1,2,A.shape[0])
+        L, pivots, error, flag = pivoted_cholesky_decomposition(
+            A, A.shape[0], pivot_weights=pivot_weights)
+
+        npivots = A.shape[0]-2
+        full_L, full_pivots, full_error, flag, diag, init_error, \
+            ncompleted_pivots = pivoted_cholesky_decomposition(
+                A, npivots, return_full=True, pivot_weights=pivot_weights)
+        assert ncompleted_pivots==npivots
+
+        import time
+        t0 = time.time()
+        npivots = A.shape[0]
+        full_L, full_pivots, diag, chol_flag, ii, error = \
+            continue_pivoted_cholesky_decomposition(
+                A, full_L, npivots, None, 0, True, pivot_weights,
+                full_pivots, diag, ncompleted_pivots, init_error)
+        #print(time.time()-t0)
+
+        assert np.allclose(L,full_L)
+        assert np.allclose(pivots,full_pivots)
+
     def test_beta_pdf_on_ab(self):
         from scipy.stats import beta as beta_rv
         alpha_stat,beta_stat = 5,2
