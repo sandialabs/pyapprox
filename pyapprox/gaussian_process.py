@@ -131,16 +131,14 @@ def gaussian_Pi(train_samples,delta,mu,sigma):
     return Pi
 
 def compute_v_sq(A_inv,P):
-    return (1-np.trace(A_inv.dot(P)))
-
-def compute_v_sq_econ(A_invP):
-    return (1-np.trace(A_invP))
+    v_sq = (1-np.sum(A_inv*P))
+    return v_sq
 
 def compute_zeta(y,A_inv,P):
     return y.T.dot(A_inv.dot(P).dot(A_inv)).dot(y)
 
-def compute_zeta_econ(y,A_invP):
-    return y.T.dot(A_invP.dot(A_inv)).dot(y)
+def compute_zeta_econ(y,A_inv_y,A_inv_P):
+    return y.T.dot(A_inv_P.dot(A_inv_y))
 
 def compute_varpi(tau,A_inv):
     return tau.dot(A_inv).dot(tau.T)
@@ -153,8 +151,8 @@ def compute_varphi(A_inv,P):
     varphi = np.sum(tmp.T*tmp)
     return varphi
 
-def compute_varphi_econ(A_invP):
-    varphi = np.sum(A_invP.T*A_invP)
+def compute_varphi_econ(A_inv_P):
+    varphi = np.sum(A_inv_P.T*A_inv_P)
     return varphi
 
 def compute_psi(A_inv,Pi):
@@ -164,18 +162,24 @@ def compute_chi(nu,varphi,psi):
     return nu+varphi-2*psi
 
 def compute_phi(train_vals,A_inv,Pi,P):
-        return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_inv).dot(P).dot(A_inv).dot(P).dot(A_inv).dot(train_vals)
+    return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_inv).dot(P).dot(A_inv).dot(P).dot(A_inv).dot(train_vals)
 
-def compute_phi_econ(train_vals,A_invP,Pi):
-    return train_vals.T.dot(A_inv).dot(Pi).dot(A_inv).dot(train_vals)-train_vals.T.dot(A_invP).dot(A_invP).dot(A_inv).dot(train_vals)
+def compute_phi_econ(A_inv_y,A_inv_P,Pi,P):
+    return A_inv_y.T.dot(Pi.dot(A_inv_y))-A_inv_y.T.dot(P.dot(A_inv_P.dot(A_inv_y)))
 
 def compute_varrho(lamda,A_inv,train_vals,P,tau):
-    #TODO reduce redundant computations by computing once and then storing
     return lamda.T.dot(A_inv.dot(train_vals)) - tau.T.dot(A_inv.dot(P).dot(A_inv.dot(train_vals)))
+
+def compute_varrho_econ(lamda,A_inv_y,A_inv_P,tau):
+    return lamda.T.dot(A_inv_y) - tau.T.dot(A_inv_P.dot(A_inv_y))
 
 def compute_xi(xi_1,lamda,tau,P,A_inv):
     return xi_1+tau.dot(A_inv).dot(P).dot(A_inv).dot(tau)-\
         2*lamda.dot(A_inv).dot(tau)
+
+def compute_xi_econ(xi_1,lamda,tau,A_inv_P,A_inv_tau):
+    return xi_1+tau.dot(A_inv_P.dot(A_inv_tau))-\
+        2*lamda.dot(A_inv_tau)
 
 def compute_var_of_var_term1(phi,kernel_var,chi,zeta,v_sq):
     #E[I_2^2] (term1)
@@ -242,6 +246,48 @@ def integrate_gaussian_process(gp,variable,return_full=False):
     return integrate_gaussian_process_squared_exponential_kernel(
         gp.X_train_.T,gp.y_train_,K_inv,kernel.length_scale,kernel_var,
         variable,return_full)
+
+def integrate_tau_P(xx_1d,ww_1d,xtr,lscale_ii):
+    dist_func = partial(cdist,metric='sqeuclidean')
+    dists_1d_x1_xtr=dist_func(
+        xx_1d[:,np.newaxis]/lscale_ii,xtr.T/lscale_ii)
+    K = np.exp(-.5*dists_1d_x1_xtr)
+    tau=ww_1d.dot(K)
+    P=K.T.dot(ww_1d[:,np.newaxis]*K)
+    return tau, P
+
+def integrate_u_lamda_Pi_nu(xx_1d,ww_1d,xtr,lscale_ii):
+    # Get 2D tensor product quadrature rule
+    xx_2d = cartesian_product([xx_1d]*2)
+    ww_2d = outer_product([ww_1d]*2)
+    dists_2d_x1_x2 = (xx_2d[0,:].T/lscale_ii-xx_2d[1,:].T/lscale_ii)**2
+    K = np.exp(-.5*dists_2d_x1_x2)
+    u = ww_2d.dot(K)
+
+    ntrain_samples = xtr.shape[1]
+    dist_func = partial(cdist,metric='sqeuclidean')
+    dists_2d_x1_x2=(xx_2d[0:1,:].T/lscale_ii-xx_2d[1:2,:].T/lscale_ii)**2
+    dists_2d_x2_xtr=dist_func(xx_2d[1:2,:].T/lscale_ii,xtr.T/lscale_ii)
+    lamda = np.exp(-.5*dists_2d_x1_x2.T-.5*dists_2d_x2_xtr.T).dot(ww_2d)
+
+    dists_2d_x1_xtr=dist_func(xx_2d[0:1,:].T/lscale_ii,xtr.T/lscale_ii)
+    Pi = np.empty((ntrain_samples,ntrain_samples))
+    for mm in range(ntrain_samples):
+        dists1=dists_2d_x1_xtr[:,mm:mm+1]
+        Pi[mm,:]= np.exp(
+           -.5*dists1-.5*dists_2d_x1_x2-.5*dists_2d_x2_xtr).T.dot(ww_2d)
+    assert np.allclose(Pi,Pi.T)
+
+    nu = np.exp(-dists_2d_x1_x2)[:,0].dot(ww_2d)
+    return u, lamda, Pi, nu
+
+def integrate_xi_1(xx_1d,ww_1d,lscale_ii):
+    xx_3d = cartesian_product([xx_1d]*3)
+    ww_3d =  outer_product([ww_1d]*3)
+    dists_3d_x1_x2 = (xx_3d[0,:]/lscale_ii-xx_3d[1,:]/lscale_ii)**2
+    dists_3d_x2_x3 = (xx_3d[1,:]/lscale_ii-xx_3d[2,:]/lscale_ii)**2
+    xi_1 = np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
+    return xi_1
 
 def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
                                                           length_scale,
@@ -359,39 +405,13 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
         xx_1d = xx_1d*scale+loc
 
         # Evaluate 1D integrals
-        dists_1d_x1_xtr=dist_func(
-            xx_1d[:,np.newaxis]/lscale[ii],xtr.T/lscale[ii])
-        K = np.exp(-.5*dists_1d_x1_xtr)
-        tau*=ww_1d.dot(K)
-        P*=K.T.dot(ww_1d[:,np.newaxis]*K)
-
-        # Get 2D tensor product quadrature rule
-        xx_2d = cartesian_product([xx_1d]*2)
-        ww_2d = outer_product([ww_1d]*2)
-
-        # Evaluate 2D integrals
-        dists_2d_x1_x2 = (xx_2d[0,:].T/lscale[ii]-xx_2d[1,:].T/lscale[ii])**2
-        K = np.exp(-.5*dists_2d_x1_x2)
-        u*=ww_2d.dot(K)
-
-        dists_2d_x1_x2=(xx_2d[0:1,:].T/lscale[ii]-xx_2d[1:2,:].T/lscale[ii])**2
-        dists_2d_x2_xtr=dist_func(xx_2d[1:2,:].T/lscale[ii],xtr.T/lscale[ii])
-        lamda*=np.exp(-.5*dists_2d_x1_x2.T-.5*dists_2d_x2_xtr.T).dot(ww_2d)
-
-        dists_2d_x1_xtr=dist_func(xx_2d[0:1,:].T/lscale[ii],xtr.T/lscale[ii])
-        for mm in range(ntrain_samples):
-            dists1=dists_2d_x1_xtr[:,mm:mm+1]
-            Pi[mm,:]*=np.exp(
-                -.5*dists1-.5*dists_2d_x1_x2-.5*dists_2d_x2_xtr).T.dot(ww_2d)
-
-        nu *= np.exp(-dists_2d_x1_x2)[:,0].dot(ww_2d)
-
-        # Create 3D tensor product quadrature rule
-        xx_3d = cartesian_product([xx_1d]*3)
-        ww_3d =  outer_product([ww_1d]*3)
-        dists_3d_x1_x2 = (xx_3d[0,:]/lscale[ii]-xx_3d[1,:]/lscale[ii])**2
-        dists_3d_x2_x3 = (xx_3d[1,:]/lscale[ii]-xx_3d[2,:]/lscale[ii])**2
-        xi_1 *= np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
+        tau_ii, P_ii=integrate_tau_P(xx_1d,ww_1d,xtr,lscale[ii])
+        tau*=tau_ii; P *= P_ii
+        
+        u_ii,lamda_ii,Pi_ii,nu_ii = integrate_u_lamda_Pi_nu(xx_1d,ww_1d,xtr,lscale[ii])
+        u *= u_ii; lamda *= lamda_ii; Pi *= Pi_ii; nu *= nu_ii
+        
+        xi_1 *= integrate_xi_1(xx_1d,ww_1d,lscale[ii])
     
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
@@ -402,21 +422,28 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     varsigma_sq = compute_varsigma_sq(u,varpi)
     variance_random_mean = variance_of_mean(kernel_var,varsigma_sq)
 
-    Theta = A_inv.dot(P)
+    A_inv_P = A_inv.dot(P)
+    A_inv_y = A_inv.dot(Y_train)
+    A_inv_tau = A_inv.dot(tau)
     v_sq = compute_v_sq(A_inv,P)
-    zeta = compute_zeta(Y_train,A_inv,P)
+    #zeta = compute_zeta(Y_train,A_inv,P)
+    zeta = compute_zeta_econ(Y_train,A_inv_y,A_inv_P)
     
     expected_random_var = mean_of_variance(
         zeta,v_sq,kernel_var,expected_random_mean,variance_random_mean)
 
-    varphi = compute_varphi(A_inv,P)
+    #varphi = compute_varphi(A_inv,P)
+    varphi = compute_varphi_econ(A_inv_P)
     psi = compute_psi(A_inv,Pi)
     chi = compute_chi(nu,varphi,psi)
     
     eta = expected_random_mean
-    varrho = compute_varrho(lamda,A_inv,Y_train,P,tau)
-    phi = compute_phi(Y_train,A_inv,Pi,P)
-    xi = compute_xi(xi_1,lamda,tau,P,A_inv)
+    #varrho = compute_varrho(lamda,A_inv,Y_train,P,tau)
+    varrho = compute_varrho_econ(lamda,A_inv_y,A_inv_P,tau)
+    #phi = compute_phi(Y_train,A_inv,Pi,P)
+    phi = compute_phi_econ(A_inv_y,A_inv_P,Pi,P)
+    #xi = compute_xi(xi_1,lamda,tau,P,A_inv)
+    xi = compute_xi_econ(xi_1,lamda,tau,A_inv_P,A_inv_tau)
 
     term1 = compute_var_of_var_term1(phi,kernel_var,chi,zeta,v_sq)
     term2 = compute_var_of_var_term2(
