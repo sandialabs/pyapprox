@@ -105,10 +105,9 @@ def gaussian_P(train_samples,delta,mu,sigma):
         term2 = np.sqrt(di/(di+4*si**2))
         for mm in range(ntrain_samples):
             xm = train_samples[ii,mm]
-            for nn in range(mm,ntrain_samples):
-                xn = train_samples[ii,nn]
-                P[mm,nn]*=np.exp(-1/(2*si**2*di)*(2*si**2*(xm**2+xn**2)+di*mi**2-(4*si**2*(xm+xn)+2*di*mi)**2/denom1))*term2
-                P[nn,mm]=P[mm,nn]
+            xn = train_samples[ii,mm:]
+            P[mm,mm:]*=np.exp(-1/(2*si**2*di)*(2*si**2*(xm**2+xn**2)+di*mi**2-(4*si**2*(xm+xn)+2*di*mi)**2/denom1))*term2
+            P[mm:,mm]=P[mm,mm:]
     return P
 
 def gaussian_nu(delta,sigma):
@@ -123,11 +122,10 @@ def gaussian_Pi(train_samples,delta,mu,sigma):
         denom2,denom3 = (di+2*si**2),(di+6*si**2)
         for mm in range(ntrain_samples):
             xm = train_samples[ii,mm]
-            for nn in range(mm,ntrain_samples):
-                xn = train_samples[ii,nn]
-                t1=2*(xm-xn)**2/di+3*(-2*mi+xm+xn)**2/denom2+(xm-xn)**2/denom3
-                Pi[mm,nn] *= np.exp(-t1/6)*np.sqrt(di**2/(denom1))
-                Pi[nn,mm]=Pi[mm,nn]
+            xn = train_samples[ii,mm:]
+            t1 = 2*(xm-xn)**2/di+3*(-2*mi+xm+xn)**2/denom2+(xm-xn)**2/denom3
+            Pi[mm,mm:] *= np.exp(-t1/6)*np.sqrt(di**2/(denom1))
+            Pi[mm:,mm]=Pi[mm,mm:]
     return Pi
 
 def compute_v_sq(A_inv,P):
@@ -141,7 +139,7 @@ def compute_zeta_econ(y,A_inv_y,A_inv_P):
     return y.T.dot(A_inv_P.dot(A_inv_y))
 
 def compute_varpi(tau,A_inv):
-    return tau.dot(A_inv).dot(tau.T)
+    return tau.T.dot(A_inv).dot(tau)
 
 def compute_varsigma_sq(u,varpi):
     return u-varpi
@@ -271,12 +269,14 @@ def integrate_u_lamda_Pi_nu(xx_1d,ww_1d,xtr,lscale_ii):
     lamda = np.exp(-.5*dists_2d_x1_x2.T-.5*dists_2d_x2_xtr.T).dot(ww_2d)
 
     dists_2d_x1_xtr=dist_func(xx_2d[0:1,:].T/lscale_ii,xtr.T/lscale_ii)
-    Pi = np.empty((ntrain_samples,ntrain_samples))
-    for mm in range(ntrain_samples):
-        dists1=dists_2d_x1_xtr[:,mm:mm+1]
-        Pi[mm,:]= np.exp(
-           -.5*dists1-.5*dists_2d_x1_x2-.5*dists_2d_x2_xtr).T.dot(ww_2d)
-    assert np.allclose(Pi,Pi.T)
+    # Pi = np.empty((ntrain_samples,ntrain_samples))
+    # for mm in range(ntrain_samples):
+    #     dists1=dists_2d_x1_xtr[:,mm:mm+1]
+    #     Pi[mm,mm:]= np.exp(
+    #         -.5*dists1-.5*dists_2d_x1_x2-.5*dists_2d_x2_xtr[:,mm:]).T.dot(ww_2d)
+    #     Pi[mm:,mm] = Pi[mm,mm:]
+    w = np.exp(-.5*dists_2d_x1_x2[:,0])*ww_2d
+    Pi = np.exp(-.5*dists_2d_x1_xtr).T.dot(w[:,np.newaxis]*np.exp(-.5*dists_2d_x2_xtr))
 
     nu = np.exp(-dists_2d_x1_x2)[:,0].dot(ww_2d)
     return u, lamda, Pi, nu
