@@ -298,7 +298,7 @@ class TestGaussianProcess(unittest.TestCase):
             variance_random_var,np.var(random_variances),rtol=2.2e-2)
         
 
-    def xtest_integrate_gaussian_process_uniform(self):
+    def test_integrate_gaussian_process_uniform(self):
         np.random.seed(1)
         nvars=1
         func = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
@@ -438,6 +438,6 @@ if __name__== "__main__":
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
-    # cholesky_sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-    #     TestCholeskySampler)
-    # unittest.TextTestRunner(verbosity=2).run(cholesky_sampler_test_suite)
+    cholesky_sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+        TestCholeskySampler)
+    unittest.TextTestRunner(verbosity=2).run(cholesky_sampler_test_suite)
