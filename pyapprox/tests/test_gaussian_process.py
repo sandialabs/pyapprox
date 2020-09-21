@@ -5,6 +5,7 @@ import pyapprox as pya
 from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
+import copy
 
 def compute_mean_and_variance_of_gaussian_process(gp,length_scale,train_samples,
                                                   A_inv,kernel_var,train_vals,
@@ -433,6 +434,48 @@ class TestCholeskySampler(unittest.TestCase):
 
         assert not np.allclose(samples2, samples)
 
+    def test_adaptive_gp_fixed_kernel(self):
+        nvars = 1
+        variables = [stats.uniform(0, 1)]*nvars
+        def func(samples): return np.array(
+                [np.sum(samples**2,axis=0),np.sum(samples**3,axis=0)]).T
+
+        validation_samples = np.random.uniform(0,1,(nvars,100))
+        nsamples=3
+        
+        kernel = pya.Matern(1, length_scale_bounds='fixed', nu=3.5)
+        sampler1 = CholeskySampler(nvars, 100, None)
+        sampler1.set_kernel(copy.deepcopy(kernel))
+        gp1 = AdaptiveCholeskyGaussianProcessFixedKernel(sampler1, func)
+        gp1.refine(nsamples)
+        vals1 = gp1(validation_samples)
+
+        # currently AdaptiveGaussianProcess can only handle scalar QoI
+        # so only test first QoI of func.
+        def func2(samples): return func(samples)[:,:1]
+        sampler2 = CholeskySampler(nvars, 100, None)
+        sampler2.set_kernel(copy.deepcopy(kernel))
+        gp2 = AdaptiveGaussianProcess(kernel=kernel, alpha=1e-12)
+        gp2.setup(func2, sampler2)
+        gp2.refine(nsamples)
+        vals2 = gp2(validation_samples)
+
+        assert np.allclose(gp1.train_samples,gp2.X_train_.T)
+        assert np.allclose(gp1.train_values[:,0:1],gp2.y_train_)
+        assert np.allclose(vals1[:,0:1], vals2)
+
+        # xx = np.linspace(0,1,101)
+        # plt.plot(xx,gp1(xx[np.newaxis,:]),'-r')
+        # plt.plot(xx,gp2(xx[np.newaxis,:]),'-k')
+        # plt.plot(gp1.train_samples[0,:],gp1.train_values[:,0],'ro')
+        # plt.plot(gp2.X_train_.T[0,:],gp2.y_train_,'ks')
+        # plt.show()
+        
+        gp1.refine(2*nsamples)
+        vals1 = gp1(validation_samples)
+        gp2.refine(2*nsamples)
+        vals2 = gp2(validation_samples)
+        assert np.allclose(vals1[:,0:1], vals2)
         
 if __name__== "__main__":    
     gaussian_process_test_suite=unittest.TestLoader().loadTestsFromTestCase(

@@ -55,6 +55,9 @@ class GaussianProcess(GaussianProcessRegressor):
     def num_training_samples(self):
         return self.X_train_.shape[0]
 
+    def condition_number(self):
+        return np.linalg.cond(self.L_.dot(self.L_.T))
+
 
 class AdaptiveGaussianProcess(GaussianProcess):
     def setup(self,func,sampler):
@@ -64,6 +67,7 @@ class AdaptiveGaussianProcess(GaussianProcess):
     def refine(self,num_samples):
         new_samples = self.sampler(num_samples)[0]
         new_values = self.func(new_samples)
+        assert new_values.shape[1]==1#must be scalar values QoI
         if hasattr(self, 'X_train_'):
             train_samples = np.hstack([self.X_train_.T, new_samples])
             train_values = np.vstack([self.y_train_, new_values])
@@ -236,7 +240,7 @@ def integrate_gaussian_process(gp,variable,return_full=False):
         raise Exception(msg)
 
     if gp._K_inv is None:
-        L_inv = solve_triangular(gp.L_.T,np.eye(gp.L_.shape[0]))
+        L_inv = solve_triangular(gp.L_.T,np.eye(gp.L_.shape[0]),lower=True)
         K_inv = L_inv.dot(L_inv.T)
     else:
         K_inv = gp._K_inv
@@ -416,7 +420,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     #K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     #Haylock formula
     A_inv = K_inv*kernel_var
-    expected_random_mean = tau.dot(A_inv.dot(Y_train))
+    expected_random_mean = tau.dot(A_inv.dot(Y_train))#no kernel_var because it cancels out because it appears in K (1/s^2) and t (s^2)
 
     varpi = compute_varpi(tau,A_inv)
     varsigma_sq = compute_varsigma_sq(u,varpi)
@@ -436,7 +440,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train,Y_train,K_inv,
     varphi = compute_varphi_econ(A_inv_P)
     psi = compute_psi(A_inv,Pi)
     chi = compute_chi(nu,varphi,psi)
-    
+
     eta = expected_random_mean
     #varrho = compute_varrho(lamda,A_inv,Y_train,P,tau)
     varrho = compute_varrho_econ(lamda,A_inv_y,A_inv_P,tau)
@@ -522,7 +526,7 @@ class CholeskySampler(object):
 
         if num_random_candidates > 0:
             self.candidate_samples = np.hstack((
-                self.candidate_samples, generate_random_samples(
+                self.candidate_samples, self.generate_random_samples(
                     num_random_candidates)))
 
     def set_weight_function(self, weight_function):
@@ -581,3 +585,48 @@ class CholeskySampler(object):
             self.candidate_samples[:, self.pivots[
                 num_prev_pivots:self.num_completed_pivots]]
         return new_samples, self.chol_flag
+
+class AdaptiveCholeskyGaussianProcessFixedKernel(object):
+    """
+    Efficient implementation when Gaussian process kernel has no tunable
+    hyper-parameters. Cholesky factor computed to generate training samples
+    is reused for fiting
+    """
+    def __init__(self, sampler, func):
+        self.sampler = sampler
+        self.func = func
+        self.chol_flag = 0
+
+    def refine(self, num_samples):
+        if self.chol_flag > 0:
+            msg = 'Cannot refine. No well conditioned candidate samples '
+            msg += 'remaining'
+            print(msg)
+            return
+        new_samples, self.chol_flag = self.sampler(num_samples)
+        new_values = self.func(new_samples)
+        assert new_values.shape[0]==new_samples.shape[1]
+        if hasattr(self, 'train_samples'):
+            self.train_samples = np.hstack([self.train_samples, new_samples])
+            self.train_values = np.vstack([self.train_values, new_values])
+        else:
+            self.train_samples, self.train_values = new_samples, new_values
+        self.fit()
+
+    def fit(self):
+        nn = self.sampler.num_completed_pivots
+        chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
+        tmp = solve_triangular(chol_factor, self.train_values, lower=True)
+        self.coef = solve_triangular(chol_factor.T, tmp, lower=False)
+
+    def __call__(self, samples):
+        return self.sampler.kernel(samples.T, self.train_samples.T).dot(
+            self.coef)
+
+    def num_training_samples(self):
+        return self.train_samples.shape[1]
+
+    def condition_number(self):
+        nn = self.sampler.num_completed_pivots
+        chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
+        return np.linalg.cond(chol_factor.dot(chol_factor.T))
