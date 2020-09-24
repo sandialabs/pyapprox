@@ -737,6 +737,10 @@ def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
        The pointwise variance at each prediction sample
     """
     K_train = kernel(train_samples.T)
+    # add small number to diagonal to ensure covariance matrix is
+    # positive definite
+    ntrain_samples = train_samples.shape[1]
+    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += 1e-14
     k_pred = kernel(train_samples.T, pred_samples.T)
     L = np.linalg.cholesky(K_train)
     tmp = solve_triangular(L, k_pred, lower=True)
@@ -863,6 +867,11 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
         ii += 1
 
     K_train = kernel(train_samples.T)
+    # add small number to diagonal to ensure covariance matrix is
+    # positive definite
+    ntrain_samples = train_samples.shape[1]
+    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += 1e-14
+    
     K_inv = np.linalg.inv(K_train)
     k_pred = kernel(train_samples.T, pred_samples.T)
     jac = np.zeros((npred_samples, nvars*noptimized_train_samples))
@@ -893,9 +902,26 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
 
 
 class IVARSampler(object):
-    def __init__(self, num_vars, ncandidate_samples, variables=None,
+    """
+    Parameters
+    ----------
+    num_vars : integer
+        The number of dimensions
+
+    nmonte_carlo_samples : integer
+        The number of samples used to compute the sample based estimate
+        of the integrated variance (IVAR)
+
+    ncandidate_samples : integer
+        The number of samples used by the greedy downselection procedure
+        used to determine the initial guess (set of points) for the gradient 
+        based optimization
+    """
+    def __init__(self, num_vars, nmonte_carlo_samples,
+                 ncandidate_samples, variables=None,
                  generate_random_samples=None):
         self.nvars = num_vars
+        self.nmonte_carlo_samples = nmonte_carlo_samples
         self.greedy_sampler = CholeskySampler(
             self.nvars, ncandidate_samples, variables,
             generate_random_samples=generate_random_samples)
@@ -903,9 +929,9 @@ class IVARSampler(object):
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
 
-        self.pred_samples = generate_random_samples(ncandidate_samples)
+        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
         self.nsamples_requested = []
-        self.optim_opts={}
+        self.set_optimization_options({'gtol':1e-3, 'disp':False, 'iprint':-1})
 
     def objective(self, new_train_samples_flat):
         train_samples = np.hstack(
@@ -944,17 +970,16 @@ class IVARSampler(object):
 
     def set_optimization_options(self, opts):
         self.optim_opts = opts.copy()
-        if self.variables is None:
+
+    def set_bounds(self, nsamples):
+        if self.greedy_sampler.variables is None:
             lbs, ubs = np.zeros(self.nvars), np.ones(self.nvars)
         else:
-            lbs = [v.interval(1)[0] for v in self.variables]
-            ubs = [v.interval(1)[1] for v in self.variables]
+            lbs = [v.interval(1)[0] for v in self.greedy_sampler.variables]
+            ubs = [v.interval(1)[1] for v in self.greedy_sampler.variables]
+        lbs = np.repeat(lbs, nsamples)
+        ubs = np.repeat(ubs, nsamples)
         self.bounds = Bounds(lbs,ubs)
-
-    def optimize(self, nsamples):
-        init_guess, chol_flag = self.greedy_sampler(nsamples)
-        res = minimize(self.objective, init_guess, jac=self.objective_gradient,
-                       options=self.optim_opts)
 
     def __call__(self, nsamples):
         self.nsamples_requested.append(nsamples)
@@ -969,7 +994,8 @@ class IVARSampler(object):
         # Add previous optimized sample set to candidate samples. This could
         # potentially add a candidate twice if the optimization picks some
         # of the original candidate samples chosen by
-        # greedy_sampler.generate_samples, but this is unlikely
+        # greedy_sampler.generate_samples, but this is unlikely. If it does
+        # happen these points will never be chosen by the cholesky algorithm
         self.greedy_sampler.candidate_samples = np.hstack([
             self.training_samples, candidate_samples])
 
@@ -982,9 +1008,12 @@ class IVARSampler(object):
         init_guess, chol_flag = self.greedy_sampler(nsamples)
         assert chol_flag == 0
 
+        self.set_bounds(nsamples-self.ntraining_samples)
+
         # Optimize the locations of only the new training samples
         res = minimize(self.objective, init_guess, jac=self.objective_gradient,
-                       method='L-BFGS-B', options=self.optim_opts)
+                       method='L-BFGS-B', options=self.optim_opts,
+                       bounds=self.bounds)
 
         new_samples = res.x.reshape(
             (self.nvars,res.x.shape[0]//self.nvars),order='F')
