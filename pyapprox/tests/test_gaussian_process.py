@@ -609,10 +609,19 @@ class TestSamplers(unittest.TestCase):
 
         # correlation length affects ability to check gradient. As kerenl matrix
         # gets more ill conditioned then gradients get worse
+        greedy_method = 'givar'
+        #greedy_method = 'chol'
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
-            nvars, 10000, 1000, variables, generate_random_samples)
+            nvars, 1000, 1000, generate_random_samples, variables, greedy_method)
         sampler.set_kernel(copy.deepcopy(kernel))
+
+        def weight_function(samples):
+            return np.prod([variables[ii].pdf(samples[ii,:])
+                            for ii in range(samples.shape[0])],axis=0)
+
+        if greedy_method == 'chol':
+            sampler.set_weight_function(weight_function)
 
         # nature of training samples affects ability to check gradient. As
         # training samples makes kernel matrix more ill conditioned then
@@ -621,25 +630,34 @@ class TestSamplers(unittest.TestCase):
         train_samples = pya.cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
-        #fd_grad = pya.approx_jacobian(sampler.objective, x0)
-        #grad = sampler.objective_gradient(x0)
         errors = pya.check_gradients(
-            sampler.objective, sampler.objective_gradient, x0[:,np.newaxis])
-        assert errors.min()<1e-6
+            sampler.objective, sampler.objective_gradient, x0[:,np.newaxis],
+            disp=False)
+        assert errors.min()<4e-6
 
-        chol_sampler = sampler.greedy_sampler
+        gsampler = sampler.greedy_sampler
+        #print(np.linalg.norm(gsampler.candidate_samples))
+        #print(np.linalg.norm(sampler.pred_samples))
 
-        ntrain_samples = 10
-        new_samples1 = sampler(ntrain_samples)[0]
+        ntrain_samples = 20
+        new_samples1 = sampler(ntrain_samples)[0].copy()
 
-        chol_samples = chol_sampler.candidate_samples[:, chol_sampler.pivots[
-            :chol_sampler.num_completed_pivots]]
-        assert (sampler.objective(sampler.training_samples.flatten()) <
-                sampler.objective(chol_samples.flatten()))
+        val1 = gaussian_process_pointwise_variance(
+            sampler.greedy_sampler.kernel, sampler.pred_samples,
+            sampler.training_samples).mean()
+        val2 = gaussian_process_pointwise_variance(
+            sampler.greedy_sampler.kernel, sampler.pred_samples,
+            sampler.init_guess).mean()
+        # can't just call sampler.objective here because self.training_points
+        # has been updated and calling objective(sampler.training_samples)
+        # will evaluate objective with training samples repeated twice. Similarly
+        # init guess will be concatenated with self.training_samples if passed
+        # to objective at this point
+        assert (val1 < val2)
 
         # plt.plot(sampler.training_samples[0, :],
         #          sampler.training_samples[1, :], 'o', ms=15)
-        # plt.plot(chol_samples[0, :], chol_samples[1, :], 'x', ms=15)
+        # plt.plot(gsamples[0, :], gsamples[1, :], 'x', ms=15)
 
         new_samples2 = sampler(2*ntrain_samples)[0]
 
@@ -647,19 +665,70 @@ class TestSamplers(unittest.TestCase):
             new_samples1, sampler.training_samples[:, :ntrain_samples],
             atol=1e-12)
 
-        chol_samples = chol_sampler.candidate_samples[:, chol_sampler.pivots[
-            :chol_sampler.num_completed_pivots]]
         assert np.allclose(
-            chol_samples[:, :ntrain_samples], new_samples1, atol=1e-12) 
-        assert (sampler.objective(sampler.training_samples.flatten()) <
-                sampler.objective(chol_samples.flatten()))
-
+            sampler.greedy_sampler.training_samples[: ,:ntrain_samples],
+            new_samples1, atol=1e-12)
+        
+        val1 = gaussian_process_pointwise_variance(
+            sampler.greedy_sampler.kernel, sampler.pred_samples,
+            sampler.training_samples).mean()
+        val2 = gaussian_process_pointwise_variance(
+            sampler.greedy_sampler.kernel, sampler.pred_samples,
+            sampler.init_guess).mean()
+        print(val1)
+        assert (val1 < val2)
+        
         plt.plot(sampler.training_samples[0, :],
                  sampler.training_samples[1, :], 'o')
-        plt.plot(chol_samples[0, :], chol_samples[1, :], 'x')
+        plt.plot(sampler.greedy_sampler.training_samples[0, :],
+                 sampler.greedy_sampler.training_samples[1, :], 'x')
         plt.show()
 
+    def compare_greedy_ivar_samplers(self):
+        nvars = 2
+        #variables = [stats.uniform(0, 1)]*nvars
+        variables = [stats.beta(20, 20)]*nvars
+        
+        def generate_random_samples(nsamples):
+            return np.vstack([v.rvs(size=(1, nsamples)) for v in variables])
 
+        # correlation length affects ability to check gradient. As kerenl matrix
+        # gets more ill conditioned then gradients get worse
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler = IVARSampler(
+            nvars, 1000, 1000, generate_random_samples, variables, 'givar')
+        sampler.set_kernel(kernel)
+
+        ntrain_samples = 10
+        new_samples1 = sampler(ntrain_samples)[0]
+
+        new_samples2 = sampler(2*ntrain_samples)[0]
+
+        assert np.allclose(
+            sampler.training_samples[:, :ntrain_samples], new_samples1,
+            atol=1e-12)
+
+        np.random.seed(1)
+        sampler2 = IVARSampler(
+            nvars, 1000, 1000, generate_random_samples, variables, 'chol')
+        sampler2.set_kernel(kernel)
+        
+        def weight_function(samples):
+            return np.prod([variables[ii].pdf(samples[ii,:])
+                            for ii in range(samples.shape[0])],axis=0)
+        
+        sampler2.set_weight_function(weight_function)
+        
+        sampler2(ntrain_samples)
+        sampler2(ntrain_samples*2)        
+        
+        plt.plot(sampler.training_samples[0, :],
+                 sampler.training_samples[1, :], 'o')
+        plt.plot(sampler2.training_samples[0, :],
+                 sampler2.training_samples[1, :], 'x')
+        plt.show()
+
+        
 if __name__ == "__main__":
     gaussian_process_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
