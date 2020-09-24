@@ -117,6 +117,70 @@ class TestGaussianProcess(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_gaussian_process_pointwise_variance(self):
+        nvars = 1
+        lb, ub = 0, 1
+        ntrain_samples = 5
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples)]*nvars)
+        train_vals = func(train_samples)
+
+        kernel = Matern(0.4, length_scale_bounds='fixed', nu=np.inf)
+        kernel = ConstantKernel(
+            constant_value=2., constant_value_bounds='fixed')*kernel
+        kernel += WhiteKernel(noise_level=1e-5, noise_level_bounds='fixed')
+        gp = GaussianProcess(kernel)
+
+        gp.fit(train_samples, train_vals)
+
+        samples = np.random.uniform(0,1,(nvars,100))
+        pred_vals, stdev1 = gp(samples, return_std=True)
+
+        variance2 = gaussian_process_pointwise_variance(
+            kernel, samples, train_samples)
+
+        assert np.allclose(stdev1**2, variance2)
+
+    def test_RBF_gradient_wrt_sample_coordinates(self):
+        nvars = 2
+        lb, ub = 0, 1
+        ntrain_samples_1d = 10
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+        train_vals = func(train_samples)
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        pred_samples = np.random.uniform(0, 1, (nvars, 3))
+        grad = RBF_gradient_wrt_sample_coordinates(
+            train_samples[:, :1].T, pred_samples.T, length_scale)
+
+        fd_grad = pya.approx_jacobian(
+            lambda x: kernel(x, pred_samples.T)[0, :], train_samples[:, 0])
+        #print(grad-fd_grad)
+        assert np.allclose(grad, fd_grad, atol=1e-6)
+
+        jac = RBF_jacobian_wrt_sample_coordinates(
+            train_samples, pred_samples, kernel)
+
+        x0 = train_samples.flatten(order='F')
+        assert np.allclose(
+            train_samples, x0.reshape(train_samples.shape, order='F'))
+        def func(x_flat):
+            return gaussian_process_pointwise_variance(
+                kernel, pred_samples, x_flat.reshape(
+                train_samples.shape, order='F'))
+        fd_jac = pya.approx_jacobian(func, x0)
+        
+        #print(jac,'\n\n',fd_jac)
+        print('\n',np.absolute(jac-fd_jac).max())
+        assert np.allclose(jac,fd_jac,atol=1e-5)
+        
     def test_integrate_gaussian_process_gaussian(self):
 
         nvars = 2
