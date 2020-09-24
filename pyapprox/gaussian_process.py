@@ -518,6 +518,37 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
         variance_random_var, intermeadiate_quantities
 
 
+def generate_candidate_samples(nvars, num_candidate_samples,
+                               generate_random_samples, variables):
+    if generate_random_samples is not None:
+        num_halton_candidates = num_candidate_samples//2
+        num_random_candidates = num_candidate_samples//2
+    else:
+        num_halton_candidates = num_candidate_samples
+        num_random_candidates = 0
+
+    if variables is None:
+        marginal_icdfs = None
+    else:
+        # marginal_icdfs = [v.ppf for v in self.variables]
+        from scipy import stats
+        marginal_icdfs = []
+        for v in variables:
+            lb, ub = v.interval(1)
+            if not np.isfinite(lb) or not np.isfinite(ub):
+                lb, ub = variable.interval(1-1e-6)
+            marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)
+
+    candidate_samples = transformed_halton_sequence(
+        marginal_icdfs, nvars, num_halton_candidates)
+
+    if num_random_candidates > 0:
+        candidate_samples = np.hstack((
+            candidate_samples, generate_random_samples(num_random_candidates)))
+
+    return candidate_samples
+
+
 class CholeskySampler(object):
     """
     Compute samples for kernel based approximation using the power-function
@@ -561,38 +592,12 @@ class CholeskySampler(object):
         self.chol_flag = None
         self.variables = variables
         self.generate_random_samples = generate_random_samples
-        self.generate_candidate_samples(num_candidate_samples)
+        self.candidate_samples = generate_candidate_samples(
+            self.nvars, num_candidate_samples, self.generate_random_samples,
+            self.variables)
         self.set_weight_function(None)
+        self.ntraining_samples = 0
         self.set_init_pivots(init_pivots)
-
-    def generate_candidate_samples(self, num_candidate_samples):
-        self.num_candidate_samples = num_candidate_samples
-        if self.generate_random_samples is not None:
-            num_halton_candidates = num_candidate_samples//2
-            num_random_candidates = num_candidate_samples//2
-        else:
-            num_halton_candidates = num_candidate_samples
-            num_random_candidates = 0
-
-        if self.variables is None:
-            marginal_icdfs = None
-        else:
-            # marginal_icdfs = [v.ppf for v in self.variables]
-            from scipy import stats
-            marginal_icdfs = []
-            for v in self.variables:
-                lb, ub = v.interval(1)
-                if not np.isfinite(lb) or not np.isfinite(ub):
-                    lb, ub = variable.interval(1-1e-6)
-                marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)
-
-        self.candidate_samples = transformed_halton_sequence(
-            marginal_icdfs, self.nvars, num_halton_candidates)
-
-        if num_random_candidates > 0:
-            self.candidate_samples = np.hstack((
-                self.candidate_samples, self.generate_random_samples(
-                    num_random_candidates)))
 
     def set_weight_function(self, weight_function):
         self.pivot_weights = None
@@ -609,6 +614,8 @@ class CholeskySampler(object):
 
     def set_init_pivots(self, init_pivots):
         self.init_pivots = init_pivots
+        self.training_samples = \
+            self.candidate_samples[:, :self.ntraining_samples]
         self.init_pivots_changed = True
 
     def __call__(self, num_samples):
@@ -624,36 +631,39 @@ class CholeskySampler(object):
             self.init_pivots_changed):
             self.Kmatrix = self.kernel(self.candidate_samples.T)
             self.L, self.pivots, error, self.chol_flag, self.diag, \
-                self.init_error, self.num_completed_pivots = \
+                self.init_error, self.ntraining_samples = \
                 pivoted_cholesky_decomposition(
                     self.Kmatrix, num_samples, init_pivots=self.init_pivots,
                     pivot_weights=self.pivot_weights,
                     error_on_small_tol=False, return_full=True)
-
+            
             self.weight_function_changed = False
             self.kernel_changed = False
         else:
             self.L, self.pivots, self.diag, self.chol_flag, \
-                self.num_completed_pivots, error = \
+                self.ntraining_samples, error = \
                 continue_pivoted_cholesky_decomposition(
                     self.Kmatrix, self.L, num_samples, self.init_pivots,
                     0., False, self.pivot_weights, self.pivots, self.diag,
-                    self.num_completed_pivots, self.init_error)
+                    self.ntraining_samples, self.init_error)
 
         if self.chol_flag == 0:
-            assert self.num_completed_pivots == num_samples
+            assert self.ntraining_samples == num_samples
         if self.init_pivots is None:
-            num_prev_pivots = 0
+            nprev_train_samples = 0
         else:
-            num_prev_pivots = self.init_pivots.shape[0]
-        self.init_pivots = self.pivots[:self.num_completed_pivots].copy()
+            nprev_train_samples = self.init_pivots.shape[0]
+        self.init_pivots = self.pivots[:self.ntraining_samples].copy()
 
         # extract samples that were not already in sample set
         # pivots has alreay been reduced to have the size of the number of
         # samples requested
         new_samples = \
             self.candidate_samples[:, self.pivots[
-                num_prev_pivots:self.num_completed_pivots]]
+                nprev_train_samples:self.ntraining_samples]]
+        self.training_samples = np.hstack(
+                [self.training_samples, new_samples])
+        
         return new_samples, self.chol_flag
 
 
@@ -918,20 +928,32 @@ class IVARSampler(object):
         based optimization
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
-                 ncandidate_samples, variables=None,
-                 generate_random_samples=None):
+                 ncandidate_samples, generate_random_samples, variables=None,
+                 greedy_method='givar'):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
-        self.greedy_sampler = CholeskySampler(
-            self.nvars, ncandidate_samples, variables,
-            generate_random_samples=generate_random_samples)
+
+        if greedy_method == 'chol':
+            self.pred_samples = generate_random_samples(
+                self.nmonte_carlo_samples)
+            self.greedy_sampler = CholeskySampler(
+                self.nvars, ncandidate_samples, variables,
+                generate_random_samples=generate_random_samples)
+        elif greedy_method == 'givar':
+            self.greedy_sampler = GreedyIVARSampler(
+                    self.nvars, nmonte_carlo_samples, ncandidate_samples,
+                generate_random_samples, variables)
+            self.pred_samples = self.greedy_sampler.pred_samples
+        else:
+            msg = f'Incorrect greedy_method {greedy_method}'
+            raise Exception(msg)
 
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
 
-        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
         self.nsamples_requested = []
-        self.set_optimization_options({'gtol':1e-3, 'disp':False, 'iprint':-1})
+        self.set_optimization_options(
+            {'gtol':1e-3, 'ftol':0, 'disp':False, 'iprint':0})
 
     def objective(self, new_train_samples_flat):
         train_samples = np.hstack(
@@ -939,9 +961,11 @@ class IVARSampler(object):
              new_train_samples_flat.reshape(
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
                   order='F')])
-        return gaussian_process_pointwise_variance(
+        val = gaussian_process_pointwise_variance(
             self.greedy_sampler.kernel, self.pred_samples,
             train_samples).mean()
+        # print('f',val)
+        return val
 
     def objective_gradient(self, new_train_samples_flat):
         train_samples = np.hstack(
@@ -997,27 +1021,113 @@ class IVARSampler(object):
         # greedy_sampler.generate_samples, but this is unlikely. If it does
         # happen these points will never be chosen by the cholesky algorithm
         self.greedy_sampler.candidate_samples = np.hstack([
-            self.training_samples, candidate_samples])
+            self.training_samples.copy(), candidate_samples])
 
-        # Make sure greedy_sampler chooses self.training_samples 
+        # Make sure greedy_sampler chooses self.training_samples
+        # only used if greedy_sampler is a Choleskysampler.
+        # self.greedy_sampler.candidate_samples must be called before this
+        # function call
         self.greedy_sampler.set_init_pivots(np.arange(self.ntraining_samples))
 
         # Get the initial guess for new samples to add.
         # Note the Greedy sampler will return only new samples not in
         # self.training_samples
-        init_guess, chol_flag = self.greedy_sampler(nsamples)
+        self.init_guess, chol_flag = self.greedy_sampler(nsamples)
         assert chol_flag == 0
 
         self.set_bounds(nsamples-self.ntraining_samples)
 
+        init_guess = self.init_guess.flatten(order='F')
         # Optimize the locations of only the new training samples
         res = minimize(self.objective, init_guess, jac=self.objective_gradient,
                        method='L-BFGS-B', options=self.optim_opts,
                        bounds=self.bounds)
 
         new_samples = res.x.reshape(
-            (self.nvars,res.x.shape[0]//self.nvars),order='F')
+            (self.nvars,res.x.shape[0]//self.nvars), order='F')
         self.training_samples = np.hstack([self.training_samples, new_samples])
+        self.ntraining_samples = self.training_samples.shape[1]
+
+        return new_samples, 0
+
+
+class GreedyIVARSampler(object):
+    """
+    Parameters
+    ----------
+    num_vars : integer
+        The number of dimensions
+
+    nmonte_carlo_samples : integer
+        The number of samples used to compute the sample based estimate
+        of the integrated variance (IVAR)
+
+    ncandidate_samples : integer
+        The number of samples used by the greedy downselection procedure
+        used to determine the initial guess (set of points) for the gradient 
+        based optimization
+    """
+    def __init__(self, num_vars, nmonte_carlo_samples,
+                 ncandidate_samples, generate_random_samples, variables=None):
+        self.nvars = num_vars
+        self.nmonte_carlo_samples = nmonte_carlo_samples
+        self.variables = variables
+        self.ntraining_samples = 0
+        self.training_samples = np.empty((num_vars, self.ntraining_samples))
+
+        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
+
+        self.candidate_samples = generate_candidate_samples(
+            self.nvars, ncandidate_samples, generate_random_samples, variables)
+        self.nsamples_requested = []
+        self.pivots = []
+
+    def objective(self, new_train_samples_flat):
+        train_samples = np.hstack(
+            [self.training_samples,
+             new_train_samples_flat.reshape(
+                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
+                  order='F')])
+        return gaussian_process_pointwise_variance(
+            self.kernel, self.pred_samples,
+            train_samples).mean()
+        
+    def set_kernel(self, kernel):
+        if (not type(kernel) == RBF and not
+            (type(kernel) == Matern and not np.isfinite(kernel.nu))):
+            # TODO: To deal with sum kernel with noise, need to ammend gradient
+            # computation which currently assumes no noise
+            msg = f'GP Kernel type: {type(kernel)} '
+            msg += 'Only squared exponential kernel supported'
+            raise Exception(msg)
+        self.kernel = kernel
+
+    def set_init_pivots(self, init_pivots):
+        self.pivots = list(init_pivots)
+        self.training_samples = self.candidate_samples[:,init_pivots]
+
+    def __call__(self, nsamples):
+        self.nsamples_requested.append(nsamples)
+        ntraining_samples = self.ntraining_samples
+        for nn in range(ntraining_samples, nsamples):
+            train_samples = self.training_samples.flatten(order='F')
+            obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+            for mm in range(self.candidate_samples.shape[1]):
+                if mm not in self.pivots:
+                    train_samples_p1 = np.concatenate(
+                        [train_samples, self.candidate_samples[:, mm]])
+                    obj_vals[mm] = self.objective(train_samples_p1)
+
+            pivot = np.argmin(obj_vals)
+            self.pivots.append(pivot)
+            new_sample = self.candidate_samples[:, pivot:pivot+1]
+            self.training_samples = np.hstack(
+                [self.training_samples,
+                 self.candidate_samples[:, pivot:pivot+1]])
+
+            #print(f'Number of points generated {nn+1}')
+
+        new_samples = self.training_samples[:,ntraining_samples:]
         self.ntraining_samples = self.training_samples.shape[1]
 
         return new_samples, 0
