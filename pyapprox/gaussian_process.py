@@ -694,6 +694,38 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
 
 
 def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
+    r"""
+    Compute the pointwise variance of a Gaussian process, that is
+
+    .. math::
+
+       K(\hat{x}, \hat{x}) - K(\hat{X}, y)^T  K(\hat{X}, \hat{X}) K(\hat{X}, y)
+
+    for each sample :math:`\hat{x}=[\hat{x}_1,\ldots,\hat{x}_d]` and a set of
+    training samples :math:`X=[x^{(1)},\ldots,x^{(N)}]`
+
+    Parameters
+    ----------
+    kernel : callable
+        Function with signature
+
+        ``K(X, Y) -> np.ndarray(X.shape[0], Y.shape[0])``
+
+        where X and Y are samples with shape (nsamples_X, nvars) and
+        (nsamples_Y, nvars). Note this function accepts sample sets stored in
+        the transpose of the typical pyapprox format
+
+    train_samples : np.ndarray (nvars, ntrain_samples)
+        The locations of the training data used to train the GP
+
+    pred_samples : np.ndarray (nvars, npred_samples)
+        The data values at ``X_train`` used to train the GP
+
+    Returns
+    -------
+    variance : np.ndarray (npred_samples)
+       The pointwise variance at each prediction sample
+    """
     K_train = kernel(train_samples.T)
     k_pred = kernel(train_samples.T, pred_samples.T)
     L = np.linalg.cholesky(K_train)
@@ -702,66 +734,149 @@ def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
     return variance
 
 
-def RBF_gradient_wrt_sample_coordinates(X, Y, length_scale):
-    """
-    Gradient of \exp\left(-\frac{1}{2l^2}(x-y)^2\right) with respect to X
+def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
+                                        length_scale):
+    r"""
+    Gradient of the squared exponential kernel
+
+    .. math::
+
+       \frac{\partial}{\partial x}K(x, Y) = -K(x, Y).T \circ D\lambda^{-1}
+
+    for a sample :math:`x=[x_1,\ldots,x_d]^T` and
+    :math:`y=[y^{(1)},\ldots,y^{(N)}]` and
+    :math:`\lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`
+
+    where
+    :math:`D=[\hat{x}-\hat{y}^{(1)},\ldots,\hat{x}-\hat{y}^{(N)})` with
+    :math:`\hat{x} = x\circ l^{-1}\circ l^{-1}`,
+    :math:`\hat{y} = y\circ l^{-1}\circ l^{-1}` and
+
+    .. math::
+
+       K(x, y^{(i)}) =
+       \exp\left(-\frac{1}{2}(x-y^{(i)})^T\Lambda^{-1}(x-y^{(i)})\right)
 
     Parameters
     ----------
-    X : np.ndarray (nsamples_X, nvars)
-        The samples X
+    query_sample : np.ndarray (1, nvars)
+        The sample :math:`x`
 
-    Y : np.ndarray (nsamples_Y, nvars)
-        The samples Y
+    other_samples : np.ndarray (nother_samples, nvars)
+        The samples :math:`y`
 
     length_scale : np.ndarray (nvars)
-        The length scales l in each dimension
+        The length scales `l` in each dimension
 
     Returns
     -------
-    grad : np.ndarray (nvars*nsamples_X)
+    grad : np.ndarray (nother_samples, nvars)
         The gradient of the kernel
     """
-    dists = cdist(X / length_scale, Y / length_scale, metric='sqeuclidean')
+    dists = cdist(query_sample / length_scale, other_samples / length_scale,
+                  metric='sqeuclidean')
     K = np.exp(-.5 * dists)
-    grad = -K.T*(np.tile(X, (Y.shape[0],1))-Y)/(np.asarray(length_scale)**2)
+    grad = -K.T*(
+        np.tile(query_sample, (other_samples.shape[0], 1))-other_samples)/(
+            np.asarray(length_scale)**2)
     return grad
 
+
 def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
-                                           kernel):
+                                        kernel, new_samples_index=0):
+    r"""
+    Gradient of the posterior covariance of a Gaussian process built
+    using the squared exponential kernel. Let :math:`\hat{x}^{(i)}` be a
+    prediction sample and :math:`x=[x^{(1)}, \ldots, x^{(N)}]` be the
+    training samples then the posterior covariance is
+
+    .. math::
+
+       c(\hat{x}^{(i)}, x)=c(\hat{x}^{(i)}, \hat{x}^{(i)}) -
+       K(\hat{x}^{(i)}, x)R K(\hat{x}^{(i)}, x)^T
+
+    and
+
+    .. math::
+
+       \frac{\partial c(\hat{x}^{(i)}, x)}{\partial x_l}=
+       2\left(\frac{\partial}{\partial x_l}K(\hat{x}^{(i)}, x_l)\right)
+       \sum_{k=1}^N
+       R[l,k]K(\hat{x}^{(i)}, x_k) - \sum_{j=1}^N\sum_{k=1}^N K(\hat{x}^{(i)},
+       x_j)\frac{\partial}{\partial x_l}\left(R[j,k]\right)(\hat{x}^{(i)}, x_k)
+
+    where :math: R = K(x, x)^{-1} and
+
+    .. math::
+
+       \frac{\partial R^{-1}}{\partial x_l} = R^{-1}
+       \frac{\partial R}{\partial x_l} R^{-1}
+
+
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars, ntrain_samples)
+        The locations of the training data used to train the GP
+
+    pred_samples : np.ndarray (nvars, npred_samples)
+        The data values at ``X_train`` used to train the GP
+
+    kernel : callable
+        Function with signature
+
+        ``K(X, Y) -> np.ndarray(X.shape[0], Y.shape[0])``
+
+        where X and Y are samples with shape (nsamples_X, nvars) and
+        (nsamples_Y, nvars). Note this function accepts sample sets stored in
+        the transpose of the typical pyapprox format
+
+    new_samples_index : integer
+        Index in train samples that indicates the train samples for which
+        derivatives will be computed. That is compute the derivatives of the
+        coordinates of train_samples[:,new_sample_index:]
+
+    Returns
+    -------
+    jac : np.ndarray (npred_samples, (ntrain_samples-new_sample_index)*nvars)
+    """
     length_scale = kernel.length_scale
     nvars, npred_samples = pred_samples.shape
     ntrain_samples = train_samples.shape[1]
+    noptimized_train_samples = ntrain_samples-new_samples_index
     k_pred_grad_all_train_points = np.zeros(
-        (ntrain_samples, npred_samples, nvars))
-    for ii in range(ntrain_samples):
-        k_pred_grad_all_train_points[ii,:,:] = \
+        (noptimized_train_samples, npred_samples, nvars))
+    ii = 0
+    for jj in range(new_samples_index, ntrain_samples):
+        k_pred_grad_all_train_points[ii, :, :] = \
             RBF_gradient_wrt_sample_coordinates(
-            train_samples[:, ii:ii+1].T, pred_samples.T, length_scale)
+            train_samples[:, jj:jj+1].T, pred_samples.T, length_scale)
+        ii += 1
 
     K_train = kernel(train_samples.T)
     K_inv = np.linalg.inv(K_train)
     k_pred = kernel(train_samples.T, pred_samples.T)
-    jac = np.zeros((npred_samples, nvars*ntrain_samples))
+    jac = np.zeros((npred_samples, nvars*noptimized_train_samples))
     tau = k_pred.T.dot(K_inv)
     K_train_grad = np.zeros((ntrain_samples, ntrain_samples))
-    for jj in range(ntrain_samples):
+    ii = 0
+    for jj in range(new_samples_index, ntrain_samples):
         K_train_grad_all_train_points_jj = \
             RBF_gradient_wrt_sample_coordinates(
-            train_samples[:, jj:jj+1].T, train_samples.T, length_scale)
+                train_samples[:, jj:jj+1].T, train_samples.T, length_scale)
         for kk in range(nvars):
-            jac[:,jj*nvars+kk] += \
-                2*k_pred_grad_all_train_points[jj, :, kk]*tau[:, jj]
+            jac[:, ii*nvars+kk] += \
+                2*k_pred_grad_all_train_points[ii, :, kk]*tau[:, jj]
             K_train_grad[jj, :] = K_train_grad_all_train_points_jj[:, kk]
             K_train_grad[:, jj] = K_train_grad[jj, :]
-            #The following takes advantage of sparsity of
-            #tmp = tau.dot(K_train_grad)
+            # The following takes advantage of sparsity of
+            # tmp = tau.dot(K_train_grad)
             tmp = K_train_grad_all_train_points_jj[:, kk:kk+1].T *\
                 np.tile(tau[:, jj:jj+1], (1, ntrain_samples))
             tmp[:, jj] = tau.dot(K_train_grad_all_train_points_jj[:, kk])
-            jac[:,jj*nvars+kk] -= np.sum(tmp*tau, axis=1)
+            jac[:, ii*nvars+kk] -= np.sum(tmp*tau, axis=1)
             # Reset to zero
             K_train_grad[jj, :] = 0
             K_train_grad[:, jj] = 0
+        ii += 1
     jac *= -1
     return jac
