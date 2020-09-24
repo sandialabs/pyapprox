@@ -393,9 +393,10 @@ def plot_constraint_cdfs(constraints,constraint_functions,uq_samples,
         axs_cdf[ii].set_ylim(0,1.05)
         axs_cdf[ii].set_xlim(
             constraint_function_vals[0],constraint_function_vals[-1])
-    return fig_cdf,axs_cdf
+    return fig_cdf, axs_cdf
 
-def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
+
+def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True):
     """
     Compare a user specified jacobian with the jacobian computed with finite
     difference with multiple step sizes.
@@ -408,18 +409,18 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
 
         ``fun(z) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
-        output is a 2D np.ndarray with shape (nqoi,1)
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        output is a 2D np.ndarray with shape (nqoi, 1)
 
     jac : callable
         The jacobian of ``fun`` with signature
 
         ``jac(z) -> np.ndarray``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
-        output is a 2D np.ndarray with shape (nqoi,nvars)
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        output is a 2D np.ndarray with shape (nqoi, nvars)
 
-    zz : np.ndarray (nvars,1)
+    zz : np.ndarray (nvars, 1)
         A sample of ``z`` at which to compute the gradient
 
     plot : boolean
@@ -437,29 +438,30 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
 
     Returns
     -------
-    errors : np.ndarray (14,nqoi)
+    errors : np.ndarray (14, nqoi)
         The errors in the directional derivative of ``fun`` at 14 different 
         values of finite difference tolerance for each quantity of interest
     """
-    assert zz.ndim==2
-    assert zz.shape[1]==1
+    assert zz.ndim == 2
+    assert zz.shape[1] == 1
     if callable(jac):
         function_val = fun(zz)
         grad_val = jac(zz)
     elif jac==True:
-        function_val,grad_val = fun(zz)
-    direction = np.random.normal(0,1,(zz.shape[0],1))
+        function_val, grad_val = fun(zz)
+    direction = np.random.normal(0, 1, (zz.shape[0], 1))
     direction /= np.linalg.norm(direction)
     directional_derivative = grad_val.squeeze().dot(direction).squeeze()
-    fd_eps = np.logspace(-13,0,14)[::-1]
+    fd_eps = np.logspace(-13, 0, 14)[::-1]
     errors = []
     row_format = "{:<25} {:<25} {:<25}"
     if disp:
         if rel:
             print(
-                row_format.format("Eps","Rel. Errors (max)","Rel. Errors (min)"))
+                row_format.format(
+                    "Eps", "Rel. Errors (max)", "Rel. Errors (min)"))
         else:
-            print(row_format.format("Eps","Errors (max)","Errors (min)"))
+            print(row_format.format("Eps", "Errors (max)", "Errors (min)"))
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)
@@ -473,12 +475,12 @@ def check_gradients(fun,jac,zz,plot=False,disp=True,rel=True):
         if rel:
             errors[-1]/=np.absolute(directional_derivative)
         if disp:
-            print(row_format.format(fd_eps[ii],errors[ii].max(),
+            print(row_format.format(fd_eps[ii], errors[ii].max(),
                                     errors[ii].min()))
-            #print(fd_directional_derivative,directional_derivative)
+            #print(fd_directional_derivative, directional_derivative)
 
     if plot:
-        plt.loglog(fd_eps,errors,'o-')
+        plt.loglog(fd_eps, errors, 'o-')
         plt.ylabel(r'$\lvert\nabla_\epsilon f\cdot p-\nabla f\cdot p\rvert$')
         plt.xlabel(r'$\epsilon$')
         plt.show()

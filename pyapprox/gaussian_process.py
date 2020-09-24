@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
+import copy
+from scipy.optimize import minimize, Bounds
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
@@ -548,17 +550,20 @@ class CholeskySampler(object):
         If this is not None then num_candidate_samples//2 will be created
         by this function and the other half of samples will be from a Halton
         sequence.
+
+    init_pivots : np.ndarray (ninit_pivots)
+        The array indices of the candidate_samples to keep
     """
     def __init__(self, num_vars, num_candidate_samples, variables=None,
-                 generate_random_samples=None):
-        self.num_vars = num_vars
+                 generate_random_samples=None, init_pivots=None):
+        self.nvars = num_vars
         self.kernel_theta = None
-        self.init_pivots = None
         self.chol_flag = None
         self.variables = variables
         self.generate_random_samples = generate_random_samples
         self.generate_candidate_samples(num_candidate_samples)
         self.set_weight_function(None)
+        self.set_init_pivots(init_pivots)
 
     def generate_candidate_samples(self, num_candidate_samples):
         self.num_candidate_samples = num_candidate_samples
@@ -582,7 +587,7 @@ class CholeskySampler(object):
                 marginal_icdfs.append(stats.uniform(lb, ub-lb).ppf)
 
         self.candidate_samples = transformed_halton_sequence(
-            marginal_icdfs, self.num_vars, num_halton_candidates)
+            marginal_icdfs, self.nvars, num_halton_candidates)
 
         if num_random_candidates > 0:
             self.candidate_samples = np.hstack((
@@ -602,6 +607,10 @@ class CholeskySampler(object):
         self.kernel = kernel
         self.kernel_theta = self.kernel.theta
 
+    def set_init_pivots(self, init_pivots):
+        self.init_pivots = init_pivots
+        self.init_pivots_changed = True
+
     def __call__(self, num_samples):
         if not hasattr(self, 'kernel'):
             raise Exception('Must call set_kernel')
@@ -611,7 +620,8 @@ class CholeskySampler(object):
         if self.kernel_theta is None:
             assert self.kernel_changed
 
-        if self.weight_function_changed or self.kernel_changed:
+        if (self.weight_function_changed or self.kernel_changed or
+            self.init_pivots_changed):
             self.Kmatrix = self.kernel(self.candidate_samples.T)
             self.L, self.pivots, error, self.chol_flag, self.diag, \
                 self.init_error, self.num_completed_pivots = \
@@ -759,10 +769,10 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
 
     Parameters
     ----------
-    query_sample : np.ndarray (1, nvars)
+    query_sample : np.ndarray (nvars, 1)
         The sample :math:`x`
 
-    other_samples : np.ndarray (nother_samples, nvars)
+    other_samples : np.ndarray (nvars, nother_samples)
         The samples :math:`y`
 
     length_scale : np.ndarray (nvars)
@@ -773,11 +783,11 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
     grad : np.ndarray (nother_samples, nvars)
         The gradient of the kernel
     """
-    dists = cdist(query_sample / length_scale, other_samples / length_scale,
+    dists = cdist(query_sample.T/length_scale, other_samples.T/length_scale,
                   metric='sqeuclidean')
     K = np.exp(-.5 * dists)
     grad = -K.T*(
-        np.tile(query_sample, (other_samples.shape[0], 1))-other_samples)/(
+        np.tile(query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
             np.asarray(length_scale)**2)
     return grad
 
@@ -849,7 +859,7 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
     for jj in range(new_samples_index, ntrain_samples):
         k_pred_grad_all_train_points[ii, :, :] = \
             RBF_gradient_wrt_sample_coordinates(
-            train_samples[:, jj:jj+1].T, pred_samples.T, length_scale)
+            train_samples[:, jj:jj+1], pred_samples, length_scale)
         ii += 1
 
     K_train = kernel(train_samples.T)
@@ -862,7 +872,7 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
     for jj in range(new_samples_index, ntrain_samples):
         K_train_grad_all_train_points_jj = \
             RBF_gradient_wrt_sample_coordinates(
-                train_samples[:, jj:jj+1].T, train_samples.T, length_scale)
+                train_samples[:, jj:jj+1], train_samples, length_scale)
         for kk in range(nvars):
             jac[:, ii*nvars+kk] += \
                 2*k_pred_grad_all_train_points[ii, :, kk]*tau[:, jj]
@@ -880,3 +890,105 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
         ii += 1
     jac *= -1
     return jac
+
+
+class IVARSampler(object):
+    def __init__(self, num_vars, ncandidate_samples, variables=None,
+                 generate_random_samples=None):
+        self.nvars = num_vars
+        self.greedy_sampler = CholeskySampler(
+            self.nvars, ncandidate_samples, variables,
+            generate_random_samples=generate_random_samples)
+
+        self.ntraining_samples = 0
+        self.training_samples = np.empty((num_vars, self.ntraining_samples))
+
+        self.pred_samples = generate_random_samples(ncandidate_samples)
+        self.nsamples_requested = []
+        self.optim_opts={}
+
+    def objective(self, new_train_samples_flat):
+        train_samples = np.hstack(
+            [self.training_samples,
+             new_train_samples_flat.reshape(
+                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
+                  order='F')])
+        return gaussian_process_pointwise_variance(
+            self.greedy_sampler.kernel, self.pred_samples,
+            train_samples).mean()
+
+    def objective_gradient(self, new_train_samples_flat):
+        train_samples = np.hstack(
+            [self.training_samples,
+             new_train_samples_flat.reshape(
+                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
+                  order='F')])
+        new_samples_index = self.training_samples.shape[1]
+        return RBF_jacobian_wrt_sample_coordinates(
+            train_samples, self.pred_samples, self.greedy_sampler.kernel,
+            new_samples_index).mean(axis=0)
+
+    def set_weight_function(self, weight_function):
+        self.greedy_sampler.set_weight_function(weight_function)
+        
+    def set_kernel(self, kernel):
+        if (not type(kernel) == RBF and not
+            (type(kernel) == Matern and not np.isfinite(kernel.nu))):
+            # TODO: To deal with sum kernel with noise, need to ammend gradient
+            # computation which currently assumes no noise
+            msg = f'GP Kernel type: {type(kernel)} '
+            msg += 'Only squared exponential kernel supported'
+            raise Exception(msg)
+
+        self.greedy_sampler.set_kernel(copy.deepcopy(kernel))
+
+    def set_optimization_options(self, opts):
+        self.optim_opts = opts.copy()
+        if self.variables is None:
+            lbs, ubs = np.zeros(self.nvars), np.ones(self.nvars)
+        else:
+            lbs = [v.interval(1)[0] for v in self.variables]
+            ubs = [v.interval(1)[1] for v in self.variables]
+        self.bounds = Bounds(lbs,ubs)
+
+    def optimize(self, nsamples):
+        init_guess, chol_flag = self.greedy_sampler(nsamples)
+        res = minimize(self.objective, init_guess, jac=self.objective_gradient,
+                       options=self.optim_opts)
+
+    def __call__(self, nsamples):
+        self.nsamples_requested.append(nsamples)
+
+        # Remove previous training samples from candidate set to prevent
+        # adding them twice
+        candidate_samples = self.greedy_sampler.candidate_samples
+        if len(self.nsamples_requested) > 1:
+            candidate_samples = candidate_samples[
+                :, self.nsamples_requested[-2]:]
+
+        # Add previous optimized sample set to candidate samples. This could
+        # potentially add a candidate twice if the optimization picks some
+        # of the original candidate samples chosen by
+        # greedy_sampler.generate_samples, but this is unlikely
+        self.greedy_sampler.candidate_samples = np.hstack([
+            self.training_samples, candidate_samples])
+
+        # Make sure greedy_sampler chooses self.training_samples 
+        self.greedy_sampler.set_init_pivots(np.arange(self.ntraining_samples))
+
+        # Get the initial guess for new samples to add.
+        # Note the Greedy sampler will return only new samples not in
+        # self.training_samples
+        init_guess, chol_flag = self.greedy_sampler(nsamples)
+        assert chol_flag == 0
+
+        # Optimize the locations of only the new training samples
+        res = minimize(self.objective, init_guess, jac=self.objective_gradient,
+                       method='L-BFGS-B', options=self.optim_opts)
+
+        new_samples = res.x.reshape(
+            (self.nvars,res.x.shape[0]//self.nvars),order='F')
+        self.training_samples = np.hstack([self.training_samples, new_samples])
+        self.ntraining_samples = self.training_samples.shape[1]
+
+        return new_samples, 0

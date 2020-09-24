@@ -143,78 +143,6 @@ class TestGaussianProcess(unittest.TestCase):
 
         assert np.allclose(stdev1**2, variance2)
 
-    def test_RBF_gradient_wrt_sample_coordinates(self):
-        nvars = 2
-        lb, ub = 0, 1
-        ntrain_samples_1d = 10
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
-
-        train_samples = pya.cartesian_product(
-            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
-
-        length_scale = [0.1, 0.2][:nvars]
-        kernel = RBF(length_scale, length_scale_bounds='fixed')
-
-        pred_samples = np.random.uniform(0, 1, (nvars, 3))
-        grad = RBF_gradient_wrt_sample_coordinates(
-            train_samples[:, :1].T, pred_samples.T, length_scale)
-
-        fd_grad = pya.approx_jacobian(
-            lambda x: kernel(x, pred_samples.T)[0, :], train_samples[:, 0])
-        # print(grad-fd_grad)
-        assert np.allclose(grad, fd_grad, atol=1e-6)
-
-        jac = RBF_jacobian_wrt_sample_coordinates(
-            train_samples, pred_samples, kernel)
-
-        x0 = train_samples.flatten(order='F')
-        assert np.allclose(
-            train_samples, x0.reshape(train_samples.shape, order='F'))
-
-        def func(x_flat):
-            return gaussian_process_pointwise_variance(
-                kernel, pred_samples, x_flat.reshape(
-                    train_samples.shape, order='F'))
-        fd_jac = pya.approx_jacobian(func, x0)
-
-        # print(jac, '\n\n',f d_jac)
-        print('\n', np.absolute(jac-fd_jac).max())
-        assert np.allclose(jac, fd_jac, atol=1e-5)
-
-    def test_RBF_gradient_wrt_sample_coordinates_subset(self):
-        nvars = 2
-        lb, ub = 0, 1
-        ntrain_samples_1d = 10
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
-
-        train_samples = pya.cartesian_product(
-            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
-
-        new_samples_index = train_samples.shape[1]-10
-
-        length_scale = [0.1, 0.2][:nvars]
-        kernel = RBF(length_scale, length_scale_bounds='fixed')
-
-        pred_samples = np.random.uniform(0, 1, (nvars, 3))
-        jac = RBF_jacobian_wrt_sample_coordinates(
-            train_samples, pred_samples, kernel, new_samples_index)
-
-        x0 = train_samples.flatten(order='F')
-        assert np.allclose(
-            train_samples, x0.reshape(train_samples.shape, order='F'))
-
-        def func(x_flat):
-            return gaussian_process_pointwise_variance(
-                kernel, pred_samples, x_flat.reshape(
-                    train_samples.shape, order='F'))
-        fd_jac = pya.approx_jacobian(func, x0)[:,new_samples_index*nvars:]
-
-        # print(jac, '\n\n',f d_jac)
-        print('\n', np.absolute(jac-fd_jac).max())
-        assert np.allclose(jac, fd_jac, atol=1e-5)
-
     def test_integrate_gaussian_process_gaussian(self):
 
         nvars = 2
@@ -472,9 +400,12 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.show()
 
 
-class TestCholeskySampler(unittest.TestCase):
+class TestSamplers(unittest.TestCase):
 
-    def test_basic_restart(self):
+    def setUp(self):
+        np.random.seed(1)
+
+    def test_cholesky_sampler_basic_restart(self):
         nvars = 1
         variables = [stats.uniform(-1, 2)]*nvars
         sampler = CholeskySampler(nvars, 100, variables)
@@ -490,7 +421,7 @@ class TestCholeskySampler(unittest.TestCase):
         samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
         assert np.allclose(samples2, samples)
 
-    def test_restart_with_changed_kernel(self):
+    def test_cholesky_sampler_restart_with_changed_kernel(self):
         nvars = 1
         variables = [stats.uniform(-1, 2)]*nvars
         kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
@@ -514,7 +445,7 @@ class TestCholeskySampler(unittest.TestCase):
                            sampler.pivots[:num_samples//2])
         assert not np.allclose(samples2, samples)
 
-    def test_restart_with_changed_weight_function(self):
+    def test_cholesky_sampler_restart_with_changed_weight_function(self):
         nvars = 1
         variables = [stats.uniform(-1, 2)]*nvars
         kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
@@ -539,7 +470,7 @@ class TestCholeskySampler(unittest.TestCase):
 
         assert not np.allclose(samples2, samples)
 
-    def test_adaptive_gp_fixed_kernel(self):
+    def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
         variables = [stats.uniform(0, 1)]*nvars
         def func(samples): return np.array(
@@ -582,11 +513,132 @@ class TestCholeskySampler(unittest.TestCase):
         vals2 = gp2(validation_samples)
         assert np.allclose(vals1[:, 0:1], vals2)
 
+    def test_RBF_gradient_wrt_sample_coordinates(self):
+        nvars = 2
+        lb, ub = 0, 1
+        ntrain_samples_1d = 10
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+        train_vals = func(train_samples)
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        pred_samples = np.random.uniform(0, 1, (nvars, 3))
+        x0 = train_samples[:, :1]
+        grad = RBF_gradient_wrt_sample_coordinates(
+            x0, pred_samples, length_scale)
+
+        fd_grad = pya.approx_jacobian(
+            lambda x: kernel(x, pred_samples.T)[0, :], x0[:,0])
+        assert np.allclose(grad, fd_grad, atol=1e-6)
+        errors = pya.check_gradients(
+            lambda x: kernel(x.T, pred_samples.T)[0, :],
+            lambda x: RBF_gradient_wrt_sample_coordinates(
+                x, pred_samples, length_scale), x0)
+        assert errors.min()<1e-6
+
+        jac = RBF_jacobian_wrt_sample_coordinates(
+            train_samples, pred_samples, kernel)
+
+        x0 = train_samples.flatten(order='F')
+        assert np.allclose(
+            train_samples, x0.reshape(train_samples.shape, order='F'))
+
+        def func(x_flat):
+            return gaussian_process_pointwise_variance(
+                kernel, pred_samples, x_flat.reshape(
+                    train_samples.shape, order='F'))
+        fd_jac = pya.approx_jacobian(func, x0)
+
+        # print(jac, '\n\n',f d_jac)
+        # print('\n', np.absolute(jac-fd_jac).max())
+        assert np.allclose(jac, fd_jac, atol=1e-5)
+
+        errors = pya.check_gradients(
+            func,
+            lambda x: RBF_jacobian_wrt_sample_coordinates(
+                x.reshape(nvars, x.shape[0]//nvars, order='F'),
+                pred_samples, kernel), x0[:, np.newaxis])
+        assert errors.min()<1e-6
+
+
+    def test_RBF_gradient_wrt_sample_coordinates_subset(self):
+        nvars = 2
+        lb, ub = 0, 1
+        ntrain_samples_1d = 10
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+        train_vals = func(train_samples)
+
+        new_samples_index = train_samples.shape[1]-10
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        pred_samples = np.random.uniform(0, 1, (nvars, 3))
+        jac = RBF_jacobian_wrt_sample_coordinates(
+            train_samples, pred_samples, kernel, new_samples_index)
+
+        x0 = train_samples.flatten(order='F')
+        assert np.allclose(
+            train_samples, x0.reshape(train_samples.shape, order='F'))
+
+        def func(x_flat):
+            return gaussian_process_pointwise_variance(
+                kernel, pred_samples, x_flat.reshape(
+                    train_samples.shape, order='F'))
+        fd_jac = pya.approx_jacobian(func, x0)[:,new_samples_index*nvars:]
+
+        # print(jac, '\n\n',f d_jac)
+        # print('\n', np.absolute(jac-fd_jac).max())
+        assert np.allclose(jac, fd_jac, atol=1e-5)
+
+
+    def test_ivar_sampler(self):
+        nvars = 2
+        variables = [stats.uniform(0, 1)]*nvars
+        
+        def generate_random_samples(nsamples):
+            return np.vstack([v.rvs(size=(1, nsamples)) for v in variables])
+
+        # correlation length affects ability to check gradient. As kerenl matrix
+        # gets more ill conditioned then gradients get worse
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler = IVARSampler(nvars, 100, variables, generate_random_samples)
+        sampler.set_kernel(copy.deepcopy(kernel))
+
+        # nature of training samples affects ability to check gradient. As
+        # training samples makes kernel matrix more ill conditioned then
+        # gradients get worse
+        ntrain_samples_1d = 10
+        train_samples = pya.cartesian_product(
+            [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
+        x0 = train_samples.flatten(order='F')
+        #fd_grad = pya.approx_jacobian(sampler.objective, x0)
+        #grad = sampler.objective_gradient(x0)
+        errors = pya.check_gradients(
+            sampler.objective, sampler.objective_gradient, x0[:,np.newaxis])
+        assert errors.min()<1e-6
+
+        ntrain_samples = 10
+        new_samples1 = sampler(ntrain_samples)[0]
+
+        new_samples2 = sampler(2*ntrain_samples)[0]
+
+        assert np.allclose(
+            new_samples1, sampler.training_samples[:, :ntrain_samples],
+            atol=1e-12)
+
 
 if __name__ == "__main__":
     gaussian_process_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestGaussianProcess)
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
-    cholesky_sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestCholeskySampler)
+    sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
+        TestSamplers)
     unittest.TextTestRunner(verbosity=2).run(cholesky_sampler_test_suite)
