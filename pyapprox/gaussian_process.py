@@ -691,3 +691,77 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
         nn = self.sampler.num_completed_pivots
         chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
         return np.linalg.cond(chol_factor.dot(chol_factor.T))
+
+
+def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
+    K_train = kernel(train_samples.T)
+    k_pred = kernel(train_samples.T, pred_samples.T)
+    L = np.linalg.cholesky(K_train)
+    tmp = solve_triangular(L, k_pred, lower=True)
+    variance = kernel.diag(pred_samples.T) - np.sum(tmp*tmp, axis=0)
+    return variance
+
+
+def RBF_gradient_wrt_sample_coordinates(X, Y, length_scale):
+    """
+    Gradient of \exp\left(-\frac{1}{2l^2}(x-y)^2\right) with respect to X
+
+    Parameters
+    ----------
+    X : np.ndarray (nsamples_X, nvars)
+        The samples X
+
+    Y : np.ndarray (nsamples_Y, nvars)
+        The samples Y
+
+    length_scale : np.ndarray (nvars)
+        The length scales l in each dimension
+
+    Returns
+    -------
+    grad : np.ndarray (nvars*nsamples_X)
+        The gradient of the kernel
+    """
+    dists = cdist(X / length_scale, Y / length_scale, metric='sqeuclidean')
+    K = np.exp(-.5 * dists)
+    grad = -K.T*(np.tile(X, (Y.shape[0],1))-Y)/(np.asarray(length_scale)**2)
+    return grad
+
+def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
+                                           kernel):
+    length_scale = kernel.length_scale
+    nvars, npred_samples = pred_samples.shape
+    ntrain_samples = train_samples.shape[1]
+    k_pred_grad_all_train_points = np.zeros(
+        (ntrain_samples, npred_samples, nvars))
+    for ii in range(ntrain_samples):
+        k_pred_grad_all_train_points[ii,:,:] = \
+            RBF_gradient_wrt_sample_coordinates(
+            train_samples[:, ii:ii+1].T, pred_samples.T, length_scale)
+
+    K_train = kernel(train_samples.T)
+    K_inv = np.linalg.inv(K_train)
+    k_pred = kernel(train_samples.T, pred_samples.T)
+    jac = np.zeros((npred_samples, nvars*ntrain_samples))
+    tau = k_pred.T.dot(K_inv)
+    K_train_grad = np.zeros((ntrain_samples, ntrain_samples))
+    for jj in range(ntrain_samples):
+        K_train_grad_all_train_points_jj = \
+            RBF_gradient_wrt_sample_coordinates(
+            train_samples[:, jj:jj+1].T, train_samples.T, length_scale)
+        for kk in range(nvars):
+            jac[:,jj*nvars+kk] += \
+                2*k_pred_grad_all_train_points[jj, :, kk]*tau[:, jj]
+            K_train_grad[jj, :] = K_train_grad_all_train_points_jj[:, kk]
+            K_train_grad[:, jj] = K_train_grad[jj, :]
+            #The following takes advantage of sparsity of
+            #tmp = tau.dot(K_train_grad)
+            tmp = K_train_grad_all_train_points_jj[:, kk:kk+1].T *\
+                np.tile(tau[:, jj:jj+1], (1, ntrain_samples))
+            tmp[:, jj] = tau.dot(K_train_grad_all_train_points_jj[:, kk])
+            jac[:,jj*nvars+kk] -= np.sum(tmp*tau, axis=1)
+            # Reset to zero
+            K_train_grad[jj, :] = 0
+            K_train_grad[:, jj] = 0
+    jac *= -1
+    return jac

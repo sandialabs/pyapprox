@@ -6,20 +6,20 @@ from pyapprox.configure_plots import *
 import scipy.stats as ss
 from pyapprox.utilities import get_all_sample_combinations
 
-def approx_jacobian(func,x,*args,epsilon=np.sqrt(np.finfo(float).eps)):
+def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
     x0 = np.asfarray(x)
-    assert x0.ndim==1 or x0.shape[1]==1
+    assert x0.ndim == 1 or x0.shape[1] == 1
     f0 = np.atleast_1d(func(*((x0,)+args)))
-    if f0.ndim==2:
-        assert f0.shape[1]==1
-        f0 = f0[:,0]
-    jac = np.zeros([len(x0),len(f0)])
+    if f0.ndim == 2:
+        assert f0.shape[1] == 1
+        f0 = f0[:, 0]
+    jac = np.zeros([len(x0), len(f0)])
     dx = np.zeros(x0.shape)
     for i in range(len(x0)):
         dx[i] = epsilon
         f1 = func(*((x0+dx,)+args))
         if f1.ndim==2:
-            assert f1.shape[1]==1
+            assert f1.shape[1] == 1
             f1 = f1[:,0]
         jac[i] = (f1 - f0)/epsilon
         dx[i] = 0.0
