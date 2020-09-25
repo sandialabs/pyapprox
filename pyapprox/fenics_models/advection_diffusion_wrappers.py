@@ -111,7 +111,6 @@ class AdvectionDiffusionModel(object):
         return init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa
             
-
     def get_initial_condition(self,random_sample):
         r"""By Default the initial condition is deterministic and set to zero"""
         assert random_sample is None

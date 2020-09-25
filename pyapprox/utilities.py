@@ -1424,24 +1424,61 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
 
     return divergence_integrand.dot(w)
 
-def cholesky_solve_linear_system(L,rhs):
+
+def cholesky_solve_linear_system(L, rhs):
     r"""
     Solve LL'x = b using forwards and backwards substitution
     """
     # Use forward subsitution to solve Ly = b
-    y = solve_triangular(L,rhs,lower=True)
+    y = solve_triangular(L, rhs, lower=True)
     # Use backwards subsitution to solve L'x = y
-    y = solve_triangular(L.T,y,lower=False)
+    x = solve_triangular(L.T, y, lower=False)
     return x
 
-def num_entries_square_triangular_matrix(N,include_diagonal=True):
+def update_cholesky_factorization(L_11, A_12, A_22):
+    r"""
+    Update a Cholesky factorization. 
+
+    Specifically compute the Cholesky factorization of
+
+    .. math:: A=\begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T & A_{22}\end{bmatrix}
+
+    where :math:`L_{11}` is the Cholesky factorization of :math:`A_{11}`.
+    Noting that
+
+    .. math:: 
+
+      \begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T & A_{22}\end{bmatrix} =
+      \begin{bmatrix} L_{11} & 0\\ L_{12}^T & L_{22}\end{bmatrix}
+      \begin{bmatrix} L_{11}^T & L_{12}\\ 0 & L_{22}^T\end{bmatrix}
+
+    we can equate terms to find
+
+    .. math:: 
+    
+        L_{12} = L_{11}^{-1}A_{12}, \quad 
+        L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
+    """
+    if L_11.shape[0] == 0:
+        return np.linalg.cholesky(A_22)
+    
+    nrows, ncols = A_12.shape
+    assert A_22.shape == (ncols, ncols)
+    assert L_11.shape == (nrows, nrows)
+    L_12 = solve_triangular(L_11, A_12, lower=True)
+    L_22 = np.linalg.cholesky(A_22 - L_12.T.dot(L_12))
+    L = np.block([[L_11, np.zeros((nrows, ncols))], [L_12.T, L_22]])
+    return L
+
+
+def num_entries_square_triangular_matrix(N, include_diagonal=True):
     r"""Num entries in upper (or lower) NxN traingular matrix"""
     if include_diagonal:
         return int(N*(N+1)/2)
     else:
         return int(N*(N-1)/2)
 
-def num_entries_rectangular_triangular_matrix(M,N,upper=True):
+def num_entries_rectangular_triangular_matrix(M ,N, upper=True):
     r"""Num entries in upper (or lower) MxN traingular matrix.
     This is useful for nested for loops like
 
@@ -1456,22 +1493,22 @@ def num_entries_rectangular_triangular_matrix(M,N,upper=True):
         for ii in range(jj+1):
 
     """
-    assert M>=N
+    assert M >= N
     if upper:
         return num_entries_square_triangular_matrix(N)
     else:
         return num_entries_square_triangular_matrix(M)-\
             num_entries_square_triangular_matrix(M-N)
 
-def flattened_rectangular_lower_triangular_matrix_index(ii,jj,M,N):
+def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     r"""
     Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
     """
-    assert M>=N
-    assert ii>=jj
-    if ii==0:
+    assert M >= N
+    assert ii >= jj
+    if ii == 0:
         return 0
-    T = num_entries_rectangular_triangular_matrix(ii,min(ii,N),upper=False)
+    T = num_entries_rectangular_triangular_matrix(ii, min(ii, N), upper=False)
     kk = T+jj
     return kk
 

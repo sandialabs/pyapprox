@@ -613,6 +613,50 @@ class TestUtilities(unittest.TestCase):
         assert np.allclose(L,full_L)
         assert np.allclose(pivots,full_pivots)
 
+    def test_update_cholesky_decomposition(self):
+        nvars = 5
+        B = np.random.normal(0, 1, (nvars,nvars))
+        A = B.T.dot(B)
+
+        L = np.linalg.cholesky(A)
+        A_11 = A[:nvars-2, :nvars-2]
+        A_12 = A[:nvars-2, nvars-2:]
+        A_22 = A[nvars-2:, nvars-2:]
+        assert np.allclose(np.block([[A_11, A_12], [A_12.T, A_22]]), A)
+        L_11 = np.linalg.cholesky(A_11)
+        L_up = update_cholesky_factorization(L_11, A_12, A_22)
+        assert np.allclose(L, L_up)
+
+        L_inv = np.linalg.inv(L)
+        L_11_inv = np.linalg.inv(L_11)
+        L_12_T = L[L_11.shape[0]:, :L_11.shape[1]]
+        L_12 = L_12_T.T
+        L_22 = L[L_11.shape[0]:, L_11.shape[0]:]
+        L_22_inv = np.linalg.inv(L_22)
+        Z = np.zeros(A_12.shape)
+        assert np.allclose(L_inv, np.block(
+            [[L_11_inv, Z],[-L_22_inv.dot(L_12_T.dot(L_11_inv)),L_22_inv]]))
+
+        x = np.random.normal(0, 1, (nvars))
+        y = solve_triangular(L, x, lower=True)
+        z = solve_triangular(L.T, y, lower=False)
+
+        x_1 = x[:L_11.shape[0]]
+        y_1 = solve_triangular(L_11, x_1, lower=True)
+        z_1 = solve_triangular(L_11, y_1, lower=False)
+
+        x_up_1 = x_1
+        x_up_2 = x[L_11.shape[0]:]
+        y_up_1 = y_1
+        y_up_2 = solve_triangular(L_22, x_up_2-L_12_T.dot(y_up_1), lower=True)
+        assert np.allclose(y_up_1, y[:L_11.shape[0]])
+        assert np.allclose(y_up_2, y[L_11.shape[0]:])
+        z_up_2 = solve_triangular(L_22.T, y_up_2, lower=False)
+        z_up_1 = solve_triangular(
+            L_11.T, y_up_1 - L_12.dot(z_up_2), lower=False)
+        assert np.allclose(z_up_2, z[L_11.shape[0]:])
+        assert np.allclose(z_up_1, z[:L_11.shape[0]])
+
     def test_beta_pdf_on_ab(self):
         from scipy.stats import beta as beta_rv
         alpha_stat,beta_stat = 5,2
