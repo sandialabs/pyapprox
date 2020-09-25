@@ -7,8 +7,9 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
     ConstantKernel
 from pyapprox import get_polynomial_from_variable, \
-    get_univariate_quadrature_rules_from_pce
-from pyapprox.utilities import cartesian_product, outer_product
+    get_univariate_quadrature_rules_from_variable
+from pyapprox.utilities import cartesian_product, outer_product, \
+    cholesky_solve_linear_system, update_cholesky_factorization
 from scipy.spatial.distance import cdist
 from functools import partial
 from scipy.linalg import solve_triangular
@@ -74,7 +75,6 @@ class AdaptiveGaussianProcess(GaussianProcess):
         if hasattr(self, 'X_train_'):
             train_samples = np.hstack([self.X_train_.T, new_samples])
             train_values = np.vstack([self.y_train_, new_values])
-            # print(self.kernel_.length_scale)
         else:
             train_samples, train_values = new_samples, new_values
         self.fit(train_samples, train_values)
@@ -337,7 +337,6 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
     xi_1 = np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
     return xi_1
 
-
 def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
                                                           K_inv,
                                                           length_scale,
@@ -416,15 +415,8 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
     ntrain_samples = X_train.shape[1]
     nvars = variable.num_vars()
     degrees = [50]*nvars
-    pce = get_polynomial_from_variable(variable)
-    indices = []
-    for ii in range(pce.num_vars()):
-        indices_ii = np.zeros((pce.num_vars(), degrees[ii]+1), dtype=int)
-        indices_ii[ii, :] = np.arange(degrees[ii]+1, dtype=int)
-        indices.append(indices_ii)
-    pce.set_indices(np.hstack(indices))
-    univariate_quad_rules = get_univariate_quadrature_rules_from_pce(
-        pce, degrees)
+    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
+        variable, degrees)
 
     lscale = np.atleast_1d(length_scale)
     tau, u = 1, 1
@@ -533,7 +525,7 @@ def generate_candidate_samples(nvars, num_candidate_samples,
         # marginal_icdfs = [v.ppf for v in self.variables]
         from scipy import stats
         marginal_icdfs = []
-        for v in variables:
+        for v in variables.all_variables():
             lb, ub = v.interval(1)
             if not np.isfinite(lb) or not np.isfinite(ub):
                 lb, ub = variable.interval(1-1e-6)
@@ -562,9 +554,9 @@ class CholeskySampler(object):
     num_candidate_samples : integer
         The number of candidate samples from which final samples are chosen
 
-    variables : list
-        list of scipy.stats random variables used to transform candidate
-        samples. If variables == None candidates will be generated on [0,1]
+    variable : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+        A set of independent univariate random variables. The tensor-product
+        of the 1D PDFs yields the joint density :math:`\rho`
 
     max_num_samples : integer
         The maximum number of samples to be generated
@@ -695,10 +687,9 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
         self.fit()
 
     def fit(self):
-        nn = self.sampler.num_completed_pivots
+        nn = self.sampler.ntraining_samples
         chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
-        tmp = solve_triangular(chol_factor, self.train_values, lower=True)
-        self.coef = solve_triangular(chol_factor.T, tmp, lower=False)
+        self.coef = cholesky_solve_linear_system(chol_factor, self.train_values)
 
     def __call__(self, samples):
         return self.sampler.kernel(samples.T, self.train_samples.T).dot(
@@ -999,8 +990,9 @@ class IVARSampler(object):
         if self.greedy_sampler.variables is None:
             lbs, ubs = np.zeros(self.nvars), np.ones(self.nvars)
         else:
-            lbs = [v.interval(1)[0] for v in self.greedy_sampler.variables]
-            ubs = [v.interval(1)[1] for v in self.greedy_sampler.variables]
+            variables = self.greedy_sampler.variables.all_variables()
+            lbs = [v.interval(1)[0] for v in variables]
+            ubs = [v.interval(1)[1] for v in variables]
         lbs = np.repeat(lbs, nsamples)
         ubs = np.repeat(ubs, nsamples)
         self.bounds = Bounds(lbs,ubs)
@@ -1068,29 +1060,122 @@ class GreedyIVARSampler(object):
         based optimization
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
-                 ncandidate_samples, generate_random_samples, variables=None):
+                 ncandidate_samples, generate_random_samples, variables=None,
+                 use_gauss_quadrature=False):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
         self.variables = variables
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
-
-        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
+        
+        self.use_gauss_quadrature = use_gauss_quadrature
+        if self.use_gauss_quadrature is False:
+            self.pred_samples = generate_random_samples(
+                self.nmonte_carlo_samples)
 
         self.candidate_samples = generate_candidate_samples(
-            self.nvars, ncandidate_samples, generate_random_samples, variables)
+            self.nvars, ncandidate_samples, generate_random_samples,
+            self.variables)
         self.nsamples_requested = []
         self.pivots = []
 
-    def objective(self, new_train_samples_flat):
+        self.use_gauss_quadrature = use_gauss_quadrature
+        self.L = np.zeros((0, 0))
+
+        self.econ = True
+        if self.econ:
+            self.y_1 = np.zeros((0))
+            self.candidate_y_2 = np.empty(ncandidate_samples)
+
+    def monte_carlo_objective(self, new_sample_index):
         train_samples = np.hstack(
             [self.training_samples,
-             new_train_samples_flat.reshape(
-                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
-                  order='F')])
+             self.candidate_samples[:, new_sample_index:new_sample_index+1]])
         return gaussian_process_pointwise_variance(
             self.kernel, self.pred_samples,
             train_samples).mean()
+
+    def precompute(self):
+        nvars = self.variables.num_vars()
+        length_scale = self.kernel.length_scale
+        if np.isscalar(length_scale):
+            length_scale = [length_scale]*nvars
+            degrees = [self.nmonte_carlo_samples]*nvars
+            univariate_quad_rules, pce = \
+                get_univariate_quadrature_rules_from_variable(
+                    self.variables, degrees)
+            dist_func = partial(cdist, metric='sqeuclidean')
+            self.tau = 1
+        for ii in range(self.nvars):
+            # Get 1D quadrature rule
+            xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
+            jj = pce.basis_type_index_map[ii]
+            loc, scale = pce.var_trans.scale_parameters[jj, :]
+            xx_1d = xx_1d*scale+loc
+            
+            # Training samples of ith variable
+            xtr = self.candidate_samples[ii:ii+1, :]
+            lscale_ii = length_scale[ii]
+            dists_1d_x1_xtr = dist_func(
+                xx_1d[:, np.newaxis]/lscale_ii, xtr.T/lscale_ii)
+            K = np.exp(-.5*dists_1d_x1_xtr)
+            self.tau *= ww_1d.dot(K)
+
+        self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
+
+    def quadrature_objective(self, new_sample_index):
+        # A can be updated rather than recomputed from scratch as below
+        # train_samples = np.hstack(
+        #    [self.training_samples,
+        #     self.candidate_samples[:, new_sample_index:new_sample_index+1]])
+        # A = self.kernel(train_samples.T, train_samples.T)
+        if not self.econ:
+            indices = np.concatenate(
+                [self.pivots, [new_sample_index]]).astype(int)
+            A = self.A[np.ix_(indices, indices)]
+            L = np.linalg.cholesky(A)
+            tau = self.tau[indices]
+            return -tau.dot(cholesky_solve_linear_system(L, tau))
+        
+        if self.L.shape[0] == 0:
+            indices = np.concatenate(
+                [self.pivots, [new_sample_index]]).astype(int)
+            A = self.A[np.ix_(indices, indices)]
+            L1 = np.linalg.cholesky(A)
+            L = np.sqrt(self.A[new_sample_index, new_sample_index])
+            tau = self.tau[indices]
+            assert np.allclose(-self.tau[new_sample_index]**2/self.A[
+                new_sample_index, new_sample_index],-tau.dot(cholesky_solve_linear_system(L1, tau)))
+            assert np.allclose(solve_triangular(L1,tau),self.tau[new_sample_index]/L)
+            self.candidate_y_2[new_sample_index] = self.tau[new_sample_index]/L
+            return -self.tau[new_sample_index]**2/self.A[
+                new_sample_index, new_sample_index]
+
+        A_12 = self.A[self.pivots, new_sample_index:new_sample_index+1]
+        L_12 = solve_triangular(self.L, A_12, lower=True)
+        L_22 = np.sqrt(
+            self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
+        #--------------------
+        self.L_up[-1, :len(self.pivots)] = L_12.T
+        self.L_up[-1,-1] = L_22
+        #assert np.allclose(self.L_up, L), (self.L_up -L)
+        L = self.L_up
+        indices = np.concatenate(
+            [self.pivots, [new_sample_index]]).astype(int)
+        tau = self.tau[indices]
+        # no need to compute L_up once below is working
+        #--------------------
+        
+        y_2 = (self.tau[new_sample_index]-L_12.T.dot(self.y_1))/L_22[0,0]
+        self.candidate_y_2[new_sample_index] = y_2
+        assert np.allclose(solve_triangular(L,tau,lower=True)[-1],y_2)
+        
+        z_2 = y_2/L_22[0,0]
+        assert np.allclose(cholesky_solve_linear_system(L, tau)[-1],z_2)
+        val = -(self.prev_best_obj + self.tau[new_sample_index]*z_2)
+        print(val, -tau.dot(cholesky_solve_linear_system(L, tau)))
+        assert np.allclose(val, -tau.dot(cholesky_solve_linear_system(L, tau)))
+        return val
         
     def set_kernel(self, kernel):
         if (not type(kernel) == RBF and not
@@ -1102,28 +1187,48 @@ class GreedyIVARSampler(object):
             raise Exception(msg)
         self.kernel = kernel
 
+        if self.use_gauss_quadrature:
+            self.precompute()
+            self.objective = self.quadrature_objective
+        else:
+            self.objective = self.monte_carlo_objective
+
     def set_init_pivots(self, init_pivots):
         self.pivots = list(init_pivots)
         self.training_samples = self.candidate_samples[:,init_pivots]
 
     def __call__(self, nsamples):
+        if not hasattr(self, 'kernel'):
+            raise Exception('Must call set_kernel')
+        
         self.nsamples_requested.append(nsamples)
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
-            train_samples = self.training_samples.flatten(order='F')
             obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+            if self.econ:
+                self.L_up = np.zeros((self.L.shape[0]+1, self.L.shape[0]+1))
+                self.L_up[:self.L.shape[0], :self.L.shape[0]] = self.L.copy()
             for mm in range(self.candidate_samples.shape[1]):
                 if mm not in self.pivots:
-                    train_samples_p1 = np.concatenate(
-                        [train_samples, self.candidate_samples[:, mm]])
-                    obj_vals[mm] = self.objective(train_samples_p1)
+                    obj_vals[mm] = self.objective(mm)
 
             pivot = np.argmin(obj_vals)
+
+            if self.econ:
+                self.L = update_cholesky_factorization(
+                    self.L,
+                    self.A[self.pivots, pivot:pivot+1],
+                    np.atleast_2d(self.A[pivot, pivot]))
+                self.prev_best_obj = obj_vals[pivot]
+                self.y_1 = np.concatenate(
+                    [self.y_1, [self.candidate_y_2[pivot]]])
+
             self.pivots.append(pivot)
             new_sample = self.candidate_samples[:, pivot:pivot+1]
             self.training_samples = np.hstack(
                 [self.training_samples,
                  self.candidate_samples[:, pivot:pivot+1]])
+
 
             #print(f'Number of points generated {nn+1}')
 

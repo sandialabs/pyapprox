@@ -169,7 +169,8 @@ def evaluate_multivariate_orthonormal_polynomial(
     # precompute 1D basis functions for faster evaluation of
     # multivariate terms
 
-    precompute_values = precompute_multivariate_orthonormal_polynomial_univariate_values
+    precompute_values = \
+        precompute_multivariate_orthonormal_polynomial_univariate_values
     compute_values =  evaluate_multivariate_orthonormal_polynomial_values
     compute_derivs = evaluate_multivariate_orthonormal_polynomial_derivs
 
@@ -525,6 +526,19 @@ def get_univariate_quadrature_rules_from_pce(pce,degrees):
                 partial(gauss_quadrature,
                         pce.recursion_coeffs[basis_type_index_map[dd]]))
     return univariate_quadrature_rules
+
+def get_univariate_quadrature_rules_from_variable(variable, degrees):
+    assert len(degrees) == variable.num_vars()
+    pce = get_polynomial_from_variable(variable)
+    indices = []
+    for ii in range(pce.num_vars()):
+        indices_ii = np.zeros((pce.num_vars(), degrees[ii]+1), dtype=int)
+        indices_ii[ii, :] = np.arange(degrees[ii]+1, dtype=int)
+        indices.append(indices_ii)
+    pce.set_indices(np.hstack(indices))
+    univariate_quad_rules = get_univariate_quadrature_rules_from_pce(
+        pce, degrees)
+    return univariate_quad_rules, pce
 
 def get_tensor_product_quadrature_rule_from_pce(pce,degrees):
     univariate_quadrature_rules = get_univariate_quadrature_rules_from_pce(

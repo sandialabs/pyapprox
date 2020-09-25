@@ -117,7 +117,7 @@ class TestGaussianProcess(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_gaussian_process_pointwise_variance(self):
+    def xtest_gaussian_process_pointwise_variance(self):
         nvars = 1
         lb, ub = 0, 1
         ntrain_samples = 5
@@ -143,7 +143,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         assert np.allclose(stdev1**2, variance2)
 
-    def test_integrate_gaussian_process_gaussian(self):
+    def xtest_integrate_gaussian_process_gaussian(self):
 
         nvars = 2
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
@@ -330,7 +330,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(
             variance_random_var, np.var(random_variances), rtol=2.2e-2)
 
-    def test_integrate_gaussian_process_uniform(self):
+    def xtest_integrate_gaussian_process_uniform(self):
         np.random.seed(1)
         nvars = 1
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
@@ -405,9 +405,10 @@ class TestSamplers(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_cholesky_sampler_basic_restart(self):
+    def xtest_cholesky_sampler_basic_restart(self):
         nvars = 1
-        variables = [stats.uniform(-1, 2)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.uniform(-1, 2)]*nvars)
         sampler = CholeskySampler(nvars, 100, variables)
         kernel = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
@@ -421,9 +422,10 @@ class TestSamplers(unittest.TestCase):
         samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
         assert np.allclose(samples2, samples)
 
-    def test_cholesky_sampler_restart_with_changed_kernel(self):
+    def xtest_cholesky_sampler_restart_with_changed_kernel(self):
         nvars = 1
-        variables = [stats.uniform(-1, 2)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.uniform(-1, 2)]*nvars)
         kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
         kernel2 = pya.Matern(0.1, length_scale_bounds='fixed', nu=np.inf)
 
@@ -445,11 +447,14 @@ class TestSamplers(unittest.TestCase):
                            sampler.pivots[:num_samples//2])
         assert not np.allclose(samples2, samples)
 
-    def test_cholesky_sampler_restart_with_changed_weight_function(self):
+    def xtest_cholesky_sampler_restart_with_changed_weight_function(self):
         nvars = 1
-        variables = [stats.uniform(-1, 2)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.uniform(-1, 2)]*nvars)
         kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        
         def wfunction1(x): return np.ones(x.shape[1])
+        
         def wfunction2(x): return x[0, :]**2
 
         num_samples = 10
@@ -470,9 +475,11 @@ class TestSamplers(unittest.TestCase):
 
         assert not np.allclose(samples2, samples)
 
-    def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
+    def xtest_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
-        variables = [stats.uniform(0, 1)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.uniform(-1, 2)]*nvars)
+        
         def func(samples): return np.array(
                 [np.sum(samples**2, axis=0), np.sum(samples**3, axis=0)]).T
 
@@ -489,6 +496,7 @@ class TestSamplers(unittest.TestCase):
         # currently AdaptiveGaussianProcess can only handle scalar QoI
         # so only test first QoI of func.
         def func2(samples): return func(samples)[:, :1]
+        
         sampler2 = CholeskySampler(nvars, 100, None)
         sampler2.set_kernel(copy.deepcopy(kernel))
         gp2 = AdaptiveGaussianProcess(kernel=kernel, alpha=1e-12)
@@ -513,7 +521,7 @@ class TestSamplers(unittest.TestCase):
         vals2 = gp2(validation_samples)
         assert np.allclose(vals1[:, 0:1], vals2)
 
-    def test_RBF_gradient_wrt_sample_coordinates(self):
+    def xtest_RBF_gradient_wrt_sample_coordinates(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -565,7 +573,7 @@ class TestSamplers(unittest.TestCase):
         assert errors.min()<1e-6
 
 
-    def test_RBF_gradient_wrt_sample_coordinates_subset(self):
+    def xtest_RBF_gradient_wrt_sample_coordinates_subset(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -599,14 +607,13 @@ class TestSamplers(unittest.TestCase):
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
 
-    def test_ivar_sampler(self):
+    def xtest_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
-        #variables = [stats.uniform(0, 1)]*nvars
-        variables = [stats.beta(20, 20)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
         
-        def generate_random_samples(nsamples):
-            return np.vstack([v.rvs(size=(1, nsamples)) for v in variables])
-
         # correlation length affects ability to check gradient. As kerenl matrix
         # gets more ill conditioned then gradients get worse
         greedy_method = 'givar'
@@ -617,7 +624,7 @@ class TestSamplers(unittest.TestCase):
         sampler.set_kernel(copy.deepcopy(kernel))
 
         def weight_function(samples):
-            return np.prod([variables[ii].pdf(samples[ii,:])
+            return np.prod([variables.all_variables()[ii].pdf(samples[ii,:])
                             for ii in range(samples.shape[0])],axis=0)
 
         if greedy_method == 'chol':
@@ -682,15 +689,34 @@ class TestSamplers(unittest.TestCase):
                  sampler.training_samples[1, :], 'o')
         plt.plot(sampler.greedy_sampler.training_samples[0, :],
                  sampler.greedy_sampler.training_samples[1, :], 'x')
-        plt.show()
+        # plt.show()
 
-    def compare_greedy_ivar_samplers(self):
+    def test_greedy_gauss_quadrature_ivar_sampler(self):
         nvars = 2
-        #variables = [stats.uniform(0, 1)]*nvars
-        variables = [stats.beta(20, 20)]*nvars
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
+
+        sampler = GreedyIVARSampler(nvars, 50, 10, generate_random_samples,
+                                    variables, use_gauss_quadrature=True)
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler.set_kernel(kernel)
+        ntrain_samples = 30
+        new_samples1 = sampler(ntrain_samples)[0]
+        assert False
+        new_samples2 = sampler(2*ntrain_samples)[0]
+
+        #plt.plot(sampler.training_samples[0, :],
+        #         sampler.training_samples[1, :], 'o')
+        #plt.show()
         
-        def generate_random_samples(nsamples):
-            return np.vstack([v.rvs(size=(1, nsamples)) for v in variables])
+    def compare_ivar_samplers(self):
+        nvars = 2
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
 
         # correlation length affects ability to check gradient. As kerenl matrix
         # gets more ill conditioned then gradients get worse
@@ -726,7 +752,7 @@ class TestSamplers(unittest.TestCase):
                  sampler.training_samples[1, :], 'o')
         plt.plot(sampler2.training_samples[0, :],
                  sampler2.training_samples[1, :], 'x')
-        plt.show()
+        # plt.show()
 
         
 if __name__ == "__main__":
@@ -735,4 +761,4 @@ if __name__ == "__main__":
     unittest.TextTestRunner(verbosity=2).run(gaussian_process_test_suite)
     sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestSamplers)
-    unittest.TextTestRunner(verbosity=2).run(cholesky_sampler_test_suite)
+    unittest.TextTestRunner(verbosity=2).run(sampler_test_suite)
