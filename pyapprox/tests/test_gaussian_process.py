@@ -698,7 +698,7 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        sampler = GreedyIVARSampler(nvars, 50, 10, generate_random_samples,
+        sampler = GreedyIVARSampler(nvars, 50, 100, generate_random_samples,
                                     variables, use_gauss_quadrature=True)
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
