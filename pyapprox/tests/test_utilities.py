@@ -643,7 +643,7 @@ class TestUtilities(unittest.TestCase):
 
         x_1 = x[:L_11.shape[0]]
         y_1 = solve_triangular(L_11, x_1, lower=True)
-        z_1 = solve_triangular(L_11, y_1, lower=False)
+        z_1 = solve_triangular(L_11.T, y_1, lower=False)
 
         x_up_1 = x_1
         x_up_2 = x[L_11.shape[0]:]
@@ -656,6 +656,9 @@ class TestUtilities(unittest.TestCase):
             L_11.T, y_up_1 - L_12.dot(z_up_2), lower=False)
         assert np.allclose(z_up_2, z[L_11.shape[0]:])
         assert np.allclose(z_up_1, z[:L_11.shape[0]])
+        assert np.allclose(
+            z_up_1,
+            z_1 - solve_triangular(L_11.T, L_12.dot(z_up_2), lower=False))
 
     def test_beta_pdf_on_ab(self):
         from scipy.stats import beta as beta_rv

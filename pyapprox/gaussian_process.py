@@ -1082,8 +1082,9 @@ class GreedyIVARSampler(object):
         self.use_gauss_quadrature = use_gauss_quadrature
         self.L = np.zeros((0, 0))
 
+        #self.econ = False
         self.econ = True
-        if self.econ:
+        if self.econ is True:
             self.y_1 = np.zeros((0))
             self.candidate_y_2 = np.empty(ncandidate_samples)
 
@@ -1124,57 +1125,71 @@ class GreedyIVARSampler(object):
         self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
 
     def quadrature_objective(self, new_sample_index):
-        # A can be updated rather than recomputed from scratch as below
-        # train_samples = np.hstack(
-        #    [self.training_samples,
-        #     self.candidate_samples[:, new_sample_index:new_sample_index+1]])
-        # A = self.kernel(train_samples.T, train_samples.T)
-        if not self.econ:
-            indices = np.concatenate(
-                [self.pivots, [new_sample_index]]).astype(int)
-            A = self.A[np.ix_(indices, indices)]
-            L = np.linalg.cholesky(A)
-            tau = self.tau[indices]
-            return -tau.dot(cholesky_solve_linear_system(L, tau))
+        indices = np.concatenate(
+            [self.pivots, [new_sample_index]]).astype(int)
+        A = self.A[np.ix_(indices, indices)]
+        L = np.linalg.cholesky(A)
+        tau = self.tau[indices]
+        return -tau.dot(cholesky_solve_linear_system(L, tau))
+
+    def refine_naive(self):
+        ntraining_samples = self.ntraining_samples
+        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+        for mm in range(self.candidate_samples.shape[1]):
+            if mm not in self.pivots:
+                obj_vals[mm] = self.objective(mm)
+
+        pivot = np.argmin(obj_vals)
+        return pivot
+
+    def refine_econ(self):
+        training_samples = self.ntraining_samples
+        obj_vals = self.objecive_vals_econ()
+        obj_vals = self.vectorized_objecive_vals_econ()
+
+        pivot = np.argmin(obj_vals)
+
+        self.L = update_cholesky_factorization(
+            self.L, self.A[self.pivots, pivot:pivot+1],
+            np.atleast_2d(self.A[pivot, pivot]))
+        self.prev_best_obj = obj_vals[pivot]
+        self.y_1 = np.concatenate([self.y_1, [self.candidate_y_2[pivot]]])
         
+        return pivot
+
+    def objective_vals_econ(self):
+        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+        for mm in range(self.candidate_samples.shape[1]):
+            if mm not in self.pivots:
+                obj_vals[mm] = self.quadrature_objective_econ(mm)
+        return obj_vals
+
+    def vectorized_objective_vals_econ(self):
         if self.L.shape[0] == 0:
-            indices = np.concatenate(
-                [self.pivots, [new_sample_index]]).astype(int)
-            A = self.A[np.ix_(indices, indices)]
-            L1 = np.linalg.cholesky(A)
+            diag_A = np.diag(self.A)
+            L = np.sqrt(diag_A)
+            vals = self.tau**2/diag_A
+            return -vals
+            
+            
+    def quadrature_objective_econ(self, new_sample_index):
+        if self.L.shape[0] == 0:
             L = np.sqrt(self.A[new_sample_index, new_sample_index])
-            tau = self.tau[indices]
-            assert np.allclose(-self.tau[new_sample_index]**2/self.A[
-                new_sample_index, new_sample_index],-tau.dot(cholesky_solve_linear_system(L1, tau)))
-            assert np.allclose(solve_triangular(L1,tau),self.tau[new_sample_index]/L)
             self.candidate_y_2[new_sample_index] = self.tau[new_sample_index]/L
-            return -self.tau[new_sample_index]**2/self.A[
+            val = self.tau[new_sample_index]**2/self.A[
                 new_sample_index, new_sample_index]
+            return -val
 
         A_12 = self.A[self.pivots, new_sample_index:new_sample_index+1]
         L_12 = solve_triangular(self.L, A_12, lower=True)
         L_22 = np.sqrt(
             self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
-        #--------------------
-        self.L_up[-1, :len(self.pivots)] = L_12.T
-        self.L_up[-1,-1] = L_22
-        #assert np.allclose(self.L_up, L), (self.L_up -L)
-        L = self.L_up
-        indices = np.concatenate(
-            [self.pivots, [new_sample_index]]).astype(int)
-        tau = self.tau[indices]
-        # no need to compute L_up once below is working
-        #--------------------
-        
-        y_2 = (self.tau[new_sample_index]-L_12.T.dot(self.y_1))/L_22[0,0]
+        y_2 = (self.tau[new_sample_index]-L_12.T.dot(self.y_1))/L_22[0, 0]
         self.candidate_y_2[new_sample_index] = y_2
-        assert np.allclose(solve_triangular(L,tau,lower=True)[-1],y_2)
-        
-        z_2 = y_2/L_22[0,0]
-        assert np.allclose(cholesky_solve_linear_system(L, tau)[-1],z_2)
-        val = -(self.prev_best_obj + self.tau[new_sample_index]*z_2)
-        print(val, -tau.dot(cholesky_solve_linear_system(L, tau)))
-        assert np.allclose(val, -tau.dot(cholesky_solve_linear_system(L, tau)))
+        z_2 = y_2/L_22[0, 0]
+        val = -(-self.prev_best_obj + self.tau[new_sample_index]*z_2 -
+                self.tau[self.pivots].dot(
+                    solve_triangular(self.L.T, L_12*z_2, lower=False)))
         return val
         
     def set_kernel(self, kernel):
@@ -1204,32 +1219,14 @@ class GreedyIVARSampler(object):
         self.nsamples_requested.append(nsamples)
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
-            obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
-            if self.econ:
-                self.L_up = np.zeros((self.L.shape[0]+1, self.L.shape[0]+1))
-                self.L_up[:self.L.shape[0], :self.L.shape[0]] = self.L.copy()
-            for mm in range(self.candidate_samples.shape[1]):
-                if mm not in self.pivots:
-                    obj_vals[mm] = self.objective(mm)
-
-            pivot = np.argmin(obj_vals)
-
-            if self.econ:
-                self.L = update_cholesky_factorization(
-                    self.L,
-                    self.A[self.pivots, pivot:pivot+1],
-                    np.atleast_2d(self.A[pivot, pivot]))
-                self.prev_best_obj = obj_vals[pivot]
-                self.y_1 = np.concatenate(
-                    [self.y_1, [self.candidate_y_2[pivot]]])
-
+            pivot1 = self.refine_naive()
+            pivot = self.refine_econ()
+            assert np.allclose(pivot, pivot1)
             self.pivots.append(pivot)
             new_sample = self.candidate_samples[:, pivot:pivot+1]
             self.training_samples = np.hstack(
                 [self.training_samples,
                  self.candidate_samples[:, pivot:pivot+1]])
-
-
             #print(f'Number of points generated {nn+1}')
 
         new_samples = self.training_samples[:,ntraining_samples:]
