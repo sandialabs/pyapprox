@@ -714,19 +714,20 @@ class TestSamplers(unittest.TestCase):
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         
         np.random.seed(1)
-        sampler1 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
+        sampler1 = GreedyIVARSampler(nvars, 50, 10000, generate_random_samples,
                                      variables, use_gauss_quadrature=True,
-                                     econ=False)
+                                     econ=True)
         sampler1.set_kernel(kernel)
         
         ntrain_samples = 30
         new_samples11 = sampler1(ntrain_samples)[0]
         new_samples12 = sampler1(2*ntrain_samples)[0]
+        assert False
 
         np.random.seed(1)
         sampler2 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
                                      variables, use_gauss_quadrature=True,
-                                     econ=True)
+                                     econ=False)
         sampler2.set_kernel(kernel)
 
         new_samples21 = sampler2(ntrain_samples)[0]
