@@ -698,14 +698,43 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        sampler = GreedyIVARSampler(nvars, 50, 100, generate_random_samples,
+        sampler = GreedyIVARSampler(nvars, 1000, 10, generate_random_samples,
                                     variables, use_gauss_quadrature=True)
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
+
+        sampler.nmonte_carlo_samples = 100000
+        sampler.precompute_monte_carlo()
+        tau_mc = sampler.tau.copy()
+        sampler.nmonte_carlo_samples = 50
+        sampler.precompute_gauss_quadrature()
+        tau_gq = sampler.tau.copy()
+        assert np.allclose(tau_mc, tau_gq, rtol=1e-2)
+
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        
+        np.random.seed(1)
+        sampler1 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
+                                     variables, use_gauss_quadrature=True,
+                                     econ=False)
+        sampler1.set_kernel(kernel)
+        
         ntrain_samples = 30
-        new_samples1 = sampler(ntrain_samples)[0]
-        assert False
-        new_samples2 = sampler(2*ntrain_samples)[0]
+        new_samples11 = sampler1(ntrain_samples)[0]
+        new_samples12 = sampler1(2*ntrain_samples)[0]
+
+        np.random.seed(1)
+        sampler2 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
+                                     variables, use_gauss_quadrature=True,
+                                     econ=True)
+        sampler2.set_kernel(kernel)
+
+        new_samples21 = sampler2(ntrain_samples)[0]
+        new_samples22 = sampler2(2*ntrain_samples)[0]
+        assert np.allclose(new_samples11, new_samples21)
+        assert np.allclose(new_samples12, new_samples22)
+        
+        
 
         #plt.plot(sampler.training_samples[0, :],
         #         sampler.training_samples[1, :], 'o')
@@ -762,3 +791,4 @@ if __name__ == "__main__":
     sampler_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestSamplers)
     unittest.TextTestRunner(verbosity=2).run(sampler_test_suite)
+    
