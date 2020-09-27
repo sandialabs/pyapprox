@@ -1061,17 +1061,15 @@ class GreedyIVARSampler(object):
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
-                 use_gauss_quadrature=False):
+                 use_gauss_quadrature=False, econ=True):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
         self.variables = variables
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
-        
+        self.generate_random_samples = generate_random_samples
         self.use_gauss_quadrature = use_gauss_quadrature
-        if self.use_gauss_quadrature is False:
-            self.pred_samples = generate_random_samples(
-                self.nmonte_carlo_samples)
+        self.econ = econ
 
         self.candidate_samples = generate_candidate_samples(
             self.nvars, ncandidate_samples, generate_random_samples,
@@ -1079,24 +1077,28 @@ class GreedyIVARSampler(object):
         self.nsamples_requested = []
         self.pivots = []
 
-        self.use_gauss_quadrature = use_gauss_quadrature
         self.L = np.zeros((0, 0))
 
-        #self.econ = False
         self.econ = True
         if self.econ is True:
             self.y_1 = np.zeros((0))
             self.candidate_y_2 = np.empty(ncandidate_samples)
 
-    def monte_carlo_objective(self, new_sample_index):
-        train_samples = np.hstack(
-            [self.training_samples,
-             self.candidate_samples[:, new_sample_index:new_sample_index+1]])
-        return gaussian_process_pointwise_variance(
-            self.kernel, self.pred_samples,
-            train_samples).mean()
+    # def monte_carlo_objective(self, new_sample_index):
+    #     train_samples = np.hstack(
+    #         [self.training_samples,
+    #          self.candidate_samples[:, new_sample_index:new_sample_index+1]])
+    #     return gaussian_process_pointwise_variance(
+    #         self.kernel, self.pred_samples,
+    #         train_samples).mean()
 
-    def precompute(self):
+    def precompute_monte_carlo(self):
+        self.pred_samples = self.generate_random_samples(
+            self.nmonte_carlo_samples)
+        k = self.kernel(self.pred_samples.T, self.candidate_samples.T)
+        self.tau = k.mean(axis=0)
+
+    def precompute_gauss_quadrature(self):
         nvars = self.variables.num_vars()
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
@@ -1107,6 +1109,7 @@ class GreedyIVARSampler(object):
                     self.variables, degrees)
             dist_func = partial(cdist, metric='sqeuclidean')
             self.tau = 1
+            
         for ii in range(self.nvars):
             # Get 1D quadrature rule
             xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
@@ -1124,7 +1127,7 @@ class GreedyIVARSampler(object):
 
         self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
 
-    def quadrature_objective(self, new_sample_index):
+    def objective(self, new_sample_index):
         indices = np.concatenate(
             [self.pivots, [new_sample_index]]).astype(int)
         A = self.A[np.ix_(indices, indices)]
@@ -1144,8 +1147,10 @@ class GreedyIVARSampler(object):
 
     def refine_econ(self):
         training_samples = self.ntraining_samples
-        obj_vals = self.objecive_vals_econ()
-        obj_vals = self.vectorized_objecive_vals_econ()
+        #obj_vals1 = self.objective_vals_econ()
+        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
+        obj_vals[self.active_candidates] = self.vectorized_objective_vals_econ()
+        #assert np.allclose(obj_vals ,obj_vals1)
 
         pivot = np.argmin(obj_vals)
 
@@ -1169,9 +1174,22 @@ class GreedyIVARSampler(object):
             diag_A = np.diag(self.A)
             L = np.sqrt(diag_A)
             vals = self.tau**2/diag_A
+            self.candidate_y_2 = self.tau/L
             return -vals
-            
-            
+
+        A_12 = np.atleast_2d(
+            self.A[np.ix_(self.pivots, self.active_candidates)])
+        L_12 = solve_triangular(self.L, A_12, lower=True)
+        L_22 = np.sqrt(np.diagonal(self.A)[self.active_candidates] - np.sum(
+            L_12*L_12, axis=0))
+        y_2 = (self.tau[self.active_candidates]-L_12.T.dot(self.y_1))/L_22
+        self.candidate_y_2[self.active_candidates] = y_2
+        z_2 = y_2/L_22
+        vals = -(-self.prev_best_obj + self.tau[self.active_candidates]*z_2 -
+                self.tau[self.pivots].dot(
+                    solve_triangular(self.L.T, L_12*z_2, lower=False)))
+        return vals
+
     def quadrature_objective_econ(self, new_sample_index):
         if self.L.shape[0] == 0:
             L = np.sqrt(self.A[new_sample_index, new_sample_index])
@@ -1202,11 +1220,12 @@ class GreedyIVARSampler(object):
             raise Exception(msg)
         self.kernel = kernel
 
+        self.active_candidates = np.ones(
+            self.candidate_samples.shape[1],dtype=bool)
         if self.use_gauss_quadrature:
-            self.precompute()
-            self.objective = self.quadrature_objective
+            self.precompute_gauss_quadrature()
         else:
-            self.objective = self.monte_carlo_objective
+            self.precompute_monte_carlo()
 
     def set_init_pivots(self, init_pivots):
         self.pivots = list(init_pivots)
@@ -1219,15 +1238,17 @@ class GreedyIVARSampler(object):
         self.nsamples_requested.append(nsamples)
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
-            pivot1 = self.refine_naive()
-            pivot = self.refine_econ()
-            assert np.allclose(pivot, pivot1)
+            if self.econ is True:
+                pivot = self.refine_econ()
+            else:
+                pivot = self.refine_naive()
             self.pivots.append(pivot)
             new_sample = self.candidate_samples[:, pivot:pivot+1]
             self.training_samples = np.hstack(
                 [self.training_samples,
                  self.candidate_samples[:, pivot:pivot+1]])
             #print(f'Number of points generated {nn+1}')
+            self.active_candidates[pivot] = False
 
         new_samples = self.training_samples[:,ntraining_samples:]
         self.ntraining_samples = self.training_samples.shape[1]
