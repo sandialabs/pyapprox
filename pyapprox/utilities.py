@@ -1466,9 +1466,47 @@ def update_cholesky_factorization(L_11, A_12, A_22):
     assert A_22.shape == (ncols, ncols)
     assert L_11.shape == (nrows, nrows)
     L_12 = solve_triangular(L_11, A_12, lower=True)
+    print(A_22 - L_12.T.dot(L_12))
     L_22 = np.linalg.cholesky(A_22 - L_12.T.dot(L_12))
     L = np.block([[L_11, np.zeros((nrows, ncols))], [L_12.T, L_22]])
     return L
+
+
+def update_cholesky_factorization_inverse(L_11_inv, L_12, L_22):
+    nrows, ncols = L_12.shape
+    L_22_inv = np.linalg.inv(L_22)
+    L_inv = np.block(
+        [[L_11_inv, np.zeros((nrows, ncols))],
+         [-L_22_inv.dot(L_12.T.dot(L_11_inv)), L_22_inv]])
+    return L_inv
+
+
+def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
+                                            prev_trace):
+    """
+    Update the trace of matrix matrix product involving the inverse of a
+    matrix with a cholesky factorization. 
+
+    That is compute
+
+    .. math:: \mathrm{Trace}\leftA^{inv}B\right}
+
+    where :math:`A=LL^T`
+    """
+    nrows, ncols = L_12.shape
+    assert B.shape == (nrows+ncols, nrows+ncols)
+    B_11 = B[:nrows, :nrows]
+    B_12 = B[:nrows, nrows:]
+    B_21 = B[nrows:, :nrows]
+    B_22 = B[nrows:, nrows:]
+    #assert np.allclose(B, np.block([[B_11, B_12],[B_21, B_22]]))
+
+    C = -np.dot(L_22_inv.dot(L_12.T), L_11_inv)
+    C_T_L_22_inv = C.T.dot(L_22_inv)
+    trace = prev_trace + np.sum(C.T.dot(C)*B_11) + \
+        np.sum(C_T_L_22_inv*B_12) + np.sum(C_T_L_22_inv.T*B_21) +  \
+        np.sum(L_22_inv.T.dot(L_22_inv)*B_22)
+    return trace
 
 
 def num_entries_square_triangular_matrix(N, include_diagonal=True):

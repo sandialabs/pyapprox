@@ -1043,7 +1043,7 @@ class IVARSampler(object):
         return new_samples, 0
 
 
-class GreedyIVARSampler(object):
+class GreedyMeanVarianceSampler(object):
     """
     Parameters
     ----------
@@ -1052,12 +1052,10 @@ class GreedyIVARSampler(object):
 
     nmonte_carlo_samples : integer
         The number of samples used to compute the sample based estimate
-        of the integrated variance (IVAR)
+        of the variance of mean criteria 
 
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
-        used to determine the initial guess (set of points) for the gradient 
-        based optimization
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
@@ -1098,24 +1096,29 @@ class GreedyIVARSampler(object):
         k = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         self.tau = k.mean(axis=0)
 
+    def get_univariate_quadrature_rule(self, ii):
+        xx_1d, ww_1d = self.univariate_quad_rules[ii](degrees[ii]+1)
+        jj = pce.basis_type_index_map[ii]
+        loc, scale = pce.var_trans.scale_parameters[jj, :]
+        xx_1d = xx_1d*scale+loc
+        return xx_1d, ww_1d
+
     def precompute_gauss_quadrature(self):
         nvars = self.variables.num_vars()
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = [length_scale]*nvars
             degrees = [self.nmonte_carlo_samples]*nvars
-            univariate_quad_rules, pce = \
-                get_univariate_quadrature_rules_from_variable(
-                    self.variables, degrees)
-            dist_func = partial(cdist, metric='sqeuclidean')
-            self.tau = 1
+            
+        self.univariate_quad_rules, pce = \
+            get_univariate_quadrature_rules_from_variable(
+                self.variables, degrees)
+        dist_func = partial(cdist, metric='sqeuclidean')
+        self.tau = 1
             
         for ii in range(self.nvars):
             # Get 1D quadrature rule
-            xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
-            jj = pce.basis_type_index_map[ii]
-            loc, scale = pce.var_trans.scale_parameters[jj, :]
-            xx_1d = xx_1d*scale+loc
+            xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
             
             # Training samples of ith variable
             xtr = self.candidate_samples[ii:ii+1, :]
@@ -1125,15 +1128,16 @@ class GreedyIVARSampler(object):
             K = np.exp(-.5*dists_1d_x1_xtr)
             self.tau *= ww_1d.dot(K)
 
-        self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
-
     def objective(self, new_sample_index):
         indices = np.concatenate(
             [self.pivots, [new_sample_index]]).astype(int)
         A = self.A[np.ix_(indices, indices)]
-        L = np.linalg.cholesky(A)
+        try:
+            L = np.linalg.cholesky(A)
+        except:
+            return np.inf
         tau = self.tau[indices]
-        return -tau.dot(cholesky_solve_linear_system(L, tau))
+        return -tau.T.dot(cholesky_solve_linear_system(L, tau))
 
     def refine_naive(self):
         ntraining_samples = self.ntraining_samples
@@ -1143,21 +1147,62 @@ class GreedyIVARSampler(object):
                 obj_vals[mm] = self.objective(mm)
 
         pivot = np.argmin(obj_vals)
+        if not np.isfinite(obj_vals[pivot]):
+            # no more candidate points can be added without making matrix
+            # no longer positive definite
+            pivot = None
         return pivot
 
     def refine_econ(self):
         training_samples = self.ntraining_samples
-        #obj_vals1 = self.objective_vals_econ()
-        obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
-        obj_vals[self.active_candidates] = self.vectorized_objective_vals_econ()
-        #assert np.allclose(obj_vals ,obj_vals1)
+        obj_vals = self.vectorized_objective_vals_econ()
+        # obj_vals1 = self.objective_vals_econ()
+        # assert np.allclose(obj_vals ,obj_vals1)
 
         pivot = np.argmin(obj_vals)
+        assert np.isfinite(obj_vals[pivot])
 
-        self.L = update_cholesky_factorization(
-            self.L, self.A[self.pivots, pivot:pivot+1],
-            np.atleast_2d(self.A[pivot, pivot]))
+        if self.L.shape[0]==0:
+            self.L = np.atleast_2d(self.A[pivot, pivot])
+        else:
+            A_12 = self.A[self.pivots, pivot:pivot+1]
+            L_12 = solve_triangular(self.L, A_12, lower=True)
+
+            # I = np.argmin(
+            #     np.absolute(self.temp-(self.A[pivot, pivot]-L_12.T.dot(L_12))))
+            # print(np.where(self.temp==(self.A[pivot, pivot]-L_12.T.dot(L_12))))
+            # if not np.allclose(I,pivot):
+            #     obj_vals1 = np.inf*np.ones(self.candidate_samples.shape[1])
+            #     for mm in range(self.candidate_samples.shape[1]):
+            #         if mm not in self.pivots:
+            #             obj_vals1[mm] = self.objective(mm)
+            #     print(obj_vals[pivot])
+            #     print(self.temp[pivot])
+            #     print(self.A[pivot, pivot] - L_12.T.dot(L_12))
+            #     print(np.argmin(obj_vals1),pivot,I)
+
+
+            #     pred_samples = self.generate_random_samples(10000)
+            #     t = self.candidate_samples[:,self.pivots]
+            #     k_pred = self.kernel(t.T, pred_samples.T)
+            #     L = np.linalg.cholesky(self.A[np.ix_(self.pivots,self.pivots)])
+            #     tmp = solve_triangular(L, k_pred, lower=True)
+            #     v1 = self.kernel.diag(pred_samples.T)
+            #     v2 = np.sum(tmp*tmp, axis=0)
+            #     variance = v1-v2
+            #     print(np.trace(k_pred.T.dot(np.linalg.inv(self.A[np.ix_(self.pivots,self.pivots)])).dot(k_pred))/pred_samples.shape[1])
+            #     print(np.trace(tmp.T.dot(tmp)))
+            #     print(v1.mean(), v2.mean())
+            #     print(variance.mean())
+            #     assert False
+            
+            L_22 = np.sqrt(self.A[pivot, pivot] - L_12.T.dot(L_12))
+            self.L = np.block(
+                [[self.L, np.zeros((self.L.shape[0], L_12.shape[1]))],
+                 [L_12.T, L_22]])
+            
         self.prev_best_obj = obj_vals[pivot]
+        assert np.isfinite(self.candidate_y_2[pivot])
         self.y_1 = np.concatenate([self.y_1, [self.candidate_y_2[pivot]]])
         
         return pivot
@@ -1171,23 +1216,32 @@ class GreedyIVARSampler(object):
 
     def vectorized_objective_vals_econ(self):
         if self.L.shape[0] == 0:
-            diag_A = np.diag(self.A)
+            diag_A = np.diagonal(self.A)
             L = np.sqrt(diag_A)
             vals = self.tau**2/diag_A
             self.candidate_y_2 = self.tau/L
             return -vals
 
-        A_12 = np.atleast_2d(
-            self.A[np.ix_(self.pivots, self.active_candidates)])
+        A_12 = np.atleast_2d(self.A[self.pivots, :])
         L_12 = solve_triangular(self.L, A_12, lower=True)
-        L_22 = np.sqrt(np.diagonal(self.A)[self.active_candidates] - np.sum(
+        J = np.where((np.diagonal(self.A)-np.sum(L_12*L_12, axis=0)) <= 0)[0]
+        self.temp = np.diagonal(self.A)-np.sum(L_12*L_12, axis=0)
+        useful_candidates = np.ones(
+            (self.candidate_samples.shape[1]), dtype=bool)
+        useful_candidates[J] = False
+        useful_candidates[self.pivots] = False
+        L_12 = L_12[:, useful_candidates]
+        L_22 = np.sqrt(np.diagonal(self.A)[useful_candidates] - np.sum(
             L_12*L_12, axis=0))
-        y_2 = (self.tau[self.active_candidates]-L_12.T.dot(self.y_1))/L_22
-        self.candidate_y_2[self.active_candidates] = y_2
+        y_2 = (self.tau[useful_candidates]-L_12.T.dot(self.y_1))/L_22
+        self.candidate_y_2[useful_candidates] = y_2
+        self.candidate_y_2[~useful_candidates] = np.inf
         z_2 = y_2/L_22
-        vals = -(-self.prev_best_obj + self.tau[self.active_candidates]*z_2 -
-                self.tau[self.pivots].dot(
-                    solve_triangular(self.L.T, L_12*z_2, lower=False)))
+        vals = np.inf*np.ones((self.candidate_samples.shape[1]))
+        vals[useful_candidates] = -(
+            -self.prev_best_obj + self.tau[useful_candidates]*z_2 -
+            self.tau[self.pivots].dot(
+                solve_triangular(self.L.T, L_12*z_2, lower=False)))
         return vals
 
     def quadrature_objective_econ(self, new_sample_index):
@@ -1226,6 +1280,7 @@ class GreedyIVARSampler(object):
             self.precompute_gauss_quadrature()
         else:
             self.precompute_monte_carlo()
+        self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
 
     def set_init_pivots(self, init_pivots):
         self.pivots = list(init_pivots)
@@ -1238,6 +1293,7 @@ class GreedyIVARSampler(object):
         self.nsamples_requested.append(nsamples)
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
+            print('Iter', nn)
             if self.econ is True:
                 pivot = self.refine_econ()
             else:
@@ -1254,3 +1310,59 @@ class GreedyIVARSampler(object):
         self.ntraining_samples = self.training_samples.shape[1]
 
         return new_samples, 0
+
+
+class GreedyIntegratedVarianceSampler(GreedyMeanVarianceSampler):
+    """
+    Parameters
+    ----------
+    num_vars : integer
+        The number of dimensions
+
+    nmonte_carlo_samples : integer
+        The number of samples used to compute the sample based estimate
+        of the integrated variance (IVAR)
+
+    ncandidate_samples : integer
+        The number of samples used by the greedy downselection procedure
+    """
+    def precompute_gauss_quadrature(self):
+        length_scale = self.kernel.length_scale
+        self.univariate_quad_rules, pce = \
+            get_univariate_quadrature_rules_from_variable(
+                self.variables, degrees)
+        self.P = 1
+        for ii in range(self.nvars):
+            xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
+            xtr = self.candidate_samples[ii:ii+1, :]
+            self.P *= integrate_tau_P(xx_1d, ww_1d, xtr, length_scale[ii])[1]
+
+    def objective(self, new_sample_index):
+        indices = np.concatenate(
+            [self.pivots, [new_sample_index]]).astype(int)
+        A = self.A[np.ix_(indices, indices)]
+        try:
+            L = np.linalg.cholesky(A)
+        except:
+            return np.inf
+        P = self.P[np.ix_(indices,indices)]
+        return -np.trace(A_inv.dot(P))
+
+    def quadrature_objective_econ(self, new_sample_index):
+        if self.L.shape[0] == 0:
+            L = np.sqrt(self.A[new_sample_index, new_sample_index])
+            val = self.tau[new_sample_index]**2/self.A[
+                new_sample_index, new_sample_index]
+            return -val
+
+        A_12 = self.A[self.pivots, new_sample_index:new_sample_index+1]
+        L_12 = solve_triangular(self.L, A_12, lower=True)
+        L_22 = np.sqrt(
+            self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
+        y_2 = (self.tau[new_sample_index]-L_12.T.dot(self.y_1))/L_22[0, 0]
+        self.candidate_y_2[new_sample_index] = y_2
+        z_2 = y_2/L_22[0, 0]
+        val = -(-self.prev_best_obj + self.tau[new_sample_index]*z_2 -
+                self.tau[self.pivots].dot(
+                    solve_triangular(self.L.T, L_12*z_2, lower=False)))
+        return val

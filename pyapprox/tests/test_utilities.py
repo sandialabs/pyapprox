@@ -5,6 +5,9 @@ from scipy.linalg import lu_factor, lu as scipy_lu
 
 class TestUtilities(unittest.TestCase):
 
+    def setUp(self):
+        np.random.seed(1)
+
     def test_cartesian_product(self):
         # test when num elems = 1
         s1 = np.arange( 0, 3 )
@@ -632,10 +635,25 @@ class TestUtilities(unittest.TestCase):
         L_12_T = L[L_11.shape[0]:, :L_11.shape[1]]
         L_12 = L_12_T.T
         L_22 = L[L_11.shape[0]:, L_11.shape[0]:]
+        assert np.allclose(
+            L_inv, update_cholesky_factorization_inverse(L_11_inv, L_12, L_22))
+
         L_22_inv = np.linalg.inv(L_22)
-        Z = np.zeros(A_12.shape)
-        assert np.allclose(L_inv, np.block(
-            [[L_11_inv, Z],[-L_22_inv.dot(L_12_T.dot(L_11_inv)),L_22_inv]]))
+        C = -np.dot(L_22_inv.dot(L_12.T), L_11_inv)
+        A_inv = np.block(
+            [[L_11_inv.T.dot(L_11_inv)+C.T.dot(C),C.T.dot(L_22_inv)],
+             [L_22_inv.T.dot(C), L_22_inv.T.dot(L_22_inv)]])
+        assert np.allclose(A_inv, np.linalg.inv(A))
+
+        
+        N = np.random.normal(0, 1, A.shape)
+        assert np.allclose(np.trace(np.linalg.inv(A).dot(B)), np.sum(A_inv*B))
+
+        B_11 = B[:A_11.shape[0], :A_11.shape[1]]
+        prev_trace = np.trace(np.linalg.inv(A_11).dot(B_11))
+        trace = update_trace_involving_cholesky_inverse(
+            L_11_inv, L_12, L_22_inv, B, prev_trace)
+        assert np.allclose(trace, np.trace(np.linalg.inv(A).dot(B)))
 
         x = np.random.normal(0, 1, (nvars))
         y = solve_triangular(L, x, lower=True)
