@@ -714,12 +714,12 @@ class TestSamplers(unittest.TestCase):
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         
         np.random.seed(1)
-        sampler1 = GreedyIVARSampler(nvars, 50, 10000, generate_random_samples,
-                                     variables, use_gauss_quadrature=True,
+        sampler1 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
+                                     variables, use_gauss_quadrature=False,
                                      econ=True)
         sampler1.set_kernel(kernel)
         
-        ntrain_samples = 30
+        ntrain_samples = 100
         new_samples11 = sampler1(ntrain_samples)[0]
         new_samples12 = sampler1(2*ntrain_samples)[0]
         assert False
@@ -735,11 +735,10 @@ class TestSamplers(unittest.TestCase):
         assert np.allclose(new_samples11, new_samples21)
         assert np.allclose(new_samples12, new_samples22)
         
-        
 
-        #plt.plot(sampler.training_samples[0, :],
-        #         sampler.training_samples[1, :], 'o')
-        #plt.show()
+        #$plt.plot(sampler1.training_samples[0, :],
+        #         sampler1.training_samples[1, :], 'o')
+        plt.show()
         
     def compare_ivar_samplers(self):
         nvars = 2
