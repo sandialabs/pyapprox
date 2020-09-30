@@ -698,11 +698,64 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        sampler = GreedyIVARSampler(nvars, 1000, 10, generate_random_samples,
-                                    variables, use_gauss_quadrature=True)
+        np.random.seed(1)
+        sampler1 = GreedyIntegratedVarianceSampler(
+            nvars, 100, 10, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=True)
+        np.random.seed(1)
+        sampler2 = GreedyIntegratedVarianceSampler(
+            nvars, 100, 10, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=False)
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler1.set_kernel(kernel)
+        sampler2.set_kernel(kernel)
+
+        obj_vals1 = sampler1.objective_vals_econ()
+        obj_vals2 = sampler2.objective_vals()
+        assert np.allclose(obj_vals1, obj_vals2)
+        pivot1 = sampler1.refine_econ()
+        pivot2 = sampler2.refine_naive()
+        assert np.allclose(pivot1, pivot2)
+
+        for nsamples in [1,2,3]:
+            #refine functions update internal variables so reset
+            np.random.seed(1)
+            sampler1 = GreedyIntegratedVarianceSampler(
+                nvars, 100, 10, generate_random_samples,
+                variables, use_gauss_quadrature=True, econ=True)
+            np.random.seed(1)
+            sampler2 = GreedyIntegratedVarianceSampler(
+                nvars, 100, 10, generate_random_samples,
+                variables, use_gauss_quadrature=True, econ=False)
+            kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+            sampler1.set_kernel(kernel)
+            sampler2.set_kernel(kernel)
+            #print('nsamples',nsamples)
+            sampler1(nsamples)
+            sampler2(nsamples)
+
+            obj_vals1 = sampler1.objective_vals_econ()
+            obj_vals2 = sampler2.objective_vals()
+            #print(obj_vals1, obj_vals2)
+            assert np.allclose(obj_vals1, obj_vals2)
+            pivot1 = sampler1.refine_econ()
+            pivot2 = sampler2.refine_naive()
+            #print(pivot1, pivot2)
+            assert np.allclose(pivot1, pivot2)
+
+    def test_greedy_variance_of_mean_sampler(self):
+        nvars = 2
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
+
+        sampler = GreedyVarianceOfMeanSampler(
+            nvars, 1000, 10, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=True)
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
-
+        
         sampler.nmonte_carlo_samples = 100000
         sampler.precompute_monte_carlo()
         tau_mc = sampler.tau.copy()
@@ -714,9 +767,10 @@ class TestSamplers(unittest.TestCase):
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         
         np.random.seed(1)
-        sampler1 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
-                                     variables, use_gauss_quadrature=False,
-                                     econ=True)
+        sampler1 = GreedyIntegratedVarianceSampler(
+            nvars, 50, 1000, generate_random_samples,
+            variables, use_gauss_quadrature=False,
+            econ=True)
         sampler1.set_kernel(kernel)
         
         ntrain_samples = 100
