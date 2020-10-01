@@ -606,56 +606,69 @@ class TestSamplers(unittest.TestCase):
         #print('\n', np.absolute(jac-fd_jac).max())
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
-    def test_integrated_RBF_gradient_wrt_sample_coordinates(self):
+    def test_integrate_grad_P(self):
         nvars = 2
-        lb, ub = 0, 1
-        ntrain_samples_1d = 10
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+        univariate_variables = [stats.norm()]*nvars
+        #lb, ub = univariate_variables[0].interval(0.99999)
+        lb, ub = -2, 2 
+
+        ntrain_samples_1d = 2
 
         train_samples = pya.cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
 
-        length_scale = [0.1, 0.2][:nvars]
+        length_scale = [0.5, 0.4][:nvars]
         kernel = RBF(length_scale, length_scale_bounds='fixed')
 
-        pred_samples = np.random.uniform(0, 1, (nvars, 3))
-        x0 = train_samples[:, :1]
-        grad = RBF_gradient_wrt_sample_coordinates(
-            x0, pred_samples, length_scale)
+        # the shorter the length scale the larger the number of quadrature
+        # points is needed
+        xx_1d, ww_1d = pya.gauss_hermite_pts_wts_1D(100)
+        grad_P = integrate_grad_P(
+            [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)
 
-        fd_grad = pya.approx_jacobian(
-            lambda x: kernel(x, pred_samples.T)[0, :], x0[:,0])
-        assert np.allclose(grad, fd_grad, atol=1e-6)
-        errors = pya.check_gradients(
-            lambda x: kernel(x.T, pred_samples.T)[0, :],
-            lambda x: RBF_gradient_wrt_sample_coordinates(
-                x, pred_samples, length_scale), x0)
-        assert errors.min()<1e-6
-
-        jac = RBF_jacobian_wrt_sample_coordinates(
-            train_samples, pred_samples, kernel)
-
-        x0 = train_samples.flatten(order='F')
+        a, b = train_samples[:, 0]
+        mu = [0]*nvars
+        sigma = [1]*nvars
+        term1 = gaussian_grad_P_diag_term1(a, length_scale[0], mu[0], sigma[0])
+        term2 = gaussian_grad_P_diag_term2(b, length_scale[1], mu[1], sigma[1])
         assert np.allclose(
-            train_samples, x0.reshape(train_samples.shape, order='F'))
+            term1,
+            gaussian_grad_P_offdiag_term1(
+                a, a, length_scale[0], mu[0], sigma[0]))
+        assert np.allclose(
+            term2,
+            gaussian_grad_P_offdiag_term2(
+                b, b, length_scale[1], mu[1], sigma[1]))
+        assert np.allclose(
+            term1,
+            ((xx_1d-a)/length_scale[0]**2*np.exp(
+                -(xx_1d-a)**2/(2*length_scale[0]**2))**2).dot(ww_1d))
+        assert np.allclose(
+            term2,(np.exp(-(xx_1d-b)**2/(2*length_scale[1]**2))**2).dot(ww_1d))
 
-        def func(x_flat):
-            return gaussian_process_pointwise_variance(
-                kernel, pred_samples, x_flat.reshape(
-                    train_samples.shape, order='F'))
-        fd_jac = pya.approx_jacobian(func, x0)
+        pred_samples = pya.cartesian_product([xx_1d]*nvars)
+        weights = pya.outer_product([ww_1d]*nvars)
+        for ii in range(train_samples.shape[1]):
+            x0 = train_samples[:, ii:ii+1]
+            grad = RBF_gradient_wrt_sample_coordinates(
+                x0, pred_samples, length_scale)
+            for jj in range(train_samples.shape[1]):
+                x1 = train_samples[:, jj:jj+1]
+                K = kernel(pred_samples.T, x1.T)
+                for kk in range(nvars):
+                    grad_P_quad = (grad[:, kk:kk+1]*K).T.dot(weights)
+                    grad_P_exact = gaussian_grad_P_offdiag_term1(
+                        x0[kk, 0], x1[kk, 0], length_scale[kk],
+                        mu[kk], sigma[kk])*gaussian_grad_P_offdiag_term2(
+                            x0[1-kk,0], x1[1-kk,0], length_scale[1-kk],
+                            mu[1-kk], sigma[1-kk])
+                    print (kk,ii,jj,'\n',grad_P_quad,'\n',grad_P_exact, '\n',
+                           grad_P)#[nvars*ii+kk,jj])
+                    assert np.allclose(grad_P_quad, grad_P_exact)
+                    assert np.allclose(grad_P_quad, grad_P[nvars*ii+kk,jj])
+                    #assert False
+                    #assert np.allclose(grad_P_mc, grad_P[kk,ii,jj])
 
-        # print(jac, '\n\n',f d_jac)
-        # print('\n', np.absolute(jac-fd_jac).max())
-        assert np.allclose(jac, fd_jac, atol=1e-5)
-
-        errors = pya.check_gradients(
-            func,
-            lambda x: RBF_jacobian_wrt_sample_coordinates(
-                x.reshape(nvars, x.shape[0]//nvars, order='F'),
-                pred_samples, kernel), x0[:, np.newaxis])
-        assert errors.min()<2e-6
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
