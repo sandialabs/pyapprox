@@ -801,60 +801,6 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
             np.asarray(length_scale)**2)
     return grad
 
-def integrated_RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
-                                        length_scale):
-    r"""
-    Gradient of the integrated squared exponential kernel
-
-    .. math::
-
-       \frac{\partial}{\partial x}\int_\rvdom K(x, Y) dG(y) = 
-       -\int_\rvdom K(x, Y)^T dG(y) \circ D\Lambda^{-1}
-
-    Here :math:`x=[x_1,\ldots,x_d]^T` is a sample, 
-    :math:`Y=[y^{(1)},\ldots,y^{(N)}]`
-    is a set of samples  and the kernel is given by
-
-    .. math:: 
-
-       K(x, y^{(i)}) =
-       \exp\left(-\frac{1}{2}(x-y^{(i)})^T\Lambda^{-1}(x-y^{(i)})\right)
-
-    where
-    :math:`\Lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`,
-    :math:`D=[\tilde{x}-\tilde{y}^{(1)},\ldots,\tilde{x}-\tilde{y}^{(N)}]` and
-    
-    .. math:: 
-
-       \tilde{x} = \left[\frac{x_1}{l_1^2}, \ldots, \frac{x_d}{l_d^2}\right],
-       \qquad  \tilde{y}^{(i)} = 
-       \left[\frac{y_1^{(i)}}{l_1^2},\ldots, \frac{y_d^{(i)}}{l_d^2}\right]
-
-    Parameters
-    ----------
-    query_sample : np.ndarray (nvars, 1)
-        The sample :math:`x`
-
-    other_samples : np.ndarray (nvars, nother_samples)
-        The samples :math:`y`
-
-    length_scale : np.ndarray (nvars)
-        The length scales `l` in each dimension
-
-    Returns
-    -------
-    grad : np.ndarray (nother_samples, nvars)
-        The gradient of the kernel
-    """
-    dists = cdist(query_sample.T/length_scale, other_samples.T/length_scale,
-                  metric='sqeuclidean')
-    K = np.exp(-.5 * dists)
-    grad = -K.T*(
-        np.tile(query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
-            np.asarray(length_scale)**2)
-    return grad
-
-
 def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
                                         kernel, new_samples_index=0):
     r"""
@@ -967,6 +913,61 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
         ii += 1
     jac *= -1
     return jac
+
+
+def gaussian_grad_P_diag_term1(xtr_ii, lscale, mu, sigma):
+    m, s, l, a = mu, sigma, lscale, xtr_ii
+    term1 = (np.exp(-((a-m)**2/(l**2+2*s**2)))*l*(-a+m))/(l**2+2*s**2)**(3/2)
+    return term1
+
+
+def gaussian_grad_P_diag_term2(xtr_ii, lscale, mu, sigma):
+    n, p, q, b = mu, sigma, lscale, xtr_ii
+    term2 = np.exp(-((b-n)**2/(2*p**2+q**2)))/(p*np.sqrt(1/p**2+2/q**2))
+    return term2
+
+
+def gaussian_grad_P_offdiag_term1(xtr_ii, xtr_jj, lscale, mu, sigma):
+    m, s, l, a, c = mu, sigma, lscale, xtr_ii, xtr_jj
+    term1 = (
+        np.exp(-((-2*c*l**2*m+2*l**2*m**2+a**2*(l**2+s**2)+c**2*(l**2+s**2)- 
+                  2*a*(l**2*m+c*s**2))/(
+                      2*l**2*(l**2+2*s**2))))*(l**2*m+c*s**2-a*(l**2+s**2)))/(l*(l**2+2*s**2)**(3/2))
+    return term1
+
+
+def gaussian_grad_P_offdiag_term2(xtr_ii, xtr_jj, lscale, mu, sigma):
+    b, d, q, n, p = xtr_ii, xtr_jj, lscale, mu, sigma
+    term2 = np.exp(-((-2*d*n*q**2+2*n**2*q**2+b**2*(p**2+q**2)+d**2*(p**2+q**2)-2*b*(d*p**2+n*q**2))/(2*q**2*(2*p**2+q**2))))
+    term2 /= p*np.sqrt(1/p**2+2/q**2)
+    return term2
+
+
+def integrate_grad_P(xx, ww, xtr, lscale):
+    nvars = len(lscale)
+    assert len(xx) == len(ww) == nvars
+    assert xtr.shape[0] == nvars
+    dist_func = partial(cdist, metric='sqeuclidean')
+    ntrain_samples = xtr.shape[1]
+    P = np.ones((nvars*ntrain_samples, ntrain_samples))
+    K = []
+    for nn in range(nvars):
+        xx_1d, ww_1d = xx[nn], ww[nn]
+        lscale_nn = lscale[nn]
+        dists_1d_x1_xtr = dist_func(
+            xx_1d[:, np.newaxis]/lscale_nn, xtr[nn:nn+1, :].T/lscale_nn)
+        K.append(np.exp(-.5*dists_1d_x1_xtr))
+        
+    for ii in range(ntrain_samples):
+        for nn in range(nvars):
+            xx_1d, ww_1d = xx[nn], ww[nn]
+            lscale_nn = lscale[nn]
+            diff = -(xtr[nn, ii]-xx_1d)/lscale_nn**2
+            P[nvars*ii+nn, :] *= ww_1d.dot(diff*K[nn][:, ii])
+            for mm in np.delete(np.arange(nvars), nn):
+                P[nvars*ii+nn, :] *= ww_1d.dot(K[mm])
+    print(P.shape)
+    return P
 
 
 class IVARSampler(object):
