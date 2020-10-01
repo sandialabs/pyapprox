@@ -756,21 +756,79 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
 
     .. math::
 
-       \frac{\partial}{\partial x}K(x, Y) = -K(x, Y).T \circ D\lambda^{-1}
+       \frac{\partial}{\partial x}K(x, Y) = -K(x, Y)^T \circ D\Lambda^{-1}
 
-    for a sample :math:`x=[x_1,\ldots,x_d]^T` and
-    :math:`y=[y^{(1)},\ldots,y^{(N)}]` and
-    :math:`\lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`
+    Here :math:`x=[x_1,\ldots,x_d]^T` is a sample, 
+    :math:`Y=[y^{(1)},\ldots,y^{(N)}]`
+    is a set of samples  and the kernel is given by
 
-    where
-    :math:`D=[\hat{x}-\hat{y}^{(1)},\ldots,\hat{x}-\hat{y}^{(N)})` with
-    :math:`\hat{x} = x\circ l^{-1}\circ l^{-1}`,
-    :math:`\hat{y} = y\circ l^{-1}\circ l^{-1}` and
-
-    .. math::
+    .. math:: 
 
        K(x, y^{(i)}) =
        \exp\left(-\frac{1}{2}(x-y^{(i)})^T\Lambda^{-1}(x-y^{(i)})\right)
+
+    where
+    :math:`\Lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`,
+    :math:`D=[\tilde{x}-\tilde{y}^{(1)},\ldots,\tilde{x}-\tilde{y}^{(N)}]` and
+    
+    .. math:: 
+
+       \tilde{x} = \left[\frac{x_1}{l_1^2}, \ldots, \frac{x_d}{l_d^2}\right],
+       \qquad  \tilde{y}^{(i)} = 
+       \left[\frac{y_1^{(i)}}{l_1^2},\ldots, \frac{y_d^{(i)}}{l_d^2}\right]
+
+    Parameters
+    ----------
+    query_sample : np.ndarray (nvars, 1)
+        The sample :math:`x`
+
+    other_samples : np.ndarray (nvars, nother_samples)
+        The samples :math:`y`
+
+    length_scale : np.ndarray (nvars)
+        The length scales `l` in each dimension
+
+    Returns
+    -------
+    grad : np.ndarray (nother_samples, nvars)
+        The gradient of the kernel
+    """
+    dists = cdist(query_sample.T/length_scale, other_samples.T/length_scale,
+                  metric='sqeuclidean')
+    K = np.exp(-.5 * dists)
+    grad = -K.T*(
+        np.tile(query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
+            np.asarray(length_scale)**2)
+    return grad
+
+def integrated_RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
+                                        length_scale):
+    r"""
+    Gradient of the integrated squared exponential kernel
+
+    .. math::
+
+       \frac{\partial}{\partial x}\int_\rvdom K(x, Y) dG(y) = 
+       -\int_\rvdom K(x, Y)^T dG(y) \circ D\Lambda^{-1}
+
+    Here :math:`x=[x_1,\ldots,x_d]^T` is a sample, 
+    :math:`Y=[y^{(1)},\ldots,y^{(N)}]`
+    is a set of samples  and the kernel is given by
+
+    .. math:: 
+
+       K(x, y^{(i)}) =
+       \exp\left(-\frac{1}{2}(x-y^{(i)})^T\Lambda^{-1}(x-y^{(i)})\right)
+
+    where
+    :math:`\Lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`,
+    :math:`D=[\tilde{x}-\tilde{y}^{(1)},\ldots,\tilde{x}-\tilde{y}^{(N)}]` and
+    
+    .. math:: 
+
+       \tilde{x} = \left[\frac{x_1}{l_1^2}, \ldots, \frac{x_d}{l_d^2}\right],
+       \qquad  \tilde{y}^{(i)} = 
+       \left[\frac{y_1^{(i)}}{l_1^2},\ldots, \frac{y_d^{(i)}}{l_d^2}\right]
 
     Parameters
     ----------
@@ -820,7 +878,7 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
        R[l,k]K(\hat{x}^{(i)}, x_k) - \sum_{j=1}^N\sum_{k=1}^N K(\hat{x}^{(i)},
        x_j)\frac{\partial}{\partial x_l}\left(R[j,k]\right)(\hat{x}^{(i)}, x_k)
 
-    where :math: R = K(x, x)^{-1} and
+    where :math:`R = K(x, x)^{-1}` and
 
     .. math::
 
@@ -877,26 +935,35 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
     k_pred = kernel(train_samples.T, pred_samples.T)
     jac = np.zeros((npred_samples, nvars*noptimized_train_samples))
     tau = k_pred.T.dot(K_inv)
-    K_train_grad = np.zeros((ntrain_samples, ntrain_samples))
+    #K_train_grad = np.zeros((ntrain_samples, ntrain_samples))
     ii = 0
     for jj in range(new_samples_index, ntrain_samples):
         K_train_grad_all_train_points_jj = \
             RBF_gradient_wrt_sample_coordinates(
                 train_samples[:, jj:jj+1], train_samples, length_scale)
-        for kk in range(nvars):
-            jac[:, ii*nvars+kk] += \
-                2*k_pred_grad_all_train_points[ii, :, kk]*tau[:, jj]
-            K_train_grad[jj, :] = K_train_grad_all_train_points_jj[:, kk]
-            K_train_grad[:, jj] = K_train_grad[jj, :]
-            # The following takes advantage of sparsity of
-            # tmp = tau.dot(K_train_grad)
-            tmp = K_train_grad_all_train_points_jj[:, kk:kk+1].T *\
-                np.tile(tau[:, jj:jj+1], (1, ntrain_samples))
-            tmp[:, jj] = tau.dot(K_train_grad_all_train_points_jj[:, kk])
-            jac[:, ii*nvars+kk] -= np.sum(tmp*tau, axis=1)
-            # Reset to zero
-            K_train_grad[jj, :] = 0
-            K_train_grad[:, jj] = 0
+        jac[:, ii*nvars:(ii+1)*nvars] += \
+            2*tau[:, jj:jj+1]*k_pred_grad_all_train_points[ii, :, :]
+        tmp1 = K_train_grad_all_train_points_jj.T[:,np.newaxis,:] *\
+            np.tile(tau[:, jj:jj+1], (2, 1, ntrain_samples))
+        tmp1[:,:,jj] = K_train_grad_all_train_points_jj.T.dot(tau.T)
+        tmp2 = np.sum(tau*tmp1, axis=(2))
+        jac[:, ii*nvars:(ii+1)*nvars] -= tmp2.T
+        # leave the following for loop to show how sparsity is taken advantage
+        # of above. Above is abstract and hard to see what is being done
+        # for kk in range(nvars):
+        #     # K_train_grad[jj, :] = K_train_grad_all_train_points_jj[:, kk]
+        #     # K_train_grad[:, jj] = K_train_grad[jj, :]
+        #     # The following takes advantage of sparsity of
+        #     # tmp = tau.dot(K_train_grad)
+        #     # Reset to zero
+        #     # K_train_grad[jj, :] = 0
+        #     # K_train_grad[:, jj] = 0
+        #     tmp = K_train_grad_all_train_points_jj[:, kk:kk+1].T *\
+        #         np.tile(tau[:, jj:jj+1], (1, ntrain_samples))
+        #     tmp[:, jj] = tau.dot(K_train_grad_all_train_points_jj[:, kk])
+        #     assert np.allclose(tmp[:,jj], tmp1[kk,:,jj])
+        #     assert np.allclose(tmp,tmp1[kk,:,:])
+        #     jac[:, ii*nvars+kk] -= np.sum(tmp*tau, axis=1)
         ii += 1
     jac *= -1
     return jac
@@ -920,7 +987,7 @@ class IVARSampler(object):
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
-                 greedy_method='givar'):
+                 greedy_method='givar', use_gauss_quadrature=False):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
 
@@ -930,11 +997,16 @@ class IVARSampler(object):
             self.greedy_sampler = CholeskySampler(
                 self.nvars, ncandidate_samples, variables,
                 generate_random_samples=generate_random_samples)
-        elif greedy_method == 'givar':
-            self.greedy_sampler = GreedyIVARSampler(
-                    self.nvars, nmonte_carlo_samples, ncandidate_samples,
-                generate_random_samples, variables)
-            self.pred_samples = self.greedy_sampler.pred_samples
+        elif greedy_method == 'ivar':
+            self.pred_samples = generate_random_samples(nmonte_carlo_samples)
+            self.greedy_sampler = GreedyIntegratedVarianceSampler(
+                self.nvars, nmonte_carlo_samples, ncandidate_samples,
+                generate_random_samples, variables, use_gauss_quadrature=True)
+        # elif greedy_method == 'varofmean':
+        #     self.pred_samples = generate_random_samples(nmonte_carlo_samples)
+        #     self.greedy_sampler = GreedyVarianceOfMeanSampler(
+        #         self.nvars, nmonte_carlo_samples, ncandidate_samples,
+        #         generate_random_samples, variables, use_gauss_quadrature=True)
         else:
             msg = f'Incorrect greedy_method {greedy_method}'
             raise Exception(msg)
@@ -944,9 +1016,60 @@ class IVARSampler(object):
 
         self.nsamples_requested = []
         self.set_optimization_options(
-            {'gtol':1e-3, 'ftol':0, 'disp':False, 'iprint':0})
+            {'gtol':1e-8, 'ftol':0, 'disp':False, 'iprint':0})
 
-    def objective(self, new_train_samples_flat):
+        if use_gauss_quadrature:
+            self.precompute_gauss_quadrature()
+            self.objective = self.quadrature_objective
+            self.objective_gradient = None
+            assert self.greedy_sampler.variables is not None
+        else:
+            self.objective = self.monte_carlo_objective
+            self.objective_gradient = self.monte_carlo_objective_gradient
+
+    def precompute_gauss_quadrature(self):
+        degrees = [min(100,self.nmonte_carlo_samples)]*self.nvars
+        self.univariate_quad_rules, self.pce = \
+            get_univariate_quadrature_rules_from_variable(
+                self.greedy_sampler.variables, degrees)
+        self.quad_rules = []
+        for ii in range(self.nvars):
+            xx_1d, ww_1d = self.univariate_quad_rules[ii](degrees[ii]+1)
+            jj = self.pce.basis_type_index_map[ii]
+            loc, scale = self.pce.var_trans.scale_parameters[jj, :]
+            xx_1d = xx_1d*scale+loc
+            self.quad_rules.append([xx_1d,ww_1d])
+
+    def get_univariate_quadrature_rule(self, ii):
+        return self.quad_rules[ii]
+
+    def compute_P(self, train_samples):
+        self.degrees = [self.nmonte_carlo_samples]*self.nvars
+        length_scale = self.greedy_sampler.kernel.length_scale
+        if np.isscalar(length_scale):
+            length_scale = np.array([length_scale]*self.nvars)
+        P = 1
+        for ii in range(self.nvars):
+            xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
+            xtr = train_samples[ii:ii+1, :]
+            P *= integrate_tau_P(xx_1d, ww_1d, xtr, length_scale[ii])[1]
+        return P
+
+    def quadrature_objective(self, new_train_samples_flat):
+        train_samples = np.hstack(
+            [self.training_samples,
+             new_train_samples_flat.reshape(
+                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
+                order='F')])
+        A = self.greedy_sampler.kernel(train_samples.T)
+        A_inv = np.linalg.inv(A)
+        P = self.compute_P(train_samples)
+        return 1-np.trace(A_inv.dot(P))
+
+    def xquadrature_objective_gradient(self):
+        pass
+
+    def monte_carlo_objective(self, new_train_samples_flat):
         train_samples = np.hstack(
             [self.training_samples,
              new_train_samples_flat.reshape(
@@ -958,7 +1081,7 @@ class IVARSampler(object):
         # print('f',val)
         return val
 
-    def objective_gradient(self, new_train_samples_flat):
+    def monte_carlo_objective_gradient(self, new_train_samples_flat):
         train_samples = np.hstack(
             [self.training_samples,
              new_train_samples_flat.reshape(
@@ -1031,9 +1154,12 @@ class IVARSampler(object):
 
         init_guess = self.init_guess.flatten(order='F')
         # Optimize the locations of only the new training samples
-        res = minimize(self.objective, init_guess, jac=self.objective_gradient,
+        jac = self.objective_gradient
+        #jac = None
+        res = minimize(self.objective, init_guess, jac=jac,
                        method='L-BFGS-B', options=self.optim_opts,
                        bounds=self.bounds)
+        print(res)
 
         new_samples = res.x.reshape(
             (self.nvars,res.x.shape[0]//self.nvars), order='F')
@@ -1059,7 +1185,8 @@ class GreedyVarianceOfMeanSampler(object):
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
-                 use_gauss_quadrature=False, econ=True):
+                 use_gauss_quadrature=False, econ=True,
+                 compute_cond_nums=False):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
         self.variables = variables
@@ -1074,16 +1201,17 @@ class GreedyVarianceOfMeanSampler(object):
             self.variables)
         self.nsamples_requested = []
         self.pivots = []
+        self.cond_nums = []
+        self.compute_cond_nums = compute_cond_nums
 
         self.initialize()
         
     def initialize(self):
         self.L = np.zeros((0, 0))
 
-        self.econ = True
         if self.econ is True:
             self.y_1 = np.zeros((0))
-            self.candidate_y_2 = np.empty(ncandidate_samples)
+            self.candidate_y_2 = np.empty(self.candidate_samples.shape[1])
 
     # def monte_carlo_objective(self, new_sample_index):
     #     train_samples = np.hstack(
@@ -1152,12 +1280,7 @@ class GreedyVarianceOfMeanSampler(object):
     def refine_naive(self):
         ntraining_samples = self.ntraining_samples
         obj_vals = self.objective_vals()
-
         pivot = np.argmin(obj_vals)
-        if not np.isfinite(obj_vals[pivot]):
-            # no more candidate points can be added without making matrix
-            # no longer positive definite
-            pivot = None
         return pivot
 
     def refine_econ(self):
@@ -1174,36 +1297,18 @@ class GreedyVarianceOfMeanSampler(object):
         else:
             A_12 = self.A[self.pivots, pivot:pivot+1]
             L_12 = solve_triangular(self.L, A_12, lower=True)
+            L_22_sq = self.A[pivot, pivot] - L_12.T.dot(L_12)
+            if L_22_sq <= 0:
+                # recompute Cholesky from scratch to make sure roundoff error
+                # is not causing L_22_sq to be negative
+                indices = np.concatenate([self.pivots, [pivot]]).astype(int)
+                try:
+                    self.L = np.linalg.cholesky(
+                        self.A[np.ix_(indices, indices)])
+                except:
+                    return -1
 
-            # I = np.argmin(
-            #     np.absolute(self.temp-(self.A[pivot, pivot]-L_12.T.dot(L_12))))
-            # print(np.where(self.temp==(self.A[pivot, pivot]-L_12.T.dot(L_12))))
-            # if not np.allclose(I,pivot):
-            #     obj_vals1 = np.inf*np.ones(self.candidate_samples.shape[1])
-            #     for mm in range(self.candidate_samples.shape[1]):
-            #         if mm not in self.pivots:
-            #             obj_vals1[mm] = self.objective(mm)
-            #     print(obj_vals[pivot])
-            #     print(self.temp[pivot])
-            #     print(self.A[pivot, pivot] - L_12.T.dot(L_12))
-            #     print(np.argmin(obj_vals1),pivot,I)
-
-
-            #     pred_samples = self.generate_random_samples(10000)
-            #     t = self.candidate_samples[:,self.pivots]
-            #     k_pred = self.kernel(t.T, pred_samples.T)
-            #     L = np.linalg.cholesky(self.A[np.ix_(self.pivots,self.pivots)])
-            #     tmp = solve_triangular(L, k_pred, lower=True)
-            #     v1 = self.kernel.diag(pred_samples.T)
-            #     v2 = np.sum(tmp*tmp, axis=0)
-            #     variance = v1-v2
-            #     print(np.trace(k_pred.T.dot(np.linalg.inv(self.A[np.ix_(self.pivots,self.pivots)])).dot(k_pred))/pred_samples.shape[1])
-            #     print(np.trace(tmp.T.dot(tmp)))
-            #     print(v1.mean(), v2.mean())
-            #     print(variance.mean())
-            #     assert False
-            
-            L_22 = np.sqrt(self.A[pivot, pivot] - L_12.T.dot(L_12))
+            L_22 = np.sqrt(L_22_sq)
             self.L = np.block(
                 [[self.L, np.zeros(L_12.shape)],
                  [L_12.T, L_22]])
@@ -1288,6 +1393,9 @@ class GreedyVarianceOfMeanSampler(object):
         else:
             self.precompute_monte_carlo()
         self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
+        # designs are better if a small nugget is added to the diagonal
+        self.A[np.arange(self.A.shape[0]), np.arange(self.A.shape[1])] += 1e-14
+        
 
     def set_init_pivots(self, init_pivots):
         self.pivots = list(init_pivots)
@@ -1296,15 +1404,28 @@ class GreedyVarianceOfMeanSampler(object):
     def __call__(self, nsamples):
         if not hasattr(self, 'kernel'):
             raise Exception('Must call set_kernel')
-        
+        if self.econ is True:
+            self.refine = self.refine_econ
+        else:
+            self.refine = self.refine_naive
+        flag = 0
         self.nsamples_requested.append(nsamples)
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
             print('Iter', nn)
-            if self.econ is True:
-                pivot = self.refine_econ()
-            else:
-                pivot = self.refine_naive()
+            pivot = self.refine()
+
+            if pivot < 0:
+                if self.econ is False:
+                    flag = 1
+                    break
+                else:
+                    self.econ = False
+                    # Switch of econ mode which struggles when condition number
+                    # is poor
+                    self.refine = self.refine_naive
+                    pivot = self.refine()
+            
             self.pivots.append(pivot)
             new_sample = self.candidate_samples[:, pivot:pivot+1]
             self.training_samples = np.hstack(
@@ -1312,11 +1433,18 @@ class GreedyVarianceOfMeanSampler(object):
                  self.candidate_samples[:, pivot:pivot+1]])
                 #print(f'Number of points generated {nn+1}')
             self.active_candidates[pivot] = False
+            if self.compute_cond_nums is True:
+                if self.econ:
+                    self.cond_nums.append(np.linalg.cond(self.L)**2)
+                else:
+                    self.cond_nums.append(
+                        np.linalg.cond(
+                            self.A[np.ix_(self.pivots, self.pivots)]))
 
         new_samples = self.training_samples[:,ntraining_samples:]
         self.ntraining_samples = self.training_samples.shape[1]
 
-        return new_samples, 0
+        return new_samples, flag
 
 
 class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
@@ -1343,10 +1471,10 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = np.array([length_scale]*self.nvars)
-            self.univariate_quad_rules, self.pce = \
-                get_univariate_quadrature_rules_from_variable(
-                    self.variables, self.degrees)
-            self.P = 1
+        self.univariate_quad_rules, self.pce = \
+            get_univariate_quadrature_rules_from_variable(
+                self.variables, self.degrees)
+        self.P = 1
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
             xtr = self.candidate_samples[ii:ii+1, :]
@@ -1358,7 +1486,6 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         A = self.A[np.ix_(indices, indices)]
         A_inv = np.linalg.inv(A)
         P = self.P[np.ix_(indices,indices)]
-        #print(A_inv, P, new_sample_index)
         return -np.trace(A_inv.dot(P))
 
     def objective_econ(self, new_sample_index):
@@ -1368,17 +1495,11 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             return -val
 
         A_12 = self.A[self.pivots, new_sample_index:new_sample_index+1]
-        #print(self.L.shape, A_12.shape, len(self.pivots))
         L_12 = solve_triangular(self.L, A_12, lower=True)
         L_22 = np.sqrt(
             self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
         C = -np.dot(L_12.T/L_22, self.L_inv)
-
-        # A = self.A[np.ix_(self.pivots, self.pivots)]
-        # A_inv = np.linalg.inv(A)
-        # assert np.allclose(self.L.dot(self.L.T), A)
-        # assert np.allclose(self.L_inv.T.dot(self.L_inv), A_inv)
-        
+       
         # TODO set self.P_11 when pivot is chosen so do not constantly
         # have to reduce matrix
         P_11 = self.P[np.ix_(self.pivots, self.pivots)]
@@ -1388,13 +1509,44 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
                2*np.sum(C.T/L_22*P_12) + 1/L_22**2*P_22)
         return val
 
+    def vectorized_objective_vals_econ(self):
+        if self.L_inv.shape[0] == 0:
+            vals = np.diagonal(self.P)/np.diagonal(self.A)
+            return -vals
+
+        A_12 = np.atleast_2d(self.A[self.pivots, :])
+        L_12 = solve_triangular(self.L, A_12, lower=True)
+        J = np.where((np.diagonal(self.A)-np.sum(L_12*L_12, axis=0)) <= 0)[0]
+        self.temp = np.diagonal(self.A)-np.sum(L_12*L_12, axis=0)
+        useful_candidates = np.ones(
+            (self.candidate_samples.shape[1]), dtype=bool)
+        useful_candidates[J] = False
+        useful_candidates[self.pivots] = False
+        L_12 = L_12[:, useful_candidates]
+        L_22 = np.sqrt(np.diagonal(self.A)[useful_candidates] - np.sum(
+            L_12*L_12, axis=0))
+
+        P_11 = self.P[np.ix_(self.pivots, self.pivots)]
+        P_12 = self.P[np.ix_(self.pivots, useful_candidates)]
+        P_22 = np.diagonal(self.P)[useful_candidates]
+
+        C = -np.dot((L_12/L_22).T, self.L_inv)
+        vals = np.inf*np.ones((self.candidate_samples.shape[1]))
+        vals[useful_candidates] =-(
+            -self.prev_best_obj +
+            np.sum(C.T*P_11.dot(C.T), axis=0) +
+            2*np.sum(C.T/L_22*P_12, axis=0) + 1/L_22**2*P_22)
+
+        return vals
+
     def refine_econ(self):
         training_samples = self.ntraining_samples
-        #obj_vals = self.vectorized_objective_vals_econ()
-        obj_vals = self.objective_vals_econ()
+        obj_vals = self.vectorized_objective_vals_econ()
+        #obj_vals = self.objective_vals_econ()
 
         pivot = np.argmin(obj_vals)
-        assert np.isfinite(obj_vals[pivot])
+        if not np.isfinite(obj_vals[pivot]):
+            return -1
         self.prev_best_obj = obj_vals[pivot]
 
         if self.L_inv.shape[0]==0:
@@ -1404,7 +1556,19 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
         A_12 = self.A[self.pivots, pivot:pivot+1]
         L_12 = solve_triangular(self.L, A_12, lower=True)
-        L_22 = np.sqrt(self.A[pivot, pivot] - L_12.T.dot(L_12))
+        L_22_sq = self.A[pivot, pivot] - L_12.T.dot(L_12)
+        if L_22_sq <= 0:
+            # recompute Cholesky from scratch to make sure roundoff error
+            # is not causing L_22_sq to be negative
+            indices = np.concatenate([self.pivots, [pivot]]).astype(int)
+            try:
+                self.L = np.linalg.cholesky(self.A[np.ix_(indices, indices)])
+            except:
+                return -1
+            self.L_inv = np.linalg.inv(self.L)
+            return pivot
+        
+        L_22 = np.sqrt(L_22_sq)
 
         self.L = np.block(
             [[self.L, np.zeros(L_12.shape)],
@@ -1413,6 +1577,6 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         L_22_inv = np.linalg.inv(L_22)
         self.L_inv = np.block(
             [[self.L_inv, np.zeros(L_12.shape)],
-             [-np.dot(L_22_inv.dot(L_12.T),self.L_inv), L_22_inv]])
+             [-np.dot(L_22_inv.dot(L_12.T), self.L_inv), L_22_inv]])
 
         return pivot

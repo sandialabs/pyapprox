@@ -6,6 +6,7 @@ from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
 import copy
+import time
 
 
 def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
@@ -117,7 +118,7 @@ class TestGaussianProcess(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def xtest_gaussian_process_pointwise_variance(self):
+    def test_gaussian_process_pointwise_variance(self):
         nvars = 1
         lb, ub = 0, 1
         ntrain_samples = 5
@@ -143,7 +144,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         assert np.allclose(stdev1**2, variance2)
 
-    def xtest_integrate_gaussian_process_gaussian(self):
+    def test_integrate_gaussian_process_gaussian(self):
 
         nvars = 2
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
@@ -330,7 +331,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(
             variance_random_var, np.var(random_variances), rtol=2.2e-2)
 
-    def xtest_integrate_gaussian_process_uniform(self):
+    def test_integrate_gaussian_process_uniform(self):
         np.random.seed(1)
         nvars = 1
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
@@ -401,11 +402,10 @@ class TestGaussianProcess(unittest.TestCase):
 
 
 class TestSamplers(unittest.TestCase):
-
     def setUp(self):
         np.random.seed(1)
 
-    def xtest_cholesky_sampler_basic_restart(self):
+    def test_cholesky_sampler_basic_restart(self):
         nvars = 1
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
@@ -422,7 +422,7 @@ class TestSamplers(unittest.TestCase):
         samples2 = np.hstack([samples2, sampler2(num_samples)[0]])
         assert np.allclose(samples2, samples)
 
-    def xtest_cholesky_sampler_restart_with_changed_kernel(self):
+    def test_cholesky_sampler_restart_with_changed_kernel(self):
         nvars = 1
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
@@ -447,7 +447,7 @@ class TestSamplers(unittest.TestCase):
                            sampler.pivots[:num_samples//2])
         assert not np.allclose(samples2, samples)
 
-    def xtest_cholesky_sampler_restart_with_changed_weight_function(self):
+    def test_cholesky_sampler_restart_with_changed_weight_function(self):
         nvars = 1
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
@@ -475,7 +475,7 @@ class TestSamplers(unittest.TestCase):
 
         assert not np.allclose(samples2, samples)
 
-    def xtest_cholesky_sampler_adaptive_gp_fixed_kernel(self):
+    def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
@@ -521,7 +521,7 @@ class TestSamplers(unittest.TestCase):
         vals2 = gp2(validation_samples)
         assert np.allclose(vals1[:, 0:1], vals2)
 
-    def xtest_RBF_gradient_wrt_sample_coordinates(self):
+    def test_RBF_gradient_wrt_sample_coordinates(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -570,10 +570,10 @@ class TestSamplers(unittest.TestCase):
             lambda x: RBF_jacobian_wrt_sample_coordinates(
                 x.reshape(nvars, x.shape[0]//nvars, order='F'),
                 pred_samples, kernel), x0[:, np.newaxis])
-        assert errors.min()<1e-6
+        assert errors.min()<2e-6
 
 
-    def xtest_RBF_gradient_wrt_sample_coordinates_subset(self):
+    def test_RBF_gradient_wrt_sample_coordinates_subset(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -603,11 +603,61 @@ class TestSamplers(unittest.TestCase):
         fd_jac = pya.approx_jacobian(func, x0)[:,new_samples_index*nvars:]
 
         # print(jac, '\n\n',f d_jac)
+        #print('\n', np.absolute(jac-fd_jac).max())
+        assert np.allclose(jac, fd_jac, atol=1e-5)
+
+    def test_integrated_RBF_gradient_wrt_sample_coordinates(self):
+        nvars = 2
+        lb, ub = 0, 1
+        ntrain_samples_1d = 10
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+        train_vals = func(train_samples)
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        pred_samples = np.random.uniform(0, 1, (nvars, 3))
+        x0 = train_samples[:, :1]
+        grad = RBF_gradient_wrt_sample_coordinates(
+            x0, pred_samples, length_scale)
+
+        fd_grad = pya.approx_jacobian(
+            lambda x: kernel(x, pred_samples.T)[0, :], x0[:,0])
+        assert np.allclose(grad, fd_grad, atol=1e-6)
+        errors = pya.check_gradients(
+            lambda x: kernel(x.T, pred_samples.T)[0, :],
+            lambda x: RBF_gradient_wrt_sample_coordinates(
+                x, pred_samples, length_scale), x0)
+        assert errors.min()<1e-6
+
+        jac = RBF_jacobian_wrt_sample_coordinates(
+            train_samples, pred_samples, kernel)
+
+        x0 = train_samples.flatten(order='F')
+        assert np.allclose(
+            train_samples, x0.reshape(train_samples.shape, order='F'))
+
+        def func(x_flat):
+            return gaussian_process_pointwise_variance(
+                kernel, pred_samples, x_flat.reshape(
+                    train_samples.shape, order='F'))
+        fd_jac = pya.approx_jacobian(func, x0)
+
+        # print(jac, '\n\n',f d_jac)
         # print('\n', np.absolute(jac-fd_jac).max())
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
+        errors = pya.check_gradients(
+            func,
+            lambda x: RBF_jacobian_wrt_sample_coordinates(
+                x.reshape(nvars, x.shape[0]//nvars, order='F'),
+                pred_samples, kernel), x0[:, np.newaxis])
+        assert errors.min()<2e-6
 
-    def xtest_monte_carlo_gradient_based_ivar_sampler(self):
+    def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
@@ -616,11 +666,13 @@ class TestSamplers(unittest.TestCase):
         
         # correlation length affects ability to check gradient. As kerenl matrix
         # gets more ill conditioned then gradients get worse
-        greedy_method = 'givar'
-        #greedy_method = 'chol'
+        #greedy_method = 'ivar'
+        greedy_method = 'chol'
+        use_gauss_quadrature = True
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
-            nvars, 1000, 1000, generate_random_samples, variables, greedy_method)
+            nvars, 1000, 1000, generate_random_samples, variables,
+            greedy_method, use_gauss_quadrature=use_gauss_quadrature)
         sampler.set_kernel(copy.deepcopy(kernel))
 
         def weight_function(samples):
@@ -637,10 +689,12 @@ class TestSamplers(unittest.TestCase):
         train_samples = pya.cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
-        errors = pya.check_gradients(
-            sampler.objective, sampler.objective_gradient, x0[:,np.newaxis],
-            disp=False)
-        assert errors.min()<4e-6
+        if not use_gauss_quadrature:
+            # gradients not currently implemented when using quadrature
+            errors = pya.check_gradients(
+                sampler.objective, sampler.objective_gradient, x0[:,np.newaxis],
+                disp=False)
+            assert errors.min()<4e-6
 
         gsampler = sampler.greedy_sampler
         #print(np.linalg.norm(gsampler.candidate_samples))
@@ -657,14 +711,11 @@ class TestSamplers(unittest.TestCase):
             sampler.init_guess).mean()
         # can't just call sampler.objective here because self.training_points
         # has been updated and calling objective(sampler.training_samples)
-        # will evaluate objective with training samples repeated twice. Similarly
-        # init guess will be concatenated with self.training_samples if passed
-        # to objective at this point
+        # will evaluate objective with training samples repeated twice.
+        # Similarly init guess will be concatenated with self.training_samples
+        # if passed to objective at this point
+        print(val1, val2)
         assert (val1 < val2)
-
-        # plt.plot(sampler.training_samples[0, :],
-        #          sampler.training_samples[1, :], 'o', ms=15)
-        # plt.plot(gsamples[0, :], gsamples[1, :], 'x', ms=15)
 
         new_samples2 = sampler(2*ntrain_samples)[0]
 
@@ -682,16 +733,18 @@ class TestSamplers(unittest.TestCase):
         val2 = gaussian_process_pointwise_variance(
             sampler.greedy_sampler.kernel, sampler.pred_samples,
             sampler.init_guess).mean()
-        print(val1)
+        print(val1, val2)
         assert (val1 < val2)
         
         plt.plot(sampler.training_samples[0, :],
                  sampler.training_samples[1, :], 'o')
         plt.plot(sampler.greedy_sampler.training_samples[0, :],
                  sampler.greedy_sampler.training_samples[1, :], 'x')
-        # plt.show()
+        #plt.plot(sampler.init_guess[0, :],
+        #         sampler.init_guess[1, :], '^')
+        plt.show()
 
-    def test_greedy_gauss_quadrature_ivar_sampler(self):
+    def test_greedy_gauss_quadrature_ivar_sampler_I(self):
         nvars = 2
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
@@ -717,15 +770,15 @@ class TestSamplers(unittest.TestCase):
         pivot2 = sampler2.refine_naive()
         assert np.allclose(pivot1, pivot2)
 
-        for nsamples in [1,2,3]:
+        for nsamples in range(1,5+1):
             #refine functions update internal variables so reset
             np.random.seed(1)
             sampler1 = GreedyIntegratedVarianceSampler(
-                nvars, 100, 10, generate_random_samples,
+                nvars, 50, 1000, generate_random_samples,
                 variables, use_gauss_quadrature=True, econ=True)
             np.random.seed(1)
             sampler2 = GreedyIntegratedVarianceSampler(
-                nvars, 100, 10, generate_random_samples,
+                nvars, 50, 1000, generate_random_samples,
                 variables, use_gauss_quadrature=True, econ=False)
             kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
             sampler1.set_kernel(kernel)
@@ -736,12 +789,60 @@ class TestSamplers(unittest.TestCase):
 
             obj_vals1 = sampler1.objective_vals_econ()
             obj_vals2 = sampler2.objective_vals()
+            obj_vals3 = sampler1.vectorized_objective_vals_econ()
             #print(obj_vals1, obj_vals2)
+            #print(obj_vals1, obj_vals3)
             assert np.allclose(obj_vals1, obj_vals2)
+            assert np.allclose(obj_vals1, obj_vals3)
             pivot1 = sampler1.refine_econ()
             pivot2 = sampler2.refine_naive()
             #print(pivot1, pivot2)
             assert np.allclose(pivot1, pivot2)
+
+    def test_greedy_gauss_quadrature_ivar_sampler_II(self):
+        nvars = 2
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
+
+        np.random.seed(1)
+        sampler1 = GreedyIntegratedVarianceSampler(
+            nvars, 50, 10000, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=True,
+            compute_cond_nums=True)
+        np.random.seed(1)
+        sampler2 = GreedyIntegratedVarianceSampler(
+            nvars, 50, 10000, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=False,
+            compute_cond_nums=True)
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler1.set_kernel(kernel)
+        sampler2.set_kernel(kernel)
+
+        nsamples = 20
+        #nsamples = 100
+        
+        t0 = time.time()
+        samples1 = sampler1(nsamples)[0]
+        time1 = time.time()-t0
+        print(time1)
+
+        t0 = time.time()
+        samples2 = sampler2(nsamples)[0]
+        time2 = time.time()-t0
+        print(time1, time2)
+        assert time1 < time2
+
+        assert np.allclose(samples1, samples2)
+        
+        # plt.plot(samples1[0,:], samples1[1,:], 'o')
+        # plt.plot(samples2[0,:], samples2[1,:], 'x')
+        # plt.figure()
+        # print(np.arange(len(sampler1.cond_nums))+1,sampler1.cond_nums)
+        # plt.loglog(np.arange(len(sampler1.cond_nums))+1,sampler1.cond_nums)
+        # plt.loglog(np.arange(len(sampler2.cond_nums))+1,sampler2.cond_nums)
+        # plt.show()
 
     def test_greedy_variance_of_mean_sampler(self):
         nvars = 2
@@ -767,32 +868,41 @@ class TestSamplers(unittest.TestCase):
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         
         np.random.seed(1)
-        sampler1 = GreedyIntegratedVarianceSampler(
+        sampler1 = GreedyVarianceOfMeanSampler(
             nvars, 50, 1000, generate_random_samples,
-            variables, use_gauss_quadrature=False,
-            econ=True)
+            variables, use_gauss_quadrature=True, econ=True,
+            compute_cond_nums=True)
         sampler1.set_kernel(kernel)
         
-        ntrain_samples = 100
+        ntrain_samples = 20
         new_samples11 = sampler1(ntrain_samples)[0]
         new_samples12 = sampler1(2*ntrain_samples)[0]
-        assert False
 
         np.random.seed(1)
-        sampler2 = GreedyIVARSampler(nvars, 50, 1000, generate_random_samples,
-                                     variables, use_gauss_quadrature=True,
-                                     econ=False)
+        sampler2 = GreedyVarianceOfMeanSampler(
+            nvars, 50, 1000, generate_random_samples,
+            variables, use_gauss_quadrature=True, econ=False,
+        compute_cond_nums=True)
         sampler2.set_kernel(kernel)
 
         new_samples21 = sampler2(ntrain_samples)[0]
         new_samples22 = sampler2(2*ntrain_samples)[0]
-        assert np.allclose(new_samples11, new_samples21)
-        assert np.allclose(new_samples12, new_samples22)
-        
 
-        #$plt.plot(sampler1.training_samples[0, :],
-        #         sampler1.training_samples[1, :], 'o')
-        plt.show()
+        # plt.plot(sampler1.training_samples[0, :],
+        #          sampler1.training_samples[1, :], 'o')
+        # plt.plot(sampler2.training_samples[0, :],
+        #          sampler2.training_samples[1, :], 'x')
+        # plt.figure()
+        # print(np.arange(len(sampler1.cond_nums))+1,sampler1.cond_nums)
+        # plt.loglog(np.arange(len(sampler1.cond_nums))+1,sampler1.cond_nums)
+        # plt.loglog(np.arange(len(sampler2.cond_nums))+1,sampler2.cond_nums)
+        # plt.show()
+        
+        assert np.allclose(new_samples11, new_samples21)
+        # Note: The sequences computed with econ on and off will diverge
+        # when the sample sets produce a kernel matrix with a large condition
+        # number
+        assert np.allclose(new_samples12, new_samples22)
         
     def compare_ivar_samplers(self):
         nvars = 2
