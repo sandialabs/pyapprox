@@ -821,9 +821,11 @@ class TestSamplers(unittest.TestCase):
         kernel = RBF(length_scale, length_scale_bounds='fixed')
 
         xx_1d, ww_1d = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
+        t0 = time.time()
         jac = RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
             train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel,
             new_samples_index)
+        print(time.time()-t0)
 
         x0 = train_samples.flatten(order='F')
         assert np.allclose(
@@ -839,7 +841,9 @@ class TestSamplers(unittest.TestCase):
             val = np.sum(A_inv*P)
             return -val
 
+        t0 = time.time()
         fd_jac = pya.approx_jacobian(func, x0)[0,new_samples_index*nvars:]
+        print(time.time()-t0)
 
         print(jac, '\n\n', fd_jac)
         #print('\n', np.absolute(jac-fd_jac).max())
@@ -1103,7 +1107,7 @@ class TestSamplers(unittest.TestCase):
         # gets more ill conditioned then gradients get worse
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
-            nvars, 1000, 1000, generate_random_samples, variables, 'givar')
+            nvars, 1000, 1000, generate_random_samples, variables, 'ivar')
         sampler.set_kernel(kernel)
 
         ntrain_samples = 10
