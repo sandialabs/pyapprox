@@ -762,18 +762,20 @@ class TestSamplers(unittest.TestCase):
         assert np.allclose(
             P, func1(x0).reshape((ntrain_samples, ntrain_samples), order='F'))
         jac = np.zeros((nvars*ntrain_samples))
-        #jac1 = np.zeros((nvars*ntrain_samples))
+        jac1 = np.zeros((nvars*ntrain_samples))
+        PAinvP = (A_inv.dot(P).dot(A_inv))
         for kk in range(ntrain_samples):
             K_train_grad_all_train_points_kk = \
                 RBF_gradient_wrt_sample_coordinates(
                     train_samples[:, kk:kk+1], train_samples, length_scale)
-            # print(K_train_grad_all_train_points_kk.shape, P.shape, grad_P.shape)
-            # tmp3 = K_train_grad_all_train_points_kk.T[:,np.newaxis,:] * \
-            #     np.tile(P, (nvars, 1, 1))
-            # tmp4 = grad_P[kk*nvars:(kk+1)*nvars][:,np.newaxis,:] * \
-            #     np.tile(A_inv, (nvars, 1, 1))
-            # jac1[kk*nvars:(kk+1)*nvars] = np.sum(tmp3, axis = (1,2)) + np.sum(
-            #     tmp4, axis = (1,2))
+
+            tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*PAinvP[:, kk], axis=1)
+            tmp3 -=  -K_train_grad_all_train_points_kk[kk, :]*PAinvP[kk, kk]
+            jac1[kk*nvars:(kk+1)*nvars] = -tmp3
+            tmp4 = 2*np.sum(grad_P[kk*nvars:(kk+1)*nvars]*A_inv[:, kk], axis=1)
+            tmp4 -=  grad_P[kk*nvars:(kk+1)*nvars,kk]*A_inv[kk, kk]
+            jac1[kk*nvars:(kk+1)*nvars] -= tmp4
+            
             for nn in range(nvars):
                tmp1 = np.zeros((ntrain_samples, ntrain_samples))
                tmp1[kk, :] = grad_P[kk*nvars+nn, :]
@@ -785,11 +787,10 @@ class TestSamplers(unittest.TestCase):
                tmp2 = -A_inv.dot(tmp2.dot(A_inv))
                assert np.allclose(A_fd_jac[:,:,kk*nvars+nn], tmp2, atol=1e-6)
                jac[kk*nvars+nn] -= np.sum(tmp2*P+A_inv*tmp1)
-               #jac[kk*nvars+nn] = np.sum(tmp2*P)
-               #jac[kk*nvars+nn] = np.sum(tmp1*A_inv)
-            #print(jac1[kk*nvars:(kk+1)*nvars]-jac[kk*nvars:(kk+1)*nvars])
 
         assert np.allclose(jac, obj_fd_jac)
+        print(jac,jac1)
+        assert np.allclose(jac1, obj_fd_jac)
 
                 
             
