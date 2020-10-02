@@ -949,25 +949,29 @@ def integrate_grad_P(xx, ww, xtr, lscale):
     assert xtr.shape[0] == nvars
     dist_func = partial(cdist, metric='sqeuclidean')
     ntrain_samples = xtr.shape[1]
-    P = np.ones((nvars*ntrain_samples, ntrain_samples))
-    K = []
+    grad_P = np.empty((nvars*ntrain_samples, ntrain_samples))
+    K =  []  # keep K as list to allow for different size quadrature rules
+    diffs = []  # similarly for diffs
+    P = np.empty((nvars, ntrain_samples, ntrain_samples))
     for nn in range(nvars):
         xx_1d, ww_1d = xx[nn], ww[nn]
         lscale_nn = lscale[nn]
         dists_1d_x1_xtr = dist_func(
             xx_1d[:, np.newaxis]/lscale_nn, xtr[nn:nn+1, :].T/lscale_nn)
         K.append(np.exp(-.5*dists_1d_x1_xtr))
-        
+        P[nn] = K[-1].T.dot(ww_1d[:, np.newaxis]*K[-1])
+        diffs.append(-(xtr[nn:nn+1, :].T-xx_1d)/lscale_nn**2)
+
+    # TODO replace loop over train samples with numpy operations
     for ii in range(ntrain_samples):
         for nn in range(nvars):
-            xx_1d, ww_1d = xx[nn], ww[nn]
-            lscale_nn = lscale[nn]
-            diff = -(xtr[nn, ii]-xx_1d)/lscale_nn**2
-            P[nvars*ii+nn, :] *= ww_1d.dot(diff*K[nn][:, ii])
-            for mm in np.delete(np.arange(nvars), nn):
-                P[nvars*ii+nn, :] *= ww_1d.dot(K[mm])
-    print(P.shape)
-    return P
+            diff = diffs[nn][ii]
+            grad_P[nvars*ii+nn, :] = ww_1d.dot(
+                (diff*K[nn][:, ii])[:,np.newaxis]*K[nn])
+            grad_P[nvars*ii+nn, :] *= np.prod(P[:nn, ii, :], axis=0)
+            grad_P[nvars*ii+nn, :] *= np.prod(P[nn+1:, ii, :], axis=0)
+            grad_P[nvars*ii+nn, ii] *= 2
+    return grad_P
 
 
 class IVARSampler(object):
