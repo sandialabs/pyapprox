@@ -657,17 +657,61 @@ class TestSamplers(unittest.TestCase):
                 K = kernel(pred_samples.T, x1.T)
                 for kk in range(nvars):
                     grad_P_quad = (grad[:, kk:kk+1]*K).T.dot(weights)
-                    grad_P_exact = gaussian_grad_P_offdiag_term1(
+                    t1 = gaussian_grad_P_offdiag_term1(
                         x0[kk, 0], x1[kk, 0], length_scale[kk],
-                        mu[kk], sigma[kk])*gaussian_grad_P_offdiag_term2(
-                            x0[1-kk,0], x1[1-kk,0], length_scale[1-kk],
-                            mu[1-kk], sigma[1-kk])
-                    print (kk,ii,jj,'\n',grad_P_quad,'\n',grad_P_exact, '\n',
-                           grad_P)#[nvars*ii+kk,jj])
+                        mu[kk], sigma[kk])
+                    t2 = gaussian_grad_P_offdiag_term2(
+                        x0[1-kk,0], x1[1-kk,0], length_scale[1-kk],
+                        mu[1-kk], sigma[1-kk])
+                    grad_P_exact = t1*t2
+                    if ii == jj:
+                        grad_P_quad *= 2
+                        grad_P_exact *= 2
                     assert np.allclose(grad_P_quad, grad_P_exact)
                     assert np.allclose(grad_P_quad, grad_P[nvars*ii+kk,jj])
                     #assert False
                     #assert np.allclose(grad_P_mc, grad_P[kk,ii,jj])
+
+        def func(xtr):
+            xtr = xtr.reshape((nvars, train_samples.shape[1]), order='F')
+            P = 1
+            for kk in range(nvars):
+                P *= integrate_tau_P(
+                    xx_1d, ww_1d, xtr[kk:kk+1, :], length_scale[kk])[1]
+
+            vals = P.flatten(order='F')
+            # vals = [P[0,0], P[1,0], ..., P[N-1,0], P[0,1], P[1,1], ... P[N-1,1]
+            #         ...]
+            return vals
+
+        x0 = train_samples.flatten(order='F')
+        fd_jac = pya.approx_jacobian(func, x0)
+        ntrain_samples = train_samples.shape[1]
+        assert  np.allclose(
+            fd_jac.shape, (ntrain_samples**2, nvars*ntrain_samples))
+        fd_jac_res = fd_jac.reshape(
+            (ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
+        assert np.allclose(fd_jac_res[:, :, 0].flatten(order='F'), fd_jac[:, 0])
+
+        # Consider 3 training samples with
+        # P = P00 P01 P02
+        #     P10 P11 P12
+        #     P20 P21 P22
+        # for kth training sample grad_P stores 
+        # Pk0 Pk1 Pk2
+        # All entries not involving k are zero, e.g. for k=0 the terms
+        # P11 P12 P21 P22 will be zero such that
+        # dP/d(x[0,n]) = C00 C01 C02
+        #                C10  0   0
+        #                C20  0   0
+        jac = np.empty_like(fd_jac)
+        for kk in range(ntrain_samples):
+            for nn in range(nvars):
+                tmp = np.zeros((ntrain_samples, ntrain_samples))
+                tmp[kk, :] = grad_P[kk*nvars+nn, :]
+                tmp[:, kk] = grad_P[kk*nvars+nn, :]
+                assert np.allclose(fd_jac_res[:, :, kk*nvars+nn], tmp)
+        
 
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
