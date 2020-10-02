@@ -521,7 +521,7 @@ class TestSamplers(unittest.TestCase):
         vals2 = gp2(validation_samples)
         assert np.allclose(vals1[:, 0:1], vals2)
 
-    def test_RBF_gradient_wrt_sample_coordinates(self):
+    def test_RBF_posterior_variance_gradient_wrt_sample_coordinates(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -548,7 +548,7 @@ class TestSamplers(unittest.TestCase):
                 x, pred_samples, length_scale), x0)
         assert errors.min()<1e-6
 
-        jac = RBF_jacobian_wrt_sample_coordinates(
+        jac = RBF_posterior_variance_jacobian_wrt_sample_coordinates(
             train_samples, pred_samples, kernel)
 
         x0 = train_samples.flatten(order='F')
@@ -567,13 +567,14 @@ class TestSamplers(unittest.TestCase):
 
         errors = pya.check_gradients(
             func,
-            lambda x: RBF_jacobian_wrt_sample_coordinates(
+            lambda x: RBF_posterior_variance_jacobian_wrt_sample_coordinates(
                 x.reshape(nvars, x.shape[0]//nvars, order='F'),
                 pred_samples, kernel), x0[:, np.newaxis])
         assert errors.min()<2e-6
 
 
-    def test_RBF_gradient_wrt_sample_coordinates_subset(self):
+    def test_RBF_posterior_variance_gradient_wrt_sample_coordinates_subset(
+            self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -589,7 +590,7 @@ class TestSamplers(unittest.TestCase):
         kernel = RBF(length_scale, length_scale_bounds='fixed')
 
         pred_samples = np.random.uniform(0, 1, (nvars, 3))
-        jac = RBF_jacobian_wrt_sample_coordinates(
+        jac = RBF_posterior_variance_jacobian_wrt_sample_coordinates(
             train_samples, pred_samples, kernel, new_samples_index)
 
         x0 = train_samples.flatten(order='F')
@@ -624,7 +625,7 @@ class TestSamplers(unittest.TestCase):
         # points is needed
         xx_1d, ww_1d = pya.gauss_hermite_pts_wts_1D(100)
         grad_P = integrate_grad_P(
-            [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)
+            [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)[0]
 
         a, b = train_samples[:, 0]
         mu = [0]*nvars
@@ -763,19 +764,27 @@ class TestSamplers(unittest.TestCase):
             P, func1(x0).reshape((ntrain_samples, ntrain_samples), order='F'))
         jac = np.zeros((nvars*ntrain_samples))
         jac1 = np.zeros((nvars*ntrain_samples))
-        PAinvP = (A_inv.dot(P).dot(A_inv))
+        AinvPAinv = (A_inv.dot(P).dot(A_inv))
         for kk in range(ntrain_samples):
             K_train_grad_all_train_points_kk = \
                 RBF_gradient_wrt_sample_coordinates(
                     train_samples[:, kk:kk+1], train_samples, length_scale)
-
-            tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*PAinvP[:, kk], axis=1)
-            tmp3 -=  -K_train_grad_all_train_points_kk[kk, :]*PAinvP[kk, kk]
+            # Use the follow properties for tmp3 and tmp4
+            # Do sparse matrix element wise product
+            # 0 a 0   D00 D01 D02
+            # a b c x D10 D11 D12
+            # 0 c 0   D20 D21 D22
+            # =2*(a*D01 b*D11 + c*D21)-b*D11
+            #
+            # Trace [RCRP] = Trace[RPRC] for symmetric matrices
+            tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*AinvPAinv[:, kk],
+                             axis=1)
+            tmp3 -=  -K_train_grad_all_train_points_kk[kk, :]*AinvPAinv[kk, kk]
             jac1[kk*nvars:(kk+1)*nvars] = -tmp3
             tmp4 = 2*np.sum(grad_P[kk*nvars:(kk+1)*nvars]*A_inv[:, kk], axis=1)
             tmp4 -=  grad_P[kk*nvars:(kk+1)*nvars,kk]*A_inv[kk, kk]
             jac1[kk*nvars:(kk+1)*nvars] -= tmp4
-            
+            # check these numpy operations with an explicit loop calculation
             for nn in range(nvars):
                tmp1 = np.zeros((ntrain_samples, ntrain_samples))
                tmp1[kk, :] = grad_P[kk*nvars+nn, :]
@@ -789,11 +798,52 @@ class TestSamplers(unittest.TestCase):
                jac[kk*nvars+nn] -= np.sum(tmp2*P+A_inv*tmp1)
 
         assert np.allclose(jac, obj_fd_jac)
-        print(jac,jac1)
         assert np.allclose(jac1, obj_fd_jac)
 
-                
-            
+        jac2 = \
+            RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+                train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel)
+        assert np.allclose(jac2, obj_fd_jac)
+
+    def test_RBF_integrated_posterior_variance_gradient_wrt_sample_subset(self):
+        nvars = 2
+        lb, ub = -1, 1
+        ntrain_samples_1d = 10
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+        train_vals = func(train_samples)
+
+        new_samples_index = train_samples.shape[1]-10
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        xx_1d, ww_1d = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
+        jac = RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+            train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel,
+            new_samples_index)
+
+        x0 = train_samples.flatten(order='F')
+        assert np.allclose(
+            train_samples, x0.reshape(train_samples.shape, order='F'))
+
+        def func(x_flat):
+            xtr = x_flat.reshape((nvars, train_samples.shape[1]), order='F')
+            P = 1
+            for kk in range(nvars):
+                P *= integrate_tau_P(
+                    xx_1d, ww_1d, xtr[kk:kk+1, :], length_scale[kk])[1]
+            A_inv = np.linalg.inv(kernel(xtr.T))
+            val = np.sum(A_inv*P)
+            return -val
+
+        fd_jac = pya.approx_jacobian(func, x0)[0,new_samples_index*nvars:]
+
+        print(jac, '\n\n', fd_jac)
+        #print('\n', np.absolute(jac-fd_jac).max())
+        assert np.allclose(jac, fd_jac, atol=1e-5)
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
@@ -874,13 +924,13 @@ class TestSamplers(unittest.TestCase):
         print(val1, val2)
         assert (val1 < val2)
         
-        plt.plot(sampler.training_samples[0, :],
-                 sampler.training_samples[1, :], 'o')
-        plt.plot(sampler.greedy_sampler.training_samples[0, :],
-                 sampler.greedy_sampler.training_samples[1, :], 'x')
-        #plt.plot(sampler.init_guess[0, :],
+        # plt.plot(sampler.training_samples[0, :],
+        #          sampler.training_samples[1, :], 'o')
+        # plt.plot(sampler.greedy_sampler.training_samples[0, :],
+        #          sampler.greedy_sampler.training_samples[1, :], 'x')
+        # plt.plot(sampler.init_guess[0, :],
         #         sampler.init_guess[1, :], '^')
-        plt.show()
+        # plt.show()
 
     def test_greedy_gauss_quadrature_ivar_sampler_I(self):
         nvars = 2
@@ -1079,10 +1129,10 @@ class TestSamplers(unittest.TestCase):
         sampler2(ntrain_samples)
         sampler2(ntrain_samples*2)        
         
-        plt.plot(sampler.training_samples[0, :],
-                 sampler.training_samples[1, :], 'o')
-        plt.plot(sampler2.training_samples[0, :],
-                 sampler2.training_samples[1, :], 'x')
+        # plt.plot(sampler.training_samples[0, :],
+        #          sampler.training_samples[1, :], 'o')
+        # plt.plot(sampler2.training_samples[0, :],
+        #          sampler2.training_samples[1, :], 'x')
         # plt.show()
 
         
