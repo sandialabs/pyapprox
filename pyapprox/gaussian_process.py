@@ -801,8 +801,53 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
             np.asarray(length_scale)**2)
     return grad
 
-def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
-                                        kernel, new_samples_index=0):
+
+def RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+        train_samples, quad_x, quad_w,
+        kernel, new_samples_index=0, nugget=1e-14):
+    r"""
+    """
+    length_scale = kernel.length_scale
+    nvars, ntrain_samples = train_samples.shape
+    K_train = kernel(train_samples.T)
+    # add small number to diagonal to ensure covariance matrix is
+    # positive definite
+    ntrain_samples = train_samples.shape[1]
+    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += nugget
+    A_inv = np.linalg.inv(K_train)
+    grad_P, P = integrate_grad_P(
+            quad_x, quad_w, train_samples, length_scale)
+    AinvPAinv = (A_inv.dot(P).dot(A_inv))
+
+    noptimized_train_samples = ntrain_samples-new_samples_index
+    jac = np.zeros((nvars*noptimized_train_samples))
+    cnt = 0
+    for kk in range(new_samples_index, ntrain_samples):
+        K_train_grad_all_train_points_kk = \
+            RBF_gradient_wrt_sample_coordinates(
+                train_samples[:, kk:kk+1], train_samples, length_scale)
+        # Use the follow properties for tmp3 and tmp4
+        # Do sparse matrix element wise product
+        # 0 a 0   D00 D01 D02
+        # a b c x D10 D11 D12
+        # 0 c 0   D20 D21 D22
+        # =2*(a*D01 b*D11 + c*D21)-b*D11
+        #
+        # Trace [RCRP] = Trace[RPRC] for symmetric matrices
+        tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*AinvPAinv[:, kk],
+                         axis=1)
+        tmp3 -=  -K_train_grad_all_train_points_kk[kk, :]*AinvPAinv[kk, kk]
+        jac[cnt*nvars:(cnt+1)*nvars] = -tmp3
+        tmp4 = 2*np.sum(grad_P[kk*nvars:(kk+1)*nvars]*A_inv[:, kk], axis=1)
+        tmp4 -=  grad_P[kk*nvars:(kk+1)*nvars,kk]*A_inv[kk, kk]
+        jac[cnt*nvars:(cnt+1)*nvars] -= tmp4
+        cnt += 1
+    return jac
+
+
+def RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+        train_samples, pred_samples,
+        kernel, new_samples_index=0):
     r"""
     Gradient of the posterior covariance of a Gaussian process built
     using the squared exponential kernel. Let :math:`\hat{x}^{(i)}` be a
@@ -1093,7 +1138,7 @@ class IVARSampler(object):
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
                   order='F')])
         new_samples_index = self.training_samples.shape[1]
-        return RBF_jacobian_wrt_sample_coordinates(
+        return RBF_posterior_variance_jacobian_wrt_sample_coordinates(
             train_samples, self.pred_samples, self.greedy_sampler.kernel,
             new_samples_index).mean(axis=0)
 
