@@ -807,8 +807,10 @@ def RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
         kernel, new_samples_index=0, nugget=1e-14):
     r"""
     """
-    length_scale = kernel.length_scale
     nvars, ntrain_samples = train_samples.shape
+    length_scale = kernel.length_scale
+    if np.isscalar(length_scale):
+        length_scale = np.array([length_scale]*nvars)
     K_train = kernel(train_samples.T)
     # add small number to diagonal to ensure covariance matrix is
     # positive definite
@@ -1071,7 +1073,7 @@ class IVARSampler(object):
         if use_gauss_quadrature:
             self.precompute_gauss_quadrature()
             self.objective = self.quadrature_objective
-            self.objective_gradient = None
+            self.objective_gradient = self.quadrature_objective_gradient
             assert self.greedy_sampler.variables is not None
         else:
             self.objective = self.monte_carlo_objective
@@ -1116,8 +1118,18 @@ class IVARSampler(object):
         P = self.compute_P(train_samples)
         return 1-np.trace(A_inv.dot(P))
 
-    def xquadrature_objective_gradient(self):
-        pass
+    def quadrature_objective_gradient(self, new_train_samples_flat):
+        train_samples = np.hstack(
+            [self.training_samples,
+             new_train_samples_flat.reshape(
+                 (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
+                  order='F')])
+        xx = [q[0] for q in self.quad_rules]
+        ww = [q[1] for q in self.quad_rules]
+        new_samples_index = self.training_samples.shape[1]
+        return RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+            train_samples, xx, ww, self.greedy_sampler.kernel,
+            new_samples_index)
 
     def monte_carlo_objective(self, new_train_samples_flat):
         train_samples = np.hstack(
@@ -1205,7 +1217,6 @@ class IVARSampler(object):
         init_guess = self.init_guess.flatten(order='F')
         # Optimize the locations of only the new training samples
         jac = self.objective_gradient
-        #jac = None
         res = minimize(self.objective, init_guess, jac=jac,
                        method='L-BFGS-B', options=self.optim_opts,
                        bounds=self.bounds)
