@@ -893,7 +893,7 @@ def RBF_jacobian_wrt_sample_coordinates(train_samples, pred_samples,
             np.tile(tau[:, jj:jj+1], (2, 1, ntrain_samples))
         tmp1[:,:,jj] = K_train_grad_all_train_points_jj.T.dot(tau.T)
         tmp2 = np.sum(tau*tmp1, axis=(2))
-        jac[:, ii*nvars:(ii+1)*nvars] -= tmp2.T
+        jac[:, ii*nvars:(ii+1)*nvars] -= tmp2.T #check if -= is needed over =
         # leave the following for loop to show how sparsity is taken advantage
         # of above. Above is abstract and hard to see what is being done
         # for kk in range(nvars):
@@ -971,7 +971,7 @@ def integrate_grad_P(xx, ww, xtr, lscale):
             grad_P[nvars*ii+nn, :] *= np.prod(P[:nn, ii, :], axis=0)
             grad_P[nvars*ii+nn, :] *= np.prod(P[nn+1:, ii, :], axis=0)
             grad_P[nvars*ii+nn, ii] *= 2
-    return grad_P
+    return grad_P, np.prod(P, axis=0)
 
 
 class IVARSampler(object):
