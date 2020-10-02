@@ -672,7 +672,27 @@ class TestSamplers(unittest.TestCase):
                     #assert False
                     #assert np.allclose(grad_P_mc, grad_P[kk,ii,jj])
 
-        def func(xtr):
+    def test_integrate_grad_P_II(self):
+        nvars = 2
+        univariate_variables = [stats.norm()]*nvars
+        #lb, ub = univariate_variables[0].interval(0.99999)
+        lb, ub = -2, 2 
+
+        ntrain_samples_1d = 4
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+
+        length_scale = [0.5, 0.4, 0.6][:nvars]
+        kernel = RBF(length_scale, length_scale_bounds='fixed')
+
+        # the shorter the length scale the larger the number of quadrature
+        # points is needed
+        xx_1d, ww_1d = pya.gauss_hermite_pts_wts_1D(100)
+        grad_P, P = integrate_grad_P(
+            [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)
+
+        def func1(xtr):
             xtr = xtr.reshape((nvars, train_samples.shape[1]), order='F')
             P = 1
             for kk in range(nvars):
@@ -685,13 +705,14 @@ class TestSamplers(unittest.TestCase):
             return vals
 
         x0 = train_samples.flatten(order='F')
-        fd_jac = pya.approx_jacobian(func, x0)
+        P_fd_jac = pya.approx_jacobian(func1, x0)
         ntrain_samples = train_samples.shape[1]
         assert  np.allclose(
-            fd_jac.shape, (ntrain_samples**2, nvars*ntrain_samples))
-        fd_jac_res = fd_jac.reshape(
+            P_fd_jac.shape, (ntrain_samples**2, nvars*ntrain_samples))
+        P_fd_jac_res = P_fd_jac.reshape(
             (ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
-        assert np.allclose(fd_jac_res[:, :, 0].flatten(order='F'), fd_jac[:, 0])
+        from sklearn.gaussian_process.kernels import _approx_fprime
+        assert np.allclose(_approx_fprime(x0, lambda x: func1(x).reshape(ntrain_samples, ntrain_samples, order='F'), np.sqrt(np.finfo(float).eps)),P_fd_jac_res)
 
         # Consider 3 training samples with
         # P = P00 P01 P02
@@ -704,15 +725,74 @@ class TestSamplers(unittest.TestCase):
         # dP/d(x[0,n]) = C00 C01 C02
         #                C10  0   0
         #                C20  0   0
-        jac = np.empty_like(fd_jac)
+        jac = np.empty_like(P_fd_jac)
         for kk in range(ntrain_samples):
             for nn in range(nvars):
                 tmp = np.zeros((ntrain_samples, ntrain_samples))
                 tmp[kk, :] = grad_P[kk*nvars+nn, :]
-                tmp[:, kk] = grad_P[kk*nvars+nn, :]
-                assert np.allclose(fd_jac_res[:, :, kk*nvars+nn], tmp)
-        
+                tmp[:, kk] = tmp[kk, :]
+                assert np.allclose(P_fd_jac_res[:, :, kk*nvars+nn], tmp)
 
+        def func2(xtr):
+            xtr = xtr.reshape((nvars, train_samples.shape[1]), order='F')
+            A_inv = np.linalg.inv(kernel(xtr.T))
+            return A_inv.flatten(order='F')
+
+        def func3(xtr):
+            xtr = xtr.reshape((nvars, train_samples.shape[1]), order='F')
+            P = 1
+            for kk in range(nvars):
+                P *= integrate_tau_P(
+                    xx_1d, ww_1d, xtr[kk:kk+1, :], length_scale[kk])[1]
+            A_inv = np.linalg.inv(kernel(xtr.T))
+            val = np.sum(A_inv*P)
+            return -val
+
+        A_fd_jac = pya.approx_jacobian(func2, x0).reshape((
+            ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
+        assert np.allclose(_approx_fprime(x0, lambda x: func2(x).reshape(ntrain_samples, ntrain_samples, order='F'), np.sqrt(np.finfo(float).eps)),A_fd_jac)
+
+        A_inv = np.linalg.inv(kernel(train_samples.T))
+        assert np.allclose(func3(x0),-np.sum(A_inv*P))
+        obj_fd_split = -np.sum(A_fd_jac*P[:,:,np.newaxis] + P_fd_jac_res*A_inv[:,:,np.newaxis],axis=(0,1))
+        
+        obj_fd_jac = pya.approx_jacobian(func3, x0)[0,:]
+        assert np.allclose(obj_fd_split, obj_fd_jac)
+
+        assert np.allclose(
+            P, func1(x0).reshape((ntrain_samples, ntrain_samples), order='F'))
+        jac = np.zeros((nvars*ntrain_samples))
+        #jac1 = np.zeros((nvars*ntrain_samples))
+        for kk in range(ntrain_samples):
+            K_train_grad_all_train_points_kk = \
+                RBF_gradient_wrt_sample_coordinates(
+                    train_samples[:, kk:kk+1], train_samples, length_scale)
+            # print(K_train_grad_all_train_points_kk.shape, P.shape, grad_P.shape)
+            # tmp3 = K_train_grad_all_train_points_kk.T[:,np.newaxis,:] * \
+            #     np.tile(P, (nvars, 1, 1))
+            # tmp4 = grad_P[kk*nvars:(kk+1)*nvars][:,np.newaxis,:] * \
+            #     np.tile(A_inv, (nvars, 1, 1))
+            # jac1[kk*nvars:(kk+1)*nvars] = np.sum(tmp3, axis = (1,2)) + np.sum(
+            #     tmp4, axis = (1,2))
+            for nn in range(nvars):
+               tmp1 = np.zeros((ntrain_samples, ntrain_samples))
+               tmp1[kk, :] = grad_P[kk*nvars+nn, :]
+               tmp1[:, kk] = tmp1[kk, :]
+               assert np.allclose(P_fd_jac_res[:,:,kk*nvars+nn], tmp1)
+               tmp2 = np.zeros((ntrain_samples, ntrain_samples))
+               tmp2[kk, :] = K_train_grad_all_train_points_kk[:, nn]
+               tmp2[:, kk] = tmp2[kk, :]
+               tmp2 = -A_inv.dot(tmp2.dot(A_inv))
+               assert np.allclose(A_fd_jac[:,:,kk*nvars+nn], tmp2, atol=1e-6)
+               jac[kk*nvars+nn] -= np.sum(tmp2*P+A_inv*tmp1)
+               #jac[kk*nvars+nn] = np.sum(tmp2*P)
+               #jac[kk*nvars+nn] = np.sum(tmp1*A_inv)
+            #print(jac1[kk*nvars:(kk+1)*nvars]-jac[kk*nvars:(kk+1)*nvars])
+
+        assert np.allclose(jac, obj_fd_jac)
+
+                
+            
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
