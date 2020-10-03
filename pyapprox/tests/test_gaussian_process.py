@@ -521,7 +521,7 @@ class TestSamplers(unittest.TestCase):
         vals2 = gp2(validation_samples)
         assert np.allclose(vals1[:, 0:1], vals2)
 
-    def test_RBF_posterior_variance_gradient_wrt_sample_coordinates(self):
+    def test_RBF_posterior_variance_gradient_wrt_samples(self):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
@@ -536,7 +536,7 @@ class TestSamplers(unittest.TestCase):
 
         pred_samples = np.random.uniform(0, 1, (nvars, 3))
         x0 = train_samples[:, :1]
-        grad = RBF_gradient_wrt_sample_coordinates(
+        grad = RBF_gradient_wrt_samples(
             x0, pred_samples, length_scale)
 
         fd_grad = pya.approx_jacobian(
@@ -544,11 +544,11 @@ class TestSamplers(unittest.TestCase):
         assert np.allclose(grad, fd_grad, atol=1e-6)
         errors = pya.check_gradients(
             lambda x: kernel(x.T, pred_samples.T)[0, :],
-            lambda x: RBF_gradient_wrt_sample_coordinates(
+            lambda x: RBF_gradient_wrt_samples(
                 x, pred_samples, length_scale), x0)
         assert errors.min()<1e-6
 
-        jac = RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+        jac = RBF_posterior_variance_jacobian_wrt_samples(
             train_samples, pred_samples, kernel)
 
         x0 = train_samples.flatten(order='F')
@@ -567,13 +567,13 @@ class TestSamplers(unittest.TestCase):
 
         errors = pya.check_gradients(
             func,
-            lambda x: RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+            lambda x: RBF_posterior_variance_jacobian_wrt_samples(
                 x.reshape(nvars, x.shape[0]//nvars, order='F'),
                 pred_samples, kernel), x0[:, np.newaxis])
         assert errors.min()<2e-6
 
 
-    def test_RBF_posterior_variance_gradient_wrt_sample_coordinates_subset(
+    def test_RBF_posterior_variance_gradient_wrt_samples_subset(
             self):
         nvars = 2
         lb, ub = 0, 1
@@ -590,7 +590,7 @@ class TestSamplers(unittest.TestCase):
         kernel = RBF(length_scale, length_scale_bounds='fixed')
 
         pred_samples = np.random.uniform(0, 1, (nvars, 3))
-        jac = RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+        jac = RBF_posterior_variance_jacobian_wrt_samples(
             train_samples, pred_samples, kernel, new_samples_index)
 
         x0 = train_samples.flatten(order='F')
@@ -651,7 +651,7 @@ class TestSamplers(unittest.TestCase):
         weights = pya.outer_product([ww_1d]*nvars)
         for ii in range(train_samples.shape[1]):
             x0 = train_samples[:, ii:ii+1]
-            grad = RBF_gradient_wrt_sample_coordinates(
+            grad = RBF_gradient_wrt_samples(
                 x0, pred_samples, length_scale)
             for jj in range(train_samples.shape[1]):
                 x1 = train_samples[:, jj:jj+1]
@@ -767,7 +767,7 @@ class TestSamplers(unittest.TestCase):
         AinvPAinv = (A_inv.dot(P).dot(A_inv))
         for kk in range(ntrain_samples):
             K_train_grad_all_train_points_kk = \
-                RBF_gradient_wrt_sample_coordinates(
+                RBF_gradient_wrt_samples(
                     train_samples[:, kk:kk+1], train_samples, length_scale)
             # Use the follow properties for tmp3 and tmp4
             # Do sparse matrix element wise product
@@ -801,7 +801,7 @@ class TestSamplers(unittest.TestCase):
         assert np.allclose(jac1, obj_fd_jac)
 
         jac2 = \
-            RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+            RBF_integrated_posterior_variance_gradient_wrt_samples(
                 train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel)
         assert np.allclose(jac2, obj_fd_jac)
 
@@ -822,7 +822,7 @@ class TestSamplers(unittest.TestCase):
 
         xx_1d, ww_1d = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
         t0 = time.time()
-        jac = RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+        jac = RBF_integrated_posterior_variance_gradient_wrt_samples(
             train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel,
             new_samples_index)
         print(time.time()-t0)
@@ -858,13 +858,14 @@ class TestSamplers(unittest.TestCase):
         
         # correlation length affects ability to check gradient. As kerenl matrix
         # gets more ill conditioned then gradients get worse
-        #greedy_method = 'ivar'
-        greedy_method = 'chol'
-        use_gauss_quadrature = True
+        greedy_method = 'ivar'
+        #greedy_method = 'chol'
+        use_gauss_quadrature = False
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables,
-            greedy_method, use_gauss_quadrature=use_gauss_quadrature)
+            greedy_method, use_gauss_quadrature=use_gauss_quadrature,
+            nugget=1e-14)
         sampler.set_kernel(copy.deepcopy(kernel))
 
         def weight_function(samples):
@@ -910,21 +911,29 @@ class TestSamplers(unittest.TestCase):
         assert (val1 < val2)
 
         new_samples2 = sampler(2*ntrain_samples)[0]
+        # currently the following check will fail because a different set
+        # of prediction samples will be generated by greedy sampler
+        #assert np.allclose(
+        #    1+sampler.greedy_sampler.best_obj_vals[ntrain_samples-1], val1)
 
         assert np.allclose(
             new_samples1, sampler.training_samples[:, :ntrain_samples],
             atol=1e-12)
 
         assert np.allclose(
-            sampler.greedy_sampler.training_samples[: ,:ntrain_samples],
+            sampler.greedy_sampler.training_samples[:, :ntrain_samples],
             new_samples1, atol=1e-12)
         
         val1 = gaussian_process_pointwise_variance(
             sampler.greedy_sampler.kernel, sampler.pred_samples,
             sampler.training_samples).mean()
+        #init guess used by optimizer does not contain
+        #fixed trainign points already selected so add here 
+        greedy_samples = np.hstack([sampler.training_samples[:,:ntrain_samples],
+                                    sampler.init_guess])
         val2 = gaussian_process_pointwise_variance(
             sampler.greedy_sampler.kernel, sampler.pred_samples,
-            sampler.init_guess).mean()
+            greedy_samples).mean()
         print(val1, val2)
         assert (val1 < val2)
         
@@ -935,6 +944,101 @@ class TestSamplers(unittest.TestCase):
         # plt.plot(sampler.init_guess[0, :],
         #         sampler.init_guess[1, :], '^')
         # plt.show()
+
+    def test_quadrature_gradient_based_ivar_sampler(self):
+        nvars = 2
+        variables = pya.IndependentMultivariateRandomVariable(
+            [stats.beta(20, 20)]*nvars)
+        generate_random_samples = partial(
+            pya.generate_independent_random_samples, variables)
+        
+        # correlation length affects ability to check gradient. As kerenl matrix
+        # gets more ill conditioned then gradients get worse
+        greedy_method = 'ivar'
+        #greedy_method = 'chol'
+        use_gauss_quadrature = True
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        sampler = IVARSampler(
+            nvars, 1000, 1000, generate_random_samples, variables,
+            greedy_method, use_gauss_quadrature=use_gauss_quadrature)
+        sampler.set_kernel(copy.deepcopy(kernel))
+
+        def weight_function(samples):
+            return np.prod([variables.all_variables()[ii].pdf(samples[ii,:])
+                            for ii in range(samples.shape[0])],axis=0)
+
+        if greedy_method == 'chol':
+            sampler.set_weight_function(weight_function)
+
+        # nature of training samples affects ability to check gradient. As
+        # training samples makes kernel matrix more ill conditioned then
+        # gradients get worse
+        ntrain_samples_1d = 10
+        train_samples = pya.cartesian_product(
+            [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
+        x0 = train_samples.flatten(order='F')
+        if not use_gauss_quadrature:
+            # gradients not currently implemented when using quadrature
+            errors = pya.check_gradients(
+                sampler.objective, sampler.objective_gradient, x0[:,np.newaxis],
+                disp=False)
+            assert errors.min()<4e-6
+
+        gsampler = sampler.greedy_sampler
+        #print(np.linalg.norm(gsampler.candidate_samples))
+        #print(np.linalg.norm(sampler.pred_samples))
+
+        ntrain_samples = 20
+        new_samples1 = sampler(ntrain_samples)[0].copy()
+
+        A_inv = np.linalg.inv(kernel(sampler.training_samples.T))
+        P = sampler.compute_P(sampler.training_samples)
+        val1 = 1-np.trace(A_inv.dot(P))
+        A_inv = np.linalg.inv(kernel(sampler.init_guess.T))
+        P = sampler.compute_P(sampler.init_guess)
+        val2 = 1-np.trace(A_inv.dot(P))
+        
+        # can't just call sampler.objective here because self.training_points
+        # has been updated and calling objective(sampler.training_samples)
+        # will evaluate objective with training samples repeated twice.
+        # Similarly init guess will be concatenated with self.training_samples
+        # if passed to objective at this point
+        print(val1, val2)
+        assert (val1 < val2)
+
+        new_samples2 = sampler(2*ntrain_samples)[0]
+        assert np.allclose(
+            1+sampler.greedy_sampler.best_obj_vals[ntrain_samples-1], val1)
+
+        assert np.allclose(
+            new_samples1, sampler.training_samples[:, :ntrain_samples],
+            atol=1e-12)
+
+        assert np.allclose(
+            sampler.greedy_sampler.training_samples[:, :ntrain_samples],
+            new_samples1, atol=1e-12)
+        
+        A_inv = np.linalg.inv(kernel(sampler.training_samples.T))
+        P = sampler.compute_P(sampler.training_samples)
+        val1 = 1-np.trace(A_inv.dot(P))
+
+        #init guess used by optimizer does not contain
+        #fixed trainign points already selected so add here 
+        greedy_samples = np.hstack([sampler.training_samples[:,:ntrain_samples],
+                                    sampler.init_guess])
+        A_inv = np.linalg.inv(kernel(greedy_samples.T))
+        P = sampler.compute_P(greedy_samples)
+        val2 = 1-np.trace(A_inv.dot(P))
+        print(val1, val2)
+        assert (val1 < val2)
+        
+        plt.plot(sampler.training_samples[0, :],
+                 sampler.training_samples[1, :], 'o')
+        plt.plot(sampler.greedy_sampler.training_samples[0, :],
+                 sampler.greedy_sampler.training_samples[1, :], 'x')
+        plt.plot(sampler.init_guess[0, :],
+                sampler.init_guess[1, :], '^')
+        plt.show()
 
     def test_greedy_gauss_quadrature_ivar_sampler_I(self):
         nvars = 2
@@ -1017,6 +1121,9 @@ class TestSamplers(unittest.TestCase):
         
         t0 = time.time()
         samples1 = sampler1(nsamples)[0]
+        assert np.allclose(
+            sampler1.L[:nsamples, :nsamples],
+            np.linalg.cholesky(kernel(sampler1.training_samples.T)))
         time1 = time.time()-t0
         print(time1)
 

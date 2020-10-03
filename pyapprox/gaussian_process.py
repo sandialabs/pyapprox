@@ -48,11 +48,11 @@ class GaussianProcess(GaussianProcessRegressor):
         """
         return self.predict(samples.T, return_std, return_cov)
 
-    def predict_random_realization(self, samples):
+    def predict_random_realization(self, samples, nugget=0):
         mean, cov = self(samples, return_cov=True)
         # add small number to diagonal to ensure covariance matrix is
         # positive definite
-        cov[np.arange(cov.shape[0]), np.arange(cov.shape[0])] += 1e-14
+        cov[np.arange(cov.shape[0]), np.arange(cov.shape[0])] += nugget
         L = np.linalg.cholesky(cov)
         return mean + L.dot(np.random.normal(0, 1, mean.shape))
 
@@ -578,7 +578,8 @@ class CholeskySampler(object):
         The array indices of the candidate_samples to keep
     """
     def __init__(self, num_vars, num_candidate_samples, variables=None,
-                 generate_random_samples=None, init_pivots=None):
+                 generate_random_samples=None, init_pivots=None,
+                 nugget = 0):
         self.nvars = num_vars
         self.kernel_theta = None
         self.chol_flag = None
@@ -590,6 +591,11 @@ class CholeskySampler(object):
         self.set_weight_function(None)
         self.ntraining_samples = 0
         self.set_init_pivots(init_pivots)
+        self.nugget = nugget
+        
+    def add_nugget(self):
+        self.Kmatrix[np.arange(self.Kmatrix.shape[0]),
+                     np.arange(self.Kmatrix.shape[1])] += self.nugget
 
     def set_weight_function(self, weight_function):
         self.pivot_weights = None
@@ -619,9 +625,12 @@ class CholeskySampler(object):
         if self.kernel_theta is None:
             assert self.kernel_changed
 
+        nprev_train_samples = self.ntraining_samples
+        
         if (self.weight_function_changed or self.kernel_changed or
             self.init_pivots_changed):
             self.Kmatrix = self.kernel(self.candidate_samples.T)
+            self.add_nugget()
             self.L, self.pivots, error, self.chol_flag, self.diag, \
                 self.init_error, self.ntraining_samples = \
                 pivoted_cholesky_decomposition(
@@ -641,14 +650,10 @@ class CholeskySampler(object):
 
         if self.chol_flag == 0:
             assert self.ntraining_samples == num_samples
-        if self.init_pivots is None:
-            nprev_train_samples = 0
-        else:
-            nprev_train_samples = self.init_pivots.shape[0]
         self.init_pivots = self.pivots[:self.ntraining_samples].copy()
 
         # extract samples that were not already in sample set
-        # pivots has alreay been reduced to have the size of the number of
+        # pivots has already been reduced to have the size of the number of
         # samples requested
         new_samples = \
             self.candidate_samples[:, self.pivots[
@@ -704,7 +709,8 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
         return np.linalg.cond(chol_factor.dot(chol_factor.T))
 
 
-def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
+def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples,
+                                        nugget = 0):
     r"""
     Compute the pointwise variance of a Gaussian process, that is
 
@@ -741,7 +747,7 @@ def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
     # add small number to diagonal to ensure covariance matrix is
     # positive definite
     ntrain_samples = train_samples.shape[1]
-    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += 1e-14
+    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += nugget
     k_pred = kernel(train_samples.T, pred_samples.T)
     L = np.linalg.cholesky(K_train)
     tmp = solve_triangular(L, k_pred, lower=True)
@@ -749,8 +755,7 @@ def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples):
     return variance
 
 
-def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
-                                        length_scale):
+def RBF_gradient_wrt_samples(query_sample, other_samples, length_scale):
     r"""
     Gradient of the squared exponential kernel
 
@@ -802,9 +807,9 @@ def RBF_gradient_wrt_sample_coordinates(query_sample, other_samples,
     return grad
 
 
-def RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+def RBF_integrated_posterior_variance_gradient_wrt_samples(
         train_samples, quad_x, quad_w,
-        kernel, new_samples_index=0, nugget=1e-14):
+        kernel, new_samples_index=0, nugget=0):
     r"""
     """
     nvars, ntrain_samples = train_samples.shape
@@ -826,7 +831,7 @@ def RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
     cnt = 0
     for kk in range(new_samples_index, ntrain_samples):
         K_train_grad_all_train_points_kk = \
-            RBF_gradient_wrt_sample_coordinates(
+            RBF_gradient_wrt_samples(
                 train_samples[:, kk:kk+1], train_samples, length_scale)
         # Use the follow properties for tmp3 and tmp4
         # Do sparse matrix element wise product
@@ -847,9 +852,9 @@ def RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
     return jac
 
 
-def RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+def RBF_posterior_variance_jacobian_wrt_samples(
         train_samples, pred_samples,
-        kernel, new_samples_index=0):
+        kernel, new_samples_index=0, nugget=0):
     r"""
     Gradient of the posterior covariance of a Gaussian process built
     using the squared exponential kernel. Let :math:`\hat{x}^{(i)}` be a
@@ -914,7 +919,7 @@ def RBF_posterior_variance_jacobian_wrt_sample_coordinates(
     ii = 0
     for jj in range(new_samples_index, ntrain_samples):
         k_pred_grad_all_train_points[ii, :, :] = \
-            RBF_gradient_wrt_sample_coordinates(
+            RBF_gradient_wrt_samples(
             train_samples[:, jj:jj+1], pred_samples, length_scale)
         ii += 1
 
@@ -922,7 +927,7 @@ def RBF_posterior_variance_jacobian_wrt_sample_coordinates(
     # add small number to diagonal to ensure covariance matrix is
     # positive definite
     ntrain_samples = train_samples.shape[1]
-    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += 1e-14
+    K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += nugget
     
     K_inv = np.linalg.inv(K_train)
     k_pred = kernel(train_samples.T, pred_samples.T)
@@ -932,7 +937,7 @@ def RBF_posterior_variance_jacobian_wrt_sample_coordinates(
     ii = 0
     for jj in range(new_samples_index, ntrain_samples):
         K_train_grad_all_train_points_jj = \
-            RBF_gradient_wrt_sample_coordinates(
+            RBF_gradient_wrt_samples(
                 train_samples[:, jj:jj+1], train_samples, length_scale)
         jac[:, ii*nvars:(ii+1)*nvars] += \
             2*tau[:, jj:jj+1]*k_pred_grad_all_train_points[ii, :, :]
@@ -1039,36 +1044,23 @@ class IVARSampler(object):
     """
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
-                 greedy_method='givar', use_gauss_quadrature=False):
+                 greedy_method='givar', use_gauss_quadrature=False,
+                 nugget=0):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
-
-        if greedy_method == 'chol':
-            self.pred_samples = generate_random_samples(
-                self.nmonte_carlo_samples)
-            self.greedy_sampler = CholeskySampler(
-                self.nvars, ncandidate_samples, variables,
-                generate_random_samples=generate_random_samples)
-        elif greedy_method == 'ivar':
-            self.pred_samples = generate_random_samples(nmonte_carlo_samples)
-            self.greedy_sampler = GreedyIntegratedVarianceSampler(
-                self.nvars, nmonte_carlo_samples, ncandidate_samples,
-                generate_random_samples, variables, use_gauss_quadrature=True)
-        # elif greedy_method == 'varofmean':
-        #     self.pred_samples = generate_random_samples(nmonte_carlo_samples)
-        #     self.greedy_sampler = GreedyVarianceOfMeanSampler(
-        #         self.nvars, nmonte_carlo_samples, ncandidate_samples,
-        #         generate_random_samples, variables, use_gauss_quadrature=True)
-        else:
-            msg = f'Incorrect greedy_method {greedy_method}'
-            raise Exception(msg)
-
+        self.greedy_method = greedy_method
+        self.use_gauss_quadrature = use_gauss_quadrature
+        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
+        self.ncandidate_samples = ncandidate_samples
+        self.variables = variables
+        self.generate_random_samples = generate_random_samples
+        self.nugget = nugget
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
-
         self.nsamples_requested = []
         self.set_optimization_options(
             {'gtol':1e-8, 'ftol':0, 'disp':False, 'iprint':0})
+        self.initialize_greedy_sampler()
 
         if use_gauss_quadrature:
             self.precompute_gauss_quadrature()
@@ -1078,6 +1070,22 @@ class IVARSampler(object):
         else:
             self.objective = self.monte_carlo_objective
             self.objective_gradient = self.monte_carlo_objective_gradient
+
+    def initialize_greedy_sampler(self):
+        if self.greedy_method == 'chol':
+            self.greedy_sampler = CholeskySampler(
+                self.nvars, self.ncandidate_samples, self.variables,
+                generate_random_samples=self.generate_random_samples)
+        elif self.greedy_method == 'ivar':
+            self.greedy_sampler = GreedyIntegratedVarianceSampler(
+                self.nvars, self.nmonte_carlo_samples, self.ncandidate_samples,
+                self.generate_random_samples, self.variables,
+                use_gauss_quadrature=self.use_gauss_quadrature, econ=True,
+                nugget=self.nugget)
+        else:
+            msg = f'Incorrect greedy_method {greedy_method}'
+            raise Exception(msg)
+
 
     def precompute_gauss_quadrature(self):
         degrees = [min(100,self.nmonte_carlo_samples)]*self.nvars
@@ -1114,6 +1122,8 @@ class IVARSampler(object):
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
                 order='F')])
         A = self.greedy_sampler.kernel(train_samples.T)
+        A[np.arange(A.shape[0]), np.arange(A.shape[1])] += self.nugget
+        
         A_inv = np.linalg.inv(A)
         P = self.compute_P(train_samples)
         return 1-np.trace(A_inv.dot(P))
@@ -1127,9 +1137,9 @@ class IVARSampler(object):
         xx = [q[0] for q in self.quad_rules]
         ww = [q[1] for q in self.quad_rules]
         new_samples_index = self.training_samples.shape[1]
-        return RBF_integrated_posterior_variance_gradient_wrt_sample_coordinates(
+        return RBF_integrated_posterior_variance_gradient_wrt_samples(
             train_samples, xx, ww, self.greedy_sampler.kernel,
-            new_samples_index)
+            new_samples_index, nugget=self.nugget)
 
     def monte_carlo_objective(self, new_train_samples_flat):
         train_samples = np.hstack(
@@ -1139,7 +1149,7 @@ class IVARSampler(object):
                   order='F')])
         val = gaussian_process_pointwise_variance(
             self.greedy_sampler.kernel, self.pred_samples,
-            train_samples).mean()
+            train_samples, self.nugget).mean()
         # print('f',val)
         return val
 
@@ -1150,9 +1160,9 @@ class IVARSampler(object):
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
                   order='F')])
         new_samples_index = self.training_samples.shape[1]
-        return RBF_posterior_variance_jacobian_wrt_sample_coordinates(
+        return RBF_posterior_variance_jacobian_wrt_samples(
             train_samples, self.pred_samples, self.greedy_sampler.kernel,
-            new_samples_index).mean(axis=0)
+            new_samples_index, self.nugget).mean(axis=0)
 
     def set_weight_function(self, weight_function):
         self.greedy_sampler.set_weight_function(weight_function)
@@ -1197,19 +1207,42 @@ class IVARSampler(object):
         # of the original candidate samples chosen by
         # greedy_sampler.generate_samples, but this is unlikely. If it does
         # happen these points will never be chosen by the cholesky algorithm
-        self.greedy_sampler.candidate_samples = np.hstack([
+        candidate_samples = np.hstack([
             self.training_samples.copy(), candidate_samples])
+
+        # make sure greedy sampler recomputes all necessary information
+        # but first extract necessary information
+        pred_samples = self.greedy_sampler.pred_samples
+        if hasattr(self.greedy_sampler,'weight_function'):
+            weight_function = self.greedy_sampler.weight_function
+        else:
+            weight_function = None
+        kernel = self.greedy_sampler.kernel
+        self.initialize_greedy_sampler()
+        if weight_function is not None:
+            self.set_weight_function(weight_function)
+        # self.greedy_sampler.candidate_samples must be called before
+        # set kernel to make sure self.A matrix is set correctly
+        self.greedy_sampler.candidate_samples = candidate_samples
+        # currently the following will no effect a different set
+        # of prediction samples will be generated by greedy sampler when
+        # set kernel is called
+        self.greedy_sampler.pred_samples = pred_samples
+        self.set_kernel(kernel)
 
         # Make sure greedy_sampler chooses self.training_samples
         # only used if greedy_sampler is a Choleskysampler.
-        # self.greedy_sampler.candidate_samples must be called before this
-        # function call
         self.greedy_sampler.set_init_pivots(np.arange(self.ntraining_samples))
 
         # Get the initial guess for new samples to add.
         # Note the Greedy sampler will return only new samples not in
         # self.training_samples
         self.init_guess, chol_flag = self.greedy_sampler(nsamples)
+        self.init_guess = self.init_guess[:, self.ntraining_samples:]
+        #assert np.allclose(
+        #    self.greedy_sampler.L[:self.ntraining_samples,
+        #                          :self.ntraining_samples],
+        #    np.linalg.cholesky(kernel(self.training_samples.T)))
         assert chol_flag == 0
 
         self.set_bounds(nsamples-self.ntraining_samples)
@@ -1247,7 +1280,7 @@ class GreedyVarianceOfMeanSampler(object):
     def __init__(self, num_vars, nmonte_carlo_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
                  use_gauss_quadrature=False, econ=True,
-                 compute_cond_nums=False):
+                 compute_cond_nums=False, nugget=0):
         self.nvars = num_vars
         self.nmonte_carlo_samples = nmonte_carlo_samples
         self.variables = variables
@@ -1264,8 +1297,11 @@ class GreedyVarianceOfMeanSampler(object):
         self.pivots = []
         self.cond_nums = []
         self.compute_cond_nums = compute_cond_nums
-
+        self.init_pivots = None
+        self.nugget = nugget
         self.initialize()
+        self.best_obj_vals = []
+        self.pred_samples = None
         
     def initialize(self):
         self.L = np.zeros((0, 0))
@@ -1339,18 +1375,27 @@ class GreedyVarianceOfMeanSampler(object):
         return obj_vals
     
     def refine_naive(self):
-        ntraining_samples = self.ntraining_samples
-        obj_vals = self.objective_vals()
-        pivot = np.argmin(obj_vals)
-        return pivot
+        if (self.init_pivots is not None and
+            len(self.pivots) < len(self.init_pivots)):
+            pivot = self.init_pivots[len(self.pivots)]
+            obj_val = self.objective(pivot)
+        else:
+            ntraining_samples = self.ntraining_samples
+            obj_vals = self.objective_vals()
+            pivot = np.argmin(obj_vals)
+            obj_val = obj_vals[pivot]
+        return pivot, obj_val
 
     def refine_econ(self):
-        training_samples = self.ntraining_samples
-        obj_vals = self.vectorized_objective_vals_econ()
-        # obj_vals1 = self.objective_vals_econ()
-        # assert np.allclose(obj_vals ,obj_vals1)
+        if (self.init_pivots is not None and
+            len(self.pivots) < len(self.init_pivots)):
+            pivot = self.init_pivots[len(self.pivots)]
+            obj_val = self.objective_econ(pivot)
+        else:
+            training_samples = self.ntraining_samples
+            obj_vals = self.vectorized_objective_vals_econ()
+            pivot = np.argmin(obj_vals)
 
-        pivot = np.argmin(obj_vals)
         assert np.isfinite(obj_vals[pivot])
 
         if self.L.shape[0]==0:
@@ -1367,18 +1412,17 @@ class GreedyVarianceOfMeanSampler(object):
                     self.L = np.linalg.cholesky(
                         self.A[np.ix_(indices, indices)])
                 except:
-                    return -1
+                    return -1, np.inf
 
             L_22 = np.sqrt(L_22_sq)
             self.L = np.block(
                 [[self.L, np.zeros(L_12.shape)],
                  [L_12.T, L_22]])
             
-        self.prev_best_obj = obj_vals[pivot]
         assert np.isfinite(self.candidate_y_2[pivot])
         self.y_1 = np.concatenate([self.y_1, [self.candidate_y_2[pivot]]])
         
-        return pivot
+        return pivot, obj_vals[pivot]
 
     def objective_vals_econ(self):
         obj_vals = np.inf*np.ones(self.candidate_samples.shape[1])
@@ -1411,8 +1455,9 @@ class GreedyVarianceOfMeanSampler(object):
         self.candidate_y_2[~useful_candidates] = np.inf
         z_2 = y_2/L_22
         vals = np.inf*np.ones((self.candidate_samples.shape[1]))
+
         vals[useful_candidates] = -(
-            -self.prev_best_obj + self.tau[useful_candidates]*z_2 -
+            self.best_obj_vals[-1] + self.tau[useful_candidates]*z_2 -
             self.tau[self.pivots].dot(
                 solve_triangular(self.L.T, L_12*z_2, lower=False)))
         return vals
@@ -1432,10 +1477,11 @@ class GreedyVarianceOfMeanSampler(object):
         y_2 = (self.tau[new_sample_index]-L_12.T.dot(self.y_1))/L_22[0, 0]
         self.candidate_y_2[new_sample_index] = y_2
         z_2 = y_2/L_22[0, 0]
-        val = -(-self.prev_best_obj + self.tau[new_sample_index]*z_2 -
+
+        val = -(-self.best_obj_vals[-1] + self.tau[new_sample_index]*z_2 -
                 self.tau[self.pivots].dot(
                     solve_triangular(self.L.T, L_12*z_2, lower=False)))
-        return val
+        return val[0,0]
     
     def set_kernel(self, kernel):
         if (not type(kernel) == RBF and not
@@ -1455,12 +1501,15 @@ class GreedyVarianceOfMeanSampler(object):
             self.precompute_monte_carlo()
         self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
         # designs are better if a small nugget is added to the diagonal
-        self.A[np.arange(self.A.shape[0]), np.arange(self.A.shape[1])] += 1e-14
-        
+        self.add_nugget()
+
+    def add_nugget(self):
+        self.A[np.arange(self.A.shape[0]), np.arange(self.A.shape[1])] += \
+            self.nugget
 
     def set_init_pivots(self, init_pivots):
-        self.pivots = list(init_pivots)
-        self.training_samples = self.candidate_samples[:,init_pivots]
+        assert len(self.pivots)==0
+        self.init_pivots = list(init_pivots)
 
     def __call__(self, nsamples):
         if not hasattr(self, 'kernel'):
@@ -1474,7 +1523,9 @@ class GreedyVarianceOfMeanSampler(object):
         ntraining_samples = self.ntraining_samples
         for nn in range(ntraining_samples, nsamples):
             print('Iter', nn)
-            pivot = self.refine()
+            pivot, obj_val = self.refine()
+            self.best_obj_vals.append(obj_val)
+            print(1+self.best_obj_vals[-1])
 
             if pivot < 0:
                 if self.econ is False:
@@ -1484,6 +1535,7 @@ class GreedyVarianceOfMeanSampler(object):
                     self.econ = False
                     # Switch of econ mode which struggles when condition number
                     # is poor
+                    print('switching naive updating strategy on')
                     self.refine = self.refine_naive
                     pivot = self.refine()
             
@@ -1526,6 +1578,19 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         self.L = np.zeros((0, 0))
         self.L_inv = np.zeros((0, 0))
         self.A_inv = np.zeros((0, 0))
+
+    def precompute_monte_carlo(self):
+        self.pred_samples = self.generate_random_samples(
+            self.nmonte_carlo_samples)
+        lscale = self.kernel.length_scale
+        if np.isscalar(lscale):
+            lscale = np.array([lscale]*self.nvars)
+        dist_func = partial(cdist, metric='sqeuclidean')
+        dists_x1_xtr = dist_func(
+            self.pred_samples.T/lscale, self.candidate_samples.T/lscale)
+        K = np.exp(-.5*dists_x1_xtr)
+        ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
+        self.P = K.T.dot(ww[:, np.newaxis]*K)
     
     def precompute_gauss_quadrature(self):
         self.degrees = [self.nmonte_carlo_samples]*self.nvars
@@ -1566,9 +1631,10 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         P_11 = self.P[np.ix_(self.pivots, self.pivots)]
         P_12 = self.P[self.pivots, new_sample_index:new_sample_index+1]
         P_22 = self.P[new_sample_index, new_sample_index]
-        val = -(-self.prev_best_obj + np.sum(C.T.dot(C)*P_11) +
-               2*np.sum(C.T/L_22*P_12) + 1/L_22**2*P_22)
-        return val
+
+        val = -(-self.best_obj_vals[-1] + np.sum(C.T.dot(C)*P_11) +
+                2*np.sum(C.T/L_22*P_12) + 1/L_22**2*P_22)
+        return val[0,0]
 
     def vectorized_objective_vals_econ(self):
         if self.L_inv.shape[0] == 0:
@@ -1593,27 +1659,35 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
         C = -np.dot((L_12/L_22).T, self.L_inv)
         vals = np.inf*np.ones((self.candidate_samples.shape[1]))
+        
         vals[useful_candidates] =-(
-            -self.prev_best_obj +
+            -self.best_obj_vals[-1] + 
             np.sum(C.T*P_11.dot(C.T), axis=0) +
             2*np.sum(C.T/L_22*P_12, axis=0) + 1/L_22**2*P_22)
 
         return vals
 
     def refine_econ(self):
-        training_samples = self.ntraining_samples
-        obj_vals = self.vectorized_objective_vals_econ()
-        #obj_vals = self.objective_vals_econ()
+        print('a')
+        if (self.init_pivots is not None and
+            len(self.pivots) < len(self.init_pivots)):
+            pivot = self.init_pivots[len(self.pivots)]
+            obj_val = self.objective_econ(pivot)
+        else:
+            training_samples = self.ntraining_samples
+            obj_vals = self.vectorized_objective_vals_econ()
+            #obj_vals = self.objective_vals_econ()
+            pivot = np.argmin(obj_vals)
+            obj_val = obj_vals[pivot]
 
-        pivot = np.argmin(obj_vals)
-        if not np.isfinite(obj_vals[pivot]):
-            return -1
-        self.prev_best_obj = obj_vals[pivot]
+        if not np.isfinite(obj_val):
+            return -1, np.inf
+        
 
         if self.L_inv.shape[0]==0:
             self.L = np.atleast_2d(self.A[pivot, pivot])
             self.L_inv = np.atleast_2d(1/self.A[pivot, pivot])
-            return pivot
+            return pivot, obj_val
 
         A_12 = self.A[self.pivots, pivot:pivot+1]
         L_12 = solve_triangular(self.L, A_12, lower=True)
@@ -1625,19 +1699,19 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             try:
                 self.L = np.linalg.cholesky(self.A[np.ix_(indices, indices)])
             except:
-                return -1
+                return -1, np.inf
             self.L_inv = np.linalg.inv(self.L)
-            return pivot
+            return pivot, obj_val
         
         L_22 = np.sqrt(L_22_sq)
 
         self.L = np.block(
             [[self.L, np.zeros(L_12.shape)],
              [L_12.T, L_22]])
-
+        indices = np.concatenate([self.pivots, [pivot]]).astype(int)
         L_22_inv = np.linalg.inv(L_22)
         self.L_inv = np.block(
             [[self.L_inv, np.zeros(L_12.shape)],
              [-np.dot(L_22_inv.dot(L_12.T), self.L_inv), L_22_inv]])
 
-        return pivot
+        return pivot, obj_val
