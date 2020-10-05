@@ -1559,6 +1559,33 @@ class GreedyVarianceOfMeanSampler(object):
 
         return new_samples, flag
 
+def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
+    length_scale = np.asarray(length_scale)
+    dists = cdist(query_sample.T/length_scale, other_samples.T/length_scale,
+                  metric='euclidean')
+    if nu == 3/2:
+        tmp1 = np.sqrt(3)*dists
+        tmp2 = (np.tile(
+            query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
+                length_scale**2)
+        K  = np.exp(-tmp1)
+        grad = -3*K.T*tmp2
+    elif nu == 5/2:
+        tmp1 = np.sqrt(5)*dists
+        K  = np.exp(-tmp1)
+        tmp2 = (np.tile(
+            query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
+                length_scale**2)
+        grad = -5/3*K.T*tmp2*(np.sqrt(5)*dists+1)
+    elif nu == np.inf:
+        tmp2 = (np.tile(
+            query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
+                length_scale**2)
+        K = np.exp(-.5 * dists**2)
+        grad = -K.T*tmp2
+    else:
+        raise Exception(f'Matern gradient with nu={nu} not supported')
+    return grad
 
 class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
     """
