@@ -15,7 +15,7 @@ from functools import partial
 from scipy.linalg import solve_triangular
 from pyapprox.utilities import transformed_halton_sequence, \
     pivoted_cholesky_decomposition, continue_pivoted_cholesky_decomposition
-
+from scipy.special import kv, gamma
 
 class GaussianProcess(GaussianProcessRegressor):
     def fit(self, train_samples, train_values):
@@ -569,7 +569,11 @@ class CholeskySampler(object):
         where samples is a np.ndarray (num_vars,num_samples)
 
     generate_random_samples : callable
-        Function used to generate samples to enrich default candidate set.
+        Function with signature
+
+        ``generate_random_samples(nsamples) -> np.ndarray (nvars, nsamples)``
+
+        used to generate samples to enrich default candidate set.
         If this is not None then num_candidate_samples//2 will be created
         by this function and the other half of samples will be from a Halton
         sequence.
@@ -1033,24 +1037,61 @@ class IVARSampler(object):
     num_vars : integer
         The number of dimensions
 
-    nmonte_carlo_samples : integer
+    nquad_samples : integer
         The number of samples used to compute the sample based estimate
-        of the integrated variance (IVAR)
+        of the integrated variance (IVAR). If use_quadrature is True
+        then this should be 100-1000. Otherwise this value should be at 
+        least 10,000.
 
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
         used to determine the initial guess (set of points) for the gradient 
         based optimization
+
+    generate_random_samples : callable
+        Function with signature
+
+        ``generate_random_samples(nsamples) -> np.ndarray (nvars, nsamples)``
+
+        used to generate samples needed to compute IVAR using Monte Carlo
+        quadrature. Note even if use_gauss_quadrature is True, this function  
+        will be used (if provided) to enrich the default candidate set of the 
+        greedy method used to compute the initial guess for the gradient based 
+        optimization.
+        If this is not None then num_candidate_samples//2 will be created
+        by this function and the other half of samples will be from a Halton
+        sequence.
+
+    variables : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+        A set of independent univariate random variables. The tensor-product
+        of the 1D PDFs yields the joint density :math:`\rho`. The bounds and CDFs
+        of these variables are used to transform the Halton sequence used as
+        the candidate set for the greedy generation of the initial guess.
+
+    greedy_method : string
+        Name of the greedy strategy for computing the initial guess used
+        for the gradient based optimization
+
+    use_gauss_quadrature : boolean
+        True - Assume the kernel is the tensor product of univariate kernels
+               and compute integrated variance by computing a set of univariate
+               integrals with Gaussian quadrature
+        False - Use monte carlo quadrature to estimate integrated variance.
+                Any kernel can be used.
+
+    nugget : float
+        A small value added to the diagonal of the kernel matrix to improve
+        conditioning.
     """
-    def __init__(self, num_vars, nmonte_carlo_samples,
+    def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
-                 greedy_method='givar', use_gauss_quadrature=False,
-                 nugget=0):
+                 greedy_method='ivar', use_gauss_quadrature=False,
+                 nugget=0, kernels_1d=None):
         self.nvars = num_vars
-        self.nmonte_carlo_samples = nmonte_carlo_samples
+        self.nquad_samples = nquad_samples
         self.greedy_method = greedy_method
         self.use_gauss_quadrature = use_gauss_quadrature
-        self.pred_samples = generate_random_samples(self.nmonte_carlo_samples)
+        self.pred_samples = generate_random_samples(self.nquad_samples)
         self.ncandidate_samples = ncandidate_samples
         self.variables = variables
         self.generate_random_samples = generate_random_samples
@@ -1060,6 +1101,7 @@ class IVARSampler(object):
         self.nsamples_requested = []
         self.set_optimization_options(
             {'gtol':1e-8, 'ftol':0, 'disp':False, 'iprint':0})
+        self.kernels_1d = kernels_1d
         self.initialize_greedy_sampler()
 
         if use_gauss_quadrature:
@@ -1075,20 +1117,21 @@ class IVARSampler(object):
         if self.greedy_method == 'chol':
             self.greedy_sampler = CholeskySampler(
                 self.nvars, self.ncandidate_samples, self.variables,
-                generate_random_samples=self.generate_random_samples)
+                generate_random_samples=self.generate_random_samples,
+                kernels_1d=self.kernels_1d)
         elif self.greedy_method == 'ivar':
             self.greedy_sampler = GreedyIntegratedVarianceSampler(
-                self.nvars, self.nmonte_carlo_samples, self.ncandidate_samples,
+                self.nvars, self.nquad_samples, self.ncandidate_samples,
                 self.generate_random_samples, self.variables,
                 use_gauss_quadrature=self.use_gauss_quadrature, econ=True,
-                nugget=self.nugget)
+                nugget=self.nugget, kernels_1d=self.kernels_1d)
         else:
             msg = f'Incorrect greedy_method {greedy_method}'
             raise Exception(msg)
 
 
     def precompute_gauss_quadrature(self):
-        degrees = [min(100,self.nmonte_carlo_samples)]*self.nvars
+        degrees = [min(100,self.nquad_samples)]*self.nvars
         self.univariate_quad_rules, self.pce = \
             get_univariate_quadrature_rules_from_variable(
                 self.greedy_sampler.variables, degrees)
@@ -1104,7 +1147,7 @@ class IVARSampler(object):
         return self.quad_rules[ii]
 
     def compute_P(self, train_samples):
-        self.degrees = [self.nmonte_carlo_samples]*self.nvars
+        self.degrees = [self.nquad_samples]*self.nvars
         length_scale = self.greedy_sampler.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = np.array([length_scale]*self.nvars)
@@ -1112,7 +1155,10 @@ class IVARSampler(object):
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
             xtr = train_samples[ii:ii+1, :]
-            P *= integrate_tau_P(xx_1d, ww_1d, xtr, length_scale[ii])[1]
+            K = self.greedy_sampler.kernels_1d[ii](
+                xx_1d[np.newaxis, :], xtr, length_scale[ii])
+            P_ii = K.T.dot(ww_1d[:, np.newaxis]*K)
+            P *= P_ii
         return P
 
     def quadrature_objective(self, new_train_samples_flat):
@@ -1262,6 +1308,40 @@ class IVARSampler(object):
 
         return new_samples, 0
 
+def matern_kernel_1d_inf(dists):
+    return np.exp(-.5*dists**2)
+
+
+def matern_kernel_1d_12(dists):
+    return np.exp(-dists)
+
+
+def matern_kernel_1d_32(dists):
+    tmp = np.sqrt(3)*dists
+    return (1+tmp)*np.exp(-tmp)
+
+
+def matern_kernel_1d_52(dists):
+    tmp = np.sqrt(5)*dists
+    return (1+tmp+tmp**2/3)*np.exp(-tmp)
+
+
+def matern_kernel_general(nu, dists):
+    dists[dists==0] += np.finfo(float).eps
+    tmp = (np.sqrt(2*nu) * dists)
+    return tmp**nu*(2**(1.-nu))/gamma(nu)*kv(nu, tmp)
+
+
+def matern_kernel_1d(nu, x, y, lscale):
+    explicit_funcs = {0.5:matern_kernel_1d_12, 1.5:matern_kernel_1d_32,
+                      2.:matern_kernel_1d_52, np.inf:matern_kernel_1d_inf}
+    dist_func = partial(cdist, metric='euclidean')
+    dists = dist_func(x.T/lscale, y.T/lscale)
+    if nu in explicit_funcs:
+        return explicit_funcs[nu](dists)
+
+    return matern_kernel_general(nu, dists)
+
 
 class GreedyVarianceOfMeanSampler(object):
     """
@@ -1270,19 +1350,19 @@ class GreedyVarianceOfMeanSampler(object):
     num_vars : integer
         The number of dimensions
 
-    nmonte_carlo_samples : integer
+    nquad_samples : integer
         The number of samples used to compute the sample based estimate
         of the variance of mean criteria 
 
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
     """
-    def __init__(self, num_vars, nmonte_carlo_samples,
+    def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
                  use_gauss_quadrature=False, econ=True,
-                 compute_cond_nums=False, nugget=0):
+                 compute_cond_nums=False, nugget=0, kernels_1d=None):
         self.nvars = num_vars
-        self.nmonte_carlo_samples = nmonte_carlo_samples
+        self.nquad_samples = nquad_samples
         self.variables = variables
         self.ntraining_samples = 0
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
@@ -1302,6 +1382,10 @@ class GreedyVarianceOfMeanSampler(object):
         self.initialize()
         self.best_obj_vals = []
         self.pred_samples = None
+
+        self.kernels_1d = kernels_1d
+        if self.kernels_1d is None:
+            self.kernels_1d = [partial(matern_kernel_1d,np.inf)]*self.nvars
         
     def initialize(self):
         self.L = np.zeros((0, 0))
@@ -1320,7 +1404,7 @@ class GreedyVarianceOfMeanSampler(object):
 
     def precompute_monte_carlo(self):
         self.pred_samples = self.generate_random_samples(
-            self.nmonte_carlo_samples)
+            self.nquad_samples)
         k = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         self.tau = k.mean(axis=0)
 
@@ -1336,7 +1420,7 @@ class GreedyVarianceOfMeanSampler(object):
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = [length_scale]*nvars
-        self.degrees = [self.nmonte_carlo_samples]*nvars
+        self.degrees = [self.nquad_samples]*nvars
             
         self.univariate_quad_rules, self.pce = \
             get_univariate_quadrature_rules_from_variable(
@@ -1351,9 +1435,10 @@ class GreedyVarianceOfMeanSampler(object):
             # Training samples of ith variable
             xtr = self.candidate_samples[ii:ii+1, :]
             lscale_ii = length_scale[ii]
-            dists_1d_x1_xtr = dist_func(
-                xx_1d[:, np.newaxis]/lscale_ii, xtr.T/lscale_ii)
-            K = np.exp(-.5*dists_1d_x1_xtr)
+            #dists_1d_x1_xtr = dist_func(
+            #    xx_1d[:, np.newaxis]/lscale_ii, xtr.T/lscale_ii)
+            #K = np.exp(-.5*dists_1d_x1_xtr)
+            K = self.kernels_1d[ii](xx_1d[np.newaxis, :], xtr, lscale_ii)
             self.tau *= ww_1d.dot(K)
 
     def objective(self, new_sample_index):
@@ -1594,7 +1679,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
     num_vars : integer
         The number of dimensions
 
-    nmonte_carlo_samples : integer
+    nquad_samples : integer
         The number of samples used to compute the sample based estimate
         of the integrated variance (IVAR)
 
@@ -1608,19 +1693,20 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
     def precompute_monte_carlo(self):
         self.pred_samples = self.generate_random_samples(
-            self.nmonte_carlo_samples)
-        lscale = self.kernel.length_scale
-        if np.isscalar(lscale):
-            lscale = np.array([lscale]*self.nvars)
-        dist_func = partial(cdist, metric='sqeuclidean')
-        dists_x1_xtr = dist_func(
-            self.pred_samples.T/lscale, self.candidate_samples.T/lscale)
-        K = np.exp(-.5*dists_x1_xtr)
+            self.nquad_samples)
+        #lscale = self.kernel.length_scale
+        #if np.isscalar(lscale):
+        #    lscale = np.array([lscale]*self.nvars)
+        #dist_func = partial(cdist, metric='sqeuclidean')
+        #dists_x1_xtr = dist_func(
+        #    self.pred_samples.T/lscale, self.candidate_samples.T/lscale)
+        #K = np.exp(-.5*dists_x1_xtr)
+        K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
         self.P = K.T.dot(ww[:, np.newaxis]*K)
     
     def precompute_gauss_quadrature(self):
-        self.degrees = [self.nmonte_carlo_samples]*self.nvars
+        self.degrees = [self.nquad_samples]*self.nvars
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = np.array([length_scale]*self.nvars)
@@ -1631,7 +1717,9 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
             xtr = self.candidate_samples[ii:ii+1, :]
-            self.P *= integrate_tau_P(xx_1d, ww_1d, xtr, length_scale[ii])[1]
+            K = self.kernels_1d[ii](xx_1d[np.newaxis, :], xtr, length_scale[ii])
+            P_ii = K.T.dot(ww_1d[:, np.newaxis]*K)
+            self.P *= P_ii
 
     def objective(self, new_sample_index):
         indices = np.concatenate(

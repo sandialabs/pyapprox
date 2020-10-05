@@ -1123,8 +1123,8 @@ class TestSamplers(unittest.TestCase):
             #print(pivot1, pivot2)
             assert np.allclose(pivot1, pivot2)
 
-    def test_greedy_gauss_quadrature_ivar_sampler_II(self):
-        nvars = 2
+    def check_greedy_gauss_quadrature_ivar_sampler(
+            self, nvars, kernel, kernels_1d):
         variables = pya.IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
@@ -1134,13 +1134,12 @@ class TestSamplers(unittest.TestCase):
         sampler1 = GreedyIntegratedVarianceSampler(
             nvars, 50, 10000, generate_random_samples,
             variables, use_gauss_quadrature=True, econ=True,
-            compute_cond_nums=True)
+            compute_cond_nums=True, kernels_1d = kernels_1d)
         np.random.seed(1)
         sampler2 = GreedyIntegratedVarianceSampler(
             nvars, 50, 10000, generate_random_samples,
             variables, use_gauss_quadrature=True, econ=False,
-            compute_cond_nums=True)
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+            compute_cond_nums=True, kernels_1d = kernels_1d)
         sampler1.set_kernel(kernel)
         sampler2.set_kernel(kernel)
 
@@ -1162,7 +1161,9 @@ class TestSamplers(unittest.TestCase):
         assert time1 < time2
 
         assert np.allclose(samples1, samples2)
-        
+
+        # if nvars !=2:
+        #     return
         # plt.plot(samples1[0,:], samples1[1,:], 'o')
         # plt.plot(samples2[0,:], samples2[1,:], 'x')
         # plt.figure()
@@ -1170,6 +1171,13 @@ class TestSamplers(unittest.TestCase):
         # plt.loglog(np.arange(len(sampler1.cond_nums))+1,sampler1.cond_nums)
         # plt.loglog(np.arange(len(sampler2.cond_nums))+1,sampler2.cond_nums)
         # plt.show()
+
+    def test_greedy_gauss_quadrature_ivar_sampler_II(self):
+        #TODO Add check to IVAR and VarofMean samplesr to make sure
+        #kernel and 1d_kernels are consistent
+        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernels_1d = None
+        self.check_greedy_gauss_quadrature_ivar_sampler(2, kernel, kernels_1d)
 
     def test_greedy_variance_of_mean_sampler(self):
         nvars = 2
