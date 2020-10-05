@@ -525,11 +525,9 @@ class TestSamplers(unittest.TestCase):
         nvars = 2
         lb, ub = 0, 1
         ntrain_samples_1d = 10
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
         train_samples = pya.cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
 
         length_scale = [0.1, 0.2][:nvars]
         kernel = RBF(length_scale, length_scale_bounds='fixed')
@@ -572,6 +570,36 @@ class TestSamplers(unittest.TestCase):
                 pred_samples, kernel), x0[:, np.newaxis])
         assert errors.min()<2e-6
 
+    def check_matern_gradient_wrt_samples(self, nu):
+        nvars = 2
+        lb, ub = 0, 1
+        ntrain_samples_1d = 3
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
+
+        length_scale = [0.1, 0.2][:nvars]
+        kernel = Matern(length_scale, length_scale_bounds='fixed', nu=nu)
+
+        pred_samples = np.random.uniform(lb, ub, (nvars, 1))
+        x0 = train_samples[:, :1]
+        grad = matern_gradient_wrt_samples(
+            nu, x0, pred_samples, length_scale)
+        K = kernel(x0.T, pred_samples.T)
+
+        fd_grad = pya.approx_jacobian(
+            lambda x: kernel(x, pred_samples.T)[0, :], x0[:,0])
+        assert np.allclose(grad, fd_grad, atol=1e-6)
+        errors = pya.check_gradients(
+            lambda x: kernel(x.T, pred_samples.T)[0, :],
+            lambda x: matern_gradient_wrt_samples(
+                nu, x, pred_samples, length_scale), x0)
+        assert errors.min()<1e-6
+
+    def test_matern_gradient_wrt_samples(self):
+        self.check_matern_gradient_wrt_samples(3/2)
+        self.check_matern_gradient_wrt_samples(5/2)
+        self.check_matern_gradient_wrt_samples(np.inf)
 
     def test_RBF_posterior_variance_gradient_wrt_samples_subset(
             self):
