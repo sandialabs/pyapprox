@@ -1102,7 +1102,8 @@ def cholesky_decomposition(Amat):
 def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                                    error_on_small_tol=False,
                                    pivot_weights=None,
-                                   return_full=False):
+                                   return_full=False,
+                                   econ=True):
     r"""
     Return a low-rank pivoted Cholesky decomposition of matrix A.
 
@@ -1134,7 +1135,7 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
             Amat, L, npivots, init_pivots, tol,
             error_on_small_tol,
             pivot_weights, pivots, diag,
-            0, init_error)
+            0, init_error, econ)
 
     if not return_full:
         return L[:,:ncompleted_pivots], pivots[:ncompleted_pivots], error,\
@@ -1147,41 +1148,56 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
 def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
                                             error_on_small_tol,
                                             pivot_weights, pivots, diag,
-                                            ncompleted_pivots, init_error):
+                                            ncompleted_pivots, init_error,
+                                            econ):
+    Amat = Amat.copy()  # Do not overwrite incoming Amat
+    if econ is False and pivot_weights is not None:
+        msg = 'pivot weights not used when econ is False' 
+        raise Exception(msg)
     chol_flag = 0
-    assert ncompleted_pivots<npivots
-    for ii in range(ncompleted_pivots,npivots):
-        if init_pivots is None or ii>=len(init_pivots):
-            if pivot_weights is None:
-                pivot = np.argmax(diag[pivots[ii:]])+ii
+    assert ncompleted_pivots < npivots
+    for ii in range(ncompleted_pivots, npivots):
+        if init_pivots is None or ii >= len(init_pivots):
+            if econ:
+                if pivot_weights is None:
+                    pivot = np.argmax(diag[pivots[ii:]])+ii
+                else:
+                    pivot = np.argmax(
+                        pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
             else:
+                schur_complement = (
+                    Amat[np.ix_(pivots[ii:], pivots[ii:])]-
+                    L[pivots[ii:], :ii].dot(L[pivots[ii:], :ii].T))
+                schur_diag = np.diagonal(schur_complement)
                 pivot = np.argmax(
-                    pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
+                    np.linalg.norm(schur_complement, axis=0)**2/schur_diag)
+                pivot += ii
         else:
-            pivot = pivots[init_pivots[ii]]
+            pivot = np.where(pivots==init_pivots[ii])[0][0]
+            assert pivot >= ii
             
-        swap_rows(pivots,ii,pivot)
+        swap_rows(pivots, ii, pivot)
         if diag[pivots[ii]] <= 0:
             msg = 'matrix is not positive definite'
             if error_on_small_tol:
                 raise Exception (msg)
             else:
                 print(msg)
-                chol_flag=1
+                chol_flag = 1
                 break
 
         L[pivots[ii],ii] = np.sqrt(diag[pivots[ii]])
 
-        L[pivots[ii+1:],ii]=(Amat[pivots[ii+1:],pivots[ii]]-
-            L[pivots[ii+1:],:ii].dot(L[pivots[ii],:ii]))/L[pivots[ii],ii]
-        diag[pivots[ii+1:]] -= L[pivots[ii+1:],ii]**2
+        L[pivots[ii+1:], ii]=(Amat[pivots[ii+1:], pivots[ii]]-
+            L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
+        diag[pivots[ii+1:]] -= L[pivots[ii+1:], ii]**2
 
         # for jj in range(ii+1,nrows):
         #     L[pivots[jj],ii]=(Amat[pivots[ii],pivots[jj]]-
         #         L[pivots[ii],:ii].dot(L[pivots[jj],:ii]))/L[pivots[ii],ii]
         #     diag[pivots[jj]] -= L[pivots[jj],ii]**2
         error = diag[pivots[ii+1:]].sum()/init_error
-        #print(ii,'error',error)
+        # print(ii,'error',error)
         if error<tol:
             msg = 'Tolerance reached. ' 
             msg += f'Iteration:{ii}. Tol={tol}. Error={error}'

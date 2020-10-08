@@ -545,49 +545,51 @@ class TestUtilities(unittest.TestCase):
 
     def test_pivoted_cholesky_decomposition(self):
         nrows, npivots = 4, 4
-        A = np.random.normal(0.,1.,(nrows,nrows))
+        A = np.random.normal(0., 1., (nrows, nrows))
         A = A.T.dot(A)
-        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots)
-        assert np.allclose(L.dot(L.T),A)
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A, npivots)
+        assert np.allclose(L.dot(L.T), A)
 
         nrows, npivots = 4, 2
-        A = np.random.normal(0.,1.,(npivots,nrows))
+        A = np.random.normal(0., 1., (npivots, nrows))
         A = A.T.dot(A)
-        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots)
-        assert L.shape == (nrows,npivots)
-        assert pivots.shape[0]==npivots
-        assert np.allclose(L.dot(L.T),A)
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A, npivots)
+        assert L.shape == (nrows, npivots)
+        assert pivots.shape[0] == npivots
+        assert np.allclose(L.dot(L.T), A)
 
         # check init_pivots are enforced
         nrows, npivots = 4, 2
-        A = np.random.normal(0.,1.,(npivots+1,nrows))
+        A = np.random.normal(0., 1., (npivots+1, nrows))
         A = A.T.dot(A)
-        L, pivots, error, flag = pivoted_cholesky_decomposition(A,npivots+1)
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A, npivots+1)
         L, new_pivots, error, flag = pivoted_cholesky_decomposition(
-            A,npivots+1,init_pivots=pivots[1:2])
-        assert np.allclose(new_pivots[:npivots+1],pivots[[1,0,2]])
+            A,npivots+1, init_pivots=pivots[1:2])
+        assert np.allclose(new_pivots[:npivots+1], pivots[[1,0,2]])
 
-        L = L[pivots,:]
-        assert np.allclose(A[pivots,:][:,pivots],L.dot(L.T))
+        L = L[pivots, :]
+        assert np.allclose(A[pivots, :][:, pivots], L.dot(L.T))
+
+        assert np.allclose(A[np.ix_(pivots, pivots)], L.dot(L.T))
 
         P = get_pivot_matrix_from_vector(pivots,nrows)
-        assert np.allclose(P.dot(A).dot(P.T),L.dot(L.T))
+        assert np.allclose(P.dot(A).dot(P.T), L.dot(L.T))
 
-        A = np.array([[4,12,-16],[12,37,-43],[-16,-43,98.]])
-        L, pivots, error, flag = pivoted_cholesky_decomposition(A,A.shape[0])
+        A = np.array([[4, 12, -16], [12, 37 ,-43], [-16, -43, 98.]])
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A, A.shape[0])
 
         # reorder entries of A so that cholesky requires pivoting
-        true_pivots = np.array([2,1,0])
-        A_no_pivots = A[true_pivots,:][:,true_pivots]
+        true_pivots = np.array([2, 1, 0])
+        A_no_pivots = A[true_pivots, :][:, true_pivots]
         L_np = np.linalg.cholesky(A_no_pivots)
-        assert np.allclose(L[pivots,:],L_np)
+        assert np.allclose(L[pivots, :], L_np)
 
         # Create A with which needs cholesky with certain pivots
-        A = np.array([[4,12,-16],[12,37,-43],[-16,-43,98.]])
-        true_pivots = np.array([1,0,2])
-        A = A[true_pivots,:][:,true_pivots]
-        L, pivots, error, flag = pivoted_cholesky_decomposition(A,A.shape[0])
-        assert np.allclose(L[pivots,:],L_np)
+        A = np.array([[4, 12, -16], [12, 37, -43], [-16, -43, 98.]])
+        true_pivots = np.array([1, 0, 2])
+        A = A[true_pivots, :][:, true_pivots]
+        L, pivots, error, flag = pivoted_cholesky_decomposition(A, A.shape[0])
+        assert np.allclose(L[pivots, :], L_np)
 
     def test_restart_pivoted_cholesky(self):
         nrows = 10
@@ -677,6 +679,124 @@ class TestUtilities(unittest.TestCase):
         assert np.allclose(
             z_up_1,
             z_1 - solve_triangular(L_11.T, L_12.dot(z_up_2), lower=False))
+
+    def test_cholesky_decomposition_minimizing_trace_norm(self):
+        """
+        Test how to compute pivot that minimizes trace norm
+        """
+        n = 6
+        B = np.random.normal(0, 1, (n, n))
+        A = B.T.dot(B)
+        # pivots = [1,2,0] causes issues with pya.pivoted_cholesky_decomposition
+
+        if n == 4:
+            a1 = A[2, 2]
+            b1 = np.array([[A[1, 2], A[0, 2], A[3, 2]]]).T
+            C1 = np.array([[A[1, 1], A[1, 0], A[1, 3]],
+                           [A[0, 1], A[0, 0], A[0, 3]],
+                           [A[3, 1], A[3, 0], A[3, 3]]])
+            S1 = C1 - b1.dot(b1.T)/a1
+            L1 = np.zeros((n, n))
+            pivots1 = np.array([2,1,0,3])
+            L1[pivots1, 0] = A[pivots1[0], :]/np.sqrt(a1)
+            assert np.allclose(A[np.ix_(pivots1, pivots1)][1:, 1:], C1)
+            assert np.allclose(L1[:1, :1].dot(L1[:1, :1].T), A[2, 2])
+
+            raw_pivots2 = np.array([1, 0, 2]) # choose first remaining pivot
+            S2 = S1[np.ix_(raw_pivots2, raw_pivots2)]
+            a2 = S2[0, 0]
+            b2 = S2[1:, 0:1]
+            C2 = S2[1:, 1:]
+            S2 = C2 - b2.dot(b2.T)/a2
+            L2 = L1.copy()
+            swap_rows(L2, 1, raw_pivots2[0]+1)
+            L2[1:, 1:2] = np.vstack([[[a2]],b2])/np.sqrt(a2)
+            pivots = np.hstack([pivots1[0], pivots1[1:][raw_pivots2]])
+            assert np.allclose(
+                L2.dot(L2.T)[:2, :2], A[np.ix_(pivots[:2], pivots[:2])])
+
+            a_list = [a1, a2]
+            b_list = [b1, b2]
+            C_list = [C1, C2]
+            S_list = [S1, S2]
+
+        trace_A = np.trace(A)
+        S = A.copy()
+        lvecs = np.zeros(A.shape)
+        Smats = []
+        traces = [0]
+        pivots = np.arange(n)
+        #use_pivoting = False
+        use_pivoting = True
+        for ii in range(n):
+            # Given a new l vector we have
+            # A_ii = [L  l ] [L.T] = L.dot(L.T)+l.dot(l.T)
+            #                [l.T]
+            # Thus trace(A_ii) = trace(L.dot(L.T)+l.dot(l.T))
+            #                  = trace(L.dot(L.T))+trace(l.dot(l.T))
+
+            pivot_vals = np.linalg.norm(S[:, :], axis=0)**2/np.diag(S)
+            if use_pivoting is True:
+                raw_pivot = np.argmax(pivot_vals)
+            else:
+                raw_pivot = 0  # do not pivot
+
+            traces.append(traces[-1]+pivot_vals[raw_pivot])
+            pivot = raw_pivot+ii
+            S_pivots = np.arange(S.shape[0])
+            swap_rows(S_pivots, 0, raw_pivot)
+            S = S[np.ix_(S_pivots, S_pivots)]
+
+            a = S[0, 0]
+            indices = np.arange(1, S.shape[0])
+            b = S[1:, 0:1].copy()
+            C = S[1:, 1:].copy()
+            nonzero_l = np.vstack([[[a]], b])/np.sqrt(a)
+            swap_rows(lvecs, ii, pivot)
+            lvecs[ii:, ii:ii+1] = nonzero_l
+            swap_rows(pivots, ii, pivot)
+
+            L_ii = lvecs[:, :ii+1]
+            trace_S = trace_A - (
+                np.trace(L_ii[:, :-1].dot(L_ii[:, :-1].T))+
+                np.linalg.norm(S[:, 0])**2/S[0, 0])
+
+            S = C-1/a*(b.dot(b.T))
+            if ii < 2 and n == 4:
+                assert np.allclose(C, C_list[ii])
+                assert np.allclose(b, b_list[ii])
+                assert np.allclose(a, a_list[ii])
+                assert np.allclose(S, S_list[ii])
+                assert np.allclose(S, S.T)
+            Smats.append(S)
+            A_ii = L_ii.dot(L_ii.T)
+            assert np.allclose(
+                A[np.ix_(pivots[:ii+1], pivots[:ii+1])], A_ii[:ii+1, :ii+1])
+            assert np.allclose(
+                (A[np.ix_(pivots, pivots)]-A_ii)[ii+1:, ii+1:], S)
+            assert np.allclose(
+                np.trace(A), np.trace(A_ii)+np.trace(S))
+            assert np.allclose(
+                np.trace(S), np.trace(A)-np.trace(A_ii))
+            assert np.allclose(trace_S, np.trace(S))
+            assert np.allclose(trace_A-traces[-1], np.trace(S))
+
+        L_chol = np.linalg.cholesky(A[np.ix_(pivots, pivots)])
+        assert np.allclose(L_chol, lvecs)
+
+        L1, pivots1, error1, flag1 = pivoted_cholesky_decomposition(
+            A, A.shape[0], econ=True, init_pivots=pivots)
+        assert np.allclose(L_chol, L1[pivots])
+
+        if use_pivoting is False:
+            # This check only good if pivoting is not enforced
+            for ii in range(n):
+                E = A-L_chol[:, :ii+1].dot(L_chol[:, :ii+1].T)
+                assert np.allclose(E[ii+1:, ii+1:], Smats[ii])
+        L2, pivots2, error2, flag2 = pivoted_cholesky_decomposition(
+            A, A.shape[0], econ=False)
+        assert np.allclose(L2[pivots2], L_chol)
+        assert np.allclose(pivots1, pivots2)
 
     def test_beta_pdf_on_ab(self):
         from scipy.stats import beta as beta_rv
@@ -803,20 +923,20 @@ class TestUtilities(unittest.TestCase):
         nvars,nsamples = 3,10
         A = np.random.normal(0,1,nvars)
         A = A.T.dot(A)
-        samples = np.random.uniform(0,1,(nvars,nsamples))
-        values1 = evaluate_quadratic_form(A,samples)
+        samples = np.random.uniform(0, 1, (nvars,nsamples))
+        values1 = evaluate_quadratic_form(A, samples)
 
         values2 = np.zeros(samples.shape[1])
         for ii in range(samples.shape[1]):
-            values2[ii] = samples[:,ii:ii+1].T.dot(A).dot(samples[:,ii:ii+1])
+            values2[ii] = samples[:, ii:ii+1].T.dot(A).dot(samples[:, ii:ii+1])
 
         assert np.allclose(values1,values2)
 
     def test_weighted_pivoted_cholesky(self):
         nrows, npivots = 4, 3
-        A = np.random.normal(0.,1.,(nrows,nrows))
+        A = np.random.normal(0., 1., (nrows, nrows))
         A = A.T.dot(A)
-        weights = np.random.uniform(1,2,(nrows))
+        weights = np.random.uniform(1, 2, (nrows))
         L, pivots, error, flag = pivoted_cholesky_decomposition(
             A,npivots,pivot_weights=weights)
 
@@ -824,17 +944,17 @@ class TestUtilities(unittest.TestCase):
         C = np.sqrt(weights)[:,np.newaxis]*A*np.sqrt(weights)
         assert np.allclose(B,C)
         L2, pivots2, error2, flag2 = pivoted_cholesky_decomposition(
-            C,npivots,pivot_weights=None)
+            C, npivots, pivot_weights=None)
 
         # check pivots are the same
-        assert np.allclose(pivots,pivots2)
+        assert np.allclose(pivots, pivots2)
 
         # check cholesky factors are the same
         #we have L2.dot(L2.T)=S.dot(A).dot(S)= S.dot(L.dot(L.T)).dot(S)
         #where S = np.diag(np.sqrt(weights)). So L2=S.dot(L)
         assert np.allclose(
-            np.sqrt(weights[pivots,np.newaxis])*L[pivots,:npivots],
-            L2[pivots,:npivots])
+            np.sqrt(weights[pivots, np.newaxis])*L[pivots, :npivots],
+            L2[pivots, :npivots])
 
     def cholesky_qr_pivoting_equivalence(self):
         nrows, npivots = 4, 4
