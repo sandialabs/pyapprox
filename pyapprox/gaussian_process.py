@@ -712,9 +712,18 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
             self.train_samples, self.train_values = new_samples, new_values
         self.fit()
 
-    def fit(self):
+    def get_current_chol_factor(self):
         nn = self.sampler.ntraining_samples
-        chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
+        if type(self.sampler) == CholeskySampler:
+            chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
+        elif type(self.sampler) == GreedyIntegratedVarianceSampler:
+            chol_factor = self.sampler.L[:nn, :nn]
+        else:
+            raise Exception()
+        return chol_factor
+    
+    def fit(self):
+        chol_factor = self.get_current_chol_factor()
         self.coef = cholesky_solve_linear_system(chol_factor, self.train_values)
 
     def __call__(self, samples):
@@ -725,8 +734,7 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
         return self.train_samples.shape[1]
 
     def condition_number(self):
-        nn = self.sampler.ntraining_samples
-        chol_factor = self.sampler.L[self.sampler.pivots[:nn], :nn]
+        chol_factor = self.get_current_chol_factor()
         return np.linalg.cond(chol_factor.dot(chol_factor.T))
 
 
