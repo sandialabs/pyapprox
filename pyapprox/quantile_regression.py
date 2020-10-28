@@ -13,7 +13,7 @@ def rescale_linear_system_coefficients(coef,col_norms):
     return scaled_coef
 
 def quantile_regression(basis_matrix, values, tau):
-    from cvxopt import matrix, solvers
+    from cvxopt import matrix, solvers, spmatrix, sparse
     assert basis_matrix.ndim==2
     assert values.ndim==1
     nsamples,nbasis = basis_matrix.shape
@@ -21,6 +21,7 @@ def quantile_regression(basis_matrix, values, tau):
     
     # See https://cvxopt.org/userguide/coneprog.html
     # for documentation on tolerance parameters
+    # see https://stats.stackexchange.com/questions/384909/formulating-quantile-regression-as-linear-programming-problem/384913
     solvers.options['show_progress'] = False
     #solvers.options['max_iters'] = 1000
     solvers.options['abstol'] = 1e-8
@@ -31,29 +32,20 @@ def quantile_regression(basis_matrix, values, tau):
     #values_mean = values.mean(axis=0)
     #scaled_values = values-values_mean
     scaled_values=values
+    scale = 1
     
     c_arr = np.hstack(
         (np.zeros(nbasis),tau*np.ones(nsamples),
         (1-tau)*np.ones(nsamples)))[:,np.newaxis]
-
-    Ibasis = np.identity(nbasis)
-    Isamp  = np.identity(nsamples)
-    basis_zeros = np.zeros_like(basis_matrix)
-    samples_zeros = np.zeros_like(Isamp)
-    
-    G_arr = np.vstack(
-        (np.hstack((basis_matrix,Isamp,-Isamp)),
-        np.hstack((-basis_matrix,-Isamp,Isamp)),
-        np.hstack((basis_zeros,-Isamp,samples_zeros)),
-        np.hstack((basis_zeros,samples_zeros,-Isamp)),
-        ))
-    h_arr = np.hstack((scaled_values,-scaled_values,np.zeros(nsamples),np.zeros(nsamples)))
     c = matrix(c_arr)
-    G = matrix(G_arr)
-    h = matrix(h_arr)
-    scale=1
-    sol = np.asarray(solvers.lp(c=c*scale, G=G*scale, h=h*scale)['x'])
+    
+    Isamp  = np.identity(nsamples)
+    A = sparse([[matrix(basis_matrix)], [matrix(Isamp)], [matrix(-Isamp)]])
+    b = matrix(scaled_values)
+    G = spmatrix(
+        -1.0, nbasis+np.arange(2*nsamples), nbasis+np.arange(2*nsamples))
+    h = matrix(np.zeros(nbasis+2*nsamples))
+    sol = np.asarray(
+        solvers.lp(c=c*scale, G=G*scale, h=h*scale, A=A*scale, b=b*scale)['x'])
     coef = sol[:nbasis]
-    #coef = rescale_linear_system_coefficients(coef,col_norms)
-    #coef[0]+=values_mean
     return coef

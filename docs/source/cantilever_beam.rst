@@ -1,4 +1,4 @@
-Cantilever Beam
+cCantilever Beam
 ===============
 
 .. figure:: ./figures/cantilever-beam.*
