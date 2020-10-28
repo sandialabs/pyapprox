@@ -50,6 +50,8 @@ def get_main_and_total_effect_indices_from_pce(coefficients,indices):
             var = non_constant_vars[ii]
             total_effects[var,:] += var_contribution
 
+    assert np.all(np.isfinite(variance))
+    assert np.all(variance > 0)
     main_effects /= variance
     total_effects /= variance
     return main_effects, total_effects
@@ -113,7 +115,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
         The index 0<qoi<nqoi of the quantitiy of interest to plot
     """
     main_effects=main_effects[:,qoi]
-    assert main_effects.sum()<=1.
+    assert main_effects.sum()<=1.+np.finfo(float).eps
     main_effects_sum = main_effects.sum()
 
     # sort main_effects in descending order

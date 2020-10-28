@@ -445,7 +445,7 @@ def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
     if options is None:
         options = {}
 
-    res = funcs[basis_type](poly,train_samples,train_vals,**options)
+    res = funcs[basis_type](poly, train_samples, train_vals, **options)
     return res
 
 def approximate(train_samples,train_vals,method,options=None):
@@ -490,14 +490,16 @@ def approximate(train_samples,train_vals,method,options=None):
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
     OrthogonalMatchingPursuitCV
 
-def fit_linear_model(basis_matrix,train_vals,solver_type,**kwargs):
+def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     solvers = {'lasso_lars':LassoLarsCV(cv=kwargs['cv']).fit,
-               'lasso':LassoCV.fit,
-               'lars':LarsCV.fit,'omp':OrthogonalMatchingPursuitCV.fit}
-    assert train_vals.ndim==2
+               'lasso':LassoCV(cv=kwargs['cv']).fit,
+               'lars':LarsCV(cv=kwargs['cv']).fit,
+               'omp':OrthogonalMatchingPursuitCV(
+                   cv=kwargs['cv'], verbose=5).fit}
+    assert train_vals.ndim == 2
     if solver_type in solvers:
         fit = solvers[solver_type]
-        res = fit(basis_matrix,train_vals[:,0])
+        res = fit(basis_matrix, train_vals[:, 0])
     else:
         msg = f'Solver type {solver_type} not supported\n'
         msg += 'Supported solvers are:\n'
@@ -505,16 +507,15 @@ def fit_linear_model(basis_matrix,train_vals,solver_type,**kwargs):
             msg += f'\t{key}\n'
         raise Exception(msg)
 
-    cv_score = res.score(basis_matrix,train_vals[:,0])
-    coef = res.coef_[:,np.newaxis]; coef[0]=res.intercept_
+    cv_score = res.score(basis_matrix, train_vals[:,0])
+    coef = res.coef_[:, np.newaxis]; coef[0]=res.intercept_
     return coef, cv_score
 
 import copy
 from pyapprox import compute_hyperbolic_indices
 def cross_validate_pce_degree(
-        pce,train_samples,train_vals,min_degree=1,max_degree=3,
-        hcross_strength=1,
-        cv=10,solver_type='lasso_lars',verbosity=0):
+        pce, train_samples, train_vals, min_degree=1, max_degree=3,
+        hcross_strength=1, cv=10, solver_type='lars', verbosity=0):
     r"""
     Use cross validation to find the polynomial degree which best fits the data.
     A polynomial is constructed for each degree and the degree with the highest
@@ -576,11 +577,11 @@ def cross_validate_pce_degree(
     unique_indices=[]
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
-        if verbosity>1:
+        if verbosity > 1:
             print(f'Approximating QoI: {ii}')
         pce_ii,score_ii,degree_ii = _cross_validate_pce_degree(
-            pce,train_samples,train_vals[:,ii:ii+1],min_degree,max_degree,
-            hcross_strength,cv,solver_type,verbosity)
+            pce,train_samples, train_vals[:, ii:ii+1], min_degree, max_degree,
+            hcross_strength, cv, solver_type,verbosity)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -588,25 +589,25 @@ def cross_validate_pce_degree(
         for index in indices[ii].T:
             key = hash_array(index)
             if key not in indices_dict:
-                indices_dict[key]=len(unique_indices)
+                indices_dict[key] = len(unique_indices)
                 unique_indices.append(index)
 
     unique_indices = np.array(unique_indices).T
-    all_coefs = np.zeros((unique_indices.shape[1],nqoi))
+    all_coefs = np.zeros((unique_indices.shape[1], nqoi))
     for ii in range(nqoi):
-        for jj,index in enumerate(indices[ii].T):
+        for jj, index in enumerate(indices[ii].T):
             key = hash_array(index)
-            all_coefs[indices_dict[key],ii]=coefs[ii][jj,0]
+            all_coefs[indices_dict[key], ii] = coefs[ii][jj, 0]
     pce.set_indices(unique_indices)
     pce.set_coefficients(all_coefs)
-    return ApproximateResult({'approx':pce,'scores':np.array(scores),
+    return ApproximateResult({'approx':pce, 'scores':np.array(scores),
                               'degrees':np.array(degrees)})
     
 def _cross_validate_pce_degree(
-        pce,train_samples,train_vals,min_degree=1,max_degree=3,
+        pce,train_samples, train_vals, min_degree=1, max_degree=3,
         hcross_strength=1,
-        cv=10,solver_type='lasso_lars',verbosity=0):
-    assert train_vals.shape[1]==1
+        cv=10, solver_type='lasso_lars', verbosity=0):
+    assert train_vals.shape[1] == 1
     num_samples = train_samples.shape[1]
     if min_degree is None:
         min_degree = 2
@@ -619,20 +620,21 @@ def _cross_validate_pce_degree(
     prev_num_terms = 0
     if verbosity>0:
         print ("{:<8} {:<10} {:<18}".format('degree','num_terms','cv score',))
-    for degree in range(min_degree,max_degree+1):
+    for degree in range(min_degree, max_degree+1):
         indices = compute_hyperbolic_indices(
-            pce.num_vars(),degree,hcross_strength)
+            pce.num_vars(), degree, hcross_strength)
         pce.set_indices(indices)
-        if ((pce.num_terms()>100000) and
-            (100000-prev_num_terms<pce.num_terms()-100000) ): break
+        if ((pce.num_terms() > 100000) and
+            (100000-prev_num_terms < pce.num_terms()-100000) ): break
 
         basis_matrix = pce.basis_matrix(train_samples)
         coef, cv_score = fit_linear_model(
-            basis_matrix,train_vals,solver_type,cv=cv)
+            basis_matrix, train_vals, solver_type, cv=cv)
         pce.set_coefficients(coef)
 
-        if verbosity>0:
-            print("{:<8} {:<10} {:<18} ".format(degree,pce.num_terms(),cv_score))
+        if verbosity > 0:
+            print("{:<8} {:<10} {:<18} ".format(
+                degree ,pce.num_terms(), cv_score))
         if ( cv_score > best_cv_score ):
             best_cv_score = cv_score
             best_coef = coef.copy()
@@ -642,7 +644,7 @@ def _cross_validate_pce_degree(
         prev_num_terms = pce.num_terms()
 
     pce.set_indices(compute_hyperbolic_indices(
-        pce.num_vars(),best_degree,hcross_strength))
+        pce.num_vars(), best_degree,hcross_strength))
     pce.set_coefficients(best_coef)
     if verbosity>0:
         print ('best degree:', best_degree)
@@ -838,7 +840,8 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
             if verbosity>0:
                 print ("{:<10} {:<10} {:<18}".format(
-                    pce.num_terms(),np.count_nonzero(pce.coefficients),cv_score))
+                    pce.num_terms(), np.count_nonzero(pce.coefficients),
+                    cv_score))
 
             if ( cv_score > best_cv_score_iter ):
                 best_cv_score_iter = cv_score

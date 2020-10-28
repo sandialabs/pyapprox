@@ -43,7 +43,7 @@ def plot_1d_functions_and_statistics(
     return fig,axs
 
 from pyapprox.quantile_regression import quantile_regression
-def solve_quantile_regression(tau,samples,values,eval_basis_matrix):
+def solve_quantile_regression(tau, samples, values, eval_basis_matrix):
     basis_matrix = eval_basis_matrix(samples)
     quantile_coef = quantile_regression(basis_matrix, values.squeeze(), tau=tau)
     # assume first coefficient is for constant term
@@ -1022,6 +1022,21 @@ class TestRiskMeasures(unittest.TestCase):
         
         help_check_stochastic_dominance_gradients(fsd_opt_problem)
 
+    def test_quantile_regression(self):
+        nbasis = 20
+        def func(x):
+            return (1+x-x**2+x**3).T
+        samples = np.random.uniform(-1, 1, (1, 201))
+        values = func(samples)
+        def eval_basis_matrix(x):
+            return (x**np.arange(nbasis)[:, None]).T
+        tau = 0.75
+        quantile_coef = solve_quantile_regression(
+            tau, samples, values, eval_basis_matrix)
+        true_coef = np.zeros((nbasis))
+        true_coef[:4] = [1, 1, -1, 1]
+        assert np.allclose(quantile_coef[:, 0], true_coef)
+
 def compute_quartic_spline_of_right_heaviside_function():
     """
     Get spline approximation of step function enforcing all derivatives 
@@ -1048,6 +1063,7 @@ def compute_quartic_spline_of_right_heaviside_function():
     f = lambda x: 6*((xx)/eps)**2-8*((xx)/eps)**3+3*((xx)/eps)**4
     plt.plot(xx,f(xx))
     plt.show()
+
              
 
 
