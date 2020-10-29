@@ -1,4 +1,5 @@
 import unittest
+from pyapprox.quantile_regression import *
 from pyapprox.cvar_regression import *
 from pyapprox.stochastic_dominance import *
 from scipy.special import erf, erfinv, factorial
@@ -42,26 +43,6 @@ def plot_1d_functions_and_statistics(
 
     return fig,axs
 
-from pyapprox.quantile_regression import quantile_regression
-def solve_quantile_regression(tau, samples, values, eval_basis_matrix):
-    basis_matrix = eval_basis_matrix(samples)
-    quantile_coef = quantile_regression(basis_matrix, values.squeeze(), tau=tau)
-    # assume first coefficient is for constant term
-    quantile_coef[0]=0
-    centered_approx_vals = basis_matrix.dot(quantile_coef)[:,0]
-    deviation = conditional_value_at_risk(values[:,0]-centered_approx_vals,tau)
-    quantile_coef[0]=deviation
-    return quantile_coef
-
-def solve_least_squares_regression(samples,values,eval_basis_matrix,lamda=0.):
-    basis_matrix = eval_basis_matrix(samples)
-    lstsq_coef = np.linalg.lstsq(basis_matrix,values,rcond=None)[0]
-    lstsq_coef[0] = 0
-    centered_approx_vals = basis_matrix.dot(lstsq_coef)[:,0]
-    residuals = values[:,0]-centered_approx_vals
-    deviation = residuals.mean(axis=0)+lamda*np.std(residuals,axis=0)
-    lstsq_coef[0]=deviation
-    return lstsq_coef
 
 def triangle_quantile(u,c,loc,scale):
     """
@@ -399,8 +380,8 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
     else:
         assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=1e-3) 
 
-def help_check_stochastic_dominance(solver,nsamples,degree,
-                                   disutility=None,plot=False):
+def help_check_stochastic_dominance(solver, nsamples, degree,
+                                   disutility=None, plot=False):
     """
     disutilty is none plot emprical CDF
     disutility is True plot disutility SSD
@@ -410,60 +391,58 @@ def help_check_stochastic_dominance(solver,nsamples,degree,
     from pyapprox.variable_transformations import \
         define_iid_random_variable_transformation
     from pyapprox.indexing import compute_hyperbolic_indices
-    num_vars=1
-    mu,sigma=0,1
+    num_vars = 1
+    mu,sigma = 0, 1
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
-        get_lognormal_example_exact_quantities(mu,sigma)
+        get_lognormal_example_exact_quantities(mu, sigma)
 
-    samples = np.random.normal(0,1,(1,nsamples))
+    samples = np.random.normal(0, 1, (1, nsamples))
     samples = np.sort(samples)
-    values = f(samples[0,:])[:,np.newaxis]
+    values = f(samples[0, :])[:, np.newaxis]
 
     pce = PolynomialChaosExpansion()
     var_trans = define_iid_random_variable_transformation(
-        normal_rv(mu,sigma),num_vars) 
-    pce.configure({'poly_type':'hermite','var_trans':var_trans})
-    indices = compute_hyperbolic_indices(1,degree,1.)
+        normal_rv(mu, sigma), num_vars) 
+    pce.configure({'poly_type':'hermite', 'var_trans':var_trans})
+    indices = compute_hyperbolic_indices(1, degree, 1.)
     pce.set_indices(indices)
 
     eta_indices=None
     #eta_indices=np.argsort(values[:,0])[nsamples//2:]
     coef, sd_opt_problem = solver(
-        samples,values,pce.basis_matrix,eta_indices=eta_indices)
+        samples, values, pce.basis_matrix, eta_indices=eta_indices)
 
-    pce.set_coefficients(coef[:,np.newaxis])
-    pce_values = pce(samples)[:,0]
+    pce.set_coefficients(coef[:, np.newaxis])
+    pce_values = pce(samples)[:, 0]
 
     ygrid = pce_values.copy()
     if disutility is not None:
         if disutility:
             ygrid = -ygrid[::-1]
         stat_function = partial(compute_conditional_expectations,
-                                ygrid,disutility_formulation=disutility)
+                                ygrid, disutility_formulation=disutility)
         if disutility:
             # Disutility SSD
             eps=1e-14
             assert np.all(
-                stat_function(values[:,0])<=stat_function(pce_values)+eps)
+                stat_function(values[:, 0])<=stat_function(pce_values)+eps)
         else:
             # SSD
             assert np.all(
-                stat_function(pce_values)<=stat_function(values[:,0]))
-
-
+                stat_function(pce_values)<=stat_function(values[:, 0]))
     else:
         # FSD
         from pyapprox.density import EmpiricalCDF
         stat_function = lambda x: EmpiricalCDF(x)(ygrid)
-        assert np.all(stat_function(pce_values)<=stat_function(values[:,0]))
+        assert np.all(stat_function(pce_values)<=stat_function(values[:, 0]))
 
     if plot:
         lstsq_pce = PolynomialChaosExpansion()
-        lstsq_pce.configure({'poly_type':'hermite','var_trans':var_trans})
+        lstsq_pce.configure({'poly_type':'hermite', 'var_trans':var_trans})
         lstsq_pce.set_indices(indices)
 
         lstsq_coef = solve_least_squares_regression(
-            samples,values,lstsq_pce.basis_matrix)
+            samples, values, lstsq_pce.basis_matrix)
         lstsq_pce.set_coefficients(lstsq_coef)
 
         #axs[1].plot(ygrid,stat_function(values[:,0]),'ko',ms=12)
@@ -473,26 +452,26 @@ def help_check_stochastic_dominance(solver,nsamples,degree,
         ylb,yub = values.min()-abs(values.max())*.1,\
                   values.max()+abs(values.max())*.1
 
-        ygrid=np.linspace(ylb,yub,101)
-        ygrid = np.sort(np.concatenate([ygrid,pce_values]))
+        ygrid=np.linspace(ylb, yub, 101)
+        ygrid = np.sort(np.concatenate([ygrid, pce_values]))
         if disutility is not None:
             if disutility:
                 ygrid = -ygrid[::-1]
             stat_function = partial(compute_conditional_expectations,
-                                    ygrid,disutility_formulation=disutility)
+                                    ygrid, disutility_formulation=disutility)
         else:
             print('here')
             print(ygrid)
             def stat_function(x):
-                assert x.ndim==1
+                assert x.ndim == 1
                 #vals = sd_opt_problem.smoother1(
                 #x[np.newaxis,:]-ygrid[:,np.newaxis]).mean(axis=1)
                 vals = EmpiricalCDF(x)(ygrid)
                 return vals
 
         fig,axs=plot_1d_functions_and_statistics(
-            [f,pce,lstsq_pce],['Exact','SSD','Lstsq'],samples,values,
-            stat_function,ygrid)
+            [f, pce, lstsq_pce], ['Exact', 'SSD', 'Lstsq'], samples, values,
+            stat_function, ygrid)
 
         plt.show()
 
@@ -817,13 +796,12 @@ class TestRiskMeasures(unittest.TestCase):
     def test_first_order_stochastic_dominance(self):
         np.random.seed(4)
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth,eps=1e-6)
-        help_check_stochastic_dominance(solver,100,3)
+            solve_FSD_constrained_least_squares_smooth, eps=1e-6)
+        help_check_stochastic_dominance(solver, 100, 3)
 
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth,eps=1e-6)
-        help_check_stochastic_dominance(solver,50,1)
-
+            solve_FSD_constrained_least_squares_smooth, eps=1e-6)
+        help_check_stochastic_dominance(solver, 50, 1)
 
     def test_conditional_value_at_risk(self):
         N = 6
@@ -1023,6 +1001,7 @@ class TestRiskMeasures(unittest.TestCase):
         help_check_stochastic_dominance_gradients(fsd_opt_problem)
 
     def test_quantile_regression(self):
+        np.random.seed(1)
         nbasis = 20
         def func(x):
             return (1+x-x**2+x**3).T
@@ -1036,6 +1015,55 @@ class TestRiskMeasures(unittest.TestCase):
         true_coef = np.zeros((nbasis))
         true_coef[:4] = [1, 1, -1, 1]
         assert np.allclose(quantile_coef[:, 0], true_coef)
+
+    def test_second_order_stochastic_dominance_constraints(self):
+        np.random.seed(1)
+        nbasis = 5
+        def func(x):
+            return (1+x-x**2+x**3).T
+        samples = np.random.uniform(-1, 1, (1, 30))
+        values = func(samples)
+        def eval_basis_matrix(x):
+            return (x**np.arange(nbasis)[:, None]).T
+        tau = 0.75
+        tol = 1e-14
+        eps = 1e-3
+        optim_options = {'verbose': 0, 'maxiter':1000,
+                         'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+        ssd_coef = solve_disutility_SSD_constrained_least_squares_smooth(
+            samples, values, eval_basis_matrix, optim_options=optim_options,
+            eps=eps)
+        true_coef = np.zeros((nbasis))
+        true_coef[:4] = [1, 1, -1, 1]
+        #print(ssd_coef)
+        approx_vals = eval_basis_matrix(samples).dot(ssd_coef)
+        #print(approx_vals.max(), values.max())
+        assert approx_vals.max() >= values.max()
+        assert approx_vals.mean() >= values.mean()
+        assert np.allclose(ssd_coef, true_coef, atol=1e-5)
+
+    def test_first_order_stochastic_dominance_constraints(self):
+        np.random.seed(1)
+        nbasis = 5
+        def func(x):
+            return (1+x-x**2+x**3).T
+        samples = np.random.uniform(-1, 1, (1, 50))
+        values = func(samples)
+        def eval_basis_matrix(x):
+            return (x**np.arange(nbasis)[:, None]).T
+        tau = 0.75
+        tol = 1e-8
+        eps = 1e-3
+        optim_options = {'verbose': 0, 'maxiter':10000,
+                         'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+        fsd_coef = solve_FSD_constrained_least_squares_smooth(
+            samples, values, eval_basis_matrix, eps=eps,
+            optim_options=optim_options)[0]
+        true_coef = np.zeros((nbasis))
+        true_coef[:4] = [1, 1, -1, 1]
+        print(fsd_coef)
+        assert np.allclose(fsd_coef, true_coef, atol=2e-3)
+
 
 def compute_quartic_spline_of_right_heaviside_function():
     """

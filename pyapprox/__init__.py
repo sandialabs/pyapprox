@@ -25,4 +25,5 @@ from pyapprox.stochastic_dominance import *
 from pyapprox.monomial import *
 from pyapprox.gaussian_network import *
 from pyapprox.gaussian_process import *
+from pyapprox.quantile_regression import *
 
