@@ -196,9 +196,10 @@ def hessian(basis_matrix,P,use_sample_average=True):
     return H
 
 def solve_SSD_constrained_least_squares(
-        samples,values,eval_basis_matrix,lstsq_coef=None,
-        eta_indices=None,return_full=False):
-    from cvxopt import matrix as cvxopt_matrix, solvers, spmatrix as cvxopt_spmatrix
+        samples,values, eval_basis_matrix,lstsq_coef=None,
+        eta_indices=None, return_full=False):
+    from cvxopt import matrix as cvxopt_matrix, solvers, \
+        spmatrix as cvxopt_spmatrix
     # Compute coefficients with second order stochastic dominance constraints
     num_samples = samples.shape[1]
     basis_matrix = eval_basis_matrix(samples)
@@ -252,7 +253,7 @@ def solve_SSD_constrained_least_squares(
     ssd_solution = np.array(result['x'])
     coef = ssd_solution[:num_basis_terms,0]
     if return_full:
-        return coef, None
+        return coef, result
     return coef
 
 class SLSQPDisutilitySSDOptProblem(object):
@@ -442,7 +443,7 @@ class SLSQPDisutilitySSDOptProblem(object):
 
 def solve_disutility_SSD_constrained_least_squares_slsqp(
         samples, values, eval_basis_matrix, eta_indices=None,
-        probabilities=None, optim_options=None):
+        probabilities=None, optim_options=None, return_full=False):
     """
     Disutility formuation
     -Y dominates -Z
@@ -460,7 +461,10 @@ def solve_disutility_SSD_constrained_least_squares_slsqp(
 
     coef = ssd_opt_problem.solve(optim_options)
 
-    return coef, ssd_opt_problem
+    if return_full:
+        return coef, ssd_opt_problem
+    else:
+        return coef
 
 
 
@@ -639,7 +643,9 @@ class TrustRegionDisutilitySSDOptProblem(SLSQPDisutilitySSDOptProblem):
 
         return coef
 
-def solve_disutility_SSD_constrained_least_squares_trust_region(samples,values,eval_basis_matrix,eta_indices=None,probabilities=None):
+def solve_disutility_SSD_constrained_least_squares_trust_region(
+        samples, values, eval_basis_matrix, eta_indices=None,
+        probabilities=None, return_full=False):
     """
     Disutility formuation
     -Y dominates -Z
@@ -657,7 +663,10 @@ def solve_disutility_SSD_constrained_least_squares_trust_region(samples,values,e
 
     coef = ssd_opt_problem.solve()
 
-    return coef, ssd_opt_problem
+    if return_full:
+        return coef, ssd_opt_problem
+    else:
+        return coef
 
 
 class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
@@ -918,42 +927,42 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         super().__init__(
             basis_matrix, values, eta, probabilities, smoother_type, eps)
 
-        smoother1,smoother2='shifted','shifted'
-        #smoother1,smoother2='unshifted','unshifted'
-        #smoother1,smoother2='shifted','unshifted'
+        smoother1, smoother2 = 'shifted', 'shifted'
+        # smoother1, smoother2 = 'unshifted', 'unshifted'
+        # smoother1, smoother2 = 'shifted', 'unshifted'
 
         self.set_smoothers(smoother1, smoother2)
 
-    def set_smoothers(self,smoother1, smoother2):
-        if smoother1=='shifted':
+    def set_smoothers(self, smoother1, smoother2):
+        if smoother1 == 'shifted':
             self.smoother1=self.shifted_smooth_heaviside_function
-            self.smoother1_first_derivative=\
+            self.smoother1_first_derivative = \
                 self.shifted_smooth_heaviside_function_first_derivative
-            self.smoother1_second_derivative=\
+            self.smoother1_second_derivative = \
                 self.shifted_smooth_heaviside_function_second_derivative
 
-        if smoother1!='shifted':
+        if smoother1 != 'shifted':
             self.smoother1=self.smooth_heaviside_function
-            self.smoother1_first_derivative=\
+            self.smoother1_first_derivative = \
                 self.smooth_heaviside_function_first_derivative
-            self.smoother1_second_derivative=\
+            self.smoother1_second_derivative = \
                 self.smooth_heaviside_function_second_derivative
 
-        if smoother2!='shifted':
+        if smoother2 != 'shifted':
             self.smoother2=self.smooth_heaviside_function
-            self.smoother2_first_derivative=\
+            self.smoother2_first_derivative = \
                 self.smooth_heaviside_function_first_derivative
-            self.smoother2_second_derivative=\
+            self.smoother2_second_derivative = \
                 self.smooth_heaviside_function_second_derivative
 
-        if smoother2=='shifted':
+        if smoother2 == 'shifted':
             self.smoother2=self.shifted_smooth_heaviside_function
             self.smoother2_first_derivative=\
                 self.shifted_smooth_heaviside_function_first_derivative
             self.smoother2_second_derivative=\
                 self.shifted_smooth_heaviside_function_second_derivative
 
-    def smooth_heaviside_function(self,x):
+    def smooth_heaviside_function(self, x):
         """
             Heaviside function is approximated by the first derivative of
             the approximate postive part function
@@ -961,7 +970,7 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         """
         # one minus sign because using right heaviside function but want
         # left heaviside function
-        if self.smoother_type==2:
+        if self.smoother_type == 2:
             x=-x
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))
@@ -974,11 +983,11 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         vals = super().smooth_max_function_first_derivative(-x)
         return vals
 
-    def smooth_heaviside_function_first_derivative(self,x):
+    def smooth_heaviside_function_first_derivative(self, x):
         # two minus signs because using right heaviside function but want
         # left heaviside function
-        if self.smoother_type==2:
-            x=-x
+        if self.smoother_type == 2:
+            x = -x
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))
             vals[I] = 12*x[I]*(self.eps-x[I])**2/self.eps**4
@@ -987,21 +996,21 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
             
         return vals
 
-    def smooth_max_function_third_derivative(self,x):
+    def smooth_max_function_third_derivative(self, x):
         # third derivative of max function
-        if self.smoother_type==0:
+        if self.smoother_type == 0:
             vals = np.zeros(x.shape)
             I = np.where(np.isfinite(np.exp(-x/self.eps)**3))
             vals[I]=np.exp(-x[I]/self.eps)*(np.exp(-x[I]/self.eps)-1)/(
                 self.eps**2*(1+np.exp(-x[I]/self.eps))**3)
             assert np.all(np.isfinite(vals))
             return vals
-        elif self.smoother_type==1:
+        elif self.smoother_type == 1:
             vals = np.zeros(x.shape)
             I = np.where((x>0)&(x<self.eps))#[0]
             vals[I]=6*(self.eps-2*x[I])/self.eps**3
             return vals
-        elif self.smoother_type==2:
+        elif self.smoother_type == 2:
             vals = np.zeros(x.shape[0])
             I = np.where((x>0)&(x<self.eps))
             vals[I] = 12*(self.eps**2-4*self.eps*x[I]+3*x[I]**2)/self.eps**4
@@ -1010,19 +1019,19 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
             msg="incorrect smoother_type"
             raise Exception(msg)
 
-    def smooth_heaviside_function_second_derivative(self,x):
+    def smooth_heaviside_function_second_derivative(self, x):
         return self.smooth_max_function_third_derivative(-x)
 
-    def shifted_smooth_heaviside_function(self,x):
+    def shifted_smooth_heaviside_function(self, x):
         return self.smooth_heaviside_function(x-self.eps)
     
-    def shifted_smooth_heaviside_function_first_derivative(self,x):
+    def shifted_smooth_heaviside_function_first_derivative(self, x):
         return self.smooth_heaviside_function_first_derivative(x-self.eps)
 
-    def shifted_smooth_heaviside_function_second_derivative(self,x):
+    def shifted_smooth_heaviside_function_second_derivative(self, x):
         return self.smooth_heaviside_function_second_derivative(x-self.eps)
 
-    def left_heaviside_function(self,x):
+    def left_heaviside_function(self, x):
         vals = np.zeros_like(x)
         vals[x<=0]=1
         return vals
@@ -1117,8 +1126,8 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
 
     def solve_slsqp(self, optim_options):
         if optim_options is None:
-            tol=1e-6
-            optim_options = {'disp': True, 'maxiter':1000,
+            tol = 1e-6
+            optim_options = {'disp':True, 'maxiter':1000,
                              'ftol':tol,'iprint':3}
 
         # define nonlinear inequality constraints        
@@ -1146,25 +1155,25 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         #np.seterr(all='raise')
         #import warnings
         #warnings.filterwarnings('error')
-        assert self.smoother_type==0
+        assert self.smoother_type == 0
         
         # sstore user defined options
         eps=self.eps
         smoother_type = self.smoother_type
 
         #if local smoother requested first use global smoother to get
-        if smoother_type!=0:
+        if smoother_type != 0:
             # a good initial guess. The global smoother can only use larger
             # eps tolerances
             self.eps=max(1e-3, eps)
-        self.smoother_type=0
+        self.smoother_type = 0
         #coef = self.solve_slsqp(optim_options)
         coef = self.solve_trust_region(optim_options)
 
         if smoother_type!=0:
-            self.eps=eps
-            self.init_guess=coef
-            self.smoother_type=smoother_type
+            self.eps = eps
+            self.init_guess = coef
+            self.smoother_type = smoother_type
             #coef = self.solve_slsqp(optim_options)
             coef = self.solve_trust_region(optim_options)
 
@@ -1173,7 +1182,7 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
     def solve_trust_region(self,optim_options):
 
         if optim_options is None:
-            tol=1e-7
+            tol = 1e-7
             optim_options = {'verbose': 3, 'maxiter':1000,
                              'gtol':tol, 'xtol':1e-15, 'barrier_tol':tol}
 
@@ -1220,7 +1229,7 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
     
 def solve_FSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
-        probabilities=None, eps=None, optim_options=None):
+        probabilities=None, eps=None, optim_options=None, return_full=False):
     """
     First order stochastic dominance FSD
     """
@@ -1228,15 +1237,18 @@ def solve_FSD_constrained_least_squares_smooth(
     if probabilities is None:
         probabilities = np.ones((num_samples))/num_samples
     if eta_indices is None:
-        eta_indices = np.arange(0,num_samples)
+        eta_indices = np.arange(0, num_samples)
 
     basis_matrix = eval_basis_matrix(samples)
 
-    smoother_type=0
+    smoother_type = 0
     fsd_opt_problem = FSDOptProblem(
         basis_matrix, values[:, 0], values[eta_indices, 0], probabilities,
         eps=eps, smoother_type=smoother_type)
 
     coef = fsd_opt_problem.solve(optim_options)
 
-    return coef, fsd_opt_problem
+    if return_full:
+        return coef, fsd_opt_problem
+    else:
+        return coef

@@ -423,7 +423,7 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
                                 ygrid, disutility_formulation=disutility)
         if disutility:
             # Disutility SSD
-            eps=1e-14
+            eps=1e-12
             assert np.all(
                 stat_function(values[:, 0])<=stat_function(pce_values)+eps)
         else:
@@ -771,36 +771,41 @@ class TestRiskMeasures(unittest.TestCase):
     @skiptest
     def test_second_order_stochastic_dominance(self):
         np.random.seed(4)
-        solver = partial(solve_SSD_constrained_least_squares,return_full=True)
-        help_check_stochastic_dominance(solver,10,2,False)
+        solver = partial(solve_SSD_constrained_least_squares, return_full=True)
+        help_check_stochastic_dominance(solver, 10, 2, False)
 
     def test_disutility_second_order_stochastic_dominance(self):
         np.random.seed(2)
         # slsqp needs more testing. Dont think it is working, e.g. try
-        solver = solve_disutility_SSD_constrained_least_squares_slsqp
-        help_check_stochastic_dominance(solver,10,2,True)
+        solver = partial(solve_disutility_SSD_constrained_least_squares_slsqp,
+                         return_full=True)
+        help_check_stochastic_dominance(solver, 10, 2, True)
 
-        solver = solve_disutility_SSD_constrained_least_squares_trust_region
-        help_check_stochastic_dominance(solver,10,2,True)
+        solver = partial(
+            solve_disutility_SSD_constrained_least_squares_trust_region,
+            return_full=True)
+        help_check_stochastic_dominance(solver, 10, 2, True)
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
-            smoother_type=0,return_full=True)
-        help_check_stochastic_dominance(solver,10,2,True)
+            smoother_type=0, return_full=True)
+        help_check_stochastic_dominance(solver, 10, 2, True)
 
         solver = partial(
             solve_disutility_SSD_constrained_least_squares_smooth,
-            smoother_type=1,return_full=True)  
-        help_check_stochastic_dominance(solver,10,2,True)
+            smoother_type=1, return_full=True)  
+        help_check_stochastic_dominance(solver, 10, 2, True)
 
     def test_first_order_stochastic_dominance(self):
         np.random.seed(4)
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth, eps=1e-6)
+            solve_FSD_constrained_least_squares_smooth, eps=1e-6,
+            return_full=True)
         help_check_stochastic_dominance(solver, 100, 3)
 
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth, eps=1e-6)
+            solve_FSD_constrained_least_squares_smooth, eps=1e-6,
+            return_full=True)
         help_check_stochastic_dominance(solver, 50, 1)
 
     def test_conditional_value_at_risk(self):
@@ -1017,18 +1022,18 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(quantile_coef[:, 0], true_coef)
 
     def test_second_order_stochastic_dominance_constraints(self):
-        np.random.seed(1)
+        np.random.seed(2)
         nbasis = 5
         def func(x):
             return (1+x-x**2+x**3).T
-        samples = np.random.uniform(-1, 1, (1, 30))
+        samples = np.random.uniform(-1, 1, (1, 20))
         values = func(samples)
         def eval_basis_matrix(x):
             return (x**np.arange(nbasis)[:, None]).T
         tau = 0.75
         tol = 1e-14
         eps = 1e-3
-        optim_options = {'verbose': 0, 'maxiter':1000,
+        optim_options = {'verbose': 3, 'maxiter':2000,
                          'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
         ssd_coef = solve_disutility_SSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, optim_options=optim_options,
@@ -1058,7 +1063,7 @@ class TestRiskMeasures(unittest.TestCase):
                          'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
         fsd_coef = solve_FSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, eps=eps,
-            optim_options=optim_options)[0]
+            optim_options=optim_options)
         true_coef = np.zeros((nbasis))
         true_coef[:4] = [1, 1, -1, 1]
         print(fsd_coef)
