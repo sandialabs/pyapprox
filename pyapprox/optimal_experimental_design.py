@@ -949,12 +949,13 @@ class AlphabetOptimalDesign(object):
             # (after "~") is the finite differences estimation. Finally, the
             # number in square brackets is the relative difference between
             # these two numbers.
-            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+            bounds = [
+                [lb, ub] for lb, ub in zip(self.bounds.lb, self.bounds.ub)]
             from scipy.optimize._constraints import new_constraint_to_old
-            con = new_constraint_to_old(self.linear_constraint,x0)
+            con = new_constraint_to_old(self.linear_constraint, x0)
             from ipopt import minimize_ipopt
             res = minimize_ipopt(
-                objective,x0,jac=jac,bounds=bounds,constraints=con,
+                objective, x0, jac=jac, bounds=bounds, constraints=con,
                 options=options)
         else:
             res = minimize(
@@ -967,7 +968,7 @@ class AlphabetOptimalDesign(object):
         if not return_full:
             return weights
         
-        return weights,res
+        return weights, res
 
     def minimax_nonlinear_constraints(self,parameter_samples,design_samples):
         constraints = []

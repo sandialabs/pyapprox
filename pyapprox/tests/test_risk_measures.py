@@ -7,6 +7,7 @@ from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv, \
     lognorm as lognormal_rv
 from pyapprox.configure_plots import *
 from pyapprox.optimization import check_gradients
+from pyapprox.rol_minimize import has_ROL
 
 try:
     import cvxopt
@@ -15,6 +16,9 @@ except:
     has_cvxopt=False
 skiptest = unittest.skipIf(
     not has_cvxopt, reason="cvxopt package not found")
+
+skiptest_rol = unittest.skipIf(
+    not has_ROL, reason="rol package not found")
 
 def plot_1d_functions_and_statistics(
             functions,labels,samples,values,stat_function,eta):
@@ -89,7 +93,7 @@ def triangle_superquantile(u,c,loc,scale):
     superquantiles[K]=triangle_rv.interval(1,c,loc,scale)[1]
     return superquantiles
 
-def get_lognormal_example_exact_quantities(mu,sigma):
+def get_lognormal_example_exact_quantities(mu, sigma):
     #print('mu,sigma',mu,sigma)
     f= lambda x: np.exp(x).T
 
@@ -381,7 +385,7 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5),plot=False,
         assert np.allclose(disutil_essd.squeeze(),ssd_disutil(ygrid),atol=1e-3) 
 
 def help_check_stochastic_dominance(solver, nsamples, degree,
-                                   disutility=None, plot=False):
+                                    disutility=None, plot=False):
     """
     disutilty is none plot emprical CDF
     disutility is True plot disutility SSD
@@ -434,6 +438,7 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
         # FSD
         from pyapprox.density import EmpiricalCDF
         stat_function = lambda x: EmpiricalCDF(x)(ygrid)
+        print(stat_function(pce_values), stat_function(values[:, 0]))
         assert np.all(stat_function(pce_values)<=stat_function(values[:, 0]))
 
     if plot:
@@ -479,63 +484,64 @@ def help_check_stochastic_dominance_gradients(sd_opt_problem):
 
     np.random.seed(1)
     xx = sd_opt_problem.init_guess
-    if hasattr(sd_opt_problem,"eps"):
+    if hasattr(sd_opt_problem, "eps"):
         # smoothers often only have nonzero derivative is a region or
         # diameter epsilon
-        xx[0]-=sd_opt_problem.eps/3
+        xx[0]-=sd_opt_problem.eps/10
 
     from pyapprox.optimization import approx_jacobian
-    fd_jacobian = approx_jacobian(sd_opt_problem.objective,xx,epsilon=1e-8)
+    fd_jacobian = approx_jacobian(sd_opt_problem.objective, xx, epsilon=1e-8)
     jacobian = sd_opt_problem.objective_jacobian(xx)
     #check_gradients(
     #    sd_opt_problem.objective,sd_opt_problem.objective_jacobian,xx,False)
     #print('jac ex',fd_jacobian)
     #print('jac fd',jacobian)
-    assert np.allclose(fd_jacobian,jacobian,atol=1e-7)
+    assert np.allclose(fd_jacobian, jacobian, atol=1e-7)
 
     fd_jacobian = approx_jacobian(
-        sd_opt_problem.nonlinear_constraints,xx)
+        sd_opt_problem.nonlinear_constraints, xx)
     jacobian = sd_opt_problem.nonlinear_constraints_jacobian(xx)
     if hasattr(jacobian,'todense'):
         jacobian = jacobian.todense()
-    #print('jac ex',fd_jacobian)
-    #print('jac fd',jacobian)
+    print('jac ex',fd_jacobian)
+    print('jac fd',jacobian)
     msg = 'change x, current value is not an effective test'
     #check_gradients(
     #    sd_opt_problem.nonlinear_constraints,
     #    sd_opt_problem.nonlinear_constraints_jacobian,xx,False)
     assert not np.all(np.absolute(jacobian)<1e-15), msg 
-    assert np.allclose(fd_jacobian,jacobian,atol=1e-7)
+    assert np.allclose(fd_jacobian,jacobian, atol=1e-7)
 
     if hasattr(sd_opt_problem,'objective_hessian'):
         hessian = sd_opt_problem.objective_hessian(xx)
         fd_hessian = approx_jacobian(sd_opt_problem.objective_jacobian,xx)
         if hasattr(hessian,'todense'):
             hessian = hessian.todense()
-        assert np.allclose(hessian,fd_hessian)
+        assert np.allclose(hessian, fd_hessian)
 
     if hasattr(sd_opt_problem,'define_nonlinear_constraint_hessian'):
-        at_least_one_hessian_nonzero=False
+        at_least_one_hessian_nonzero = False
         for ii in range(sd_opt_problem.nnl_constraints):
             def grad(xx):
-                row=sd_opt_problem.nonlinear_constraints_jacobian(xx)[ii,:]
-                if hasattr(row,'todense'):
-                    row = np.asarray(row.todense())[0,:]
+                row=sd_opt_problem.nonlinear_constraints_jacobian(xx)[ii, :]
+                if hasattr(row, 'todense'):
+                    row = np.asarray(row.todense())[0, :]
                 return row
 
             fd_hessian = approx_jacobian(grad,xx)
             hessian=sd_opt_problem.define_nonlinear_constraint_hessian(
-                xx,ii)
+                xx, ii)
             #np.set_printoptions(linewidth=1000)
             #print('h',hessian)
             #print('h_fd',fd_hessian)
             if hessian is None:
                 assert np.allclose(
-                    fd_hessian,np.zeros_like(fd_hessian),atol=1e-7)
+                    fd_hessian,np.zeros_like(fd_hessian), atol=1e-7)
             else:
                 if hasattr(hessian,'todense'):
                     hessian = hessian.todense()
-                assert np.allclose(hessian,fd_hessian,atol=1e-7,rtol=1e-1)
+                print(hessian, '\n', fd_hessian)
+                assert np.allclose(hessian, fd_hessian, atol=1e-7, rtol=1e-5)
                 if not at_least_one_hessian_nonzero:
                     at_least_one_hessian_nonzero = np.any(
                         np.absolute(hessian)<1e-15)
@@ -754,19 +760,19 @@ class TestRiskMeasures(unittest.TestCase):
             fun3,lbx,ubx,epsabs=tol,epsrel=tol,full_output=True)[0]
         cvar3 = t+0.5/(1.-alpha)*(integral+mean-t)
 
-        lbx,ubx=-np.inf,np.inf
+        lbx, ubx =- np.inf, np.inf
         value_at_risk4,cvar4 = compute_cvar_from_univariate_function(
-            f,partial(normal_rv.pdf,loc=mu,scale=sigma),lbx,ubx,alpha,5,
+            f, partial(normal_rv.pdf, loc=mu, scale=sigma), lbx, ubx, alpha, 5,
             tol=1e-7)
 
         #print(abs(cvar1-CVaR(alpha)))
         #print(abs(cvar2-CVaR(alpha)))
         #print(abs(cvar3-CVaR(alpha)))
         #print(abs(cvar4-CVaR(alpha)))
-        assert np.allclose(cvar1,CVaR(alpha))
-        assert np.allclose(cvar2,CVaR(alpha))
-        assert np.allclose(cvar3,CVaR(alpha))
-        assert np.allclose(cvar4,CVaR(alpha))
+        assert np.allclose(cvar1, CVaR(alpha))
+        assert np.allclose(cvar2, CVaR(alpha))
+        assert np.allclose(cvar3, CVaR(alpha))
+        assert np.allclose(cvar4, CVaR(alpha))
 
     @skiptest
     def test_second_order_stochastic_dominance(self):
@@ -796,49 +802,54 @@ class TestRiskMeasures(unittest.TestCase):
             smoother_type=1, return_full=True)  
         help_check_stochastic_dominance(solver, 10, 2, True)
 
-    def test_first_order_stochastic_dominance(self):
+    @skiptest_rol
+    def test_first_order_stochastic_dominance_rol(self):
         np.random.seed(4)
         solver=partial(
             solve_FSD_constrained_least_squares_smooth, eps=1e-6,
-            return_full=True)
-        help_check_stochastic_dominance(solver, 100, 3)
+            return_full=True, smoother_type=0,
+            method='rol_trust_constr')
+        #help_check_stochastic_dominance(solver, 20, 3)
 
+        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-4}
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth, eps=1e-6,
-            return_full=True)
-        help_check_stochastic_dominance(solver, 50, 1)
+            solve_FSD_constrained_least_squares_smooth, eps=1e-2,
+            return_full=True, smoother_type=2, optim_options=optim_options,
+            method='rol_trust_constr')
+        help_check_stochastic_dominance(solver, 20, 3)
+
 
     def test_conditional_value_at_risk(self):
         N = 6
         p = np.ones(N)/N
-        X = np.random.normal(0,1,N)
+        X = np.random.normal(0, 1, N)
         #X = np.arange(1,N+1)
         X = np.sort(X)
         beta = 7/12
-        i_beta_exact=3
+        i_beta_exact = 3
         VaR_exact = X[i_beta_exact]
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
         ecvar,evar = conditional_value_at_risk(
             X,beta,return_var=True)
         #print(cvar_exact,ecvar)
-        assert np.allclose(cvar_exact,ecvar)
+        assert np.allclose(cvar_exact, ecvar)
 
     def test_conditional_value_at_risk_subgradient(self):
         N = 6
         p = np.ones(N)/N
-        X = np.random.normal(0,1,N)
+        X = np.random.normal(0, 1, N)
         #X = np.arange(1,N+1)
         X = np.sort(X)
         beta = 7/12
         beta = 2/3
-        i_beta_exact=3
+        i_beta_exact=  3
         VaR_exact = X[i_beta_exact]
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
         cvar_grad = conditional_value_at_risk_subgradient(X,beta)
         from pyapprox.optimization import approx_jacobian
         func = partial(conditional_value_at_risk,alpha=beta)
         cvar_grad_fd = approx_jacobian(func,X)
-        assert np.allclose(cvar_grad,cvar_grad_fd,atol=1e-7)
+        assert np.allclose(cvar_grad, cvar_grad_fd,atol=1e-7)
         
     def test_conditional_value_at_risk_using_opitmization_formula(self):
         """
@@ -935,9 +946,8 @@ class TestRiskMeasures(unittest.TestCase):
     def test_fsd_gradients(self):
         np.random.seed(5)
         np.random.seed(3)
-        fsd_opt_problem = self.setup_sd_opt_problem(
-            FSDOptProblem)
-        fsd_opt_problem.smoother_type=0
+        fsd_opt_problem = self.setup_sd_opt_problem(FSDOptProblem)
+        fsd_opt_problem.smoother_type = 2
 
         # import matplotlib.pyplot as plt
         # fsd_opt_problem.eps=1e-1
@@ -950,50 +960,50 @@ class TestRiskMeasures(unittest.TestCase):
         # assert False
                  
         # test gradients of smoothing function
-        fsd_opt_problem.eps=1e-1
+        fsd_opt_problem.eps = 1e-1
         from scipy.optimize import approx_fprime
         xx = -np.ones(1)*0.09
         # make sure xx will produce non zero grad
-        assert -xx<fsd_opt_problem.eps and -xx!=fsd_opt_problem.eps/2
+        assert -xx < fsd_opt_problem.eps and -xx != fsd_opt_problem.eps/2
         fd_grad = approx_fprime(
-            xx,fsd_opt_problem.smooth_heaviside_function,1e-7)
+            xx, fsd_opt_problem.smooth_heaviside_function, 1e-7)
         grad = fsd_opt_problem.smooth_heaviside_function_first_derivative(xx)
-        #print(grad,fd_grad)
-        assert np.allclose(fd_grad,grad)
+        #print(grad, fd_grad)
+        assert np.allclose(fd_grad, grad)
 
         xx = np.ones(1)*0.09
         # make sure xx will produce non zero grad
-        assert xx<fsd_opt_problem.eps and xx!=fsd_opt_problem.eps/2
+        assert xx < fsd_opt_problem.eps and xx != fsd_opt_problem.eps/2
         fd_grad = approx_fprime(
-            xx,fsd_opt_problem.shifted_smooth_heaviside_function,1e-7)
+            xx,fsd_opt_problem.shifted_smooth_heaviside_function, 1e-7)
         grad = fsd_opt_problem.shifted_smooth_heaviside_function_first_derivative(xx)
-        #print(fd_grad,grad)
-        assert np.allclose(fd_grad,grad)
+        #print(fd_grad, grad)
+        assert np.allclose(fd_grad, grad)
 
         fd_hess = approx_fprime(
-            xx,fsd_opt_problem.smooth_heaviside_function_first_derivative,1e-7)
+            xx,fsd_opt_problem.smooth_heaviside_function_first_derivative, 1e-7)
         hess = fsd_opt_problem.smooth_heaviside_function_second_derivative(xx)
-        #print(fd_hess,hess)
-        assert np.allclose(fd_hess,hess)
+        #print(fd_hess, hess)
+        assert np.allclose(fd_hess, hess)
 
         fd_hess = approx_fprime(
-            xx,fsd_opt_problem.shifted_smooth_heaviside_function_first_derivative,1e-7)
+            xx,fsd_opt_problem.shifted_smooth_heaviside_function_first_derivative, 1e-7)
         hess = fsd_opt_problem.shifted_smooth_heaviside_function_second_derivative(xx)
-        assert np.allclose(fd_hess,hess)
+        assert np.allclose(fd_hess, hess)
 
         # fsd_opt_problem.eps=1e-5
         # import matplotlib.pyplot as plt
         # xx = np.ones(fsd_opt_problem.nunknowns)
         # fsd_opt_problem.nonlinear_constraints(xx)
-        # plt.plot(fsd_opt_problem.values,fsd_opt_problem.constraint_rhs,'rs')
+        # #plt.plot(fsd_opt_problem.values, fsd_opt_problem.constraint_rhs,'rs')
         # from pyapprox.density import EmpiricalCDF
         # ecdf = EmpiricalCDF(fsd_opt_problem.values)
-        # plt.plot(fsd_opt_problem.values,ecdf(fsd_opt_problem.values),'ko')
+        # plt.plot(fsd_opt_problem.values,ecdf(fsd_opt_problem.values), 'ko')
         # smooth_heaviside_ecdf_vals = np.asarray([fsd_opt_problem.smooth_heaviside_function(fsd_opt_problem.values-fsd_opt_problem.values[ii]) for ii in range(fsd_opt_problem.values.shape[0])]).mean(axis=1)
-        # plt.plot(fsd_opt_problem.values,smooth_heaviside_ecdf_vals,'b*')
+        # plt.plot(fsd_opt_problem.values, smooth_heaviside_ecdf_vals,'b*')
         # heaviside_ecdf_vals = np.asarray([fsd_opt_problem.left_heaviside_function(fsd_opt_problem.values-fsd_opt_problem.values[ii]) for ii in range(fsd_opt_problem.values.shape[0])]).mean(axis=1)
-        # print(heaviside_ecdf_vals-fsd_opt_problem.constraint_rhs)
-        # plt.plot(fsd_opt_problem.values,heaviside_ecdf_vals,'g+')
+        # #print(heaviside_ecdf_vals-fsd_opt_problem.constraint_rhs)
+        # plt.plot(fsd_opt_problem.values, heaviside_ecdf_vals,'g+')
         # plt.show()
 
         # fsd_opt_problem.smoother_type=1
@@ -1059,14 +1069,20 @@ class TestRiskMeasures(unittest.TestCase):
         tau = 0.75
         tol = 1e-8
         eps = 1e-3
-        optim_options = {'verbose': 0, 'maxiter':10000,
-                         'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+        try:
+            import ipopt
+            method = 'ipopt'
+            optim_options = None
+        except:
+            method = 'trust_constr'
+            optim_options = {'verbose': 0, 'maxiter':10000,
+                             'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
         fsd_coef = solve_FSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, eps=eps,
-            optim_options=optim_options)
+            optim_options=optim_options, method=method)
         true_coef = np.zeros((nbasis))
         true_coef[:4] = [1, 1, -1, 1]
-        print(fsd_coef)
+        #print(fsd_coef)
         assert np.allclose(fsd_coef, true_coef, atol=2e-3)
 
 
