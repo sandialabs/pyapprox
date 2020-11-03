@@ -1,12 +1,13 @@
 import numpy as np
 from scipy import sparse
 from scipy.sparse import eye as speye
-from scipy.sparse import lil_matrix,csc_matrix
+from scipy.sparse import lil_matrix, csc_matrix
 from functools import partial
-from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, BFGS,\
-    Bounds
+from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, \
+    BFGS, Bounds
+from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
 
-def build_inequality_contraints(Y,basis_matrix,p,eta_indices):
+def build_inequality_contraints(Y, basis_matrix, p, eta_indices):
     r"""
     Construct the matrix form of the constraints of quadratic program.
        Ax<=b
@@ -257,7 +258,7 @@ def solve_SSD_constrained_least_squares(
     return coef
 
 class SLSQPDisutilitySSDOptProblem(object):
-    def __init__(self,basis_matrix, values ,eta, probabilities):
+    def __init__(self,basis_matrix, values, eta, probabilities):
         self.basis_matrix = basis_matrix
         self.values = values
         self.eta = eta
@@ -577,14 +578,14 @@ class TrustRegionDisutilitySSDOptProblem(SLSQPDisutilitySSDOptProblem):
             (data,(I,J)),shape=(self.nunknowns,self.nunknowns))
         return hessian
 
-    def nonlinear_constraints_hessian(self,x,v):
+    def nonlinear_constraints_hessian(self, x, v):
         initialize=False
         if self.constraint_hessians is None:
             self.constraint_hessians=[
                 None for ii in range(self.nnl_constraints)]
             initialize=True
 
-        assert v.shape[0]==self.nnl_constraints
+        assert v.shape[0] == self.nnl_constraints
         result = 0
         for ii in range(v.shape[0]):
             if initialize:
@@ -593,7 +594,7 @@ class TrustRegionDisutilitySSDOptProblem(SLSQPDisutilitySSDOptProblem):
             result += v[ii]*self.constraint_hessians[ii]
         return result
 
-    def design_feasiable(self,x,feastol=1e-15):
+    def design_feasiable(self, x, feastol=1e-15):
         return (np.all(self.nonlinear_constraints(x)<-feastol) and
                 np.all(self.linear_constraint_matrix.dot(x)<
                        self.linear_constraint_vector-feastol))
@@ -670,8 +671,8 @@ def solve_disutility_SSD_constrained_least_squares_trust_region(
 
 
 class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
-    def __init__(self,basis_matrix, values, eta, probabilities, smoother_type=0,
-                 eps=1e-3):
+    def __init__(self, basis_matrix, values, eta, probabilities,
+                 smoother_type=0,  eps=1e-3):
         self.eps = eps
         self.smoother_type = smoother_type
         if self.eps is None:
@@ -710,8 +711,7 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         self.init_guess[:self.ncoef] = lstsq_coef
         shift=np.max(self.values-self.basis_matrix.dot(
             self.init_guess))
-        # for some reason just shifting exactly causes algorithm to not converge
-        self.init_guess[0]+=shift*(1+self.eps)
+        self.init_guess[0] += shift
 
         self.constraint_hessians=None
 
@@ -746,7 +746,7 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
             msg="incorrect smoother_type"
             raise Exception(msg)
 
-    def smooth_max_function_first_derivative(self,x):
+    def smooth_max_function_first_derivative(self, x):
         if self.smoother_type == 0:
             #vals = 1.-1./(1+np.exp(x/self.eps))
             vals = 1./(1+np.exp(-x/self.eps))
@@ -785,11 +785,11 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         coef = x[:self.ncoef]
         approx_values = self.basis_matrix.dot(coef)
         constraint_values = np.zeros(constraint_indices.shape)
-        for ii,index in enumerate(constraint_indices):
-            constraint_values[ii] = self.probabilities.dot(
-                self.smoother1(approx_values-approx_values[index]))
-            constraint_values[ii] -= self.probabilities.dot(
-                self.smoother2(self.values-approx_values[index]))
+        for ii, index in enumerate(constraint_indices):
+           constraint_values[ii] = self.probabilities.dot(
+               self.smoother1(approx_values-approx_values[index]))
+           constraint_values[ii] -= self.probabilities.dot(
+               self.smoother2(self.values-approx_values[index]))
         assert np.all(np.isfinite(constraint_values))
         return constraint_values
 
@@ -799,7 +799,7 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         grad = np.empty((self.nnl_constraints,self.ncoef), dtype=float)
         for ii in range(self.nnl_constraints):
             tmp1=self.smoother1_first_derivative(
-                approx_values-approx_values[ii])
+               approx_values-approx_values[ii])
             tmp2=self.smoother2_first_derivative(self.values-approx_values[ii])
             grad[ii,:] = self.probabilities.dot(
                 tmp1[:, np.newaxis]*
@@ -846,9 +846,9 @@ class SmoothDisutilitySSDOptProblem(TrustRegionDisutilitySSDOptProblem):
         assert v.shape[0] == self.nnl_constraints
         result = np.zeros((self.nunknowns, self.nunknowns))
         for ii in range(v.shape[0]):
-            if initialize:
-                self.constraint_hessians[ii] = \
-                    self.define_nonlinear_constraint_hessian(x, ii)
+            #if initialize:
+            self.constraint_hessians[ii] = \
+                self.define_nonlinear_constraint_hessian(x, ii)
             if self.constraint_hessians[ii] is not None:
                 result += v[ii]*self.constraint_hessians[ii]
             #else hessian is zero
@@ -922,44 +922,44 @@ def solve_disutility_SSD_constrained_least_squares_smooth(
 
 
 class FSDOptProblem(SmoothDisutilitySSDOptProblem):
-    def __init__(self,basis_matrix, values, eta, probabilities, smoother_type=0,
-                 eps=None):
+    def __init__(self, basis_matrix, values, eta, probabilities,
+                 smoother_type=0, eps=None):
         super().__init__(
             basis_matrix, values, eta, probabilities, smoother_type, eps)
 
-        smoother1, smoother2 = 'shifted', 'shifted'
-        # smoother1, smoother2 = 'unshifted', 'unshifted'
+        #smoother1, smoother2 = 'shifted', 'shifted'
+        smoother1, smoother2 = 'unshifted', 'unshifted'
         # smoother1, smoother2 = 'shifted', 'unshifted'
 
         self.set_smoothers(smoother1, smoother2)
 
     def set_smoothers(self, smoother1, smoother2):
         if smoother1 == 'shifted':
-            self.smoother1=self.shifted_smooth_heaviside_function
+            self.smoother1 = self.shifted_smooth_heaviside_function
             self.smoother1_first_derivative = \
                 self.shifted_smooth_heaviside_function_first_derivative
             self.smoother1_second_derivative = \
                 self.shifted_smooth_heaviside_function_second_derivative
 
         if smoother1 != 'shifted':
-            self.smoother1=self.smooth_heaviside_function
+            self.smoother1 = self.smooth_heaviside_function
             self.smoother1_first_derivative = \
                 self.smooth_heaviside_function_first_derivative
             self.smoother1_second_derivative = \
                 self.smooth_heaviside_function_second_derivative
 
         if smoother2 != 'shifted':
-            self.smoother2=self.smooth_heaviside_function
+            self.smoother2 = self.smooth_heaviside_function
             self.smoother2_first_derivative = \
                 self.smooth_heaviside_function_first_derivative
             self.smoother2_second_derivative = \
                 self.smooth_heaviside_function_second_derivative
 
         if smoother2 == 'shifted':
-            self.smoother2=self.shifted_smooth_heaviside_function
-            self.smoother2_first_derivative=\
+            self.smoother2 = self.shifted_smooth_heaviside_function
+            self.smoother2_first_derivative = \
                 self.shifted_smooth_heaviside_function_first_derivative
-            self.smoother2_second_derivative=\
+            self.smoother2_second_derivative = \
                 self.shifted_smooth_heaviside_function_second_derivative
 
     def smooth_heaviside_function(self, x):
@@ -1023,6 +1023,8 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         return self.smooth_max_function_third_derivative(-x)
 
     def shifted_smooth_heaviside_function(self, x):
+        # when smoother==1 then shifted ensures approximation is greater
+        # than heaviside function
         return self.smooth_heaviside_function(x-self.eps)
     
     def shifted_smooth_heaviside_function_first_derivative(self, x):
@@ -1033,102 +1035,72 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
 
     def left_heaviside_function(self, x):
         vals = np.zeros_like(x)
-        vals[x<=0]=1
+        vals[x<=0] = 1
         return vals
-        
-    # def nonlinear_constraints(self,x,constraint_indices=None):
-    #     if constraint_indices is None:
-    #         constraint_indices=np.arange(self.nnl_constraints)
-    #     constraint_indices = np.atleast_1d(constraint_indices)
+
+    def nonlinear_constraints(self, x, constraint_indices=None):
+        if constraint_indices is None:
+            constraint_indices=np.arange(self.nnl_constraints)
+        constraint_indices = np.atleast_1d(constraint_indices)
             
-    #     coef = x[:self.ncoef]
-    #     approx_values = self.basis_matrix.dot(coef)
-    #     constraint_values = np.zeros(constraint_indices.shape)
-    #     for ii,index in enumerate(constraint_indices):
-    #         constraint_values[ii] = self.probabilities.dot(
-    #             self.shifted_smooth_heaviside_function(
-    #                 approx_values-approx_values[index]))
-    #         #constraint_values[ii] -= self.probabilities.dot(
-    #         #    self.smooth_heaviside_function(self.values-approx_values[index]))
-    #         constraint_values[ii] -= self.probabilities.dot(
-    #             self.shifted_smooth_heaviside_function(self.values-approx_values[index]))
-    #     return constraint_values
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+        constraint_values = np.zeros(constraint_indices.shape)
+        assert approx_values.shape == self.values.shape
+        for ii, index in enumerate(constraint_indices):
+            constraint_values[ii] = self.probabilities.dot(
+                self.smoother1(approx_values-self.values[index]))
+            constraint_values[ii] -= self.probabilities.dot(
+                self.smoother2(self.values-self.values[index]))
+        assert np.all(np.isfinite(constraint_values))
+        return constraint_values
 
-    # def nonlinear_constraints_jacobian(self,x):
-    #     coef = x[:self.ncoef]
-    #     approx_values = self.basis_matrix.dot(coef)
-    #     grad = np.empty((self.nnl_constraints,self.ncoef),dtype=float)
-    #     for ii in range(self.nnl_constraints):
-    #         tmp1 = self.shifted_smooth_heaviside_function_first_derivative(
-    #             approx_values-approx_values[ii])
-    #         grad[ii,:] = self.probabilities.dot(
-    #             tmp1[:,np.newaxis]*(self.basis_matrix-self.basis_matrix[ii,:]))
-    #         #tmp2 = self.smooth_heaviside_function_first_derivative(
-    #         #    (self.values-approx_values[ii]))
-    #         tmp2 = self.shifted_smooth_heaviside_function_first_derivative(
-    #             (self.values-approx_values[ii]))
-    #         grad[ii,:] -= self.probabilities.dot(
-    #             tmp2[:,np.newaxis]*(-self.basis_matrix[ii,:]))
+    def nonlinear_constraints_jacobian(self, x):
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+        grad = np.zeros((self.nnl_constraints, self.ncoef), dtype=float)
+        for ii in range(self.nnl_constraints):
+            tmp1 = self.smoother1_first_derivative(
+                approx_values-self.values[ii])
+            grad[ii, :] = self.probabilities.dot(
+                tmp1[:, np.newaxis]*(self.basis_matrix))
+            #tmp2 = self.smoother2_first_derivative(self.values-self.values[ii])
+            #grad[ii, :] -= 0
+        return grad
 
-    #     return grad
+    def define_nonlinear_constraint_hessian(self, x, ii):
+        r"""
+        d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
 
-    # def define_nonlinear_constraint_hessian(self,x,ii):
-    #     """
-    #     d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
+        g''(x)=0 for all x
+        """
+        coef = x[:self.ncoef]
+        approx_values = self.basis_matrix.dot(coef)
+        hessian = np.zeros((self.nunknowns, self.nunknowns))
+        tmp1 = self.smoother1_second_derivative(approx_values-self.values[ii])
+        tmp2 = self.smoother2_second_derivative(self.values-self.values[ii])
+        if np.all(tmp1==0) and np.all(tmp2==0):
+            # Hessian will be zero
+            return None
 
-    #     g''(x)=0 for all x
-    #     """
-    #     coef = x[:self.ncoef]
-    #     approx_values = self.basis_matrix.dot(coef)
-    #     hessian = np.zeros((self.nunknowns,self.nunknowns))
-    #     # two minus signs because using right heaviside function but want
-    #     # left heaviside function
-    #     tmp1 = self.shifted_smooth_heaviside_function_second_derivative(
-    #         approx_values-approx_values[ii])
-    #     #tmp2 = self.smooth_heaviside_function_second_derivative(
-    #     #    self.values-approx_values[ii])
-    #     tmp2 = self.shifted_smooth_heaviside_function_second_derivative(
-    #         self.values-approx_values[ii])
-    #     if np.all(tmp1==0) and np.all(tmp2==0):
-    #         # Hessian will be zero
-    #         return None
-
-    #     tmp3 = self.basis_matrix-self.basis_matrix[ii,:]
-    #     tmp4 = -self.basis_matrix[ii,:]
+        tmp3 = self.basis_matrix
+        #tmp4 = np.zeros_like(self.basis_matrix[ii, :])
         
-    #     for jj in range(self.nunknowns):
-    #         for kk in range(jj,self.nunknowns):
-    #             hessian[jj,kk] = self.probabilities.dot(
-    #                 tmp1*(tmp3[:,jj]*tmp3[:,kk]))
-    #             hessian[jj,kk] -= self.probabilities.dot(
-    #                 tmp2*(tmp4[jj]*tmp4[kk]))
-    #             hessian[kk,jj]=hessian[jj,kk]
+        for jj in range(self.nunknowns):
+            for kk in range(jj, self.nunknowns):
+                hessian[jj, kk] = self.probabilities.dot(
+                    tmp1*(tmp3[:, jj]*tmp3[:, kk]))
+                #hessian[jj, kk] -= self.probabilities.dot(
+                #    tmp2*(tmp4[jj]*tmp4[kk]))
+                hessian[kk, jj]=hessian[jj, kk]
         
-    #     return hessian
-
-    # def nonlinear_constraints_hessian(self,x,v):
-    #     initialize=False
-    #     if self.constraint_hessians is None:
-    #         self.constraint_hessians=[
-    #             None for ii in range(self.nnl_constraints)]
-    #         initialize=True
-
-    #     assert v.shape[0]==self.nnl_constraints
-    #     result = np.zeros((self.nunknowns,self.nunknowns))
-    #     for ii in range(v.shape[0]):
-    #         if initialize:
-    #             self.constraint_hessians[ii]=\
-    #                 self.define_nonlinear_constraint_hessian(x,ii)
-    #         if self.constraint_hessians[ii] is not None:
-    #             result += v[ii]*self.constraint_hessians[ii]
-    #         #else hessian is zero
-    #     return result
-
+        return hessian
+        
     def solve_slsqp(self, optim_options):
         if optim_options is None:
             tol = 1e-6
             optim_options = {'disp':True, 'maxiter':1000,
-                             'ftol':tol,'iprint':3}
+                             'ftol':tol, 'iprint':0}
 
         # define nonlinear inequality constraints        
         ineq_cons_fun = lambda x: -self.nonlinear_constraints(x)
@@ -1151,85 +1123,53 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
 
         return coef
 
-    def solve(self, optim_options=None):
-        #np.seterr(all='raise')
-        #import warnings
-        #warnings.filterwarnings('error')
-        assert self.smoother_type == 0
-        
-        # sstore user defined options
-        eps=self.eps
-        smoother_type = self.smoother_type
+    def solve(self, optim_options=None, method=None):
+        np.seterr(all='raise')
+        import warnings
+        warnings.filterwarnings('error')
 
-        #if local smoother requested first use global smoother to get
-        if smoother_type != 0:
-            # a good initial guess. The global smoother can only use larger
-            # eps tolerances
-            self.eps=max(1e-3, eps)
-        self.smoother_type = 0
-        #coef = self.solve_slsqp(optim_options)
-        coef = self.solve_trust_region(optim_options)
-
-        if smoother_type!=0:
-            self.eps = eps
-            self.init_guess = coef
-            self.smoother_type = smoother_type
-            #coef = self.solve_slsqp(optim_options)
-            coef = self.solve_trust_region(optim_options)
-
-        return coef
-
-    def solve_trust_region(self,optim_options):
-
-        if optim_options is None:
-            tol = 1e-7
-            optim_options = {'verbose': 3, 'maxiter':1000,
-                             'gtol':tol, 'xtol':1e-15, 'barrier_tol':tol}
+        if method is None:
+            if has_ROL:
+                method = 'rol_trust_constr'
+            else:
+                method = 'trust_constr'
+                
 
         # define constraints
-        #keep_feasible=False
         keep_feasible=True
         nonlinear_constraint = NonlinearConstraint(
-            self.nonlinear_constraints, -np.inf, 0,
+            self.nonlinear_constraints,
+            -np.inf*np.ones(self.nnl_constraints),
+            0*np.ones(self.nnl_constraints),
             jac=self.nonlinear_constraints_jacobian,
             hess=self.nonlinear_constraints_hessian,
-            #jac='2-point',
-            #hess=BFGS(),
             keep_feasible=keep_feasible)
     
         constraints = [nonlinear_constraint]
-        
-        #return self.init_guess[:,np.newaxis], self
 
-        res = minimize(
+        if np.all(self.bounds.lb==-np.inf) and np.all(self.bounds.ub==np.inf):
+            self.bounds = None
+
+        res = pyapprox_minimize(
             self.objective, self.init_guess,
-            method='trust-constr',
+            method=method,
             jac=self.objective_jacobian,
             hess=self.objective_hessian,
-            #jac='2-point',
-            #hess=BFGS(),
             constraints=constraints, options=optim_options,
-            bounds=self.bounds)
+            bounds=self.bounds, x_grad=self.init_guess)
 
         coef = res.x[:self.ncoef]
-
-        # print(self.eps)
-        # print('lag grad  ',res.lagrangian_grad)
-        # print('obj grad  ',res.grad)
-        # print('constr jac',res.jac)
-        # print('constr    ',res.constr)
-
         if not res.success:
             #print(res.message)
             raise Exception(res.message)
-    
         return coef
 
-        
+    
     
 def solve_FSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
-        probabilities=None, eps=None, optim_options=None, return_full=False):
+        probabilities=None, eps=None, optim_options=None, return_full=False,
+        method='trust_constr', smoother_type=1):
     """
     First order stochastic dominance FSD
     """
@@ -1241,12 +1181,20 @@ def solve_FSD_constrained_least_squares_smooth(
 
     basis_matrix = eval_basis_matrix(samples)
 
-    smoother_type = 0
     fsd_opt_problem = FSDOptProblem(
         basis_matrix, values[:, 0], values[eta_indices, 0], probabilities,
         eps=eps, smoother_type=smoother_type)
 
-    coef = fsd_opt_problem.solve(optim_options)
+    coef = fsd_opt_problem.solve(optim_options, method)
+
+    # xx = np.linspace(-1.5,2,100)
+    # import matplotlib.pyplot as plt
+    # print(samples)
+    # print(fsd_opt_problem.init_guess.shape)
+    # plt.plot(xx,eval_basis_matrix(xx[None, :]).dot(coef))
+    # plt.plot(xx,eval_basis_matrix(xx[None, :]).dot(fsd_opt_problem.init_guess[:coef.shape[0]]),'--')
+    # plt.show()
+    # assert False
 
     if return_full:
         return coef, fsd_opt_problem
