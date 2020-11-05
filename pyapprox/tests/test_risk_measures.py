@@ -439,7 +439,7 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
         from pyapprox.density import EmpiricalCDF
         stat_function = lambda x: EmpiricalCDF(x)(ygrid)
         print(stat_function(pce_values), stat_function(values[:, 0]))
-        assert np.all(stat_function(pce_values)<=stat_function(values[:, 0]))
+        assert np.all(stat_function(values[:, 0])<=stat_function(values[:, 0]))
 
     if plot:
         lstsq_pce = PolynomialChaosExpansion()
@@ -457,7 +457,7 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
         ylb,yub = values.min()-abs(values.max())*.1,\
                   values.max()+abs(values.max())*.1
 
-        ygrid=np.linspace(ylb, yub, 101)
+        ygrid = np.linspace(ylb, yub, 101)
         ygrid = np.sort(np.concatenate([ygrid, pce_values]))
         if disutility is not None:
             if disutility:
@@ -465,8 +465,6 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
             stat_function = partial(compute_conditional_expectations,
                                     ygrid, disutility_formulation=disutility)
         else:
-            print('here')
-            print(ygrid)
             def stat_function(x):
                 assert x.ndim == 1
                 #vals = sd_opt_problem.smoother1(
@@ -474,7 +472,7 @@ def help_check_stochastic_dominance(solver, nsamples, degree,
                 vals = EmpiricalCDF(x)(ygrid)
                 return vals
 
-        fig,axs=plot_1d_functions_and_statistics(
+        fig, axs=plot_1d_functions_and_statistics(
             [f, pce, lstsq_pce], ['Exact', 'SSD', 'Lstsq'], samples, values,
             stat_function, ygrid)
 
@@ -808,15 +806,16 @@ class TestRiskMeasures(unittest.TestCase):
         solver=partial(
             solve_FSD_constrained_least_squares_smooth, eps=1e-6,
             return_full=True, smoother_type=0,
-            method='rol_trust_constr')
+            method='rol-trust-constr')
         #help_check_stochastic_dominance(solver, 20, 3)
 
-        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-4}
+        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-4, 'xtol':0,
+                         'gtol':1e-6}
         solver=partial(
-            solve_FSD_constrained_least_squares_smooth, eps=1e-2,
+            solve_FSD_constrained_least_squares_smooth, eps=1e-3,
             return_full=True, smoother_type=2, optim_options=optim_options,
-            method='rol_trust_constr')
-        help_check_stochastic_dominance(solver, 20, 3)
+            method='rol-trust-constr')
+        help_check_stochastic_dominance(solver, 5, 1, plot=True)
 
 
     def test_conditional_value_at_risk(self):
