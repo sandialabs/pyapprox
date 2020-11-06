@@ -71,6 +71,7 @@ setuptools.setup(
         'sympy',
         'seaborn',
         'pymc3',
+        'numba',
         'scikit-learn',
         'pytest-cov',
         'pytest',
