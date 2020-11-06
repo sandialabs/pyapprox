@@ -1103,9 +1103,9 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         ftol = optim_options.get('ftol', 1e-6)
         obj_val = np.finfo(float).max
         print(self.nonlinear_constraints(init_guess))
-        init_guess[0]+=max(0, self.nonlinear_constraints(init_guess).max())
-        print(self.nonlinear_constraints(init_guess))
-        #self.debug_plot(init_guess[:self.ncoef])
+        #init_guess[0]+=max(0, self.nonlinear_constraints(init_guess).max())
+        print('constr vals',self.nonlinear_constraints(init_guess))
+        self.debug_plot(init_guess[:self.ncoef])
         while True:
             it += 1
             print(f'Homotopy iteration {it}: eps {self.eps}')
