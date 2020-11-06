@@ -4,7 +4,7 @@ from pyapprox.cvar_regression import *
 from pyapprox.stochastic_dominance import *
 from scipy.special import erf, erfinv, factorial
 from scipy.stats import truncnorm as truncnorm_rv, triang as triangle_rv, \
-    lognorm as lognormal_rv
+    lognorm as lognormal_rv, norm as normal_rv
 from pyapprox.configure_plots import *
 from pyapprox.optimization import check_gradients
 from pyapprox.rol_minimize import has_ROL
@@ -539,7 +539,7 @@ def help_check_stochastic_dominance_gradients(sd_opt_problem):
                 if hasattr(hessian,'todense'):
                     hessian = hessian.todense()
                 print(hessian, '\n', fd_hessian)
-                assert np.allclose(hessian, fd_hessian, atol=1e-7, rtol=1e-5)
+                assert np.allclose(hessian, fd_hessian, atol=1e-4, rtol=1e-4)
                 if not at_least_one_hessian_nonzero:
                     at_least_one_hessian_nonzero = np.any(
                         np.absolute(hessian)<1e-15)
@@ -809,13 +809,13 @@ class TestRiskMeasures(unittest.TestCase):
             method='rol-trust-constr')
         #help_check_stochastic_dominance(solver, 20, 3)
 
-        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-4, 'xtol':0,
+        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-6, 'xtol':0,
                          'gtol':1e-6}
         solver=partial(
             solve_FSD_constrained_least_squares_smooth, eps=1e-3,
             return_full=True, smoother_type=2, optim_options=optim_options,
             method='rol-trust-constr')
-        help_check_stochastic_dominance(solver, 5, 1, plot=True)
+        help_check_stochastic_dominance(solver, 10, 1, plot=False)
 
 
     def test_conditional_value_at_risk(self):
@@ -1061,24 +1061,18 @@ class TestRiskMeasures(unittest.TestCase):
         nbasis = 5
         def func(x):
             return (1+x-x**2+x**3).T
-        samples = np.random.uniform(-1, 1, (1, 50))
+        samples = np.random.uniform(-1, 1, (1, 10))
         values = func(samples)
         def eval_basis_matrix(x):
             return (x**np.arange(nbasis)[:, None]).T
-        tau = 0.75
-        tol = 1e-8
+        tol = 1e-6
         eps = 1e-3
-        try:
-            import ipopt
-            method = 'ipopt'
-            optim_options = None
-        except:
-            method = 'trust_constr'
-            optim_options = {'verbose': 0, 'maxiter':10000,
-                             'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+        method = 'trust-constr'
+        optim_options = {'verbose': 1, 'maxiter':100,
+                         'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
         fsd_coef = solve_FSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, eps=eps,
-            optim_options=optim_options, method=method)
+            optim_options=optim_options, method=method, smoother_type=2)
         true_coef = np.zeros((nbasis))
         true_coef[:4] = [1, 1, -1, 1]
         #print(fsd_coef)

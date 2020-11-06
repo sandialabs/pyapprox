@@ -1,5 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
 from pyapprox.cvar_regression import conditional_value_at_risk
 
 

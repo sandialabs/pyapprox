@@ -4,6 +4,10 @@ import numpy as np, os
 from pyapprox.orthonormal_polynomials_1d import \
      jacobi_recurrence, hermite_recurrence, gauss_quadrature
 from pyapprox.utilities import beta_pdf, beta_pdf_derivative
+from functools import partial
+from pyapprox.utilities import evaluate_tensor_product_function,\
+     gradient_of_tensor_product_function
+
      
 def clenshaw_curtis_rule_growth(level):
     """
@@ -303,10 +307,7 @@ def constant_increment_growth_rule(increment,level):
     """
     return increment*level+1
 
-from functools import partial
-from pyapprox.utilities import evaluate_tensor_product_function,\
-     gradient_of_tensor_product_function
-from scipy.stats import beta as beta_rv
+
 def beta_leja_quadrature_rule(alpha_stat,beta_stat,level,
                               growth_rule=leja_growth_rule,
                               samples_filename=None,

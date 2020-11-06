@@ -95,13 +95,12 @@ def get_rol_parameters(method, use_bfgs, options):
     #method = 'Fletcher'
     assert method in ["Augmented Lagrangian", "Fletcher",
                       "Moreau-Yosida Penalty"]
-    print(method)
-    #method = "Augmented Lagrangian"
-    method = "Fletcher"
+    method = "Augmented Lagrangian"
+    # method = "Fletcher"
+    # method = "Moreau-Yosida Penalty"
     paramsDict["Step"] = {"Type": method}
     paramsDict["Step"]["Fletcher"] = {}
-    #paramsDict["Step"]["Fletcher"]['Regularization Parameter'] = 1e-2
-    paramsDict["Step"]["Fletcher"]['Penalty Parameter'] = 1e2
+    #paramsDict["Step"]["Fletcher"]['Penalty Parameter'] = 1e8
     
     paramsDict["Step"]["Trust Region"] = {}
     paramsDict["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
@@ -110,17 +109,23 @@ def get_rol_parameters(method, use_bfgs, options):
     #paramsDict["Step"]["Trust Region"]["Subproblem Model"] = "Coleman-Li"
     #paramsDict["Step"]["Trust Region"]["Subproblem Solver"] = "Lin-More"
     #paramsDict["Step"]["Trust Region"]["Subproblem Model"] = "Lin-More"
-    #paramsDict["Step"]["Augmented Lagrangian"]  = {
+    
+    paramsDict["Step"]["Augmented Lagrangian"]  = {
     #     'Initial Optimality Tolerance':1e-1,
     #     'Initial Feasibility Tolerance':1e-1,
-    #     'Use Default Problem Scaling':True,
+        'Use Default Problem Scaling':True,
     #     'Print Intermediate Optimization History':(options.get('verbose', 0)>2),
-    #    'Use Default Initial Penalty Parameter':False,
-    #    'Initial Penalty Parameter':100,
+        'Use Default Initial Penalty Parameter':False,
+        'Initial Penalty Parameter':1e-2,
     #    'Maximum Penalty Parameter':1e6,
-    #    'Subproblem Iteration Limit':200
-    #}
-    paramsDict["General"] = {} #{'Print Verbosity':0}
+        'Penalty Parameter Growth Factor':2,
+        'Subproblem Iteration Limit':200
+    }
+    paramsDict["Step"]["Moreau-Yosida Penalty"]  = {
+        'Subproblem':{'Iteration Limit':20},'Initial Penalty Parameter':1e-2,
+        'Penalty Parameter Growth Factor':2,'Update Penalty':True}
+    
+    paramsDict["General"] = {'Print Verbosity':0}
     paramsDict["General"]["Secant"] = {"Use as Hessian": False}
     if use_bfgs:
         paramsDict["General"]["Secant"]["Use as Hessian"] = True
@@ -162,6 +167,7 @@ def get_rol_bounds(py_lb, py_ub):
         lb[ii] = -1e6#-np.finfo(float).max/100
     for jj in J:
         ub[jj] = 1e6#np.finfo(float).max/100
+    # print(lb.data, ub.data)
     return ROL.Bounds(lb, ub, 1.0)
 
 
@@ -225,6 +231,7 @@ def check_constraint_gradient(constr, rol_constr, x0):
 def rol_minimize(fun, x0, method=None, jac=None, hess=None,
                  hessp=None, bounds=None, constraints=(), tol=None,
                  options={}, x_grad=None):
+    x_grad = x0
     obj = ROLObj(fun, jac, hess, hessp)
     if x_grad is not None:
         print("Testing objective")
@@ -252,20 +259,22 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
         rol_method = 'Augmented Lagrangian'
     paramsDict = get_rol_parameters(rol_method, use_bfgs, options)
     params = ROL.ParameterList(paramsDict, "Parameters")
-    print(paramsDict)
     x = get_rol_numpy_vector(x0)
-    print(constraints)
     bnd, econ, emul, icon, imul, ibnd = get_constraints(
         constraints, bounds, x_grad)
     optimProblem = ROL.OptimizationProblem(
         obj, x, bnd=bnd, econs=econ, emuls=emul, icons=icon, imuls=imul,
         ibnds=ibnd)
     solver = ROL.OptimizationSolver(optimProblem, params)
-    solver.solve()
+    solver.solve(options.get('verbose', 0))
     state = solver.getAlgorithmState()
+    success = state.statusFlag.name == 'EXITSTATUS_CONVERGED'
     res = OptimizeResult(
         x=x.data, fun=state.value, cnorm=state.cnorm, gnorm=state.gnorm,
-        snorm=state.snorm, success=True)
+        snorm=state.snorm, success=success, nit=state.iter,
+        nfev=state.nfval, ngev=state.ngrad, constr_nfev=state.ncval,
+        status=state.statusFlag.name, message=f'Optimization terminated early {state.statusFlag.name}'
+    )
     return res
 
 

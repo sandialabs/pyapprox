@@ -2,7 +2,6 @@
 import numpy as np
 from scipy.optimize import bisect, newton
 from pyapprox.utilities import cartesian_product, outer_product
-import matplotlib.pyplot as plt
 
 def scalar_multiple_of_random_variable(pdf_func,coefficient,xx):
     assert np.isscalar(coefficient)

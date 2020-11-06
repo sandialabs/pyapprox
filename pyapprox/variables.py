@@ -1,7 +1,7 @@
-from scipy.stats import _continuous_distns, _discrete_distns
 import numpy as np
 
 def is_continuous_variable(rv):
+    from scipy.stats import _continuous_distns, _discrete_distns
     return rv.dist.name in _continuous_distns._distn_names
 
 def is_bounded_continuous_variable(rv):
@@ -239,7 +239,6 @@ class IndependentMultivariateRandomVariable(object):
             if ii < self.nunique_vars-1:
                 string += '\n'
         return string 
-        
         
      
 from scipy.stats._distn_infrastructure import rv_sample

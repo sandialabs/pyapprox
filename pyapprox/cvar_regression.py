@@ -1,8 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
-from scipy.stats.mstats import mquantiles as quantile
-from scipy.stats import norm as normal_rv
-from scipy.special import erfinv
 from scipy import sparse
 from functools import partial
 from scipy import integrate
@@ -39,6 +35,8 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     assert weights.ndim==1 or weights.shape[1]==1
     assert samples.ndim==1 or samples.shape[1]==1
     if not samples_sorted:
+        # TODO only need to find largest k entries. k is determined by
+        # ecdf>=alpha
         I = np.argsort(samples)
         xx,ww = samples[I],weights[I]
     else:
@@ -49,7 +47,7 @@ def value_at_risk(samples,alpha,weights=None,samples_sorted=False):
     if not samples_sorted:
         index = I[index]
         #assert samples[index]==VaR
-    return VaR,index
+    return VaR, index
 
 def conditional_value_at_risk(samples,alpha,weights=None,samples_sorted=False,return_var=False):
     """
@@ -545,7 +543,6 @@ def cvar_regression(basis_matrix, values, alpha,verbosity=1):
     #G = matrix(G_arr)
     h = matrix(h_arr)
 
-    from scipy import sparse
     I,J,data = sparse.find(G_arr)
     G = spmatrix(data,I,J,size=G_arr.shape)    
     if verbosity<1:
