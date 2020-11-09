@@ -113,12 +113,12 @@ def get_rol_parameters(method, use_bfgs, options):
     paramsDict["Step"]["Augmented Lagrangian"]  = {
     #     'Initial Optimality Tolerance':1e-1,
     #     'Initial Feasibility Tolerance':1e-1,
-        'Use Default Problem Scaling':True,
+    #    'Use Default Problem Scaling':False,
     #     'Print Intermediate Optimization History':(options.get('verbose', 0)>2),
-        'Use Default Initial Penalty Parameter':False,
-        'Initial Penalty Parameter':1e-2,
+        #     'Use Default Initial Penalty Parameter':False,
+        #    'Initial Penalty Parameter':1e-2,
     #    'Maximum Penalty Parameter':1e6,
-        'Penalty Parameter Growth Factor':2,
+    #    'Penalty Parameter Growth Factor':2,
         'Subproblem Iteration Limit':200
     }
     paramsDict["Step"]["Moreau-Yosida Penalty"]  = {
