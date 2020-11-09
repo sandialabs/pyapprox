@@ -5,7 +5,10 @@ from scipy.sparse import lil_matrix, csc_matrix
 from functools import partial
 from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, \
     BFGS, Bounds
-from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
+try:
+    from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
+except:
+    pass
 
 def build_inequality_contraints(Y, basis_matrix, p, eta_indices):
     r"""
