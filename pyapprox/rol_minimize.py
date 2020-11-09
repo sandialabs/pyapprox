@@ -3,7 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 try:
     import ROL
-    from ROL.numpy_vector import NumpyVector
+    # NumpyVector is much slower than StdVector
+    # from ROL.numpy_vector import NumpyVector as RolVector
+    from ROL import StdVector as RolVector
     has_ROL = True
 except:
     has_ROL = False
@@ -12,6 +14,26 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint, Bounds, \
 from scipy.optimize import minimize as scipy_minimize
 from functools import partial
 
+def std_vector_to_numpy(x):
+    size = x.dimension()
+    res = np.empty((size), dtype=float)
+    for ii in range(size):
+        res[ii] = x[ii]
+    return res
+
+def rol_vector_to_numpy(x):
+    if hasattr(x, 'data'):
+        return x.data
+    else:
+        return std_vector_to_numpy(x)
+
+def numpy_to_rol_vector(np_x, x):
+    if hasattr(x, 'data'):
+        x.data = np_x
+    else:
+        size = x.dimension()
+        for ii in range(size):
+            x[ii] = np_x[ii]
 
 class ROLObj(ROL.Objective):
     def __init__(self, fun, jac, hess=None, hessp=None):
@@ -32,18 +54,25 @@ class ROLObj(ROL.Objective):
             self.hessVec = self._hesspVec
 
     def value(self, x, tol):
-        return self.fun(x.data)
+        np_x = rol_vector_to_numpy(x)
+        return self.fun(np_x)
 
     def gradient(self, g, x, tol):
-        grad = self.jac(x.data)
-        g.data = grad
+        np_x = rol_vector_to_numpy(x)
+        grad = self.jac(np_x)
+        numpy_to_rol_vector(grad, g)
 
     def _hessVec(self, hv, v, x, tol):
-        res = self.hess(x.data).dot(v.data)
-        hv.data = res
+        np_x = rol_vector_to_numpy(x)
+        np_v = rol_vector_to_numpy(v)
+        res = self.hess(np_x).dot(np_v)
+        numpy_to_rol_vector(res, hv)
 
     def _hesspVec(self, hv, v, x, tol):
-        hv.data = self.hessp(x.data, v.data)
+        np_x = rol_vector_to_numpy(x)
+        np_v = rol_vector_to_numpy(v)
+        res = self.hessp(np_x, np_v)
+        numpy_to_rol_vector(res, hv)
 
 
 class ROLConstraint(ROL.Constraint):
@@ -59,23 +88,31 @@ class ROLConstraint(ROL.Constraint):
             #self.applyAdjointHessian = self._applyAdjointHessian
 
     def value(self, cvec, x, tol):
-        vals = self.fun(x.data)
-        cvec.data = vals
+        np_x = rol_vector_to_numpy(x)
+        vals = self.fun(np_x)
+        numpy_to_rol_vector(vals, cvec)
 
     def applyJacobian(self, jv, v, x, tol):
-        res = self.jac(x.data).dot(v.data)
-        jv.data = res
+        np_x = rol_vector_to_numpy(x)
+        np_v = rol_vector_to_numpy(v)
+        res = self.jac(np_x).dot(np_v)
+        numpy_to_rol_vector(res, jv)
   
     def applyAdjointJacobian(self, jv, v, x, tol):
-        res = self.jac(x.data).T.dot(v.data)
-        jv.data = res
+        np_x = rol_vector_to_numpy(x)
+        np_v = rol_vector_to_numpy(v)
+        res = self.jac(np_x).T.dot(np_v)
+        numpy_to_rol_vector(res, jv)
 
     def applyAdjointHessian(self, ahuv, u, v, x, tol):
         # x : optimization variables
         # u : Lagrange multiplier (size of number of constraints)
         # v : vector (size of x)
-        res = self.hessp(x.data, u.data).dot(v.data)
-        ahuv.data = res
+        np_x = rol_vector_to_numpy(x)
+        np_v = rol_vector_to_numpy(v)
+        np_u = rol_vector_to_numpy(u)
+        res = self.hessp(np_x, np_u).dot(np_v)
+        numpy_to_rol_vector(res, ahuv)
 
 
 def linear_constraint_fun(A, x):
@@ -152,7 +189,7 @@ def get_rol_bounds(py_lb, py_ub):
         raise Exception('An upper bound was set to -inf')
         
     
-    lb, ub = NumpyVector(nvars), NumpyVector(nvars)
+    lb, ub = RolVector(nvars), RolVector(nvars)
     for ii in range(nvars):
         lb[ii], ub[ii] = py_lb[ii], py_ub[ii]
         
@@ -172,7 +209,7 @@ def get_rol_bounds(py_lb, py_ub):
 
 
 def get_rol_numpy_vector(np_vec):
-    vec = NumpyVector(np_vec.shape[0])
+    vec = RolVector(np_vec.shape[0])
     for ii in range(np_vec.shape[0]):
         vec[ii] = np_vec[ii]
     return vec
@@ -202,11 +239,11 @@ def get_constraints(scipy_constraints, scipy_bounds, x0=None):
         if np.all(constr.lb == constr.ub):
             econs.append(rol_constr)
             # value of emul does not matter just size
-            emuls.append(NumpyVector(len(constr.lb)))
+            emuls.append(RolVector(len(constr.lb)))
         else:
             assert type(constr.lb) == np.ndarray
             icons.append(rol_constr)
-            imuls.append(NumpyVector(len(constr.lb)))
+            imuls.append(RolVector(len(constr.lb)))
             ibnds.append(get_rol_bounds(constr.lb, constr.ub))
             
     return bnd, econs, emuls, icons, imuls, ibnds
@@ -270,8 +307,8 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
     state = solver.getAlgorithmState()
     success = state.statusFlag.name == 'EXITSTATUS_CONVERGED'
     res = OptimizeResult(
-        x=x.data, fun=state.value, cnorm=state.cnorm, gnorm=state.gnorm,
-        snorm=state.snorm, success=success, nit=state.iter,
+        x=rol_vector_to_numpy(x), fun=state.value, cnorm=state.cnorm,
+        gnorm=state.gnorm, snorm=state.snorm, success=success, nit=state.iter,
         nfev=state.nfval, ngev=state.ngrad, constr_nfev=state.ncval,
         status=state.statusFlag.name, message=f'Optimization terminated early {state.statusFlag.name}'
     )
@@ -365,17 +402,19 @@ def test_rosenbrock_TR_constrained():
 
     #constraints = [linear_constraint, nonlinear_constraint]
     constraints = [linear_constraint1, linear_constraint2, nonlinear_constraint]
-    options = {'maxiter':100, 'gtol':1e-8, 'ctol':1e-8}
+    options = {'maxiter':100, 'gtol':1e-8, 'ctol':1e-8, 'verbose':3}
 
     #constraints = ()
     
     x0 = np.array([0.5, 0])
     x_grad = None
-    x = rol_minimize(
+    res = rol_minimize(
         rosen, x0, jac=rosen_der, hess=rosen_hess, constraints=constraints,
         bounds=bounds, options=options,
-        x_grad = x_grad).x
-    assert np.allclose(x, [0.41494531, 0.17010937], atol=1e-6)
+        x_grad = x_grad)
+    print(res)
+    print(res.x, -np.array([0.41494531, 0.17010937]))
+    assert np.allclose(res.x, [0.41494531, 0.17010937], atol=1e-6)
     
 if __name__ == '__main__':
     np.seterr(all='raise')
