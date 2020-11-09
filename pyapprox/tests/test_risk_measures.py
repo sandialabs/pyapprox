@@ -809,13 +809,13 @@ class TestRiskMeasures(unittest.TestCase):
             method='rol-trust-constr')
         #help_check_stochastic_dominance(solver, 20, 3)
 
-        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-6, 'xtol':0,
+        optim_options = {'maxiter':100, 'verbose':3, 'ctol':1e-5, 'xtol':0,
                          'gtol':1e-6}
         solver=partial(
             solve_FSD_constrained_least_squares_smooth, eps=1e-3,
             return_full=True, smoother_type=2, optim_options=optim_options,
             method='rol-trust-constr')
-        help_check_stochastic_dominance(solver, 10, 1, plot=False)
+        help_check_stochastic_dominance(solver, 50, 2, plot=False)
 
 
     def test_conditional_value_at_risk(self):

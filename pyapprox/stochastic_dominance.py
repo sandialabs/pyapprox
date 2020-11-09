@@ -1096,16 +1096,16 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         #    self.bounds = None
 
         eps_min = self.eps
-        self.eps = 1e-2
+        self.eps = eps_min
         init_guess = self.init_guess
         x_grad = None#init_guess
         it = 0
         ftol = optim_options.get('ftol', 1e-6)
         obj_val = np.finfo(float).max
-        print(self.nonlinear_constraints(init_guess))
-        #init_guess[0]+=max(0, self.nonlinear_constraints(init_guess).max())
         print('constr vals',self.nonlinear_constraints(init_guess))
-        self.debug_plot(init_guess[:self.ncoef])
+        I = np.where(self.nonlinear_constraints(init_guess)>0)[0]
+        print(self.nonlinear_constraints(init_guess)[I])
+        #self.debug_plot(init_guess[:self.ncoef])
         while True:
             it += 1
             print(f'Homotopy iteration {it}: eps {self.eps}')
@@ -1173,17 +1173,15 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
 def solve_FSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
         probabilities=None, eps=None, optim_options=None, return_full=False,
-        method='trust_constr', smoother_type=1):
+        method='trust_constr', smoother_type=2):
     """
     First order stochastic dominance FSD
     """
     num_samples = samples.shape[1]
     if probabilities is None:
         probabilities = np.ones((num_samples))/num_samples
-    if eta_indices is None:
-        eta_indices = np.arange(0, num_samples)
 
-    neta_per_interval = 2
+    neta_per_interval = 4
     sorted_values = np.sort(values[:, 0])
     eta = []
     # Perhaps consider making eta have finer resolution near maximum values of
@@ -1193,16 +1191,13 @@ def solve_FSD_constrained_least_squares_smooth(
         eta += list(np.linspace(
             sorted_values[ii], sorted_values[ii+1], neta_per_interval+1)[1:])
     dist = np.diff(sorted_values).max()
-    delta = 1e-3
-    eta = list(
-        np.linspace(sorted_values[0]-dist, sorted_values[0],
-                    neta_per_interval+1)[:-1]) + [eta[0]-delta, eta[0]] + \
-                    eta[1:-1] + [eta[-1]-delta, eta[-1]]
-
-    #eta = list(
-    #    np.linspace(sorted_values[0]-dist, sorted_values[0],
-    #                neta_per_interval+1)[:-1]) + eta
+    delta = 1e-4
+    # eta = list(
+    #     np.linspace(sorted_values[0]-dist, sorted_values[0],
+    #                 neta_per_interval+1)[:-1]) + \
+    #                 eta[:-1] + [eta[-1]-delta, eta[-1]]
     eta = np.array(eta)
+    #eta = eta[eta>np.quantile(values, 0.75)]
     #eta = values[:, 0]
         
     #print(eta)
