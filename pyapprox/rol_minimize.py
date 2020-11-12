@@ -31,7 +31,7 @@ def numpy_to_rol_vector(np_x, x):
     if hasattr(x, 'data'):
         x.data = np_x
     else:
-        size = x.dimension()
+        size = np_x.shape[0]
         for ii in range(size):
             x[ii] = np_x[ii]
 
@@ -176,6 +176,7 @@ def get_rol_parameters(method, use_bfgs, options):
             "Step Tolerance" : options.get('xtol', 1e-14),
             "Constraint Tolerance" : options.get('ctol', 1e-8),
             "Iteration Limit" : options.get("maxiter", 100)}
+    print(paramsDict)
     return paramsDict
 
 
@@ -245,7 +246,7 @@ def get_constraints(scipy_constraints, scipy_bounds, x0=None):
             icons.append(rol_constr)
             imuls.append(RolVector(len(constr.lb)))
             ibnds.append(get_rol_bounds(constr.lb, constr.ub))
-            
+    assert False   
     return bnd, econs, emuls, icons, imuls, ibnds
 
 
@@ -268,7 +269,6 @@ def check_constraint_gradient(constr, rol_constr, x0):
 def rol_minimize(fun, x0, method=None, jac=None, hess=None,
                  hessp=None, bounds=None, constraints=(), tol=None,
                  options={}, x_grad=None):
-    x_grad = x0
     obj = ROLObj(fun, jac, hess, hessp)
     if x_grad is not None:
         print("Testing objective")

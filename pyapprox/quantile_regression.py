@@ -1,5 +1,5 @@
 import numpy as np
-from pyapprox.cvar_regression import conditional_value_at_risk
+from pyapprox.risk_measures import conditional_value_at_risk
 
 
 def scale_linear_system(matrix):

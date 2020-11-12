@@ -5,6 +5,7 @@ from scipy.stats import gaussian_kde as KDE
 from pyapprox.configure_plots import *
 import scipy.stats as ss
 from pyapprox.utilities import get_all_sample_combinations
+from inspect import signature
 
 def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
     x0 = np.asfarray(x)
@@ -140,17 +141,17 @@ def quantile_lower_bound_constraint(constraint_function,quantile,lower_bound,
     # to enforce lower bound
     return -val
 
-from pyapprox.cvar_regression import smooth_conditional_value_at_risk, \
-    conditional_value_at_risk
-def cvar_lower_bound_constraint(constraint_function,quantile,lower_bound,eps,
-                                uq_samples,design_samples):
-    uq_samples,design_samples = check_inputs(uq_samples,design_samples)
-    assert design_samples.shape[1]==1
-    vals = constraint_function(uq_samples,design_samples)
-    # -vals because we want to minimize lower tail
-    val = (lower_bound-smooth_conditional_value_at_risk(0,eps,quantile,-vals))
-    #val = (lower_bound-conditional_value_at_risk(-vals,quantile))
-    return val
+# from pyapprox.cvar_regression import smooth_conditional_value_at_risk, \
+#     conditional_value_at_risk
+# def cvar_lower_bound_constraint(constraint_function,quantile,lower_bound,eps,
+#                                 uq_samples,design_samples):
+#     uq_samples,design_samples = check_inputs(uq_samples,design_samples)
+#     assert design_samples.shape[1]==1
+#     vals = constraint_function(uq_samples,design_samples)
+#     # -vals because we want to minimize lower tail
+#     val = (lower_bound-smooth_conditional_value_at_risk(0,eps,quantile,-vals))
+#     #val = (lower_bound-conditional_value_at_risk(-vals,quantile))
+#     return val
 
 class MultipleConstraints(object):
     def __init__(self,constraints):
@@ -444,24 +445,36 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True):
     """
     assert zz.ndim == 2
     assert zz.shape[1] == 1
-    if callable(jac):
-        function_val = fun(zz)
-        grad_val = jac(zz)
-    elif jac==True:
-        function_val, grad_val = fun(zz)
+
     direction = np.random.normal(0, 1, (zz.shape[0], 1))
     direction /= np.linalg.norm(direction)
-    directional_derivative = grad_val.squeeze().dot(direction).squeeze()
+    
+    if callable(jac):
+        function_val = fun(zz)
+        sig = signature(jac)
+        if len(sig.parameters) == 1:
+            grad_val = jac(zz)
+            directional_derivative = grad_val.squeeze().dot(direction).squeeze()
+        elif len(sig.parameters) == 2:
+            directional_derivative = jac(zz, direction)
+        else:
+            raise Exception
+    elif jac==True:
+        function_val, grad_val = fun(zz)
+
     fd_eps = np.logspace(-13, 0, 14)[::-1]
     errors = []
-    row_format = "{:<25} {:<25} {:<25}"
+    row_format = "{:<12} {:<25} {:<25} {:<25} {:<25}"
     if disp:
         if rel:
             print(
                 row_format.format(
-                    "Eps", "Rel. Errors (max)", "Rel. Errors (min)"))
+                    "Eps", "norm(jv)", "norm(jv_fd)",
+                    "Rel. Errors (max)", "Rel. Errors (min)"))
         else:
-            print(row_format.format("Eps", "Errors (max)", "Errors (min)"))
+            print(row_format.format(
+                "Eps", "norm(jv)", "norm(jv_fd)",
+                "Rel. Errors (max)", "Rel. Errors (min)"))
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)
@@ -469,14 +482,18 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True):
             perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
-        errors.append(np.absolute(
+        #print(fd_directional_derivative, '\n', directional_derivative)
+        errors.append(np.linalg.norm(
             fd_directional_derivative.reshape(directional_derivative.shape)-
             directional_derivative))
         if rel:
-            errors[-1]/=np.absolute(directional_derivative)
+            errors[-1]/=np.linalg.norm(directional_derivative)
         if disp:
-            print(row_format.format(fd_eps[ii], errors[ii].max(),
-                                    errors[ii].min()))
+            print(row_format.format(
+                fd_eps[ii],
+                np.linalg.norm(directional_derivative),
+                np.linalg.norm(fd_directional_derivative),
+                errors[ii].max(), errors[ii].min()))
             #print(fd_directional_derivative, directional_derivative)
 
     if plot:
@@ -487,7 +504,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True):
 
     return np.asarray(errors)
 
-def check_hessian(jac,hessian_matvec,zz,plot=False,disp=True):
+def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True):
     """
     Compare a user specified Hessian matrix-vector product with the 
     Hessian matrix vector produced computed with finite
