@@ -13,8 +13,9 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         np.random.seed(1)
 
     def setup_linear_regression_problem(self, nsamples, degree, delta):
-        samples = np.random.normal(0, 1, (1, nsamples-1))
-        samples = np.hstack([samples, samples[:, 0:1]+delta])
+        #samples = np.random.normal(0, 1, (1, nsamples-1))
+        #samples = np.hstack([samples, samples[:, 0:1]+delta])
+        samples = np.linspace(1e-3,2+1e-3,nsamples)[None, :]
         # have two samples close together so gradient of smooth heaviside
         # function evaluated at approx_values - approx_values[jj] is
         # small and so gradient will be non-zero
@@ -28,19 +29,27 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         x0 = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]
         shift = (values-basis_matrix.dot(x0)).max()
         x0[0] += shift
+
+        x0 = x0*0
+                
         return samples, values, fun, jac, probabilities, ncoef, x0
 
     def test_objective_derivatives(self):
-        smoother_type, eps = 'quartic', 1e-1
+        smoother_type, eps = 'quintic', 5e-1
         nsamples, degree = 10, 1
 
         samples, values, fun, jac, probabilities, ncoef, x0 = \
             self.setup_linear_regression_problem(nsamples, degree, eps)
-        
-        eta = samples
+
+        x0 -= eps/3
+
+        eta = np.arange(nsamples//2, nsamples)
         problem = FSDOptProblem(
             values, fun, jac, None, eta, probabilities, smoother_type, eps,
             ncoef)
+
+        # assert smooth function is shifted correctly
+        assert problem.smooth_fun(np.array([[0.]])) == 1.0
 
         err = check_gradients(
             problem.objective_fun, problem.objective_jac, x0, rel=False)
@@ -58,7 +67,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
             problem.constraint_fun, problem.constraint_jac, x0, rel=False)
         assert err.min()<1e-7 and err.max()>0.1
 
-        lmult = np.random.normal(0, 1, (nsamples))
+        lmult = np.random.normal(0, 1, (eta.shape[0]))
         def constr_jac(x):
             jl = problem.constraint_jac(x).T.dot(lmult)
             return jl
@@ -69,6 +78,20 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         err = check_hessian(constr_jac, constr_hessp, x0)
         assert err.min()<1e-5 and err.max()>0.1
 
+    def test_1d_monomial_regression(self):
+        smoother_type, eps = 'quartic', 1e-2
+        nsamples, degree = 10, 1
+
+        samples, values, fun, jac, probabilities, ncoef, x0 = \
+            self.setup_linear_regression_problem(nsamples, degree, eps)
+
+        eta = np.arange(nsamples)
+        problem = FSDOptProblem(
+            values, fun, jac, None, eta, probabilities, smoother_type, eps,
+            ncoef)
+
+        optim_options = {'verbose': 2, 'maxiter':2}
+        problem.solve(x0, optim_options)
         
 
 

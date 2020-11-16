@@ -85,7 +85,7 @@ class ROLConstraint(ROL.Constraint):
         assert callable(self.jac)
         if self.hessp is not None:
             assert callable(self.hessp)
-            #self.applyAdjointHessian = self._applyAdjointHessian
+            self.applyAdjointHessian = self._applyAdjointHessian
 
     def value(self, cvec, x, tol):
         np_x = rol_vector_to_numpy(x)
@@ -97,6 +97,9 @@ class ROLConstraint(ROL.Constraint):
         np_v = rol_vector_to_numpy(v)
         res = self.jac(np_x).dot(np_v)
         numpy_to_rol_vector(res, jv)
+        # print(res,'jv',flush=True)
+        # print(np_x,'x',flush=True)
+        # print(np_v,'v',flush=True)
   
     def applyAdjointJacobian(self, jv, v, x, tol):
         np_x = rol_vector_to_numpy(x)
@@ -104,7 +107,7 @@ class ROLConstraint(ROL.Constraint):
         res = self.jac(np_x).T.dot(np_v)
         numpy_to_rol_vector(res, jv)
 
-    def applyAdjointHessian(self, ahuv, u, v, x, tol):
+    def _applyAdjointHessian(self, ahuv, u, v, x, tol):
         # x : optimization variables
         # u : Lagrange multiplier (size of number of constraints)
         # v : vector (size of x)
@@ -128,15 +131,20 @@ def linear_constraint_hessp(x, v):
 
 
 def get_rol_parameters(method, use_bfgs, options):
+    paramlist_filename = options.get("paramlist_filename", None)
+    if paramlist_filename is not None:
+        paramlist = ROL.ParameterList(paramlist_filename)
+        return paramlist
+        
     paramsDict = {}
     #method = 'Fletcher'
     assert method in ["Augmented Lagrangian", "Fletcher",
                       "Moreau-Yosida Penalty"]
-    method = "Augmented Lagrangian"
+    # method = "Augmented Lagrangian"
     # method = "Fletcher"
     # method = "Moreau-Yosida Penalty"
     paramsDict["Step"] = {"Type": method}
-    paramsDict["Step"]["Fletcher"] = {}
+    #paramsDict["Step"]["Fletcher"] = {}
     #paramsDict["Step"]["Fletcher"]['Penalty Parameter'] = 1e8
     
     paramsDict["Step"]["Trust Region"] = {}
@@ -150,19 +158,20 @@ def get_rol_parameters(method, use_bfgs, options):
     paramsDict["Step"]["Augmented Lagrangian"]  = {
     #     'Initial Optimality Tolerance':1e-1,
     #     'Initial Feasibility Tolerance':1e-1,
-    #    'Use Default Problem Scaling':False,
-    #     'Print Intermediate Optimization History':(options.get('verbose', 0)>2),
-        #     'Use Default Initial Penalty Parameter':False,
-        #    'Initial Penalty Parameter':1e-2,
-    #    'Maximum Penalty Parameter':1e6,
-    #    'Penalty Parameter Growth Factor':2,
-        'Subproblem Iteration Limit':200
+    'Use Default Problem Scaling':False,
+    'Print Intermediate Optimization History':(options.get('verbose', 0)>2),
+    'Use Default Initial Penalty Parameter':False,
+    'Initial Penalty Parameter':1e3,
+    'Maximum Penalty Parameter':1e8,
+    'Penalty Parameter Growth Factor':2,
+    #    'Subproblem Iteration Limit':200
     }
-    paramsDict["Step"]["Moreau-Yosida Penalty"]  = {
-        'Subproblem':{'Iteration Limit':20},'Initial Penalty Parameter':1e-2,
-        'Penalty Parameter Growth Factor':2,'Update Penalty':True}
+    # paramsDict["Step"]["Moreau-Yosida Penalty"]  = {
+    #    'Subproblem':{'Iteration Limit':20}, 'Initial Penalty Parameter':1e-2,
+    #    'Penalty Parameter Growth Factor':2, 'Update Penalty':True}
     
-    paramsDict["General"] = {'Print Verbosity':0}
+    paramsDict["General"] = {
+        'Print Verbosity': int(options.get('verbose', 0)>3)}
     paramsDict["General"]["Secant"] = {"Use as Hessian": False}
     if use_bfgs:
         paramsDict["General"]["Secant"]["Use as Hessian"] = True
@@ -176,8 +185,8 @@ def get_rol_parameters(method, use_bfgs, options):
             "Step Tolerance" : options.get('xtol', 1e-14),
             "Constraint Tolerance" : options.get('ctol', 1e-8),
             "Iteration Limit" : options.get("maxiter", 100)}
-    print(paramsDict)
-    return paramsDict
+    paramlist = ROL.ParameterList(paramsDict, "Parameters")
+    return paramlist
 
 
 def get_rol_bounds(py_lb, py_ub):
@@ -246,23 +255,24 @@ def get_constraints(scipy_constraints, scipy_bounds, x0=None):
             icons.append(rol_constr)
             imuls.append(RolVector(len(constr.lb)))
             ibnds.append(get_rol_bounds(constr.lb, constr.ub))
-    assert False   
     return bnd, econs, emuls, icons, imuls, ibnds
 
 
 def check_constraint_gradient(constr, rol_constr, x0):
     #x0 = np.random.normal(0,1,(x0.shape))
-    print("Testing constraint Jacobian")
+    print("Testing constraint Jacobian", flush=True)
     x = get_rol_numpy_vector(x0)
-    v = get_rol_numpy_vector(np.random.normal(0, 1, x0.shape[0]))
+    #v = get_rol_numpy_vector(np.random.normal(0, 1, x0.shape[0]))
+    v = get_rol_numpy_vector(np.ones(x0.shape[0])) # temp hack for comparisons
     jv = get_rol_numpy_vector(np.zeros(len(constr.lb)))
     rol_constr.checkApplyJacobian(x, v, jv, 12, 1)
     w = get_rol_numpy_vector(np.random.normal(0, 1, len(constr.lb)))
     rol_constr.checkAdjointConsistencyJacobian(w, v, x)
     if rol_constr.hessp is not None:
-        u = get_rol_numpy_vector(np.random.normal(0, 1, len(constr.lb)))
+        #u = get_rol_numpy_vector(np.random.normal(0, 1, len(constr.lb)))
+        u = get_rol_numpy_vector(np.ones(len(constr.lb))) # temp hack for comparisons
         hv = get_rol_numpy_vector(np.zeros(x0.shape[0]))
-        print("Testing constraint Hessian")
+        print("Testing constraint Hessian", flush=True)
         rol_constr.checkApplyAdjointHessian(x, u, v, hv, 12, 1)
     
 
@@ -271,7 +281,7 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
                  options={}, x_grad=None):
     obj = ROLObj(fun, jac, hess, hessp)
     if x_grad is not None:
-        print("Testing objective")
+        print("Testing objective", flush=True)
         xg = get_rol_numpy_vector(x_grad)
         d = get_rol_numpy_vector(np.random.normal(0, 1, (x_grad.shape[0])))
         obj.checkGradient(xg, d, 12, 1)
@@ -283,19 +293,18 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
     if type(hess) == BFGS:
         use_bfgs = True
     for constr in constraints:
-        if type(constr) != LinearConstraint and type(constr.hess) == BFGS:
+        if (type(constr) != LinearConstraint and
+            (type(constr.hess) == BFGS or constr.hess is None)):
             use_bfgs = True
             constr.hess = None
 
-    print(method)
     assert method == 'rol-trust-constr' or method == None
     if 'step-type' in options:
         rol_method = options['step-type']
         del options['step-type']
     else:
         rol_method = 'Augmented Lagrangian'
-    paramsDict = get_rol_parameters(rol_method, use_bfgs, options)
-    params = ROL.ParameterList(paramsDict, "Parameters")
+    params = get_rol_parameters(rol_method, use_bfgs, options)
     x = get_rol_numpy_vector(x0)
     bnd, econ, emul, icon, imul, ibnd = get_constraints(
         constraints, bounds, x_grad)
