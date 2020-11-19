@@ -118,7 +118,7 @@ def subspace_index_is_admissible(subspace_index, subspace_indices_dict):
                 return False
     return True
 
-def max_level_admissibility_function(max_level,max_level_1d,
+def max_level_admissibility_function(max_level, max_level_1d,
                                      max_num_sparse_grid_samples, error_tol,
                                      sparse_grid, subspace_index,verbose=0):
     

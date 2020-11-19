@@ -150,6 +150,8 @@ def adaptive_approximate_sparse_grid(
         unique_quadrule_indices = None
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
+    elif np.isscalar(max_level_1d):
+        max_level_1d = [max_level_1d]*nvars
     assert len(max_level_1d) == nvars
     admissibility_function = partial(
         max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
