@@ -15,60 +15,94 @@ from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.manipulate_polynomials import add_polynomials
 
-def precompute_multivariate_orthonormal_polynomial_univariate_values(samples,indices,recursion_coeffs,deriv_order,basis_type_index_map):
+# numba does not support lists of lists so need to compute lists to 2D array
+# and store different lengths
+def make_2D_array(lis):
+    """Funciton to get 2D array from a list of lists
+    """
+    n = len(lis)
+    lengths = np.array([len(x) for x in lis])
+    max_len = np.max(lengths)
+    arr = np.zeros((n, max_len))
+
+    for i in range(n):
+        arr[i, :lengths[i]] = lis[i]
+    return arr, lengths
+
+
+def precompute_multivariate_orthonormal_polynomial_univariate_values(
+        samples, indices, recursion_coeffs, deriv_order, basis_type_index_map):
     num_vars = indices.shape[0]
-    max_level_1d = indices.max(axis=1)
+    #axis keyword is not supported when usingnumba
+    #max_level_1d = indices.max(axis=1)
+    #so replace with
+    max_level_1d = np.empty((num_vars), dtype=np.int)
+    for ii in range(num_vars):
+        max_level_1d[ii] = indices[ii, :].max()
     
     if basis_type_index_map is None:
-        basis_type_index_map = np.zeros(num_vars,dtype=int)
+        # numba requires np.int_ not int or np.int
+        basis_type_index_map = np.zeros((num_vars), dtype=np.int_)
         recursion_coeffs = [recursion_coeffs]
-
+        
     for dd in range(num_vars):
         assert (recursion_coeffs[basis_type_index_map[dd]].shape[0]>
                 max_level_1d[dd])
     
     basis_vals_1d = np.empty(
-        (num_vars,(1+deriv_order)*(max_level_1d.max()+1),samples.shape[1]))
+        (num_vars, (1+deriv_order)*(max_level_1d.max()+1), samples.shape[1]),
+        dtype= np.float64)
     #WARNING some entries of basis_vals_1d will remain uninitialized
     #when max_level_1d[dd]=max_level_1d.max() for directions dd
     #storing arrays of equal size allows fast vectorization based manipulation
     #in downstream functions
     for dd in range(num_vars):
-        basis_vals_1d[dd,:(deriv_order+1)*(max_level_1d[dd]+1),:] = \
+        basis_vals_1d[dd, :(deriv_order+1)*(max_level_1d[dd]+1), :] = \
             evaluate_orthonormal_polynomial_deriv_1d(
-                samples[dd,:],max_level_1d[dd],
-                recursion_coeffs[basis_type_index_map[dd]],deriv_order).T
+                samples[dd, :], max_level_1d[dd],
+                recursion_coeffs[basis_type_index_map[dd]], deriv_order).T
     return basis_vals_1d
 
 def evaluate_multivariate_orthonormal_polynomial_values(
-        indices,basis_vals_1d,num_samples):
+        indices, basis_vals_1d, num_samples):
     num_vars,num_indices = indices.shape
-    temp1 = basis_vals_1d.reshape((num_vars*basis_vals_1d.shape[1],num_samples))
-    temp2 = temp1[indices.ravel()+np.repeat(np.arange(num_vars)*basis_vals_1d.shape[1],num_indices),:].reshape(num_vars,num_indices,num_samples)
-    values = np.prod(temp2,axis=0).T
+    temp1 = basis_vals_1d.reshape(
+        (num_vars*basis_vals_1d.shape[1], num_samples))
+    temp2 = temp1[indices.ravel()+np.repeat(
+        np.arange(num_vars)*basis_vals_1d.shape[1], num_indices), :].reshape(
+            num_vars, num_indices, num_samples)
+    values = np.prod(temp2, axis=0).T
     return values
 
-def evaluate_multivariate_orthonormal_polynomial_derivs(indices,max_level_1d,basis_vals_1d,num_samples,deriv_order):
+def evaluate_multivariate_orthonormal_polynomial_derivs(
+        indices, max_level_1d, basis_vals_1d, num_samples, deriv_order):
     # TODO Consider combining
     # evaluate_multivariate_orthonormal_polynomial_values and derivs and
-    # evaluate_multivariate_orthonormal_polynomial_derivs beecause they both
+    # evaluate_multivariate_orthonormal_polynomial_derivs because they both
     # compute temp2
     
     assert deriv_order==1
     num_vars,num_indices = indices.shape
 
-    #extract derivatives
-    temp1 = basis_vals_1d.reshape((num_vars*basis_vals_1d.shape[1],num_samples))
-    temp2 = temp1[indices.ravel()+np.repeat(np.arange(num_vars)*basis_vals_1d.shape[1],num_indices),:].reshape(num_vars,num_indices,num_samples)
-    values = np.prod(temp2,axis=0).T
+    # extract derivatives
+    temp1 = basis_vals_1d.reshape(
+        (num_vars*basis_vals_1d.shape[1], num_samples))
+    temp2 = temp1[indices.ravel()+np.repeat(
+        np.arange(num_vars)*basis_vals_1d.shape[1], num_indices), :].reshape(
+            num_vars, num_indices, num_samples)
+    values = np.prod(temp2, axis=0).T
     # derivs are stored immeadiately after values in basis_vals_1d
     # if max_level_1d[dd]!=max_level_1d.max() then there will be some
     # uninitialized values at the end of the array but these are never accessed
-    temp3 = temp1[indices.ravel()+np.repeat(max_level_1d+1+np.arange(num_vars)*basis_vals_1d.shape[1],num_indices),:].reshape(num_vars,num_indices,num_samples)
+    temp3 = temp1[indices.ravel()+np.repeat(
+        max_level_1d+1+np.arange(num_vars)*basis_vals_1d.shape[1],
+        num_indices), :].reshape(num_vars, num_indices, num_samples)
 
     derivs = np.empty((num_samples*num_vars,num_indices))
     for jj in range(num_vars):
-        derivs[(jj)*num_samples:(jj+1)*num_samples] = (np.prod(temp2[:jj],axis=0)*np.prod(temp2[jj+1:],axis=0)*temp3[jj]).T
+        derivs[(jj)*num_samples:(jj+1)*num_samples] = (
+            np.prod(temp2[:jj], axis=0)*np.prod(
+                temp2[jj+1:], axis=0)*temp3[jj]).T
 
     return derivs
 
@@ -179,7 +213,7 @@ def evaluate_multivariate_orthonormal_polynomial(
     # compute_derivs = evaluate_multivariate_orthonormal_polynomial_derivs_deprecated
 
     basis_vals_1d = precompute_values(
-        samples,indices,recursion_coeffs,deriv_order,basis_type_index_map)
+        samples,indices, recursion_coeffs, deriv_order, basis_type_index_map)
     
     num_samples = samples.shape[1]
     values = compute_values(indices,basis_vals_1d,num_samples)
@@ -347,12 +381,12 @@ class PolynomialChaosExpansion(object):
         self.numerically_generated_poly_accuracy_tolerance=opts.get(
             'numerically_generated_poly_accuracy_tolerance',1e-12)
 
-    def update_recursion_coefficients(self,num_coefs_per_var,opts):
+    def update_recursion_coefficients(self,num_coefs_per_var, opts):
         num_coefs_per_var = np.atleast_1d(num_coefs_per_var)
-        initializing=False
+        initializing = False
         if self.basis_type_index_map is None:
-            initializing=True
-            self.basis_type_index_map = np.zeros((self.num_vars()),dtype=int)
+            initializing = True
+            self.basis_type_index_map = np.zeros((self.num_vars()), dtype=int)
         if 'poly_types' in opts:
             ii=0
             for key, poly_opts in opts['poly_types'].items():
@@ -362,28 +396,28 @@ class PolynomialChaosExpansion(object):
                     if initializing:
                         self.basis_type_var_indices.append(
                             poly_opts['var_nums'])
-                    num_coefs=num_coefs_per_var[
+                    num_coefs = num_coefs_per_var[
                         self.basis_type_var_indices[ii]].max()
                     recursion_coeffs_ii = get_recursion_coefficients(
-                        poly_opts,num_coefs,
+                        poly_opts, num_coefs,
                         self.numerically_generated_poly_accuracy_tolerance)
                     if recursion_coeffs_ii is None:
                         # recursion coefficients will be None is returned if
                         # monomial basis is specified. Only allow monomials to
                         # be used if all variables use monomial basis
-                        assert len(opts['poly_types'])==1
+                        assert len(opts['poly_types']) == 1
                     if initializing:
                         self.recursion_coeffs.append(recursion_coeffs_ii)
                     else:
                         self.recursion_coeffs[ii] = recursion_coeffs_ii
                 # extract variables indices for which basis is to be used
-                self.basis_type_index_map[self.basis_type_var_indices[ii]]=ii
+                self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
                 ii+=1
         else:
             # when only one type of basis is assumed then allow poly_type to
             # be elevated to top level of options dictionary.
             self.recursion_coeffs=[get_recursion_coefficients(
-                opts,num_coefs_per_var.max(),
+                opts, num_coefs_per_var.max(),
                 self.numerically_generated_poly_accuracy_tolerance)]
         
         

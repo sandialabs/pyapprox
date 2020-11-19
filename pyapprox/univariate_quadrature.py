@@ -226,11 +226,12 @@ def gauss_hermite_pts_wts_1D(num_samples):
     """
     rho = 0.0
     ab = hermite_recurrence(
-        num_samples,rho,probability=True)
-    x,w = gauss_quadrature(ab,num_samples)
-    return x,w
+        num_samples, rho,probability=True)
+    x, w = gauss_quadrature(ab, num_samples)
+    return x, w
 
-def gauss_jacobi_pts_wts_1D(num_samples,alpha_poly,beta_poly):
+
+def gauss_jacobi_pts_wts_1D(num_samples, alpha_poly, beta_poly):
     """
     Return Gauss Jacobi quadrature rule that exactly integrates polynomials
     of num_samples 2*num_samples-1 with respect to the probabilty density 
@@ -270,8 +271,9 @@ def gauss_jacobi_pts_wts_1D(num_samples,alpha_poly,beta_poly):
         Quadrature weights
     """
     ab = jacobi_recurrence(
-        num_samples,alpha=alpha_poly,beta=beta_poly,probability=True)
-    return gauss_quadrature(ab,num_samples)
+        num_samples, alpha=alpha_poly, beta=beta_poly, probability=True)
+    return gauss_quadrature(ab, num_samples)
+
 
 def leja_growth_rule(level):
     """
@@ -288,9 +290,10 @@ def leja_growth_rule(level):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
-    return constant_increment_growth_rule(1,level)
+    return constant_increment_growth_rule(1, level)
 
-def constant_increment_growth_rule(increment,level):
+
+def constant_increment_growth_rule(increment, level):
     """
     The number of samples in the 1D quadrature rule where number of of points 
     grow by a fixed constant at each level.
@@ -308,7 +311,7 @@ def constant_increment_growth_rule(increment,level):
     return increment*level+1
 
 
-def beta_leja_quadrature_rule(alpha_stat,beta_stat,level,
+def beta_leja_quadrature_rule(alpha_stat, beta_stat, level,
                               growth_rule=leja_growth_rule,
                               samples_filename=None,
                               return_weights_for_all_levels=True,
@@ -356,9 +359,9 @@ def beta_leja_quadrature_rule(alpha_stat,beta_stat,level,
     #univariate_weight_function = lambda x: beta_rv.pdf(
     #    (x+1)/2,alpha_stat,beta_stat)/2
     univariate_weight_function = lambda x: beta_pdf(
-        alpha_stat,beta_stat,(x+1)/2)/2
+        alpha_stat, beta_stat, (x+1)/2)/2
     univariate_weight_function_deriv = lambda x: beta_pdf_derivative(
-       alpha_stat,beta_stat,(x+1)/2)/4
+       alpha_stat, beta_stat, (x+1)/2)/4
     
     weight_function = partial(
         evaluate_tensor_product_function,
@@ -380,35 +383,36 @@ def beta_leja_quadrature_rule(alpha_stat,beta_stat,level,
         define_iid_random_variable_transformation
     from scipy.stats import uniform
     var_trans = define_iid_random_variable_transformation(
-        uniform(-1,2),num_vars)
+        uniform(-1, 2), num_vars)
 
-    poly_opts = {'poly_type':'jacobi','alpha_poly':beta_stat-1,
-                 'beta_poly':alpha_stat-1,'var_trans':var_trans}
+    poly_opts = {'poly_type':'jacobi', 'alpha_poly':beta_stat-1,
+                 'beta_poly':alpha_stat-1, 'var_trans':var_trans}
     poly.configure(poly_opts) 
 
     if samples_filename is None or not os.path.exists(samples_filename):
-        ranges = [-1,1]
+        ranges = [-1, 1]
         from scipy.stats import beta as beta_rv
         if initial_points is None:
             initial_points = np.asarray(
-                [[2*beta_rv(alpha_stat,beta_stat).ppf(0.5)-1]]).T
+                [[2*beta_rv(alpha_stat, beta_stat).ppf(0.5)-1]]).T
         leja_sequence = get_leja_sequence_1d(
-            num_leja_samples,initial_points,poly,
-            weight_function,weight_function_deriv,ranges)
+            num_leja_samples, initial_points, poly,
+            weight_function, weight_function_deriv, ranges)
         if samples_filename is not None:
-            np.savez(samples_filename,samples=leja_sequence)
+            np.savez(samples_filename, samples=leja_sequence)
     else:
         leja_sequence = np.load(samples_filename)['samples']
         #print (leja_sequence.shape[1],growth_rule(level),level)
-        assert leja_sequence.shape[1]>=growth_rule(level)
-        leja_sequence = leja_sequence[:,:growth_rule(level)]
+        assert leja_sequence.shape[1] >= growth_rule(level)
+        leja_sequence = leja_sequence[:, :growth_rule(level)]
 
-    indices = np.arange(growth_rule(level))[np.newaxis,:]
+    indices = np.arange(growth_rule(level))[np.newaxis, :]
     poly.set_indices(indices)
     ordered_weights_1d = get_leja_sequence_quadrature_weights(
-        leja_sequence,growth_rule,poly.basis_matrix,weight_function,level,
+        leja_sequence, growth_rule, poly.basis_matrix, weight_function, level,
         return_weights_for_all_levels)
-    return leja_sequence[0,:], ordered_weights_1d
+    return leja_sequence[0, :], ordered_weights_1d
+
 
 def gaussian_leja_quadrature_rule(level,
                                   growth_rule=leja_growth_rule,
@@ -493,7 +497,7 @@ def gaussian_leja_quadrature_rule(level,
     ordered_weights_1d = get_leja_sequence_quadrature_weights(
         leja_sequence,growth_rule,poly.basis_matrix,weight_function,level,
         return_weights_for_all_levels)
-    return leja_sequence[0,:], ordered_weights_1d
+    return leja_sequence[0, :], ordered_weights_1d
 
 
 def get_leja_sequence_quadrature_weights(leja_sequence,growth_rule,
@@ -585,55 +589,56 @@ def candidate_based_leja_rule(recursion_coeffs,
         return_weights_for_all_levels)
 
     return leja_sequence[0,:], ordered_weights_1d
-    
+
+
 from pyapprox.variables import get_distribution_info
 def get_univariate_leja_quadrature_rule(variable,growth_rule):
     var_type, __, shapes = get_distribution_info(variable)
     if var_type=='uniform':
         quad_rule = partial(
-            beta_leja_quadrature_rule,1,1,growth_rule=growth_rule,
+            beta_leja_quadrature_rule, 1, 1, growth_rule=growth_rule,
             samples_filename=None)
     elif var_type=='beta':
         quad_rule = partial(
-            beta_leja_quadrature_rule,shapes['a'],shapes['b'],
+            beta_leja_quadrature_rule,shapes['a'], shapes['b'],
             growth_rule=growth_rule)
     elif var_type=='norm':
         quad_rule = partial(
-            gaussian_leja_quadrature_rule,growth_rule=growth_rule)
+            gaussian_leja_quadrature_rule, growth_rule=growth_rule)
     elif var_type=='binom':
         num_trials = variable_parameters['num_trials']
         prob_success = variable_parameters['prob_success']
         def generate_candidate_samples(num_samples):
-            assert num_samples==num_trials+1
-            return np.arange(0,num_trials+1)[np.newaxis,:]
+            assert num_samples == num_trials+1
+            return np.arange(0, num_trials+1)[np.newaxis, :]
         recursion_coeffs = krawtchouk_recurrence(
-            num_trials,num_trials,probability=True)
+            num_trials, num_trials, probability=True)
         quad_rule = partial(
-            candidate_based_leja_rule,recursion_coeffs,
+            candidate_based_leja_rule, recursion_coeffs,
             generate_candidate_samples,
             num_trials+1,
             growth_rule=growth_rule,
             initial_points=np.atleast_2d(
-                [binomial_rv.ppf(0.5,num_trials,prob_success)]))
-    elif var_type=='float_rv_discrete' or var_type=='discrete_chebyshev':
+                [binomial_rv.ppf(0.5, num_trials, prob_success)]))
+    elif var_type == 'float_rv_discrete' or var_type == 'discrete_chebyshev':
         from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
             modified_chebyshev_orthonormal
         from pyapprox.orthonormal_polynomials_1d import \
             discrete_chebyshev_recurrence
         nmasses = shapes['xk'].shape[0]
-        if var_type=='discrete_chebyshev':
+        if var_type == 'discrete_chebyshev':
             xk = shapes['xk']#do not map discrete_chebyshev
-            assert np.allclose(shapes['xk'],np.arange(nmasses))
-            assert np.allclose(shapes['pk'],np.ones(nmasses)/nmasses)
+            assert np.allclose(shapes['xk'], np.arange(nmasses))
+            assert np.allclose(shapes['pk'], np.ones(nmasses)/nmasses)
             num_coefs = nmasses
             recursion_coeffs = discrete_chebyshev_recurrence(
-                num_coefs,nmasses)
+                num_coefs, nmasses)
         else:
             #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
             xk = shapes['xk']*2-1
             num_coefs = nmasses
             recursion_coeffs  = modified_chebyshev_orthonormal(
-                num_coefs,[xk,shapes['pk']])
+                num_coefs, [xk, shapes['pk']])
 
         def generate_candidate_samples(num_samples):
             assert num_samples==nmasses

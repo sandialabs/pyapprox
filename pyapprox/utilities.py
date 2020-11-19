@@ -1039,7 +1039,7 @@ from scipy.special import erf
 def gaussian_cdf(mean,var,x):
   return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
 
-def gaussian_pdf(mean,var,x,package=np):
+def gaussian_pdf(mean, var, x, package=np):
     r"""
     set package=sympy if want to use for symbolic calculations
     """
@@ -1270,7 +1270,7 @@ def halton_sequence(num_vars, index1, index2):
         kk+=1
     return sequence
 
-def transformed_halton_sequence(marginal_icdfs,num_vars,num_samples,
+def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
                                 start_index=1):
     assert start_index>0
     # sample with index 0 is [0,..0] this can cause problems for icdfs of
@@ -1282,10 +1282,10 @@ def transformed_halton_sequence(marginal_icdfs,num_vars,num_samples,
     if callable(marginal_icdfs):
         marginal_icdfs = [marginal_icdfs]*num_vars
     else:
-        assert len(marginal_icdfs)==num_vars
+        assert len(marginal_icdfs) == num_vars
     
     for ii in range(num_vars):
-        samples[ii,:] = marginal_icdfs[ii](samples[ii,:])
+        samples[ii, :] = marginal_icdfs[ii](samples[ii, :])
     return samples
 
 def approx_fprime(x,func,eps=np.sqrt(np.finfo(float).eps)):

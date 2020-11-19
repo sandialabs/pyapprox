@@ -123,13 +123,13 @@ def leja_objective_and_gradient(samples, leja_sequence, poly, new_indices,
     assert residual.ndim==2
     return residual, jacobian
 
-def compute_coefficients_of_leja_interpolant(leja_sequence,poly,new_indices,
+def compute_coefficients_of_leja_interpolant(leja_sequence, poly,new_indices,
                                              weight_function):
 
     weights = weight_function(leja_sequence)
     # to avoid division by zero
-    weights = np.maximum(weights,0)
-    assert weights.ndim==1
+    weights = np.maximum(weights, 0)
+    assert weights.ndim == 1
     sqrt_weights = np.sqrt(weights)
     
     
@@ -145,7 +145,7 @@ def compute_coefficients_of_leja_interpolant(leja_sequence,poly,new_indices,
     #basis_matrix_at_leja = poly.basis_matrix(leja_sequence)
     basis_matrix_at_leja = (poly.basis_matrix(leja_sequence).T*sqrt_weights).T
     out = np.linalg.lstsq(
-        basis_matrix_at_leja,basis_matrix_for_new_indices_at_leja,rcond=None)
+        basis_matrix_at_leja, basis_matrix_for_new_indices_at_leja, rcond=None)
     coeffs = out[0]
     return coeffs
 
@@ -307,6 +307,7 @@ def get_initial_guesses_1d(leja_sequence,ranges):
     
     return initial_guesses, intervals
 
+
 def get_leja_sequence_1d(num_leja_samples,initial_points,poly,
                          weight_function,weight_function_deriv,ranges,
                          plot=False):
@@ -360,25 +361,25 @@ def get_leja_sequence_1d(num_leja_samples,initial_points,poly,
         new_sample = new_samples[:,I]
 
         
-        if (plot and ii == num_leja_samples-1):
-            import matplotlib.pyplot as plt
-            #plot_ranges=[min(leja_sequence.min(),new_samples.min()),
-            #             max(leja_sequence.max(),new_samples.max())]
-            plot_ranges=[leja_sequence.min(),
-                         leja_sequence.max()]
-            plot_ranges[0] = plot_ranges[0]-abs(plot_ranges[0])*1
-            plot_ranges[1] = plot_ranges[1]+abs(plot_ranges[1])*1
-            plot_ranges=[-6,6]
-            obj.plot(leja_sequence,poly,new_indices,coeffs,plot_ranges)
-            if num_vars==1:
-                plt.plot(new_sample[0],obj_vals[I],'o',label='new sample',ms=10)
-                initial_obj_vals = np.array([obj(initial_guesses[:,ii],leja_sequence,new_indices,coeffs) for ii in range(initial_guesses.shape[1])]).squeeze()
-                plt.plot(initial_guesses[0,:],initial_obj_vals,'s',
-                        label='init guesses')
-                plt.plot(new_samples[0,:],obj_vals,'s',label='local minima')
-                plt.title(r'$N=%d$'%leja_sequence.shape[1])
-                plt.legend()
-                plt.show()
+        # if (plot and ii == num_leja_samples-1):
+        #     import matplotlib.pyplot as plt
+        #     #plot_ranges=[min(leja_sequence.min(),new_samples.min()),
+        #     #             max(leja_sequence.max(),new_samples.max())]
+        #     plot_ranges=[leja_sequence.min(),
+        #                  leja_sequence.max()]
+        #     plot_ranges[0] = plot_ranges[0]-abs(plot_ranges[0])*1
+        #     plot_ranges[1] = plot_ranges[1]+abs(plot_ranges[1])*1
+        #     plot_ranges=[-6,6]
+        #     obj.plot(leja_sequence,poly,new_indices,coeffs,plot_ranges)
+        #     if num_vars==1:
+        #         plt.plot(new_sample[0],obj_vals[I],'o',label='new sample',ms=10)
+        #         initial_obj_vals = np.array([obj(initial_guesses[:,ii],leja_sequence,new_indices,coeffs) for ii in range(initial_guesses.shape[1])]).squeeze()
+        #         plt.plot(initial_guesses[0,:],initial_obj_vals,'s',
+        #                 label='init guesses')
+        #         plt.plot(new_samples[0,:],obj_vals,'s',label='local minima')
+        #         plt.title(r'$N=%d$'%leja_sequence.shape[1])
+        #         plt.legend()
+        #         plt.show()
         
         leja_sequence = np.hstack((leja_sequence,new_sample[:,np.newaxis]))
         indices = np.hstack((indices,new_indices))#only works in 1D

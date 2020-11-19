@@ -319,8 +319,26 @@ def evaluate_monic_polynomial_1d(x,nmax,ab):
         p[:,jj] = (x-ab[jj-1,0])*p[:,jj-1]-ab[jj-1,1]*p[:,jj-2]
 
     return p
-    
 
+
+import ctypes
+from numba.extending import get_cython_function_address
+_PTR = ctypes.POINTER
+_dble = ctypes.c_double
+_ptr_dble = _PTR(_dble)
+
+addr = get_cython_function_address("scipy.special.cython_special", "gammaln")
+functype = ctypes.CFUNCTYPE(_dble, _dble)
+gammaln_float64 = functype(addr)
+from numba import jit, njit
+
+
+@njit
+def numba_gammaln(x):
+  return gammaln_float64(x)
+
+
+@jit(nopython=True)
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     r""" 
     Evaluate univariate orthonormal polynomials using their
@@ -356,32 +374,22 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     """
     assert ab.shape[1]==2
     assert nmax < ab.shape[0]
+    
+    p = np.zeros((x.shape[0], nmax+1)) #must be initialized to zero
 
-    try:
-        # necessary when discrete variables are define on integers
-        x = np.asarray(x,dtype=float)
-        from pyapprox.cython.orthonormal_polynomials_1d import \
-            evaluate_orthonormal_polynomial_1d_pyx
-        return evaluate_orthonormal_polynomial_1d_pyx(x, nmax, ab)
-        # from pyapprox.weave import c_evaluate_orthonormal_polynomial
-        # return c_evaluate_orthonormal_polynomial_1d(x, nmax, ab)
-    except Exception as e:
-        print ('evaluate_orthornormal_polynomial_1d extension failed')
-
-    p = np.zeros((x.shape[0],nmax+1),dtype=float)
-
-    p[:,0] = 1/ab[0,1]
+    p[:, 0] = 1/ab[0, 1]
 
     if nmax > 0:
-        p[:,1] = 1/ab[1,1] * ( (x - ab[0,0])*p[:,0] )
+        p[:, 1] = 1/ab[1, 1] * ( (x - ab[0, 0])*p[:, 0] )
 
     for jj in range(2, nmax+1):
-        #p[:,jj] = ((x-ab[jj-1,0])*p[:,jj-1]-ab[jj-1,1]*p[:,jj-2])
-        p[:,jj] = 1.0/ab[jj,1]*((x-ab[jj-1,0])*p[:,jj-1]-ab[jj-1,1]*p[:,jj-2])
+        p[:, jj] = 1.0/ab[jj, 1]*(
+            (x-ab[jj-1, 0])*p[:, jj-1]-ab[jj-1, 1]*p[:, jj-2])
 
     return p
 
 
+@jit(nopython=True)
 def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     r""" 
     Evaluate the univariate orthonormal polynomials and its s-derivatives 
@@ -403,7 +411,7 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     ----------
     x : np.ndarray (num_samples)
        The samples at which to evaluate the polynomials
-
+    
     nmax : integer
        The maximum degree of the polynomials to be evaluated
 
@@ -418,53 +426,33 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     p : np.ndarray (num_samples, (deriv_num+1)*num_indices)
        The values of the s-th derivative of the polynomials
     """
-
-    # filter out cython warnings.
-    import warnings
-    warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
-    #warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-    #warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
-
-    x = np.asarray(x,dtype=float)
-    from pyapprox.cython.orthonormal_polynomials_1d import \
-        evaluate_orthonormal_polynomial_deriv_1d_pyx
-    return evaluate_orthonormal_polynomial_deriv_1d_pyx(
-        x, nmax, ab, deriv_order)
-
-    try:
-        # necessary when discrete variables are define on integers
-        x = np.asarray(x,dtype=float)
-        from pyapprox.cython.orthonormal_polynomials_1d import \
-            evaluate_orthonormal_polynomial_deriv_1d_pyx
-        return evaluate_orthonormal_polynomial_deriv_1d_pyx(
-            x, nmax, ab, deriv_order)
-    except:
-        print ('evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed')
-
     num_samples = x.shape[0]
     num_indices = nmax+1
-    a = ab[:,0]; b = ab[:,1]
-    result = np.empty((num_samples,num_indices*(deriv_order+1)))
+    a = ab[:, 0]; b = ab[:, 1]
+    result = np.empty((num_samples, num_indices*(deriv_order+1)))
     p = evaluate_orthonormal_polynomial_1d(x, nmax, ab)
-    result[:,:num_indices] = p
+    result[:, :num_indices] = p
 
-    for deriv_num in range(1,deriv_order+1):
-        pd = np.zeros((num_samples,num_indices),dtype=float)
-        for jj in range(deriv_num,num_indices):
+    for deriv_num in range(1, deriv_order+1):
+        pd = np.zeros((num_samples, num_indices))
+        for jj in range(deriv_num, num_indices):
 
             if (jj == deriv_num):
                 # use following expression to avoid overflow issues when
                 # computing oveflow
-                pd[:,jj] = np.exp(
-                    sp.gammaln(deriv_num+1)-0.5*np.sum(np.log(b[:jj+1]**2)))
+                pd[:, jj] = np.exp(
+                    #sp.gammaln(deriv_num+1)-0.5*np.sum(np.log(b[:jj+1]**2)))
+                    numba_gammaln(deriv_num+1)-0.5*np.sum(np.log(b[:jj+1]**2)))
             else:
                 
                 pd[:,jj]=\
-                  (x-a[jj-1])*pd[:,jj-1]-b[jj-1]*pd[:,jj-2]+deriv_num*p[:,jj-1]
-                pd[:,jj] *= 1.0/b[jj]
+                  (x-a[jj-1])*pd[:, jj-1]-b[jj-1]*pd[:, jj-2]+\
+                  deriv_num*p[:, jj-1]
+                pd[:, jj] *= 1.0/b[jj]
         p = pd
-        result[:,deriv_num*num_indices:(deriv_num+1)*num_indices] = p
+        result[:, deriv_num*num_indices:(deriv_num+1)*num_indices] = p
     return result
+    
 
 from scipy.sparse import diags as sparse_diags
 def gauss_quadrature(recursion_coeffs,N):
