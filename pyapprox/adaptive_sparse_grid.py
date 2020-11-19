@@ -1448,7 +1448,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         else:
             self.subspace_moments = np.vstack(
                 (self.subspace_moments, new_subspace_moments))
-            
+
         return num_new_subspace_samples
 
     def save(self, filename):
