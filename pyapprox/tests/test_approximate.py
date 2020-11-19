@@ -9,25 +9,25 @@ class TestApproximate(unittest.TestCase):
 
     def test_approximate_sparse_grid_default_options(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami',a=7,b=0.1)
+        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         univariate_variables = [stats.uniform(0,1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse_grid').approx
+            benchmark.fun, univariate_variables,'sparse_grid').approx
         nsamples = 100
         error = compute_l2_error(
-            approx,benchmark.fun,approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.variable_transformation.variable,
             nsamples)
-        assert error<1e-12
+        assert error < 1e-12
 
     def test_approximate_sparse_grid_user_options(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami',a=7,b=0.1)
+        benchmark = setup_benchmark('ishigami' ,a=7, b=0.1)
         univariate_variables = benchmark['variable'].all_variables()
         errors = []
         def callback(approx):
             nsamples = 1000
             error = compute_l2_error(
-                approx,benchmark.fun,approx.variable_transformation.variable,
+                approx, benchmark.fun,approx.variable_transformation.variable,
                 nsamples)
             errors.append(error)
         univariate_quad_rule_info = [
@@ -40,33 +40,34 @@ class TestApproximate(unittest.TestCase):
         #    pya.get_univariate_leja_quadrature_rule(
         #        univariate_variables[0],growth_rule),growth_rule]
         refinement_indicator = partial(
-            variance_refinement_indicator,convex_param=0.5)
+            variance_refinement_indicator, convex_param=0.5)
         options = {'univariate_quad_rule_info':univariate_quad_rule_info,
-                   'max_nsamples':300,'tol':0,'verbose':False,
-                   'callback':callback,'verbose':0,
+                   'max_nsamples':300, 'tol':0, 
+                   'callback':callback, 'verbose':0,
                    'refinement_indicator':refinement_indicator}
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,'sparse_grid',options).approx
+            benchmark.fun, univariate_variables, 'sparse_grid', options).approx
         #print(np.min(errors))
         assert np.min(errors)<1e-3
 
     def test_approximate_polynomial_chaos_default_options(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami',a=7,b=0.1)
+        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         # we can use different univariate variables than specified by
         # benchmark
-        univariate_variables = [stats.uniform(0,1)]*nvars
+        univariate_variables = [stats.uniform(0, 1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun,univariate_variables,method='polynomial_chaos').approx
+            benchmark.fun,univariate_variables,
+            method='polynomial_chaos').approx
         nsamples = 100
         error = compute_l2_error(
-            approx,benchmark.fun,approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.variable_transformation.variable,
             nsamples)
         assert error<1e-12
 
     def test_cross_validate_pce_degree(self):
         num_vars = 2
-        univariate_variables = [stats.uniform(-1,2)]*num_vars
+        univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = pya.AffineRandomVariableTransformation(variable)
@@ -76,34 +77,33 @@ class TestApproximate(unittest.TestCase):
         poly.configure(poly_opts)
 
         degree=3
-        poly.set_indices(pya.compute_hyperbolic_indices(num_vars,degree,1.0))
+        poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree, 1.0))
         num_samples = poly.num_terms()*2
-        coef = np.random.normal(0,1,(poly.indices.shape[1],2))
-        coef[pya.nchoosek(num_vars+2,2):,0]=0
+        coef = np.random.normal(0, 1, (poly.indices.shape[1], 2))
+        coef[pya.nchoosek(num_vars+2, 2):, 0]=0
         # for first qoi make degree 2 the best degree
         poly.set_coefficients(coef)
         
         train_samples=pya.generate_independent_random_samples(
-            variable,num_samples)
+            variable, num_samples)
         train_vals = poly(train_samples)
         true_poly=poly
 
         poly = approximate(
-            train_samples,train_vals,'polynomial_chaos',
-            {'basis_type':'hyperbolic_cross','variable':variable,
+            train_samples,train_vals, 'polynomial_chaos',
+            {'basis_type':'hyperbolic_cross', 'variable':variable,
              'options':{'verbosity':3}}).approx
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
-            variable,num_validation_samples)
+            variable, num_validation_samples)
         assert np.allclose(
-            poly(validation_samples),true_poly(validation_samples))
+            poly(validation_samples), true_poly(validation_samples))
 
         poly = copy.deepcopy(true_poly)
         approx_res = cross_validate_pce_degree(
-            poly,train_samples,train_vals,1,degree+2)
-        assert np.allclose(approx_res.degrees,[2,3])
-
+            poly, train_samples, train_vals, 1, degree+2)
+        assert np.allclose(approx_res.degrees, [2, 3])
 
     def test_pce_basis_expansion(self):
         num_vars = 2

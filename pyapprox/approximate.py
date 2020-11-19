@@ -11,7 +11,12 @@ from scipy.optimize import OptimizeResult
 class ApproximateResult(OptimizeResult):
     pass
 
-def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refinement_indicator=variance_refinement_indicator,univariate_quad_rule_info=None,max_nsamples=100,tol=0,verbose=0, config_variables_idx=None, config_var_trans=None,cost_function=None,max_level_1d=None):
+def adaptive_approximate_sparse_grid(
+        fun, univariate_variables, callback=None,
+        refinement_indicator=variance_refinement_indicator,
+        univariate_quad_rule_info=None, max_nsamples=100, tol=0, verbose=0,
+        config_variables_idx=None, config_var_trans=None, cost_function=None,
+        max_level_1d=None):
     """
     Compute a sparse grid approximation of a function.
 
@@ -141,19 +146,19 @@ def adaptive_approximate_sparse_grid(fun,univariate_variables,callback=None,refi
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
             var_trans)
     else:
-        quad_rules,growth_rules=univariate_quad_rule_info
-        unique_quadrule_indices=None
+        quad_rules,growth_rules = univariate_quad_rule_info
+        unique_quadrule_indices = None
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
-    assert len(max_level_1d)==nvars
+    assert len(max_level_1d) == nvars
     admissibility_function = partial(
-        max_level_admissibility_function,np.inf,max_level_1d,max_nsamples,
-        tol,verbose=verbose)
+        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
+        tol, verbose=verbose)
     sparse_grid.setup(
         fun, config_variables_idx, refinement_indicator,
         admissibility_function, growth_rules, quad_rules,
         var_trans,unique_quadrule_indices=unique_quadrule_indices,
-        verbose=verbose,cost_function=cost_function,
+        verbose=verbose, cost_function=cost_function,
         config_var_trans=config_var_trans)
     sparse_grid.build(callback)
     return ApproximateResult({'approx':sparse_grid})
@@ -162,7 +167,11 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
-def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None,refinement_indicator=variance_pce_refinement_indicator,growth_rules=None,max_nsamples=100,tol=0,verbose=0,ncandidate_samples=1e4,generate_candidate_samples=None):
+def adaptive_approximate_polynomial_chaos(
+        fun, univariate_variables, callback=None,
+        refinement_indicator=variance_pce_refinement_indicator,
+        growth_rules=None, max_nsamples=100, tol=0, verbose=0,
+        ncandidate_samples=1e4, generate_candidate_samples=None):
     r"""
     Compute an adaptive Polynomial Chaos Expansion of a function.
 
@@ -286,7 +295,7 @@ def adaptive_approximate_polynomial_chaos(fun,univariate_variables,callback=None
 
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-def compute_l2_error(f,g,variable,nsamples,rel=False):
+def compute_l2_error(f, g, variable, nsamples, rel=False):
     r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
 
@@ -340,7 +349,7 @@ def compute_l2_error(f,g,variable,nsamples,rel=False):
         error /=np.linalg.norm(validation_vals,axis=0)
     return error
 
-def adaptive_approximate(fun,variable,method,options=None):
+def adaptive_approximate(fun, variable, method, options=None):
     r"""
     Adaptive approximation of a scalar or vector-valued function of one or 
     more variables. These methods choose the samples to at which to 
@@ -385,11 +394,11 @@ def adaptive_approximate(fun,variable,method,options=None):
 
     if options is None:
         options = {}
-    return methods[method](fun,variable,**options)
+    return methods[method](fun, variable, **options)
 
-def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
+def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
                                  basis_type='expanding_basis',
-                                 variable=None,options=None):
+                                 variable=None, options=None):
     r"""
     Compute a Polynomial Chaos Expansion of a function from a fixed data set.
 
@@ -448,7 +457,7 @@ def approximate_polynomial_chaos(train_samples,train_vals,verbosity=0,
     res = funcs[basis_type](poly, train_samples, train_vals, **options)
     return res
 
-def approximate(train_samples,train_vals,method,options=None):
+def approximate(train_samples, train_vals, method,options=None):
     r"""
     Approximate a scalar or vector-valued function of one or 
     more variables from a set of points provided by the user
@@ -484,7 +493,7 @@ def approximate(train_samples,train_vals,method,options=None):
 
     if options is None:
         options = {}
-    return methods[method](train_samples,train_vals,**options)
+    return methods[method](train_samples, train_vals, **options)
 
 
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \

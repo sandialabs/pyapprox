@@ -507,9 +507,8 @@ def get_subspace_values_using_dictionary(values,subspace_poly_indices,
     return subspace_values
 
 
-def evaluate_sparse_grid_subspace(samples,subspace_index,subspace_values,
-                                  samples_1d,config_variables_idx,output):
-
+def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
+                                  samples_1d, config_variables_idx, output):
     if config_variables_idx is None:
         config_variables_idx = samples.shape[0]
     
@@ -519,14 +518,14 @@ def evaluate_sparse_grid_subspace(samples,subspace_index,subspace_values,
     abscissa_1d = []
     barycentric_weights_1d = []
     for dd in range(num_active_sample_vars):
-        active_idx=active_sample_vars[dd]
+        active_idx = active_sample_vars[dd]
         abscissa_1d.append(samples_1d[active_idx][subspace_index[active_idx]])
-        interval_length=2
-        if abscissa_1d[dd].shape[0]>1:
-            interval_length=abscissa_1d[dd].max()-abscissa_1d[dd].min()
+        interval_length = 2
+        if abscissa_1d[dd].shape[0] > 1:
+            interval_length = abscissa_1d[dd].max()-abscissa_1d[dd].min()
         barycentric_weights_1d.append(
             compute_barycentric_weights_1d(
-                abscissa_1d[dd],interval_length=interval_length))
+                abscissa_1d[dd], interval_length=interval_length))
 
     #for dd in len(barycentric_weights_1d):
     #    I = np.argsort(barycentric_weights_1d[dd])
@@ -536,18 +535,18 @@ def evaluate_sparse_grid_subspace(samples,subspace_index,subspace_values,
     if num_active_sample_vars==0:
         if output:
             print(('sub',subspace_index,
-                   np.tile(subspace_values,(samples.shape[1],1))))
+                   np.tile(subspace_values,(samples.shape[1], 1))))
             print((samples.shape))
-            print((samples[active_sample_vars,:]))
+            print((samples[active_sample_vars, :]))
             print (subspace_values)
         return np.tile(subspace_values,(samples.shape[1],1))
     poly_vals = multivariate_barycentric_lagrange_interpolation( 
-        samples,abscissa_1d,barycentric_weights_1d,subspace_values,
+        samples, abscissa_1d, barycentric_weights_1d, subspace_values,
         active_sample_vars)
     if output:
-        print(('sub',subspace_index,poly_vals))
+        print(('sub',subspace_index, poly_vals))
         print((samples.shape))
-        print((samples[active_sample_vars,:]))
+        print((samples[active_sample_vars ,:]))
         print (subspace_values)
     return poly_vals
     
@@ -555,14 +554,15 @@ def evaluate_sparse_grid(samples, values,
                          poly_indices_dict,# not needed with new implementation
                          sparse_grid_subspace_indices,
                          sparse_grid_subspace_poly_indices_list,
-                         smolyak_coefficients,samples_1d,
+                         smolyak_coefficients, samples_1d,
                          sparse_grid_subspace_values_indices_list,
-                         config_variables_idx=None,output=False):
+                         config_variables_idx=None, output=False):
 
     num_vars, num_samples = samples.shape
-    assert values.ndim==2
+    assert values.ndim == 2
     assert values.shape[0] == len(poly_indices_dict)
-    assert sparse_grid_subspace_indices.shape[1]==smolyak_coefficients.shape[0]
+    assert sparse_grid_subspace_indices.shape[1] == \
+        smolyak_coefficients.shape[0]
 
     #max_level_samples_1d_min = [
     #    samples_1d[dd][-1].min() for dd in range(len(samples_1d))]
@@ -579,18 +579,18 @@ def evaluate_sparse_grid(samples, values,
     
     num_qoi = values.shape[1]
     #must initialize to zero
-    approx_values = np.zeros((num_samples,num_qoi),dtype=float)
+    approx_values = np.zeros((num_samples, num_qoi), dtype=float)
     for ii in range(sparse_grid_subspace_indices.shape[1]):
-        if (abs(smolyak_coefficients[ii])>np.finfo(float).eps):
-            subspace_index = sparse_grid_subspace_indices[:,ii]
+        if (abs(smolyak_coefficients[ii]) > np.finfo(float).eps):
+            subspace_index = sparse_grid_subspace_indices[:, ii]
             subspace_poly_indices = sparse_grid_subspace_poly_indices_list[ii]
             #subspace_values = get_subspace_values_using_dictionary(
             #    values,subspace_poly_indices,poly_indices_dict)
-            subspace_values=get_subspace_values(
-                values,sparse_grid_subspace_values_indices_list[ii])
+            subspace_values = get_subspace_values(
+                values, sparse_grid_subspace_values_indices_list[ii])
             subspace_approx_vals = evaluate_sparse_grid_subspace(
-                samples,subspace_index,subspace_values,
-                samples_1d,config_variables_idx,output)
+                samples, subspace_index, subspace_values,
+                samples_1d, config_variables_idx, output)
             approx_values += smolyak_coefficients[ii]*subspace_approx_vals
     return approx_values
 
@@ -628,19 +628,40 @@ def integrate_sparse_grid(values,
 
 def integrate_sparse_grid_from_subspace_moments(
         sparse_grid_subspace_indices,
-        smolyak_coefficients,subspace_moments):
-    assert sparse_grid_subspace_indices.shape[1]==smolyak_coefficients.shape[0]
-    assert subspace_moments.shape[0]==sparse_grid_subspace_indices.shape[1]
+        smolyak_coefficients, subspace_moments):
+    assert sparse_grid_subspace_indices.shape[1] == \
+        smolyak_coefficients.shape[0]
+    assert subspace_moments.shape[0] == sparse_grid_subspace_indices.shape[1]
 
     num_qoi = subspace_moments.shape[1]
     #must initialize to zero
-    integral_values = np.zeros((num_qoi,2),dtype=float)
+    integral_values = np.zeros((num_qoi, 2), dtype=float)
     for ii in range(sparse_grid_subspace_indices.shape[1]):
-        if (abs(smolyak_coefficients[ii])>np.finfo(float).eps):
-            subspace_index   = sparse_grid_subspace_indices[:,ii]
+        if (abs(smolyak_coefficients[ii]) > np.finfo(float).eps):
             integral_values += smolyak_coefficients[ii]*subspace_moments[ii]
     # keep shape consistent with shape returned by integrate_sparse_grid
     return integral_values.T
+
+def evaluate_sparse_grid_from_subspace_values(
+        sparse_grid_subspace_indices,
+        smolyak_coefficients, subspace_interrogation_values):
+    """
+    Some times you may want to evaluate a sparse grid repeatedly at the
+    same set of samples. If so use this function. It avoids recomputing the
+    subspace interpolants each time the sparse grid is interrogated. 
+    Note the reduced time complexity requires more storage
+    """
+    assert sparse_grid_subspace_indices.shape[1] == \
+        smolyak_coefficients.shape[0]
+    assert len(subspace_interrogation_values) == \
+        sparse_grid_subspace_indices.shape[1]
+
+    #must initialize to zero
+    values = 0
+    for ii in range(sparse_grid_subspace_indices.shape[1]):
+        if (abs(smolyak_coefficients[ii]) > np.finfo(float).eps):
+            values += smolyak_coefficients[ii]*subspace_interrogation_values[ii]
+    return values
 
 def get_num_sparse_grid_samples(
         sparse_grid_subspace_poly_indices_list,

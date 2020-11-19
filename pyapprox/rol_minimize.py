@@ -137,12 +137,12 @@ def get_rol_parameters(method, use_bfgs, options):
         return paramlist
         
     paramsDict = {}
-    #method = 'Fletcher'
-    assert method in ["Augmented Lagrangian", "Fletcher",
-                      "Moreau-Yosida Penalty"]
     # method = "Augmented Lagrangian"
     # method = "Fletcher"
     # method = "Moreau-Yosida Penalty"
+    #method = 'Fletcher'
+    assert method in ["Augmented Lagrangian", "Fletcher",
+                      "Moreau-Yosida Penalty"]
     paramsDict["Step"] = {"Type": method}
     #paramsDict["Step"]["Fletcher"] = {}
     #paramsDict["Step"]["Fletcher"]['Penalty Parameter'] = 1e8

@@ -1668,23 +1668,24 @@ class MultilevelPolynomialModelConfigureVariableTransformation(object):
 
 class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
     def test_multi_index_sparse_grid(self):
-        num_vars=2
-        num_model_levels=3
+        num_vars = 2
+        num_model_levels = 3
         model = MultilevelPolynomialModel(num_model_levels)
 
         ranges = [2*(-1)**(ii+1) for ii in range(2*num_vars)]
         canonical_ranges = [(-1)**(ii+1) for ii in range(2*num_vars)]
-        var_trans = AffineBoundedVariableTransformation(canonical_ranges,ranges) 
+        var_trans = AffineBoundedVariableTransformation(
+            canonical_ranges, ranges) 
         config_var_trans = \
                 MultilevelPolynomialModelConfigureVariableTransformation(1)
 
         num_validation_samples = 100
         validation_samples = np.random.uniform(
-            -1.,1.,(num_vars+1,num_validation_samples))
-        validation_samples[:-1,:] = var_trans.map_from_canonical_space(
-            validation_samples[:-1,:])
-        validation_samples[-1,:]=num_model_levels-1
-        validation_samples[-1,:]=config_var_trans.map_from_canonical_space(
+            -1., 1., (num_vars+1, num_validation_samples))
+        validation_samples[:-1, :] = var_trans.map_from_canonical_space(
+            validation_samples[:-1, :])
+        validation_samples[-1, :]=num_model_levels-1
+        validation_samples[-1, :]=config_var_trans.map_from_canonical_space(
             validation_samples[-1:])
         validation_values = model(validation_samples)
 
@@ -1694,62 +1695,67 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         max_num_sparse_grid_samples=None
         error_tol=None 
         admissibility_function = partial(
-            max_level_admissibility_function,max_level,max_level_1d,
-            max_num_sparse_grid_samples,error_tol)
+            max_level_admissibility_function, max_level, max_level_1d,
+            max_num_sparse_grid_samples, error_tol)
 
         refinement_indicator = variance_refinement_indicator
         cost_function=model.cost_function
         
         sparse_grid = CombinationSparseGrid(num_vars+1)
-        sparse_grid.set_function(model,var_trans)
-        sparse_grid.set_config_variable_index(num_vars,config_var_trans)
+        sparse_grid.set_function(model, var_trans)
+        sparse_grid.set_config_variable_index(num_vars, config_var_trans)
         sparse_grid.set_refinement_functions(
-            refinement_indicator,admissibility_function,
-            clenshaw_curtis_rule_growth,cost_function)
+            refinement_indicator, admissibility_function,
+            clenshaw_curtis_rule_growth, cost_function)
         sparse_grid.set_univariate_rules(
             clenshaw_curtis_in_polynomial_order)
-        
 
         while(not sparse_grid.active_subspace_queue.empty() or
               sparse_grid.subspace_indices.shape[1]==0):
             sparse_grid.refine()
             
         model_level_evals_list = get_num_model_evaluations_from_samples(
-            sparse_grid.samples,sparse_grid.num_config_vars)
+            sparse_grid.samples, sparse_grid.num_config_vars)
         model_level_evals = np.asarray(
-            model_level_evals_list,dtype=int)[0,:]
-        model_ids = np.asarray(model_level_evals_list,dtype=int)[1:,:]
+            model_level_evals_list,dtype=int)[0, :]
+        model_ids = np.asarray(model_level_evals_list,dtype=int)[1:, :]
         model_ids = config_var_trans.map_from_canonical_space(model_ids)
         equivalent_costs,total_costs = get_equivalent_cost(
-            cost_function,model_level_evals,model_ids)
+            cost_function, model_level_evals, model_ids)
 
         assert np.allclose(
-            total_costs,sparse_grid.num_equivalent_function_evaluations)
+            total_costs, sparse_grid.num_equivalent_function_evaluations)
         assert np.allclose(
-            sparse_grid.num_equivalent_function_evaluations/total_costs,1)
+            sparse_grid.num_equivalent_function_evaluations/total_costs, 1)
         
 
         approx_values = sparse_grid(validation_samples)
-        #print np.linalg.norm(approx_values-validation_values)/np.sqrt(
-        #    validation_values.shape[0])
-        assert np.allclose(approx_values,validation_values)
+        # print np.linalg.norm(approx_values-validation_values)/np.sqrt(
+        #     validation_values.shape[0])
+        assert np.allclose(approx_values, validation_values)
 
     def test_online_cost_function(self):
         """
         Test use of work_qoi_index and WorkTracker to determine costs of
         evaluating a model as sparse grid is built
         """
-        num_vars=2
-        num_model_levels=3
-        base_model = MultilevelPolynomialModel(num_model_levels,return_work=True)
-        from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
-        # TimerModelWrapper is hard to test because cost is constantly changing because of variable wall time. So for testing instead use function of polynomial model that just fixes cost for each level of the multilevel model
+        num_vars = 2
+        num_model_levels = 3
+        base_model = MultilevelPolynomialModel(
+            num_model_levels, return_work=True)
+        from pyapprox.models.wrappers import TimerModelWrapper, \
+            WorkTrackingModel
+        # TimerModelWrapper is hard to test because cost is constantly
+        # changing because of variable wall time. So for testing instead use
+        # function of polynomial model that just fixes cost for each level of
+        # the multilevel model
         timer_model=base_model
         model = WorkTrackingModel(timer_model,base_model,1)
 
         ranges = [2*(-1)**(ii+1) for ii in range(2*num_vars)]
         canonical_ranges = [(-1)**(ii+1) for ii in range(2*num_vars)]
-        var_trans = AffineBoundedVariableTransformation(canonical_ranges,ranges)
+        var_trans = AffineBoundedVariableTransformation(
+            canonical_ranges, ranges)
         config_var_trans = \
             MultilevelPolynomialModelConfigureVariableTransformation(1)
 
@@ -1758,80 +1764,79 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         # compare matrices of different sizes
         num_validation_samples = 100
         validation_samples = np.random.uniform(
-            -1.,1.,(num_vars+1,num_validation_samples))
-        validation_samples[:-1,:] = var_trans.map_from_canonical_space(
-            validation_samples[:-1,:])
-        validation_samples[-1,:]=num_model_levels-1
-        validation_samples[-1,:]=config_var_trans.map_from_canonical_space(
+            -1., 1., (num_vars+1, num_validation_samples))
+        validation_samples[:-1, :] = var_trans.map_from_canonical_space(
+            validation_samples[:-1, :])
+        validation_samples[-1, :]=num_model_levels-1
+        validation_samples[-1, :]=config_var_trans.map_from_canonical_space(
             validation_samples[-1:])
         validation_values = model(validation_samples)
 
-        max_level=5
-        max_level_1d=[max_level]*(num_vars+1)
-        max_level_1d[-1]=num_model_levels-1
-        max_num_sparse_grid_samples=None
-        error_tol=None 
+        max_level = 5
+        max_level_1d = [max_level]*(num_vars+1)
+        max_level_1d[-1] = num_model_levels-1
+        max_num_sparse_grid_samples = None
+        error_tol = None 
         admissibility_function = partial(
-            max_level_admissibility_function,max_level,max_level_1d,
-            max_num_sparse_grid_samples,error_tol)
+            max_level_admissibility_function, max_level, max_level_1d,
+            max_num_sparse_grid_samples, error_tol)
 
         refinement_indicator = variance_refinement_indicator
-        cost_function=model.cost_function
+        cost_function = model.cost_function
         
         sparse_grid = CombinationSparseGrid(num_vars+1)
         sparse_grid.set_function(model,var_trans)
-        sparse_grid.set_config_variable_index(num_vars,config_var_trans)
+        sparse_grid.set_config_variable_index(num_vars, config_var_trans)
         sparse_grid.set_refinement_functions(
             refinement_indicator,admissibility_function,
-            clenshaw_curtis_rule_growth,cost_function)
+            clenshaw_curtis_rule_growth, cost_function)
         sparse_grid.set_univariate_rules(
             clenshaw_curtis_in_polynomial_order)
-        
 
         while(not sparse_grid.active_subspace_queue.empty() or
               sparse_grid.subspace_indices.shape[1]==0):
             sparse_grid.refine()
             
         model_level_evals_list = get_num_model_evaluations_from_samples(
-            sparse_grid.samples,sparse_grid.num_config_vars)
+            sparse_grid.samples, sparse_grid.num_config_vars)
         model_level_evals = np.asarray(
-            model_level_evals_list,dtype=int)[0,:]
-        model_ids = np.asarray(model_level_evals_list,dtype=int)[1:,:]
+            model_level_evals_list, dtype=int)[0, :]
+        model_ids = np.asarray(model_level_evals_list,dtype=int)[1:, :]
         model_ids = config_var_trans.map_from_canonical_space(model_ids)
         equivalent_costs,total_costs = get_equivalent_cost(
-            cost_function,model_level_evals,model_ids)
+            cost_function, model_level_evals, model_ids)
 
-        #print(total_costs,sparse_grid.num_equivalent_function_evaluations,sparse_grid.num_config_vars)
+        # print(total_costs,sparse_grid.num_equivalent_function_evaluations,sparse_grid.num_config_vars)
         assert np.allclose(
-            total_costs,sparse_grid.num_equivalent_function_evaluations)
+            total_costs, sparse_grid.num_equivalent_function_evaluations)
         assert np.allclose(
-            sparse_grid.num_equivalent_function_evaluations/total_costs,1)
+            sparse_grid.num_equivalent_function_evaluations/total_costs, 1)
         
 
         approx_values = sparse_grid(validation_samples)
-        #print np.linalg.norm(approx_values-validation_values)/np.sqrt(
+        # print np.linalg.norm(approx_values-validation_values)/np.sqrt(
         #    validation_values.shape[0])
-        assert np.allclose(approx_values,validation_values)
+        assert np.allclose(approx_values, validation_values)
 
     def test_convert_multi_index_sparse_grid_to_pce(self):
-        num_vars=2
-        num_levels=3
+        num_vars = 2
+        num_levels = 3
         model = MultilevelPolynomialModel(num_levels)
 
         num_validation_samples = 100
         validation_samples = np.random.uniform(
-            -1.,1.,(num_vars+1,num_validation_samples))
-        validation_samples[-1,:]=num_levels-1
+            -1., 1., (num_vars+1, num_validation_samples))
+        validation_samples[-1, :] = num_levels-1
         validation_values = model(validation_samples)
 
-        max_level=5
-        max_level_1d=[max_level]*(num_vars+1)
-        max_level_1d[-1]=num_levels-1
-        max_num_sparse_grid_samples=None
-        error_tol=None 
+        max_level = 5
+        max_level_1d = [max_level]*(num_vars+1)
+        max_level_1d[-1] = num_levels-1
+        max_num_sparse_grid_samples = None
+        error_tol = None 
         admissibility_function = partial(
-            max_level_admissibility_function,max_level,max_level_1d,
-            max_num_sparse_grid_samples,error_tol)
+            max_level_admissibility_function, max_level, max_level_1d,
+            max_num_sparse_grid_samples, error_tol)
 
         cost_function = lambda x: 1.
         refinement_indicator = variance_refinement_indicator
@@ -1840,9 +1845,10 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         sparse_grid.set_function(model)
         sparse_grid.set_config_variable_index(num_vars)
         sparse_grid.set_refinement_functions(
-            refinement_indicator,admissibility_function,
+            refinement_indicator, admissibility_function,
             clenshaw_curtis_rule_growth)
         sparse_grid.set_univariate_rules(clenshaw_curtis_in_polynomial_order)
+        sparse_grid.set_interrogation_samples(validation_samples)
 
         while(not sparse_grid.active_subspace_queue.empty() or
               sparse_grid.subspace_indices.shape[1]==0):
@@ -1851,20 +1857,22 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         # the pce will have no knowledge of configure variables.
         from scipy.stats import uniform
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1,2),num_vars) 
-        pce_opts = {'poly_type':'jacobi','alpha_poly':0.,'beta_poly':0.,
+            uniform(-1, 2), num_vars) 
+        pce_opts = {'poly_type':'jacobi', 'alpha_poly':0., 'beta_poly':0.,
                     'var_trans':var_trans}
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
-            sparse_grid,pce_opts)
+            sparse_grid, pce_opts)
 
         # the sparse grid and the pce have the same poly_indices as indices
         # of the former include config variables
         # with configure variables sg and pce will not be an interpolant
         
         sg_values = sparse_grid(validation_samples)
-        pce_values =  pce(validation_samples[:num_vars,:])
-        assert np.allclose(pce_values,sg_values)
-        assert np.allclose(pce_values,validation_values)
+        assert np.allclose(
+            sg_values, sparse_grid.evaluate_at_interrogation_samples())
+        pce_values =  pce(validation_samples[:num_vars, :])
+        assert np.allclose(pce_values, sg_values)
+        assert np.allclose(pce_values, validation_values)
 
     def test_combination_sparse_grid_setup(self):
         import pyapprox as pya

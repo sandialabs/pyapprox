@@ -331,9 +331,9 @@ def variance_refinement_indicator_old(subspace_index,num_new_subspace_samples,
     return -indicator, error[qoi_chosen]
 
 
-def variance_refinement_indicator(subspace_index,num_new_subspace_samples,
-                                  sparse_grid,normalize=True,
-                                  mean_only=False,convex_param=1):
+def variance_refinement_indicator(subspace_index, num_new_subspace_samples,
+                                  sparse_grid, normalize=True,
+                                  mean_only=False, convex_param=1):
     """
     when config index is increased but the other indices are 0 the
     subspace will only have one random sample. Thus the variance
@@ -1118,6 +1118,9 @@ class SubSpaceRefinementManager(object):
             new_item = (priority, error, count)
             self.active_subspace_queue.put(new_item)
             self.error[count] = error
+
+    def get_total_work(self):
+        return self.num_equivalent_function_evaluations
     
     
 from pyapprox.univariate_quadrature import leja_growth_rule, \
@@ -1152,7 +1155,7 @@ def get_unique_quadrule_variables(var_trans):
     return unique_quadrule_variables, unique_quadrule_indices
 
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans,growth_rules=None):
+        var_trans, growth_rules=None):
     """
     Return a list of unique quadrature rules. If each dimension has the same
     rule then list will only have one entry.
@@ -1161,7 +1164,7 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     
     if growth_rules is None:
         #growth_rules = leja_growth_rule
-        growth_rules = partial(constant_increment_growth_rule,2)
+        growth_rules = partial(constant_increment_growth_rule, 2)
 
     unique_quadrule_variables,unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)
@@ -1169,7 +1172,7 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     if callable(growth_rules):
         growth_rules = [growth_rules]*len(unique_quadrule_indices)
 
-    if len(growth_rules)!=len(unique_quadrule_indices):
+    if len(growth_rules) != len(unique_quadrule_indices):
         msg ='growth rules and unique_quadrule_indices (derived from var_trans)'
         msg += ' are inconsistent'
         raise Exception(msg)
@@ -1177,61 +1180,66 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     quad_rules = []
     for ii in range(len(unique_quadrule_indices)):
         quad_rule = get_univariate_leja_quadrature_rule(
-            unique_quadrule_variables[ii],growth_rules[ii])
+            unique_quadrule_variables[ii], growth_rules[ii])
         quad_rules.append(quad_rule)
 
     return quad_rules, growth_rules, unique_quadrule_indices
 
 def get_sparse_grid_univariate_leja_quadrature_rules(
-        var_trans,growth_rules=None):
+        var_trans, growth_rules=None):
     """
     Return a list of quadrature rules for every variable
     """
     unique_quad_rules, unique_growth_rules, unique_quadrule_indices = \
         get_sparse_grid_univariate_leja_quadrature_rules_economical(
-            var_trans,growth_rules=None)
+            var_trans, growth_rules=None)
     quad_rules = [None for ii in var_trans.num_vars()]
     growth_rules = [None for ii in var_trans.num_vars()]
     for quad_rule,growth_rule,indices, in zip(
-            unique_quad_rules, unique_growth_rules,unique_quadrule_indices):
+            unique_quad_rules, unique_growth_rules, unique_quadrule_indices):
         quad_rules[indices] = quad_rule
         qrowth_rules[indices] = growth_rule
     return quad_rules, growth_rules
 
 
 class CombinationSparseGrid(SubSpaceRefinementManager):
-    def __init__(self,num_vars):
-        super(CombinationSparseGrid,self).__init__(num_vars)
+    def __init__(self, num_vars):
+        super(CombinationSparseGrid, self).__init__(num_vars)
 
         self.univariate_quad_rule = None
-        self.samples_1d,self.weights_1d = [None,None]
-        self.smolyak_coefficients = np.empty((0),np.float)
+        self.samples_1d,self.weights_1d = [None, None]
+        self.smolyak_coefficients = np.empty((0), np.float)
         self.variable_transformation = None
         self.compact_univariate_quad_rule = None
-        self.subspace_moments = None
 
-    def setup(self,function,config_variables_idx,refinement_indicator,
-              admissibility_function,univariate_growth_rule,
+        # extra storage to reduce cost of repeated interrogation
+        self.subspace_moments = None
+        self.subspace_interrogation_values = []
+        self.canonical_interrogation_samples = None
+
+    def setup(self, function, config_variables_idx, refinement_indicator,
+              admissibility_function, univariate_growth_rule,
               univariate_quad_rule,
-              variable_transformation=None,config_var_trans=None,
-              cost_function=None,work_qoi_index=None,
+              variable_transformation=None, config_var_trans=None,
+              cost_function=None, work_qoi_index=None,
               unique_quadrule_indices=None,
               verbose=0):
         self.set_function(function,variable_transformation)
         if config_variables_idx is not None:
-            self.set_config_variable_index(config_variables_idx,config_var_trans)
+            self.set_config_variable_index(
+                config_variables_idx, config_var_trans)
         self.set_refinement_functions(
             refinement_indicator,admissibility_function,univariate_growth_rule,
-            cost_function,work_qoi_index,unique_quadrule_indices)
+            cost_function, work_qoi_index, unique_quadrule_indices)
         self.set_univariate_rules(univariate_quad_rule)
-        self.verbose=verbose
+        self.verbose = verbose
 
-    def set_univariate_rules(self,univariate_quad_rule):
+    def set_univariate_rules(self, univariate_quad_rule):
         if self.univariate_growth_rule is None:
             msg="Must call set_refinement_functions before set_univariate rules"
             raise Exception(msg)
         max_level=2
-        self.univariate_quad_rule=univariate_quad_rule
+        self.univariate_quad_rule = univariate_quad_rule
 
         if self.config_variables_idx is None:
             dd = self.num_vars
@@ -1241,7 +1249,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         num_random_vars = 0
         for ii in range(len(self.unique_quadrule_indices)):
             num_random_vars += len(self.unique_quadrule_indices[ii])
-        if num_random_vars!=dd:
+        if num_random_vars != dd:
             msg =  'unique_quadrule_indices is inconsistent with '
             msg += 'self.config_variables_idx. If using config_variables try'
             msg += 'calling the following functions in this order'
@@ -1301,7 +1309,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             unique_poly_indices,self.samples_1d,self.config_variables_idx)
 
 
-    def __call__(self,samples):
+    def __call__(self, samples):
         """
         config values are ignored. The sparse grid just returns its best 
         approximation of the highest fidelity model. TODO: consider enforcing
@@ -1310,16 +1318,16 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         if self.variable_transformation is not None:
             canonical_samples = \
                 self.variable_transformation.map_to_canonical_space(
-                    samples[:self.config_variables_idx,:])
+                    samples[:self.config_variables_idx, :])
         else:
-            canonical_samples = samples[:self.config_variables_idx,:]
+            canonical_samples = samples[:self.config_variables_idx, :]
         
         return evaluate_sparse_grid(
             canonical_samples[:self.config_variables_idx,:],
             self.values,
-            self.poly_indices_dict,self.subspace_indices,
+            self.poly_indices_dict, self.subspace_indices,
             self.subspace_poly_indices_list,
-            self.smolyak_coefficients,self.samples_1d,
+            self.smolyak_coefficients, self.samples_1d,
             self.subspace_values_indices_list,
             self.config_variables_idx)
 
@@ -1336,12 +1344,42 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         #     self.subspace_values_indices_list,
         #     self.config_variables_idx)
 
-
-
     def moments(self):
         return self.moments_(self.smolyak_coefficients)
 
-    def evaluate_using_all_data(self,samples):
+    def set_interrogation_samples(self, samples):
+        """
+        Set samples which are used to evaluate a sparse grid repeatedly.
+        If provided each time a subspace is added the subspace is evaluated
+        at these points so that when self.evaluate_at_interrogation_samples 
+        is called no major computations are required.
+        Note the reduced time complexity requires more storage
+
+        Parameters
+        ----------
+        samples : np.ndarray (num_vars) or (num_vars-num_config_vars)
+             Samples at which to evaluate the sparae grid. If config values
+             are provided they are ignored.
+        """
+        if self.variable_transformation is not None:
+            canonical_samples = \
+                self.variable_transformation.map_to_canonical_space(
+                    samples[:self.config_variables_idx, :])
+        else:
+            canonical_samples = samples[:self.config_variables_idx, :]
+        self.canonical_interrogation_samples = canonical_samples
+
+    def evaluate_at_interrogation_samples(self):
+        """
+        Evaluate the sparse grid at self.canonical_interrogation_samples.
+
+        Note, this fuction only uses subspaces which are not active
+        """
+        return evaluate_sparse_grid_from_subspace_values(
+            self.subspace_indices, self.smolyak_coefficients,
+            self.subspace_interrogation_values)
+
+    def evaluate_using_all_data(self, samples):
         """
         Evaluate sparse grid using all subspace indices including
         active subspaces. __call__ only uses subspaces which are not active
@@ -1354,9 +1392,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         # add all active subspaces to sparse grid by updating smolyak
         # coefficients
         for ii in range(len(pairs)):
-            subspace_index = self.subspace_indices[:,pairs[ii][-1]]
+            subspace_index = self.subspace_indices[:, pairs[ii][-1]]
             smolyak_coefficients = update_smolyak_coefficients(
-                subspace_index,self.subspace_indices,
+                subspace_index, self.subspace_indices,
                 smolyak_coefficients)
         
         if self.variable_transformation is not None:
@@ -1377,37 +1415,46 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.config_variables_idx)
         return approx_values
 
-    def add_new_subspaces(self,new_subspace_indices):
+    def add_new_subspaces(self, new_subspace_indices):
         num_new_subspaces = new_subspace_indices.shape[1]
         num_current_subspaces = self.subspace_indices.shape[1]
         num_new_subspace_samples = super(
-            CombinationSparseGrid,self).add_new_subspaces(new_subspace_indices)
+            CombinationSparseGrid, self).add_new_subspaces(new_subspace_indices)
         
         cnt = num_current_subspaces
         new_subspace_moments = np.empty(
-            (num_new_subspaces,self.values.shape[1],2),dtype=float)
+            (num_new_subspaces, self.values.shape[1], 2), dtype=float)
         for ii in range(num_new_subspaces):
-            subspace_index = new_subspace_indices[:,ii]
+            subspace_index = new_subspace_indices[:, ii]
             subspace_values = get_subspace_values(
                 self.values, self.subspace_values_indices_list[cnt])
             subspace_moments = integrate_sparse_grid_subspace(
-                subspace_index,subspace_values,self.weights_1d,
+                subspace_index,subspace_values, self.weights_1d,
                 self.config_variables_idx)
-            new_subspace_moments[ii,:,:] = subspace_moments.T
+            new_subspace_moments[ii, :, :] = subspace_moments.T
+            if self.canonical_interrogation_samples is not None:
+                # if storage becomes a problem may need to remove subspace values
+                # when they have a non-zero smolyak coefficient and recompute it
+                # if needed again
+                self.subspace_interrogation_values.append(
+                    evaluate_sparse_grid_subspace(
+                        self.canonical_interrogation_samples, subspace_index,
+                        subspace_values, self.samples_1d,
+                        self.config_variables_idx, False))
             cnt += 1
 
         if self.subspace_moments is None:
             self.subspace_moments = new_subspace_moments
         else:
             self.subspace_moments = np.vstack(
-                (self.subspace_moments,new_subspace_moments))
-
+                (self.subspace_moments, new_subspace_moments))
+            
         return num_new_subspace_samples
 
-    def save(self,filename):
+    def save(self, filename):
         try:
             with open(filename, 'wb') as file_object:
-                pickle.dump(self,file_object)
+                pickle.dump(self, file_object)
         except:
             msg =  'Initial attempt to save failed. Likely self.function '
             msg += 'cannot be pickled. Trying to save setting function to None'
@@ -1416,11 +1463,11 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.function = None
             with open(filename, 'wb') as file_object:
                 pickle.dump(self,file_object)
-            self.function=function
+            self.function = function
             msg = 'Second save was successful'
             print(msg)
     
-def plot_adaptive_sparse_grid_3d(sparse_grid,plot_grid=True):
+def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):
     from pyapprox.visualization import plot_3d_indices
     fig = plt.figure(figsize=plt.figaspect(0.5))
     active_subspace_indices,active_subspace_idx = get_active_subspace_indices(
@@ -1430,25 +1477,25 @@ def plot_adaptive_sparse_grid_3d(sparse_grid,plot_grid=True):
     # get subspace indices that have been added to the sparse grid,
     # i.e are not active
     sparse_grid_subspace_idx = np.ones(
-        (sparse_grid.subspace_indices.shape[1]),dtype=bool)
-    sparse_grid_subspace_idx[active_subspace_idx]=False
+        (sparse_grid.subspace_indices.shape[1]), dtype=bool)
+    sparse_grid_subspace_idx[active_subspace_idx] = False
 
-    nn=1
+    nn = 1
     if plot_grid:
         nn = 2
-    ax=fig.add_subplot(1,nn,1,projection='3d')
-    if active_subspace_indices.shape[1]==0:
+    ax = fig.add_subplot(1, nn, 1,projection='3d')
+    if active_subspace_indices.shape[1] == 0:
         active_subspace_indices=None
-    plot_3d_indices(sparse_grid.subspace_indices,ax,active_subspace_indices)
+    plot_3d_indices(sparse_grid.subspace_indices, ax, active_subspace_indices)
 
     if plot_grid:
         samples,active_samples = partition_sparse_grid_samples(sparse_grid)
-        ax=fig.add_subplot(1,nn,2,projection='3d')
-        ax.plot(samples[0,:],samples[1,:],samples[2,:],'ko')
-        ax.plot(active_samples[0,:],active_samples[1,:],
-                active_samples[2,:],'ro')
+        ax=fig.add_subplot(1, nn, 2, projection = '3d')
+        ax.plot(samples[0, :], samples[1, :], samples[2, :],'ko')
+        ax.plot(active_samples[0, :], active_samples[1, :],
+                active_samples[2, :], 'ro')
 
-        angle=45
+        angle = 45
         ax.view_init(30, angle)
         #ax.set_axis_off()
         ax.grid(False)
@@ -1457,9 +1504,10 @@ def plot_adaptive_sparse_grid_3d(sparse_grid,plot_grid=True):
         ax.set_yticks([])
         ax.set_zticks([])
 
+
 class ConfigureVariableTransformation(object):
     """
-    Class which maps one-to-one configure indices in [0,1,2,3,...]
+    Class which maps one-to-one configure indices in [0, 1, 2, 3,...]
     to a set of configure values accepted by a function
 
     Parameters
@@ -1471,22 +1519,22 @@ class ConfigureVariableTransformation(object):
         The list of configure values for each configure variable. Each entry
         in the list is a 1D np.ndarray with potentiallly different sizes
     """
-    def __init__(self,config_values):
+    def __init__(self, config_values):
         self.nvars=len(config_values)
-        assert (type(config_values[0])==list or
-                type(config_values[0])==np.ndarray)
-        self.config_values=config_values
+        assert (type(config_values[0]) == list or
+                type(config_values[0]) == np.ndarray)
+        self.config_values = config_values
 
-    def map_from_canonical_space(self,canonical_samples):
+    def map_from_canonical_space(self, canonical_samples):
         """
         Map a configure multi-dimensional index to the corresponding 
         configure values
         """
-        assert canonical_samples.shape[0]==self.nvars
+        assert canonical_samples.shape[0] == self.nvars
         samples = np.empty_like(canonical_samples)
         for ii in range(samples.shape[1]):
             for jj in range(self.nvars):
-                kk = canonical_samples[jj,ii]
+                kk = canonical_samples[jj, ii]
                 samples[jj,ii] = self.config_values[jj][int(kk)]
         return samples
 

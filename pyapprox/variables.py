@@ -62,7 +62,7 @@ def define_iid_random_variables(rv,num_vars):
     return IndependentMultivariateRandomVariable(
         unique_variables,unique_var_indices)
 
-def variables_equivalent(rv1,rv2):
+def variables_equivalent(rv1, rv2):
     """
     Determine if 2 scipy variables are equivalent
 
@@ -74,11 +74,12 @@ def variables_equivalent(rv1,rv2):
     """
     name1,scales1,shapes1=get_distribution_info(rv1)
     name2,scales2,shapes2=get_distribution_info(rv2)
-    if name1!=name2:
+    # print(scales1, shapes1, scales2, shapes2)
+    if name1 != name2:
         return False
-    if scales1!=scales2:
+    if scales1 != scales2:
         return False
-    return variable_shapes_equivalent(rv1,rv2)
+    return variable_shapes_equivalent(rv1, rv2)
 
 def get_unique_variables(variables):
     nvars = len(variables)
