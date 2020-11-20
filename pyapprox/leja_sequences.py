@@ -70,9 +70,9 @@ def leja_objective_and_gradient(samples, leja_sequence, poly, new_indices,
         The gradient of the objective at samples. Return only
         if deriv_order==1
     """
-    assert samples.ndim==2
+    assert samples.ndim == 2
     num_vars, num_samples = samples.shape
-    assert num_samples==1
+    assert num_samples == 1
 
     indices = poly.indices.copy()
     poly.set_indices(new_indices)

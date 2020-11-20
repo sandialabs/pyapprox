@@ -424,7 +424,7 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     Returns
     -------
     p : np.ndarray (num_samples, (deriv_num+1)*num_indices)
-       The values of the s-th derivative of the polynomials
+       The values of the 0th to s-th derivative of the polynomials
     """
     num_samples = x.shape[0]
     num_indices = nmax+1

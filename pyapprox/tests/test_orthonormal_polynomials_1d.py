@@ -58,17 +58,28 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         deriv_order=2
 
         ab = jacobi_recurrence(
-            degree+1,alpha=alpha,beta=beta,probability=probability_measure)
-        x,w=np.polynomial.legendre.leggauss(degree+1)
+            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
+        x, w=np.polynomial.legendre.leggauss(degree+1)
         pd = evaluate_orthonormal_polynomial_deriv_1d(
             x, degree, ab, deriv_order)
 
-        pd_exact = [np.asarray([1+0.*x,x,0.5*(3.*x**2-1),0.5*(5.*x**3-3.*x)]).T]
-        pd_exact.append(np.asarray([0.*x,1.0+0.*x,3.*x,7.5*x**2-1.5]).T)
-        pd_exact.append(np.asarray([0.*x,0.*x,3.+0.*x,15*x]).T)
+        pd_exact = [np.asarray(
+            [1+0.*x, x, 0.5*(3.*x**2-1), 0.5*(5.*x**3-3.*x)]).T]
+        pd_exact.append(np.asarray([0.*x, 1.0+0.*x, 3.*x, 7.5*x**2-1.5]).T)
+        pd_exact.append(np.asarray([0.*x, 0.*x, 3.+0.*x, 15*x]).T)
         pd_exact = np.asarray(pd_exact)/np.sqrt(1./(2*np.arange(degree+1)+1))
         for ii in range(deriv_order+1):
-            assert np.allclose(pd[:,ii*(degree+1):(ii+1)*(degree+1)],pd_exact[ii])
+            assert np.allclose(
+                pd[:, ii*(degree+1):(ii+1)*(degree+1)], pd_exact[ii])
+
+        # from pyapprox.optimization import check_gradients
+        # from functools import partial
+        # fun = lambda x: evaluate_orthonormal_polynomial_deriv_1d(
+        #     x, nmax=degree, ab=ab, deriv_order=0)[0, :]
+        # jac = lambda x: evaluate_orthonormal_polynomial_deriv_1d(
+        #     x, nmax=degree, ab=ab, deriv_order=1)[:, degree+1:].T
+        # x0 = np.atleast_2d(x[0])
+        # check_gradients(fun, jac, x0)
 
     def test_orthonormality_physicists_hermite_polynomial(self):
         rho = 0.
