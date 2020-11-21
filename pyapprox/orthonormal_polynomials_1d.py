@@ -320,6 +320,44 @@ def evaluate_monic_polynomial_1d(x,nmax,ab):
 
     return p
 
+def evaluate_orthonormal_polynomial_1d(x, nmax, ab): 
+    try:
+        # necessary when discrete variables are define on integers
+        x = np.asarray(x,dtype=float)
+        from pyapprox.cython.orthonormal_polynomials_1d import \
+            evaluate_orthonormal_polynomial_1d_pyx
+        return evaluate_orthonormal_polynomial_1d_pyx(x, nmax, ab)
+        # from pyapprox.weave import c_evaluate_orthonormal_polynomial
+        # return c_evaluate_orthonormal_polynomial_1d(x, nmax, ab)
+    except Exception as e:
+        print ('evaluate_orthornormal_polynomial_1d extension failed')
+    return __evaluate_orthonormal_polynomial_1d(x, nmax, ab)
+
+
+def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
+        # filter out cython warnings.
+    import warnings
+    warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+    #warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+    #warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
+
+    x = np.asarray(x,dtype=float)
+    from pyapprox.cython.orthonormal_polynomials_1d import \
+        evaluate_orthonormal_polynomial_deriv_1d_pyx
+    return evaluate_orthonormal_polynomial_deriv_1d_pyx(
+        x, nmax, ab, deriv_order)
+
+    try:
+        # necessary when discrete variables are define on integers
+        x = np.asarray(x,dtype=float)
+        from pyapprox.cython.orthonormal_polynomials_1d import \
+            evaluate_orthonormal_polynomial_deriv_1d_pyx
+        return evaluate_orthonormal_polynomial_deriv_1d_pyx(
+            x, nmax, ab, deriv_order)
+    except:
+        print ('evaluate_orthonormal_polynomial_deriv_1d_pyx extension failed')
+    return __evaluate_orthonormal_polynomial_deriv_1d
+
 
 import ctypes
 from numba.extending import get_cython_function_address
@@ -339,7 +377,7 @@ def numba_gammaln(x):
 
 
 @jit(nopython=True)
-def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
+def __evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     r""" 
     Evaluate univariate orthonormal polynomials using their
     three-term recurrence coefficients.
@@ -390,7 +428,7 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
 
 
 @jit(nopython=True)
-def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
+def __evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     r""" 
     Evaluate the univariate orthonormal polynomials and its s-derivatives 
     (s=1,...,num_derivs) using a three-term recurrence coefficients.
@@ -430,7 +468,7 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     num_indices = nmax+1
     a = ab[:, 0]; b = ab[:, 1]
     result = np.empty((num_samples, num_indices*(deriv_order+1)))
-    p = evaluate_orthonormal_polynomial_1d(x, nmax, ab)
+    p = __evaluate_orthonormal_polynomial_1d(x, nmax, ab)
     result[:, :num_indices] = p
 
     for deriv_num in range(1, deriv_order+1):
