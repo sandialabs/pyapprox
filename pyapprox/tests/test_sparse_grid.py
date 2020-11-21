@@ -55,20 +55,22 @@ class MultilevelPolynomialModel():
 class TestSparseGrid(unittest.TestCase):
 
     def test_update_1d_samples_weights_economical(self):
-        num_vars = 3; level = 2
+        num_vars = 3
+        level = 2
 
-        alpha_stat,beta_stat = 5,2
+        alpha_stat,beta_stat = 5, 2
         beta_quad_rule = partial(
-            beta_leja_quadrature_rule,alpha_stat,beta_stat,
+            beta_leja_quadrature_rule, alpha_stat, beta_stat,
             growth_rule=leja_growth_rule)
 
-        quad_rules_econ   = [clenshaw_curtis_in_polynomial_order,beta_quad_rule]
-        growth_rules_econ = [clenshaw_curtis_rule_growth,leja_growth_rule]
-        unique_rule_indices=[[1],[0,2]]
+        quad_rules_econ   = [
+            clenshaw_curtis_in_polynomial_order, beta_quad_rule]
+        growth_rules_econ = [clenshaw_curtis_rule_growth, leja_growth_rule]
+        unique_rule_indices=[[1], [0, 2]]
 
         levels = [level]*num_vars
         samples_1d_econ,weights_1d_econ=get_1d_samples_weights(
-            quad_rules_econ,growth_rules_econ,levels,None,
+            quad_rules_econ,growth_rules_econ, levels, None,
             unique_rule_indices)
 
         quad_rules=[beta_quad_rule,clenshaw_curtis_in_polynomial_order,
@@ -76,7 +78,7 @@ class TestSparseGrid(unittest.TestCase):
         growth_rules=[leja_growth_rule,clenshaw_curtis_rule_growth,
                       leja_growth_rule]
         samples_1d,weights_1d=get_1d_samples_weights(
-            quad_rules,growth_rules,levels)
+            quad_rules,growth_rules, levels)
 
         assert len(samples_1d_econ)==num_vars
         for ii in range(num_vars):

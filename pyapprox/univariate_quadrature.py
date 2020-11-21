@@ -2,13 +2,18 @@ from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 import numpy as np, os
 from pyapprox.orthonormal_polynomials_1d import \
-     jacobi_recurrence, hermite_recurrence, gauss_quadrature
+     jacobi_recurrence, hermite_recurrence, gauss_quadrature, \
+     get_recursion_coefficients, evaluate_orthonormal_polynomial_deriv_1d
+from pyapprox.univariate_leja import get_christoffel_leja_sequence_1d, \
+    get_christoffel_leja_quadrature_weights_1d
 from pyapprox.utilities import beta_pdf, beta_pdf_derivative
 from functools import partial
 from pyapprox.utilities import evaluate_tensor_product_function,\
      gradient_of_tensor_product_function
+from pyapprox.variables import is_continuous_variable, \
+    is_bounded_continuous_variable
 
-     
+
 def clenshaw_curtis_rule_growth(level):
     """
     The number of samples in the 1D Clenshaw-Curtis quadrature rule of a given
@@ -24,12 +29,13 @@ def clenshaw_curtis_rule_growth(level):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
-    if level==0:
+    if level == 0:
         return 1
     else:
         return 2**level+1
 
-def clenshaw_curtis_hierarchical_to_nodal_index(level,ll,ii):
+    
+def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
     """
     Convert a 1D hierarchical index (ll,ii) to a nodal index for lookup in a
     Clenshaw-Curtis quadrature rule. 
@@ -527,15 +533,17 @@ def get_leja_sequence_quadrature_weights(leja_sequence,growth_rule,
 def uniform_leja_quadrature_rule(level,growth_rule=leja_growth_rule,
                                  samples_filename=None,
                                  return_weights_for_all_levels=True):
-    return beta_leja_quadrature_rule(1,1,level,growth_rule,samples_filename,
+    return beta_leja_quadrature_rule(1, 1, level,growth_rule,samples_filename,
                                      return_weights_for_all_levels)
 
-def algebraic_growth(rate,level):
+
+def algebraic_growth(rate, level):
     return (level)**rate+1
 
-def exponential_growth(level,constant=1):
+
+def exponential_growth(level, constant=1):
     """
-    The number of samples in an exponentiall growing 1D quadrature rule of 
+    The number of samples in an exponentially growing 1D quadrature rule of 
     a given level.
 
     Parameters
@@ -548,12 +556,13 @@ def exponential_growth(level,constant=1):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
-    if level==0:
+    if level == 0:
         return 1
     return constant*2**(level+1)-1
 
 def exponential_growth_rule(quad_rule,level):
     return quad_rule(exponential_growth(level))
+
 
 def candidate_based_leja_rule(recursion_coeffs,
                               generate_candidate_samples,
@@ -592,20 +601,83 @@ def candidate_based_leja_rule(recursion_coeffs,
 
 
 from pyapprox.variables import get_distribution_info
-def get_univariate_leja_quadrature_rule(variable,growth_rule):
+def univariate_christoffel_leja_quadrature_rule(
+        variable, growth_rule, level, return_weights_for_all_levels=True,
+        initial_points=None):
+    """
+    Return the samples and weights of the Leja quadrature rule for any 
+    continuous variable using the inverse Christoffel weight function
+
+    By construction these rules have polynomial ordering.
+
+    Parameters
+    ----------
+    variable : scipy.stats.dist
+        The variable used to construct an orthogonormal polynomial
+
+    growth_rule : callable
+        Function which returns the number of samples in the quadrature rule
+        With signature
+
+        `growth_rule(level) -> integer`
+
+        where level is an integer
+    
+    level : integer
+        The level of the univariate rule.
+
+    return_weights_for_all_levels : boolean
+        True  - return weights [w(0),w(1),...,w(level)]
+        False - return w(level)
+
+    initial_points : np.ndarray (1, ninit_samples)
+        Any points that must be included in the Leja sequence. This argument
+        is typically used to pass in previously computed sequence which
+        is updated efficiently here.
+
+    Return
+    ------
+    ordered_samples_1d : np.ndarray (num_samples_1d)
+        The reordered samples.
+
+    ordered_weights_1d : np.ndarray (num_samples_1d)
+        The reordered weights.
+    """
+    if not is_continuous_variable(variable):
+        raise Exception('Only supports continuous variables')
+    
+    name, scales, shapes = get_distribution_info(variable)
+    opts = {'rv_type':name,'shapes':shapes,
+            'var_nums':variable}
+    max_nsamples = growth_rule(level)
+    ab = get_recursion_coefficients(opts, max_nsamples+1)
+    basis_fun = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
+    
+    if is_bounded_continuous_variable(variable):
+        bounds = [-1, 1]
+        if initial_points is None:
+            initial_points = np.asarray(
+                [[2*variable.ppf(0.5)-1]]).T
+    else:
+        bounds = rv.interval(1)
+        if initial_points is None:
+            initial_points = np.asarray(
+                [[variable.ppf(0.5)]]).T
+
+    leja_sequence = get_christoffel_leja_sequence_1d(
+        max_nsamples, initial_points, bounds, basis_fun,
+        {'gtol':1e-8, 'verbose':False}, callback=None)
+    
+    __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
+    ordered_weights_1d =  get_christoffel_leja_quadrature_weights_1d(
+            leja_sequence, leja_growth_rule, __basis_fun, level, True)
+    return leja_sequence, ordered_weights_1d
+
+
+def discrete_univariate_leja_quadrature_rule(variable, growth_rule):
     var_type, __, shapes = get_distribution_info(variable)
-    if var_type=='uniform':
-        quad_rule = partial(
-            beta_leja_quadrature_rule, 1, 1, growth_rule=growth_rule,
-            samples_filename=None)
-    elif var_type=='beta':
-        quad_rule = partial(
-            beta_leja_quadrature_rule,shapes['a'], shapes['b'],
-            growth_rule=growth_rule)
-    elif var_type=='norm':
-        quad_rule = partial(
-            gaussian_leja_quadrature_rule, growth_rule=growth_rule)
-    elif var_type=='binom':
+    if var_type=='binom':
         num_trials = variable_parameters['num_trials']
         prob_success = variable_parameters['prob_success']
         def generate_candidate_samples(num_samples):
@@ -655,4 +727,32 @@ def get_univariate_leja_quadrature_rule(variable,growth_rule):
             growth_rule=growth_rule)        
     else:
         raise Exception('var_type %s not implemented'%var_type)
+    
+
+def get_univariate_leja_quadrature_rule(variable, growth_rule,
+                                    method='christoffel'):
+    
+    if not is_continuous_variable(variable):
+        return get_discrete_univariate_leja_quadrature_rule(
+            variable, growth_rule)
+    
+    if method == 'christoffel':
+        return partial(univariate_christoffel_leja_quadrature_rule,
+                       variable, growth_rule)
+        
+    var_type, __, shapes = get_distribution_info(variable)
+    if var_type=='uniform':
+        quad_rule = partial(
+            beta_leja_quadrature_rule, 1, 1, growth_rule=growth_rule,
+            samples_filename=None)
+    elif var_type=='beta':
+        quad_rule = partial(
+            beta_leja_quadrature_rule,shapes['a'], shapes['b'],
+            growth_rule=growth_rule)
+    elif var_type=='norm':
+        quad_rule = partial(
+            gaussian_leja_quadrature_rule, growth_rule=growth_rule)
+    else:
+        raise Exception('var_type %s not implemented'%var_type)
+    
     return quad_rule

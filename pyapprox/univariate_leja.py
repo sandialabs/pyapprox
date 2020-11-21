@@ -320,13 +320,14 @@ def minimize_leja_objective_1d(initial_guess, bounds, options):
 from scipy.optimize import Bounds
 from pyapprox.rol_minimize import pyapprox_minimize
 from functools import partial
-def get_leja_sequence_1d(max_num_leja_samples, initial_points, ranges,
-                         basis_fun, options, callback=None):
+def get_christoffel_leja_sequence_1d(
+        max_num_leja_samples, initial_points, ranges,
+        basis_fun, options, callback=None):
     leja_sequence = initial_points.copy()
     nsamples = leja_sequence.shape[1]
     degree = nsamples - 2
-    row_format = "{:<12} {:<25} {:<25}"
-    print(row_format.format('# Samples', 'interp degree', 'sample'))
+    #row_format = "{:<12} {:<25} {:<25}"
+    #print(row_format.format('# Samples', 'interp degree', 'sample'))
     while nsamples < max_num_leja_samples:
         degree += 1
         tmp = basis_fun(leja_sequence[0, :], nmax=degree+1,  deriv_order=0)
@@ -363,7 +364,7 @@ def get_leja_sequence_1d(max_num_leja_samples, initial_points, ranges,
             obj_vals[jj] = res.fun
         I = np.argmin(obj_vals)
         new_sample = new_samples[:, I]
-        print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
+        #print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
 
         if callback is not None:
             callback(
@@ -372,3 +373,64 @@ def get_leja_sequence_1d(max_num_leja_samples, initial_points, ranges,
         leja_sequence = np.hstack([leja_sequence, new_sample[:, None]])
         nsamples += 1
     return leja_sequence
+
+
+def get_christoffel_leja_quadrature_weights_1d(leja_sequence, growth_rule,
+                                               basis_fun, level,
+                                               return_weights_for_all_levels):
+    """
+    Parameters
+    ----------
+    basis_fun : callable
+        Evaluate the basis at a set of points.
+        Function with signature
+    
+        `basis_fun(samples) -> np.ndarray(nsamples, nterms)`
+
+    samples : np.ndarray (nsamples)
+    """
+    weight_function = partial(
+        sqrt_christoffel_function_inv_1d, basis_fun)
+    # need to wrap basis_fun to allow it to be used with generic multivariate
+    # function get_leja_sequence_quadrature_weights
+    def __basis_fun(x):
+        return basis_fun(x[0, :])
+    return get_leja_sequence_quadrature_weights(
+        leja_sequence, growth_rule, __basis_fun, weight_function,
+        level, return_weights_for_all_levels)
+
+
+def get_leja_sequence_quadrature_weights(leja_sequence, growth_rule,
+                                         basis_matrix_generator,
+                                         weight_function, level,
+                                         return_weights_for_all_levels):
+    """
+    Parameters
+    ----------
+    basis_matrix_generator : callable
+        Evaluate the basis at a set of points.
+        Function with signature
+    
+        `basis_matrix_generator(samples) -> np.ndarray(nsamples, nterms)`
+
+    samples : np.ndarray (nvars, nsamples)
+    """
+    sqrt_weights = np.sqrt(weight_function(leja_sequence))
+    # precondition matrix to produce better condition number
+    basis_matrix = (basis_matrix_generator(leja_sequence).T*sqrt_weights).T
+    if return_weights_for_all_levels:
+        ordered_weights_1d = []
+        for ll in range(level+1):
+            basis_matrix_inv = np.linalg.inv(
+                basis_matrix[:growth_rule(ll),:growth_rule(ll)])
+            # make sure to adjust weights to account for preconditioning
+            ordered_weights_1d.append(
+                basis_matrix_inv[0,:]*sqrt_weights[:growth_rule(ll)])
+    else:
+        basis_matrix_inv = np.linalg.inv(
+            basis_matrix[:growth_rule(level),:growth_rule(level)])
+        # make sure to adjust weights to account for preconditioning
+        ordered_weights_1d = basis_matrix_inv[0,:]*sqrt_weights
+
+    return ordered_weights_1d
+

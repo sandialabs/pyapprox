@@ -227,85 +227,7 @@ def evaluate_multivariate_orthonormal_polynomial(
         
     return values
 
-def get_recursion_coefficients(
-        opts,
-        num_coefs,
-        numerically_generated_poly_accuracy_tolerance=1e-12):
-    
-    poly_type = opts.get('poly_type',None)
-    var_type=None
-    if poly_type is None:
-        var_type=opts['rv_type']
-    if poly_type=='legendre' or var_type=='uniform':
-        recursion_coeffs = jacobi_recurrence(
-            num_coefs,alpha=0,beta=0,probability=True)
-    elif poly_type=='jacobi' or var_type=='beta':
-        if poly_type is not None:
-            alpha_poly,beta_poly = opts['alpha_poly'],opts['beta_poly']
-        else:
-            alpha_poly,beta_poly=opts['shapes']['b']-1,opts['shapes']['a']-1
-        recursion_coeffs = jacobi_recurrence(
-            num_coefs,alpha=alpha_poly,beta=beta_poly,probability=True)
-    elif poly_type=='hermite' or var_type=='norm':
-        recursion_coeffs = hermite_recurrence(
-            num_coefs, rho=0., probability=True)
-    elif poly_type=='krawtchouk' or var_type=='binom':
-        if poly_type is None:
-            opts = opts['shapes'] 
-        n,p = opts['n'],opts['p']
-        num_coefs = min(num_coefs,n)
-        recursion_coeffs = krawtchouk_recurrence(
-            num_coefs,n,p)
-    elif poly_type=='hahn' or var_type=='hypergeom':
-        if poly_type is not None:
-            apoly,bpoly = opts['alpha_poly'],opts['beta_poly']
-            N=opts['N']
-        else:
-            M,n,N=[opts['shapes'][key] for key in ['M','n','N']]
-            apoly,bpoly = -(n+1),-M-1+n
-        num_coefs = min(num_coefs,N)
-        recursion_coeffs = hahn_recurrence(
-            num_coefs,N,apoly,bpoly)
-    elif poly_type=='discrete_chebyshev' or var_type=='discrete_chebyshev':
-        if poly_type is not None:
-            N = opts['N']
-        else:
-            N = opts['shapes']['xk'].shape[0]
-            assert np.allclose(opts['shapes']['xk'],np.arange(N))
-            assert np.allclose(opts['shapes']['pk'],np.ones(N)/N)
-        num_coefs = min(num_coefs,N)
-        recursion_coeffs = discrete_chebyshev_recurrence(
-            num_coefs,N)
-    elif poly_type=='discrete_numeric' or var_type=='float_rv_discrete':
-        if poly_type is None:
-            opts = opts['shapes']
-        xk,pk = opts['xk'],opts['pk']
-        #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
-        xk = xk*2-1
-        assert xk.min()>=-1 and xk.max()<=1
-        if num_coefs>xk.shape[0]:
-            msg = 'Number of coefs requested is larger than number of '
-            msg += 'probability masses'
-            raise Exception(msg)
-        recursion_coeffs  = modified_chebyshev_orthonormal(
-            num_coefs,[xk,pk])
-        p = evaluate_orthonormal_polynomial_1d(
-            np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
-        error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
-        if error > numerically_generated_poly_accuracy_tolerance:
-            msg = f'basis created is ill conditioned. '
-            msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
-            msg += f'Terms requested: {num_coefs}'
-            raise Exception(msg)
-    elif poly_type=='monomial':
-        recursion_coeffs=None
-    else:
-        if poly_type is not None:
-            raise Exception('poly_type (%s) not supported'%poly_type)
-        else:
-            raise Exception('var_type (%s) not supported'%var_type)
-    return recursion_coeffs
-
+from pyapprox.orthonormal_polynomials_1d import get_recursion_coefficients
 class PolynomialChaosExpansion(object):
     def __init__(self):
         self.coefficients=None
@@ -736,7 +658,7 @@ def compute_product_coeffs_1d_for_each_variable(poly,max_degrees1,max_degrees2):
     # must ensure that poly1 and poly2 have the same basis types
     # in each dimension
     num_vars = poly.num_vars()
-    def get_recursion_coefficients(N,dd):
+    def get_recursion_coefficients(N, dd):
         poly.update_recursion_coefficients([N]*num_vars,poly.config_opts)
         return poly.recursion_coeffs[poly.basis_type_index_map[dd]].copy()
 

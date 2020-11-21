@@ -81,8 +81,8 @@ class TestLeja1DSequences(unittest.TestCase):
         err = check_gradients(jac, hess, sample)
         assert err.max() > .5 and err.min() < 1e-7
 
-    def test_get_leja_sequence_1d(self):
-        max_nsamples = 50
+    def test_get_christoffel_leja_sequence_1d(self):
+        max_nsamples = 3
         initial_points = np.array([[0]])
         ab = jacobi_recurrence(max_nsamples+1, 0, 0, True)
         basis_fun = partial(
@@ -102,13 +102,17 @@ class TestLeja1DSequences(unittest.TestCase):
                 initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*');
             plt.show()
 
-        
-        leja_sequence = get_leja_sequence_1d(
+        leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-1, 1], basis_fun,
             {'gtol':1e-8, 'verbose':False}, callback=None)
-        print(leja_sequence-np.array([0, -1, 1]))
         assert np.allclose(leja_sequence, [0, -1, 1], atol=2e-5)
-        
+
+        from pyapprox.univariate_quadrature import leja_growth_rule
+        level = 3
+        __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
+        weights = get_christoffel_leja_quadrature_weights_1d(
+            leja_sequence, leja_growth_rule, __basis_fun, level, True)
+        assert (leja_sequence**2).dot(weights[-1]) == 1/3
 
 
 class TestLejaSequences(unittest.TestCase):
