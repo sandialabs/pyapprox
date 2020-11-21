@@ -74,7 +74,40 @@ class TestLeja1DSequences(unittest.TestCase):
         err = check_gradients(fun, jac, sample)
         assert err.max() > 0.5 and err.min() < 1e-7
                       
+        basis_fun_jac_hess = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, nmax=degree+1, ab=ab,
+            deriv_order=2)
+        hess = partial(leja_objective_hess_1d, basis_fun_jac_hess, coef)
+        err = check_gradients(jac, hess, sample)
+        assert err.max() > .5 and err.min() < 1e-7
+
+    def test_get_leja_sequence_1d(self):
+        max_nsamples = 50
+        initial_points = np.array([[0]])
+        ab = jacobi_recurrence(max_nsamples+1, 0, 0, True)
+        basis_fun = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
+
+        def callback(leja_sequence, coef, new_samples, obj_vals,
+                     initial_guesses):
+            degree = coef.shape[0]-1
+            def plot_fun(x):
+                return -leja_objective_fun_1d(
+                    partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+                    x[None, :])
+            xx = np.linspace(-1, 1, 101); plt.plot(xx, plot_fun(xx));
+            plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o');
+            plt.plot(new_samples[0, :], obj_vals, 's');
+            plt.plot(
+                initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*');
+            plt.show()
+
         
+        leja_sequence = get_leja_sequence_1d(
+            max_nsamples, initial_points, [-1, 1], basis_fun,
+            {'gtol':1e-8, 'verbose':False}, callback=None)
+        print(leja_sequence-np.array([0, -1, 1]))
+        assert np.allclose(leja_sequence, [0, -1, 1], atol=2e-5)
         
 
 

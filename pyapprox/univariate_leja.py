@@ -247,92 +247,128 @@ def __leja_objective_jac_1d(basis_mat, basis_jac, coef):
     residual_jac = bderivs - pderivs
     jac = (residual**2*wdx1 + 2*w*residual*residual_jac).sum(axis=1)
     return jac
+
+
+def leja_objective_hess_1d(basis_fun_jac_hess, coef, samples):
+    assert samples.ndim == 2 and samples.shape[0] == 1
+    tmp = basis_fun_jac_hess(samples[0, :])
+    assert tmp.shape[1]%3 == 0
+    nterms = tmp.shape[1]//3
+    basis_mat = tmp[:, :nterms]
+    basis_jac = tmp[:, nterms:2*nterms]
+    basis_hess = tmp[:, 2*nterms:3*nterms]
+    return __leja_objective_hess_1d(basis_mat, basis_jac, basis_hess, coef)
+
+
+def __leja_objective_hess_1d(basis_mat, basis_jac, basis_hess, coef):
+    assert basis_mat.ndim == 2
+    assert basis_mat.shape == basis_jac.shape
+    assert coef.ndim == 2 and coef.shape[1] == 1
+    w = __sqrt_christoffel_function_inv_1d(basis_mat, False)
+    wdx1 = __sqrt_christoffel_function_inv_jac_1d(basis_mat, basis_jac, False)
+    wdx2 = __sqrt_christoffel_function_inv_hess_1d(
+        basis_mat, basis_jac, basis_hess, False)
+    bvals = basis_mat[:, -1:]
+    pvals = basis_mat[:, :-1].dot(coef)
+    bderivs = basis_jac[:, -1:]
+    pderivs = basis_jac[:, :-1].dot(coef)
+    bhess = basis_hess[:, -1:]
+    phess = basis_hess[:, :-1].dot(coef)
+    residual = (bvals - pvals)
+    residual_jac = bderivs - pderivs
+    residual_hess = bhess - phess
+    hess = (residual**2*wdx2 + 2*w*(residual*residual_hess+residual_jac**2)+
+           4*wdx1*residual*residual_jac).sum(axis=1)
+    return np.atleast_2d(hess)
+
+
+def get_initial_guesses_1d(leja_sequence, ranges):
+    eps = 1e-6 # must be larger than optimization tolerance
+    intervals = np.sort(leja_sequence)
+    if ranges[0] != None and (leja_sequence.min()>ranges[0]+eps):
+        intervals = np.hstack(([[ranges[0]]], intervals))
+    if ranges[1] != None and (leja_sequence.max()<ranges[1]-eps):
+        intervals = np.hstack((intervals, [[ranges[1]]]))
+
+    if ranges[0] is None:
+        intervals = np.hstack((
+            [[min(1.1*leja_sequence.min(), -0.1)]], intervals))
+    if ranges[1] is None:
+        intervals = np.hstack((
+            intervals, [[max(1.1*leja_sequence.max(), 0.1)]]))
+
+    diff = np.diff(intervals)
+    initial_guesses = intervals[:, :-1]+np.diff(intervals)/2.0
+
+    # put intervals in form useful for bounding 1d optimization problems
+    intervals = [intervals[0, ii] for ii in range(intervals.shape[1])]
+    if ranges[0] is None:
+        intervals[0] = None
+    if ranges[1] is None:
+        intervals[-1] = None
     
-
-def leja_objective_and_gradient_1d(samples, leja_sequence, basis_fun, degree,
-                                   coeff, deriv_order=0):
-    """
-    Evaluate the Leja objective at a set of samples.
-
-    Parameters
-    ----------
-    samples : np.ndarray (num_vars, num_samples)
-        The sample at which to evaluate the leja_objective
-
-    leja_sequence : np.ndarray (num_vars, num_leja_samples)
-        The sample already in the Leja sequence
-
-    deriv_order : integer
-        Flag specifiying whether to compute gradients of the objective
-
-    new_indices : np.ndarray (num_vars, num_new_indices)
-        The new indices that are considered when choosing next sample
-        in the Leja sequence
-
-    coeff : np.ndarray (num_indices, num_new_indices)
-        The coefficient of the approximation that interpolates the polynomial
-        terms specified by new_indices
-
-    Return
-    ------
-    residuals : np.ndarray(num_new_indices,num_samples):
-
-    objective_vals : np.ndarray (num_samples)
-        The values of the objective at samples
-
-    objective_grads : np.ndarray (num_vars,num_samples)
-        The gradient of the objective at samples. Return only
-        if deriv_order==1
-    """
-    assert samples.ndim == 2
-    num_vars, num_samples = samples.shape
-    assert num_samples == 1
-
-    indices = poly.indices.copy()
-    poly.set_indices(new_indices)
-    basis_matrix_for_new_indices_at_samples = poly.basis_matrix(
-        samples,{'deriv_order':deriv_order})
-    if deriv_order==1:
-        basis_deriv_matrix_for_new_indices_at_samples = \
-          basis_matrix_for_new_indices_at_samples[1:,:]
-    basis_matrix_for_new_indices_at_samples = \
-      basis_matrix_for_new_indices_at_samples[:1,:]
-    poly.set_indices(indices)
-
-    basis_matrix_at_samples = poly.basis_matrix(
-        samples[:,:1],{'deriv_order':deriv_order})
-    if deriv_order==1:
-        basis_deriv_matrix_at_samples = basis_matrix_at_samples[1:,:]
-    basis_matrix_at_samples = basis_matrix_at_samples[:1,:]
+    return initial_guesses, intervals
 
 
-    weights = weight_function(samples)
-    # to avoid division by zero
-    weights = np.maximum(weights,0)
-    assert weights.ndim==1
-    sqrt_weights = np.sqrt(weights)
-    
-    poly_vals = np.dot(basis_matrix_at_samples,coeff)
+def minimize_leja_objective_1d(initial_guess, bounds, options):
+    bounds = Bounds([bounds[0]], [bounds[1]])
+    res = pyapprox_minimize(
+        fun, initial_guess, jac, hess, bounds=bounds, options=options)
+    return res
 
-    unweighted_residual = basis_matrix_for_new_indices_at_samples-poly_vals
-    residual = sqrt_weights*unweighted_residual
-    
-    num_residual_entries = residual.shape[1]
 
-    if deriv_order==0:
-        return (residual,)
-    
-    poly_derivs = np.dot(basis_deriv_matrix_at_samples,coeff)
-    weight_derivs = weight_function_deriv(samples)
+from scipy.optimize import Bounds
+from pyapprox.rol_minimize import pyapprox_minimize
+from functools import partial
+def get_leja_sequence_1d(max_num_leja_samples, initial_points, ranges,
+                         basis_fun, options, callback=None):
+    leja_sequence = initial_points.copy()
+    nsamples = leja_sequence.shape[1]
+    degree = nsamples - 2
+    row_format = "{:<12} {:<25} {:<25}"
+    print(row_format.format('# Samples', 'interp degree', 'sample'))
+    while nsamples < max_num_leja_samples:
+        degree += 1
+        tmp = basis_fun(leja_sequence[0, :], nmax=degree+1,  deriv_order=0)
+        nterms = degree+1
+        basis_mat = tmp[:, :nterms]
+        new_basis = tmp[:, nterms:]
+        coef = compute_coefficients_of_leja_interpolant_1d(
+            basis_mat, new_basis)
+        initial_guesses, intervals = get_initial_guesses_1d(
+            leja_sequence, ranges)
+        new_samples = np.empty((1, initial_guesses.shape[1]))
+        obj_vals = np.empty((initial_guesses.shape[1]))
+        def fun(x):
+            # optimization passes in np.ndarray with ndim == 1
+            # need to make it 2D array
+            return -leja_objective_fun_1d(
+                partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+                x[:, None])
+        def jac(x):
+            return -leja_objective_jac_1d(
+                partial(basis_fun, nmax=degree+1, deriv_order=1), coef,
+                x[:, None])
+        def hess(x):
+            return -leja_objective_hess_1d(
+                partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
+                x[:, None])
+        for jj in range(initial_guesses.shape[1]):
+            initial_guess = initial_guesses[:, jj]
+            bounds = Bounds([intervals[jj]], [intervals[jj+1]])
+            res = pyapprox_minimize(
+                fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
+                options=options, method='slsqp')
+            new_samples[0, jj] = res.x
+            obj_vals[jj] = res.fun
+        I = np.argmin(obj_vals)
+        new_sample = new_samples[:, I]
+        print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
 
-    unweighted_residual_derivs = \
-      poly_derivs-basis_deriv_matrix_for_new_indices_at_samples
-    
-    jacobian = np.zeros((num_residual_entries,num_vars),dtype=float)
-    I = np.where(weights>0)[0]
-    for dd in range(num_vars):
-        jacobian[I,dd]=(
-            unweighted_residual[0,I]*weight_derivs[dd,I]/(2.0*sqrt_weights[I])-
-            unweighted_residual_derivs[dd,I]*sqrt_weights[I])
-    assert residual.ndim==2
-    return residual, jacobian
+        if callback is not None:
+            callback(
+                leja_sequence, coef, new_samples, obj_vals, initial_guesses)
+            
+        leja_sequence = np.hstack([leja_sequence, new_sample[:, None]])
+        nsamples += 1
+    return leja_sequence
