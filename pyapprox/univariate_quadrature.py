@@ -660,7 +660,7 @@ def univariate_christoffel_leja_quadrature_rule(
             initial_points = np.asarray(
                 [[2*variable.ppf(0.5)-1]]).T
     else:
-        bounds = rv.interval(1)
+        bounds = list(variable.interval(1))
         if initial_points is None:
             initial_points = np.asarray(
                 [[variable.ppf(0.5)]]).T
@@ -671,8 +671,8 @@ def univariate_christoffel_leja_quadrature_rule(
     
     __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
     ordered_weights_1d =  get_christoffel_leja_quadrature_weights_1d(
-            leja_sequence, leja_growth_rule, __basis_fun, level, True)
-    return leja_sequence, ordered_weights_1d
+            leja_sequence, growth_rule, __basis_fun, level, True)
+    return leja_sequence[0, :], ordered_weights_1d
 
 
 def discrete_univariate_leja_quadrature_rule(variable, growth_rule):

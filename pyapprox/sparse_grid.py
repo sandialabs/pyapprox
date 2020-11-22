@@ -86,6 +86,7 @@ def update_1d_samples_weights_economical(
                     # not typical ascending order
                     # Check if user specifies growth rule which is incompatible
                     # with quad rule.
+                    print (w[ll].shape[0], growth_rules[dd](ll))
                     assert w[ll].shape[0]==growth_rules[dd](ll)
                     weights_1d[kk].append(w[ll][:growth_rules[dd](ll)])
                     # following assumes nestedness of x

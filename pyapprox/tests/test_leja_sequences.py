@@ -7,8 +7,10 @@ from pyapprox.indexing import compute_hyperbolic_indices
 from pyapprox.variable_transformations import \
      define_iid_random_variable_transformation
 from scipy.stats import beta, uniform
+from scipy import stats
 from scipy.special import beta as beta_fn
-from pyapprox.utilities import beta_pdf_on_ab
+from pyapprox.utilities import beta_pdf_on_ab, beta_pdf, beta_pdf_derivative,\
+    gaussian_pdf, gaussian_pdf_derivative
 from pyapprox.univariate_leja import *
 from pyapprox.optimization import check_gradients
 from pyapprox.orthonormal_polynomials_1d import *
@@ -17,7 +19,7 @@ class TestLeja1DSequences(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
     
-    def test_christoffel_inv_gradients(self):
+    def test_sqrt_christoffel_inv_gradients(self):
         degree = 2
         ab = jacobi_recurrence(degree+1, 0, 0, True)
         basis_fun = partial(
@@ -46,7 +48,36 @@ class TestLeja1DSequences(unittest.TestCase):
         err = check_gradients(jac, hess, sample)
         assert err.max() > .5 and err.min() < 1e-7
 
-    def test_leja_objective_gradients(self):
+    def test_christoffel_inv_gradients(self):
+        degree = 2
+        ab = jacobi_recurrence(degree+1, 0, 0, True)
+        basis_fun = partial(
+            evaluate_orthonormal_polynomial_1d, nmax=degree, ab=ab)
+        basis_fun_and_jac = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, nmax=degree, ab=ab,
+            deriv_order=1)
+        sample = np.random.uniform(-1, 1, (1, 1))
+        #sample = np.atleast_2d(-0.99)
+        
+        fun = partial(christoffel_function_inv_1d, basis_fun)
+        jac = partial(christoffel_function_inv_jac_1d, basis_fun_and_jac)
+
+        #xx = np.linspace(-1, 1, 101); plt.plot(xx, fun(xx[None, :]));
+        #plt.plot(sample[0], fun(sample), 'o'); plt.show()
+
+        err = check_gradients(fun, jac, sample)
+        assert err.max() > .5 and err.min() < 1e-7
+
+        basis_fun_jac_hess = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, nmax=degree, ab=ab,
+            deriv_order=2)
+        hess = partial(
+            christoffel_function_inv_hess_1d, basis_fun_jac_hess,
+            normalize=False)
+        err = check_gradients(jac, hess, sample)
+        assert err.max() > .5 and err.min() < 1e-7
+
+    def test_christoffel_leja_objective_gradients(self):
         #leja_sequence = np.array([[-1, 1]])
         leja_sequence = np.array([[-1, 0, 1]])
         degree = leja_sequence.shape[1]-1
@@ -57,10 +88,10 @@ class TestLeja1DSequences(unittest.TestCase):
         nterms = degree+1
         basis_mat = tmp[:, :nterms]
         new_basis = tmp[:, nterms:]
-        coef = compute_coefficients_of_leja_interpolant_1d(
+        coef = compute_coefficients_of_christoffel_leja_interpolant_1d(
             basis_mat, new_basis)
 
-        fun = partial(leja_objective_fun_1d, basis_fun, coef)
+        fun = partial(christoffel_leja_objective_fun_1d, basis_fun, coef)
 
         #xx = np.linspace(-1, 1, 101); plt.plot(xx, fun(xx[None, :]));
         #plt.plot(leja_sequence[0, :], fun(leja_sequence), 'o'); plt.show()
@@ -68,7 +99,8 @@ class TestLeja1DSequences(unittest.TestCase):
         basis_fun_and_jac = partial(
             evaluate_orthonormal_polynomial_deriv_1d, nmax=degree+1, ab=ab,
             deriv_order=1)
-        jac = partial(leja_objective_jac_1d, basis_fun_and_jac, coef)
+        jac = partial(
+            christoffel_leja_objective_jac_1d, basis_fun_and_jac, coef)
 
         sample = sample = np.random.uniform(-1, 1, (1, 1))
         err = check_gradients(fun, jac, sample)
@@ -77,11 +109,63 @@ class TestLeja1DSequences(unittest.TestCase):
         basis_fun_jac_hess = partial(
             evaluate_orthonormal_polynomial_deriv_1d, nmax=degree+1, ab=ab,
             deriv_order=2)
-        hess = partial(leja_objective_hess_1d, basis_fun_jac_hess, coef)
+        hess = partial(
+            christoffel_leja_objective_hess_1d, basis_fun_jac_hess, coef)
         err = check_gradients(jac, hess, sample)
         assert err.max() > .5 and err.min() < 1e-7
 
-    def test_get_christoffel_leja_sequence_1d(self):
+    def test_pdf_weighted_leja_objective_gradients(self):
+        #leja_sequence = np.array([[-1, 1]])
+        leja_sequence = np.array([[-1, 0, 1]])
+        degree = leja_sequence.shape[1]-1
+        ab = jacobi_recurrence(degree+2, 0, 0, True)
+        basis_fun = partial(
+            evaluate_orthonormal_polynomial_1d, nmax=degree+1, ab=ab)
+
+        def pdf(x):
+            return beta_pdf(1, 1, (x+1)/2)/2
+        
+        def pdf_jac(x):
+            return beta_pdf_derivative(1, 1, (x+1)/2)/4
+
+        
+        tmp = basis_fun(leja_sequence[0, :])
+        nterms = degree+1
+        basis_mat = tmp[:, :nterms]
+        new_basis = tmp[:, nterms:]
+        coef = compute_coefficients_of_pdf_weighted_leja_interpolant_1d(
+            pdf(leja_sequence[0, :]), basis_mat, new_basis)
+        
+        fun = partial(pdf_weighted_leja_objective_fun_1d, pdf, basis_fun, coef)
+
+        #xx = np.linspace(-1, 1, 101); plt.plot(xx, fun(xx[None, :]));
+        #plt.plot(leja_sequence[0, :], fun(leja_sequence), 'o'); plt.show()
+        
+        basis_fun_and_jac = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, nmax=degree+1, ab=ab,
+            deriv_order=1)
+        jac = partial(
+            pdf_weighted_leja_objective_jac_1d, pdf, pdf_jac,
+            basis_fun_and_jac, coef)
+
+        sample = sample = np.random.uniform(-1, 1, (1, 1))
+        err = check_gradients(fun, jac, sample)
+        assert err.max() > 0.4 and err.min() < 1e-7
+
+        # hessian not currently used in optimization. To activate
+        # need to compute the 2nd derivative of the pdf of each supported
+        # variable
+        
+        # basis_fun_jac_hess = partial(
+        #     evaluate_orthonormal_polynomial_deriv_1d, nmax=degree+1, ab=ab,
+        #     deriv_order=2)
+        # hess = partial(
+        #     pdf_weighted_leja_objective_hess_1d, pdf, pdf_jac, pdf_hess,
+        #     basis_fun_jac_hess, coef)
+        # err = check_gradients(jac, hess, sample)
+        # assert err.max() > .5 and err.min() < 1e-7
+
+    def test_uniform_christoffel_leja_sequence_1d(self):
         max_nsamples = 3
         initial_points = np.array([[0]])
         ab = jacobi_recurrence(max_nsamples+1, 0, 0, True)
@@ -92,7 +176,7 @@ class TestLeja1DSequences(unittest.TestCase):
                      initial_guesses):
             degree = coef.shape[0]-1
             def plot_fun(x):
-                return -leja_objective_fun_1d(
+                return -christoffel_leja_objective_fun_1d(
                     partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
                     x[None, :])
             xx = np.linspace(-1, 1, 101); plt.plot(xx, plot_fun(xx));
@@ -105,6 +189,7 @@ class TestLeja1DSequences(unittest.TestCase):
         leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-1, 1], basis_fun,
             {'gtol':1e-8, 'verbose':False}, callback=None)
+        print(leja_sequence)
         assert np.allclose(leja_sequence, [0, -1, 1], atol=2e-5)
 
         from pyapprox.univariate_quadrature import leja_growth_rule
@@ -113,6 +198,73 @@ class TestLeja1DSequences(unittest.TestCase):
         weights = get_christoffel_leja_quadrature_weights_1d(
             leja_sequence, leja_growth_rule, __basis_fun, level, True)
         assert (leja_sequence**2).dot(weights[-1]) == 1/3
+
+    def test_hermite_christoffel_leja_sequence_1d(self):
+        max_nsamples = 3
+        initial_points = np.array([[0]])
+        ab = hermite_recurrence(max_nsamples+1, True)
+        basis_fun = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
+
+        def callback(leja_sequence, coef, new_samples, obj_vals,
+                     initial_guesses):
+            degree = coef.shape[0]-1
+            def plot_fun(x):
+                return -christoffel_leja_objective_fun_1d(
+                    partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+                    x[None, :])
+            xx = np.linspace(-10, 10, 101); plt.plot(xx, plot_fun(xx));
+            plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o');
+            #plt.plot(new_samples[0, :], obj_vals, 's');
+            plt.plot(
+                initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*');
+            plt.plot(xx, christoffel_function_inv_1d(
+                partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+                xx[None, :]))
+            plt.show()
+
+        leja_sequence = get_christoffel_leja_sequence_1d(
+            max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,
+            {'gtol':1e-8, 'verbose':False}, callback=None)
+
+        assert False, 'Test not yet complete'
+
+
+    def test_hermite_pdf_weighted_leja_sequence_1d(self):
+        max_nsamples = 3
+        initial_points = np.array([[0]])
+        ab = hermite_recurrence(max_nsamples+1, True)
+        basis_fun = partial(
+            evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
+
+        pdf = partial(gaussian_pdf, 0, 1)
+        pdf_jac = partial(gaussian_pdf_derivative, 0, 1)
+        
+        def callback(leja_sequence, coef, new_samples, obj_vals,
+                     initial_guesses):
+            degree = coef.shape[0]-1
+            def plot_fun(x):
+                return -pdf_weighted_leja_objective_fun_1d(
+                    pdf, partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+                    x[None, :])
+            xx = np.linspace(-10, 10, 101); plt.plot(xx, plot_fun(xx));
+            plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o');
+            #plt.plot(new_samples[0, :], obj_vals, 's');
+            plt.plot(
+                initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*');
+            plt.show()
+
+        leja_sequence = get_pdf_weighted_leja_sequence_1d(
+            max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,
+            pdf, pdf_jac, 
+            {'gtol':1e-8, 'verbose':False}, callback)
+
+
+        # compare to lu based leja samples
+        # given the same set of initial samples the next sample chosen
+        # should be close with the one from the gradient based method having
+        # slightly better objective value
+        assert False, 'Test not yet complete' 
 
 
 class TestLejaSequences(unittest.TestCase):
@@ -235,18 +387,23 @@ class TestLejaSequences(unittest.TestCase):
         #plt.show()
 
     def test_optimize_leja_objective_1d(self):
-        num_vars = 1; num_leja_samples = 10
-        alpha_stat,beta_stat=[2,2]
+        num_vars = 1
+        num_leja_samples = 3
+        # alpha_stat, beta_stat = 2, 2
+        alpha_stat, beta_stat = 1, 1
         weight_function, weight_function_deriv, poly = self.setup(
-            num_vars,alpha_stat,beta_stat)
+            num_vars, alpha_stat, beta_stat)
 
-        ranges = [-1,1]
-        initial_points = np.asarray([[0.2,-1,1]])
+        ranges = [-1, 1]
+        # initial_points = np.asarray([[0.2, -1, 1]])
+        initial_points = np.asarray([[0.]])
 
         plt.clf()
         leja_sequence = get_leja_sequence_1d(
             num_leja_samples,initial_points,poly,
-            weight_function,weight_function_deriv,ranges,plot=False)
+            weight_function, weight_function_deriv, ranges, plot=False)
+        print(leja_sequence)
+        assert np.allclose(leja_sequence, [0, 1, -1])
         #plt.show()
 
     def test_optimize_leja_objective_2d(self):
@@ -278,9 +435,10 @@ class TestLejaSequences(unittest.TestCase):
 if __name__== "__main__":
     leja1d_test_suite = unittest.TestLoader().loadTestsFromTestCase(
          TestLeja1DSequences)
-    unittest.TextTestRunner(verbosity=2).run(leja_testd1_suite)
+    unittest.TextTestRunner(verbosity=2).run(leja1d_test_suite)
     
     leja_test_suite = unittest.TestLoader().loadTestsFromTestCase(
          TestLejaSequences)
     unittest.TextTestRunner(verbosity=2).run(leja_test_suite)
 
+    
