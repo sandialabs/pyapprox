@@ -4,6 +4,8 @@ try:
 except:
     has_ROL = False
 
+from scipy.optimize import minimize as scipy_minimize
+
 
 def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
                       hess=None, hessp=None, bounds=None, constraints=(),

@@ -5,7 +5,6 @@ from ROL import StdVector as RolVector
 # from ROL.numpy_vector import NumpyVector as RolVector
 from scipy.optimize import LinearConstraint, NonlinearConstraint, Bounds, \
     OptimizeResult, BFGS
-from scipy.optimize import minimize as scipy_minimize
 from functools import partial
 def std_vector_to_numpy(x):
     size = x.dimension()

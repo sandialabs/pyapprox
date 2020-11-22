@@ -1003,23 +1003,23 @@ def lists_of_lists_of_arrays_equal(list1,list2):
                 return False
     return True
 
-def beta_pdf(alpha_stat,beta_stat,x):
+def beta_pdf(alpha_stat, beta_stat, x):
     #scipy implementation is slow
-    const = 1./beta_fn(alpha_stat,beta_stat)
+    const = 1./beta_fn(alpha_stat, beta_stat)
     return const*(x**(alpha_stat-1)*(1-x)**(beta_stat-1))
 
 def pdf_under_affine_map(pdf,loc,scale,y):
     return pdf((y-loc)/scale)/scale
 
-def beta_pdf_on_ab(alpha_stat,beta_stat,a,b,x):
+def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
     #const = 1./beta_fn(alpha_stat,beta_stat)
     #const /= (b-a)**(alpha_stat+beta_stat-1)
     #return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
     from functools import partial
-    pdf = partial(beta_pdf,alpha_stat,beta_stat)
-    return pdf_under_affine_map(pdf,a,(b-a),x)
+    pdf = partial(beta_pdf, alpha_stat, beta_stat)
+    return pdf_under_affine_map(pdf, a, (b-a), x)
 
-def beta_pdf_derivative(alpha_stat,beta_stat,x):
+def beta_pdf_derivative(alpha_stat, beta_stat, x):
     r"""
     x in [0,1]
     """
@@ -1028,15 +1028,15 @@ def beta_pdf_derivative(alpha_stat,beta_stat,x):
 
     beta_const = 1./beta_fn(alpha_stat,beta_stat)
     deriv=0
-    if alpha_stat>1:
+    if alpha_stat > 1:
         deriv += (alpha_stat-1)*(x**(alpha_stat-2)*(1-x)**(beta_stat-1))
-    if beta_stat>1:
+    if beta_stat > 1:
         deriv -= (beta_stat -1)*(x**(alpha_stat-1)*(1-x)**(beta_stat-2))
     deriv *= beta_const
     return deriv
 
 from scipy.special import erf
-def gaussian_cdf(mean,var,x):
+def gaussian_cdf(mean, var,x):
   return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
 
 def gaussian_pdf(mean, var, x, package=np):
@@ -1045,8 +1045,8 @@ def gaussian_pdf(mean, var, x, package=np):
     """
     return package.exp(-(x-mean)**2/(2*var)) / (2*package.pi*var)**.5
 
-def gaussian_pdf_derivative(mean,var,x):
-    return -gaussian_pdf(mean,var,x)*(x-mean)/var
+def gaussian_pdf_derivative(mean, var, x):
+    return -gaussian_pdf(mean, var, x)*(x-mean)/var
 
 def pdf_derivative_under_affine_map(pdf_deriv,loc,scale,y):
     r"""
