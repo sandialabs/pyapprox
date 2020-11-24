@@ -640,10 +640,10 @@ def sorted_eigh(C):
     W = W*s
     return e.reshape((e.size,1)), W
 
-def continue_pivoted_lu_factorization(LU_factor,raw_pivots,current_iter,
-                                      max_iters,num_initial_rows=0):
+def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
+                                      max_iters ,num_initial_rows=0):
     it = current_iter
-    for it in range(current_iter,max_iters):
+    for it in range(current_iter, max_iters):
                     
         # find best pivot
         if np.isscalar(num_initial_rows) and (it<num_initial_rows):
@@ -651,34 +651,34 @@ def continue_pivoted_lu_factorization(LU_factor,raw_pivots,current_iter,
             pivot = it
         elif (not np.isscalar(num_initial_rows) and
               (it<num_initial_rows.shape[0])):
-            pivot=num_initial_rows[it]
+            pivot = num_initial_rows[it]
         else:
-            pivot = np.argmax(np.absolute(LU_factor[it:,it]))+it
+            pivot = np.argmax(np.absolute(LU_factor[it:, it]))+it
 
 
         # update pivots vector
         #swap_rows(pivots,it,pivot)
-        raw_pivots[it]=pivot
+        raw_pivots[it] = pivot
       
         # apply pivots(swap rows) in L factorization
-        swap_rows(LU_factor,it,pivot)
+        swap_rows(LU_factor, it, pivot)
 
         # check for singularity
-        if abs(LU_factor[it,it])<np.finfo(float).eps:
-            msg = "pivot %1.2e"%abs(LU_factor[it,it])
+        if abs(LU_factor[it, it])<  np.finfo(float).eps:
+            msg = "pivot %1.2e"%abs(LU_factor[it, it])
             msg += " is to small. Stopping factorization."
             print (msg)
             break
 
         # update L_factor
-        LU_factor[it+1:,it] /= LU_factor[it,it];
+        LU_factor[it+1:, it] /= LU_factor[it, it];
 
         # udpate U_factor
-        col_vector = LU_factor[it+1:,it]
-        row_vector = LU_factor[it,it+1:]
+        col_vector = LU_factor[it+1:, it]
+        row_vector = LU_factor[it, it+1:]
 
-        update = np.outer(col_vector,row_vector)
-        LU_factor[it+1:,it+1:]-= update
+        update = np.outer(col_vector, row_vector)
+        LU_factor[it+1:, it+1:] -= update
     return LU_factor, raw_pivots, it
 
 def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
@@ -704,7 +704,7 @@ def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
     return LU_factor
     
 
-def split_lu_factorization_matrix(LU_factor,num_pivots=None):
+def split_lu_factorization_matrix(LU_factor, num_pivots=None):
     r"""
     Return the L and U factors of an inplace LU factorization
 
@@ -730,7 +730,7 @@ def split_lu_factorization_matrix(LU_factor,num_pivots=None):
     U_factor[num_pivots:,num_pivots:] = LU_factor[num_pivots:,num_pivots:]
     return L_factor, U_factor
 
-def truncated_pivoted_lu_factorization(A,max_iters,num_initial_rows=0,
+def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
                                        truncate_L_factor=True):
     r"""
     Compute a incomplete pivoted LU decompostion of a matrix.
@@ -781,20 +781,21 @@ def truncated_pivoted_lu_factorization(A,max_iters,num_initial_rows=0,
     # processing
     LU_factor = A.copy()
     raw_pivots = np.arange(num_rows)#np.empty(num_rows,dtype=int)
-    LU_factor,raw_pivots,it = continue_pivoted_lu_factorization(
-        LU_factor,raw_pivots,0,max_iters,num_initial_rows)
+    LU_factor, raw_pivots, it = continue_pivoted_lu_factorization(
+        LU_factor, raw_pivots, 0, max_iters, num_initial_rows)
         
     if not truncate_L_factor:
         return LU_factor, raw_pivots
     else:
         pivots = get_final_pivots_from_sequential_pivots(
             raw_pivots)[:it+1]
-        L_factor, U_factor = split_lu_factorization_matrix(LU_factor,it+1)
-        L_factor = L_factor[:it+1,:it+1]
-        U_factor = U_factor[:it+1,:it+1]
+        L_factor, U_factor = split_lu_factorization_matrix(LU_factor, it+1)
+        L_factor = L_factor[:it+1, :it+1]
+        U_factor = U_factor[:it+1, :it+1]
         return L_factor, U_factor, pivots
+
     
-def add_columns_to_pivoted_lu_factorization(LU_factor,new_cols,raw_pivots):
+def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     r"""
     Given factorization PA=LU add new columns to A in unpermuted order and 
     update LU factorization
@@ -806,13 +807,13 @@ def add_columns_to_pivoted_lu_factorization(LU_factor,new_cols,raw_pivots):
         If desired one can use get_final_pivots_from_sequential_pivots to 
         compute final position of rows after all pivots have been applied.
     """
-    assert LU_factor.shape[0]==new_cols.shape[0]
-    assert raw_pivots.shape[0]<=new_cols.shape[0]
+    assert LU_factor.shape[0] == new_cols.shape[0]
+    assert raw_pivots.shape[0] <= new_cols.shape[0]
     num_new_cols = new_cols.shape[1]
     num_pivots = raw_pivots.shape[0]
     for it in range(num_pivots):
         pivot = raw_pivots[it]
-        swap_rows(new_cols,it,pivot)
+        swap_rows(new_cols, it,pivot)
 
         # update U_factor
         # recover state of col vector from permuted LU factor
@@ -821,60 +822,65 @@ def add_columns_to_pivoted_lu_factorization(LU_factor,new_cols,raw_pivots):
         # (0,4),(1,2),(2,4) then LU_factor[:,0] here will be col_vector
         # in LU algorithm with the second and third permutations
         # so undo these permutations in reverse order
-        col_vector = LU_factor[it+1:,it].copy()
+        col_vector = LU_factor[it+1:, it].copy()
         for ii in range(num_pivots-it-1):
             # (it+1) necessary in two lines below because only dealing
             # with compressed col vector which starts at row it in LU_factor
-            jj=raw_pivots[num_pivots-1-ii]-(it+1)
-            kk=num_pivots-ii-1-(it+1)
+            jj = raw_pivots[num_pivots-1-ii]-(it+1)
+            kk = num_pivots-ii-1-(it+1)
             swap_rows(col_vector,jj,kk)
-        row_vector = new_cols[it,:]
+        row_vector = new_cols[it, :]
 
-        update = np.outer(col_vector,row_vector)
-        new_cols[it+1:,:] -= update
+        update = np.outer(col_vector, row_vector)
+        new_cols[it+1:, :] -= update
 
         #new_cols = add_rows_to_pivoted_lu_factorization(
         #    new_cols[:it+1,:],new_cols[it+1:,:],num_pivots)
 
-    LU_factor = np.hstack((LU_factor,new_cols))
+    LU_factor = np.hstack((LU_factor, new_cols))
     return LU_factor
 
-def add_rows_to_pivoted_lu_factorization(LU_factor,new_rows,num_pivots):
-    assert LU_factor.shape[1]==new_rows.shape[1]
+
+def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
+    assert LU_factor.shape[1] == new_rows.shape[1]
     num_new_rows = new_rows.shape[0]
     LU_factor_extra = new_rows.copy()
     for it in range(num_pivots):
-        LU_factor_extra[:,it]/=LU_factor[it,it]
-        col_vector = LU_factor_extra[:,it]
-        row_vector = LU_factor[it,it+1:]
-        update = np.outer(col_vector,row_vector)
-        LU_factor_extra[:,it+1:] -= update
+        LU_factor_extra[:, it] /= LU_factor[it, it]
+        col_vector = LU_factor_extra[:, it]
+        row_vector = LU_factor[it, it+1:]
+        update = np.outer(col_vector, row_vector)
+        LU_factor_extra[:, it+1:] -= update
         
-    return np.vstack([LU_factor,LU_factor_extra])
-        
-def swap_rows(matrix,ii,jj):
-    temp = matrix[ii].copy()
-    matrix[ii]=matrix[jj]
-    matrix[jj]=temp
+    return np.vstack([LU_factor, LU_factor_extra])
 
-def pivot_rows(pivots,matrix,in_place=True):
+
+def swap_rows(matrix, ii, jj):
+    temp = matrix[ii].copy()
+    matrix[ii] = matrix[jj]
+    matrix[jj] = temp
+
+    
+def pivot_rows(pivots, matrix, in_place=True):
     if not in_place:
         matrix = matrix.copy()
     num_pivots = pivots.shape[0]
     assert num_pivots <= matrix.shape[0]
     for ii in range(num_pivots):
-        swap_rows(matrix,ii,pivots[ii])
+        swap_rows(matrix, ii, pivots[ii])
     return matrix
 
-def get_final_pivots_from_sequential_pivots(sequential_pivots,num_pivots=None):
+
+def get_final_pivots_from_sequential_pivots(sequential_pivots, num_pivots=None):
     if num_pivots is None:
         num_pivots = sequential_pivots.shape[0]
     assert num_pivots >= sequential_pivots.shape[0]
     pivots = np.arange(num_pivots)
-    return pivot_rows(sequential_pivots,pivots,False)
+    return pivot_rows(sequential_pivots, pivots, False)
+
 
 def get_tensor_product_quadrature_rule(
-        degrees,num_vars,univariate_quadrature_rules,transform_samples=None,
+        degrees, num_vars, univariate_quadrature_rules, transform_samples=None,
         density_function=None):
     r"""
     if get error about outer product failing it may be because 
@@ -900,6 +906,7 @@ def get_tensor_product_quadrature_rule(
     if transform_samples is not None:
         samples = transform_samples(samples)
     return samples, weights
+
 
 def piecewise_quadratic_interpolation(samples,mesh,mesh_vals,ranges):
     assert mesh.shape[0]==mesh_vals.shape[0]
@@ -945,6 +952,7 @@ def piecewise_quadratic_interpolation(samples,mesh,mesh_vals,ranges):
     #     vals[idx1:idx2+1] += interval_vals
     # return vals[np.argsort(I)]
 
+    
 def canonical_piecewise_quadratic_interpolation(x,nodal_vals):
     r"""
     Piecewise quadratic interpolation of nodes at [0,0.5,1]
@@ -956,7 +964,8 @@ def canonical_piecewise_quadratic_interpolation(x,nodal_vals):
       nodal_vals[2]*(-x+2.0*x**2)
     return vals
 
-def discrete_sampling(N,probs,states=None):
+
+def discrete_sampling(N, probs, states=None):
     r"""
     discrete_sampling -- samples iid from a discrete probability measure
 
@@ -983,6 +992,7 @@ def discrete_sampling(N,probs,states=None):
         
     return x.squeeze()
 
+
 def lists_of_arrays_equal(list1,list2):
     if len(list1)!=len(list2):
         return False
@@ -1003,13 +1013,16 @@ def lists_of_lists_of_arrays_equal(list1,list2):
                 return False
     return True
 
+
 def beta_pdf(alpha_stat, beta_stat, x):
     #scipy implementation is slow
     const = 1./beta_fn(alpha_stat, beta_stat)
     return const*(x**(alpha_stat-1)*(1-x)**(beta_stat-1))
 
+
 def pdf_under_affine_map(pdf,loc,scale,y):
     return pdf((y-loc)/scale)/scale
+
 
 def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
     #const = 1./beta_fn(alpha_stat,beta_stat)
@@ -1018,6 +1031,7 @@ def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
     from functools import partial
     pdf = partial(beta_pdf, alpha_stat, beta_stat)
     return pdf_under_affine_map(pdf, a, (b-a), x)
+
 
 def beta_pdf_derivative(alpha_stat, beta_stat, x):
     r"""
@@ -1035,9 +1049,11 @@ def beta_pdf_derivative(alpha_stat, beta_stat, x):
     deriv *= beta_const
     return deriv
 
+
 from scipy.special import erf
 def gaussian_cdf(mean, var,x):
   return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
+
 
 def gaussian_pdf(mean, var, x, package=np):
     r"""
@@ -1045,10 +1061,12 @@ def gaussian_pdf(mean, var, x, package=np):
     """
     return package.exp(-(x-mean)**2/(2*var)) / (2*package.pi*var)**.5
 
+
 def gaussian_pdf_derivative(mean, var, x):
     return -gaussian_pdf(mean, var, x)*(x-mean)/var
 
-def pdf_derivative_under_affine_map(pdf_deriv,loc,scale,y):
+
+def pdf_derivative_under_affine_map(pdf_deriv, loc, scale, y):
     r"""
     Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
     p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
@@ -1056,8 +1074,9 @@ def pdf_derivative_under_affine_map(pdf_deriv,loc,scale,y):
     """
     return pdf_deriv((y-loc)/scale)/scale**2
 
+
 def gradient_of_tensor_product_function(univariate_functions,
-                                        univariate_derivatives,samples):
+                                        univariate_derivatives, samples):
     num_samples = samples.shape[1]
     num_vars = len(univariate_functions)
     assert len(univariate_derivatives)==num_vars
@@ -1075,13 +1094,15 @@ def gradient_of_tensor_product_function(univariate_functions,
             gradient[ii,:] *= function_values[jj]
     return gradient
 
-def evaluate_tensor_product_function(univariate_functions,samples):
+
+def evaluate_tensor_product_function(univariate_functions, samples):
     num_samples = samples.shape[1]
     num_vars = len(univariate_functions)
     values = np.ones((num_samples))
     for ii in range(num_vars):
         values *= univariate_functions[ii](samples[ii,:])
     return values
+
 
 def cholesky_decomposition(Amat):
     
@@ -1098,6 +1119,7 @@ def cholesky_decomposition(Amat):
            (Amat[ii+1:,ii]-np.sum(L[ii+1:,:ii]*L[ii,:ii],axis=1))/L[ii,ii]
         
     return L
+
 
 def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
                                    error_on_small_tol=False,
@@ -1212,13 +1234,16 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
             
     return L, pivots, diag, chol_flag, ii+1, error
 
+
 def get_pivot_matrix_from_vector(pivots,nrows):
     P = np.eye(nrows)
     P = P[pivots,:]
     return P
 
+
 def determinant_triangular_matrix(matrix):
     return np.prod(np.diag(matrix))
+
 
 def get_all_primes_less_than_or_equal_to_n(n):
     primes = list()
@@ -1238,6 +1263,7 @@ def get_first_n_primes(n):
             primes.append(num)
         num+=2
     return np.asarray(primes)
+
 
 def halton_sequence(num_vars, index1, index2):
     assert index1<index2
@@ -1270,6 +1296,7 @@ def halton_sequence(num_vars, index1, index2):
         kk+=1
     return sequence
 
+
 def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
                                 start_index=1):
     assert start_index>0
@@ -1288,6 +1315,7 @@ def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
         samples[ii, :] = marginal_icdfs[ii](samples[ii, :])
     return samples
 
+
 def approx_fprime(x,func,eps=np.sqrt(np.finfo(float).eps)):
     r"""Approx the gradient of a vector valued function at a single
     sample using finite_difference
@@ -1303,12 +1331,14 @@ def approx_fprime(x,func,eps=np.sqrt(np.finfo(float).eps)):
         fprime.append((func(x_plus_eps).squeeze()-func_at_x)/eps)
     return np.array(fprime)
 
+
 def partial_functions_equal(func1, func2):
     if not (isinstance(func1, partial) and isinstance(func2, partial)):
         return False
     are_equal = all([getattr(func1, attr) == getattr(func2, attr)
                      for attr in ['func', 'args', 'keywords']])
     return are_equal
+
 
 def get_all_sample_combinations(samples1,samples2):
     r"""
@@ -1334,6 +1364,7 @@ def get_all_sample_combinations(samples1,samples2):
         samples.append(np.concatenate(r))
     return np.asarray(samples).T
 
+
 def get_correlation_from_covariance(cov):
     r"""
     Compute the correlation matrix from a covariance matrix
@@ -1358,6 +1389,7 @@ def get_correlation_from_covariance(cov):
     stdev_inv = 1/np.sqrt(np.diag(cov))
     cor = stdev_inv[np.newaxis,:]*cov*stdev_inv[:,np.newaxis]
     return cor
+
 
 def compute_f_divergence(density1,density2,quad_rule,div_type,
                          normalize=False):
@@ -1532,6 +1564,7 @@ def num_entries_square_triangular_matrix(N, include_diagonal=True):
     else:
         return int(N*(N-1)/2)
 
+    
 def num_entries_rectangular_triangular_matrix(M ,N, upper=True):
     r"""Num entries in upper (or lower) MxN traingular matrix.
     This is useful for nested for loops like
@@ -1554,6 +1587,7 @@ def num_entries_rectangular_triangular_matrix(M ,N, upper=True):
         return num_entries_square_triangular_matrix(M)-\
             num_entries_square_triangular_matrix(M-N)
 
+    
 def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     r"""
     Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
@@ -1565,6 +1599,7 @@ def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     T = num_entries_rectangular_triangular_matrix(ii, min(ii, N), upper=False)
     kk = T+jj
     return kk
+
 
 def evaluate_quadratic_form(matrix,samples):
     r"""
@@ -1584,6 +1619,7 @@ def evaluate_quadratic_form(matrix,samples):
         Evaluations of the quadratic form for each vector x
     """
     return (samples.T.dot(matrix)*samples.T).sum(axis=1)
+
 
 def split_dataset(samples,values,ndata1):
     """

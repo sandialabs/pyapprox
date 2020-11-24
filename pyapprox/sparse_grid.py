@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.utilities import cartesian_product, outer_product, hash_array
@@ -8,7 +6,9 @@ from pyapprox.indexing import nchoosek, compute_hyperbolic_level_indices, \
 from pyapprox.barycentric_interpolation import compute_barycentric_weights_1d,\
      multivariate_barycentric_lagrange_interpolation, \
      multivariate_hierarchical_barycentric_lagrange_interpolation
-def get_1d_samples_weights(quad_rules,growth_rules,
+
+
+def get_1d_samples_weights(quad_rules, growth_rules,
                            levels,config_variables_idx=None,
                            unique_rule_indices=None):
     levels = np.asarray(levels)
@@ -20,12 +20,12 @@ def get_1d_samples_weights(quad_rules,growth_rules,
     samples_1d = [[] for i in range(num_vars)]
     weights_1d = [[] for i in range(num_vars)]
     return update_1d_samples_weights(
-        quad_rules,growth_rules,levels,
-        samples_1d,weights_1d,config_variables_idx,unique_rule_indices)
+        quad_rules, growth_rules, levels,
+        samples_1d, weights_1d, config_variables_idx, unique_rule_indices)
 
 def update_1d_samples_weights_economical(
-        quad_rules,growth_rules,levels,samples_1d,weights_1d,
-        config_variables_idx,unique_rule_indices):
+        quad_rules, growth_rules, levels, samples_1d, weights_1d,
+        config_variables_idx, unique_rule_indices):
     """
     Sometimes it is computationally time consuming to construct quadrature
     rules for each dimension, e.g. for numerically generated Leja rules.
@@ -45,8 +45,8 @@ def update_1d_samples_weights_economical(
     quadrature rule for each variable.
     """
 
-    assert len(quad_rules)==len(growth_rules)
-    assert len(quad_rules)==len(unique_rule_indices)
+    assert len(quad_rules )== len(growth_rules)
+    assert len(quad_rules) == len(unique_rule_indices)
     cnt = 0
     levels = np.asarray(levels)
     for dd in range(len(unique_rule_indices)):
@@ -55,7 +55,7 @@ def update_1d_samples_weights_economical(
 
     num_vars = levels.shape[0]
     if config_variables_idx is None:
-        config_variables_idx=num_vars
+        config_variables_idx = num_vars
 
     if cnt!=config_variables_idx:
         msg = 'unique_rule_indices inconsistent with num_random_vars '
@@ -65,33 +65,33 @@ def update_1d_samples_weights_economical(
     from inspect import signature
     for dd in range(len(unique_rule_indices)):
         # use first instance of quad_rule
-        index = unique_rule_indices[dd][0]# assumes samples_1d stored for every dimension not just for unique quadrature rules
+        # assumes samples_1d stored for every dimension not just for unique
+        # quadrature rules
+        index = unique_rule_indices[dd][0]
         max_level_dd = levels[unique_rule_indices[dd]].max()
         current_level = len(samples_1d[index])
-        if current_level<=max_level_dd:
+        if current_level <= max_level_dd:
             sig = signature(quad_rules[dd])
             keyword_args = [p.name for p in sig.parameters.values()
                             if p.kind == p.POSITIONAL_OR_KEYWORD]
-            if current_level>0 and 'initial_points' in keyword_args:
+            if current_level > 0 and 'initial_points' in keyword_args:
                 # useful for updating Leja rules
                 x, w = quad_rules[dd](
                     max_level_dd,
-                    initial_points=samples_1d[index][-1][np.newaxis,:])
+                    initial_points = samples_1d[index][-1][np.newaxis, :])
             else:
                 x, w = quad_rules[dd](max_level_dd)
-            assert x.ndim==1 and len(w)==max_level_dd+1
-            for ll in range(current_level,max_level_dd+1):
+            assert x.ndim == 1 and len(w) == max_level_dd+1
+            for ll in range(current_level, max_level_dd+1):
                 for kk in unique_rule_indices[dd]:
                     # use weights ordered according to polynomial index ordering
                     # not typical ascending order
                     # Check if user specifies growth rule which is incompatible
                     # with quad rule.
-                    print (w[ll].shape[0], growth_rules[dd](ll))
-                    assert w[ll].shape[0]==growth_rules[dd](ll)
+                    assert w[ll].shape[0] == growth_rules[dd](ll)
                     weights_1d[kk].append(w[ll][:growth_rules[dd](ll)])
                     # following assumes nestedness of x
-                    samples_1d[kk].append(
-                        x[:growth_rules[dd](ll)])
+                    samples_1d[kk].append(x[:growth_rules[dd](ll)])
     return samples_1d,weights_1d
 
 def update_1d_samples_weights(quad_rules,growth_rules,

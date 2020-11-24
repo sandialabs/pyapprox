@@ -122,25 +122,36 @@ class TestUnivariateQuadrature(unittest.TestCase):
 
     def test_get_univariate_leja_rule_discrete_chebyshev(self):
 
-        nmasses=20
-        xk = np.array(range(0,nmasses),dtype='float')
+        nmasses = 20
+        xk = np.array(range(0, nmasses), dtype='float')
         pk = np.ones(nmasses)/nmasses
         variable = float_rv_discrete(
-               name='discrete_chebyshev',values=(xk,pk))()
+               name='discrete_chebyshev', values=(xk, pk))()
         growth_rule = partial(constant_increment_growth_rule, 2)
-        quad_rule = get_univariate_leja_quadrature_rule(variable,growth_rule)
+        quad_rule = get_univariate_leja_quadrature_rule(variable, growth_rule)
         level = 3
-        scales,shapes=get_distribution_info(variable)[1:]
-        print(scales)
+        scales, shapes = get_distribution_info(variable)[1:]
 
-        x,w=quad_rule(level)
+        x, w = quad_rule(level)
 
         true_moment = (xk**(x.shape[0]-1)).dot(pk)
         moment = (x**(x.shape[0]-1)).dot(w[-1])
         
         #print(moment)
         #print(true_moment)
-        assert np.allclose(moment,true_moment)
+        assert np.allclose(moment, true_moment)
+
+    def test_hermite_christoffel_leja_quadrature_rule(self):
+        import warnings
+        warnings.filterwarnings('error')
+        from scipy import stats
+        variable = stats.norm(0, 1)
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            variable, growth_rule, method='christoffel')
+        level = 5
+        samples, weights = quad_rule(level)
+        print(samples)
 
 
 if __name__== "__main__":    
