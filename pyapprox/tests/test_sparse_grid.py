@@ -17,17 +17,19 @@ from pyapprox.variables import IndependentMultivariateRandomVariable
 import sympy as sp
 from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
 
+
 skiptest = unittest.skip("test not completely implemented")
 
-class MultilevelPolynomialModel():
-    def __init__(self,num_levels,return_work=False):
-        self.num_levels=num_levels
-        self.return_work=return_work
-        self.ab = jacobi_recurrence(
-            2*num_levels+1,alpha=0,beta=0,probability=True)
-        self.coeff = 1./(10**np.arange(0,2*num_levels+1))
 
-    def __call__(self,samples):
+class MultilevelPolynomialModel():
+    def __init__(self,num_levels, return_work=False):
+        self.num_levels = num_levels
+        self.return_work = return_work
+        self.ab = jacobi_recurrence(
+            2*num_levels+1, alpha=0, beta=0, probability=True)
+        self.coeff = 1./(10**np.arange(0, 2*num_levels+1))
+
+    def __call__(self, samples):
         vals = []
         for ii in range(samples.shape[1]):
             level = samples[-1,ii]
@@ -434,38 +436,43 @@ class TestSparseGrid(unittest.TestCase):
         assert np.allclose(np.dot(values[:,0],weights),exact_mean)
         
     def test_sparse_grid_integration_binomial_leja(self):
-        num_vars = 2; level = 5
-
-        import tempfile
-        temp_directory = tempfile.TemporaryDirectory()
-        temp_dirname = temp_directory.__dict__['name']
-        samples_filename = os.path.join(
-            temp_dirname,'binomial-leja-sequence-1d-ll-%d.npz'%(level))
-        samples_filename = None
+        num_vars = 2
+        level = 5
 
         # precompute leja sequence
         from pyapprox.orthonormal_polynomials_1d import krawtchouk_recurrence
         from scipy.stats import binom as binomial_rv
-        num_trials,prob_success = [level+5,0.5]
+        num_trials,prob_success = [level+5, 0.5]
         assert num_trials>=leja_growth_rule(level)
         recursion_coeffs = krawtchouk_recurrence(
-            num_trials,num_trials,prob_success)
+            num_trials, num_trials, prob_success)
 
         def generate_candidate_samples(num_samples):
-            assert num_samples==num_trials+1
-            return np.arange(0,num_trials+1)[np.newaxis,:]
+            assert num_samples == num_trials+1
+            return np.arange(0, num_trials+1)[np.newaxis, :]
 
-        quadrature_rule = partial(
-            candidate_based_leja_rule,recursion_coeffs,
-            generate_candidate_samples,
-            num_trials+1,
-            initial_points=np.atleast_2d(
-                [binomial_rv.ppf(0.5,num_trials,prob_success)]),
-            samples_filename=samples_filename,
-            return_weights_for_all_levels=True)
 
-        samples, weights, data_structures=get_sparse_grid_samples_and_weights(
-            num_vars,level,quadrature_rule,leja_growth_rule)
+        import tempfile
+        temp_dirname = tempfile.mkdtemp()
+        try:
+            samples_filename = os.path.join(
+            temp_dirname, 'binomial-leja-sequence-1d-ll-%d.npz'%(level))
+            samples_filename = None        
+            quadrature_rule = partial(
+                candidate_based_christoffel_leja_rule_1d, recursion_coeffs,
+                generate_candidate_samples,
+                num_trials+1,
+                initial_points=np.atleast_2d(
+                    [binomial_rv.ppf(0.5, num_trials, prob_success)]),
+                samples_filename=samples_filename,
+                return_weights_for_all_levels=True)
+
+            samples, weights, data_structures = \
+                get_sparse_grid_samples_and_weights(
+                    num_vars, level, quadrature_rule, leja_growth_rule)
+        finally:
+            import shutil
+            shutil.rmtree(temp_dirname)
 
         poly_indices = data_structures[1]
         #plot_sparse_grid(samples,weights,poly_indices)
@@ -1325,47 +1332,48 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         #print gauss_variance,exact_variance,cc_variance, pce_variance
 
     def test_convert_sparse_grid_to_pce(self):       
-        num_vars=2        
-        max_level=2
-        max_level_1d=[max_level]*(num_vars)
-        max_num_sparse_grid_samples=None
-        error_tol=None 
+        num_vars = 2        
+        max_level = 2
+        max_level_1d = [max_level]*(num_vars)
+        max_num_sparse_grid_samples = None
+        error_tol = None 
         admissibility_function = partial(
-            max_level_admissibility_function,max_level,max_level_1d,
+            max_level_admissibility_function,max_level, max_level_1d,
             max_num_sparse_grid_samples,error_tol)
         refinement_indicator = variance_refinement_indicator
 
 
         sparse_grid = CombinationSparseGrid(num_vars)
         sparse_grid.set_refinement_functions(
-            refinement_indicator,admissibility_function,
+            refinement_indicator, admissibility_function,
             clenshaw_curtis_rule_growth)
         sparse_grid.set_univariate_rules(clenshaw_curtis_in_polynomial_order)
         sparse_grid.set_function(function_I)
 
         while(not sparse_grid.active_subspace_queue.empty() or
-              sparse_grid.subspace_indices.shape[1]==0):
+              sparse_grid.subspace_indices.shape[1] == 0):
             sparse_grid.refine()
 
         from scipy.stats import uniform
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1,2),num_vars) 
-        pce_opts = {'poly_type':'jacobi','alpha_poly':0.,'beta_poly':0.,
+            uniform(-1, 2), num_vars) 
+        pce_opts = {'poly_type':'jacobi', 'alpha_poly':0., 'beta_poly':0.,
                     'var_trans':var_trans}
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
-            sparse_grid,pce_opts)
+            sparse_grid, pce_opts)
 
         # check that the sparse grid and the pce have the same polynomial terms
-        assert len(sparse_grid.poly_indices_dict)==pce.indices.shape[1]
+        assert len(sparse_grid.poly_indices_dict) == pce.indices.shape[1]
         for index in pce.indices.T:
             assert hash_array(index) in sparse_grid.poly_indices_dict
             
         pce_vals =  pce(sparse_grid.samples)
-        assert np.allclose(pce_vals,sparse_grid.values)
+        assert np.allclose(pce_vals, sparse_grid.values)
 
         filename = 'sparse-grid-test.pkl'
         sparse_grid.save(filename)
-        sparse_grid_from_file = pickle.load(open(filename,'rb'))
+        with open(filename, 'rb') as f:
+            sparse_grid_from_file = pickle.load(f)
 
         assert sparse_grid_from_file == sparse_grid
         os.remove(filename)
@@ -1513,84 +1521,89 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         raise Exception
 
     def test_convert_sparse_grid_to_pce_mixed_basis(self):
+        
+        #self.help_convert_sparse_grid_to_pce_mixed_basis("pdf")
+        #self.help_convert_sparse_grid_to_pce_mixed_basis("deprecated")
+        self.help_convert_sparse_grid_to_pce_mixed_basis("christoffel")
+
+    def help_convert_sparse_grid_to_pce_mixed_basis(self, leja_method):
         def function(x):
             return np.hstack((
-                np.sum((x+1)**2,axis=0)[:,np.newaxis],
-                np.sum((x-2)**2,axis=0)[:,np.newaxis]))
-
+                np.sum((x+1)**2, axis=0)[:, np.newaxis],
+                np.sum((x-2)**2, axis=0)[:, np.newaxis]))
         
-        num_vars=2        
-        max_level=5
-        max_level_1d=[max_level]*(num_vars)
+        num_vars = 2        
+        max_level = 5
+        max_level_1d = [max_level]*(num_vars)
 
-        alpha_stat,beta_stat=2,2
-        from scipy.stats import beta,norm
-        beta_var     = {'var_type':'beta','range':[-1,1],
-                        'alpha_stat':alpha_stat,'beta_stat':beta_stat}
-        gaussian_var = {'var_type':'gaussian','mean':0.,'variance':1.}
-        univariate_variables = [beta(alpha_stat,beta_stat,-1,2),norm()]
+        alpha_stat,beta_stat = 2, 2
+        from scipy.stats import beta, norm
+        beta_var     = {'var_type':'beta','range':[-1, 1],
+                        'alpha_stat':alpha_stat, 'beta_stat':beta_stat}
+        gaussian_var = {'var_type':'gaussian', 'mean':0., 'variance':1.}
+        univariate_variables = [beta(alpha_stat, beta_stat, -1, 2), norm()]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         quad_rules, growth_rules, unique_quadrule_indices = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans)
+                var_trans, method=leja_method)
        
-        max_num_sparse_grid_samples=None
-        error_tol=None 
+        max_num_sparse_grid_samples = None
+        error_tol = None 
         admissibility_function = partial(
-            max_level_admissibility_function,max_level,max_level_1d,
-            max_num_sparse_grid_samples,error_tol)
+            max_level_admissibility_function,max_level, max_level_1d,
+            max_num_sparse_grid_samples, error_tol)
         refinement_indicator = variance_refinement_indicator
 
         sparse_grid = CombinationSparseGrid(num_vars)
         sparse_grid.set_refinement_functions(
-            refinement_indicator,admissibility_function,growth_rules,
+            refinement_indicator, admissibility_function, growth_rules,
             unique_quadrule_indices=unique_quadrule_indices)
         sparse_grid.set_univariate_rules(quad_rules)
         sparse_grid.set_function(function)
 
         while(not sparse_grid.active_subspace_queue.empty() or
-              sparse_grid.subspace_indices.shape[1]==0):
+              sparse_grid.subspace_indices.shape[1] == 0):
             sparse_grid.refine()
         
         poly_types_opts = {
-            'type1':{'poly_type':'jacobi','alpha_poly':beta_stat-1,
-                     'beta_poly':alpha_stat-1,'var_nums':[0]},
-            'type2':{'poly_type':'hermite','var_nums':[1]},
+            'type1':{'poly_type':'jacobi', 'alpha_poly':beta_stat-1,
+                     'beta_poly':alpha_stat-1, 'var_nums':[0]},
+            'type2':{'poly_type':'hermite', 'var_nums':[1]},
         }
         pce_opts = {'var_trans':var_trans,'poly_types':poly_types_opts}
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
-            sparse_grid,pce_opts)
+            sparse_grid, pce_opts)
 
         # check that the sparse grid and the pce have the same polynomial terms
-        assert len(sparse_grid.poly_indices_dict)==pce.indices.shape[1]
+        assert len(sparse_grid.poly_indices_dict) == pce.indices.shape[1]
         for index in pce.indices.T:
             assert hash_array(index) in sparse_grid.poly_indices_dict
             
         pce_vals =  pce(sparse_grid.samples)
-        assert np.allclose(pce_vals,sparse_grid.values)
+        assert np.allclose(pce_vals, sparse_grid.values)
 
         # num_validation_samples=int(1e6)
         # validation_samples = np.vstack((
-        #     2*np.random.beta(alpha_stat,beta_stat,(1,num_validation_samples))-1,
+        #   2*np.random.beta(alpha_stat,beta_stat,(1,num_validation_samples))-1,
         #     np.random.normal(0,1,(1,num_validation_samples))))
         # validation_values = function(validation_samples)
         # print (validation_values.mean(axis=0))
 
-        x,y = sp.Symbol('x'),sp.Symbol('y')
+        x,y = sp.Symbol('x'), sp.Symbol('y')
         from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
-        weight_function_x = beta_pdf_on_ab(alpha_stat,beta_stat,-1,1,x)
-        weight_function_y = gaussian_pdf(0,1,y,package=sp)
+        weight_function_x = beta_pdf_on_ab(alpha_stat, beta_stat, -1, 1, x)
+        weight_function_y = gaussian_pdf(0, 1, y, package=sp)
         weight_function = weight_function_x*weight_function_y
-        ranges = [-1,1,-sp.oo,sp.oo]
+        ranges = [-1, 1, -sp.oo, sp.oo]
         exact_mean = [
             float(sp.integrate(weight_function*((x+1)**2+(y+1)**2),
                 (x,ranges[0],ranges[1]),(y,ranges[2],ranges[3]))),
             float(sp.integrate(weight_function*((x-2)**2+(y-2)**2),
                 (x,ranges[0],ranges[1]),(y,ranges[2],ranges[3])))]
 
-        assert np.allclose(exact_mean,pce.mean())
+        assert np.allclose(exact_mean, pce.mean())
 
     def test_error_based_stopping_criteria(self):
         alpha_stat,beta_stat = [1,2]

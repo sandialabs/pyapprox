@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 from scipy import special as sp
 
@@ -191,7 +189,7 @@ def krawtchouk_recurrence(Nterms, Ntrials, p):
 
     return ab
 
-def jacobi_recurrence(N, alpha=0., beta=0., probability=False):
+def jacobi_recurrence(N, alpha=0., beta=0., probability=True):
     r"""
     Compute the recursion coefficients of Jacobi polynomials which are 
     orthonormal with respect to the Beta random variables
@@ -244,7 +242,7 @@ def jacobi_recurrence(N, alpha=0., beta=0., probability=False):
 
     return ab
 
-def hermite_recurrence(Nterms, rho=0., probability=False):
+def hermite_recurrence(Nterms, rho=0., probability=True):
     r""" 
     Compute the recursion coefficients of for the Hermite
     polynomial family.
@@ -689,72 +687,69 @@ def get_recursion_coefficients(
         numerically_generated_poly_accuracy_tolerance=1e-12):
     
     poly_type = opts.get('poly_type', None)
-    var_type=None
+    var_type = None
     if poly_type is None:
-        var_type=opts['rv_type']
-    if poly_type=='legendre' or var_type=='uniform':
+        var_type = opts['rv_type']
+    if poly_type == 'legendre' or var_type=='uniform':
         recursion_coeffs = jacobi_recurrence(
             num_coefs, alpha=0, beta=0, probability=True)
-    elif poly_type=='jacobi' or var_type=='beta':
+    elif poly_type == 'jacobi' or var_type == 'beta':
         if poly_type is not None:
             alpha_poly,beta_poly = opts['alpha_poly'],opts['beta_poly']
         else:
-            alpha_poly,beta_poly=opts['shapes']['b']-1,opts['shapes']['a']-1
+            alpha_poly, beta_poly = opts['shapes']['b']-1, opts['shapes']['a']-1
         recursion_coeffs = jacobi_recurrence(
-            num_coefs,alpha=alpha_poly,beta=beta_poly,probability=True)
-    elif poly_type=='hermite' or var_type=='norm':
+            num_coefs,alpha=alpha_poly, beta=beta_poly, probability=True)
+    elif poly_type == 'hermite' or var_type == 'norm':
         recursion_coeffs = hermite_recurrence(
             num_coefs, rho=0., probability=True)
-    elif poly_type=='krawtchouk' or var_type=='binom':
+    elif poly_type == 'krawtchouk' or var_type == 'binom':
         if poly_type is None:
             opts = opts['shapes'] 
-        n,p = opts['n'],opts['p']
-        num_coefs = min(num_coefs,n)
+        n, p = opts['n'], opts['p']
+        num_coefs = min(num_coefs, n)
         recursion_coeffs = krawtchouk_recurrence(
-            num_coefs,n,p)
-    elif poly_type=='hahn' or var_type=='hypergeom':
+            num_coefs, n, p)
+    elif poly_type == 'hahn' or var_type == 'hypergeom':
         if poly_type is not None:
-            apoly,bpoly = opts['alpha_poly'],opts['beta_poly']
-            N=opts['N']
+            apoly, bpoly = opts['alpha_poly'], opts['beta_poly']
+            N = opts['N']
         else:
-            M,n,N=[opts['shapes'][key] for key in ['M','n','N']]
-            apoly,bpoly = -(n+1),-M-1+n
-        num_coefs = min(num_coefs,N)
-        recursion_coeffs = hahn_recurrence(
-            num_coefs,N,apoly,bpoly)
-    elif poly_type=='discrete_chebyshev' or var_type=='discrete_chebyshev':
+            M, n, N=[opts['shapes'][key] for key in ['M', 'n', 'N']]
+            apoly,bpoly = -(n+1), -M-1+n
+        num_coefs = min(num_coefs, N)
+        recursion_coeffs = hahn_recurrence(num_coefs, N, apoly, bpoly)
+    elif poly_type == 'discrete_chebyshev' or var_type == 'discrete_chebyshev':
         if poly_type is not None:
             N = opts['N']
         else:
             N = opts['shapes']['xk'].shape[0]
-            assert np.allclose(opts['shapes']['xk'],np.arange(N))
-            assert np.allclose(opts['shapes']['pk'],np.ones(N)/N)
+            assert np.allclose(opts['shapes']['xk'], np.arange(N))
+            assert np.allclose(opts['shapes']['pk'], np.ones(N)/N)
         num_coefs = min(num_coefs,N)
-        recursion_coeffs = discrete_chebyshev_recurrence(
-            num_coefs,N)
-    elif poly_type=='discrete_numeric' or var_type=='float_rv_discrete':
+        recursion_coeffs = discrete_chebyshev_recurrence(num_coefs, N)
+    elif poly_type == 'discrete_numeric' or var_type == 'float_rv_discrete':
         if poly_type is None:
             opts = opts['shapes']
-        xk,pk = opts['xk'],opts['pk']
+        xk, pk = opts['xk'], opts['pk']
         #shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
         xk = xk*2-1
-        assert xk.min()>=-1 and xk.max()<=1
-        if num_coefs>xk.shape[0]:
+        assert xk.min() >= -1 and xk.max() <= 1
+        if num_coefs > xk.shape[0]:
             msg = 'Number of coefs requested is larger than number of '
             msg += 'probability masses'
             raise Exception(msg)
-        recursion_coeffs  = modified_chebyshev_orthonormal(
-            num_coefs,[xk,pk])
+        recursion_coeffs  = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
         p = evaluate_orthonormal_polynomial_1d(
-            np.asarray(xk,dtype=float),num_coefs-1, recursion_coeffs)
+            np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
         error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
         if error > numerically_generated_poly_accuracy_tolerance:
             msg = f'basis created is ill conditioned. '
             msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
             msg += f'Terms requested: {num_coefs}'
             raise Exception(msg)
-    elif poly_type=='monomial':
-        recursion_coeffs=None
+    elif poly_type == 'monomial':
+        recursion_coeffs = None
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported'%poly_type)

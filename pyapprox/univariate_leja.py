@@ -45,6 +45,13 @@ def sqrt_christoffel_function_inv_1d(basis_fun, samples, normalize=False):
 
 
 def __sqrt_christoffel_function_inv_1d(basis_mat, normalize):
+    # avoid overflow.
+    # if np.max(basis_mat) > 1e8:
+    #     # note this will return zero for all rows of basis mat
+    #     # when used for optimization this is fine because basis_mat will
+    #     # only have one row. But if evaluating at multiple points this
+    #     # will cause all values to zero if overflow occurs
+    #     return np.zeros(basis_mat.shape[0])
     vals = 1./np.linalg.norm(basis_mat, axis=1)
     if normalize is True:
         vals *= np.sqrt(basis_matrix.shape[1])
@@ -88,7 +95,18 @@ def christoffel_function_inv_1d(basis_fun, samples, normalize=False):
 
 
 def __christoffel_function_inv_1d(basis_mat, normalize):
-    vals = 1./np.linalg.norm(basis_mat, axis=1)**2
+    # avoid overflow issues when computing squared l2 norm
+    # which occur because optimization marching towards infinity
+    # if np.max(basis_mat) > 1e8:
+    #     # note this will return zero for all rows of basis mat
+    #     # when used for optimization this is fine because basis_mat will
+    #     # only have one row. But if evaluating at multiple points this
+    #     # will cause all values to zero if overflow occurs
+    #     return np.zeros(basis_mat.shape[0])
+    denom_sqrt = np.linalg.norm(basis_mat, axis=1)
+    #if np.any(denom_sqrt > 1e8):
+    #    return np.zeros(basis_mat.shape[0])
+    vals = 1/denom_sqrt**2
     if normalize is True:
         vals *= basis_matrix.shape[1]
     return vals
@@ -197,8 +215,17 @@ def christoffel_function_inv_jac_1d(basis_fun_and_jac, samples,
 
 
 def __christoffel_function_inv_jac_1d(basis_mat, basis_jac, normalize):
+    # avoid overflow issues when computing squared l2 norm
+    # which occur because optimization marching towards infinity
+    denom_sqrt = np.sum(basis_mat**2, axis=1)
+    # if np.any(denom_sqrt > 1e8):
+    #     # note this will return zero for all rows of basis mat
+    #     # when used for optimization this is fine because basis_mat will
+    #     # only have one row. But if evaluating at multiple points this
+    #     # will cause all values to zero if overflow occurs
+    #     return np.zeros(basis_mat.shape[0])
     vals = -2*(basis_mat*basis_jac).sum(axis=1)
-    vals /= (np.sum(basis_mat**2, axis=1)**2)
+    vals /= denom_sqrt**2
     if normalize is True:
         vals *= nterms
     return vals
@@ -396,6 +423,8 @@ def __leja_objective_fun_1d(weights, basis_mat, new_basis, coef):
     assert coef.ndim == 2 and coef.shape[1] == 1
     pvals = basis_mat.dot(coef)
     residual = (new_basis - pvals)
+    #if np.absolute(residual).max() > 1e8:
+    #    return np.inf*np.ones(residual.shape[0])
     return weights*np.sum(residual**2, axis=1)
 
 
@@ -456,6 +485,8 @@ def __leja_objective_jac_1d(w, wdx1, basis_mat, basis_jac, coef):
     pderivs = basis_jac[:, :-1].dot(coef)
     residual = (bvals - pvals)
     residual_jac = bderivs - pderivs
+    if residual.max() > np.sqrt(np.finfo(float).max/100):
+        return np.inf*np.ones(residual.shape[0])
     jac = (residual**2*wdx1 + 2*w*residual*residual_jac).sum(axis=1)
     return jac
 
@@ -569,7 +600,6 @@ def get_christoffel_leja_sequence_1d(
         nterms = degree+1
         basis_mat = tmp[:, :nterms]
         new_basis = tmp[:, nterms:]
-        print(leja_sequence)
         coef = compute_coefficients_of_christoffel_leja_interpolant_1d(
             basis_mat, new_basis)
         initial_guesses, intervals = get_initial_guesses_1d(
@@ -586,18 +616,27 @@ def get_christoffel_leja_sequence_1d(
             return -christoffel_leja_objective_jac_1d(
                 partial(basis_fun, nmax=degree+1, deriv_order=1), coef,
                 x[:, None])
-        def hess(x):
-            return -christoffel_leja_objective_hess_1d(
-                partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
-                x[:, None])
+        # def hess(x):
+        #    return -christoffel_leja_objective_hess_1d(
+        #        partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
+        #        x[:, None])
+        hess = None
         for jj in range(initial_guesses.shape[1]):
             initial_guess = initial_guesses[:, jj]
-            bounds = Bounds([intervals[jj]], [intervals[jj+1]])
+            lb = max(intervals[jj], -1e3)
+            ub = min(intervals[jj+1], 1e3)
+            # truncate bounds because christoffel weighted objective
+            # will approach one as abs(x) -> oo. These truncated bounds
+            # stop x getting to big. This could effect any variable
+            # that is not normalized appropriately
+            bounds = Bounds([lb], [ub])
+            #print(jj, bounds)
             res = pyapprox_minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=options, method='slsqp')
             new_samples[0, jj] = res.x
             obj_vals[jj] = res.fun
+        obj_vals[~np.isfinite(obj_vals)] = np.inf
         I = np.argmin(obj_vals)
         new_sample = new_samples[:, I]
         #print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
@@ -740,15 +779,64 @@ def get_leja_sequence_quadrature_weights(leja_sequence, growth_rule,
         ordered_weights_1d = []
         for ll in range(level+1):
             basis_matrix_inv = np.linalg.inv(
-                basis_matrix[:growth_rule(ll),:growth_rule(ll)])
+                basis_matrix[:growth_rule(ll), :growth_rule(ll)])
             # make sure to adjust weights to account for preconditioning
             ordered_weights_1d.append(
-                basis_matrix_inv[0,:]*sqrt_weights[:growth_rule(ll)])
+                basis_matrix_inv[0, :]*sqrt_weights[:growth_rule(ll)])
     else:
         basis_matrix_inv = np.linalg.inv(
-            basis_matrix[:growth_rule(level),:growth_rule(level)])
+            basis_matrix[:growth_rule(level), :growth_rule(level)])
         # make sure to adjust weights to account for preconditioning
-        ordered_weights_1d = basis_matrix_inv[0,:]*sqrt_weights
+        ordered_weights_1d = basis_matrix_inv[0, :]*sqrt_weights
 
     return ordered_weights_1d
 
+
+def get_candidate_based_christoffel_leja_sequence_1d(
+        num_leja_samples, recursion_coeffs, generate_candidate_samples,
+        num_candidate_samples, initial_points=None,
+        samples_filename=None):
+    from pyapprox.polynomial_sampling import christoffel_preconditioner
+    weight_function = christoffel_preconditioner
+    return get_candidate_based_leja_sequence_1d(
+        num_leja_samples, recursion_coeffs, generate_candidate_samples,
+        num_candidate_samples, weight_function, initial_points,
+        samples_filename)
+
+def get_candidate_based_pdf_weighted_leja_sequence_1d(
+        num_leja_samples, recursion_coeffs, generate_candidate_samples,
+        num_candidate_samples, pdf, initial_points=None,
+        samples_filename=None):
+    
+    def weight_function(basis_matrix, samples):
+        return pdf(samples[0, :])
+    
+    return get_candidate_based_leja_sequence_1d(
+        num_leja_samples, recursion_coeffs, generate_candidate_samples,
+        num_candidate_samples, weight_function, initial_points,
+        samples_filename)
+
+def get_candidate_based_leja_sequence_1d(
+        num_leja_samples, recursion_coeffs, generate_candidate_samples,
+        num_candidate_samples, weight_function, initial_points=None,
+        samples_filename=None):
+    
+    from pyapprox.orthonormal_polynomials_1d import \
+        evaluate_orthonormal_polynomial_1d
+    from pyapprox.polynomial_sampling import get_lu_leja_samples
+    generate_basis_matrix = lambda x: evaluate_orthonormal_polynomial_1d(
+        x[0, :], num_leja_samples, recursion_coeffs)
+    if samples_filename is None or not os.path.exists(samples_filename):
+        leja_sequence, __ = get_lu_leja_samples(
+            generate_basis_matrix, generate_candidate_samples,
+            num_candidate_samples, num_leja_samples,
+            preconditioning_function=weight_function,
+            initial_samples=initial_points)
+        if samples_filename is not None:
+            np.savez(samples_filename, samples=leja_sequence)
+    else:
+        leja_sequence = np.load(samples_filename)['samples']
+        assert leja_sequence.shape[1] >= num_leja_samples
+        leja_sequence = leja_sequence[:, :num_leja_samples]
+        
+    return leja_sequence

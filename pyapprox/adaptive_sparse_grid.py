@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 from pyapprox.sparse_grid import *
 from pyapprox.models.wrappers import WorkTracker
 import copy
@@ -1083,20 +1081,22 @@ class SubSpaceRefinementManager(object):
             m[0] for m in vars(self).items() if not m[0].startswith("__")]
         for m in member_names:
             attr = getattr(other,m)
-            #print(m)
-            #print(type(attr))
-            #print(attr)
-            if type(attr)==partial:
-                if not partial_functions_equal(attr,getattr(self,m)):
+            # print(m)
+            # print(type(attr))
+            # print(attr)
+            if type(attr) == partial:
+                if not partial_functions_equal(attr, getattr(self, m)):
                     return False
-            elif type(attr)==list and type(attr[0])==np.ndarray:
-                if not lists_of_arrays_equal(attr,getattr(self,m)):
+            elif (type(attr) == list and len(attr) == 0):
+                assert len(getattr(self, m)) == 0
+            elif (type(attr) == list and  type(attr[0]) == np.ndarray):
+                if not lists_of_arrays_equal(attr, getattr(self, m)):
                     return False
-            elif type(attr)==list and type(attr[0])==list and type(
-                    attr[0][0])==np.ndarray:
-                if not lists_of_lists_of_arrays_equal(attr,getattr(self,m)):
+            elif type(attr)==list and type(attr[0]) == list and type(
+                    attr[0][0]) == np.ndarray:
+                if not lists_of_lists_of_arrays_equal(attr, getattr(self, m)):
                     return False
-            elif np.any(getattr(other,m)!=getattr(self,m)):
+            elif np.any(getattr(other, m) != getattr(self, m)):
                 return False
         return True
 
@@ -1126,8 +1126,7 @@ class SubSpaceRefinementManager(object):
 from pyapprox.univariate_quadrature import leja_growth_rule, \
     constant_increment_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    beta_leja_quadrature_rule, candidate_based_leja_rule, \
-    get_univariate_leja_quadrature_rule
+    beta_leja_quadrature_rule, get_univariate_leja_quadrature_rule
 from pyapprox.variables import variable_shapes_equivalent
 def get_unique_quadrule_variables(var_trans):
     """
@@ -1155,7 +1154,7 @@ def get_unique_quadrule_variables(var_trans):
     return unique_quadrule_variables, unique_quadrule_indices
 
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans, growth_rules=None):
+        var_trans, growth_rules=None, method='christoffel'):
     """
     Return a list of unique quadrature rules. If each dimension has the same
     rule then list will only have one entry.
@@ -1180,7 +1179,7 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     quad_rules = []
     for ii in range(len(unique_quadrule_indices)):
         quad_rule = get_univariate_leja_quadrature_rule(
-            unique_quadrule_variables[ii], growth_rules[ii])
+            unique_quadrule_variables[ii], growth_rules[ii], method)
         quad_rules.append(quad_rule)
 
     return quad_rules, growth_rules, unique_quadrule_indices

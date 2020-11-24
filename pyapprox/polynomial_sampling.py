@@ -102,9 +102,10 @@ def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
     data_structures=(Q,R[:,:basis_matrix.shape[1]],p,weights[p])
     return fekete_samples, data_structures
 
-def get_lu_leja_samples(generate_basis_matrix,generate_candidate_samples,
-                        num_candidate_samples,num_leja_samples,
-                        preconditioning_function=None,initial_samples=None):
+
+def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
+                        num_candidate_samples, num_leja_samples,
+                        preconditioning_function=None, initial_samples=None):
     r"""
     Generate Leja samples using LU factorization. 
 
@@ -152,51 +153,58 @@ def get_lu_leja_samples(generate_basis_matrix,generate_candidate_samples,
     """
     candidate_samples = generate_candidate_samples(num_candidate_samples)
     if initial_samples is not None:
-        assert candidate_samples.shape[0]==initial_samples.shape[0]
-        candidate_samples = np.hstack((initial_samples,candidate_samples))
+        assert candidate_samples.shape[0] == initial_samples.shape[0]
+        candidate_samples = np.hstack((initial_samples, candidate_samples))
         num_initial_rows = initial_samples.shape[1]
     else:
         num_initial_rows=0
         
     basis_matrix = generate_basis_matrix(candidate_samples)
+    print(basis_matrix[:3,:3])
 
     assert num_leja_samples <= basis_matrix.shape[1]
     if preconditioning_function is not None:
         weights = np.sqrt(
-            preconditioning_function(basis_matrix,candidate_samples))
+            preconditioning_function(basis_matrix, candidate_samples))
         basis_matrix = (basis_matrix.T*weights).T
     else:
         weights = None
-    L,U,p = truncated_pivoted_lu_factorization(
-        basis_matrix,num_leja_samples,num_initial_rows)
-    assert p.shape[0]==num_leja_samples, (p.shape, num_leja_samples)
+    print('w2',weights[:3])
+    print(basis_matrix[:3,:3])
+    L, U, p = truncated_pivoted_lu_factorization(
+        basis_matrix, num_leja_samples, num_initial_rows)
+    assert p.shape[0] == num_leja_samples, (p.shape, num_leja_samples)
     p = p[:num_leja_samples]
-    leja_samples = candidate_samples[:,p]
-    # Ignore basis functions (columns) that were not considered during the
-    # incomplete LU factorization
-    L = L[:,:num_leja_samples]
-    U = U[:num_leja_samples,:num_leja_samples]
-    data_structures=[L,U,p,weights[p]]
+    leja_samples = candidate_samples[:, p]
+    print('l',leja_samples)
     plot = False
-    if plot:
+    if plot and leja_samples.shape[0] == 2:
         import matplotlib.pyplot as plt
         print(('N:', basis_matrix.shape[1]))
-        plt.plot(leja_samples[0,0],leja_samples[1,0],'*')
-        plt.plot(leja_samples[0,:],leja_samples[1,:],'ro',zorder=10)
-        plt.scatter(candidate_samples[0,:],candidate_samples[1,:],s=weights*100,color='b')
-        #plt.xlim(-1,1)
-        #plt.ylim(-1,1)
-        #plt.title('Leja sequence and candidates')
-        #print (weights[p])
+        plt.plot(leja_samples[0, 0], leja_samples[1, 0], '*')
+        plt.plot(leja_samples[0, :], leja_samples[1, :], 'ro', zorder=10)
+        plt.scatter(candidate_samples[0, :], candidate_samples[1, :],
+                    s=weights*100, color='b')
+        # plt.xlim(-1,1)
+        # plt.ylim(-1,1)
+        # plt.title('Leja sequence and candidates')
         plt.show()
+
+    # Ignore basis functions (columns) that were not considered during the
+    # incomplete LU factorization
+    L = L[:, :num_leja_samples]
+    U = U[:num_leja_samples, :num_leja_samples]
+    data_structures=[L, U, p, weights[p]]
     return leja_samples, data_structures
 
-def total_degree_basis_generator(num_vars,degree):
+
+def total_degree_basis_generator(num_vars, degree):
     r"""
     Generate all indices i such that ||i||_1=degree.
     This function is useful when computing oli_leja sequences
     """
-    return (degree+1,compute_hyperbolic_level_indices(num_vars,degree,1.0))
+    return (degree+1, compute_hyperbolic_level_indices(num_vars, degree, 1.0))
+
 
 def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
                          num_leja_samples, preconditioning_function=None,
@@ -290,25 +298,26 @@ def interpolate_fekete_samples(fekete_samples,values,data_structures):
     return coef
 
 
-def interpolate_lu_leja_samples(leja_samples,values,data_structures):
+def interpolate_lu_leja_samples(leja_samples, values, data_structures):
     r"""
     Assumes ordering of values and rows of L and U are consistent.
     Typically this is done by computing leja samples then evaluating function
     at these samples.
     """
-    L,U = data_structures[0],data_structures[1]
+    L, U = data_structures[0], data_structures[1]
     weights = data_structures[3]
-    temp = solve_triangular(L,(values.T*weights).T,lower=True)
-    coef = solve_triangular(U,temp,lower=False)
+    temp = solve_triangular(L, (values.T*weights).T, lower=True)
+    coef = solve_triangular(U, temp, lower=False)
     return coef
 
-def get_quadrature_weights_from_fekete_samples(fekete_samples,data_structures):
-    Q,R = data_structures[0],data_structures[1]
+
+def get_quadrature_weights_from_fekete_samples(fekete_samples, data_structures):
+    Q,R = data_structures[0], data_structures[1]
     precond_weights = data_structures[3]
     # QR is a decomposition of V.T, V=basis_matrix(samples)
     # and we want to compute inverse of V=(QR).T
-    basis_matrix_inv = np.linalg.inv(np.dot(Q,R).T)
-    quad_weights = basis_matrix_inv[0,:]
+    basis_matrix_inv = np.linalg.inv(np.dot(Q, R).T)
+    quad_weights = basis_matrix_inv[0, :]
     if precond_weights is not None:
         # Since we preconditioned, we need to "un-precondition" to get
         # the right weights. Sqrt of weights has already been applied
@@ -316,11 +325,12 @@ def get_quadrature_weights_from_fekete_samples(fekete_samples,data_structures):
         quad_weights *= precond_weights
     return quad_weights
 
-def get_quadrature_weights_from_lu_leja_samples(leja_samples,data_structures):
-    L,U = data_structures[0],data_structures[1]
+
+def get_quadrature_weights_from_lu_leja_samples(leja_samples, data_structures):
+    L, U = data_structures[0], data_structures[1]
     precond_weights = data_structures[3]
-    basis_matrix_inv = np.linalg.inv(np.dot(L,U))
-    quad_weights = basis_matrix_inv[0,:]
+    basis_matrix_inv = np.linalg.inv(np.dot(L, U))
+    quad_weights = basis_matrix_inv[0, :]
     if precond_weights is not None:
         # Since we preconditioned, we need to "un-precondition" to get
         # the right weights. Sqrt of weights has already been applied

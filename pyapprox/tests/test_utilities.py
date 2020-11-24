@@ -44,14 +44,14 @@ class TestUtilities(unittest.TestCase):
         np.random.seed(2)
         # test truncated_pivoted lu factorization
         A = np.random.normal( 0, 1, (4,4) )
-        scipy_LU,scipy_p  = lu_factor(A)
+        scipy_LU, scipy_p  = lu_factor(A)
         scipy_pivots = get_final_pivots_from_sequential_pivots(scipy_p)
         num_pivots = 3
-        L,U,pivots = truncated_pivoted_lu_factorization(A, num_pivots)
+        L, U, pivots = truncated_pivoted_lu_factorization(A, num_pivots)
         assert np.allclose( pivots, scipy_pivots[:num_pivots] )
-        assert np.allclose(A[pivots,:num_pivots], np.dot(L, U))
+        assert np.allclose(A[pivots, :num_pivots], np.dot(L, U))
         P = get_pivot_matrix_from_vector(pivots,A.shape[0])
-        assert np.allclose(P.dot(A[:,:num_pivots]), np.dot(L, U))
+        assert np.allclose(P.dot(A[:, :num_pivots]), np.dot(L, U))
 
         # test truncated_pivoted lu factorization which enforces first
         # n rows to be chosen in exact order
@@ -59,27 +59,27 @@ class TestUtilities(unittest.TestCase):
         # pivot order would be returne, Put best pivot in last place in matrix
         # and worst in first row, then enforce first and second rows to be chosen
         # first.
-        tmp = A[pivots[0],:].copy()
-        A[pivots[0],:] = A[pivots[-1],:].copy()
+        tmp = A[pivots[0], :].copy()
+        A[pivots[0],:] = A[pivots[-1], :].copy()
         A[pivots[-1],:] = tmp
         num_pivots = 3
-        num_initial_rows = np.array([0,1])
+        num_initial_rows = np.array([0, 1])
         L,U,pivots = truncated_pivoted_lu_factorization(
             A, num_pivots, num_initial_rows )
-        assert np.allclose( A[pivots,:num_pivots], np.dot( L, U ) )
-        assert np.allclose( pivots, [0,1,3] )
+        assert np.allclose(A[pivots, :num_pivots], np.dot(L, U))
+        assert np.allclose(pivots, [0, 1, 3])
 
         # test truncated_pivoted lu factorization which enforces first
         # n rows to be chosen in any order
-        tmp = A[pivots[0],:].copy()
-        A[pivots[0],:] = A[0,:].copy()
+        tmp = A[pivots[0], :].copy()
+        A[pivots[0], :] = A[0,: ].copy()
         A[0,:] = tmp
         num_pivots = 3
         num_initial_rows = 1
-        L,U,pivots = truncated_pivoted_lu_factorization( A, num_pivots, 
-                                                        num_initial_rows )
-        assert np.allclose( A[pivots,:num_pivots], np.dot( L, U ) )
-        assert np.allclose( pivots, [0,3,1] )
+        L,U,pivots = truncated_pivoted_lu_factorization(A, num_pivots, 
+                                                        num_initial_rows)
+        assert np.allclose(A[pivots, :num_pivots], np.dot(L, U))
+        assert np.allclose(pivots, [0, 3, 1])
 
         # Modify the above test to first factorize 4,3 A then factorize
         # B = [A; C] where C is 2*3 and if B was factorized without enforcing

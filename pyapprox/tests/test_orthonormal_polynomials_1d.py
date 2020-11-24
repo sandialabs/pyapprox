@@ -87,32 +87,33 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         probability_measure = False
 
         ab = hermite_recurrence(
-            degree+1,rho,probability=probability_measure)
-        x,w=np.polynomial.hermite.hermgauss(degree+1)
+            degree+1, rho, probability=probability_measure)
+        x, w = np.polynomial.hermite.hermgauss(degree+1)
 
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        p_exact = np.asarray([1+0.*x,2*x,4.*x**2-2]).T/np.sqrt(sp.factorial(np.arange(degree+1))*np.sqrt(np.pi)*2**np.arange(degree+1))
+        p_exact = np.asarray([1+0.*x, 2*x, 4.*x**2-2]).T/np.sqrt(
+            sp.factorial(np.arange(degree+1))*np.sqrt(np.pi)*2**np.arange(
+                degree+1))
 
-        assert np.allclose(p,p_exact)
+        assert np.allclose(p, p_exact)
 
         # test orthogonality
         exact_moments = np.zeros((degree+1));
         # basis is orthonormal so integration of constant basis will be non-zero
         # but will not integrate to 1.0
-        exact_moments[0]=np.pi**0.25
-        assert np.allclose(np.dot(p.T,w),exact_moments)
+        exact_moments[0] = np.pi**0.25
+        assert np.allclose(np.dot(p.T, w), exact_moments)
         # test orthonormality
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
-
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_orthonormality_probabilists_hermite_polynomial(self):
         rho = 0.
         degree = 2
         probability_measure = True
         ab = hermite_recurrence(
-            degree+1,rho,probability=probability_measure)
+            degree+1, rho, probability=probability_measure)
 
-        x,w=np.polynomial.hermite.hermgauss(degree+1)
+        x, w= np.polynomial.hermite.hermgauss(degree+1)
         #transform rule to probablity weight function w=1/sqrt(2*PI)exp(-x^2/2)
         x *= np.sqrt(2.0)
         w /= np.sqrt(np.pi)
@@ -122,15 +123,16 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         # but if I switch to using orthonormal recursion, used here, in Pecos
         # then I will need to set ptFactor=1.0 as done implicitly above
         p_exact = np.asarray(
-            [1+0.*x,x,x**2-1]).T/np.sqrt(sp.factorial(np.arange(degree+1)))
-        assert np.allclose(p,p_exact)
+            [1+0.*x, x, x**2-1]).T/np.sqrt(sp.factorial(np.arange(degree+1)))
+        assert np.allclose(p, p_exact)
 
         # test orthogonality
-        exact_moments = np.zeros((degree+1)); exact_moments[0]=1.0
-        assert np.allclose(np.dot(p.T,w),exact_moments)
+        exact_moments = np.zeros((degree+1))
+        exact_moments[0] = 1.0
+        assert np.allclose(np.dot(p.T, w), exact_moments)
         # test orthonormality
-        print(np.allclose(np.dot(p.T*w,p),np.eye(degree+1)))
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+        print(np.allclose(np.dot(p.T*w, p), np.eye(degree+1)))
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_gauss_quadrature(self):
         degree = 4
