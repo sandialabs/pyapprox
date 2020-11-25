@@ -1,5 +1,8 @@
 import numpy as np
 from scipy import special as sp
+from pyapprox.numerically_generate_orthonormal_polynomials_1d import lanczos, \
+    modified_chebyshev_orthonormal
+
 
 def charlier_recurrence(N, a):
     r"""
@@ -284,39 +287,6 @@ def hermite_recurrence(Nterms, rho=0., probability=True):
 
     return ab
 
-def evaluate_monic_polynomial_1d(x,nmax,ab):
-    r"""
-    Evaluate univariate monic polynomials using their
-    three-term recurrence coefficients. A monic polynomial is a polynomial 
-    in which the coefficient of the highest degree term is 1.
-
-    Parameters
-    ----------
-    x : np.ndarray (num_samples)
-       The samples at which to evaluate the polynomials
-
-    nmax : integer
-       The maximum degree of the polynomials to be evaluated
-
-    ab : np.ndarray (num_recusion_coeffs,2)
-       The recursion coefficients. num_recusion_coeffs>degree
-
-    Returns
-    -------
-    p : np.ndarray (num_samples, nmax+1)
-       The values of the polynomials
-    """
-    p = np.zeros((x.shape[0],nmax+1),dtype=float)
-
-    p[:,0] = 1/ab[0,1]
-
-    if nmax > 0:
-        p[:,1] =(x - ab[0,0])*p[:,0]
-
-    for jj in range(2, nmax+1):
-        p[:,jj] = (x-ab[jj-1,0])*p[:,jj-1]-ab[jj-1,1]*p[:,jj-2]
-
-    return p
 
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab): 
     try:
@@ -739,6 +709,25 @@ def get_recursion_coefficients(
             msg = 'Number of coefs requested is larger than number of '
             msg += 'probability masses'
             raise Exception(msg)
+        recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
+        p = evaluate_orthonormal_polynomial_1d(
+            np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
+        error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
+        if error > numerically_generated_poly_accuracy_tolerance:
+            msg = f'basis created is ill conditioned. '
+            msg += f'Max error: {error}. Max terms: {xk.shape[0]}, '
+            msg += f'Terms requested: {num_coefs}'
+            raise Exception(msg)
+    elif (poly_type == 'continuous_numeric' or
+          var_type == 'continuous_rv_sample'):
+        if poly_type is None:
+            opts = opts['shapes']
+        xk, pk = opts['xk'], opts['pk']
+        if num_coefs > xk.shape[0]:
+            msg = 'Number of coefs requested is larger than number of '
+            msg += 'samples'
+            raise Exception(msg)
+        print(num_coefs)
         recursion_coeffs  = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
         p = evaluate_orthonormal_polynomial_1d(
             np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)

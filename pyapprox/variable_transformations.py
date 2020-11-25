@@ -111,45 +111,53 @@ class AffineBoundedVariableTransformation(object):
 from pyapprox.variables import IndependentMultivariateRandomVariable, \
     get_distribution_info, float_rv_discrete
 class AffineRandomVariableTransformation(object):
-    def __init__(self,variable):
+    def __init__(self, variable, enforce_bounds=False):
         """
         Variable uniquness dependes on both the type of random variable
         e.g. beta, gaussian, etc. and the parameters of that distribution
         e.g. loc and scale parameters as well as any additional parameters
         """
-        if (type(variable)!=IndependentMultivariateRandomVariable):
+        if (type(variable) != IndependentMultivariateRandomVariable):
             variable = IndependentMultivariateRandomVariable(variable)
-        self.variable=variable
+        self.variable = variable
+        self.enforce_bounds = enforce_bounds
         
-        self.scale_parameters = np.empty((self.variable.nunique_vars,2))
+        self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
-            name,scale_dict,__ = get_distribution_info(var)
+            name, scale_dict, __ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
-            loc,scale=scale_dict['loc'].copy(),scale_dict['scale'].copy()
+            loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
             if (is_bounded_continuous_variable(var) or
-                (type(var.dist)==float_rv_discrete and
-                 var.dist.name!='discrete_chebyshev')):
-                lb,ub = -1,1
+                (type(var.dist) == float_rv_discrete and
+                 var.dist.name != 'discrete_chebyshev')):
+                lb, ub = -1, 1
                 scale /= (ub-lb)
-                loc   =  loc-scale*lb
-            self.scale_parameters[ii,:] = loc,scale   
+                loc = loc-scale*lb
+            self.scale_parameters[ii, :] = loc, scale   
 
-    def map_to_canonical_space(self,user_samples):
+    def map_to_canonical_space(self, user_samples):
         canonical_samples = user_samples.copy()
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
-            loc,scale = self.scale_parameters[ii,:]
-            canonical_samples[indices,:] = (user_samples[indices,:]-loc)/scale
+            loc, scale = self.scale_parameters[ii, :]
             
+            bounds = [loc-scale, scale*2]
+            var = self.variable.unique_variables[ii]
+            if (self.enforce_bounds and is_bounded_continuous_variable(var) and
+                np.any(user_samples[indices, :]<bounds[0])):
+                print(user_samples, bounds)
+                raise Exception(f'Sample outside the bounds {bounds}')
+                
+            canonical_samples[indices, :] = (user_samples[indices, :]-loc)/scale
         return canonical_samples
 
-    def map_from_canonical_space(self,canonical_samples):
+    def map_from_canonical_space(self, canonical_samples):
         user_samples = canonical_samples.copy()
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
-            loc,scale = self.scale_parameters[ii,:]
-            user_samples[indices,:] = canonical_samples[indices,:]*scale+loc
+            loc,scale = self.scale_parameters[ii, :]
+            user_samples[indices, :] = canonical_samples[indices, :]*scale+loc
             
         return user_samples
 

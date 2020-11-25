@@ -716,7 +716,7 @@ def plot_gaussian_contours(mean,chol_factor,show=False,
 
 from scipy.interpolate import interp1d
 class EmpiricalCDF(object):
-    def __init__(self,samples):
+    def __init__(self, samples):
         assert samples.ndim==1
         self.samples = samples
         self.sorted_samples = np.sort(self.samples)

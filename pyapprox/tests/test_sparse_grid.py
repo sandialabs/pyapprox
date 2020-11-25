@@ -1522,8 +1522,8 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
     def test_convert_sparse_grid_to_pce_mixed_basis(self):
         
-        #self.help_convert_sparse_grid_to_pce_mixed_basis("pdf")
-        #self.help_convert_sparse_grid_to_pce_mixed_basis("deprecated")
+        self.help_convert_sparse_grid_to_pce_mixed_basis("pdf")
+        self.help_convert_sparse_grid_to_pce_mixed_basis("deprecated")
         self.help_convert_sparse_grid_to_pce_mixed_basis("christoffel")
 
     def help_convert_sparse_grid_to_pce_mixed_basis(self, leja_method):

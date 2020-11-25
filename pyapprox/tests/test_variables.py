@@ -153,7 +153,7 @@ class TestVariables(unittest.TestCase):
         mass_locations1 = np.geomspace(1.0, 32.0, num=nmasses1)
         masses1 = np.ones(nmasses1,dtype=float)/nmasses1
         var1 = float_rv_discrete(
-            name='var1',values=(mass_locations1,masses1))()
+            name='var1', values=(mass_locations1, masses1))()
 
         for power in [1,2,3]:
             assert np.allclose(
