@@ -7,8 +7,6 @@ from pyapprox.orthonormal_polynomials_1d import \
      hermite_recurrence, krawtchouk_recurrence, hahn_recurrence, \
      discrete_chebyshev_recurrence, evaluate_orthonormal_polynomial_1d
 from pyapprox.monomial import monomial_basis_matrix
-from pyapprox.numerically_generate_orthonormal_polynomials_1d import lanczos, \
-    modified_chebyshev_orthonormal
 from pyapprox.utilities import \
     flattened_rectangular_lower_triangular_matrix_index
 from pyapprox.probability_measure_sampling import \

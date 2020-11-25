@@ -143,9 +143,43 @@ def convert_monic_to_orthonormal_recursion_coefficients(ab_monic,probability):
         ab[0,1]=1
     return ab
 
-from pyapprox.orthonormal_polynomials_1d import evaluate_monic_polynomial_1d
+def evaluate_monic_polynomial_1d(x,nmax,ab):
+    r"""
+    Evaluate univariate monic polynomials using their
+    three-term recurrence coefficients. A monic polynomial is a polynomial 
+    in which the coefficient of the highest degree term is 1.
+
+    Parameters
+    ----------
+    x : np.ndarray (num_samples)
+       The samples at which to evaluate the polynomials
+
+    nmax : integer
+       The maximum degree of the polynomials to be evaluated
+
+    ab : np.ndarray (num_recusion_coeffs,2)
+       The recursion coefficients. num_recusion_coeffs>degree
+
+    Returns
+    -------
+    p : np.ndarray (num_samples, nmax+1)
+       The values of the polynomials
+    """
+    p = np.zeros((x.shape[0],nmax+1),dtype=float)
+
+    p[:,0] = 1/ab[0,1]
+
+    if nmax > 0:
+        p[:,1] =(x - ab[0,0])*p[:,0]
+
+    for jj in range(2, nmax+1):
+        p[:,jj] = (x-ab[jj-1,0])*p[:,jj-1]-ab[jj-1,1]*p[:,jj-2]
+
+    return p
+
+
 def modified_chebyshev_orthonormal(nterms,quadrature_rule,
-                                   get_input_coefs=None,probability=True):
+                                   get_input_coefs=None, probability=True):
     """
     Use the modified Chebyshev algorithm to compute the recursion coefficients
     of the orthonormal polynomials p_i(x) orthogonal to a target measure w(x) 

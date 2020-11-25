@@ -6,6 +6,9 @@ from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
 from pyapprox.variables import float_rv_discrete, get_distribution_info
 
 class TestUnivariateQuadrature(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+    
 
     def test_gauss_jacobi_quadrature(self):
         """
@@ -145,16 +148,80 @@ class TestUnivariateQuadrature(unittest.TestCase):
         import warnings
         warnings.filterwarnings('error')
         from scipy import stats
-        variable = stats.norm(0, 1)
+        variable = stats.norm(2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
             variable, growth_rule, method='christoffel')
         level = 5
         samples, weights = quad_rule(level)
-        print(samples)
+        # samples returned by quadrature rule will be on canonical domain
+        # check first point was chosen correctly
+        assert np.allclose(samples[0], (variable.ppf(0.75)-2)/3)
+        # so integral is computed with resepect to standard normal
+        assert np.allclose((samples**2).dot(weights[-1]), 1)
+
+    def test_uniform_christoffel_leja_quadrature_rule(self):
+        import warnings
+        warnings.filterwarnings('error')
+        from scipy import stats
+        variable = stats.uniform(-2, 3)
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            variable, growth_rule, method='christoffel')
+        level = 5
+        samples, weights = quad_rule(level)
+        # samples returned by quadrature rule will be on canonical domain
+        # check first point was chosen correctly
+        assert np.allclose(samples[0], 2*(variable.ppf(0.5)+2)/3-1)
+        # so integral is computed with resepect to uniform on [-1, 1]
+        assert np.allclose((samples**2).dot(weights[-1]), 1/3)
+
+    def test_hermite_pdf_weighted_leja_quadrature_rule(self):
+        from scipy import stats
+        variable = stats.norm(2, 3)
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            variable, growth_rule, method='pdf')
+        level = 5
+        samples, weights = quad_rule(level)
+        assert np.allclose(samples[0], (variable.ppf(0.5)-2)/3)
+        assert np.allclose((samples**2).dot(weights[-1]), 1)
+
+    def test_hermite_pdf_weighted_leja_quadrature_rule(self):
+        from scipy import stats
+        variable = stats.uniform(-2, 3)
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            variable, growth_rule, method='pdf')
+        level = 5
+        samples, weights = quad_rule(level)
+        assert np.allclose(samples[0], 2*(variable.ppf(0.5)+2)/3-1)
+        assert np.allclose((samples**2).dot(weights[-1]), 1/3)
+
+    def test_sampled_based_christoffel_leja_quadrature_rule(self):
+        nsamples = int(1e6)
+        samples = np.random.normal(0, 1, (1, nsamples))
+        variable = float_rv_discrete(
+            name='continuous_rv_sample',
+            values=(samples[0, :], np.ones(nsamples)/nsamples))()
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            variable, growth_rule, method='christoffel',
+            numerically_generated_poly_accuracy_tolerance=1e-8)
+        level = 5
+        quad_samples, weights = quad_rule(level)
+        # print(quad_samples)
+        # print((quad_samples**2).dot(weights[-1]))
+        # print((samples**2).mean())
+        
+        assert np.allclose(
+            (quad_samples**2).dot(weights[-1]), (samples**2).mean())
+        
 
 
-if __name__== "__main__":    
+if __name__== "__main__":
+    import warnings
+    warnings.filterwarnings('error')
     univariate_quadrature_test_suite = \
       unittest.TestLoader().loadTestsFromTestCase(
          TestUnivariateQuadrature)

@@ -478,7 +478,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_discrete_chebyshev(self):
         N,degree=10,5
         xk,pk = np.arange(N),np.ones(N)/N
-        rv = float_rv_discrete(name='discrete_chebyshev',values=(xk,pk))()
+        rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))()
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)

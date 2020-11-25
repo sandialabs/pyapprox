@@ -7,6 +7,8 @@ from scipy.stats import binom, hypergeom, poisson
 from pyapprox.variables import float_rv_discrete
 
 class TestOrthonormalPolynomials1D(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_orthonormality_legendre_polynomial(self):
         alpha = 0.;    beta = 0.
@@ -213,20 +215,20 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
 
     def test_discrete_chebyshev(self):
-        N,degree=100,5
-        xk,pk = np.arange(N),np.ones(N)/N
-        rv = float_rv_discrete(name='discrete_chebyshev',values=(xk,pk))
+        N,degree=100, 5
+        xk, pk = np.arange(N), np.ones(N)/N
+        rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))
         ab = discrete_chebyshev_recurrence(degree+1, N)
         p = evaluate_orthonormal_polynomial_1d(xk, degree, ab)
         w = rv.pmf(xk)
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_charlier(self):
         # Note as rate gets smaller the number of terms that can be accurately
         # computed will decrease because the problem gets more ill conditioned.
         # This is caused because the number of masses with significant weights
         # gets smaller as rate does 
-        degree,rate=5,2
+        degree, rate = 5, 2
         rv = poisson(rate)
         ab = charlier_recurrence(degree+1, rate)
         lb,ub=rv.interval(1-np.finfo(float).eps)
@@ -234,7 +236,21 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         w = rv.pmf(x)
         #print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1),atol=1e-7)
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=1e-7)
+
+    def test_continuous_rv_sample(self):
+        N, degree = int(1e6), 5
+        xk, pk = np.random.normal(0, 1, N), np.ones(N)/N
+        rv = float_rv_discrete(name='continuous_rv_sample', values=(xk, pk))
+        ab = modified_chebyshev_orthonormal(degree+1, [xk, pk])
+        hermite_ab = hermite_recurrence(
+            degree+1, 0, True)
+        x, w = gauss_quadrature(hermite_ab, degree+1)
+        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+        gaussian_moments = np.zeros(degree+1)
+        gaussian_moments[0] = 1
+        assert np.allclose(p.T.dot(w), gaussian_moments, atol=1e-2)
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=7e-2)
 
     def test_convert_orthonormal_recurence_to_three_term_recurence(self):
         rho = 0.

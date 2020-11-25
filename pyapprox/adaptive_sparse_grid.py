@@ -1126,7 +1126,7 @@ class SubSpaceRefinementManager(object):
 from pyapprox.univariate_quadrature import leja_growth_rule, \
     constant_increment_growth_rule
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    beta_leja_quadrature_rule, get_univariate_leja_quadrature_rule
+    get_univariate_leja_quadrature_rule
 from pyapprox.variables import variable_shapes_equivalent
 def get_unique_quadrule_variables(var_trans):
     """
@@ -1154,7 +1154,7 @@ def get_unique_quadrule_variables(var_trans):
     return unique_quadrule_variables, unique_quadrule_indices
 
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans, growth_rules=None, method='christoffel'):
+        var_trans, growth_rules=None, method='pdf'):
     """
     Return a list of unique quadrature rules. If each dimension has the same
     rule then list will only have one entry.
@@ -1172,8 +1172,8 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         growth_rules = [growth_rules]*len(unique_quadrule_indices)
 
     if len(growth_rules) != len(unique_quadrule_indices):
-        msg ='growth rules and unique_quadrule_indices (derived from var_trans)'
-        msg += ' are inconsistent'
+        msg = 'growth rules and unique_quadrule_indices'
+        msg += ' (derived from var_trans) are inconsistent'
         raise Exception(msg)
 
     quad_rules = []
@@ -1228,8 +1228,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.set_config_variable_index(
                 config_variables_idx, config_var_trans)
         self.set_refinement_functions(
-            refinement_indicator,admissibility_function,univariate_growth_rule,
-            cost_function, work_qoi_index, unique_quadrule_indices)
+            refinement_indicator, admissibility_function,
+            univariate_growth_rule, cost_function, work_qoi_index,
+            unique_quadrule_indices)
         self.set_univariate_rules(univariate_quad_rule)
         self.verbose = verbose
 
@@ -1261,28 +1262,28 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             raise Exception(msg)
         
         if callable(univariate_quad_rule):
-            self.compact_univariate_quad_rule=[self.univariate_quad_rule]
+            self.compact_univariate_quad_rule = [self.univariate_quad_rule]
         else:
-            self.compact_univariate_quad_rule=univariate_quad_rule
+            self.compact_univariate_quad_rule = univariate_quad_rule
 
         if self.unique_quadrule_indices is None:
             self.univariate_quad_rule = self.compact_univariate_quad_rule
         else:
-            assert len(self.compact_univariate_quad_rule)==len(
+            assert len(self.compact_univariate_quad_rule) == len(
                 self.unique_quadrule_indices)
             self.univariate_quad_rule = [[] for dd in range(dd)]
             for ii in range(len(self.unique_quadrule_indices)):
                 jj = self.unique_quadrule_indices[ii]
                 for kk in jj:
-                    self.univariate_quad_rule[kk]=\
+                    self.univariate_quad_rule[kk] = \
                         self.compact_univariate_quad_rule[ii]
 
-        assert len(self.univariate_quad_rule)==dd
+        assert len(self.univariate_quad_rule) == dd
             
         self.samples_1d, self.weights_1d = get_1d_samples_weights(
             self.compact_univariate_quad_rule,
             self.compact_univariate_growth_rule,
-            [max_level]*dd,self.config_variables_idx,
+            [max_level]*dd, self.config_variables_idx,
             self.unique_quadrule_indices)
 
     def refine_and_add_new_subspaces(self,best_active_subspace_index):

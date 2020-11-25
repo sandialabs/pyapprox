@@ -160,8 +160,6 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
         num_initial_rows=0
         
     basis_matrix = generate_basis_matrix(candidate_samples)
-    print(basis_matrix[:3,:3])
-
     assert num_leja_samples <= basis_matrix.shape[1]
     if preconditioning_function is not None:
         weights = np.sqrt(
@@ -169,14 +167,11 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
         basis_matrix = (basis_matrix.T*weights).T
     else:
         weights = None
-    print('w2',weights[:3])
-    print(basis_matrix[:3,:3])
     L, U, p = truncated_pivoted_lu_factorization(
         basis_matrix, num_leja_samples, num_initial_rows)
     assert p.shape[0] == num_leja_samples, (p.shape, num_leja_samples)
     p = p[:num_leja_samples]
     leja_samples = candidate_samples[:, p]
-    print('l',leja_samples)
     plot = False
     if plot and leja_samples.shape[0] == 2:
         import matplotlib.pyplot as plt

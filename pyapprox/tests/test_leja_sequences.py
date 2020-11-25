@@ -212,7 +212,7 @@ class TestLeja1DSequences(unittest.TestCase):
         basis_fun = partial(
             evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
-        plot_degree = max_nsamples-1
+        plot_degree = np.inf#max_nsamples-1
         assert plot_degree < max_nsamples
         def callback(leja_sequence, coef, new_samples, obj_vals,
                      initial_guesses):

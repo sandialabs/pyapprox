@@ -385,7 +385,8 @@ def candidate_based_christoffel_leja_rule_1d(
 
 def univariate_christoffel_leja_quadrature_rule(
         variable, growth_rule, level, return_weights_for_all_levels=True,
-        initial_points=None):
+        initial_points=None,
+        numerically_generated_poly_accuracy_tolerance=1e-12):
     """
     Return the samples and weights of the Leja quadrature rule for any 
     continuous variable using the inverse Christoffel weight function
@@ -431,7 +432,8 @@ def univariate_christoffel_leja_quadrature_rule(
     name, scales, shapes = get_distribution_info(variable)
     opts = {'rv_type':name, 'shapes':shapes, 'var_nums':variable}
     max_nsamples = growth_rule(level)
-    ab = get_recursion_coefficients(opts, max_nsamples+1)
+    ab = get_recursion_coefficients(
+        opts, max_nsamples+1, numerically_generated_poly_accuracy_tolerance)
     basis_fun = partial(
             evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
     
@@ -440,11 +442,20 @@ def univariate_christoffel_leja_quadrature_rule(
         canonical_bounds = [-1, 1]
         if initial_points is None:
             initial_points = np.asarray(
-                [[2*((variable.ppf(0.5)-bounds[0])/(bounds[1]-bounds[0]))-1]]).T
+                [[variable.ppf(0.5)]]).T
+            loc, scale = scales['loc'], scales['scale']
+            lb, ub = -1, 1
+            scale /= (ub-lb)
+            loc = loc-scale*lb
+            initial_points = (initial_points-loc)/scale  
         assert np.all((initial_points>=canonical_bounds[0])&
                       (initial_points<=canonical_bounds[1]))
+        # always produce sequence in canonical space
+        bounds = canonical_bounds
     else:
         bounds = list(variable.interval(1))
+        if variable.dist.name == 'continuous_rv_sample':
+            bounds = [-np.inf, np.inf]
         #if not np.isfinite(bounds[0]):
         #    bounds[0] = -1e6
         #if not np.isfinite(bounds[1]):
@@ -455,14 +466,15 @@ def univariate_christoffel_leja_quadrature_rule(
             # try to add point at infinity. So use different initial point
             initial_points = np.asarray(
                 [[variable.ppf(0.75)]]).T
-        elif initial_points.shape[1] == 1:
+            loc, scale = scales['loc'], scales['scale']
+            initial_points = (initial_points-loc)/scale
+        if initial_points.shape[1] == 1:
             assert initial_points[0, 0] != 0
 
     leja_sequence = get_christoffel_leja_sequence_1d(
         max_nsamples, initial_points, bounds, basis_fun,
         {'gtol':1e-8, 'verbose':False}, callback=None)
-    print(name, leja_sequence)
-    
+
     __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
     ordered_weights_1d =  get_christoffel_leja_quadrature_weights_1d(
             leja_sequence, growth_rule, __basis_fun, level, True)
@@ -540,8 +552,7 @@ def univariate_pdf_weighted_leja_quadrature_rule(
             'var_nums':variable}
     max_nsamples = growth_rule(level)
     ab = get_recursion_coefficients(opts, max_nsamples+1)
-    basis_fun = partial(
-            evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
+    basis_fun = partial(evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
     pdf, pdf_jac = get_pdf_weight_functions(variable)
     
@@ -550,14 +561,23 @@ def univariate_pdf_weighted_leja_quadrature_rule(
         canonical_bounds = [-1, 1]
         if initial_points is None:
             initial_points = np.asarray(
-                [[2*((variable.ppf(0.5)-bounds[0])/(bounds[1]-bounds[0]))-1]]).T
+                [[variable.ppf(0.5)]]).T
+            loc, scale = scales['loc'], scales['scale']
+            lb, ub = -1, 1
+            scale /= (ub-lb)
+            loc = loc-scale*lb
+            initial_points = (initial_points-loc)/scale  
         assert np.all((initial_points>=canonical_bounds[0])&
                       (initial_points<=canonical_bounds[1]))
+        # always produce sequence in canonical space
+        bounds = canonical_bounds
     else:
         bounds = list(variable.interval(1))
         if initial_points is None:
             initial_points = np.asarray(
                 [[variable.ppf(0.5)]]).T
+            loc, scale = scales['loc'], scales['scale']
+            initial_points = (initial_points-loc)/scale
 
     leja_sequence = get_pdf_weighted_leja_sequence_1d(
         max_nsamples, initial_points, bounds, basis_fun, pdf, pdf_jac,
@@ -566,6 +586,7 @@ def univariate_pdf_weighted_leja_quadrature_rule(
     __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
     ordered_weights_1d =  get_pdf_weighted_leja_quadrature_weights_1d(
             leja_sequence, growth_rule, pdf, __basis_fun, level, True)
+
     return leja_sequence[0, :], ordered_weights_1d
 
 
@@ -605,8 +626,8 @@ def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule):
                 num_coefs, [xk, shapes['pk']])
 
         def generate_candidate_samples(num_samples):
-            assert num_samples==nmasses
-            return xk[np.newaxis,:]
+            assert num_samples == nmasses
+            return xk[np.newaxis, :]
 
         # do not specify init_samples in partial or a sparse grid cannot
         # update the samples_1d so that next level has same samples_1d
@@ -622,23 +643,26 @@ def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule):
     return quad_rule
     
 
-def get_univariate_leja_quadrature_rule(variable, growth_rule,
-                                        method='christoffel'):
+def get_univariate_leja_quadrature_rule(
+        variable,
+        growth_rule,
+        method='pdf',
+        numerically_generated_poly_accuracy_tolerance=1e-12):
     
     if not is_continuous_variable(variable):
         return get_discrete_univariate_leja_quadrature_rule(
             variable, growth_rule)
     
     if method == 'christoffel':
-        return partial(univariate_christoffel_leja_quadrature_rule,
-                       variable, growth_rule)
+        return partial(
+            univariate_christoffel_leja_quadrature_rule,variable, growth_rule,
+            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance)
 
     if method == 'pdf':
         return partial(univariate_pdf_weighted_leja_quadrature_rule,
                        variable, growth_rule)
 
     assert method == 'deprecated'
-        
     var_type, __, shapes = get_distribution_info(variable)
     if var_type == 'uniform':
         quad_rule = partial(
@@ -825,7 +849,7 @@ def gaussian_leja_quadrature_rule(level,
     assert np.allclose(
         (univariate_weight_function(0.5+1e-8)-
              univariate_weight_function(0.5))/1e-8,
-        univariate_weight_function_deriv(0.5),atol=1e-6)
+        univariate_weight_function_deriv(0.5), atol=1e-6)
 
     poly = PolynomialChaosExpansion()
     # must be imported locally otherwise I have a circular dependency
@@ -833,8 +857,8 @@ def gaussian_leja_quadrature_rule(level,
         define_iid_random_variable_transformation
     from scipy.stats import norm
     var_trans = define_iid_random_variable_transformation(
-        norm(),num_vars)
-    poly_opts = {'poly_type':'hermite','var_trans':var_trans}
+        norm(), num_vars)
+    poly_opts = {'poly_type':'hermite', 'var_trans':var_trans}
     poly.configure(poly_opts) 
 
     if samples_filename is None or not os.path.exists(samples_filename):
@@ -843,7 +867,7 @@ def gaussian_leja_quadrature_rule(level,
             initial_points = np.asarray([[0.0]]).T
         leja_sequence = get_leja_sequence_1d(
             num_leja_samples, initial_points, poly,
-            weight_function, weight_function_deriv,ranges)
+            weight_function, weight_function_deriv, ranges)
         if samples_filename is not None:
             np.savez(samples_filename, samples=leja_sequence)
     else:
