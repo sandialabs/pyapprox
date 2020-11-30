@@ -1238,7 +1238,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         if self.univariate_growth_rule is None:
             msg="Must call set_refinement_functions before set_univariate rules"
             raise Exception(msg)
-        max_level=2
+        max_level = 2
         self.univariate_quad_rule = univariate_quad_rule
 
         if self.config_variables_idx is None:
@@ -1286,28 +1286,27 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             [max_level]*dd, self.config_variables_idx,
             self.unique_quadrule_indices)
 
-    def refine_and_add_new_subspaces(self,best_active_subspace_index):
+    def refine_and_add_new_subspaces(self, best_active_subspace_index):
         new_active_subspace_indices, num_new_subspace_samples = super(
             CombinationSparseGrid,self).refine_and_add_new_subspaces(
             best_active_subspace_index)
         self.smolyak_coefficients = update_smolyak_coefficients(
-            best_active_subspace_index,self.subspace_indices,
+            best_active_subspace_index, self.subspace_indices,
             self.smolyak_coefficients)
         return new_active_subspace_indices, num_new_subspace_samples
 
-    def get_subspace_samples(self,subspace_index,unique_poly_indices):
-        samples_1d,weights_1d = update_1d_samples_weights(
+    def get_subspace_samples(self,subspace_index, unique_poly_indices):
+        samples_1d, weights_1d = update_1d_samples_weights(
             self.compact_univariate_quad_rule,
             self.compact_univariate_growth_rule,
-            subspace_index,self.samples_1d,self.weights_1d,
-            self.config_variables_idx,self.unique_quadrule_indices)
+            subspace_index, self.samples_1d, self.weights_1d,
+            self.config_variables_idx, self.unique_quadrule_indices)
 
         self.smolyak_coefficients = np.hstack(
-            (self.smolyak_coefficients,np.zeros(1)))
+            (self.smolyak_coefficients, np.zeros(1)))
 
         return  get_sparse_grid_samples(
-            unique_poly_indices,self.samples_1d,self.config_variables_idx)
-
+            unique_poly_indices, self.samples_1d, self.config_variables_idx)
 
     def __call__(self, samples):
         """
