@@ -1340,7 +1340,7 @@ def partial_functions_equal(func1, func2):
     return are_equal
 
 
-def get_all_sample_combinations(samples1,samples2):
+def get_all_sample_combinations(samples1, samples2):
     r"""
     For two sample sets of different random variables
     loop over all combinations 
