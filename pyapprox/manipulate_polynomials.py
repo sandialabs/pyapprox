@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.special import factorial
-from pyapprox.indexing import hash_array
+from pyapprox.indexing import hash_array, argsort_indices_leixographically
 from pyapprox.indexing import compute_hyperbolic_level_indices
+from numba import njit
 
-
+@njit(cache=True)
 def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     """
     TODO: instead of using dictionary to colect terms consider using
@@ -32,19 +33,38 @@ def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     assert num_indices1 == coeffs1.shape[0]
     assert num_indices2 == coeffs2.shape[0]
     assert num_vars == indices2.shape[0]
-    assert nqoi == coeffs2.shape[1] # TODO relax this assumption
+    assert nqoi == coeffs2.shape[1]
 
+    # using np.unique inside group like terms is much more expensive
+    # than using dictionary
+    # max_num_indices = num_indices1*num_indices2
+    # indices = []
+    # coeffs = []
+    # for ii in range(num_indices1):
+    #     index1 = indices1[:, ii]
+    #     coeff1 = coeffs1[ii, :]
+    #     for jj in range(num_indices2):
+    #         indices.append(index1 + indices2[:, jj])
+    #         coeffs.append(coeff1*coeffs2[jj, :])
+
+    # return group_like_terms(np.array(coeffs), np.array(indices).T)
+    
     indices_dict = dict()
     max_num_indices = num_indices1*num_indices2
-    indices = np.empty((num_vars, max_num_indices), int)
-    coeffs = np.empty((max_num_indices, nqoi), float)
+    indices = np.empty((num_vars, max_num_indices), dtype=np.int64)
+    coeffs = np.empty((max_num_indices, nqoi), dtype=np.double)
     kk = 0
     for ii in range(num_indices1):
         index1 = indices1[:, ii]
         coeff1 = coeffs1[ii]
         for jj in range(num_indices2):
             index = index1+indices2[:, jj]
-            key = hash_array(index)
+            # hash_array does not work with jit
+            # key = hash_array(index)
+            # so use a polynomial hash
+            key = 0
+            for dd in range(index.shape[0]):
+                key = 31*key + int(index[dd])
             coeff = coeff1*coeffs2[jj]
             if key in indices_dict:
                 coeffs[indices_dict[key]] += coeff
@@ -58,6 +78,7 @@ def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     return indices, coeffs
 
 
+@njit(cache=True)
 def coeffs_of_power_of_nd_linear_polynomial(num_vars, degree, linear_coeffs):
     """
     Compute the polynomial (coefficients and indices) obtained by raising
@@ -127,27 +148,88 @@ def substitute_polynomials_for_variables_in_another_polynomial(
         E.g if y2 = y1*x3 and y1 = x1*x2 then y2 is a function of x1,x2,x3
         despite being only parameterized by two variables y1 and x3
     """
-    
+    unique_global_vars_in = np.unique(np.concatenate(tuple(global_var_idx)))
+    num_global_vars = unique_global_vars_in.shape[0] + (
+        indices.shape[0]-len(global_var_idx))
+    num_inputs = var_idx.shape[0]
+    assert num_inputs == len(indices_in)
+    assert num_inputs == len(coeffs_in)
+    assert var_idx.max() < num_global_vars
+    assert len(global_var_idx) == num_inputs
+
+
+    # precompute polynomial powers which will be used repeatedly
+    input_poly_powers = []
+    for jj in range(num_inputs):
+        max_pow = indices[var_idx[jj], :].max()
+        input_poly_powers.append(
+            precompute_polynomial_powers(
+                max_pow, indices_in[jj], coeffs_in[jj], var_idx[jj],
+                global_var_idx[jj], num_global_vars))
+
+    # get global indices that will not be not substituted
+    mask = np.ones(num_global_vars, dtype=bool)
+    mask[unique_global_vars_in] = False
+    mask2 = np.ones(indices.shape[0], dtype=bool)
+    mask2[np.unique(var_idx)] = False
+
+        
     num_vars, num_terms = indices.shape
     new_indices = []
     new_coeffs = []
     for ii in range(num_terms):
-        index = indices[:, ii:ii+1]
-        pows = index[var_idx]
-        ind, cf = substitute_polynomials_for_variables_in_single_basis_term(
-            indices_in, coeffs_in, index, coeffs[ii], var_idx, global_var_idx)
+        basis_index = indices[:, ii:ii+1]
+        # The following is more memory efficient but does not reuse information
+        # computed multiple times
+        # ind, cf = substitute_polynomials_for_variables_in_single_basis_term(
+        #   indices_in, coeffs_in, basis_index, coeffs[ii], var_idx,
+        #   global_var_idx)
+        
+        degree = basis_index[var_idx[0], 0]
+        ind, cf = input_poly_powers[0][degree]
+        for jj in range(1, num_inputs):
+            degree = basis_index[var_idx[jj], 0]
+            ind2, cf2 = input_poly_powers[jj][degree]
+            ind, cf = multiply_multivariate_polynomials(ind, cf, ind2, cf2)
+
+        # multiply all terms by these remaining variables
+        ind[mask, :] += basis_index[mask2]
+        cf *= coeffs[ii]
         new_indices.append(ind)
         new_coeffs.append(cf)
+        
     new_indices = np.hstack(new_indices)
     new_coeffs = np.vstack(new_coeffs)
 
-    unique_indices, repeated_idx = np.unique(
-        new_indices, axis=1, return_inverse=True)
-    unique_coef = np.zeros((unique_indices.shape[1], new_coeffs.shape[1]))
-    for ii in range(repeated_idx.shape[0]):
-        unique_coef[repeated_idx[ii]] += new_coeffs[ii]
-    return unique_indices, unique_coef
+    return group_like_terms(new_coeffs, new_indices)
+    # unique_indices, repeated_idx = np.unique(
+    #     new_indices, axis=1, return_inverse=True)
+    # unique_coef = np.zeros((unique_indices.shape[1], new_coeffs.shape[1]))
+    # for ii in range(repeated_idx.shape[0]):
+    #     unique_coef[repeated_idx[ii]] += new_coeffs[ii]
+    # return unique_indices, unique_coef
 
+    
+def precompute_polynomial_powers(max_pow, indices, coefs, var_idx,
+                                 global_var_idx, num_global_vars):
+    """
+    Raise a polynomial to all powers 0,..., N.
+    E.g. compute 1, p(x), p(x)^2, p(x)^3, ... p(x)^N
+    """
+    if max_pow < 0:
+        raise exception ('max_pow must >= 0')
+   
+    # store input indices in global_var_idx
+    assert indices.shape[0] == global_var_idx.shape[0]
+    ind = np.zeros((num_global_vars, indices.shape[1]))
+    ind[global_var_idx, :] = indices
+    
+    polys = [coeffs_of_power_of_polynomial(ind, coefs, 0)]
+    for nn in range(1, max_pow+1):
+        polys.append(multiply_multivariate_polynomials(
+            ind, coefs, polys[-1][0], polys[-1][1]))
+    return polys
+    
 
 def substitute_polynomials_for_variables_in_single_basis_term(
         indices_in, coeffs_in, basis_index, basis_coeff, var_idx,
@@ -179,7 +261,7 @@ def substitute_polynomials_for_variables_in_single_basis_term(
         E.g if y2 = y1*x3 and y1 = x1*x2 then y2 is a function of x1,x2,x3
         despite being only parameterized by two variables y1 and x3
     """
-    unique_global_vars_in = np.unique(global_var_idx)
+    unique_global_vars_in = np.unique(np.concatenate(tuple(global_var_idx)))
     num_global_vars = unique_global_vars_in.shape[0] + (
         basis_index.shape[0]-len(global_var_idx))
     num_inputs = var_idx.shape[0]
@@ -193,6 +275,7 @@ def substitute_polynomials_for_variables_in_single_basis_term(
     # store input indices in global_var_idx
     temp = []
     for jj in range(num_inputs):
+        assert indices_in[jj].shape[0] == global_var_idx[jj].shape[0]
         ind = np.zeros((num_global_vars, indices_in[jj].shape[1]))
         ind[global_var_idx[jj], :] = indices_in[jj]
         temp.append(ind)
@@ -200,13 +283,13 @@ def substitute_polynomials_for_variables_in_single_basis_term(
 
     jj = 0
     degree = basis_index[var_idx[jj], 0]
-    c1, ind1 = coeffs_of_power_of_polynomial(
+    ind1, c1 = coeffs_of_power_of_polynomial(
         indices_in[jj], coeffs_in[jj], degree)
     # TODO store each power of the input polynomials once before this function
     # and look up when it appears in the term considered here
     for jj in range(1, num_inputs):
         degree = basis_index[var_idx[jj], 0]
-        c2, ind2 = coeffs_of_power_of_polynomial(
+        ind2, c2 = coeffs_of_power_of_polynomial(
             indices_in[jj], coeffs_in[jj], degree)
         ind1, c1 = multiply_multivariate_polynomials(ind1, c1, ind2, c2)
 
@@ -222,14 +305,7 @@ def substitute_polynomials_for_variables_in_single_basis_term(
     return ind1, c1
 
 
-def composition_of_polynomials(indices_list, coeffs_list):
-    npolys = len(indices_list)
-    assert npolys == len(coeffs_list)
-    for ii in range(1, npolys):
-        new_poly = 2
-    return new_poly
-
-
+@njit(cache=True)
 def coeffs_of_power_of_polynomial(indices, coeffs, degree):
     """
     Compute the polynomial (coefficients and indices) obtained by raising
@@ -259,39 +335,53 @@ def coeffs_of_power_of_polynomial(indices, coeffs, degree):
     multinomial_coeffs, multinomial_indices = \
         multinomial_coeffs_of_power_of_nd_linear_polynomial(num_terms, degree)
     new_indices = np.zeros((num_vars, multinomial_indices.shape[1]))
-    new_coeffs = np.tile(multinomial_coeffs[:, np.newaxis], coeffs.shape[1])
+    # new_coeffs = np.tile(multinomial_coeffs[:, np.newaxis], coeffs.shape[1])
+    # numba does not support tile so replicate with repeat and reshape
+    new_coeffs = multinomial_coeffs.repeat(coeffs.shape[1]).reshape(
+        (-1, coeffs.shape[1]))
     for ii in range(multinomial_indices.shape[1]):
         multinomial_index = multinomial_indices[:, ii]
         for dd in range(num_terms):
             deg = multinomial_index[dd]
             new_coeffs[ii] *= coeffs[dd]**deg
             new_indices[:, ii] += indices[:, dd]*deg
-    return new_coeffs, new_indices
+    return new_indices, new_coeffs
 
 
 def group_like_terms(coeffs, indices):
     if coeffs.ndim == 1:
         coeffs = coeffs[:, np.newaxis]
 
-    num_vars, num_indices = indices.shape
-    indices_dict = {}
-    for ii in range(num_indices):
-        key = hash_array(indices[:, ii])
-        if not key in indices_dict:
-            indices_dict[key] = [coeffs[ii], ii]
-        else:
-            indices_dict[key] = [indices_dict[key][0]+coeffs[ii], ii]
+    unique_indices, repeated_idx = np.unique(
+        indices, axis=1, return_inverse=True)
 
-    new_coeffs = np.empty((len(indices_dict), coeffs.shape[1]))
-    new_indices = np.empty((num_vars, len(indices_dict)), dtype=int)
-    ii = 0
-    for key, item in indices_dict.items():
-        new_indices[:, ii] = indices[:, item[1]]
-        new_coeffs[ii] = item[0]
-        ii += 1
-    return new_coeffs, new_indices
+    nunique_indices = unique_indices.shape[1]
+    unique_coeff = np.zeros(
+        (nunique_indices, coeffs.shape[1]), dtype=np.double)
+    for ii in range(repeated_idx.shape[0]):
+        unique_coeff[repeated_idx[ii]] += coeffs[ii]
+    return unique_indices, unique_coeff
+
+    # num_vars, num_indices = indices.shape
+    # indices_dict = {}
+    # for ii in range(num_indices):
+    #     key = hash_array(indices[:, ii])
+    #     if not key in indices_dict:
+    #         indices_dict[key] = [coeffs[ii], ii]
+    #     else:
+    #         indices_dict[key] = [indices_dict[key][0]+coeffs[ii], ii]
+
+    # new_coeffs = np.empty((len(indices_dict), coeffs.shape[1]))
+    # new_indices = np.empty((num_vars, len(indices_dict)), dtype=int)
+    # ii = 0
+    # for key, item in indices_dict.items():
+    #     new_indices[:, ii] = indices[:, item[1]]
+    #     new_coeffs[ii] = item[0]
+    #     ii += 1
+    # return new_coeffs, new_indices
 
 
+@njit(cache=True)
 def multinomial_coefficient(index):
     """Compute the multinomial coefficient of an index [i1,i2,...,id].
 
@@ -306,19 +396,25 @@ def multinomial_coefficient(index):
     coeff : double
         the multinomial coefficient
     """
-    level = index.sum()
-    denom = np.prod(factorial(index))
-    coeff = factorial(level)/denom
-    return coeff
+    res, ii = 1, np.sum(index)
+    i0 = np.argmax(index)
+    for a in np.hstack((index[:i0], index[i0+1:])):
+        for jj in range(1,a+1):
+            res *= ii
+            res //= jj
+            ii -= 1
+    return res
 
 
+@njit(cache=True)
 def multinomial_coefficients(indices):
-    coeffs = np.empty((indices.shape[1]), float)
+    coeffs = np.empty((indices.shape[1]), dtype=np.double)
     for i in range(indices.shape[1]):
         coeffs[i] = multinomial_coefficient(indices[:, i])
     return coeffs
 
 
+@njit(cache=True)
 def multinomial_coeffs_of_power_of_nd_linear_polynomial(num_vars, degree):
     """ Compute the multinomial coefficients of the individual terms
     obtained  when taking the power of a linear polynomial
@@ -395,43 +491,60 @@ def add_polynomials(indices_list, coeffs_list):
 
     num_polynomials = len(indices_list)
     assert num_polynomials == len(coeffs_list)
-    indices_dict = dict()
 
-    indices = []
-    coeff = []
-    ii = 0
-    kk = 0
-    for jj in range(indices_list[ii].shape[1]):
-        assert coeffs_list[ii].ndim == 2
-        assert coeffs_list[ii].shape[0] == indices_list[ii].shape[1]
-        index = indices_list[ii][:, jj]
-        indices_dict[hash_array(index)] = kk
-        indices.append(index)
-        coeff.append(coeffs_list[ii][jj, :].copy())
-        kk += 1
+    all_coeffs = np.vstack(coeffs_list)
+    all_indices = np.hstack(indices_list)
 
-    for ii in range(1, num_polynomials):
-        # print indices_list[ii].T,num_polynomials
-        assert coeffs_list[ii].ndim == 2
-        assert coeffs_list[ii].shape[0] == indices_list[ii].shape[1]
-        for jj in range(indices_list[ii].shape[1]):
-            index = indices_list[ii][:, jj]
-            key = hash_array(index)
-            if key in indices_dict:
-                nn = indices_dict[key]
-                coeff[nn] += coeffs_list[ii][jj, :]
-            else:
-                indices_dict[key] = kk
-                indices.append(index)
-                coeff.append(coeffs_list[ii][jj, :].copy())
-                kk += 1
+    return group_like_terms(all_coeffs, all_indices)
+    
+    # unique_indices, repeated_idx = np.unique(
+    #     all_indices, axis=1, return_inverse=True)
 
-    indices = np.asarray(indices).T
-    coeff = np.asarray(coeff)
+    # nunique_indices = unique_indices.shape[1]
+    # unique_coeff = np.zeros(
+    #     (nunique_indices, all_coeffs.shape[1]), dtype=np.double)
+    # for ii in range(repeated_idx.shape[0]):
+    #     unique_coeff[repeated_idx[ii]] += all_coeffs[ii]
+    # return unique_indices, unique_coeff
+    
+    # indices_dict = dict()
 
-    return indices, coeff
+    # indices = []
+    # coeff = []
+    # ii = 0
+    # kk = 0
+    # for jj in range(indices_list[ii].shape[1]):
+    #     assert coeffs_list[ii].ndim == 2
+    #     assert coeffs_list[ii].shape[0] == indices_list[ii].shape[1]
+    #     index = indices_list[ii][:, jj]
+    #     indices_dict[hash_array(index)] = kk
+    #     indices.append(index)
+    #     coeff.append(coeffs_list[ii][jj, :].copy())
+    #     kk += 1
+
+    # for ii in range(1, num_polynomials):
+    #     # print indices_list[ii].T,num_polynomials
+    #     assert coeffs_list[ii].ndim == 2
+    #     assert coeffs_list[ii].shape[0] == indices_list[ii].shape[1]
+    #     for jj in range(indices_list[ii].shape[1]):
+    #         index = indices_list[ii][:, jj]
+    #         key = hash_array(index)
+    #         if key in indices_dict:
+    #             nn = indices_dict[key]
+    #             coeff[nn] += coeffs_list[ii][jj, :]
+    #         else:
+    #             indices_dict[key] = kk
+    #             indices.append(index)
+    #             coeff.append(coeffs_list[ii][jj, :].copy())
+    #             kk += 1
+
+    # indices = np.asarray(indices).T
+    # coeff = np.asarray(coeff)
+
+    # return indices, coeff
 
 
+@njit(cache=True)
 def get_indices_double_set(indices):
     """
     Given muultivariate indices 
@@ -459,6 +572,7 @@ def get_indices_double_set(indices):
     return double_set_indices
 
 
+@njit(cache=True)
 def shift_momomial_expansion(coef, shift, scale):
     assert coef.ndim == 1
     shifted_coef = np.zeros_like(coef)
@@ -470,5 +584,15 @@ def shift_momomial_expansion(coef, shift, scale):
     return shifted_coef
 
 
-# Some of these functions can be replaced by numpy functions described at
+def compress_and_sort_polynomial(coef, indices, tol=1e-12):
+    I = np.where(np.absolute(coef)>tol)[0]
+    indices = indices[:, I]
+    coef = coef[I]
+    J = argsort_indices_leixographically(indices)
+    indices = indices[:, J]
+    coef = coef[J, :]
+    return indices, coef
+
+# 1D versions of some of these functions can be found at 
 # https://docs.scipy.org/doc/numpy/reference/routines.polynomials.polynomial.html
+
