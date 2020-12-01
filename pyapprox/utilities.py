@@ -1,9 +1,9 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
+from scipy.special import erf
 import numpy as np
 from scipy.special import beta as beta_fn
 from functools import partial
 from scipy.linalg import solve_triangular
+
 
 def sub2ind(sizes, multi_index):
     r"""
@@ -52,13 +52,15 @@ def sub2ind(sizes, multi_index):
     pyapprox.utilities.sub2ind
     """
     num_sets = len(sizes)
-    scalar_index = 0; shift = 1
+    scalar_index = 0
+    shift = 1
     for ii in range(num_sets):
         scalar_index += shift * multi_index[ii]
         shift *= sizes[ii]
     return scalar_index
 
-def ind2sub(sizes,scalar_index,num_elems):
+
+def ind2sub(sizes, scalar_index, num_elems):
     r"""
     Map a scalar index of a flat 1D array to the equivalent d-dimensional index
 
@@ -84,7 +86,7 @@ def ind2sub(sizes,scalar_index,num_elems):
     >>> sub = ind2sub(sizes,1,9)
     >>> print(sub)
     [1 0]
-    
+
     Parameters
     ----------
     sizes : integer 
@@ -93,7 +95,7 @@ def ind2sub(sizes,scalar_index,num_elems):
 
     scalar_index : integer 
         The scalar index
-    
+
     num_elems : integer
         The total number of elements in the d-dimensional matrix
 
@@ -108,12 +110,13 @@ def ind2sub(sizes,scalar_index,num_elems):
     """
     denom = num_elems
     num_sets = len(sizes)
-    multi_index = np.empty((num_sets),dtype=int)
-    for ii in range(num_sets-1,-1,-1):
+    multi_index = np.empty((num_sets), dtype=int)
+    for ii in range(num_sets-1, -1, -1):
         denom /= sizes[ii]
-        multi_index[ii] = scalar_index / denom;
-        scalar_index = scalar_index % denom;
+        multi_index[ii] = scalar_index / denom
+        scalar_index = scalar_index % denom
     return multi_index
+
 
 def cartesian_product(input_sets, elem_size=1):
     r"""
@@ -141,13 +144,13 @@ def cartesian_product(input_sets, elem_size=1):
     """
     import itertools
     out = []
-    ## ::-1 reverse order to be backwards compatiable with old
-    ## function below
+    # ::-1 reverse order to be backwards compatiable with old
+    # function below
     for r in itertools.product(*input_sets[::-1]):
         out.append(r)
-    out = np.asarray(out).T[::-1,:]
+    out = np.asarray(out).T[::-1, :]
     return out
-   
+
     try:
         from pyapprox.cython.utilities import cartesian_product_pyx
         # # fused type does not work for np.in32, np.float32, np.int64
@@ -160,42 +163,42 @@ def cartesian_product(input_sets, elem_size=1):
         #     return cartesian_product_pyx(
         #         input_sets,input_sets[0][0],elem_size)
         # always convert to float then cast back
-        cast_input_sets = [np.asarray(s,dtype=float) for s in input_sets]
-        out =  cartesian_product_pyx(cast_input_sets,1.,elem_size)
-        out = np.asarray(out,dtype=input_sets[0].dtype)
+        cast_input_sets = [np.asarray(s, dtype=float) for s in input_sets]
+        out = cartesian_product_pyx(cast_input_sets, 1., elem_size)
+        out = np.asarray(out, dtype=input_sets[0].dtype)
         return out
     except:
-        print ('cartesian_product extension failed')
+        print('cartesian_product extension failed')
 
-    num_elems = 1;
+    num_elems = 1
     num_sets = len(input_sets)
-    sizes = np.empty((num_sets),dtype=int)
+    sizes = np.empty((num_sets), dtype=int)
     for ii in range(num_sets):
         sizes[ii] = input_sets[ii].shape[0]/elem_size
         num_elems *= sizes[ii]
-    #try:
+    # try:
     #    from pyapprox.weave import c_cartesian_product
     #    # note c_cartesian_product takes_num_elems as last arg and cython
     #    # takes elem_size
     #    return c_cartesian_product(input_sets, elem_size, sizes, num_elems)
-    #except:
+    # except:
     #    print ('cartesian_product extension failed')
 
     result = np.empty(
         (num_sets*elem_size, num_elems), dtype=type(input_sets[0][0]))
     for ii in range(num_elems):
-        multi_index = ind2sub( sizes, ii, num_elems)
+        multi_index = ind2sub(sizes, ii, num_elems)
         for jj in range(num_sets):
             for kk in range(elem_size):
-                result[jj*elem_size+kk,ii]=\
-                  input_sets[jj][multi_index[jj]*elem_size+kk];
+                result[jj*elem_size+kk, ii] =\
+                    input_sets[jj][multi_index[jj]*elem_size+kk]
     return result
 
 
 def outer_product(input_sets):
     r"""
     Construct the outer product of an arbitary number of sets.
- 
+
     Examples
     --------
 
@@ -216,27 +219,27 @@ def outer_product(input_sets):
        result.dtype will be set to the first entry of the first input_set
     """
     out = cartesian_product(input_sets)
-    return np.prod(out,axis=0)
-    
+    return np.prod(out, axis=0)
+
     try:
         from pyapprox.cython.utilities import outer_product_pyx
         # fused type does not work for np.in32, np.float32, np.int64
         # so envoke cython cast
-        if np.issubdtype(input_sets[0][0],np.signedinteger):
-            return outer_product_pyx(input_sets,1)
-        if np.issubdtype(input_sets[0][0],np.floating):
-            return outer_product_pyx(input_sets,1.)
+        if np.issubdtype(input_sets[0][0], np.signedinteger):
+            return outer_product_pyx(input_sets, 1)
+        if np.issubdtype(input_sets[0][0], np.floating):
+            return outer_product_pyx(input_sets, 1.)
         else:
-            return outer_product_pyx(input_sets,input_sets[0][0])        
+            return outer_product_pyx(input_sets, input_sets[0][0])
     except:
-        print ('outer_product extension failed')
+        print('outer_product extension failed')
 
     num_elems = 1
     num_sets = len(input_sets)
-    sizes = np.empty((num_sets),dtype=int)
+    sizes = np.empty((num_sets), dtype=int)
     for ii in range(num_sets):
         sizes[ii] = len(input_sets[ii])
-        num_elems *= sizes[ii];
+        num_elems *= sizes[ii]
 
     # try:
     #     from pyapprox.weave import c_outer_product
@@ -244,18 +247,17 @@ def outer_product(input_sets):
     # except:
     #     print ('outer_product extension failed')
 
-
-
     result = np.empty((num_elems), dtype=type(input_sets[0][0]))
     for ii in range(num_elems):
         result[ii] = 1.0
-        multi_index = ind2sub(sizes, ii, num_elems);
+        multi_index = ind2sub(sizes, ii, num_elems)
         for jj in range(num_sets):
-            result[ii] *= input_sets[jj][multi_index[jj]];
-          
+            result[ii] *= input_sets[jj][multi_index[jj]]
+
     return result
 
-def hash_array(array,decimals=None):
+
+def hash_array(array, decimals=None):
     r"""
     Hash an array for dictionary or set based lookup
 
@@ -272,52 +274,55 @@ def hash_array(array,decimals=None):
     #assert array.ndim==1
     #array = np.ascontiguousarray(array)
     #array.flags.writeable = False
-    #return hash(array.data)
+    # return hash(array.data)
     if decimals is not None:
-        array = np.around(array,decimals)
-    #return hash(array.tostring())
+        array = np.around(array, decimals)
+    # return hash(array.tostring())
     return hash(array.tobytes())
+
 
 def unique_matrix_rows(matrix):
     unique_rows = []
     unique_rows_set = set()
     for ii in range(matrix.shape[0]):
-        key = hash_array(matrix[ii,:])
+        key = hash_array(matrix[ii, :])
         if key not in unique_rows_set:
             unique_rows_set.add(key)
-            unique_rows.append(matrix[ii,:])
+            unique_rows.append(matrix[ii, :])
     return np.asarray(unique_rows)
+
 
 def remove_common_rows(matrices):
     num_cols = matrices[0].shape[1]
     unique_rows_dict = dict()
     for ii in range(len(matrices)):
         matrix = matrices[ii]
-        assert matrix.shape[1]==num_cols
+        assert matrix.shape[1] == num_cols
         for jj in range(matrix.shape[0]):
-            key = hash_array(matrix[jj,:])
+            key = hash_array(matrix[jj, :])
             if key not in unique_rows_dict:
-                unique_rows_dict[key] = (ii,jj)
-            elif unique_rows_dict[key][0]!=ii:
+                unique_rows_dict[key] = (ii, jj)
+            elif unique_rows_dict[key][0] != ii:
                 del unique_rows_dict[key]
-            #else:
+            # else:
             # entry is a duplicate entry in the current. Allow this to
             # occur but only add one of the duplicates to the unique rows dict
 
     unique_rows = []
     for key in list(unique_rows_dict.keys()):
-        ii,jj = unique_rows_dict[key]
-        unique_rows.append(matrices[ii][jj,:])
+        ii, jj = unique_rows_dict[key]
+        unique_rows.append(matrices[ii][jj, :])
 
     return np.asarray(unique_rows)
 
-def allclose_unsorted_matrix_rows(matrix1,matrix2):
-    if matrix1.shape!=matrix2.shape:
+
+def allclose_unsorted_matrix_rows(matrix1, matrix2):
+    if matrix1.shape != matrix2.shape:
         return False
 
     matrix1_dict = dict()
     for ii in range(matrix1.shape[0]):
-        key = hash_array(matrix1[ii,:])
+        key = hash_array(matrix1[ii, :])
         # allow duplicates of rows
         if key not in matrix1_dict:
             matrix1_dict[key] = 0
@@ -326,23 +331,24 @@ def allclose_unsorted_matrix_rows(matrix1,matrix2):
 
     matrix2_dict = dict()
     for ii in range(matrix2.shape[0]):
-        key = hash_array(matrix2[ii,:])
+        key = hash_array(matrix2[ii, :])
         # allow duplicates of rows
         if key not in matrix2_dict:
             matrix2_dict[key] = 0
         else:
             matrix2_dict[key] += 1
 
-    if len(list(matrix1_dict.keys()))!=len(list(matrix2_dict.keys())):
+    if len(list(matrix1_dict.keys())) != len(list(matrix2_dict.keys())):
         return False
 
     for key in list(matrix1_dict.keys()):
         if key not in matrix2_dict:
             return False
-        if matrix2_dict[key]!=matrix1_dict[key]:
+        if matrix2_dict[key] != matrix1_dict[key]:
             return False
-        
+
     return True
+
 
 def get_2d_cartesian_grid(num_pts_1d, ranges):
     r"""
@@ -365,15 +371,16 @@ def get_2d_cartesian_grid(num_pts_1d, ranges):
     """
     #from math_tools_cpp import cartesian_product_double as cartesian_product
     from PyDakota.math_tools import cartesian_product
-    x1 = np.linspace( ranges[0], ranges[1], num_pts_1d )
-    x2 = np.linspace( ranges[2], ranges[3], num_pts_1d )
+    x1 = np.linspace(ranges[0], ranges[1], num_pts_1d)
+    x2 = np.linspace(ranges[2], ranges[3], num_pts_1d)
     abscissa_1d = []
-    abscissa_1d.append( x1 )
-    abscissa_1d.append( x2 )
-    grid = cartesian_product( abscissa_1d, 1 )
+    abscissa_1d.append(x1)
+    abscissa_1d.append(x2)
+    grid = cartesian_product(abscissa_1d, 1)
     return grid
 
-def invert_permutation_vector( p , dtype=int):
+
+def invert_permutation_vector(p, dtype=int):
     r"""
     Returns the "inverse" of a permutation vector. I.e., returns the
     permutation vector that performs the inverse of the original
@@ -394,20 +401,21 @@ def invert_permutation_vector( p , dtype=int):
     """
 
     N = np.max(p) + 1
-    pt = np.zeros(p.size,dtype=dtype)
-    pt[p] = np.arange(N,dtype=dtype)
+    pt = np.zeros(p.size, dtype=dtype)
+    pt[p] = np.arange(N, dtype=dtype)
     return pt
 
 
-def nchoosek(nn,kk):
+def nchoosek(nn, kk):
     try:  # SciPy >= 0.19
         from scipy.special import comb
     except:
         from scipy.misc import comb
-    result = np.asarray(np.round(comb(nn, kk)),dtype=int)
+    result = np.asarray(np.round(comb(nn, kk)), dtype=int)
     if np.isscalar(result):
-        result=np.asscalar(result)
+        result = np.asscalar(result)
     return result
+
 
 def total_degree_space_dimension(dimension, degree):
     r"""
@@ -421,7 +429,7 @@ def total_degree_space_dimension(dimension, degree):
 
     degree : 
         The degree of the total-degree space
-    
+
     Returns
     -------
     num_terms : integer
@@ -429,7 +437,8 @@ def total_degree_space_dimension(dimension, degree):
     """
     #from scipy.special import gammaln
     #subspace_dimension = lambda k: int(np.round(np.exp( gammaln(k+d+1) - gammaln(k+1) - gammaln(d+1) )))
-    return nchoosek(dimension+degree,degree)
+    return nchoosek(dimension+degree, degree)
+
 
 def total_degree_encompassing_N(dimension, N):
     r"""
@@ -441,6 +450,7 @@ def total_degree_encompassing_N(dimension, N):
     while total_degree_subspace_dimension(dimension, k) < N:
         k += 1
     return k
+
 
 def total_degree_barrier_indices(dimension, max_degree):
     r"""
@@ -460,12 +470,14 @@ def total_degree_barrier_indices(dimension, max_degree):
     """
     degree_barrier_indices = [0]
 
-    for degree in range(1,max_degree+1):
-        degree_barrier_indices.append( total_degree_subspace_dimension(dimension, degree) )
+    for degree in range(1, max_degree+1):
+        degree_barrier_indices.append(
+            total_degree_subspace_dimension(dimension, degree))
 
     return degree_barrier_indices
 
-def total_degree_orthogonal_transformation( coefficients, d ):
+
+def total_degree_orthogonal_transformation(coefficients, d):
     r"""
     Returns an orthogonal matrix transformation that "matches" the input
     coefficients.
@@ -492,23 +504,25 @@ def total_degree_orthogonal_transformation( coefficients, d ):
     max_degree = 0
     while degree_barrier_indices[-1] < N-1:
         max_degree += 1
-        degree_barrier_indices.append( total_degree_subspace_dimension(d, max_degree) )
+        degree_barrier_indices.append(
+            total_degree_subspace_dimension(d, max_degree))
 
     q = np.zeros([N, N])
 
     # Assume degree = 0 is just constant
-    q[0,0] = 1.
+    q[0, 0] = 1.
 
-    for degree in range(1,max_degree+1):
+    for degree in range(1, max_degree+1):
         i1 = degree_barrier_indices[degree-1]
         i2 = degree_barrier_indices[degree]
 
         M = i2-i1
-        q[i1:i2,i1:i2] = qr( coefficients[i1:i2].reshape([M, 1]) )[0]
+        q[i1:i2, i1:i2] = qr(coefficients[i1:i2].reshape([M, 1]))[0]
 
     return q
 
-def get_low_rank_matrix(num_rows,num_cols,rank):
+
+def get_low_rank_matrix(num_rows, num_cols, rank):
     r"""
     Construct a matrix of size num_rows x num_cols with a given rank.
 
@@ -528,21 +542,21 @@ def get_low_rank_matrix(num_rows,num_cols,rank):
     Amatrix : np.ndarray (num_rows,num_cols)
         The low-rank matrix generated
     """
-    assert rank <= min(num_rows,num_cols)
+    assert rank <= min(num_rows, num_cols)
     # Generate a matrix with normally distributed entries
-    N = max(num_rows,num_cols)
-    Amatrix = np.random.normal(0,1,(N,N))
+    N = max(num_rows, num_cols)
+    Amatrix = np.random.normal(0, 1, (N, N))
     # Make A symmetric positive definite
-    Amatrix = np.dot( Amatrix.T, Amatrix )
+    Amatrix = np.dot(Amatrix.T, Amatrix)
     # Construct low rank approximation of A
-    eigvals, eigvecs = np.linalg.eigh( Amatrix.copy() )
+    eigvals, eigvecs = np.linalg.eigh(Amatrix.copy())
     # Set smallest eigenvalues to zero. Note eigenvals are in
     # ascending order
     eigvals[:(eigvals.shape[0]-rank)] = 0.
     # Construct rank r A matrix
-    Amatrix = np.dot(eigvecs,np.dot(np.diag(eigvals),eigvecs.T))
+    Amatrix = np.dot(eigvecs, np.dot(np.diag(eigvals), eigvecs.T))
     # Resize matrix to have requested size
-    Amatrix = Amatrix[:num_rows,:num_cols]
+    Amatrix = Amatrix[:num_rows, :num_cols]
     return Amatrix
 
 
@@ -576,15 +590,17 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
         right singular vectors consistent with sign adjustment applied to U.
     """
     if U.shape[1] != V.shape[0]:
-        raise Exception('U.shape[1] must equal V.shape[0]. If using np.linalg.svd set full_matrices=False')
+        raise Exception(
+            'U.shape[1] must equal V.shape[0]. If using np.linalg.svd set full_matrices=False')
 
     if adjust_based_upon_U:
-        s = np.sign(U[0,:])
+        s = np.sign(U[0, :])
     else:
-        s = np.sign(V[:,0])
+        s = np.sign(V[:, 0])
     U *= s
-    V *= s[:,np.newaxis]
-    return U,V
+    V *= s[:, np.newaxis]
+    return U, V
+
 
 def adjust_sign_eig(U):
     r"""
@@ -603,9 +619,10 @@ def adjust_sign_eig(U):
        left singular vectors with first entry of the first
        singular vector always being positive.
     """
-    s = np.sign(U[0,:])
+    s = np.sign(U[0, :])
     U *= s
     return U
+
 
 def sorted_eigh(C):
     r"""
@@ -634,44 +651,44 @@ def sorted_eigh(C):
     e = abs(e)
     ind = np.argsort(e)
     e = e[ind[::-1]]
-    W = W[:,ind[::-1]]
-    s = np.sign(W[0,:])
-    s[s==0] = 1
+    W = W[:, ind[::-1]]
+    s = np.sign(W[0, :])
+    s[s == 0] = 1
     W = W*s
-    return e.reshape((e.size,1)), W
+    return e.reshape((e.size, 1)), W
+
 
 def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
-                                      max_iters ,num_initial_rows=0):
+                                      max_iters, num_initial_rows=0):
     it = current_iter
     for it in range(current_iter, max_iters):
-                    
+
         # find best pivot
-        if np.isscalar(num_initial_rows) and (it<num_initial_rows):
-            #pivot=np.argmax(np.absolute(LU_factor[it:num_initial_rows,it]))+it
+        if np.isscalar(num_initial_rows) and (it < num_initial_rows):
+            # pivot=np.argmax(np.absolute(LU_factor[it:num_initial_rows,it]))+it
             pivot = it
         elif (not np.isscalar(num_initial_rows) and
-              (it<num_initial_rows.shape[0])):
+              (it < num_initial_rows.shape[0])):
             pivot = num_initial_rows[it]
         else:
             pivot = np.argmax(np.absolute(LU_factor[it:, it]))+it
 
-
         # update pivots vector
-        #swap_rows(pivots,it,pivot)
+        # swap_rows(pivots,it,pivot)
         raw_pivots[it] = pivot
-      
+
         # apply pivots(swap rows) in L factorization
         swap_rows(LU_factor, it, pivot)
 
         # check for singularity
-        if abs(LU_factor[it, it])<  np.finfo(float).eps:
-            msg = "pivot %1.2e"%abs(LU_factor[it, it])
+        if abs(LU_factor[it, it]) < np.finfo(float).eps:
+            msg = "pivot %1.2e" % abs(LU_factor[it, it])
             msg += " is to small. Stopping factorization."
-            print (msg)
+            print(msg)
             break
 
         # update L_factor
-        LU_factor[it+1:, it] /= LU_factor[it, it];
+        LU_factor[it+1:, it] /= LU_factor[it, it]
 
         # udpate U_factor
         col_vector = LU_factor[it+1:, it]
@@ -681,7 +698,8 @@ def continue_pivoted_lu_factorization(LU_factor, raw_pivots, current_iter,
         LU_factor[it+1:, it+1:] -= update
     return LU_factor, raw_pivots, it
 
-def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
+
+def unprecondition_LU_factor(LU_factor, precond_weights, num_pivots=None):
     r"""
     A=LU and WA=XY
     Then WLU=XY
@@ -691,8 +709,8 @@ def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
     """
     if num_pivots is None:
         num_pivots = np.min(LU_factor.shape)
-    assert precond_weights.shape[1]==1
-    assert precond_weights.shape[0]==LU_factor.shape[0]
+    assert precond_weights.shape[1] == 1
+    assert precond_weights.shape[0] == LU_factor.shape[0]
     # left multiply L an U by inv(W), i.e. compute inv(W).dot(L)
     # and inv(W).dot(U)
     LU_factor = LU_factor.copy()/precond_weights
@@ -700,9 +718,9 @@ def unprecondition_LU_factor(LU_factor,precond_weights,num_pivots=None):
     # Do not overwrite columns past num_pivots. If not all pivots have been
     # performed the columns to the right of this point contain U factor
     for ii in range(num_pivots):
-        LU_factor[ii+1:,ii]*=precond_weights[ii,0]
+        LU_factor[ii+1:, ii] *= precond_weights[ii, 0]
     return LU_factor
-    
+
 
 def split_lu_factorization_matrix(LU_factor, num_pivots=None):
     r"""
@@ -717,18 +735,19 @@ def split_lu_factorization_matrix(LU_factor, num_pivots=None):
     if num_pivots is None:
         num_pivots = np.min(LU_factor.shape)
     L_factor = np.tril(LU_factor)
-    if L_factor.shape[1]<L_factor.shape[0]:
+    if L_factor.shape[1] < L_factor.shape[0]:
         # if matrix over-determined ensure L is a square matrix
         n0 = L_factor.shape[0]-L_factor.shape[1]
-        L_factor=np.hstack([L_factor,np.zeros((L_factor.shape[0],n0))])
-    if num_pivots<np.min(L_factor.shape):
+        L_factor = np.hstack([L_factor, np.zeros((L_factor.shape[0], n0))])
+    if num_pivots < np.min(L_factor.shape):
         n1 = L_factor.shape[0]-num_pivots
         n2 = L_factor.shape[1]-num_pivots
-        L_factor[num_pivots:,num_pivots:] = np.eye(n1,n2)
-    np.fill_diagonal(L_factor,1.)
+        L_factor[num_pivots:, num_pivots:] = np.eye(n1, n2)
+    np.fill_diagonal(L_factor, 1.)
     U_factor = np.triu(LU_factor)
-    U_factor[num_pivots:,num_pivots:] = LU_factor[num_pivots:,num_pivots:]
+    U_factor[num_pivots:, num_pivots:] = LU_factor[num_pivots:, num_pivots:]
     return L_factor, U_factor
+
 
 def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
                                        truncate_L_factor=True):
@@ -749,7 +768,7 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
         any remaining rows can be chosen.
         If object is an array then entries are raw pivots which
         will be used in order.
-    
+
 
     Returns
     -------
@@ -768,10 +787,10 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
     pivots : np.ndarray (max_iters)
         The index of the chosen rows in the original matrix A chosen as pivots
     """
-    num_rows,num_cols = A.shape
+    num_rows, num_cols = A.shape
     min_num_rows_cols = min(num_rows, num_cols)
     max_iters = min(max_iters, min_num_rows_cols)
-    if ( A.shape[1] < max_iters ):
+    if (A.shape[1] < max_iters):
         msg = "truncated_pivoted_lu_factorization: "
         msg += " A is inconsistent with max_iters. Try deceasing max_iters or "
         msg += " increasing the number of columns of A"
@@ -780,10 +799,10 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
     # Use L to store both L and U during factoriation then copy out U in post
     # processing
     LU_factor = A.copy()
-    raw_pivots = np.arange(num_rows)#np.empty(num_rows,dtype=int)
+    raw_pivots = np.arange(num_rows)  # np.empty(num_rows,dtype=int)
     LU_factor, raw_pivots, it = continue_pivoted_lu_factorization(
         LU_factor, raw_pivots, 0, max_iters, num_initial_rows)
-        
+
     if not truncate_L_factor:
         return LU_factor, raw_pivots
     else:
@@ -794,12 +813,12 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
         U_factor = U_factor[:it+1, :it+1]
         return L_factor, U_factor, pivots
 
-    
+
 def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     r"""
     Given factorization PA=LU add new columns to A in unpermuted order and 
     update LU factorization
-    
+
     Parameters
     ----------
     raw_pivots : np.ndarray (num_pivots)
@@ -813,7 +832,7 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     num_pivots = raw_pivots.shape[0]
     for it in range(num_pivots):
         pivot = raw_pivots[it]
-        swap_rows(new_cols, it,pivot)
+        swap_rows(new_cols, it, pivot)
 
         # update U_factor
         # recover state of col vector from permuted LU factor
@@ -828,13 +847,13 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
             # with compressed col vector which starts at row it in LU_factor
             jj = raw_pivots[num_pivots-1-ii]-(it+1)
             kk = num_pivots-ii-1-(it+1)
-            swap_rows(col_vector,jj,kk)
+            swap_rows(col_vector, jj, kk)
         row_vector = new_cols[it, :]
 
         update = np.outer(col_vector, row_vector)
         new_cols[it+1:, :] -= update
 
-        #new_cols = add_rows_to_pivoted_lu_factorization(
+        # new_cols = add_rows_to_pivoted_lu_factorization(
         #    new_cols[:it+1,:],new_cols[it+1:,:],num_pivots)
 
     LU_factor = np.hstack((LU_factor, new_cols))
@@ -851,7 +870,7 @@ def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
         row_vector = LU_factor[it, it+1:]
         update = np.outer(col_vector, row_vector)
         LU_factor_extra[:, it+1:] -= update
-        
+
     return np.vstack([LU_factor, LU_factor_extra])
 
 
@@ -860,7 +879,7 @@ def swap_rows(matrix, ii, jj):
     matrix[ii] = matrix[jj]
     matrix[jj] = temp
 
-    
+
 def pivot_rows(pivots, matrix, in_place=True):
     if not in_place:
         matrix = matrix.copy()
@@ -888,19 +907,21 @@ def get_tensor_product_quadrature_rule(
     i.e. l=0,...level
     """
     degrees = np.atleast_1d(degrees)
-    if degrees.shape[0]==1 and num_vars>1:
-        degrees = np.array([degrees[0]]*num_vars,dtype=int)
-    
+    if degrees.shape[0] == 1 and num_vars > 1:
+        degrees = np.array([degrees[0]]*num_vars, dtype=int)
+
     if callable(univariate_quadrature_rules):
         univariate_quadrature_rules = [univariate_quadrature_rules]*num_vars
-        
-    x_1d = []; w_1d = []
+
+    x_1d = []
+    w_1d = []
     for ii in range(len(univariate_quadrature_rules)):
-        x,w = univariate_quadrature_rules[ii](degrees[ii])
-        x_1d.append(x); w_1d.append(w)
-    samples = cartesian_product(x_1d,1)
-    weights = outer_product(w_1d)            
-            
+        x, w = univariate_quadrature_rules[ii](degrees[ii])
+        x_1d.append(x)
+        w_1d.append(w)
+    samples = cartesian_product(x_1d, 1)
+    weights = outer_product(w_1d)
+
     if density_function is not None:
         weights *= density_function(samples)
     if transform_samples is not None:
@@ -908,21 +929,22 @@ def get_tensor_product_quadrature_rule(
     return samples, weights
 
 
-def piecewise_quadratic_interpolation(samples,mesh,mesh_vals,ranges):
-    assert mesh.shape[0]==mesh_vals.shape[0]
+def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
+    assert mesh.shape[0] == mesh_vals.shape[0]
     vals = np.zeros_like(samples)
     samples = (samples-ranges[0])/(ranges[1]-ranges[0])
-    for ii in range(0,mesh.shape[0]-2,2):
-        xl=mesh[ii]; xr=mesh[ii+2]
-        x=(samples-xl)/(xr-xl)            
+    for ii in range(0, mesh.shape[0]-2, 2):
+        xl = mesh[ii]
+        xr = mesh[ii+2]
+        x = (samples-xl)/(xr-xl)
         interval_vals = canonical_piecewise_quadratic_interpolation(
-            x,mesh_vals[ii:ii+3])
+            x, mesh_vals[ii:ii+3])
         # to avoid double counting we set left boundary of each interval to zero
         # except for first interval
-        if ii==0:
-            interval_vals[(x<0)|(x>1)]=0.
+        if ii == 0:
+            interval_vals[(x < 0) | (x > 1)] = 0.
         else:
-            interval_vals[(x<=0)|(x>1)]=0.
+            interval_vals[(x <= 0) | (x > 1)] = 0.
         vals += interval_vals
     return vals
 
@@ -952,16 +974,16 @@ def piecewise_quadratic_interpolation(samples,mesh,mesh_vals,ranges):
     #     vals[idx1:idx2+1] += interval_vals
     # return vals[np.argsort(I)]
 
-    
-def canonical_piecewise_quadratic_interpolation(x,nodal_vals):
+
+def canonical_piecewise_quadratic_interpolation(x, nodal_vals):
     r"""
     Piecewise quadratic interpolation of nodes at [0,0.5,1]
     Assumes all values are in [0,1]. 
     """
-    assert x.ndim==1
-    assert nodal_vals.shape[0]==3
-    vals = nodal_vals[0]*(1.0-3.0*x+2.0*x**2)+nodal_vals[1]*(4.0*x-4.0*x**2)+\
-      nodal_vals[2]*(-x+2.0*x**2)
+    assert x.ndim == 1
+    assert nodal_vals.shape[0] == 3
+    vals = nodal_vals[0]*(1.0-3.0*x+2.0*x**2)+nodal_vals[1]*(4.0*x-4.0*x**2) +\
+        nodal_vals[2]*(-x+2.0*x**2)
     return vals
 
 
@@ -982,52 +1004,52 @@ def discrete_sampling(N, probs, states=None):
     p = probs.squeeze()/np.sum(probs)
 
     bins = np.digitize(
-        np.random.uniform(0.,1.,(N,1)), np.hstack((0,np.cumsum(p))))-1
+        np.random.uniform(0., 1., (N, 1)), np.hstack((0, np.cumsum(p))))-1
 
     if states is None:
         x = bins
     else:
         assert(states.shape[0] == probs.shape[0])
         x = states[bins]
-        
+
     return x.squeeze()
 
 
-def lists_of_arrays_equal(list1,list2):
-    if len(list1)!=len(list2):
+def lists_of_arrays_equal(list1, list2):
+    if len(list1) != len(list2):
         return False
     equal = True
     for ll in range(len(list1)):
-        if not np.allclose(list1[ll],list2[ll]):
+        if not np.allclose(list1[ll], list2[ll]):
             return False
     return True
 
 
-def lists_of_lists_of_arrays_equal(list1,list2):
-    if len(list1)!=len(list2):
+def lists_of_lists_of_arrays_equal(list1, list2):
+    if len(list1) != len(list2):
         return False
     equal = True
     for ll in range(len(list1)):
         for kk in range(len(list1[ll])):
-            if not np.allclose(list1[ll][kk],list2[ll][kk]):
+            if not np.allclose(list1[ll][kk], list2[ll][kk]):
                 return False
     return True
 
 
 def beta_pdf(alpha_stat, beta_stat, x):
-    #scipy implementation is slow
+    # scipy implementation is slow
     const = 1./beta_fn(alpha_stat, beta_stat)
     return const*(x**(alpha_stat-1)*(1-x)**(beta_stat-1))
 
 
-def pdf_under_affine_map(pdf,loc,scale,y):
+def pdf_under_affine_map(pdf, loc, scale, y):
     return pdf((y-loc)/scale)/scale
 
 
 def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
     #const = 1./beta_fn(alpha_stat,beta_stat)
     #const /= (b-a)**(alpha_stat+beta_stat-1)
-    #return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
+    # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
     from functools import partial
     pdf = partial(beta_pdf, alpha_stat, beta_stat)
     return pdf_under_affine_map(pdf, a, (b-a), x)
@@ -1037,22 +1059,21 @@ def beta_pdf_derivative(alpha_stat, beta_stat, x):
     r"""
     x in [0,1]
     """
-    #beta_const = gamma_fn(alpha_stat+beta_stat)/(
+    # beta_const = gamma_fn(alpha_stat+beta_stat)/(
     # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
 
-    beta_const = 1./beta_fn(alpha_stat,beta_stat)
-    deriv=0
+    beta_const = 1./beta_fn(alpha_stat, beta_stat)
+    deriv = 0
     if alpha_stat > 1:
         deriv += (alpha_stat-1)*(x**(alpha_stat-2)*(1-x)**(beta_stat-1))
     if beta_stat > 1:
-        deriv -= (beta_stat -1)*(x**(alpha_stat-1)*(1-x)**(beta_stat-2))
+        deriv -= (beta_stat - 1)*(x**(alpha_stat-1)*(1-x)**(beta_stat-2))
     deriv *= beta_const
     return deriv
 
 
-from scipy.special import erf
-def gaussian_cdf(mean, var,x):
-  return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
+def gaussian_cdf(mean, var, x):
+    return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
 
 
 def gaussian_pdf(mean, var, x, package=np):
@@ -1079,19 +1100,19 @@ def gradient_of_tensor_product_function(univariate_functions,
                                         univariate_derivatives, samples):
     num_samples = samples.shape[1]
     num_vars = len(univariate_functions)
-    assert len(univariate_derivatives)==num_vars
-    gradient = np.empty((num_vars,num_samples))
+    assert len(univariate_derivatives) == num_vars
+    gradient = np.empty((num_vars, num_samples))
     # precompute data which is reused multiple times
     function_values = []
     for ii in range(num_vars):
-        function_values.append(univariate_functions[ii](samples[ii,:]))
-        
+        function_values.append(univariate_functions[ii](samples[ii, :]))
+
     for ii in range(num_vars):
-        gradient[ii,:] = univariate_derivatives[ii](samples[ii,:])
+        gradient[ii, :] = univariate_derivatives[ii](samples[ii, :])
         for jj in range(ii):
-            gradient[ii,:] *= function_values[jj]
-        for jj in range(ii+1,num_vars):
-            gradient[ii,:] *= function_values[jj]
+            gradient[ii, :] *= function_values[jj]
+        for jj in range(ii+1, num_vars):
+            gradient[ii, :] *= function_values[jj]
     return gradient
 
 
@@ -1100,28 +1121,28 @@ def evaluate_tensor_product_function(univariate_functions, samples):
     num_vars = len(univariate_functions)
     values = np.ones((num_samples))
     for ii in range(num_vars):
-        values *= univariate_functions[ii](samples[ii,:])
+        values *= univariate_functions[ii](samples[ii, :])
     return values
 
 
 def cholesky_decomposition(Amat):
-    
-    nrows = Amat.shape[0]
-    assert Amat.shape[1]==nrows
 
-    L = np.zeros((nrows,nrows))
+    nrows = Amat.shape[0]
+    assert Amat.shape[1] == nrows
+
+    L = np.zeros((nrows, nrows))
     for ii in range(nrows):
-        temp = Amat[ii,ii]-np.sum(L[ii,:ii]**2)
+        temp = Amat[ii, ii]-np.sum(L[ii, :ii]**2)
         if temp <= 0:
-            raise Exception ('matrix is not positive definite')
-        L[ii,ii]=np.sqrt(temp)
-        L[ii+1:,ii]=\
-           (Amat[ii+1:,ii]-np.sum(L[ii+1:,:ii]*L[ii,:ii],axis=1))/L[ii,ii]
-        
+            raise Exception('matrix is not positive definite')
+        L[ii, ii] = np.sqrt(temp)
+        L[ii+1:, ii] =\
+            (Amat[ii+1:, ii]-np.sum(L[ii+1:, :ii]*L[ii, :ii], axis=1))/L[ii, ii]
+
     return L
 
 
-def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
+def pivoted_cholesky_decomposition(A, npivots, init_pivots=None, tol=0.,
                                    error_on_small_tol=False,
                                    pivot_weights=None,
                                    return_full=False,
@@ -1142,13 +1163,13 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
     """
     Amat = A.copy()
     nrows = Amat.shape[0]
-    assert Amat.shape[1]==nrows
-    assert npivots<=nrows
+    assert Amat.shape[1] == nrows
+    assert npivots <= nrows
 
     #L = np.zeros(((nrows,npivots)))
-    L = np.zeros(((nrows,nrows)))
-    #diag1 = np.diag(Amat).copy() # returns a copy of diag
-    diag = Amat.ravel()[::Amat.shape[0]+1] #returns a view of diag
+    L = np.zeros(((nrows, nrows)))
+    # diag1 = np.diag(Amat).copy() # returns a copy of diag
+    diag = Amat.ravel()[::Amat.shape[0]+1]  # returns a view of diag
     #assert np.allclose(diag,diag1)
     pivots = np.arange(nrows)
     init_error = np.absolute(diag).sum()
@@ -1160,7 +1181,7 @@ def pivoted_cholesky_decomposition(A,npivots,init_pivots=None,tol=0.,
             0, init_error, econ)
 
     if not return_full:
-        return L[:,:ncompleted_pivots], pivots[:ncompleted_pivots], error,\
+        return L[:, :ncompleted_pivots], pivots[:ncompleted_pivots], error,\
             chol_flag
     else:
         return L, pivots, error, chol_flag, diag.copy(), init_error, \
@@ -1174,7 +1195,7 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
                                             econ):
     Amat = Amat.copy()  # Do not overwrite incoming Amat
     if econ is False and pivot_weights is not None:
-        msg = 'pivot weights not used when econ is False' 
+        msg = 'pivot weights not used when econ is False'
         raise Exception(msg)
     chol_flag = 0
     assert ncompleted_pivots < npivots
@@ -1188,30 +1209,30 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
                         pivot_weights[pivots[ii:]]*diag[pivots[ii:]])+ii
             else:
                 schur_complement = (
-                    Amat[np.ix_(pivots[ii:], pivots[ii:])]-
+                    Amat[np.ix_(pivots[ii:], pivots[ii:])] -
                     L[pivots[ii:], :ii].dot(L[pivots[ii:], :ii].T))
                 schur_diag = np.diagonal(schur_complement)
                 pivot = np.argmax(
                     np.linalg.norm(schur_complement, axis=0)**2/schur_diag)
                 pivot += ii
         else:
-            pivot = np.where(pivots==init_pivots[ii])[0][0]
+            pivot = np.where(pivots == init_pivots[ii])[0][0]
             assert pivot >= ii
-            
+
         swap_rows(pivots, ii, pivot)
         if diag[pivots[ii]] <= 0:
             msg = 'matrix is not positive definite'
             if error_on_small_tol:
-                raise Exception (msg)
+                raise Exception(msg)
             else:
                 print(msg)
                 chol_flag = 1
                 break
 
-        L[pivots[ii],ii] = np.sqrt(diag[pivots[ii]])
+        L[pivots[ii], ii] = np.sqrt(diag[pivots[ii]])
 
-        L[pivots[ii+1:], ii]=(Amat[pivots[ii+1:], pivots[ii]]-
-            L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
+        L[pivots[ii+1:], ii] = (Amat[pivots[ii+1:], pivots[ii]] -
+                                L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
         diag[pivots[ii+1:]] -= L[pivots[ii+1:], ii]**2
 
         # for jj in range(ii+1,nrows):
@@ -1220,8 +1241,8 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
         #     diag[pivots[jj]] -= L[pivots[jj],ii]**2
         error = diag[pivots[ii+1:]].sum()/init_error
         # print(ii,'error',error)
-        if error<tol:
-            msg = 'Tolerance reached. ' 
+        if error < tol:
+            msg = 'Tolerance reached. '
             msg += f'Iteration:{ii}. Tol={tol}. Error={error}'
             # If matrix is rank r then then error will be machine precision
             # In such a case exiting without an error is the right thing to do
@@ -1231,13 +1252,13 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
                 chol_flag = 1
                 print(msg)
                 break
-            
+
     return L, pivots, diag, chol_flag, ii+1, error
 
 
-def get_pivot_matrix_from_vector(pivots,nrows):
+def get_pivot_matrix_from_vector(pivots, nrows):
     P = np.eye(nrows)
-    P = P[pivots,:]
+    P = P[pivots, :]
     return P
 
 
@@ -1249,7 +1270,7 @@ def get_all_primes_less_than_or_equal_to_n(n):
     primes = list()
     primes.append(2)
     for num in range(3, n+1, 2):
-        if all(num % i != 0 for i in range(2, int(num**.5 ) + 1)):
+        if all(num % i != 0 for i in range(2, int(num**.5) + 1)):
             primes.append(num)
     return np.asarray(primes)
 
@@ -1257,74 +1278,74 @@ def get_all_primes_less_than_or_equal_to_n(n):
 def get_first_n_primes(n):
     primes = list()
     primes.append(2)
-    num=3
-    while len(primes)<n:
-        if all(num % i != 0 for i in range(2, int(num**.5 ) + 1)):
+    num = 3
+    while len(primes) < n:
+        if all(num % i != 0 for i in range(2, int(num**.5) + 1)):
             primes.append(num)
-        num+=2
+        num += 2
     return np.asarray(primes)
 
 
 def halton_sequence(num_vars, index1, index2):
-    assert index1<index2
-    assert num_vars<=100
+    assert index1 < index2
+    assert num_vars <= 100
 
     primes = get_first_n_primes(num_vars)
 
     try:
         from pyapprox.cython.utilities import halton_sequence_pyx
-        return halton_sequence_pyx(primes,index1,index2)
+        return halton_sequence_pyx(primes, index1, index2)
     except:
-        print ('halton_sequence extension failed')
+        print('halton_sequence extension failed')
         pass
 
     num_samples = index2-index1
-    sequence = np.zeros((num_vars,num_samples))
+    sequence = np.zeros((num_vars, num_samples))
     ones = np.ones(num_vars)
 
-    kk=0
-    for ii in range(index1,index2):
+    kk = 0
+    for ii in range(index1, index2):
         ff = ii*ones
         prime_inv = 1./primes
         summand = ii*num_vars
-        while summand>0:
-            remainder = np.remainder(ff,primes)
-            sequence[:,kk] += remainder*prime_inv
+        while summand > 0:
+            remainder = np.remainder(ff, primes)
+            sequence[:, kk] += remainder*prime_inv
             prime_inv /= primes
-            ff=ff//primes
+            ff = ff//primes
             summand = ff.sum()
-        kk+=1
+        kk += 1
     return sequence
 
 
 def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
                                 start_index=1):
-    assert start_index>0
+    assert start_index > 0
     # sample with index 0 is [0,..0] this can cause problems for icdfs of
     # unbounded random variables so start with index 1 in halton sequence
     samples = halton_sequence(num_vars, start_index, num_samples+start_index)
     if marginal_icdfs is None:
         return samples
-        
+
     if callable(marginal_icdfs):
         marginal_icdfs = [marginal_icdfs]*num_vars
     else:
         assert len(marginal_icdfs) == num_vars
-    
+
     for ii in range(num_vars):
         samples[ii, :] = marginal_icdfs[ii](samples[ii, :])
     return samples
 
 
-def approx_fprime(x,func,eps=np.sqrt(np.finfo(float).eps)):
+def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):
     r"""Approx the gradient of a vector valued function at a single
     sample using finite_difference
     """
-    assert x.shape[1]==1
+    assert x.shape[1] == 1
     nvars = x.shape[0]
     fprime = []
     func_at_x = func(x).squeeze()
-    assert func_at_x.ndim==1
+    assert func_at_x.ndim == 1
     for ii in range(nvars):
         x_plus_eps = x.copy()
         x_plus_eps[ii] += eps
@@ -1360,7 +1381,7 @@ def get_all_sample_combinations(samples1, samples2):
     """
     import itertools
     samples = []
-    for r in itertools.product(*[samples1.T,samples2.T]):
+    for r in itertools.product(*[samples1.T, samples2.T]):
         samples.append(np.concatenate(r))
     return np.asarray(samples).T
 
@@ -1378,7 +1399,7 @@ def get_correlation_from_covariance(cov):
     -------
     cor : np.ndarray (nrows,nrows)
         The symetric correlation matrix
-    
+
     Examples
     --------
     >>> cov = np.asarray([[2,-1],[-1,2]])
@@ -1387,11 +1408,11 @@ def get_correlation_from_covariance(cov):
            [-0.5,  1. ]])
     """
     stdev_inv = 1/np.sqrt(np.diag(cov))
-    cor = stdev_inv[np.newaxis,:]*cov*stdev_inv[:,np.newaxis]
+    cor = stdev_inv[np.newaxis, :]*cov*stdev_inv[:, np.newaxis]
     return cor
 
 
-def compute_f_divergence(density1,density2,quad_rule,div_type,
+def compute_f_divergence(density1, density2, quad_rule, div_type,
                          normalize=False):
     r"""
     Compute f divergence between two densities
@@ -1421,49 +1442,49 @@ def compute_f_divergence(density1,density2,quad_rule,div_type,
         TV - total variation  :math:`f(t)=\frac{1}{2}\lvert t-1\rvert`
         hellinger - squared Hellinger :math:`f(t)=(\sqrt(t)-1)^2` 
     """
-    x,w=quad_rule
-    assert w.ndim==1
-    
+    x, w = quad_rule
+    assert w.ndim == 1
+
     density1_vals = density1(x).squeeze()
     const1 = density1_vals.dot(w)
     density2_vals = density2(x).squeeze()
     const2 = density2_vals.dot(w)
     if normalize:
-        density1_vals/=const1
-        density2_vals/=const2
+        density1_vals /= const1
+        density2_vals /= const2
     else:
-        tol=1e-14
-        #print(const1)
-        #print(const2)
-        assert np.allclose(const1,1.0,atol=tol)
-        assert np.allclose(const2,1.0,atol=tol)
-        const1,const2=1.0,1.0
+        tol = 1e-14
+        # print(const1)
+        # print(const2)
+        assert np.allclose(const1, 1.0, atol=tol)
+        assert np.allclose(const2, 1.0, atol=tol)
+        const1, const2 = 1.0, 1.0
 
     # normalize densities. May be needed if density is
     # Unnormalized Bayesian Posterior
-    d1 = lambda x: density1(x)/const1
-    d2 = lambda x: density2(x)/const2
+    def d1(x): return density1(x)/const1
+    def d2(x): return density2(x)/const2
 
-    if div_type=='KL':
+    if div_type == 'KL':
         # Kullback-Leibler
-        f = lambda t: t*np.log(t)
-    elif div_type=='TV':
+        def f(t): return t*np.log(t)
+    elif div_type == 'TV':
         # Total variation
-        f = lambda t: 0.5*np.absolute(t-1)
-    elif div_type=='hellinger':
+        def f(t): return 0.5*np.absolute(t-1)
+    elif div_type == 'hellinger':
         # Squared hellinger int (p(z)**0.5-q(z)**0.5)**2 dz
         # Note some formulations use 0.5 times above integral. We do not
         # do that here
-        f = lambda t: (np.sqrt(t)-1)**2
+        def f(t): return (np.sqrt(t)-1)**2
     else:
         raise Exception(f'Divergence type {div_type} not supported')
 
-    d1_vals,d2_vals = d1(x),d2(x)
-    I = np.where(d2_vals>1e-15)[0]
+    d1_vals, d2_vals = d1(x), d2(x)
+    I = np.where(d2_vals > 1e-15)[0]
     ratios = np.zeros_like(d2_vals)+1e-15
     ratios[I] = d1_vals[I]/d2_vals[I]
     if not np.all(np.isfinite(ratios)):
-        print(d1_vals[I],d2_vals[I])
+        print(d1_vals[I], d2_vals[I])
         msg = 'Densities are not absolutely continuous. '
         msg += 'Ensure that density2(z)=0 implies density1(z)=0'
         raise Exception(msg)
@@ -1482,6 +1503,7 @@ def cholesky_solve_linear_system(L, rhs):
     # Use backwards subsitution to solve L'x = y
     x = solve_triangular(L.T, y, lower=False)
     return x
+
 
 def update_cholesky_factorization(L_11, A_12, A_22):
     r"""
@@ -1503,13 +1525,13 @@ def update_cholesky_factorization(L_11, A_12, A_22):
     we can equate terms to find
 
     .. math:: 
-    
+
         L_{12} = L_{11}^{-1}A_{12}, \quad 
         L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
     """
     if L_11.shape[0] == 0:
         return np.linalg.cholesky(A_22)
-    
+
     nrows, ncols = A_12.shape
     assert A_22.shape == (ncols, ncols)
     assert L_11.shape == (nrows, nrows)
@@ -1564,13 +1586,13 @@ def num_entries_square_triangular_matrix(N, include_diagonal=True):
     else:
         return int(N*(N-1)/2)
 
-    
-def num_entries_rectangular_triangular_matrix(M ,N, upper=True):
+
+def num_entries_rectangular_triangular_matrix(M, N, upper=True):
     r"""Num entries in upper (or lower) MxN traingular matrix.
     This is useful for nested for loops like
 
     (upper=True)
-    
+
     for ii in range(M):
         for jj in range(ii+1):
 
@@ -1584,10 +1606,10 @@ def num_entries_rectangular_triangular_matrix(M ,N, upper=True):
     if upper:
         return num_entries_square_triangular_matrix(N)
     else:
-        return num_entries_square_triangular_matrix(M)-\
+        return num_entries_square_triangular_matrix(M) -\
             num_entries_square_triangular_matrix(M-N)
 
-    
+
 def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     r"""
     Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
@@ -1601,7 +1623,7 @@ def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     return kk
 
 
-def evaluate_quadratic_form(matrix,samples):
+def evaluate_quadratic_form(matrix, samples):
     r"""
     Evaluate x.T.dot(A).dot(x) for several vectors x
 
@@ -1621,7 +1643,7 @@ def evaluate_quadratic_form(matrix,samples):
     return (samples.T.dot(matrix)*samples.T).sum(axis=1)
 
 
-def split_dataset(samples,values,ndata1):
+def split_dataset(samples, values, ndata1):
     """
     Split a data set into two sets.
 
@@ -1651,11 +1673,11 @@ def split_dataset(samples,values,ndata1):
     values2 : np.ndarray (nvars,ndata1)
         The values of the first split data set
     """
-    assert ndata1<=samples.shape[1]
-    assert values.shape[0]==samples.shape[1]
+    assert ndata1 <= samples.shape[1]
+    assert values.shape[0] == samples.shape[1]
     I = np.random.permutation(samples.shape[1])
-    samples1 = samples[:,I[:ndata1]]
-    samples2 = samples[:,I[ndata1:]]
-    values1 = values[I[:ndata1],:]
-    values2 = values[I[ndata1:],:]
-    return samples1,samples2,values1,values2
+    samples1 = samples[:, I[:ndata1]]
+    samples2 = samples[:, I[ndata1:]]
+    values1 = values[I[:ndata1], :]
+    values2 = values[I[ndata1:], :]
+    return samples1, samples2, values1, values2
