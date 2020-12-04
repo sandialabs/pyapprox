@@ -262,7 +262,8 @@ class TestActiveSubspace(unittest.TestCase):
     def test_inner_products_on_active_subspace_using_samples(self):
         
         def generate_samples(num_samples):
-            from pyapprox.utilities import transformed_halton_sequence
+            from pyapprox.low_discrepancy_sequences import \
+                transformed_halton_sequence
             samples = transformed_halton_sequence(None,num_vars,num_samples)
             samples = samples*2.-1.
             return samples

@@ -13,8 +13,9 @@ from pyapprox.utilities import cartesian_product, outer_product, \
 from scipy.spatial.distance import cdist
 from functools import partial
 from scipy.linalg import solve_triangular
-from pyapprox.utilities import transformed_halton_sequence, \
-    pivoted_cholesky_decomposition, continue_pivoted_cholesky_decomposition
+from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
+from pyapprox.utilities import pivoted_cholesky_decomposition, \
+    continue_pivoted_cholesky_decomposition
 from scipy.special import kv, gamma
 
 class GaussianProcess(GaussianProcessRegressor):

@@ -3,7 +3,7 @@ import numpy as np
 from scipy.special import beta as beta_fn
 from functools import partial
 from scipy.linalg import solve_triangular
-
+from numba import njit
 
 def sub2ind(sizes, multi_index):
     r"""
@@ -1275,66 +1275,23 @@ def get_all_primes_less_than_or_equal_to_n(n):
     return np.asarray(primes)
 
 
+@njit(cache=True)
 def get_first_n_primes(n):
     primes = list()
     primes.append(2)
     num = 3
     while len(primes) < n:
-        if all(num % i != 0 for i in range(2, int(num**.5) + 1)):
+        # np.all does not work with numba
+        #if np.all([num % i != 0 for i in range(2, int(num**.5) + 1)]):
+        flag = True
+        for i in range(2, int(num**.5) + 1):
+            if (num % i == 0):
+                flag = False
+                break
+        if flag is True:    
             primes.append(num)
         num += 2
     return np.asarray(primes)
-
-
-def halton_sequence(num_vars, index1, index2):
-    assert index1 < index2
-    assert num_vars <= 100
-
-    primes = get_first_n_primes(num_vars)
-
-    try:
-        from pyapprox.cython.utilities import halton_sequence_pyx
-        return halton_sequence_pyx(primes, index1, index2)
-    except:
-        print('halton_sequence extension failed')
-        pass
-
-    num_samples = index2-index1
-    sequence = np.zeros((num_vars, num_samples))
-    ones = np.ones(num_vars)
-
-    kk = 0
-    for ii in range(index1, index2):
-        ff = ii*ones
-        prime_inv = 1./primes
-        summand = ii*num_vars
-        while summand > 0:
-            remainder = np.remainder(ff, primes)
-            sequence[:, kk] += remainder*prime_inv
-            prime_inv /= primes
-            ff = ff//primes
-            summand = ff.sum()
-        kk += 1
-    return sequence
-
-
-def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
-                                start_index=1):
-    assert start_index > 0
-    # sample with index 0 is [0,..0] this can cause problems for icdfs of
-    # unbounded random variables so start with index 1 in halton sequence
-    samples = halton_sequence(num_vars, start_index, num_samples+start_index)
-    if marginal_icdfs is None:
-        return samples
-
-    if callable(marginal_icdfs):
-        marginal_icdfs = [marginal_icdfs]*num_vars
-    else:
-        assert len(marginal_icdfs) == num_vars
-
-    for ii in range(num_vars):
-        samples[ii, :] = marginal_icdfs[ii](samples[ii, :])
-    return samples
 
 
 def approx_fprime(x, func, eps=np.sqrt(np.finfo(float).eps)):

@@ -273,7 +273,7 @@ def adaptive_approximate_polynomial_chaos(
         # Todo implement default for non-bounded variables that uses induced
         # sampling
         # candidate samples must be in canonical domain
-        from pyapprox import halton_sequence
+        from pyapprox.low_discrepancy_sequences import halton_sequence
         candidate_samples = -np.cos(
             np.pi*halton_sequence(nvars,1,int(ncandidate_samples+1)))
         #candidate_samples = -np.cos(

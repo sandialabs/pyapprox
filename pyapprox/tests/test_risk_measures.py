@@ -313,7 +313,7 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5), plot=False,
 
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
         get_lognormal_example_exact_quantities(mu, sigma)
-    from pyapprox.utilities import transformed_halton_sequence
+    from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
     #samples = np.random.normal(mu,sigma,(num_vars,num_samples))
     #values = f(samples)[:,0]
     samples = transformed_halton_sequence(
