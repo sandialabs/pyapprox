@@ -608,3 +608,28 @@ def analyze_sensitivity_polynomial_chaos(pce,max_order=2):
          'total_effects':pce_total_effects,
          'sobol_indices':pce_sobol_indices,
          'sobol_interaction_indices':interaction_terms})
+
+
+def monte_carlo_based_sobol_indices(
+        fun, variables, interaction_terms, nsamples):
+    """
+    See I.M. Sobol′ / Mathematics and Computers in Simulation 55 (2001) 271–280
+    """
+    nvars = interaction_terms.shape[0]
+    nterms = interaction_terms.shape[1]
+    interaction_values = np.array(nterms)
+    samples = cartesian_product([temp1, temp2, temp3])
+    samples1, samples2, samples3 = \
+        samples[:nvars], samples[nvars:2*nvars], samples[2*nvars:3*nvars]
+    for ii in range(indices.shape[1]):
+        index = indices[:, ii]
+        assert index.sum() > 0
+        samples1 = generate_independent_random_samples(variables, nsamples)
+        samples2 = generate_independent_random_samples(variables, nsamples)
+        I = np.range(nvars)
+        xi = np.vstack(samples1[index], samples2[~index])
+        J = np.vstack(I[index], I[~index])
+        xi = xi[np.argsort(J)]
+        values = fun(samples1)*fun(xi)
+        interaction_values[ii] = values.mean()
+        assert False, "incomplete"

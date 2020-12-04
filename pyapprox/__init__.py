@@ -15,6 +15,7 @@ from pyapprox.models.wrappers import *
 from pyapprox.indexing import *
 from pyapprox.monomial import *
 from pyapprox.quantile_regression import *
+from pyapprox.low_discrepancy_sequences import *
 # slower loads
 from pyapprox.control_variate_monte_carlo import *
 from pyapprox.adaptive_polynomial_chaos import *

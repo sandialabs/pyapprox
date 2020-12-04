@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.utilities import halton_sequence, \
-    get_all_sample_combinations
+from pyapprox.utilities import get_all_sample_combinations
+from pyapprox.low_discrepancy_sequences import *
 from pyapprox.models.wrappers import PoolModel, WorkTracker
 import multiprocessing
 from pyapprox.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
