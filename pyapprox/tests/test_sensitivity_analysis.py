@@ -278,7 +278,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
         sampling_method = 'sobol'
-        sobol_indices, total_effect_indices = sampling_based_sobol_indices(
+        sobol_indices, total_effect_indices, var = sampling_based_sobol_indices(
             benchmark.fun, benchmark.variable, interaction_terms, nsamples,
             sampling_method)
 
@@ -301,15 +301,61 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
         sampling_method = 'sobol'
-        sobol_indices, total_effect_indices = sampling_based_sobol_indices(
+        sobol_indices, total_effect_indices, var = sampling_based_sobol_indices(
             benchmark.fun, benchmark.variable, interaction_terms, nsamples,
             sampling_method)
+
+        assert np.allclose(benchmark.variance, var, rtol=2e-2)
 
         main_effects = sobol_indices[:nvars]
         assert np.allclose(main_effects, benchmark.main_effects, atol=2e-2)
 
 
+    def test_sampling_based_sobol_indices_from_gaussian_process(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.approximate import approximate
+        benchmark = setup_benchmark("sobol_g", nvars=2)
+
+        num_samples = 300
+        train_samples = pya.generate_independent_random_samples(
+            benchmark.variable, num_samples)
+        train_vals = benchmark.fun(train_samples)
+
+        approx = approximate(
+            train_samples, train_vals, 'gaussian_process', {'nu':1.5}).approx
+
+        from pyapprox.approximate import compute_l2_error
+        nsamples = 100
+        error = compute_l2_error(
+            approx, benchmark.fun, benchmark.variable,
+            nsamples, rel=True)
+        print(error)
+        # assert error < 4e-2
+
+        nvars = benchmark.variable.num_vars()
+
+        order = 2
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
+        interaction_terms = interaction_terms[:, 
+            np.where(interaction_terms.max(axis=0)==1)[0]]
+
+        mean_sobol_indices, mean_total_effects, mean_variance, \
+            std_sobol_indices, std_total_effects, std_variance = \
+                sampling_based_sobol_indices_from_gaussian_process(
+                    approx, benchmark.variable, interaction_terms, nsamples,
+                    sampling_method='sobol', ngp_realizations=10,
+                    normalize=True)
+
+        mean_main_effects = mean_sobol_indices[:nvars]
+        # print(mean_main_effects[:, 0], benchmark.main_effects)
+        # print(mean_sobol_indices)
+        # print(std_sobol_indices)
+        assert np.allclose(mean_main_effects[:, 0],
+                           benchmark.main_effects, atol=2e-2)
+
+
+
 if __name__ == "__main__":
-    sensitivity_analysis_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestSensitivityAnalysis)
+    sensitivity_analysis_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(TestSensitivityAnalysis)
     unittest.TextTestRunner(verbosity=2).run(sensitivity_analysis_test_suite)

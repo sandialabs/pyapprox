@@ -1,3 +1,14 @@
+from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
+import copy
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
+from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
+    variance_pce_refinement_indicator
+from pyapprox import compute_hyperbolic_indices
+from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
+    OrthogonalMatchingPursuitCV
+from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
+from pyapprox.variables import is_bounded_continuous_variable
 import numpy as np
 from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
     CombinationSparseGrid, \
@@ -8,8 +19,11 @@ from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
 
 from scipy.optimize import OptimizeResult
+
+
 class ApproximateResult(OptimizeResult):
     pass
+
 
 def adaptive_approximate_sparse_grid(
         fun, univariate_variables, callback=None,
@@ -35,7 +49,7 @@ def adaptive_approximate_sparse_grid(
 
     callback : callable
         Function called after each iteration with the signature
-        
+
         ``callback(approx_k)``
 
         where approx_k is the current approximation object.
@@ -43,7 +57,7 @@ def adaptive_approximate_sparse_grid(
     refinement_indicator : callable
         A function that retuns an estimate of the error of a sparse grid subspace
         with signature
-    
+
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
         where ``subspace_index`` is 1D np.ndarray of size (nvars), 
@@ -116,7 +130,7 @@ def adaptive_approximate_sparse_grid(
         A function with signature
 
         ``cost_function(config_sample) -> float``
-    
+
         where config_sample is a np.ndarray of shape (nconfig_vars). The output
         is the cost of evaluating ``fun`` at ``config_sample``. The units can be
         anything but the units must be consistent with the units of max_nsamples
@@ -144,9 +158,9 @@ def adaptive_approximate_sparse_grid(
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
-            var_trans)
+                var_trans)
     else:
-        quad_rules,growth_rules = univariate_quad_rule_info
+        quad_rules, growth_rules = univariate_quad_rule_info
         unique_quadrule_indices = None
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
@@ -159,16 +173,13 @@ def adaptive_approximate_sparse_grid(
     sparse_grid.setup(
         fun, config_variables_idx, refinement_indicator,
         admissibility_function, growth_rules, quad_rules,
-        var_trans,unique_quadrule_indices=unique_quadrule_indices,
+        var_trans, unique_quadrule_indices=unique_quadrule_indices,
         verbose=verbose, cost_function=cost_function,
         config_var_trans=config_var_trans)
     sparse_grid.build(callback)
-    return ApproximateResult({'approx':sparse_grid})
+    return ApproximateResult({'approx': sparse_grid})
 
-from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
-    variance_pce_refinement_indicator
-from pyapprox.variables import is_bounded_continuous_variable
-from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
+
 def adaptive_approximate_polynomial_chaos(
         fun, univariate_variables, callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
@@ -192,7 +203,7 @@ def adaptive_approximate_polynomial_chaos(
 
     callback : callable
         Function called after each iteration with the signature
-        
+
         ``callback(approx_k)``
 
         where approx_k is the current approximation object.
@@ -200,7 +211,7 @@ def adaptive_approximate_polynomial_chaos(
     refinement_indicator : callable
         A function that retuns an estimate of the error of a sparse grid subspace
         with signature
-    
+
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
         where ``subspace_index`` is 1D np.ndarray of size (nvars), 
@@ -244,7 +255,7 @@ def adaptive_approximate_polynomial_chaos(
         sequence with signature
 
         ``generate_candidate_samples(ncandidate_samples) -> np.ndarray``
-    
+
         The output is a 2D np.ndarray with size(nvars,ncandidate_samples)
 
     Returns
@@ -266,7 +277,7 @@ def adaptive_approximate_polynomial_chaos(
             bounded_variables = False
             msg = "For now leja sampling based PCE is only supported for bounded continouous random variablesfor now leja sampling based PCE is only supported for bounded continouous random variables"
             if generate_candidate_samples is None:
-                raise Exception (msg)
+                raise Exception(msg)
             else:
                 break
     if generate_candidate_samples is None:
@@ -275,28 +286,27 @@ def adaptive_approximate_polynomial_chaos(
         # candidate samples must be in canonical domain
         from pyapprox.low_discrepancy_sequences import halton_sequence
         candidate_samples = -np.cos(
-            np.pi*halton_sequence(nvars,1,int(ncandidate_samples+1)))
-        #candidate_samples = -np.cos(
+            np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
+        # candidate_samples = -np.cos(
         #    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
     else:
         candidate_samples = generate_candidate_samples(ncandidate_samples)
-        
+
     pce = AdaptiveLejaPCE(
-        nvars,candidate_samples,factorization_type='fast')
-    pce.verbose=verbose
+        nvars, candidate_samples, factorization_type='fast')
+    pce.verbose = verbose
     admissibility_function = partial(
-        max_level_admissibility_function,np.inf,[np.inf]*nvars,max_nsamples,
-        tol,verbose=verbose)
-    pce.set_function(fun,var_trans)
+        max_level_admissibility_function, np.inf, [np.inf]*nvars, max_nsamples,
+        tol, verbose=verbose)
+    pce.set_function(fun, var_trans)
     if growth_rules is None:
         growth_rules = clenshaw_curtis_rule_growth
     pce.set_refinement_functions(
-        refinement_indicator,admissibility_function,growth_rules)
+        refinement_indicator, admissibility_function, growth_rules)
     pce.build(callback)
-    return ApproximateResult({'approx':pce})
+    return ApproximateResult({'approx': pce})
 
-from pyapprox.probability_measure_sampling import \
-    generate_independent_random_samples
+
 def compute_l2_error(f, g, variable, nsamples, rel=False):
     r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
@@ -310,7 +320,7 @@ def compute_l2_error(f, g, variable, nsamples, rel=False):
     ----------
     f : callable
         Function with signature
-    
+
         ``g(z) -> np.ndarray``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
@@ -318,7 +328,7 @@ def compute_l2_error(f, g, variable, nsamples, rel=False):
 
     g : callable
         Function with signature
-    
+
         ``f(z) -> np.ndarray``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
@@ -334,30 +344,32 @@ def compute_l2_error(f, g, variable, nsamples, rel=False):
     rel : boolean
         True - compute relative error
         False - compute absolute error
-    
+
     Returns
     -------
     error : np.ndarray (nqoi)
     """
-    
-    validation_samples = generate_independent_random_samples(variable,nsamples)
+
+    validation_samples = generate_independent_random_samples(
+        variable, nsamples)
     validation_vals = f(validation_samples)
     approx_vals = g(validation_samples)
-    assert validation_vals.shape==approx_vals.shape
-    error=np.linalg.norm(approx_vals-validation_vals,axis=0)
+    assert validation_vals.shape == approx_vals.shape
+    error = np.linalg.norm(approx_vals-validation_vals, axis=0)
     if not rel:
-        error /=np.sqrt(validation_samples.shape[1])
+        error /= np.sqrt(validation_samples.shape[1])
     else:
-        error /=np.linalg.norm(validation_vals,axis=0)
+        error /= np.linalg.norm(validation_vals, axis=0)
     return error
+
 
 def adaptive_approximate(fun, variable, method, options=None):
     r"""
     Adaptive approximation of a scalar or vector-valued function of one or 
     more variables. These methods choose the samples to at which to 
     evaluate the function being approximated.
-    
-    
+
+
     Parameters
     ----------
     fun : callable
@@ -374,19 +386,19 @@ def adaptive_approximate(fun, variable, method, options=None):
         - 'sparse_grid'
         - 'polynomial_chaos'
         - 'gaussian_process'
-        
+
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object. For more details see 
-    
+
          - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
 
          - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
     """
 
-    methods = {'sparse_grid':adaptive_approximate_sparse_grid,
-               'polynomial_chaos':adaptive_approximate_polynomial_chaos}
+    methods = {'sparse_grid': adaptive_approximate_sparse_grid,
+               'polynomial_chaos': adaptive_approximate_polynomial_chaos}
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -397,6 +409,7 @@ def adaptive_approximate(fun, variable, method, options=None):
     if options is None:
         options = {}
     return methods[method](fun, variable, **options)
+
 
 def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
                                  basis_type='expanding_basis',
@@ -429,13 +442,13 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object. For more details see 
-    
+
          - :func:`pyapprox.approximate.cross_validate_pce_degree` 
 
          - :func:`pyapprox.approximate.expanding_basis_omp_pce`
     """
-    funcs = {'expanding_basis':expanding_basis_omp_pce,
-             'hyperbolic_cross':cross_validate_pce_degree}
+    funcs = {'expanding_basis': expanding_basis_omp_pce,
+             'hyperbolic_cross': cross_validate_pce_degree}
     if variable is None:
         msg = 'pce requires that variable be defined'
         raise Exception(msg)
@@ -444,7 +457,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
         for key in funcs.keys():
             msg += f"\t{key}\n"
         raise Exception(msg)
-    
+
     from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
         define_poly_options_from_variable_transformation
     var_trans = AffineRandomVariableTransformation(variable)
@@ -452,18 +465,19 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     poly_opts = define_poly_options_from_variable_transformation(
         var_trans)
     poly.configure(poly_opts)
-    
+
     if options is None:
         options = {}
 
     res = funcs[basis_type](poly, train_samples, train_vals, **options)
     return res
 
-def approximate(train_samples, train_vals, method,options=None):
+
+def approximate(train_samples, train_vals, method, options=None):
     r"""
     Approximate a scalar or vector-valued function of one or 
     more variables from a set of points provided by the user
-    
+
     Parameters
     ----------
     train_samples : np.ndarray (nvars,nsamples)
@@ -483,9 +497,9 @@ def approximate(train_samples, train_vals, method,options=None):
     result : :class:`pyapprox.approximate.ApproximateResult`
     """
 
-    methods = {'polynomial_chaos':approximate_polynomial_chaos,
-               'gaussian_process':approximate_gaussian_process}
-               #'tensor-train':approximate_tensor_train,
+    methods = {'polynomial_chaos': approximate_polynomial_chaos,
+               'gaussian_process': approximate_gaussian_process}
+    # 'tensor-train':approximate_tensor_train,
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -498,14 +512,11 @@ def approximate(train_samples, train_vals, method,options=None):
     return methods[method](train_samples, train_vals, **options)
 
 
-from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
-    OrthogonalMatchingPursuitCV
-
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
-    solvers = {'lasso_lars':LassoLarsCV(cv=kwargs['cv']).fit,
-               'lasso':LassoCV(cv=kwargs['cv']).fit,
-               'lars':LarsCV(cv=kwargs['cv']).fit,
-               'omp':OrthogonalMatchingPursuitCV(
+    solvers = {'lasso_lars': LassoLarsCV(cv=kwargs['cv']).fit,
+               'lasso': LassoCV(cv=kwargs['cv']).fit,
+               'lars': LarsCV(cv=kwargs['cv']).fit,
+               'omp': OrthogonalMatchingPursuitCV(
                    cv=kwargs['cv'], verbose=5).fit}
     assert train_vals.ndim == 2
     if solver_type in solvers:
@@ -518,12 +529,12 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
             msg += f'\t{key}\n'
         raise Exception(msg)
 
-    cv_score = res.score(basis_matrix, train_vals[:,0])
-    coef = res.coef_[:, np.newaxis]; coef[0]=res.intercept_
+    cv_score = res.score(basis_matrix, train_vals[:, 0])
+    coef = res.coef_[:, np.newaxis]
+    coef[0] = res.intercept_
     return coef, cv_score
 
-import copy
-from pyapprox import compute_hyperbolic_indices
+
 def cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
         hcross_strength=1, cv=10, solver_type='lars', verbosity=0):
@@ -531,7 +542,7 @@ def cross_validate_pce_degree(
     Use cross validation to find the polynomial degree which best fits the data.
     A polynomial is constructed for each degree and the degree with the highest
     cross validation score is returned.
-    
+
     Parameters
     ----------
     train_samples : np.ndarray (nvars,nsamples)
@@ -539,7 +550,7 @@ def cross_validate_pce_degree(
 
     train_vals : np.ndarray (nvars,nsamples)
         The values of the function at ``train_samples``
-    
+
     min_degree : integer
         The minimum degree to consider
 
@@ -584,15 +595,15 @@ def cross_validate_pce_degree(
     scores = []
     indices = []
     degrees = []
-    indices_dict=dict()
-    unique_indices=[]
+    indices_dict = dict()
+    unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
         if verbosity > 1:
             print(f'Approximating QoI: {ii}')
-        pce_ii,score_ii,degree_ii = _cross_validate_pce_degree(
-            pce,train_samples, train_vals[:, ii:ii+1], min_degree, max_degree,
-            hcross_strength, cv, solver_type,verbosity)
+        pce_ii, score_ii, degree_ii = _cross_validate_pce_degree(
+            pce, train_samples, train_vals[:, ii:ii+1], min_degree, max_degree,
+            hcross_strength, cv, solver_type, verbosity)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -611,11 +622,12 @@ def cross_validate_pce_degree(
             all_coefs[indices_dict[key], ii] = coefs[ii][jj, 0]
     pce.set_indices(unique_indices)
     pce.set_coefficients(all_coefs)
-    return ApproximateResult({'approx':pce, 'scores':np.array(scores),
-                              'degrees':np.array(degrees)})
-    
+    return ApproximateResult({'approx': pce, 'scores': np.array(scores),
+                              'degrees': np.array(degrees)})
+
+
 def _cross_validate_pce_degree(
-        pce,train_samples, train_vals, min_degree=1, max_degree=3,
+        pce, train_samples, train_vals, min_degree=1, max_degree=3,
         hcross_strength=1,
         cv=10, solver_type='lasso_lars', verbosity=0):
     assert train_vals.shape[1] == 1
@@ -629,14 +641,15 @@ def _cross_validate_pce_degree(
     best_cv_score = -np.finfo(np.double).max
     best_degree = min_degree
     prev_num_terms = 0
-    if verbosity>0:
-        print ("{:<8} {:<10} {:<18}".format('degree','num_terms','cv score',))
+    if verbosity > 0:
+        print("{:<8} {:<10} {:<18}".format('degree', 'num_terms', 'cv score',))
     for degree in range(min_degree, max_degree+1):
         indices = compute_hyperbolic_indices(
             pce.num_vars(), degree, hcross_strength)
         pce.set_indices(indices)
         if ((pce.num_terms() > 100000) and
-            (100000-prev_num_terms < pce.num_terms()-100000) ): break
+                (100000-prev_num_terms < pce.num_terms()-100000)):
+            break
 
         basis_matrix = pce.basis_matrix(train_samples)
         coef, cv_score = fit_linear_model(
@@ -645,68 +658,69 @@ def _cross_validate_pce_degree(
 
         if verbosity > 0:
             print("{:<8} {:<10} {:<18} ".format(
-                degree ,pce.num_terms(), cv_score))
-        if ( cv_score > best_cv_score ):
+                degree, pce.num_terms(), cv_score))
+        if (cv_score > best_cv_score):
             best_cv_score = cv_score
             best_coef = coef.copy()
             best_degree = degree
-        if ( ( cv_score >= best_cv_score ) and ( degree-best_degree > 1 ) ):
+        if ((cv_score >= best_cv_score) and (degree-best_degree > 1)):
             break
         prev_num_terms = pce.num_terms()
 
     pce.set_indices(compute_hyperbolic_indices(
-        pce.num_vars(), best_degree,hcross_strength))
+        pce.num_vars(), best_degree, hcross_strength))
     pce.set_coefficients(best_coef)
-    if verbosity>0:
-        print ('best degree:', best_degree)
+    if verbosity > 0:
+        print('best degree:', best_degree)
     return pce, best_cv_score, best_degree
 
-def restrict_basis(indices,coefficients,tol):
-    I = np.where(np.absolute(coefficients)>tol)[0]
-    restricted_indices = indices[:,I]
+
+def restrict_basis(indices, coefficients, tol):
+    I = np.where(np.absolute(coefficients) > tol)[0]
+    restricted_indices = indices[:, I]
     degrees = indices.sum(axis=0)
-    J = np.where(degrees==0)[0]
-    assert J.shape[0]==1
+    J = np.where(degrees == 0)[0]
+    assert J.shape[0] == 1
     if J not in I:
-        #always include zero degree polynomial in restricted_indices
-        restricted_indices = np.concatenate([indices[:J],restrict_indices])
+        # always include zero degree polynomial in restricted_indices
+        restricted_indices = np.concatenate([indices[:J], restrict_indices])
     return restricted_indices
 
-from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
+
 def expand_basis(indices):
-    nvars,nindices=indices.shape
+    nvars, nindices = indices.shape
     indices_set = set()
     for ii in range(nindices):
-        indices_set.add(hash_array(indices[:,ii]))
-    
+        indices_set.add(hash_array(indices[:, ii]))
+
     new_indices = []
     for ii in range(nindices):
-        index = indices[:,ii]
+        index = indices[:, ii]
         active_vars = np.nonzero(index)
         for dd in range(nvars):
-            forward_index = get_forward_neighbor(index,dd)
+            forward_index = get_forward_neighbor(index, dd)
             key = hash_array(forward_index)
             if key not in indices_set:
-                admissible=True
+                admissible = True
                 for kk in active_vars:
-                    backward_index = get_backward_neighbor(forward_index,kk)
+                    backward_index = get_backward_neighbor(forward_index, kk)
                     if hash_array(backward_index) not in indices_set:
-                        admissible=False
+                        admissible = False
                         break
                 if admissible:
                     indices_set.add(key)
                     new_indices.append(forward_index)
     return np.asarray(new_indices).T
-    
+
 
 def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
-                            verbosity=1,max_num_terms=None,
-                            solver_type='lasso_lars',cv=10,
+                            verbosity=1, max_num_terms=None,
+                            solver_type='lasso_lars', cv=10,
                             restriction_tol=np.finfo(float).eps*2):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
     cross validation to find the best basis [JESJCP2015]_
-    
+
     Parameters
     ----------
     train_samples : np.ndarray (nvars,nsamples)
@@ -714,7 +728,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
     train_vals : np.ndarray (nvars,nqoi)
         The values of the function at ``train_samples``
-    
+
     hcross_strength : float
        The strength of the hyperbolic cross index set. hcross_strength must be 
        in (0,1]. A value of 1 produces total degree polynomials
@@ -755,71 +769,73 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     coefs = []
     scores = []
     indices = []
-    indices_dict=dict()
-    unique_indices=[]
+    indices_dict = dict()
+    unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
-        if verbosity>1:
+        if verbosity > 1:
             print(f'Approximating QoI: {ii}')
-        pce_ii,score_ii = _expanding_basis_omp_pce(
-            pce, train_samples, train_vals[:,ii:ii+1], hcross_strength,
-            verbosity,max_num_terms,solver_type,cv,restriction_tol)
+        pce_ii, score_ii = _expanding_basis_omp_pce(
+            pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
+            verbosity, max_num_terms, solver_type, cv, restriction_tol)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
         for index in indices[ii].T:
             key = hash_array(index)
             if key not in indices_dict:
-                indices_dict[key]=len(unique_indices)
+                indices_dict[key] = len(unique_indices)
                 unique_indices.append(index)
 
     unique_indices = np.array(unique_indices).T
-    all_coefs = np.zeros((unique_indices.shape[1],nqoi))
+    all_coefs = np.zeros((unique_indices.shape[1], nqoi))
     for ii in range(nqoi):
-        for jj,index in enumerate(indices[ii].T):
+        for jj, index in enumerate(indices[ii].T):
             key = hash_array(index)
-            all_coefs[indices_dict[key],ii]=coefs[ii][jj,0]
+            all_coefs[indices_dict[key], ii] = coefs[ii][jj, 0]
     pce.set_indices(unique_indices)
     pce.set_coefficients(all_coefs)
-    return ApproximateResult({'approx':pce,'scores':np.array(scores)})
+    return ApproximateResult({'approx': pce, 'scores': np.array(scores)})
+
 
 def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
-                             verbosity=1,max_num_terms=None,
-                             solver_type='lasso_lars',cv=10,
+                             verbosity=1, max_num_terms=None,
+                             solver_type='lasso_lars', cv=10,
                              restriction_tol=np.finfo(float).eps*2):
-    assert train_vals.shape[1]==1
+    assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
-    if max_num_terms  is None:
+    if max_num_terms is None:
         max_num_terms = 10*train_vals.shape[1]
     degree = 2
     prev_num_terms = 0
     while True:
-        indices =compute_hyperbolic_indices(num_vars, degree, hcross_strength)
+        indices = compute_hyperbolic_indices(num_vars, degree, hcross_strength)
         num_terms = indices.shape[1]
-        if ( num_terms > max_num_terms ): break
+        if (num_terms > max_num_terms):
+            break
         degree += 1
         prev_num_terms = num_terms
 
-    if ( abs( num_terms - max_num_terms ) > 
-         abs( prev_num_terms - max_num_terms ) ):
-        degree -=1
+    if (abs(num_terms - max_num_terms) >
+            abs(prev_num_terms - max_num_terms)):
+        degree -= 1
     pce.set_indices(
         compute_hyperbolic_indices(num_vars, degree, hcross_strength))
 
-    if verbosity>0:
+    if verbosity > 0:
         msg = f'Initializing basis with hyperbolic cross of degree {degree} and '
         msg += f' strength {hcross_strength} with {pce.num_terms()} terms'
         print(msg)
 
     basis_matrix = pce.basis_matrix(train_samples)
     best_coef, best_cv_score = fit_linear_model(
-        basis_matrix,train_vals,solver_type,cv=cv)
+        basis_matrix, train_vals, solver_type, cv=cv)
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
-    if verbosity>0:
-        print ("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
-        print ("{:<10} {:<10} {:<18}".format(
-            pce.num_terms(),np.count_nonzero(pce.coefficients),best_cv_score))
+    if verbosity > 0:
+        print("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
+        print("{:<10} {:<10} {:<18}".format(
+            pce.num_terms(), np.count_nonzero(pce.coefficients), best_cv_score))
 
     best_cv_score_iter = best_cv_score
     best_num_expansion_steps = 3
@@ -833,11 +849,12 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             #  Expand basis  #
             # -------------- #
             num_expansion_steps = 0
-            indices=restrict_basis(pce.indices,pce.coefficients,restriction_tol)
-            while ( ( num_expansion_steps < max_num_expansion_steps ) and
-                    ( num_expansion_steps < best_num_expansion_steps ) ):
+            indices = restrict_basis(
+                pce.indices, pce.coefficients, restriction_tol)
+            while ((num_expansion_steps < max_num_expansion_steps) and
+                    (num_expansion_steps < best_num_expansion_steps)):
                 new_indices = expand_basis(pce.indices)
-                pce.set_indices(np.hstack([pce.indices,new_indices]))
+                pce.set_indices(np.hstack([pce.indices, new_indices]))
                 num_terms = pce.num_terms()
                 num_expansion_steps += 1
 
@@ -846,48 +863,51 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
             coef, cv_score = fit_linear_model(
-                basis_matrix,train_vals,solver_type,cv=cv)
+                basis_matrix, train_vals, solver_type, cv=cv)
             pce.set_coefficients(coef)
 
-            if verbosity>0:
-                print ("{:<10} {:<10} {:<18}".format(
+            if verbosity > 0:
+                print("{:<10} {:<10} {:<18}".format(
                     pce.num_terms(), np.count_nonzero(pce.coefficients),
                     cv_score))
 
-            if ( cv_score > best_cv_score_iter ):
+            if (cv_score > best_cv_score_iter):
                 best_cv_score_iter = cv_score
                 best_indices_iter = pce.indices.copy()
                 best_coef_iter = pce.coefficients.copy()
-                best_num_expansion_steps_iter = num_expansion_steps 
+                best_num_expansion_steps_iter = num_expansion_steps
 
-            if ( num_terms >= max_num_terms ): break
-            if ( max_num_expansion_steps >= 3 ): break
+            if (num_terms >= max_num_terms):
+                break
+            if (max_num_expansion_steps >= 3):
+                break
 
             max_num_expansion_steps += 1
 
-
-        if ( best_cv_score_iter > best_cv_score):
+        if (best_cv_score_iter > best_cv_score):
             best_cv_score = best_cv_score_iter
             best_coef = best_coef_iter.copy()
             best_indices = best_indices_iter.copy()
             best_num_expansion_steps = best_num_expansion_steps_iter
             best_it = it
-        elif ( it - best_it >= 2 ):
+        elif (it - best_it >= 2):
             break
 
         it += 1
 
     nindices = best_indices.shape[1]
-    I = np.nonzero(best_coef[:,0])[0]
-    pce.set_indices(best_indices[:,I])
+    I = np.nonzero(best_coef[:, 0])[0]
+    pce.set_indices(best_indices[:, I])
     pce.set_coefficients(best_coef[I])
-    if verbosity>0:
-        msg=f'Final basis has {pce.num_terms()} terms selected from {nindices}'
-        msg+=f' using {train_samples.shape[1]} samples'
+    if verbosity > 0:
+        msg = f'Final basis has {pce.num_terms()} terms selected from {nindices}'
+        msg += f' using {train_samples.shape[1]} samples'
         print(msg)
     return pce, best_cv_score
 
-def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_optimizer=5,verbosity=0):
+
+def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
+                                 n_restarts_optimizer=5, verbosity=0):
     r"""
     Compute a Gaussian process approximation of a function from a fixed data 
     set using the Matern kernel
@@ -931,13 +951,13 @@ def approximate_gaussian_process(train_samples,train_vals,nu=np.inf,n_restarts_o
     """
     from sklearn.gaussian_process.kernels import Matern, WhiteKernel
     from pyapprox.gaussian_process import GaussianProcess
-    kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
+    nvars = train_samples.shape[0]
+    length_scale = np.array([1]*nvars)
+    kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
     # optimize variance
     kernel = 1*kernel
     # optimize gp noise
-    nvars = train_samples.shape[0]
-    length_scale = np.array([1]*nvars)
-    kernel += WhiteKernel(length_scale,noise_level_bounds=(1e-8, 1))
-    gp = GaussianProcess(kernel,n_restarts_optimizer=n_restarts_optimizer)
-    gp.fit(train_samples,train_vals)
-    return ApproximateResult({'approx':gp})
+    kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
+    gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer)
+    gp.fit(train_samples, train_vals)
+    return ApproximateResult({'approx': gp})
