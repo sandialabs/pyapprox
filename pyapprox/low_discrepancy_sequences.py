@@ -176,5 +176,5 @@ def sobol_sequence(nvars, nsamples):
             tmp2 = tmp1 ^ dir_nums[indices[ii-1]]
             samples[dd, ii] = tmp2/const
             tmp1 = tmp2
-
+    assert samples.max()<=1 and samples.min()>=0
     return samples

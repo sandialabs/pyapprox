@@ -137,7 +137,8 @@ def compute_hyperbolic_level_indices(num_vars, level, p):
         #var_indices.resize((num_vars, num_var_indices))
 
         new_indices = np.zeros((
-            num_vars, var_indices.shape[1]*level_indices.shape[1]), dtype=np.int64)
+            num_vars, var_indices.shape[1]*level_indices.shape[1]),
+                               dtype=np.int64)
         num_new_indices = 0
         for ii in range(var_indices.shape[1]):
             var_index = var_indices[:, ii]
