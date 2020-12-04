@@ -5,6 +5,7 @@ import numpy as np
 from pyapprox.indexing import compute_hyperbolic_indices, hash_array
 from pyapprox.utilities import nchoosek
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
+from functools import partial
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):
@@ -715,4 +716,41 @@ def sampling_based_sobol_indices(
             total_effect_values[dd] = 0.5 * \
                 np.mean((valuesA-valuesAB)**2, axis=0)/variance
 
-    return interaction_values, total_effect_values
+    return interaction_values, total_effect_values, variance
+
+
+def sampling_based_sobol_indices_from_gaussian_process(
+    gp, variables, interaction_terms, nsamples, sampling_method='sobol',
+        ngp_realizations=1, normalize=True):
+    """
+    Compute sobol indices from Gaussian process using sampling. 
+    This function returns the mean and variance of these values with 
+    respect to the variability in the GP (i.e. its function error)
+    """
+
+    all_interaction_values, all_total_effect_values, all_variances = [], [], []
+    for ii in range(ngp_realizations):
+        # partial needs to be inside loop of random seed will not be set
+        # check this
+        fun = partial(gp.predict_random_realization)
+        iv1, tv1, vr1 = sampling_based_sobol_indices(
+                fun, variables, interaction_terms, nsamples,
+                sampling_method='sobol')
+        if not normalize:
+            # useful for testing analytical variance and mean of gp estimates
+            # of these quantities. The analytical values cannot be normalized
+            iv1 *= variance
+            tv1 *= variance
+        all_interaction_values.append(iv1)
+        all_total_effect_values.append(tv1)
+        all_variances.append(vr1)
+
+    all_interaction_values = np.asarray(all_interaction_values)
+    all_total_effect_values = np.asarray(all_total_effect_values)
+    all_variances = np.asarray(all_variances)
+    
+    return all_interaction_values.mean(axis=0), \
+        all_total_effect_values.mean(axis=0), all_variances.mean(axis=0),\
+        all_interaction_values.std(axis=0), \
+        all_total_effect_values.std(axis=0), all_variances.std(axis=0),
+ 
