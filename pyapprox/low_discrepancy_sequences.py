@@ -36,7 +36,6 @@ def halton_sequence(num_vars, index1, index2):
     return sequence
 
 
-@njit(cache=True)
 def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
                                 start_index=1):
     assert start_index > 0
