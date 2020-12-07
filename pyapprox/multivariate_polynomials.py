@@ -116,7 +116,8 @@ def evaluate_multivariate_orthonormal_polynomial_derivs(
     return derivs
 
 
-def precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated(samples, indices, recursion_coeffs, deriv_order, basis_type_index_map):
+def precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated(
+        samples, indices, recursion_coeffs, deriv_order, basis_type_index_map):
     num_vars = indices.shape[0]
     max_level_1d = indices.max(axis=1)
 

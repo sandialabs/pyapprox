@@ -142,11 +142,15 @@ class AffineRandomVariableTransformation(object):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
             
-            bounds = [loc-scale, scale*2]
+            bounds = [loc-scale, loc+scale*2]
             var = self.variable.unique_variables[ii]
-            if (self.enforce_bounds and is_bounded_continuous_variable(var) and
-                np.any(user_samples[indices, :]<bounds[0])):
-                print(user_samples, bounds)
+            if ((self.enforce_bounds is True) and
+                (is_bounded_continuous_variable(var) is True) and
+                ((np.any(user_samples[indices, :]<bounds[0])) or
+                (np.any(user_samples[indices, :]>bounds[1])))):
+                I = np.where((user_samples[indices, :]<bounds[0])|
+                             (user_samples[indices, :]>bounds[1]))[0]
+                print(user_samples[indices, I], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
                 
             canonical_samples[indices, :] = (user_samples[indices, :]-loc)/scale

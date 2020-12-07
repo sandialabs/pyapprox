@@ -1,13 +1,14 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-
 import numpy as np
 from scipy.special import comb as nchoosek
 from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from scipy.special import factorial
+from numba import njit
+from pyapprox.utilities import cartesian_product
+
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
-                                   return_sequence=False,normalize_weights=False):
+                                   return_sequence=False,
+                                   normalize_weights=False):
     """
     Return barycentric weights for a sequence of samples. e.g. of sequence
     x0,x1,x2 where order represents the order in which the samples are added
@@ -16,9 +17,9 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     Parameters
     ----------
     return_sequence : boolean
-        True  - return [1],[1/(x0-x1),1/(x1-x0)],
-                       [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]
-        False - return [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]
+        True - return [1],[1/(x0-x1),1/(x1-x0)],
+                      [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]
+        False- return [1/((x0-x2)(x0-x1)),1/((x1-x2)(x1-x0)),1/((x2-x1)(x2-x0))]
 
     Note
     ----
@@ -36,97 +37,97 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
         scaling_factor = 1.
     else:
         scaling_factor = interval_length/4.
-        
+
     C_inv = 1/scaling_factor
     num_samples = samples.shape[0]
 
     try:
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
-        weights = compute_barycentric_weights_1d_pyx(samples,C_inv)
+        weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
     except:
-        print ('compute_barycentric_weights_1d extension failed')
+        print('compute_barycentric_weights_1d extension failed')
 
-        #X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
-        #result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
-        #return result
-    
-        weights = np.empty((num_samples, num_samples),dtype=float)
-        weights[0,0] = 1.
-        for jj in range(1,num_samples):
-            weights[jj,:jj] = C_inv*(samples[:jj]-samples[jj])*weights[jj-1,:jj]
-            weights[jj,jj]  = np.prod(C_inv*(samples[jj]-samples[:jj]))
-            weights[jj-1,:jj] = 1./weights[jj-1,:jj]
+        # X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
+        # result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
+        # return result
 
-        weights[num_samples-1,:num_samples]=\
-            1./weights[num_samples-1,:num_samples]
+        weights = np.empty((num_samples, num_samples), dtype=float)
+        weights[0, 0] = 1.
+        for jj in range(1, num_samples):
+            weights[jj, :jj] = C_inv * \
+                (samples[:jj]-samples[jj])*weights[jj-1, :jj]
+            weights[jj, jj] = np.prod(C_inv*(samples[jj]-samples[:jj]))
+            weights[jj-1, :jj] = 1./weights[jj-1, :jj]
 
-    
+        weights[num_samples-1, :num_samples] =\
+            1./weights[num_samples-1, :num_samples]
+
     if not return_sequence:
-        result = weights[num_samples-1,:]
+        result = weights[num_samples-1, :]
         # make sure magintude of weights is approximately O(1)
         # useful to sample sets like leja for gaussian variables
         # where interval [a,b] is not very useful
-        #print('max_weights',result.min(),result.max())
+        # print('max_weights',result.min(),result.max())
         if normalize_weights:
             raise Exception('I do not think I want to support this option')
             result /= np.absolute(result).max()
-            #result[I]=result
+            # result[I]=result
 
     else:
         result = weights
 
-    assert np.all(np.isfinite(result)),(num_samples)
+    assert np.all(np.isfinite(result)), (num_samples)
     return result
 
 
 def barycentric_lagrange_interpolation_precompute(
-        num_act_dims,abscissa_1d,barycentric_weights_1d,
+        num_act_dims, abscissa_1d, barycentric_weights_1d,
         active_abscissa_indices_1d_list):
-    num_abscissa_1d = np.empty((num_act_dims),dtype=int )
-    num_active_abscissa_1d = np.empty((num_act_dims),dtype=int )
-    shifts = np.empty((num_act_dims),dtype=int)
+    num_abscissa_1d = np.empty((num_act_dims), dtype=int)
+    num_active_abscissa_1d = np.empty((num_act_dims), dtype=int)
+    shifts = np.empty((num_act_dims), dtype=int)
 
-    
     shifts[0] = 1
     num_abscissa_1d[0] = abscissa_1d[0].shape[0]
     num_active_abscissa_1d[0] = active_abscissa_indices_1d_list[0].shape[0]
     max_num_abscissa_1d = num_abscissa_1d[0]
-    for act_dim_idx in range(1,num_act_dims):
+    for act_dim_idx in range(1, num_act_dims):
         num_abscissa_1d[act_dim_idx] = abscissa_1d[act_dim_idx].shape[0]
         num_active_abscissa_1d[act_dim_idx] = \
             active_abscissa_indices_1d_list[act_dim_idx].shape[0]
-        # multi-index needs only be defined over active_abscissa_1d 
+        # multi-index needs only be defined over active_abscissa_1d
         shifts[act_dim_idx] = \
             shifts[act_dim_idx-1]*num_active_abscissa_1d[act_dim_idx-1]
-        max_num_abscissa_1d=max(
-            max_num_abscissa_1d,num_abscissa_1d[act_dim_idx])
+        max_num_abscissa_1d = max(
+            max_num_abscissa_1d, num_abscissa_1d[act_dim_idx])
 
     max_num_active_abscissa_1d = num_active_abscissa_1d.max()
     active_abscissa_indices_1d = np.empty(
-        (num_act_dims,max_num_active_abscissa_1d),dtype=int)
+        (num_act_dims, max_num_active_abscissa_1d), dtype=int)
     for dd in range(num_act_dims):
-        active_abscissa_indices_1d[dd,:num_active_abscissa_1d[dd]] = \
-          active_abscissa_indices_1d_list[dd]
-    
+        active_abscissa_indices_1d[dd, :num_active_abscissa_1d[dd]] = \
+            active_abscissa_indices_1d_list[dd]
+
     # Create locality of data for increased preformance
     abscissa_and_weights = np.empty(
-        (2*max_num_abscissa_1d, num_act_dims),dtype=float)
+        (2*max_num_abscissa_1d, num_act_dims), dtype=float)
     for dd in range(num_act_dims):
         for ii in range(num_abscissa_1d[dd]):
-            abscissa_and_weights[2*ii,dd] = abscissa_1d[dd][ii]
-            abscissa_and_weights[2*ii+1,dd] = barycentric_weights_1d[dd][ii]
-        
-    return num_abscissa_1d,num_active_abscissa_1d,shifts,abscissa_and_weights,\
-      active_abscissa_indices_1d
+            abscissa_and_weights[2*ii, dd] = abscissa_1d[dd][ii]
+            abscissa_and_weights[2*ii+1, dd] = barycentric_weights_1d[dd][ii]
 
-def multivariate_hierarchical_barycentric_lagrange_interpolation( 
-			x,
-			abscissa_1d, 
-			barycentric_weights_1d,
-			fn_vals,
-			active_dims,
-			active_abscissa_indices_1d):
+    return num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights,\
+        active_abscissa_indices_1d
+
+
+def multivariate_hierarchical_barycentric_lagrange_interpolation(
+        x,
+        abscissa_1d,
+        barycentric_weights_1d,
+        fn_vals,
+        active_dims,
+        active_abscissa_indices_1d):
     """
     Parameters
     ----------
@@ -172,59 +173,59 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
     result : np.ndarray (num_samples,num_qoi)
         The values of the interpolant at the samples x
     """
-    eps = 2*np.finfo(float).eps
-    num_pts = x.shape[1]
     num_act_dims = active_dims.shape[0]
-
-    """
-    # this can be true for univariate quadrature rules that are not closed
-    # i.e on bounded domain and with samples on both boundaries
-    # need to make this check better
-    x_min, x_max = x.min(axis=1), x.max(axis=1)
-    for ii in range(num_act_dims):
-        if (x_min<abscissa_1d[active_dims[ii]].min() or
-            x_max>abscissa_1d[active_dims[ii]].max()):
-            print ('warning extrapolating outside abscissa')
-            print(x_min,x_max,abscissa_1d[active_dims[ii]].min(),
-                  abscissa_1d[active_dims[ii]].max())
-    """
-
-
     num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights, \
-      active_abscissa_indices_1d = \
-        barycentric_lagrange_interpolation_precompute(
-            num_act_dims,abscissa_1d,barycentric_weights_1d,
-            active_abscissa_indices_1d)
+        active_abscissa_indices_1d = \
+            barycentric_lagrange_interpolation_precompute(
+                num_act_dims, abscissa_1d, barycentric_weights_1d,
+                active_abscissa_indices_1d)
 
     try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
-        result=multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-            x, fn_vals, active_dims, active_abscissa_indices_1d, 
-            num_abscissa_1d, num_active_abscissa_1d, shifts, 
-            abscissa_and_weights)
+        result = \
+            multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
+                x, fn_vals, active_dims, active_abscissa_indices_1d,
+                num_abscissa_1d, num_active_abscissa_1d, shifts,
+                abscissa_and_weights)
         if np.any(np.isnan(result)):
             raise Exception('Error values not finite')
         return result
     except:
-        msg =  'multivariate_hierarchical_barycentric_lagrange_interpolation '
+        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation '
         msg += 'extension failed'
-        print (msg)
+        print(msg)
 
+    return __multivariate_hierarchical_barycentric_lagrange_interpolation(
+        x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
+        num_abscissa_1d, num_active_abscissa_1d, shifts,
+        abscissa_and_weights)
+
+
+@njit(cache=True)
+def __multivariate_hierarchical_barycentric_lagrange_interpolation(
+        x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
+        num_abscissa_1d, num_active_abscissa_1d, shifts,
+        abscissa_and_weights):
+    
+    eps = 2*np.finfo(np.double).eps
+    num_pts = x.shape[1]
+    num_act_dims = active_dims.shape[0]
+    
     max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
-    multi_index = np.empty((num_act_dims),dtype=int)
-  
+    multi_index = np.empty((num_act_dims), dtype=np.int64)
+
     num_qoi = fn_vals.shape[1]
-    result = np.empty((num_pts,num_qoi),dtype=float )
+    result = np.empty((num_pts, num_qoi), dtype=np.double)
     # Allocate persistent memory. Each point will fill in a varying amount
-    # of entries. We use a view of this memory to stop reallocation for each 
+    # of entries. We use a view of this memory to stop reallocation for each
     # data point
-    act_dims_pt_persistent = np.empty((num_act_dims),dtype=int)
-    act_dim_indices_pt_persistent = np.empty((num_act_dims),dtype=int)
-    c_persistent = np.empty((num_qoi,num_act_dims),dtype=float)
-    bases = np.empty((max_num_abscissa_1d, num_act_dims),dtype=float)
+    act_dims_pt_persistent = np.empty((num_act_dims), dtype=np.int64)
+    act_dim_indices_pt_persistent = np.empty((num_act_dims), dtype=np.int64)
+    c_persistent = np.empty((num_qoi, num_act_dims), dtype=np.double)
+    bases = np.empty((max_num_abscissa_1d, num_act_dims), dtype=np.double)
     for kk in range(num_pts):
-        # compute the active dimension of the kth point in x and the 
+        # compute the active dimension of the kth point in x and the
         # set multi_index accordingly
         multi_index[:] = 0
         num_act_dims_pt = 0
@@ -234,28 +235,28 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
             is_active_dim = True
             dim = active_dims[act_dim_idx]
             num_abscissa = num_abscissa_1d[act_dim_idx]
-            x_dim_k = x[dim,kk]
+            x_dim_k = x[dim, kk]
             for ii in range(num_abscissa):
-                if ( ( cnt < num_active_abscissa_1d[act_dim_idx] ) and 
-                    ( ii == active_abscissa_indices_1d[act_dim_idx][cnt] ) ):
-                    cnt+=1
-                if ( abs( x_dim_k - abscissa_1d[act_dim_idx][ii] ) < eps ):
+                if ((cnt < num_active_abscissa_1d[act_dim_idx]) and
+                        (ii == active_abscissa_indices_1d[act_dim_idx][cnt])):
+                    cnt += 1
+                if (abs(x_dim_k - abscissa_1d[act_dim_idx][ii]) < eps):
                     is_active_dim = False
-                    if ( ( cnt > 0 ) and 
-                          (active_abscissa_indices_1d[act_dim_idx][cnt-1]==ii)):
+                    if ((cnt > 0) and
+                        (active_abscissa_indices_1d[act_dim_idx][cnt-1] == ii)):
                         multi_index[act_dim_idx] = cnt-1
                     else:
                         has_inactive_abscissa = True
                     break
 
-            if ( is_active_dim ):
+            if (is_active_dim):
                 act_dims_pt_persistent[num_act_dims_pt] = dim
                 act_dim_indices_pt_persistent[num_act_dims_pt] = act_dim_idx
-                num_act_dims_pt+=1
+                num_act_dims_pt += 1
         # end for act_dim_idx in range(num_act_dims):
-        
-        if ( has_inactive_abscissa ):
-            result[kk,:] = 0.
+
+        if (has_inactive_abscissa):
+            result[kk, :] = 0.
         else:
             # compute barycentric basis functions
             denom = 1.
@@ -263,22 +264,22 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 dim = act_dims_pt_persistent[dd]
                 act_dim_idx = act_dim_indices_pt_persistent[dd]
                 num_abscissa = num_abscissa_1d[act_dim_idx]
-                x_dim_k = x[dim,kk]
-                bases[0,dd] = abscissa_and_weights[1,act_dim_idx] /\
-                  (x_dim_k - abscissa_and_weights[0,act_dim_idx])
-                denom_d = bases[0,dd]
-                for ii in range(1,num_abscissa):
-                    basis = abscissa_and_weights[2*ii+1,act_dim_idx] /\
-                      (x_dim_k - abscissa_and_weights[2*ii,act_dim_idx])
-                    bases[ii,dd] = basis 
+                x_dim_k = x[dim, kk]
+                bases[0, dd] = abscissa_and_weights[1, act_dim_idx] /\
+                    (x_dim_k - abscissa_and_weights[0, act_dim_idx])
+                denom_d = bases[0, dd]
+                for ii in range(1, num_abscissa):
+                    basis = abscissa_and_weights[2*ii+1, act_dim_idx] /\
+                        (x_dim_k - abscissa_and_weights[2*ii, act_dim_idx])
+                    bases[ii, dd] = basis
                     denom_d += basis
-                
+
                 denom *= denom_d
-                
+
             # the raise Exception('Error values not finite') at the end
             # should catch this problem, which sometimes is actually not a
             # problem
-            #if ( abs(denom) < eps ):
+            # if ( abs(denom) < eps ):
             #    print(x[:,kk])
             #    print(denom)
             #    msg = "the evaluation of x using the interpolation "
@@ -286,57 +287,63 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
             #    raise Exception(msg)
 
             # end for dd in range(num_act_dims_pt):
-                
-            if ( num_act_dims_pt == 0 ):
+
+            if (num_act_dims_pt == 0):
                 # if point is an abscissa return the fn value at that point
                 #fn_val_index = 0
-                #for act_dim_idx in range(num_act_dims):
+                # for act_dim_idx in range(num_act_dims):
                 #    fn_val_index+=multi_index[act_dim_idx]*shifts[act_dim_idx]
                 fn_val_index = np.sum(multi_index*shifts)
-                result[kk,:] = fn_vals[fn_val_index,:]
+                result[kk, :] = fn_vals[fn_val_index, :]
             else:
                 # compute interpolant
-                c_persistent[:,:] = 0.
+                c_persistent[:, :] = 0.
                 done = True
-                if ( num_act_dims_pt > 1 ): done = False
+                if (num_act_dims_pt > 1):
+                    done = False
                 #fn_val_index = 0
-                #for act_dim_idx in range(num_act_dims):
-                #    fn_val_index += multi_index[act_dim_idx]*shifts[act_dim_idx]
+                # for act_dim_idx in range(num_act_dims):
+                #    fn_val_index += \
+                #        multi_index[act_dim_idx]*shifts[act_dim_idx]
                 fn_val_index = np.sum(multi_index*shifts)
                 while (True):
                     act_dim_idx = act_dim_indices_pt_persistent[0]
                     for ii in range(num_active_abscissa_1d[act_dim_idx]):
-                        fn_val_index+=shifts[act_dim_idx]*(ii-multi_index[act_dim_idx])
+                        fn_val_index += shifts[act_dim_idx] * \
+                            (ii-multi_index[act_dim_idx])
                         multi_index[act_dim_idx] = ii
-                        basis=bases[active_abscissa_indices_1d[act_dim_idx][ii],0]
-                        c_persistent[:,0]+= basis * fn_vals[fn_val_index,:]
-                        
-                    for dd in range(1,num_act_dims_pt):
+                        basis = bases[active_abscissa_indices_1d[act_dim_idx][ii], 0]
+                        c_persistent[:, 0] += basis * fn_vals[fn_val_index, :]
+
+                    for dd in range(1, num_act_dims_pt):
                         act_dim_idx = act_dim_indices_pt_persistent[dd]
-                        basis = bases[active_abscissa_indices_1d[act_dim_idx][multi_index[act_dim_idx]],dd]
-                        c_persistent[:,dd] += basis * c_persistent[:,dd-1]
-                        c_persistent[:,dd-1] = 0.
-                        if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):
+                        basis = bases[active_abscissa_indices_1d[act_dim_idx]
+                                      [multi_index[act_dim_idx]], dd]
+                        c_persistent[:, dd] += basis * c_persistent[:, dd-1]
+                        c_persistent[:, dd-1] = 0.
+                        if (multi_index[act_dim_idx] < num_active_abscissa_1d[act_dim_idx]-1):
                             fn_val_index += shifts[act_dim_idx]
                             multi_index[act_dim_idx] += 1
                             break
-                        elif ( dd < num_act_dims_pt - 1 ):
-                            fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]
+                        elif (dd < num_act_dims_pt - 1):
+                            fn_val_index -= shifts[act_dim_idx] * \
+                                multi_index[act_dim_idx]
                             multi_index[act_dim_idx] = 0
                         else:
                             done = True
-                    if ( done ):
+                    if (done):
                         break
-                result[kk,:] = c_persistent[:,num_act_dims_pt-1] / denom
-                if np.any(np.isnan(result[kk,:])):
+                result[kk, :] = c_persistent[:, num_act_dims_pt-1] / denom
+                if np.any(np.isnan(result[kk, :])):
                     #print (c_persistent [:,num_act_dims_pt-1])
                     #print (denom)
                     raise Exception('Error values not finite')
     return result
 
+
 def multivariate_barycentric_lagrange_interpolation(
-        x, abscissa_1d, barycentric_weights_1d,fn_vals,active_dims):
-    
+        x, abscissa_1d, barycentric_weights_1d, fn_vals, active_dims):
+
     num_active_dims = active_dims.shape[0]
     active_abscissa_indices_1d = []
     for active_index in range(num_active_dims):
@@ -344,25 +351,104 @@ def multivariate_barycentric_lagrange_interpolation(
             abscissa_1d[active_index].shape[0]))
 
     return multivariate_hierarchical_barycentric_lagrange_interpolation(
-        x,abscissa_1d,barycentric_weights_1d,fn_vals,active_dims,
+        x, abscissa_1d, barycentric_weights_1d, fn_vals, active_dims,
         active_abscissa_indices_1d)
-    
 
-def clenshaw_curtis_barycentric_weights( level ):
-    if ( level == 0 ):
-        return np.array( [0.5], np.float )
+
+def clenshaw_curtis_barycentric_weights(level):
+    if (level == 0):
+        return np.array([0.5], np.float)
     else:
         mi = 2**(level) + 1
-        w = np.ones( mi, np.double )
-        w[0] = 0.5; w[mi-1] = 0.5;
+        w = np.ones(mi, np.double)
+        w[0] = 0.5
+        w[mi-1] = 0.5
         w[1::2] = -1.
         return w
 
-def equidistant_barycentric_weights( n ):
-    w = np.zeros( n, np.double )
-    for i in range( 0, n - n%2, 2 ):
-        w[i] = 1. * nchoosek( n-1, i )
-        w[i+1] = -1. * nchoosek( n-1, i+1 )
-    if ( n%2 == 1 ): 
+
+def equidistant_barycentric_weights(n):
+    w = np.zeros(n, np.double)
+    for i in range(0, n - n % 2, 2):
+        w[i] = 1. * nchoosek(n-1, i)
+        w[i+1] = -1. * nchoosek(n-1, i+1)
+    if (n % 2 == 1):
         w[n-1] = 1.
     return w
+
+
+@njit(cache=True)
+def univariate_lagrange_polynomial(abscissa, samples):
+    assert abscissa.ndim == 1
+    assert samples.ndim == 1
+    nabscissa = abscissa.shape[0]
+    values = np.ones((samples.shape[0], nabscissa), dtype=np.double)
+    for ii in range(nabscissa):
+        x_ii = abscissa[ii]
+        for jj in range(nabscissa):
+            if ii == jj:
+                continue
+            values[:, ii] *= (samples - abscissa[jj])/(x_ii-abscissa[jj])
+    return values
+
+
+def precompute_tensor_product_lagrange_polynomial_basis(
+        samples, abscissa_1d, active_vars):
+
+    nvars, nsamples = samples.shape
+    nactive_vars = len(active_vars)
+    nabscissa = np.empty(nactive_vars, dtype=np.int64)
+    for dd in range(nactive_vars):
+        nabscissa[dd] = abscissa_1d[dd].shape[0]
+    max_nabscissa = nabscissa.max()
+    
+    basis_vals_1d = np.empty(
+        (nactive_vars, max_nabscissa, nsamples), dtype=np.double)
+    for dd in range(nactive_vars):
+        basis_vals_1d[dd, :nabscissa[dd], :] = univariate_lagrange_polynomial(
+            abscissa_1d[dd], samples[active_vars[dd]]).T
+    return basis_vals_1d
+
+
+def __tensor_product_lagrange_polynomial_basis(
+        samples, basis_vals_1d, active_vars, values, active_indices):
+
+    #try:
+    from pyapprox.cython.barycentric_interpolation import \
+        tensor_product_lagrange_interpolation_pyx
+    approx_values = tensor_product_lagrange_interpolation_pyx(
+        samples, values, basis_vals_1d, active_indices, active_vars)
+    print('a')
+    return approx_values
+
+    nvars, nsamples = samples.shape
+    nactive_vars = len(active_vars)
+
+    nindices = active_indices.shape[1]
+    temp1 = basis_vals_1d.reshape(
+        (nactive_vars*basis_vals_1d.shape[1], nsamples))
+    temp2 = temp1[active_indices.ravel()+np.repeat(
+        np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
+            nactive_vars, nindices, nsamples)
+    basis_matrix = np.prod(temp2, axis=0).T
+    approx_values = basis_matrix.dot(values)
+    
+    # prod with axis argument does not work with njit    
+    # approx_values = np.zeros((nsamples, values.shape[1]), dtype=np.double)
+    # for jj in range(nindices):
+    #     basis_vals = 1
+    #     for dd in range(nactive_vars):
+    #         basis_vals *= basis_vals_1d[dd, active_indices[dd, jj], :]
+    #     approx_values += basis_vals[:, None]*values[jj, :]
+    return approx_values
+
+
+def tensor_product_lagrange_interpolation(
+        samples, abscissa_1d, active_vars, values):
+    assert len(abscissa_1d) == len(active_vars)
+    active_indices = cartesian_product(
+        [np.arange(x.shape[0]) for x in abscissa_1d])
+    basis_vals_1d = precompute_tensor_product_lagrange_polynomial_basis(
+        samples, abscissa_1d, active_vars)
+    return __tensor_product_lagrange_polynomial_basis(
+        samples, basis_vals_1d, active_vars, values, active_indices)
