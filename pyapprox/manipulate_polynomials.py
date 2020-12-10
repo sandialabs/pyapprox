@@ -79,10 +79,10 @@ def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
 
 
 @njit(cache=True)
-def coeffs_of_power_of_nd_linear_polynomial(num_vars, degree, linear_coeffs):
+def coeffs_of_power_of_nd_linear_monomial(num_vars, degree, linear_coeffs):
     """
-    Compute the polynomial (coefficients and indices) obtained by raising
-    a linear multivariate polynomial (no constant term) to some power.
+    Compute the monomial (coefficients and indices) obtained by raising
+    a linear multivariate monomial (no constant term) to some power.
 
     Parameters
     ----------
@@ -104,7 +104,7 @@ def coeffs_of_power_of_nd_linear_polynomial(num_vars, degree, linear_coeffs):
         The set of multivariate indices that define the new polynomial
     """
     assert len(linear_coeffs) == num_vars
-    coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_polynomial(
+    coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_monomial(
         num_vars, degree)
     for ii in range(indices.shape[1]):
         index = indices[:, ii]
@@ -112,6 +112,27 @@ def coeffs_of_power_of_nd_linear_polynomial(num_vars, degree, linear_coeffs):
             degree = index[dd]
             coeffs[ii] *= linear_coeffs[dd]**degree
     return coeffs, indices
+
+
+def precompute_polynomial_powers(max_pow, indices, coefs, var_idx,
+                                 global_var_idx, num_global_vars):
+    """
+    Raise a polynomial to all powers 0,..., N.
+    E.g. compute 1, p(x), p(x)^2, p(x)^3, ... p(x)^N
+    """
+    if max_pow < 0:
+        raise exception ('max_pow must >= 0')
+   
+    # store input indices in global_var_idx
+    assert indices.shape[0] == global_var_idx.shape[0]
+    ind = np.zeros((num_global_vars, indices.shape[1]))
+    ind[global_var_idx, :] = indices
+    
+    polys = [coeffs_of_power_of_monomial(ind, coefs, 0)]
+    for nn in range(1, max_pow+1):
+        polys.append(multiply_multivariate_polynomials(
+            ind, coefs, polys[-1][0], polys[-1][1]))
+    return polys
 
 
 def substitute_polynomials_for_variables_in_another_polynomial(
@@ -138,10 +159,10 @@ def substitute_polynomials_for_variables_in_another_polynomial(
         The polynomial coefficients of the downstream polynomial which
         we are substituting into
 
-    var_idx : integer
-        The variable index of the variable we are replacing by a polynomial
+    var_idx : np.ndarray (ninputs)
+        The indices of the variable we are replacing by a polynomial
 
-    global_var_idx : [np.ndarray(nvars[ii]) for ii in num_inputs]
+    global_var_idx : [np.ndarray(nvars[ii]) for ii in ninputs]
         The index of the active variables for each input. 
         Note the number of parameters of the final polynomial will likely be 
         greater than the number of global variables of the downstream polynomial
@@ -157,7 +178,6 @@ def substitute_polynomials_for_variables_in_another_polynomial(
     assert var_idx.max() < num_global_vars
     assert len(global_var_idx) == num_inputs
 
-
     # precompute polynomial powers which will be used repeatedly
     input_poly_powers = []
     for jj in range(num_inputs):
@@ -172,7 +192,6 @@ def substitute_polynomials_for_variables_in_another_polynomial(
     mask[unique_global_vars_in] = False
     mask2 = np.ones(indices.shape[0], dtype=bool)
     mask2[np.unique(var_idx)] = False
-
         
     num_vars, num_terms = indices.shape
     new_indices = []
@@ -208,27 +227,6 @@ def substitute_polynomials_for_variables_in_another_polynomial(
     # for ii in range(repeated_idx.shape[0]):
     #     unique_coef[repeated_idx[ii]] += new_coeffs[ii]
     # return unique_indices, unique_coef
-
-    
-def precompute_polynomial_powers(max_pow, indices, coefs, var_idx,
-                                 global_var_idx, num_global_vars):
-    """
-    Raise a polynomial to all powers 0,..., N.
-    E.g. compute 1, p(x), p(x)^2, p(x)^3, ... p(x)^N
-    """
-    if max_pow < 0:
-        raise exception ('max_pow must >= 0')
-   
-    # store input indices in global_var_idx
-    assert indices.shape[0] == global_var_idx.shape[0]
-    ind = np.zeros((num_global_vars, indices.shape[1]))
-    ind[global_var_idx, :] = indices
-    
-    polys = [coeffs_of_power_of_polynomial(ind, coefs, 0)]
-    for nn in range(1, max_pow+1):
-        polys.append(multiply_multivariate_polynomials(
-            ind, coefs, polys[-1][0], polys[-1][1]))
-    return polys
     
 
 def substitute_polynomials_for_variables_in_single_basis_term(
@@ -283,13 +281,13 @@ def substitute_polynomials_for_variables_in_single_basis_term(
 
     jj = 0
     degree = basis_index[var_idx[jj], 0]
-    ind1, c1 = coeffs_of_power_of_polynomial(
+    ind1, c1 = coeffs_of_power_of_monomial(
         indices_in[jj], coeffs_in[jj], degree)
     # TODO store each power of the input polynomials once before this function
     # and look up when it appears in the term considered here
     for jj in range(1, num_inputs):
         degree = basis_index[var_idx[jj], 0]
-        ind2, c2 = coeffs_of_power_of_polynomial(
+        ind2, c2 = coeffs_of_power_of_monomial(
             indices_in[jj], coeffs_in[jj], degree)
         ind1, c1 = multiply_multivariate_polynomials(ind1, c1, ind2, c2)
 
@@ -306,12 +304,12 @@ def substitute_polynomials_for_variables_in_single_basis_term(
 
 
 @njit(cache=True)
-def coeffs_of_power_of_polynomial(indices, coeffs, degree):
+def coeffs_of_power_of_monomial(indices, coeffs, degree):
     """
-    Compute the polynomial (coefficients and indices) obtained by raising
+    Compute the monomial (coefficients and indices) obtained by raising
     a multivariate polynomial to some power.
 
-    TODO: Deprecate coeffs_of_power_of_nd_linear_polynomial as that function
+    TODO: Deprecate coeffs_of_power_of_nd_linear_monomial as that function
     can be obtained as a special case of this function
 
     Parameters
@@ -333,7 +331,7 @@ def coeffs_of_power_of_polynomial(indices, coeffs, degree):
     num_vars, num_terms = indices.shape
     assert indices.shape[1] == coeffs.shape[0]
     multinomial_coeffs, multinomial_indices = \
-        multinomial_coeffs_of_power_of_nd_linear_polynomial(num_terms, degree)
+        multinomial_coeffs_of_power_of_nd_linear_monomial(num_terms, degree)
     new_indices = np.zeros((num_vars, multinomial_indices.shape[1]))
     # new_coeffs = np.tile(multinomial_coeffs[:, np.newaxis], coeffs.shape[1])
     # numba does not support tile so replicate with repeat and reshape
@@ -415,7 +413,7 @@ def multinomial_coefficients(indices):
 
 
 @njit(cache=True)
-def multinomial_coeffs_of_power_of_nd_linear_polynomial(num_vars, degree):
+def multinomial_coeffs_of_power_of_nd_linear_monomial(num_vars, degree):
     """ Compute the multinomial coefficients of the individual terms
     obtained  when taking the power of a linear polynomial
     (without constant term).
@@ -566,13 +564,12 @@ def get_indices_double_set(indices):
     double_set_indices : np.ndarray (num_vars,num_indices)
         The double set of indices
     """
-    dummy_coeffs = np.zeros(indices.shape[1])
+    dummy_coeffs = np.zeros((indices.shape[1], 1))
     double_set_indices = multiply_multivariate_polynomials(
         indices, dummy_coeffs, indices, dummy_coeffs)[0]
     return double_set_indices
 
 
-@njit(cache=True)
 def shift_momomial_expansion(coef, shift, scale):
     assert coef.ndim == 1
     shifted_coef = np.zeros_like(coef)

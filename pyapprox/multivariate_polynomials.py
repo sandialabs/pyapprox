@@ -308,6 +308,20 @@ class PolynomialChaosExpansion(object):
             poly = poly*self
         return poly
 
+    # def substitute(self, other):
+    #     """
+    #     Final polynomial will use orthonormal basis of other for any variable
+    #     in other. E.g. if other is denoted z = p(x,y) and we are computing
+    #     f(z)
+    #     then f(z) = f(x,y) where we use basis associated with x and y and not 
+    #     with z.
+
+    #     I have code to do this but it requires a transformation from an 
+    #     orthogonal basis into the monomial basis then into another orthogonal
+    #     basis and this transformation can be ill-conditioned.
+    #     """
+    #     raise Exception(Not implemented)
+
     def configure(self, opts):
         self.config_opts = opts
         self.var_trans = opts.get('var_trans', None)
@@ -766,3 +780,4 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
 
     indices, coefs = add_polynomials(basis_indices, basis_coefs)
     return indices, coefs
+    
