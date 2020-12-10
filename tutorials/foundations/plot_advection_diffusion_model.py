@@ -112,12 +112,12 @@ def setup_model(num_vars,corr_len,max_eval_concurrency):
         add_work_to_qoi=False,
         second_order_timestepping=second_order_timestepping)
     # add wrapper to allow execution times to be captured
-    timer_model = pya.TimerModelWrapper(base_model,base_model)
+    timer_model = pya.TimerModelWrapper(base_model, base_model)
     # add wraper to allow model runs to be run on independent threads
-    model = pya.PoolModel(timer_model,max_eval_concurrency,
+    model = pya.PoolModel(timer_model, max_eval_concurrency,
                           base_model=base_model)
     # add wrapper that tracks execution times.
-    model = pya.WorkTrackingModel(model,model.base_model)
+    model = pya.WorkTrackingModel(model, model.base_model)
     return model
 
 #%%
@@ -161,7 +161,8 @@ def error_vs_cost(model,generate_random_samples,validation_levels,
     costs /= costs[-1]
 
     n1,n2,n3 = validation_levels
-    indices=np.reshape(np.arange(len(keys),dtype=int),(n1,n2,n3),order='F')
+    indices = np.reshape(
+        np.arange(len(keys), dtype=int), (n1, n2, n3), order='F')
     costs = np.reshape(np.array(costs),(n1,n2,n3),order='F')
     ndofs = np.reshape(np.array(ndofs),(n1,n2,n3),order='F')
     errors = np.reshape(np.array(errors),(n1,n2,n3),order='F')

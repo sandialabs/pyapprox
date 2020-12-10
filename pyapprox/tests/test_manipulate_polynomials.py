@@ -53,7 +53,7 @@ class TestManipulatePolynomials(unittest.TestCase):
     def test_multinomial_coefficients(self):
         num_vars = 2
         degree = 5
-        coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_polynomial(
+        coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_monomial(
             num_vars, degree)
 
         true_coeffs = np.empty(coeffs.shape[0], float)
@@ -65,7 +65,7 @@ class TestManipulatePolynomials(unittest.TestCase):
 
         num_vars = 3
         degree = 3
-        coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_polynomial(
+        coeffs, indices = multinomial_coeffs_of_power_of_nd_linear_monomial(
             num_vars, degree)
         coeffs = multinomial_coefficients(indices)
         coeffs = coeffs[argsort_indices_leixographically(indices)]
@@ -73,11 +73,11 @@ class TestManipulatePolynomials(unittest.TestCase):
         true_coeffs = np.array([1, 3, 3, 1, 3, 6, 3, 3, 3, 1])
         assert np.allclose(coeffs, true_coeffs)
 
-    def test_coeffs_of_power_of_nd_linear_polynomial(self):
+    def test_coeffs_of_power_of_nd_linear_monomial(self):
         num_vars = 3
         degree = 2
         linear_coeffs = [2., 3., 4.]
-        coeffs, indices = coeffs_of_power_of_nd_linear_polynomial(
+        coeffs, indices = coeffs_of_power_of_nd_linear_monomial(
             num_vars, degree, linear_coeffs)
         sorted_idx = argsort_indices_leixographically(indices)
         true_coeffs = [linear_coeffs[2]**2, 2*linear_coeffs[1]*linear_coeffs[2],
@@ -165,11 +165,11 @@ class TestManipulatePolynomials(unittest.TestCase):
         true_coeffs = np.asarray([[0, 3, 6, 6, 8, 10, 6, 7, 8, 9]]).T
         assert np.allclose(coeffs[sorted_idx], true_coeffs)
 
-    def test_coeffs_of_power_of_polynomial(self):
+    def test_coeffs_of_power_of_monomial(self):
         num_vars, degree, power = 1, 2, 3
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
         coeffs = np.ones((indices.shape[1], 1))
-        new_indices, new_coeffs = coeffs_of_power_of_polynomial(
+        new_indices, new_coeffs = coeffs_of_power_of_monomial(
             indices, coeffs, power)
         assert new_indices.shape[1] == 10
         true_indices = np.asarray(
@@ -196,7 +196,7 @@ class TestManipulatePolynomials(unittest.TestCase):
         num_vars, degree, power = 2, 1, 2
         indices = np.array([[0, 0], [1, 0], [0, 1], [1, 1]]).T
         coeffs = np.ones((indices.shape[1], 1))
-        new_indices, new_coeffs = coeffs_of_power_of_polynomial(
+        new_indices, new_coeffs = coeffs_of_power_of_monomial(
             indices, coeffs, power)
         true_indices = np.asarray(
             [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [1, 1], [2, 1], [0, 2],
@@ -215,7 +215,7 @@ class TestManipulatePolynomials(unittest.TestCase):
         indices = np.array([[0, 0], [1, 0], [0, 1], [1, 1]]).T
         coeffs = np.ones((indices.shape[1], 2))
         coeffs[:, 1] = 2
-        new_indices, new_coeffs = coeffs_of_power_of_polynomial(
+        new_indices, new_coeffs = coeffs_of_power_of_monomial(
             indices, coeffs, power)
         true_indices = np.asarray(
             [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [1, 1], [2, 1], [0, 2],
@@ -404,120 +404,7 @@ class TestManipulatePolynomials(unittest.TestCase):
             coeffs)
         assert np.allclose(validation_values, monomial_basis_matrix(
             new_indices, validation_samples).dot(new_coef))
-        
-    def test_composition_of_orthonormal_polynomials(self):
-        def fn1(z):
-            # return W_1
-            return (z[0, :]+3*z[0, :]**2)[:, None]
 
-        def fn2(z):
-            # return W_2
-            return (1+z[0, :]*z[1, :])[:, None]
-
-        def fn3(z):
-            # z is just random variables
-            return z[0:1, :].T + 35*(3*fn1(z)**2-1) + 3*z[0:1, :].T*fn2(z)
-
-        def fn3_trans(x):
-            """
-            x is z_1, W_1, W_2
-            """
-            return (x[0:1, :] + 35*(3*x[1:2, :]**2-1) + 3*x[0:1, :]*x[2:3, :])
-
-        nvars = 2
-        samples = np.random.uniform(-1, 1, (nvars, 100))
-        values = fn3(samples)
-
-        from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
-        from pyapprox.indexing import compute_hyperbolic_indices
-        from pyapprox.variable_transformations import \
-            define_iid_random_variable_transformation
-        from scipy.stats import uniform
-        indices = compute_hyperbolic_indices(nvars, 4, 1)
-        poly = PolynomialChaosExpansion()
-        var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), nvars) 
-        poly.configure({'poly_type':'legendre', 'var_trans':var_trans})
-        poly.set_indices(indices)
-        basis_mat = poly.basis_matrix(samples)
-        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
-        mean = coef[0]
-        variance = np.sum(coef[1:]**2)
-        print(mean, variance, 2595584/15-mean**2, 2059769/15)
-        assert np.allclose(mean, 189)
-        assert np.allclose(variance,  2595584/15-mean**2)
-
-        samples = np.random.uniform(-1, 1, (nvars, 100000))
-        basis_mat = poly.basis_matrix(samples)
-        x = samples[0:1,:].T
-        y = samples[1:2,:].T
-
-        assert np.allclose(
-            basis_mat.dot(coef),-35+4*x+3*x**2*y+105*x**2+630*x**3+945*x**4)
-        assert np.allclose(2/np.sqrt(5)*basis_mat[:, 3:4], (3*x**2-1))
-        assert np.allclose(
-            basis_mat.dot(coef),4*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+630*x**3+945*x**4)
-        assert np.allclose(
-            basis_mat.dot(coef),382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+945*x**4)
-        assert np.allclose(
-            basis_mat.dot(coef),382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+810*x**2-81)
-        assert np.allclose(
-            basis_mat.dot(coef),-81+270+382*x+3*x**2*y+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11])
-        assert np.allclose(
-            basis_mat.dot(coef),189+382*x+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+2/np.sqrt(15)*basis_mat[:, 8:9]+y)
-
-        assert np.allclose(
-            basis_mat.dot(coef),
-            189+
-            1/np.sqrt(3) *382*basis_mat[:, 1:2]+
-            2/np.sqrt(5) *305*basis_mat[:, 3:4]+
-            2/np.sqrt(7) *126*basis_mat[:, 6:7]+
-            8/np.sqrt(9) *27.*basis_mat[:, 10:11]+
-            2/np.sqrt(15)*1.0*basis_mat[:, 8:9]+
-            1/np.sqrt(3) *1.0*basis_mat[:, 2:3])
-        
-        assert np.allclose(variance, 382**2/3+(2*305)**2/5+(2*126)**2/7+(8*27)**2/9+4/15+1/3)
-
-        def compute_conditional_expectation(
-                fun, fixed_samples, samples, fixed_var_idx):
-            assert fixed_samples.shape[0] == len(fixed_var_idx)
-            vals = np.empty(fixed_samples.shape[1])
-            for ii in range(fixed_samples.shape[1]):
-                samples[fixed_var_idx, :] = fixed_samples[:, ii]
-                vals[ii] = fun(samples).mean()
-            return vals
-
-        import matplotlib.pyplot as plt
-        w1_vals = fn1(samples)
-        w2_vals = fn2(samples)
-        trans_samples = np.vstack([samples[0:1, :], w1_vals.T, w2_vals.T])
-
-        fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
-
-        zz1 = np.linspace(-1, 1, 101)
-        condz1_vals = compute_conditional_expectation(
-            fn3_trans, zz1[None, :], trans_samples, [0])
-        axs[0].plot(zz1, condz1_vals)
-
-        degree = 4
-        ab = jacobi_recurrence(
-            degree+1, alpha=0, beta=0, probability=True)
-        from pyapprox.orthonormal_polynomials_1d import evaluate_orthonormal_polynomial_deriv_1d
-        L = evaluate_orthonormal_polynomial_deriv_1d(zz1, degree, ab, 0)
-        axs[0].plot(zz1, 4*zz1, '--')
-        
-        ww1 = np.linspace(w1_vals.min(), w1_vals.max(), 101)
-        condw1_vals = compute_conditional_expectation(
-            fn3_trans, ww1[None, :], trans_samples, [1])
-        axs[1].plot(ww1, condw1_vals)
-        axs[1].plot(ww1, 35*(3*ww1**2-1), '--')
-
-        ww2 = np.linspace(w2_vals.min(), w2_vals.max(), 101)
-        condw2_vals = compute_conditional_expectation(
-        fn3_trans, ww2[None, :], trans_samples, [2])
-        axs[2].plot(ww2, condw2_vals)
-        #axs[2].plot(ww2, , '--')
-        plt.show()
 
 
 if __name__ == "__main__":

@@ -1,9 +1,15 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
+from pyapprox.utilities import get_all_sample_combinations
+from pyapprox.utilities import hash_array
+import time
 import numpy as np
-import subprocess, os, glob
+import subprocess
+import os
+import glob
 from functools import partial
 from multiprocessing import Pool
+
 
 def get_num_args(function):
     """
@@ -27,19 +33,19 @@ def get_num_args(function):
     num_args = 0
     if args[0] is not None:
         num_args += len(args[0])
-        if 'self' in  args[0]:
-            num_args-=1
+        if 'self' in args[0]:
+            num_args -= 1
     if args[1] is not None:
         num_args += len(args[1])
     if args[2] is not None:
         num_args += len(args[2])
     # do not count defaults of keywords conatined in args[3]
-    #if args[3] is not None:
+    # if args[3] is not None:
     #    num_args += len(args[3])
     return num_args
 
 
-def evaluate_1darray_function_on_2d_array(function,samples,opts=None):
+def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
     """
     Evaluate a function at a set of samples using a function that only takes
     one sample at a time
@@ -67,31 +73,32 @@ def evaluate_1darray_function_on_2d_array(function,samples,opts=None):
         The value of each requested QoI of the model for each sample
     """
     num_args = get_num_args(function)
-    assert samples.ndim==2
+    assert samples.ndim == 2
     num_samples = samples.shape[1]
-    if num_args==2:
-        values_0 = function(samples[:,0], opts)
+    if num_args == 2:
+        values_0 = function(samples[:, 0], opts)
     else:
-        values_0 = function(samples[:,0])
+        values_0 = function(samples[:, 0])
     values_0 = np.atleast_1d(values_0)
-    assert values_0.ndim==1
+    assert values_0.ndim == 1
     num_qoi = values_0.shape[0]
-    values = np.empty((num_samples,num_qoi),float)
-    values[0,:]=values_0
+    values = np.empty((num_samples, num_qoi), float)
+    values[0, :] = values_0
     for i in range(1, num_samples):
-        if num_args==2:
-            values[i,:] = function(samples[:,i], opts)
+        if num_args == 2:
+            values[i, :] = function(samples[:, i], opts)
         else:
-            values[i,:] = function(samples[:,i])
+            values[i, :] = function(samples[:, i])
 
     return values
 
+
 class PyFunction(object):
-    def __init__(self,function):
-        self.function=function
-        
-    def __call__(self,samples,opts=dict()):
-        return evaluate_1darray_function_on_2d_array(self.function,samples,opts)
+    def __init__(self, function):
+        self.function = function
+
+    def __call__(self, samples, opts=dict()):
+        return evaluate_1darray_function_on_2d_array(self.function, samples, opts)
 
 
 def run_shell_command(shell_command, opts={}):
@@ -119,47 +126,48 @@ def run_shell_command(shell_command, opts={}):
         these are used instead of inheriting the current process environment,
         which is the default behavior.
     """
-    output_verbosity = opts.get('verbosity',1)
-    env = opts.get('env',None)
-    filename = opts.get('filename',None)
-    
-    if output_verbosity==0:
+    output_verbosity = opts.get('verbosity', 1)
+    env = opts.get('env', None)
+    filename = opts.get('filename', None)
+
+    if output_verbosity == 0:
         out = subprocess.check_output(shell_command, shell=True, env=env)
-    elif output_verbosity==1:
-        if filename is None: filename = 'shell_command.out'
-        with open( filename, 'w' ) as f:
+    elif output_verbosity == 1:
+        if filename is None:
+            filename = 'shell_command.out'
+        with open(filename, 'w') as f:
             subprocess.call(shell_command, shell=True, stdout=f,
                             stderr=f, env=env)
     else:
         subprocess.call(shell_command, shell=True, env=env)
 
-from pyapprox.utilities import hash_array
+
 class DataFunctionModel(object):
-    def hash_sample(self,sample):
+    def hash_sample(self, sample):
         # if samples have undergone a transformation thier value
         # may not be exactly the same so make hash on samples
         # with fixed precision
         # sample = np.round(sample, self.digits)
         # I = np.where(np.abs(sample)<self.tol)[0]
         # sample[I] = 0.
-        key = hash_array(sample)#,decimals=self.digits)
+        key = hash_array(sample)  # ,decimals=self.digits)
         return key
-    
-    def __init__(self,function,data=None,data_basename=None,
-                 save_frequency=None,use_hash=True,digits=16):
-        self.function=function
 
-        self.data=dict()
-        self.samples=np.zeros((0,0))
-        self.values=None
-        self.num_evaluations_ran=0
-        self.num_evaluations=0 
+    def __init__(self, function, data=None, data_basename=None,
+                 save_frequency=None, use_hash=True, digits=16):
+        self.function = function
+
+        self.data = dict()
+        self.samples = np.zeros((0, 0))
+        self.values = None
+        self.num_evaluations_ran = 0
+        self.num_evaluations = 0
         self.digits = digits
         self.tol = 10**(-self.digits)
-        self.use_hash=use_hash
+        self.use_hash = use_hash
 
         self.data_basename = data_basename
-        self.save_frequency=save_frequency
+        self.save_frequency = save_frequency
         if self.data_basename is not None:
             assert save_frequency is not None
         if self.save_frequency and self.data_basename is None:
@@ -168,138 +176,138 @@ class DataFunctionModel(object):
             print(msg)
 
         if data_basename is not None:
-            file_data=combine_saved_model_data(data_basename)
+            file_data = combine_saved_model_data(data_basename)
             if file_data[0] is not None:
                 self.add_new_data(file_data)
-            
+
         if data is not None:
-            self.samples,self.values=data
-            assert self.samples.shape[1]==self.values.shape[0]
+            self.samples, self.values = data
+            assert self.samples.shape[1] == self.values.shape[0]
             self.add_new_data(data)
 
-
-    def add_new_data(self,data):
-        samples,values=data
+    def add_new_data(self, data):
+        samples, values = data
         for ii in range(samples.shape[1]):
             if self.use_hash:
-                key = self.hash_sample(samples[:,ii])
+                key = self.hash_sample(samples[:, ii])
                 if key in self.data:
-                    if not np.allclose(self.values[self.data[key]],values[ii]):
+                    if not np.allclose(self.values[self.data[key]], values[ii]):
                         msg = 'Duplicate samples found but values do not match'
                         raise Exception(msg)
-                    found=True
+                    found = True
                 else:
-                    self.data[key]=ii
-                    found=False
+                    self.data[key] = ii
+                    found = False
             else:
                 found = False
                 for jj in range(self.samples.shape[1]):
-                    if np.allclose(self.samples[:,jj],samples[:,ii],
+                    if np.allclose(self.samples[:, jj], samples[:, ii],
                                    atol=self.tol):
                         found = True
                         break
             if not found:
-                if self.samples.shape[1]>0:
-                    self.samples=np.hstack([self.samples,samples[:,ii:ii+1]])
-                    self.values=np.vstack([self.values,values[ii:ii+1,:]])
+                if self.samples.shape[1] > 0:
+                    self.samples = np.hstack(
+                        [self.samples, samples[:, ii:ii+1]])
+                    self.values = np.vstack([self.values, values[ii:ii+1, :]])
                 else:
-                    self.samples=samples[:,ii:ii+1]
-                    self.values=values[ii:ii+1,:]
-                                           
+                    self.samples = samples[:, ii:ii+1]
+                    self.values = values[ii:ii+1, :]
+
         # set counter so that next file takes into account all previously
         # ran samples
-        self.num_evaluations_ran=self.samples.shape[1]
+        self.num_evaluations_ran = self.samples.shape[1]
 
-    def _batch_call(self,samples):
-        assert self.save_frequency>0
+    def _batch_call(self, samples):
+        assert self.save_frequency > 0
         num_batch_samples = self.save_frequency
         lb = 0
         vals = None
-        while lb<samples.shape[1]:
-            ub = min(lb+num_batch_samples,samples.shape[1])
-            num_evaluations_ran=self.num_evaluations_ran
-            batch_vals, new_sample_indices = self._call(samples[:,lb:ub])
-            data_filename = self.data_basename+'-%d-%d.npz'%(
+        while lb < samples.shape[1]:
+            ub = min(lb+num_batch_samples, samples.shape[1])
+            num_evaluations_ran = self.num_evaluations_ran
+            batch_vals, new_sample_indices = self._call(samples[:, lb:ub])
+            data_filename = self.data_basename+'-%d-%d.npz' % (
                 num_evaluations_ran,
                 num_evaluations_ran+len(new_sample_indices)-1)
-            np.savez(data_filename,vals=batch_vals[new_sample_indices],
-                     samples=samples[:,lb:ub][:,new_sample_indices])
+            np.savez(data_filename, vals=batch_vals[new_sample_indices],
+                     samples=samples[:, lb:ub][:, new_sample_indices])
             if vals is None:
                 vals = batch_vals
             else:
-                vals = np.vstack((vals,batch_vals))
-            lb=ub
+                vals = np.vstack((vals, batch_vals))
+            lb = ub
         return vals
 
-    def _call(self,samples):
+    def _call(self, samples):
         evaluated_sample_indices = []
         new_sample_indices = []
         for ii in range(samples.shape[1]):
             if self.use_hash:
-                key = self.hash_sample(samples[:,ii])
+                key = self.hash_sample(samples[:, ii])
                 if key in self.data:
-                    evaluated_sample_indices.append([ii,self.data[key]])
+                    evaluated_sample_indices.append([ii, self.data[key]])
                 else:
                     new_sample_indices.append(ii)
             else:
                 found = False
                 for jj in range(self.samples.shape[1]):
-                    if np.allclose(self.samples[:,jj],samples[:,ii],
+                    if np.allclose(self.samples[:, jj], samples[:, ii],
                                    atol=self.tol):
                         found = True
                         break
                 if found:
-                    evaluated_sample_indices.append([ii,jj])
+                    evaluated_sample_indices.append([ii, jj])
                 else:
                     new_sample_indices.append(ii)
-                    
+
         evaluated_sample_indices = np.asarray(evaluated_sample_indices)
-        if len(new_sample_indices)>0:
-            new_samples = samples[:,new_sample_indices]
-            new_values  = self.function(new_samples)
+        if len(new_sample_indices) > 0:
+            new_samples = samples[:, new_sample_indices]
+            new_values = self.function(new_samples)
             num_qoi = new_values.shape[1]
         else:
             num_qoi = self.values.shape[1]
 
-        values = np.empty((samples.shape[1],num_qoi),dtype=float)
-        if len(new_sample_indices)>0:
-            values[new_sample_indices,:]=new_values
-        if len(new_sample_indices)<samples.shape[1]:
-            values[evaluated_sample_indices[:,0]] = \
-                self.values[evaluated_sample_indices[:,1],:]
+        values = np.empty((samples.shape[1], num_qoi), dtype=float)
+        if len(new_sample_indices) > 0:
+            values[new_sample_indices, :] = new_values
+        if len(new_sample_indices) < samples.shape[1]:
+            values[evaluated_sample_indices[:, 0]] = \
+                self.values[evaluated_sample_indices[:, 1], :]
 
-        if len(new_sample_indices)>0:
-            if self.samples.shape[1]==0:
-                jj=0
-                self.samples=samples
-                self.values=values
+        if len(new_sample_indices) > 0:
+            if self.samples.shape[1] == 0:
+                jj = 0
+                self.samples = samples
+                self.values = values
             else:
-                jj=self.samples.shape[0]
-                self.samples=np.hstack(
-                    (self.samples,samples[:,new_sample_indices]))
-                self.values=np.vstack((self.values,new_values))
+                jj = self.samples.shape[0]
+                self.samples = np.hstack(
+                    (self.samples, samples[:, new_sample_indices]))
+                self.values = np.vstack((self.values, new_values))
 
             for ii in range(len(new_sample_indices)):
-                key = hash_array(samples[:,new_sample_indices[ii]])
-                self.data[key]=jj+ii
+                key = hash_array(samples[:, new_sample_indices[ii]])
+                self.data[key] = jj+ii
 
-            self.num_evaluations_ran+=len(new_sample_indices)
+            self.num_evaluations_ran += len(new_sample_indices)
         # increment the number of samples pass to __call__ since object created
         # includes samples drawn from arxiv and samples used to evaluate
         # self.function
-        self.num_evaluations+=samples.shape[1]
+        self.num_evaluations += samples.shape[1]
 
         return values, new_sample_indices
 
-    def __call__(self,samples):
-        if self.save_frequency is not None and self.save_frequency>0:
+    def __call__(self, samples):
+        if self.save_frequency is not None and self.save_frequency > 0:
             values = self._batch_call(samples)
         else:
             values = self._call(samples)[0]
         return values
 
 
-def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
+def run_model_samples_in_parallel(model, max_eval_concurrency, samples, pool=None,
                                   assert_omp=True):
     """
     Warning
@@ -309,45 +317,44 @@ def run_model_samples_in_parallel(model,max_eval_concurrency,samples,pool=None,
     persist once each __call__ to pool completes.
     """
     num_samples = samples.shape[1]
-    if assert_omp and max_eval_concurrency>1:
+    if assert_omp and max_eval_concurrency > 1:
         if ('OMP_NUM_THREADS' not in os.environ or
-            not int(os.environ['OMP_NUM_THREADS'])==1):
+                not int(os.environ['OMP_NUM_THREADS']) == 1):
             msg = 'User set assert_omp=True but OMP_NUM_THREADS has not been '
             msg += 'set to 1. Run script with OMP_NUM_THREADS=1 python script.py'
             raise Exception(msg)
-        
+
     if pool is None:
         pool = Pool(max_eval_concurrency)
     result = pool.map(
-        model,[(samples[:,ii:ii+1]) for ii in range(samples.shape[1])])
+        model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
     num_qoi = result[0].shape[1]
-    values = np.empty((num_samples,num_qoi))
+    values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):
-        values[ii,:]=result[ii][0,:]
+        values[ii, :] = result[ii][0, :]
     return values
 
 
-import time
-def time_function_evaluations(function,samples):
+def time_function_evaluations(function, samples):
     vals = []
     times = []
     for ii in range(samples.shape[1]):
         t0 = time.time()
-        val = function(samples[:,ii:ii+1])[0,:]
+        val = function(samples[:, ii:ii+1])[0, :]
         t1 = time.time()
         vals.append(val)
         times.append([t1-t0])
     vals = np.asarray(vals)
     times = np.asarray(times)
-    return np.hstack([vals,times])
+    return np.hstack([vals, times])
 
 
 class TimerModelWrapper(object):
-    def __init__(self,function,base_model=None):
-        self.function_to_time=function
-        self.base_model=base_model
-        
-    def x__getattr__(self,name):
+    def __init__(self, function, base_model=None):
+        self.function_to_time = function
+        self.base_model = base_model
+
+    def x__getattr__(self, name):
         """
         Cannot get following to work 
 
@@ -363,15 +370,16 @@ class TimerModelWrapper(object):
         attribute is not found in the particular object's space.
         """
 
-        if hasattr(self.function_to_time,name):
-            attr=getattr(self.function_to_time,name)
+        if hasattr(self.function_to_time, name):
+            attr = getattr(self.function_to_time, name)
             return attr
 
         raise AttributeError(
             f" {self} or its member {self}.function has no attribute '{name}'")
 
-    def __call__(self,samples):
-        return time_function_evaluations(self.function_to_time,samples)
+    def __call__(self, samples):
+        return time_function_evaluations(self.function_to_time, samples)
+
 
 class WorkTracker(object):
     """
@@ -379,10 +387,11 @@ class WorkTracker(object):
     e.g. mesh resolution of a finite element model used to solve a PDE.
 
     """
+
     def __init__(self):
         self.costs = dict()
 
-    def __call__(self,config_samples):
+    def __call__(self, config_samples):
         """
         Read the cost of evaluating the functions with the ids given in
         a set of config_samples.
@@ -395,16 +404,16 @@ class WorkTracker(object):
         num_config_vars, nqueries = config_samples.shape
         costs = np.empty((nqueries))
         for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:,ii]])
+            key = tuple([int(ll) for ll in config_samples[:, ii]])
             if key not in self.costs:
-                msg='Asking for cost before function cost has been provided'
+                msg = 'Asking for cost before function cost has been provided'
                 raise Exception(msg)
             else:
                 costs[ii] = np.median(self.costs[key])
-            
+
         return costs
 
-    def update(self,config_samples,costs):
+    def update(self, config_samples, costs):
         """
         Update the cost of evaluating the functions with the ids given in
         a set of config_samples.
@@ -413,16 +422,16 @@ class WorkTracker(object):
         ----------
         config_samples : np.ndarray (nconfig_vars,nsamples)
             The configuration indices
-        
+
         costs : np.ndarray (nsamples)
             The costs of evaluating the function index by each index in 
             ``config_samples``
         """
         num_config_vars, nqueries = config_samples.shape
-        assert costs.shape[0]==nqueries
-        assert costs.ndim==1
+        assert costs.shape[0] == nqueries
+        assert costs.ndim == 1
         for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:,ii]])
+            key = tuple([int(ll) for ll in config_samples[:, ii]])
             if key in self.costs:
                 self.costs[key].append(costs[ii])
             else:
@@ -430,16 +439,18 @@ class WorkTracker(object):
 
     def __str__(self):
         msg = 'WorkTracker Cost Summary\n'
-        msg += '{:<10} {:<10}\n'.format('Funtion ID','Median Cost')
+        msg += '{:<10} {:<10}\n'.format('Funtion ID', 'Median Cost')
         for item in self.costs.items():
-            msg += '{:<10} {:<10}\n'.format(str(item[0]),np.median(item[1]))
+            msg += '{:<10} {:<10}\n'.format(str(item[0]), np.median(item[1]))
         return msg
 
-def eval(function,samples):
+
+def eval(function, samples):
     return function(samples)
-                
+
+
 class WorkTrackingModel(object):
-    def __init__(self,function,base_model=None,num_config_vars=0):
+    def __init__(self, function, base_model=None, num_config_vars=0):
         """
         Keep track of the wall time needed to evaluate a function.
 
@@ -476,12 +487,12 @@ class WorkTrackingModel(object):
         variables with the same name in this class and class definition
         of function
         """
-        self.wt_function=function
+        self.wt_function = function
         self.work_tracker = WorkTracker()
-        self.base_model=base_model
-        self.num_config_vars=num_config_vars
+        self.base_model = base_model
+        self.num_config_vars = num_config_vars
 
-    def __call__(self,samples):
+    def __call__(self, samples):
         """
         Evaluate self.function
 
@@ -499,34 +510,34 @@ class WorkTrackingModel(object):
             values.
         """
         #data = self.wt_function(samples)
-        data = eval(self.wt_function,samples)
-        values = data[:,:-1]
-        work   = data[:,-1]
-        if self.num_config_vars>0:
-            config_samples = samples[-self.num_config_vars:,:]
+        data = eval(self.wt_function, samples)
+        values = data[:, :-1]
+        work = data[:, -1]
+        if self.num_config_vars > 0:
+            config_samples = samples[-self.num_config_vars:, :]
         else:
-            config_samples = np.zeros((1,samples.shape[1]))
-        self.work_tracker.update(config_samples,work)
+            config_samples = np.zeros((1, samples.shape[1]))
+        self.work_tracker.update(config_samples, work)
         return values
 
-    def cost_function(self,config_samples):
+    def cost_function(self, config_samples):
         """
         Retrun the cost of evaluating the functions with the ids given in
-        a set of config_samples.
+        a set of config_samples. These samples are assumed to be in user space
+        not canonical space
 
         Parameters
         ----------
         config_samples : np.ndarray (nconfig_vars,nsamples)
             The configuration indices
         """
-        return self.work_tracker(config_samples)
+        cost = self.work_tracker(config_samples)
+        return cost
 
-    
-        
+
 class PoolModel(object):
-    def __init__(self,function,max_eval_concurrency,assert_omp=True,
+    def __init__(self, function, max_eval_concurrency, assert_omp=True,
                  base_model=None):
-        
         """
         Evaluate a function at multiple samples in parallel using 
         multiprocessing.Pool
@@ -550,7 +561,7 @@ class PoolModel(object):
             instance. On OSX and Linux machines this means that the environement
             variable OMP_NUM_THREADS has been set to 1 with, e.g. 
             export OMP_NUM_THREADS=1
-        
+
             This is useful because often many python packages, e.g. SciPy, NumPy
             use multiple threads and this can cause running multiple evaluations
             of function to be slow because of resource allocation issues.
@@ -572,13 +583,13 @@ class PoolModel(object):
         variables with the same name in this class and class definition
         of function
         """
-        self.base_model=base_model
+        self.base_model = base_model
         self.set_max_eval_concurrency(max_eval_concurrency)
-        self.num_evaluations=0
-        self.assert_omp=assert_omp
-        self.pool_function=function
+        self.num_evaluations = 0
+        self.assert_omp = assert_omp
+        self.pool_function = function
 
-    def set_max_eval_concurrency(self,max_eval_concurrency):
+    def set_max_eval_concurrency(self, max_eval_concurrency):
         """
         Set the number of threads used to evaluate the function
 
@@ -589,10 +600,10 @@ class PoolModel(object):
             Should be no more than the maximum number of cores on the computer 
             being used
         """
-        self.max_eval_concurrency=max_eval_concurrency
+        self.max_eval_concurrency = max_eval_concurrency
         self.pool = Pool(self.max_eval_concurrency)
 
-    def __call__(self,samples):
+    def __call__(self, samples):
         """
         Evaluate a function at multiple samples in parallel using 
         multiprocessing.Pool
@@ -603,68 +614,77 @@ class PoolModel(object):
             Samples used to evaluate self.function
         """
         vals = run_model_samples_in_parallel(
-            self.pool_function,self.max_eval_concurrency,samples,
-            pool=self.pool,assert_omp=self.assert_omp)
+            self.pool_function, self.max_eval_concurrency, samples,
+            pool=self.pool, assert_omp=self.assert_omp)
         return vals
 
-from pyapprox.utilities import get_all_sample_combinations
+
 class ActiveSetVariableModel(object):
-    def __init__(self,function,num_vars,inactive_var_values,
+    def __init__(self, function, num_vars, inactive_var_values,
                  active_var_indices):
         # num_vars can de determined from inputs but making it
         # necessary allows for better error checking
         self.function = function
-        assert inactive_var_values.ndim==2
+        assert inactive_var_values.ndim == 2
         self.inactive_var_values = inactive_var_values
         self.active_var_indices = active_var_indices
-        assert self.active_var_indices.shape[0]+self.inactive_var_values.shape[0]==num_vars
-        self.num_vars=num_vars
-        assert np.all(self.active_var_indices<self.num_vars)
-        self.inactive_var_indices = np.delete(np.arange(self.num_vars),active_var_indices)
-        
-    def __call__(self,reduced_samples):
-        raw_samples = get_all_sample_combinations(self.inactive_var_values,reduced_samples)
+        assert self.active_var_indices.shape[0] + \
+            self.inactive_var_values.shape[0] == num_vars
+        self.num_vars = num_vars
+        assert np.all(self.active_var_indices < self.num_vars)
+        self.inactive_var_indices = np.delete(
+            np.arange(self.num_vars), active_var_indices)
+
+    def __call__(self, reduced_samples):
+        raw_samples = get_all_sample_combinations(
+            self.inactive_var_values, reduced_samples)
         samples = np.empty_like(raw_samples)
-        samples[self.inactive_var_indices,:] = raw_samples[:self.inactive_var_indices.shape[0]]
-        samples[self.active_var_indices,:] = raw_samples[self.inactive_var_indices.shape[0]:]
+        samples[self.inactive_var_indices,
+                :] = raw_samples[:self.inactive_var_indices.shape[0]]
+        samples[self.active_var_indices,
+                :] = raw_samples[self.inactive_var_indices.shape[0]:]
         return self.function(samples)
+
 
 def combine_saved_model_data(saved_data_basename):
     filenames = glob.glob(saved_data_basename+'*.npz')
-    ii =0
+    ii = 0
     for filename in filenames:
         data = np.load(filename)
-        if ii==0:
+        if ii == 0:
             vals = data['vals']
             samples = data['samples']
         else:
-            vals = np.vstack((vals,data['vals']))
-            samples = np.hstack((samples,data['samples']))
-        ii+=1
-    if len(filenames)==0:
-        return None,None
-    
-    return samples,vals
+            vals = np.vstack((vals, data['vals']))
+            samples = np.hstack((samples, data['samples']))
+        ii += 1
+    if len(filenames) == 0:
+        return None, None
+
+    return samples, vals
+
 
 class SingleFidelityWrapper(object):
-    def __init__(self,model,config_values):
-        self.model=model
-        assert config_values.ndim==1
-        self.config_values = config_values[:,np.newaxis]
+    def __init__(self, model, config_values):
+        self.model = model
+        assert config_values.ndim == 1
+        self.config_values = config_values[:, np.newaxis]
 
-    def __call__(self,samples):
+    def __call__(self, samples):
         multif_samples = np.vstack(
-            (samples,np.tile(self.config_values,(1,samples.shape[1]))))
+            (samples, np.tile(self.config_values, (1, samples.shape[1]))))
         return self.model(multif_samples)
 
-def default_map_to_multidimensional_index(num_config_vars,indices):
+
+def default_map_to_multidimensional_index(num_config_vars, indices):
     indices = np.atleast_2d(indices)
-    assert indices.ndim==2 and indices.shape[0]==1
+    assert indices.ndim == 2 and indices.shape[0] == 1
     multiindex_indices = np.empty(
-        (num_config_vars,indices.shape[1]),dtype=indices.dtype)
+        (num_config_vars, indices.shape[1]), dtype=indices.dtype)
     for jj in range(indices.shape[1]):
-        multiindex_indices[:,jj] = indices[0,jj]
+        multiindex_indices[:, jj] = indices[0, jj]
     return multiindex_indices
+
 
 class MultiLevelWrapper(object):
     """
@@ -678,31 +698,33 @@ class MultiLevelWrapper(object):
         Function which maps 1D model index to multi-dimensional index
 
     See function default_map_to_multidimensional_index
-    """    
-    def __init__(self,model,multiindex_num_config_vars,
-                 map_to_multidimensional_index=None):
-        self.model=model
-        self.multiindex_num_config_vars=multiindex_num_config_vars
-        if map_to_multidimensional_index is None:
-            self.map_to_multidimensional_index=\
-                partial(default_map_to_multidimensional_index,multiindex_num_config_vars)
-        else:
-            self.map_to_multidimensional_index=map_to_multidimensional_index
-            
-        self.num_evaluations=0
-        self.num_config_vars=1
+    """
 
-    def __call__(self,samples):
-        config_values = self.map_to_multidimensional_index(samples[-1:,:])
-        assert config_values.shape[0]==self.multiindex_num_config_vars
-        multi_index_samples = np.vstack((samples[:-1],config_values))
+    def __init__(self, model, multiindex_num_config_vars,
+                 map_to_multidimensional_index=None):
+        self.model = model
+        self.multiindex_num_config_vars = multiindex_num_config_vars
+        if map_to_multidimensional_index is None:
+            self.map_to_multidimensional_index =\
+                partial(default_map_to_multidimensional_index,
+                        multiindex_num_config_vars)
+        else:
+            self.map_to_multidimensional_index = map_to_multidimensional_index
+
+        self.num_evaluations = 0
+        self.num_config_vars = 1
+
+    def __call__(self, samples):
+        config_values = self.map_to_multidimensional_index(samples[-1:, :])
+        assert config_values.shape[0] == self.multiindex_num_config_vars
+        multi_index_samples = np.vstack((samples[:-1], config_values))
         return self.model(multi_index_samples)
-    
+
     @property
     def num_evaluations(self):
         return self.model.num_evaluations
 
     @num_evaluations.setter
-    def num_evaluations(self,nn):
-        self.__num_evaluations=nn
-        self.model.num_evaluations=nn
+    def num_evaluations(self, nn):
+        self.__num_evaluations = nn
+        self.model.num_evaluations = nn

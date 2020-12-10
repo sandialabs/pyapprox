@@ -22,9 +22,10 @@ def monomial_mean_uniform_variables(indices, coeffs):
         The integral of the monomial
     """
     num_vars, num_indices = indices.shape
+    assert coeffs.ndim == 2
     assert coeffs.shape[0] == num_indices
     vals = np.prod(((-1.0)**indices+1)/(2.0*(indices+1.0)), axis=0)
-    integral = np.sum(vals*coeffs)
+    integral = np.sum(vals[:, None]*coeffs, axis=0)
     return integral
 
 

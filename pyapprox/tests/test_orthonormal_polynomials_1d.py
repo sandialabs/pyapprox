@@ -6,62 +6,68 @@ from pyapprox.monomial import univariate_monomial_basis_matrix
 from scipy.stats import binom, hypergeom, poisson
 from pyapprox.variables import float_rv_discrete
 
+
 class TestOrthonormalPolynomials1D(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
     def test_orthonormality_legendre_polynomial(self):
-        alpha = 0.;    beta = 0.
-        degree = 3    
-        probability_measure = True
-
-        ab = jacobi_recurrence(
-            degree+1,alpha=alpha,beta=beta,probability=probability_measure)
-
-        x,w=np.polynomial.legendre.leggauss(degree+1)
-        #make weights have probablity weight function w=1/2
-        w /= 2.0 
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        # test orthogonality
-        exact_moments = np.zeros((degree+1)); exact_moments[0]=1.0
-        assert np.allclose(np.dot(p.T,w),exact_moments)
-        # test orthonormality
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
-        
-        assert np.allclose(
-            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab,0),p)
-
-    def test_orthonormality_asymetric_jacobi_polynomial(self):
-        from scipy.stats import beta as beta_rv
-        alpha = 4.;    beta = 1.
+        alpha = 0.
+        beta = 0.
         degree = 3
         probability_measure = True
 
         ab = jacobi_recurrence(
-            degree+1,alpha=alpha,beta=beta,probability=probability_measure)
+            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
 
-        x,w=np.polynomial.legendre.leggauss(10*degree)
+        x, w = np.polynomial.legendre.leggauss(degree+1)
+        # make weights have probablity weight function w=1/2
+        w /= 2.0
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        w *= beta_rv.pdf((x+1.)/2.,a=beta+1,b=alpha+1)/2.
-
         # test orthogonality
-        exact_moments = np.zeros((degree+1)); exact_moments[0]=1.0
-        assert np.allclose(np.dot(p.T,w),exact_moments)
+        exact_moments = np.zeros((degree+1))
+        exact_moments[0] = 1.0
+        assert np.allclose(np.dot(p.T, w), exact_moments)
         # test orthonormality
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
         assert np.allclose(
-            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab,0),p)
+            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab, 0), p)
 
-
-    def test_derivatives_of_legendre_polynomial(self):
-        alpha = 0.; beta = 0.; degree = 3    
+    def test_orthonormality_asymetric_jacobi_polynomial(self):
+        from scipy.stats import beta as beta_rv
+        alpha = 4.
+        beta = 1.
+        degree = 3
         probability_measure = True
-        deriv_order=2
 
         ab = jacobi_recurrence(
             degree+1, alpha=alpha, beta=beta, probability=probability_measure)
-        x, w=np.polynomial.legendre.leggauss(degree+1)
+
+        x, w = np.polynomial.legendre.leggauss(10*degree)
+        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+        w *= beta_rv.pdf((x+1.)/2., a=beta+1, b=alpha+1)/2.
+
+        # test orthogonality
+        exact_moments = np.zeros((degree+1))
+        exact_moments[0] = 1.0
+        assert np.allclose(np.dot(p.T, w), exact_moments)
+        # test orthonormality
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
+
+        assert np.allclose(
+            evaluate_orthonormal_polynomial_deriv_1d(x, degree, ab, 0), p)
+
+    def test_derivatives_of_legendre_polynomial(self):
+        alpha = 0.
+        beta = 0.
+        degree = 3
+        probability_measure = True
+        deriv_order = 2
+
+        ab = jacobi_recurrence(
+            degree+1, alpha=alpha, beta=beta, probability=probability_measure)
+        x, w = np.polynomial.legendre.leggauss(degree+1)
         pd = evaluate_orthonormal_polynomial_deriv_1d(
             x, degree, ab, deriv_order)
 
@@ -100,7 +106,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         assert np.allclose(p, p_exact)
 
         # test orthogonality
-        exact_moments = np.zeros((degree+1));
+        exact_moments = np.zeros((degree+1))
         # basis is orthonormal so integration of constant basis will be non-zero
         # but will not integrate to 1.0
         exact_moments[0] = np.pi**0.25
@@ -115,8 +121,8 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         ab = hermite_recurrence(
             degree+1, rho, probability=probability_measure)
 
-        x, w= np.polynomial.hermite.hermgauss(degree+1)
-        #transform rule to probablity weight function w=1/sqrt(2*PI)exp(-x^2/2)
+        x, w = np.polynomial.hermite.hermgauss(degree+1)
+        # transform rule to probablity weight function w=1/sqrt(2*PI)exp(-x^2/2)
         x *= np.sqrt(2.0)
         w /= np.sqrt(np.pi)
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
@@ -138,58 +144,62 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
 
     def test_gauss_quadrature(self):
         degree = 4
-        alpha = 0.;    beta = 0.
+        alpha = 0.
+        beta = 0.
         ab = jacobi_recurrence(
-            degree+1,alpha=alpha,beta=beta,probability=True)
+            degree+1, alpha=alpha, beta=beta, probability=True)
 
-        x,w = gauss_quadrature(ab,degree+1)
+        x, w = gauss_quadrature(ab, degree+1)
         for ii in range(degree+1):
-            if ii%2==0:
-                assert np.allclose(np.dot(x**ii,w),1./(ii+1.))
+            if ii % 2 == 0:
+                assert np.allclose(np.dot(x**ii, w), 1./(ii+1.))
             else:
-                assert np.allclose(np.dot(x**ii,w),0.)
+                assert np.allclose(np.dot(x**ii, w), 0.)
 
         degree = 4
-        alpha = 4.; beta = 1.
+        alpha = 4.
+        beta = 1.
         ab = jacobi_recurrence(
-            degree+1,alpha=alpha,beta=beta,probability=True)
+            degree+1, alpha=alpha, beta=beta, probability=True)
 
-        x,w = gauss_quadrature(ab,degree+1)
+        x, w = gauss_quadrature(ab, degree+1)
 
-        true_moments = [1.,-3./7.,2./7.,-4./21.,1./7.]
+        true_moments = [1., -3./7., 2./7., -4./21., 1./7.]
         for ii in range(degree+1):
-            assert np.allclose(np.dot(x**ii,w),true_moments[ii])
+            assert np.allclose(np.dot(x**ii, w), true_moments[ii])
 
         degree = 4
         rho = 0.
         probability_measure = True
         ab = hermite_recurrence(
-            degree+1,rho,probability=True)
-        x,w = gauss_quadrature(ab,degree+1)
+            degree+1, rho, probability=True)
+        x, w = gauss_quadrature(ab, degree+1)
         from scipy.special import factorial2
-        assert np.allclose(np.dot(x**degree,w),factorial2(degree-1))
+        assert np.allclose(np.dot(x**degree, w), factorial2(degree-1))
 
     def test_krawtchouk_binomial(self):
-        degree = 4; num_trials = 10; prob_success=0.5
+        degree = 4
+        num_trials = 10
+        prob_success = 0.5
         ab = krawtchouk_recurrence(
-            degree+1,num_trials,prob_success)
-        x,w = gauss_quadrature(ab,degree+1)
+            degree+1, num_trials, prob_success)
+        x, w = gauss_quadrature(ab, degree+1)
 
-        probability_mesh = np.arange(0,num_trials+1,dtype=float)
+        probability_mesh = np.arange(0, num_trials+1, dtype=float)
         probability_masses = binom.pmf(
-            probability_mesh,num_trials,prob_success)
+            probability_mesh, num_trials, prob_success)
 
-        coef = np.random.uniform(-1,1,(degree+1))
+        coef = np.random.uniform(-1, 1, (degree+1))
         basis_matrix_at_pm = univariate_monomial_basis_matrix(
-            degree,probability_mesh)
+            degree, probability_mesh)
         vals_at_pm = basis_matrix_at_pm.dot(coef)
-        basis_matrix_at_gauss = univariate_monomial_basis_matrix(degree,x)
+        basis_matrix_at_gauss = univariate_monomial_basis_matrix(degree, x)
         vals_at_gauss = basis_matrix_at_gauss.dot(coef)
 
         true_mean = vals_at_pm.dot(probability_masses)
         quadrature_mean = vals_at_gauss.dot(w)
         #print (true_mean,quadrature_mean)
-        assert np.allclose(true_mean,quadrature_mean)
+        assert np.allclose(true_mean, quadrature_mean)
 
     def test_hahn_hypergeometric(self):
         """
@@ -197,25 +207,25 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         the probability of finding a given number of dogs if we choose at 
         random 12 of the 20 animals.
         """
-        degree = 4;
-        M,n,N = 20,7,12
-        apoly,bpoly = -(n+1),-M-1+n
+        degree = 4
+        M, n, N = 20, 7, 12
+        apoly, bpoly = -(n+1), -M-1+n
         ab = hahn_recurrence(
-            degree+1,N,apoly,bpoly)
-        x,w = gauss_quadrature(ab,degree+1)
+            degree+1, N, apoly, bpoly)
+        x, w = gauss_quadrature(ab, degree+1)
 
-        rv = hypergeom(M,n,N)
+        rv = hypergeom(M, n, N)
         true_mean = rv.mean()
         quadrature_mean = x.dot(w)
-        assert np.allclose(true_mean,quadrature_mean)
-        
+        assert np.allclose(true_mean, quadrature_mean)
+
         x = np.arange(0, n+1)
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         w = rv.pmf(x)
-        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_discrete_chebyshev(self):
-        N,degree=100, 5
+        N, degree = 100, 5
         xk, pk = np.arange(N), np.ones(N)/N
         rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))
         ab = discrete_chebyshev_recurrence(degree+1, N)
@@ -227,15 +237,15 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         # Note as rate gets smaller the number of terms that can be accurately
         # computed will decrease because the problem gets more ill conditioned.
         # This is caused because the number of masses with significant weights
-        # gets smaller as rate does 
+        # gets smaller as rate does
         degree, rate = 5, 2
         rv = poisson(rate)
         ab = charlier_recurrence(degree+1, rate)
-        lb,ub=rv.interval(1-np.finfo(float).eps)
-        x=np.linspace(lb,ub,int(ub-lb+1))
+        lb, ub = rv.interval(1-np.finfo(float).eps)
+        x = np.linspace(lb, ub, int(ub-lb+1))
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         w = rv.pmf(x)
-        #print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
+        # print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=1e-7)
 
     def test_continuous_rv_sample(self):
@@ -257,13 +267,13 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         degree = 2
         probability_measure = True
         ab = hermite_recurrence(
-            degree+1,rho,probability=probability_measure)
+            degree+1, rho, probability=probability_measure)
         abc = convert_orthonormal_recurence_to_three_term_recurence(ab)
 
-        x = np.linspace(-3,3,101)
+        x = np.linspace(-3, 3, 101)
         p_2term = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        p_3term = evaluate_three_term_recurrence_polynomial_1d(abc,degree,x)
-        assert np.allclose(p_2term,p_3term)
+        p_3term = evaluate_three_term_recurrence_polynomial_1d(abc, degree, x)
+        assert np.allclose(p_2term, p_3term)
 
     def test_convert_orthonormal_polynomials_to_monomials_1d(self):
         """
@@ -279,32 +289,54 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         degree = 10
         probability_measure = True
         ab = hermite_recurrence(
-            degree+1,rho,probability=probability_measure)
+            degree+1, rho, probability=probability_measure)
 
-        basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(ab,4)
+        basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
+            ab, 4)
 
-        true_basis_mono_coefs = np.zeros((5,5))
-        true_basis_mono_coefs[0,0]=1
-        true_basis_mono_coefs[1,1]=1
-        true_basis_mono_coefs[2,[0,2]]=-1/np.sqrt(2),1/np.sqrt(2)
-        true_basis_mono_coefs[3,[1,3]]=-3/np.sqrt(6),1/np.sqrt(6)
-        true_basis_mono_coefs[4,[0,2,4]]=np.array([3,-6,1])/np.sqrt(24)
+        true_basis_mono_coefs = np.zeros((5, 5))
+        true_basis_mono_coefs[0, 0] = 1
+        true_basis_mono_coefs[1, 1] = 1
+        true_basis_mono_coefs[2, [0, 2]] = -1/np.sqrt(2), 1/np.sqrt(2)
+        true_basis_mono_coefs[3, [1, 3]] = -3/np.sqrt(6), 1/np.sqrt(6)
+        true_basis_mono_coefs[4, [0, 2, 4]] = np.array([3, -6, 1])/np.sqrt(24)
 
-        assert np.allclose(basis_mono_coefs,true_basis_mono_coefs)
+        assert np.allclose(basis_mono_coefs, true_basis_mono_coefs)
 
         coefs = np.ones(degree+1)
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
-            ab,degree)
-        mono_coefs = np.sum(basis_mono_coefs*coefs,axis=0)
-        
-        x = np.linspace(-3,3,5)
+            ab, degree)
+        mono_coefs = np.sum(basis_mono_coefs*coefs, axis=0)
+
+        x = np.linspace(-3, 3, 5)
         p_ortho = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         ortho_vals = p_ortho.dot(coefs)
 
         from pyapprox.monomial import evaluate_monomial
         mono_vals = evaluate_monomial(
-            np.arange(degree+1)[np.newaxis,:],mono_coefs,x[np.newaxis,:])[:,0]
-        assert np.allclose(ortho_vals,mono_vals)
+            np.arange(degree+1)[np.newaxis, :], mono_coefs,
+            x[np.newaxis, :])[:, 0]
+        assert np.allclose(ortho_vals, mono_vals)
+
+    def test_convert_monomials_to_orthonormal_polynomials_1d(self):
+        rho = 0.
+        degree = 15
+        probability_measure = True
+        ab = hermite_recurrence(
+            degree+1, rho, probability=probability_measure)
+        #ab = jacobi_recurrence(
+        #    degree+1, alpha=0, beta=0, probability=probability_measure)
+        
+        basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
+            ab, degree)
+
+        x = np.random.normal(0, 1, (100))
+        print('Cond number', np.linalg.cond(basis_mono_coefs))
+        basis_ortho_coefs = np.linalg.inv(basis_mono_coefs)
+        ortho_basis_matrix = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+        mono_basis_matrix = x[:, None]**np.arange(degree+1)[None, :]
+        assert np.allclose(
+            mono_basis_matrix, ortho_basis_matrix.dot(basis_ortho_coefs.T))
 
     def test_convert_orthonormal_expansion_to_monomial_expansion_1d(self):
         """
@@ -316,18 +348,18 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         i.e. normal with mean zero and unit variance, is
         f2 = lambda x: x.T**3
         """
-        degree=4
-        mu,sigma=1,2
-        ortho_coef = np.array([0,3,0,np.sqrt(6)])
-        ab = hermite_recurrence(degree+1,0,True)
+        degree = 4
+        mu, sigma = 1, 2
+        ortho_coef = np.array([0, 3, 0, np.sqrt(6)])
+        ab = hermite_recurrence(degree+1, 0, True)
         mono_coefs = convert_orthonormal_expansion_to_monomial_expansion_1d(
-            ortho_coef,ab,mu,sigma)
-        true_mono_coefs = np.array([-mu**3,3*mu**2,-3*mu,1])/sigma**3
-        assert np.allclose(mono_coefs,true_mono_coefs)
-        
+            ortho_coef, ab, mu, sigma)
+        true_mono_coefs = np.array([-mu**3, 3*mu**2, -3*mu, 1])/sigma**3
+        assert np.allclose(mono_coefs, true_mono_coefs)
+
 
 if __name__ == "__main__":
     orthonormal_poly_1d_test_suite = \
-      unittest.TestLoader().loadTestsFromTestCase(
-         TestOrthonormalPolynomials1D)
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestOrthonormalPolynomials1D)
     unittest.TextTestRunner(verbosity=2).run(orthonormal_poly_1d_test_suite)

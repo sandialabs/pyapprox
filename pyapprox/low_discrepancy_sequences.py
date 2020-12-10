@@ -3,20 +3,24 @@ from pyapprox.utilities import get_first_n_primes
 from numba import njit
 
 
-@njit(cache=True)
 def halton_sequence(num_vars, index1, index2):
     assert index1 < index2
     assert num_vars <= 100
 
     primes = get_first_n_primes(num_vars)
 
-    # try:
-    #     from pyapprox.cython.utilities import halton_sequence_pyx
-    #     return halton_sequence_pyx(primes, index1, index2)
-    # except:
-    #     print('halton_sequence extension failed')
-    #     pass
+    try:
+        from pyapprox.cython.utilities import halton_sequence_pyx
+        return halton_sequence_pyx(primes, index1, index2)
+    except:
+        print('halton_sequence extension failed')
+        pass
 
+    return __halton_sequence(num_vars, index1, index2)
+
+
+@njit(cache=True)
+def __halton_sequence(num_vars, index1, index2):
     num_samples = index2-index1
     sequence = np.zeros((num_vars, num_samples))
     ones = np.ones(num_vars)
