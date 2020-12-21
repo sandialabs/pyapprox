@@ -190,7 +190,10 @@ if __name__=='__main__':
     
     fig,axs=plt.subplots(1,1)
     p=dl.plot(sol)
-    plt.colorbar(p)
+    #plt.colorbar(p)
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig('blade_sol.pdf')
     plt.show()
 
         

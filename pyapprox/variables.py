@@ -2,12 +2,12 @@ import numpy as np
 
 def is_continuous_variable(rv):
     from scipy.stats import _continuous_distns, _discrete_distns
-    return ((rv.dist.name in _continuous_distns._distn_names) or
+    return bool((rv.dist.name in _continuous_distns._distn_names) or
             rv.dist.name == 'continuous_rv_sample')
 
 def is_bounded_continuous_variable(rv):
     interval = rv.interval(1)
-    return (is_continuous_variable(rv) and
+    return bool(is_continuous_variable(rv) and
             rv.dist.name != 'continuous_rv_sample'
             and np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
