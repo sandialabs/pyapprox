@@ -149,11 +149,23 @@ class AffineRandomVariableTransformation(object):
                 ((np.any(user_samples[indices, :]<bounds[0])) or
                 (np.any(user_samples[indices, :]>bounds[1])))):
                 I = np.where((user_samples[indices, :]<bounds[0])|
-                             (user_samples[indices, :]>bounds[1]))[0]
-                print(user_samples[indices, I], bounds)
+                             (user_samples[indices, :]>bounds[1]))[1]
+                # print(user_samples[indices, I], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
                 
             canonical_samples[indices, :] = (user_samples[indices, :]-loc)/scale
+            # if ((self.enforce_bounds is True) and
+            #     (is_bounded_continuous_variable(var) is True) and
+            #     ((np.any(canonical_samples[indices, :]<-1)) or
+            #      (np.any(canonical_samples[indices, :]>1)))):
+            #     I = np.where((canonical_samples[indices, :]<-1)|
+            #                  (canonical_samples[indices, :]>1))[1]
+            #     print(user_samples[indices, I], bounds)
+            #     print(canonical_samples[indices, I])
+            #     msg = 'After mapping, canonical samples of bounded variable '
+            #     msg += 'are outside [-1,1]'
+            #     raise Exception(msg)
+
         return canonical_samples
 
     def map_from_canonical_space(self, canonical_samples):

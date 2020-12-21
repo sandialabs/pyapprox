@@ -2,8 +2,11 @@ from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 import numpy as np
 from scipy.optimize import brenth
-def exponential_kle_eigenvalues(sigma2,corr_len,omega):
+
+
+def exponential_kle_eigenvalues(sigma2, corr_len, omega):
     return sigma2*2.*corr_len/(1.+(omega*corr_len)**2)
+
 
 def exponential_kle_basis(x, corr_len, sigma2, omega):
     r"""
@@ -34,18 +37,22 @@ def exponential_kle_basis(x, corr_len, sigma2, omega):
         included in basis_vals, but these values are useful for plotting.
     """
     num_vars = omega.shape[0]
-    assert x.ndim==1
+    assert x.ndim == 1
     num_spatial_locations = x.shape[0]
-    basis_vals = np.empty((num_spatial_locations,num_vars), float)
-    eigvals = exponential_kle_eigenvalues(sigma2,corr_len,omega)
+    basis_vals = np.empty((num_spatial_locations, num_vars), float)
+    eigvals = exponential_kle_eigenvalues(sigma2, corr_len, omega)
     for j in range(num_vars//2):
         frac = np.sin(omega[j])/(2*omega[j])
-        basis_vals[:,2*j]=np.cos(omega[j]*(x-0.5))/np.sqrt(0.5+frac)*eigvals[2*j]
-        basis_vals[:,2*j+1]=np.sin(omega[j]*(x-0.5))/np.sqrt(0.5-frac)*eigvals[2*j+1]
-    if num_vars%2==1:
+        basis_vals[:, 2*j] = np.cos(omega[j]*(x-0.5)) / \
+            np.sqrt(0.5+frac)*eigvals[2*j]
+        basis_vals[:, 2*j+1] = np.sin(omega[j]*(x-0.5)) / \
+            np.sqrt(0.5-frac)*eigvals[2*j+1]
+    if num_vars % 2 == 1:
         frac = np.sin(omega[-1])/(2*omega[-1])
-        basis_vals[:,-1]=np.cos(omega[-1]*(x-0.5))/np.sqrt(0.5+frac)*eigvals[-1]
+        basis_vals[:, -1] = np.cos(omega[-1]*(x-0.5)) / \
+            np.sqrt(0.5+frac)*eigvals[-1]
     return basis_vals
+
 
 def compute_roots_of_exponential_kernel_characteristic_equation(
         corr_len, num_vars, maxw=None, plot=False):
@@ -68,22 +75,23 @@ def compute_roots_of_exponential_kernel_characteristic_equation(
     omega : np.ndarray (num_vars)
         The roots of the characteristic equation
     """
-    func = lambda w: (1-corr_len*w*np.tan(w/2.))*(corr_len*w+np.tan(w/2.))
-    omega = np.empty((num_vars),float)
+    def func(w): return (1-corr_len*w*np.tan(w/2.))*(corr_len*w+np.tan(w/2.))
+    omega = np.empty((num_vars), float)
     import scipy
-    dw = 1e-2; tol = 1e-5
+    dw = 1e-2
+    tol = 1e-5
     if maxw is None:
-        maxw=num_vars*5
-    w = np.linspace(dw,maxw,maxw//dw)
+        maxw = num_vars*5
+    w = np.linspace(dw, maxw, maxw//dw)
     fw = func(w)
     fw_sign = np.sign(fw)
     signchange = ((np.roll(fw_sign, -1) - fw_sign) != 0).astype(int)
     I = np.where(signchange)[0]
     wI = w[I]
     fail = False
-    if I.shape[0]<num_vars+1:
+    if I.shape[0] < num_vars+1:
         msg = 'Not enough roots extend maxw'
-        print (msg)
+        print(msg)
         fail = True
 
     if not fail:
@@ -91,22 +99,24 @@ def compute_roots_of_exponential_kernel_characteristic_equation(
         for ii in range(num_vars):
             root = brenth(
                 func, wI[ii], wI[ii+1], maxiter=1000, xtol=tol)
-            assert root>0 and abs(root-prev_root)>tol*100
-            omega[ii]=root
+            assert root > 0 and abs(root-prev_root) > tol*100
+            omega[ii] = root
             prev_root = root
     if plot:
         import matplotlib.pyplot as plt
-        plt.plot(w,fw,'-ko')
-        plt.plot(wI,fw[I],'ro')
-        plt.plot(omega,func(omega),'og',label='roots found')
-        plt.ylim([-100,100])
+        plt.plot(w, fw, '-ko')
+        plt.plot(wI, fw[I], 'ro')
+        plt.plot(omega, func(omega), 'og', label='roots found')
+        plt.ylim([-100, 100])
         plt.legend()
         plt.show()
     if fail:
         raise Exception(msg)
     return omega
 
-def evaluate_exponential_kle(mean_field, corr_len, sigma2, x, z, basis_vals=None):
+
+def evaluate_exponential_kle(
+        mean_field, corr_len, sigma2, x, z, basis_vals=None):
     r"""
     Return realizations of a random field with a exponential covariance kernel.
 
@@ -135,14 +145,14 @@ def evaluate_exponential_kle(mean_field, corr_len, sigma2, x, z, basis_vals=None
     vals : vector (num_spatial_locations x num_samples)
         The values of the temperature profile at each of the spatial locations
     """
-    if z.ndim==1:
-        z = z.reshape((z.shape[0],1))
+    if z.ndim == 1:
+        z = z.reshape((z.shape[0], 1))
 
     if np.isscalar(x):
         x = np.asarray([x])
-        
-    assert np.all((x>=0.) & (x<=1.))
-    
+
+    assert np.all((x >= 0.) & (x <= 1.))
+
     num_vars, num_samples = z.shape
     num_spatial_locations = x.shape[0]
 
@@ -152,42 +162,41 @@ def evaluate_exponential_kle(mean_field, corr_len, sigma2, x, z, basis_vals=None
         basis_vals = exponential_kle_basis(x, corr_len, sigma2, omega)
 
     assert num_vars == basis_vals.shape[1]
-    assert basis_vals.shape[0]==x.shape[0]
-
+    assert basis_vals.shape[0] == x.shape[0]
 
     if np.isscalar(mean_field):
         mean_field = mean_field*np.ones(num_spatial_locations)
     elif callable(mean_field):
         mean_field = mean_field(x)
 
-    assert mean_field.ndim==1
+    assert mean_field.ndim == 1
     assert mean_field.shape[0] == num_spatial_locations
 
-    vals = mean_field[:,np.newaxis]+np.dot(basis_vals,z)
+    vals = mean_field[:, np.newaxis]+np.dot(basis_vals, z)
     assert vals.shape[1] == z.shape[1]
     return vals
 
 
 class KLE1D(object):
-    def __init__(self,kle_opts):
+    def __init__(self, kle_opts):
         self.mean_field = kle_opts['mean_field']
         self.sigma2 = kle_opts['sigma2']
         self.corr_len = kle_opts['corr_len']
         self.num_vars = kle_opts['num_vars']
-        self.use_log = kle_opts.get('use_log',True)
+        self.use_log = kle_opts.get('use_log', True)
 
         self.basis_vals = None
 
-        self.omega=\
+        self.omega =\
             compute_roots_of_exponential_kernel_characteristic_equation(
-                self.corr_len, self.num_vars, maxw=kle_opts.get('maxw',None))
+                self.corr_len, self.num_vars, maxw=kle_opts.get('maxw', None))
 
-    def update_basis_vals(self,mesh):
+    def update_basis_vals(self, mesh):
         if self.basis_vals is None:
             self.basis_vals = exponential_kle_basis(
-                mesh,self.corr_len,self.sigma2,self.omega)
-        
-    def __call__(self,sample,mesh):
+                mesh, self.corr_len, self.sigma2, self.omega)
+
+    def __call__(self, sample, mesh):
         self.update_basis_vals(mesh)
         vals = evaluate_exponential_kle(
             self.mean_field, self.corr_len, self.sigma2, mesh, sample,
@@ -197,46 +206,121 @@ class KLE1D(object):
         else:
             return vals
 
-def correlation_function(X,s,corr_type):
-    assert X.ndim==2
+
+def correlation_function(X, s, corr_type):
+    assert X.ndim == 2
     from scipy.spatial.distance import pdist, squareform
-    # this is an NxD matrix, where N is number of items and D its 
+    # this is an NxD matrix, where N is number of items and D its
     # dimensionalities
     pairwise_dists = squareform(pdist(X.T, 'euclidean'))
-    if corr_type=='gauss':
+    if corr_type == 'gauss':
         K = np.exp(-pairwise_dists ** 2 / s ** 2)
-    elif corr_type=='exp':
+    elif corr_type == 'exp':
         K = np.exp(-np.absolute(pairwise_dists) / s)
     else:
         raise Exception('incorrect corr_type')
-    assert K.shape[0]==X.shape[1]
+    assert K.shape[0] == X.shape[1]
     return K
 
-def compute_nobile_diffusivity_eigenvectors(num_vars,corr_len,mesh):
+
+def compute_nobile_diffusivity_eigenvectors(num_vars, corr_len, mesh):
     domain_len = 1
-    assert mesh.ndim==1
-    mesh = mesh[:,np.newaxis]
+    assert mesh.ndim == 1
+    mesh = mesh[:, np.newaxis]
     sqrtpi = np.sqrt(np.pi)
-    Lp = max(domain_len,2*corr_len)
+    Lp = max(domain_len, 2*corr_len)
     L = corr_len/Lp
     sqrtpi = np.sqrt(np.pi)
-    nn = np.arange(2,num_vars+1)
+    nn = np.arange(2, num_vars+1)
     eigenvalues = np.sqrt(sqrtpi*L)*np.exp(-((np.floor(nn/2)*np.pi*L))**2/8)
-    eigenvectors = np.empty((mesh.shape[0],num_vars-1))
-    eigenvectors[:,::2] = np.sin(((np.floor(nn[::2]/2)*np.pi*mesh))/Lp)
-    eigenvectors[:,1::2] = np.cos(((np.floor(nn[1::2]/2)*np.pi*mesh))/Lp)
+    eigenvectors = np.empty((mesh.shape[0], num_vars-1))
+    eigenvectors[:, ::2] = np.sin(((np.floor(nn[::2]/2)*np.pi*mesh))/Lp)
+    eigenvectors[:, 1::2] = np.cos(((np.floor(nn[1::2]/2)*np.pi*mesh))/Lp)
     eigenvectors *= eigenvalues
     return eigenvectors
 
-def nobile_diffusivity(eigenvectors,corr_len,samples):
-    if samples.ndim==1:
-        samples = samples.reshape((samples.shape[0],1))
-    assert samples.ndim==2
-    assert samples.shape[0]==eigenvectors.shape[1]+1
+
+def nobile_diffusivity(eigenvectors, corr_len, samples):
+    if samples.ndim == 1:
+        samples = samples.reshape((samples.shape[0], 1))
+    assert samples.ndim == 2
+    assert samples.shape[0] == eigenvectors.shape[1]+1
     domain_len = 1
-    Lp = max(domain_len,2*corr_len)
+    Lp = max(domain_len, 2*corr_len)
     L = corr_len/Lp
-    field  = eigenvectors.dot(samples[1:,:])
-    field += 1+samples[0,:]*np.sqrt(np.sqrt(np.pi)*L/2)
-    field  = np.exp(field)+0.5
+    field = eigenvectors.dot(samples[1:, :])
+    field += 1+samples[0, :]*np.sqrt(np.sqrt(np.pi)*L/2)
+    field = np.exp(field)+0.5
     return field
+
+
+from scipy.spatial.distance import pdist, squareform
+from scipy.linalg import eigh
+from pyapprox.utilities import adjust_sign_eig
+import matplotlib.tri as tri
+import matplotlib.pyplot as plt
+class MeshKLE(object):
+    """
+    Compute a Karhunen Loeve expansion of a covariance function.
+    
+    Parameters
+    ----------
+    mesh_coords : np.ndarray (nphys_vars, ncoords)
+        The coordinates to evalaute the KLE basis
+    """
+    def __init__(self, mesh_coords, mean_field=0):
+        assert mesh_coords.shape[0] <= 2
+        self.mesh_coords = mesh_coords
+        
+        if np.isscalar(mean_field):
+            mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
+        assert mean_field.shape[0] == self.mesh_coords.shape[1]
+        self.mean_field = mean_field
+        
+    def compute_basis(self, length_scale, sigma=1, nterms=None):
+        """
+        Compute the KLE basis
+
+        Parameters
+        ----------
+        length_scale : double
+            The length scale of the covariance kernel
+
+        sigma : double
+            The standard deviation of the random field
+
+        num_nterms : integer
+            The number of KLE modes. If None then compute all modes
+        """
+        if nterms is None:
+            nterms = self.mesh_coords.shape[1]
+        assert nterms <= self.mesh_coords.shape[1]
+        self.nterms = nterms
+        
+        dists = pdist(self.mesh_coords.T / length_scale, metric='sqeuclidean')
+        K = squareform(np.exp(-.5 * dists))
+        np.fill_diagonal(K, 1)
+        eig_vals, eig_vecs = eigh(
+            K, turbo=True, eigvals=(K.shape[0]-nterms,K.shape[0]-1))
+        eig_vecs = adjust_sign_eig(eig_vecs)
+        I = np.argsort(eig_vals)[::-1][:self.nterms]
+        assert np.all(eig_vals[I]>0)
+        self.sqrt_eig_vals = np.sqrt(eig_vals[I])
+        self.eig_vecs = eig_vecs[:, I]
+        
+        # normalize the basis
+        self.eig_vecs *= sigma*self.sqrt_eig_vals
+        
+    def __call__(self, coef):
+        """
+        Evaluate the expansion
+
+        Parameters
+        ----------
+        coef : np.ndarray (nterms, nsamples)
+            The coefficients of the KLE basis
+        """
+        assert coef.ndim == 2
+        assert coef.shape[0] == self.nterms
+        return self.mean_field[:, None] + self.eig_vecs.dot(coef)
+        

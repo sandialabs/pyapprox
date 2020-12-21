@@ -528,27 +528,11 @@ def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
             compute_barycentric_weights_1d(
                 abscissa_1d[dd], interval_length=interval_length))
 
-    #for dd in len(barycentric_weights_1d):
-    #    I = np.argsort(barycentric_weights_1d[dd])
-    #    barycentric_weights_1d[dd] = barycentric_weights_1d[dd][I]
-    #    abscissa_1d[dd] = abscissa_1d[dd][I]
-
     if num_active_sample_vars==0:
-        if output:
-            print(('sub',subspace_index,
-                   np.tile(subspace_values,(samples.shape[1], 1))))
-            print((samples.shape))
-            print((samples[active_sample_vars, :]))
-            print (subspace_values)
         return np.tile(subspace_values,(samples.shape[1],1))
     poly_vals = multivariate_barycentric_lagrange_interpolation( 
         samples, abscissa_1d, barycentric_weights_1d, subspace_values,
         active_sample_vars)
-    if output:
-        print(('sub',subspace_index, poly_vals))
-        print((samples.shape))
-        print((samples[active_sample_vars ,:]))
-        print (subspace_values)
     return poly_vals
     
 def evaluate_sparse_grid(samples, values,
