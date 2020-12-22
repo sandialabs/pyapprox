@@ -7,6 +7,10 @@ from Cython.Build import cythonize
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
+
 def no_cythonize(extensions, **_ignore):
     for extension in extensions:
         sources = []
@@ -63,8 +67,8 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_dirs=[np.get_include()],
-    setup_requires=['numpy >= 1.16.4','Cython','scipy >= 1.0.0'],
-    install_requires=[
+    setup_requires=['numpy==1.19.3', 'Cython', 'scipy >= 1.0.0'],
+    install_requires=requirements,
         'numpy >= 1.16.4',
         'matplotlib',
         'scipy >= 1.0.0',

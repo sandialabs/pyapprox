@@ -1,0 +1,12 @@
+numpy==1.19.3
+matplotlib
+scipy >= 1.0.0
+Cython
+sympy
+seaborn
+pymc3
+numba
+scikit-learn
+pytest-cov
+pytest
+networkx
