@@ -1,7 +1,8 @@
+import os
 import sys
 import setuptools
-import os
 import numpy as np
+from Cython.Build import cythonize
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
