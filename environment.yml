@@ -1,11 +1,11 @@
 name: pyapprox-dev
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
 #  - python=3.7 # when using with CI matrix this creates conflicts
   - python
-  - numpy=1.16.4
+  - numpy=1.19.3
   - numba
   - jupyter
   - pytest
