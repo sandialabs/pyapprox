@@ -156,6 +156,7 @@ class AffineRandomVariableTransformation(VariableTransformInterface):
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
             name, scale_dict, __ = get_distribution_info(var)
+
             # copy is essential here because code below modifies scale
             loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
             if (is_bounded_continuous_variable(var) or
@@ -164,6 +165,7 @@ class AffineRandomVariableTransformation(VariableTransformInterface):
                 lb, ub = -1, 1
                 scale /= (ub-lb)
                 loc = loc-scale*lb
+
             self.scale_parameters[ii, :] = loc, scale
 
     def map_to_canonical_space(self, user_samples):
