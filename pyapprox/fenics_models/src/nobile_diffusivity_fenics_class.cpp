@@ -41,15 +41,22 @@ public:
   
   void eval(Eigen::Ref<Eigen::VectorXd> values, Eigen::Ref<const Eigen::VectorXd> x) const{
     values[0]=1.0+sample_[0]*std::sqrt(std::sqrt(M_PI)*L_/2.0);
+    // std::printf("v=%1.2f\n",values[0]);
     for (int ii=0;ii<nvars_-1;ii+=2){
       values[0]+=eigenvalues_[ii]*std::sin((ii+2)/2*M_PI*x[0]/Lp_)*sample_[ii+1];
+      // std::printf("zi=%1.2f\n",sample_[ii+1]);
+      // std::printf("vi=%1.2f\n",values[0]);
     }
     for (int ii=1;ii<nvars_-1;ii+=2){
       values[0]+=eigenvalues_[ii]*std::cos((ii+2)/2*M_PI*x[0]/Lp_)*sample_[ii+1];
+      // std::printf("zj=%1.2f\n",sample_[ii+1]);
+      // std::printf("vj=%1.2f\n",values[0]);
     }
     values[0]=std::exp(values[0])+mean_field_;
-    //std::printf("v=%1.2f\n",values[0]);
-    //std::printf("m=%1.2f\n",mean_field_);
+    // std::printf("v=%1.2f\n",values[0]);
+    // std::printf("m=%1.2f\n",mean_field_);
+    // std::printf("z1=%1.2f\n",sample_[0]);
+    // std::printf("z2=%1.2f\n",sample_[1]);
   }
 };
 

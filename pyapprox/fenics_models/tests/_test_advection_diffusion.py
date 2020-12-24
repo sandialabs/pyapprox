@@ -603,7 +603,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         kle = bmodel.get_diffusivity(np.zeros(random_samples.shape[0]))
         mean_field_fn = dla.Function(function_space)
         mean_field_fn = dla.interpolate(kle, function_space)
-        mean_field = mean_field_fn.vector()[:].copy()
+        mean_field = mean_field_fn.vector()[:].copy()-np.exp(1)
 
         mesh_coords = function_space.tabulate_dof_coordinates()[:, 0]
         I = np.argsort(mesh_coords)
@@ -619,31 +619,29 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
             field_fn = dla.interpolate(kle, function_space)
             # 1e-15 used to avoid taking log of zero
             basis_matrix[:, ii] = np.log(
-                field_fn.vector()[:].copy()-mean_field+1e-15)
-            # this will not work as mesh is 2D in this test. Need
-            # to extract out unique x coordinates.
-            plt.plot(mesh_coords[I], exact_basis_matrix[I, ii])
-            plt.plot(mesh_coords[I], basis_matrix[I, ii])
-            plt.show()
-
-        print(mean_field)
-        print(mean_field + np.exp(basis_matrix.dot(random_samples[:, 0])), x0[:, 0])
+                field_fn.vector()[:].copy()-mean_field+1e-15)-1
+            
         assert np.allclose(
-            mean_field + np.exp(basis_matrix.dot(random_samples[:, 0])), x0[:, 0])
+            mean_field + np.exp(1+basis_matrix.dot(random_samples[:, 0])),
+            x0[:, 0])
 
+        # nobile diffusivity uses different definitions of KLE
+        # k = np.exp(1+basis_matrix.dot(coef))+mean_field
+        # than that assumed in compute_kle_gradient_from_mesh_gradient
+        # k = np.exp(basis_matrix.dot(coef)+mean_field)
+        # So to
+        # keep current interface set mean field to zero and then correct
+        # returned gradient
         grad = compute_kle_gradient_from_mesh_gradient(
-            jac, basis_matrix, np.log(mean_field), True, random_samples[:, 0])
+            jac, basis_matrix, mean_field*0, True, random_samples[:, 0])
+        grad *= np.exp(1)
 
         from pyapprox.optimization import approx_jacobian
         fun = SingleFidelityWrapper(bmodel, config_samples[:, 0])
         fd_grad = approx_jacobian(fun, random_samples)
 
-        print(grad, fd_grad)
+        # print(grad, fd_grad)
         assert np.allclose(grad, fd_grad)
-
-        
-        #dl.plot(sol)
-        #plt.show()
 
     def test_advection_diffusion_source_inversion_model(self):
         """
