@@ -1,21 +1,22 @@
+import numpy as np
+from functools import partial
+import warnings
+
 from pyapprox.variable_transformations import \
     AffineRandomVariableTransformation
 from pyapprox.variables import get_distribution_info
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.orthonormal_polynomials_1d import get_recursion_coefficients
-from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
-from functools import partial
-import numpy as np
-from pyapprox.indexing import \
-    compute_hyperbolic_indices
-from pyapprox.utilities import cartesian_product, outer_product
-from pyapprox.orthonormal_polynomials_1d import \
-    jacobi_recurrence, evaluate_orthonormal_polynomial_deriv_1d, \
-    hermite_recurrence, krawtchouk_recurrence, hahn_recurrence, \
-    discrete_chebyshev_recurrence, evaluate_orthonormal_polynomial_1d
+from pyapprox.indexing import compute_hyperbolic_indices
+    
+from pyapprox.utilities import (
+    cartesian_product, get_tensor_product_quadrature_rule,
+    outer_product, flattened_rectangular_lower_triangular_matrix_index)
+from pyapprox.orthonormal_polynomials_1d import (
+    get_recursion_coefficients, gauss_quadrature,
+    jacobi_recurrence, evaluate_orthonormal_polynomial_deriv_1d,
+    hermite_recurrence, krawtchouk_recurrence, hahn_recurrence,
+    discrete_chebyshev_recurrence, evaluate_orthonormal_polynomial_1d)
 from pyapprox.monomial import monomial_basis_matrix
-from pyapprox.utilities import \
-    flattened_rectangular_lower_triangular_matrix_index
+    
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.manipulate_polynomials import add_polynomials
