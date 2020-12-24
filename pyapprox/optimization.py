@@ -454,11 +454,12 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     if direction is None:
         direction = np.random.normal(0, 1, (zz.shape[0], 1))
         direction /= np.linalg.norm(direction)
+    assert direction.ndim == 2 and direction.shape[1] == 1
+        
 
     if (jacp is None and jac is None) or (jac is not None and jacp is not None):
         raise Exception ('Must specify jac or jacp')
         
-    
     if callable(jac):
         function_val = fun(zz)
         grad_val = jac(zz)#.squeeze()

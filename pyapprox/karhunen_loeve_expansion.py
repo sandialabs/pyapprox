@@ -1,5 +1,10 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
+from pyapprox.utilities import adjust_sign_eig
+from scipy.linalg import eigh
+from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
 
@@ -254,29 +259,33 @@ def nobile_diffusivity(eigenvectors, corr_len, samples):
     return field
 
 
-from scipy.spatial.distance import pdist, squareform
-from scipy.linalg import eigh
-from pyapprox.utilities import adjust_sign_eig
-import matplotlib.tri as tri
-import matplotlib.pyplot as plt
 class MeshKLE(object):
     """
     Compute a Karhunen Loeve expansion of a covariance function.
-    
+
     Parameters
     ----------
     mesh_coords : np.ndarray (nphys_vars, ncoords)
         The coordinates to evalaute the KLE basis
+
+    mean_field : np.ndarray (ncoords)
+        The mean field of the KLE
+
+    use_log : boolean
+        True - return exp(k(x))
+        False - return k(x)
     """
-    def __init__(self, mesh_coords, mean_field=0):
+
+    def __init__(self, mesh_coords, mean_field=0, use_log=False):
         assert mesh_coords.shape[0] <= 2
         self.mesh_coords = mesh_coords
-        
+        self.use_log = use_log
+
         if np.isscalar(mean_field):
             mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
         assert mean_field.shape[0] == self.mesh_coords.shape[1]
         self.mean_field = mean_field
-        
+
     def compute_basis(self, length_scale, sigma=1, nterms=None):
         """
         Compute the KLE basis
@@ -296,21 +305,21 @@ class MeshKLE(object):
             nterms = self.mesh_coords.shape[1]
         assert nterms <= self.mesh_coords.shape[1]
         self.nterms = nterms
-        
+
         dists = pdist(self.mesh_coords.T / length_scale, metric='sqeuclidean')
         K = squareform(np.exp(-.5 * dists))
         np.fill_diagonal(K, 1)
         eig_vals, eig_vecs = eigh(
-            K, turbo=True, eigvals=(K.shape[0]-nterms,K.shape[0]-1))
+            K, turbo=True, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
         eig_vecs = adjust_sign_eig(eig_vecs)
         I = np.argsort(eig_vals)[::-1][:self.nterms]
-        assert np.all(eig_vals[I]>0)
+        assert np.all(eig_vals[I] > 0)
         self.sqrt_eig_vals = np.sqrt(eig_vals[I])
         self.eig_vecs = eig_vecs[:, I]
-        
+
         # normalize the basis
         self.eig_vecs *= sigma*self.sqrt_eig_vals
-        
+
     def __call__(self, coef):
         """
         Evaluate the expansion
@@ -322,5 +331,96 @@ class MeshKLE(object):
         """
         assert coef.ndim == 2
         assert coef.shape[0] == self.nterms
-        return self.mean_field[:, None] + self.eig_vecs.dot(coef)
+        if self.use_log:
+            return np.exp(self.mean_field[:, None]+self.eig_vecs.dot(coef))
+        else:
+            return self.mean_field[:, None] + self.eig_vecs.dot(coef)
+
+
+def multivariate_chain_rule(jac_yu, jac_ux):
+    """
+    Given a function :math:`y(u)`
+
+    .. math:: u = g(x) = (g_1(x), \ldots, g_m(x)), x \in R^n, u \in R^m
+
+    compute
+
+    .. math::
+
+       \frac{\partial y}{\partial x_i} = \sum_{l=1}^m \frac{\partial y}{\partial u_l}\frac{\partial u_l}{\partial x_i} = \nabla f\cdot\frac{\partial u}{\partial x_i}
+
+    Parameters
+    ----------
+    jac_yu: np.ndarray (ny, nu)
+        The Jacobian of y with respect to u, i.e.
+
+        .. math::\frac{\partial y}{\partial u_l}\frac{\partial u_l}{\partial x_i}
+
+    jac_ux : np.ndarray (nx, nu)
+        The Jacobian of u with respect to x, i.e.
+    
+        .. math:: [\frac{\partial u}{\partial x_j}
+
+    Returns
+    -------
+    jac : np.ndarray (ny, nx)
+        The Jacobian of u with respect to x, i.e.
+    
+        ..math:: \frac{\partial y}{\partial x_i}
+    """
+    gradient = jac_yu.dot(jac_ux)
+    return gradient
+
+
+def compute_kle_gradient_from_mesh_gradient(
+        mesh_gradient, kle_basis_matrix, kle_mean, use_log, sample):
+    """
+    Compute the gradient of a function with respect to the coefficients of 
+    a Karhunen Loeve expansion from a gradient of the KLE projected onto the
+    discrete set of points (mesh) on which the KLE is defined.
+
+    Specifically given the KLE
+    
+    ..math:: k(z, x) = \mu(x) + \sigma\sum_{n=1}^N \lambda_n\phi_n(x)z
+
+    defined at a set of points :math:`x_m, m=1,\ldots,M`
+
+    this function computes 
+
+    ..math:: frac{\partial f(k(z))}{\partial z} 
+
+    from 
+
+    ..math:: frac{\partial f(k)}{\partial k} 
+
+    Parameters
+    ----------
+    mesh_gradient : np.ndarray (nmesh_points)
+        The gradient of a function with respect to the the values :math:`k_i` 
+        which are the evaluations of the kle at :math`x_i`
+
+    kle_basis_matrix : np.ndarray (nmesh_points, nterms)
+        The normalized basis of the KLE :math`\sigma\lambda_j\phi_j(x_i)`
+
+    kle_mean : np.ndarray (nmesh_points)
+        The mean field of the KLE
+    
+    use_log : boolean
+        True - the values :math`k_i = \exp(k_i)`
+        False - the values :math`k_i = \exp(k_i)`
+
+    sample : np.ndaray (nterms)
+        The KLE coeficients used to compute :math`k_i`
+    """
+    assert sample.ndim == 1
+    assert kle_mean.ndim == 1
+    assert kle_basis_matrix.ndim == 2
+
+    if use_log:
+        kvals = np.exp(kle_mean+kle_basis_matrix.dot(sample))
+        k_jac = kvals[:, None]*kle_basis_matrix
+    else:
+        k_jac = kle_basis_matrix
+        
+    return multivariate_chain_rule(mesh_gradient, k_jac)
         
