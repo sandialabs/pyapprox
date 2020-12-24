@@ -314,14 +314,37 @@ class PolynomialChaosExpansion(object):
     #     Final polynomial will use orthonormal basis of other for any variable
     #     in other. E.g. if other is denoted z = p(x,y) and we are computing
     #     f(z)
-    #     then f(z) = f(x,y) where we use basis associated with x and y and not 
+    #     then f(z) = f(x,y) where we use basis associated with x and y and not
     #     with z.
 
-    #     I have code to do this but it requires a transformation from an 
+    #     I have code to do this but it requires a transformation from an
     #     orthogonal basis into the monomial basis then into another orthogonal
     #     basis and this transformation can be ill-conditioned.
     #     """
     #     raise Exception(Not implemented)
+
+    def define_poly_options_from_variable(self, variable):
+        basis_opts = {}
+        unique_vars = variable.unique_variables
+        num_unique_vars = len(unique_vars)
+        for ii in range(num_unique_vars):
+            var = unique_vars[ii]
+            name, scales, shapes = get_distribution_info(var)
+            opts = {'rv_type': name,
+                    'shapes': shapes,
+                    'var_nums': variable.unique_variable_indices[ii]}
+            basis_opts[f'basis{ii}'] = opts
+
+        return basis_opts
+
+    def set_poly_options_from_variable_transformation(self, var_trans):
+        pce_opts = {'var_trans': var_trans}
+        basis_opts = self.define_poly_options_from_variable(var_trans.variable)
+        pce_opts['poly_types'] = basis_opts
+
+        self.configure(pce_opts)
+
+        return self
 
     def configure(self, opts):
         self.config_opts = opts
@@ -536,6 +559,8 @@ def get_tensor_product_quadrature_rule_from_pce(pce, degrees):
 
 
 def define_poly_options_from_variable(variable):
+    warnings.warn("define_poly_options_from_variable will be deprecated, use `pce.set_poly_options_from_variable_transformation` instead")
+
     basis_opts = dict()
     for ii in range(len(variable.unique_variables)):
         var = variable.unique_variables[ii]
@@ -547,6 +572,8 @@ def define_poly_options_from_variable(variable):
 
 
 def define_poly_options_from_variable_transformation(var_trans):
+    warnings.warn("define_poly_options_from_variable_transformation will be deprecated, use `pce.set_poly_options_from_variable_transformation` instead")
+
     pce_opts = {'var_trans': var_trans}
     basis_opts = define_poly_options_from_variable(var_trans.variable)
     pce_opts['poly_types'] = basis_opts
@@ -781,4 +808,3 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
 
     indices, coefs = add_polynomials(basis_indices, basis_coefs)
     return indices, coefs
-    
