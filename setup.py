@@ -10,6 +10,9 @@ with open("README.md", "r") as fh:
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
+with open('optional-requirements.txt') as f:
+    optional_reqs = f.read().splitlines()
+
 
 def no_cythonize(extensions, **_ignore):
     for extension in extensions:
@@ -67,11 +70,12 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_dirs=[np.get_include()],
-    setup_requires=['numpy==1.19.3', 'Cython', 'scipy >= 1.0.0'],
+    setup_requires=['numpy==1.19.2', 'Cython', 'scipy >= 1.0.0'],
     install_requires=requirements,
     extras_require={'docs': ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
-                             'sphinx-gallery', 'jupyter']
+                             'sphinx-gallery', 'jupyter'],
                     #                'mfnets':['MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master']
+                    'ode': optional_reqs
                     },
     ext_modules=extensions,
     test_suite='nose.collector',
