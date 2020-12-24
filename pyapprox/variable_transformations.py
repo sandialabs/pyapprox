@@ -69,8 +69,7 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
     for dd in active_vars:
         lb = current_ranges[2*dd]
         ub = current_ranges[2*dd+1]
-        #print (lb,current_samples[dd,:].min())
-        #print (ub,current_samples[dd,:].max(),tol)
+
         assert current_samples[dd, :].min() >= lb-tol
         assert current_samples[dd, :].max() <= ub+tol
 
@@ -82,12 +81,12 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
             J = np.where(current_samples[dd, :] > ub)[0]
             current_samples[dd, J] = ub
 
-        assert ub-lb > np.finfo(float).eps*2
+        assert ub-lb > tol
 
         new_samples[dd, :] = (current_samples[dd, :].copy()-lb)/(ub-lb)
         lb = new_ranges[2*dd]
         ub = new_ranges[2*dd+1]
-        assert ub-lb > np.finfo(float).eps*2
+        assert ub-lb > tol
 
         new_samples[dd, :] = new_samples[dd, :]*(ub-lb)+lb
         
