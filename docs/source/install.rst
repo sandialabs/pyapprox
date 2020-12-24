@@ -44,6 +44,38 @@ Note that sometimes developers need to remove all files generated when installin
   python setup.py clean --all
   find . -name "*.pyc" -exec rm -f {} \;
 
+
+Windows
+^^^^^^^
+
+Windows currently has an issue which breaks the NumPy runtime (`see here for details <https://tinyurl.com/y3dm3h86>`_).
+
+The following instructions provide a workaround.
+
+First, set up an empty `conda` environment
+
+  conda create -n pyapprox-dev python=3.7
+  conda activate pyapprox-dev
+
+Pre-install required packages with pip:
+
+  pip install -r requirements.txt
+
+Then perform a local install via `setup.py`
+
+  python setup.py develop
+
+Additional optional packages can be installed via pip...
+
+  pip install -r doc-requirements.txt
+  pip install -r optional-requirements.txt
+
+...or by specifying the specific group of optional packages
+
+  pip install pyapprox[docs]
+  pip install pyapprox[ode]
+  
+
 Test
 ----
 To run all tests use::
