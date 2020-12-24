@@ -1,0 +1,6 @@
+numpydoc
+sphinx
+sphinx_automodapi
+sphinx_rtd_theme
+sphinx-gallery
+jupyter
