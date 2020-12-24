@@ -48,8 +48,9 @@ Note that sometimes developers need to remove all files generated when installin
 Windows
 ^^^^^^^
 
-Windows currently has an issue which breaks the NumPy runtime (`see here for details <https://tinyurl.com/y3dm3h86>`_).
+For the visualization methods to work and to support general latex display, a copy of `MikTex <https://miktex.org/download>`_ should be installed.
 
+Windows currently has an issue which breaks the NumPy runtime (`see here for details <https://tinyurl.com/y3dm3h86>`_).
 The following instructions provide a workaround.
 
 First, set up an empty `conda` environment
@@ -74,8 +75,6 @@ Additional optional packages can be installed via pip...
 
   pip install pyapprox[docs]
   pip install pyapprox[ode]
-
-For the visualization methods to work and general latex display, a copy of `MikTex <https://miktex.org/download>`_ should be installed as well
   
 
 Test
