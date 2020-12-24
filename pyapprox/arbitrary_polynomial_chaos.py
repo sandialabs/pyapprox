@@ -25,7 +25,8 @@ class APC(PolynomialChaosExpansion):
             if type(self.moments)!=np.ndarray:
                 raise Exception('moments was given but was not a np.ndarray')
             assert self.compute_moment_matrix_function is None
-            self.R_inv = compute_rotation_from_moments_linear_system(self.moments)
+            self.R_inv = compute_rotation_from_moments_linear_system(
+                self.moments)
         elif self.compute_moment_matrix_function is not None:
             if not callable(self.compute_moment_matrix_function):
                 msg =  'compute_moment_matrix_function was given but was '

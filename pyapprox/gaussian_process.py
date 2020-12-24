@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import numpy as np
 import copy
 from scipy.optimize import minimize, Bounds
@@ -13,9 +12,11 @@ from pyapprox.utilities import cartesian_product, outer_product, \
 from scipy.spatial.distance import cdist
 from functools import partial
 from scipy.linalg import solve_triangular
-from pyapprox.utilities import transformed_halton_sequence, \
-    pivoted_cholesky_decomposition, continue_pivoted_cholesky_decomposition
+from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
+from pyapprox.utilities import pivoted_cholesky_decomposition, \
+    continue_pivoted_cholesky_decomposition
 from scipy.special import kv, gamma
+
 
 class GaussianProcess(GaussianProcessRegressor):
     def fit(self, train_samples, train_values):
@@ -337,6 +338,7 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
     xi_1 = np.exp(-.5*dists_3d_x1_x2-.5*dists_3d_x2_x3).dot(ww_3d)
     return xi_1
 
+
 def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
                                                           K_inv,
                                                           length_scale,
@@ -585,6 +587,7 @@ class CholeskySampler(object):
         True - pivot based upon diagonal of schur complement
         False - pivot to minimize trace norm of low-rank approximation
     """
+
     def __init__(self, num_vars, num_candidate_samples, variables=None,
                  generate_random_samples=None, init_pivots=None,
                  nugget=0, econ=True):
@@ -601,7 +604,7 @@ class CholeskySampler(object):
         self.set_init_pivots(init_pivots)
         self.nugget = nugget
         self.econ = econ
-        
+
     def add_nugget(self):
         self.Kmatrix[np.arange(self.Kmatrix.shape[0]),
                      np.arange(self.Kmatrix.shape[1])] += self.nugget
@@ -640,16 +643,18 @@ class CholeskySampler(object):
             assert self.kernel_changed
 
         nprev_train_samples = self.ntraining_samples
-        
+
         if (self.weight_function_changed or self.kernel_changed or
-            self.init_pivots_changed):
+                self.init_pivots_changed):
             self.Kmatrix = self.kernel(self.candidate_samples.T)
             if self.econ is False and self.pivot_weights is not None:
                 weights = np.sqrt(self.pivot_weights)
-                assert np.allclose(np.diag(weights).dot(self.Kmatrix.dot(np.diag(weights))), weights[:, np.newaxis]*self.Kmatrix*weights)
+                assert np.allclose(np.diag(weights).dot(self.Kmatrix.dot(
+                    np.diag(weights))),
+                                   weights[:, np.newaxis]*self.Kmatrix*weights)
                 self.Kmatrix = weights[:, np.newaxis]*self.Kmatrix*weights
                 self.pivot_weights = None
-                    
+
             if self.nugget > 0:
                 self.add_nugget()
             self.L, self.pivots, error, self.chol_flag, self.diag, \
@@ -658,7 +663,7 @@ class CholeskySampler(object):
                     self.Kmatrix, num_samples, init_pivots=self.init_pivots,
                     pivot_weights=self.pivot_weights,
                     error_on_small_tol=False, return_full=True, econ=self.econ)
-            
+
             self.weight_function_changed = False
             self.kernel_changed = False
         else:
@@ -680,8 +685,8 @@ class CholeskySampler(object):
             self.candidate_samples[:, self.pivots[
                 nprev_train_samples:self.ntraining_samples]]
         self.training_samples = np.hstack(
-                [self.training_samples, new_samples])
-        
+            [self.training_samples, new_samples])
+
         return new_samples, self.chol_flag
 
 
@@ -691,6 +696,7 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
     hyper-parameters. Cholesky factor computed to generate training samples
     is reused for fiting
     """
+
     def __init__(self, sampler, func):
         self.sampler = sampler
         self.func = func
@@ -721,10 +727,11 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
         else:
             raise Exception()
         return chol_factor
-    
+
     def fit(self):
         chol_factor = self.get_current_chol_factor()
-        self.coef = cholesky_solve_linear_system(chol_factor, self.train_values)
+        self.coef = cholesky_solve_linear_system(
+            chol_factor, self.train_values)
 
     def __call__(self, samples):
         return self.sampler.kernel(samples.T, self.train_samples.T).dot(
@@ -739,7 +746,7 @@ class AdaptiveCholeskyGaussianProcessFixedKernel(object):
 
 
 def gaussian_process_pointwise_variance(kernel, pred_samples, train_samples,
-                                        nugget = 0):
+                                        nugget=0):
     r"""
     Compute the pointwise variance of a Gaussian process, that is
 
@@ -804,7 +811,7 @@ def RBF_gradient_wrt_samples(query_sample, other_samples, length_scale):
     where
     :math:`\Lambda^{-1}=\mathrm{diag}([l_1^2,\ldots,l_d^2])`,
     :math:`D=[\tilde{x}-\tilde{y}^{(1)},\ldots,\tilde{x}-\tilde{y}^{(N)}]` and
-    
+
     .. math:: 
 
        \tilde{x} = \left[\frac{x_1}{l_1^2}, \ldots, \frac{x_d}{l_d^2}\right],
@@ -852,7 +859,7 @@ def RBF_integrated_posterior_variance_gradient_wrt_samples(
     K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += nugget
     A_inv = np.linalg.inv(K_train)
     grad_P, P = integrate_grad_P(
-            quad_x, quad_w, train_samples, length_scale)
+        quad_x, quad_w, train_samples, length_scale)
     AinvPAinv = (A_inv.dot(P).dot(A_inv))
 
     noptimized_train_samples = ntrain_samples-new_samples_index
@@ -872,10 +879,10 @@ def RBF_integrated_posterior_variance_gradient_wrt_samples(
         # Trace [RCRP] = Trace[RPRC] for symmetric matrices
         tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*AinvPAinv[:, kk],
                          axis=1)
-        tmp3 -=  -K_train_grad_all_train_points_kk[kk, :]*AinvPAinv[kk, kk]
+        tmp3 -= -K_train_grad_all_train_points_kk[kk, :]*AinvPAinv[kk, kk]
         jac[cnt*nvars:(cnt+1)*nvars] = -tmp3
         tmp4 = 2*np.sum(grad_P[kk*nvars:(kk+1)*nvars]*A_inv[:, kk], axis=1)
-        tmp4 -=  grad_P[kk*nvars:(kk+1)*nvars,kk]*A_inv[kk, kk]
+        tmp4 -= grad_P[kk*nvars:(kk+1)*nvars, kk]*A_inv[kk, kk]
         jac[cnt*nvars:(cnt+1)*nvars] -= tmp4
         cnt += 1
     return jac
@@ -957,7 +964,7 @@ def RBF_posterior_variance_jacobian_wrt_samples(
     # positive definite
     ntrain_samples = train_samples.shape[1]
     K_train[np.arange(ntrain_samples), np.arange(ntrain_samples)] += nugget
-    
+
     K_inv = np.linalg.inv(K_train)
     k_pred = kernel(train_samples.T, pred_samples.T)
     jac = np.zeros((npred_samples, nvars*noptimized_train_samples))
@@ -970,11 +977,11 @@ def RBF_posterior_variance_jacobian_wrt_samples(
                 train_samples[:, jj:jj+1], train_samples, length_scale)
         jac[:, ii*nvars:(ii+1)*nvars] += \
             2*tau[:, jj:jj+1]*k_pred_grad_all_train_points[ii, :, :]
-        tmp1 = K_train_grad_all_train_points_jj.T[:,np.newaxis,:] *\
+        tmp1 = K_train_grad_all_train_points_jj.T[:, np.newaxis, :] *\
             np.tile(tau[:, jj:jj+1], (2, 1, ntrain_samples))
-        tmp1[:,:,jj] = K_train_grad_all_train_points_jj.T.dot(tau.T)
+        tmp1[:, :, jj] = K_train_grad_all_train_points_jj.T.dot(tau.T)
         tmp2 = np.sum(tau*tmp1, axis=(2))
-        jac[:, ii*nvars:(ii+1)*nvars] -= tmp2.T #check if -= is needed over =
+        jac[:, ii*nvars:(ii+1)*nvars] -= tmp2.T  # check if -= is needed over =
         # leave the following for loop to show how sparsity is taken advantage
         # of above. Above is abstract and hard to see what is being done
         # for kk in range(nvars):
@@ -1011,7 +1018,7 @@ def gaussian_grad_P_diag_term2(xtr_ii, lscale, mu, sigma):
 def gaussian_grad_P_offdiag_term1(xtr_ii, xtr_jj, lscale, mu, sigma):
     m, s, l, a, c = mu, sigma, lscale, xtr_ii, xtr_jj
     term1 = (
-        np.exp(-((-2*c*l**2*m+2*l**2*m**2+a**2*(l**2+s**2)+c**2*(l**2+s**2)- 
+        np.exp(-((-2*c*l**2*m+2*l**2*m**2+a**2*(l**2+s**2)+c**2*(l**2+s**2) -
                   2*a*(l**2*m+c*s**2))/(
                       2*l**2*(l**2+2*s**2))))*(l**2*m+c*s**2-a*(l**2+s**2)))/(l*(l**2+2*s**2)**(3/2))
     return term1
@@ -1019,7 +1026,8 @@ def gaussian_grad_P_offdiag_term1(xtr_ii, xtr_jj, lscale, mu, sigma):
 
 def gaussian_grad_P_offdiag_term2(xtr_ii, xtr_jj, lscale, mu, sigma):
     b, d, q, n, p = xtr_ii, xtr_jj, lscale, mu, sigma
-    term2 = np.exp(-((-2*d*n*q**2+2*n**2*q**2+b**2*(p**2+q**2)+d**2*(p**2+q**2)-2*b*(d*p**2+n*q**2))/(2*q**2*(2*p**2+q**2))))
+    term2 = np.exp(-((-2*d*n*q**2+2*n**2*q**2+b**2*(p**2+q**2)+d **
+                      2*(p**2+q**2)-2*b*(d*p**2+n*q**2))/(2*q**2*(2*p**2+q**2))))
     term2 /= p*np.sqrt(1/p**2+2/q**2)
     return term2
 
@@ -1031,7 +1039,7 @@ def integrate_grad_P(xx, ww, xtr, lscale):
     dist_func = partial(cdist, metric='sqeuclidean')
     ntrain_samples = xtr.shape[1]
     grad_P = np.empty((nvars*ntrain_samples, ntrain_samples))
-    K =  []  # keep K as list to allow for different size quadrature rules
+    K = []  # keep K as list to allow for different size quadrature rules
     diffs = []  # similarly for diffs
     P = np.empty((nvars, ntrain_samples, ntrain_samples))
     for nn in range(nvars):
@@ -1048,7 +1056,7 @@ def integrate_grad_P(xx, ww, xtr, lscale):
         for nn in range(nvars):
             diff = diffs[nn][ii]
             grad_P[nvars*ii+nn, :] = ww_1d.dot(
-                (diff*K[nn][:, ii])[:,np.newaxis]*K[nn])
+                (diff*K[nn][:, ii])[:, np.newaxis]*K[nn])
             grad_P[nvars*ii+nn, :] *= np.prod(P[:nn, ii, :], axis=0)
             grad_P[nvars*ii+nn, :] *= np.prod(P[nn+1:, ii, :], axis=0)
             grad_P[nvars*ii+nn, ii] *= 2
@@ -1108,6 +1116,7 @@ class IVARSampler(object):
         A small value added to the diagonal of the kernel matrix to improve
         conditioning.
     """
+
     def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
                  greedy_method='ivar', use_gauss_quadrature=False,
@@ -1125,7 +1134,7 @@ class IVARSampler(object):
         self.training_samples = np.empty((num_vars, self.ntraining_samples))
         self.nsamples_requested = []
         self.set_optimization_options(
-            {'gtol':1e-8, 'ftol':0, 'disp':False, 'iprint':0})
+            {'gtol': 1e-8, 'ftol': 0, 'disp': False, 'iprint': 0})
         self.initialize_greedy_sampler()
 
         if use_gauss_quadrature:
@@ -1152,9 +1161,8 @@ class IVARSampler(object):
             msg = f'Incorrect greedy_method {greedy_method}'
             raise Exception(msg)
 
-
     def precompute_gauss_quadrature(self):
-        degrees = [min(100,self.nquad_samples)]*self.nvars
+        degrees = [min(100, self.nquad_samples)]*self.nvars
         self.univariate_quad_rules, self.pce = \
             get_univariate_quadrature_rules_from_variable(
                 self.greedy_sampler.variables, degrees)
@@ -1164,7 +1172,7 @@ class IVARSampler(object):
             jj = self.pce.basis_type_index_map[ii]
             loc, scale = self.pce.var_trans.scale_parameters[jj, :]
             xx_1d = xx_1d*scale+loc
-            self.quad_rules.append([xx_1d,ww_1d])
+            self.quad_rules.append([xx_1d, ww_1d])
 
     def get_univariate_quadrature_rule(self, ii):
         return self.quad_rules[ii]
@@ -1189,10 +1197,10 @@ class IVARSampler(object):
             [self.training_samples,
              new_train_samples_flat.reshape(
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
-                order='F')])
+                 order='F')])
         A = self.greedy_sampler.kernel(train_samples.T)
         A[np.arange(A.shape[0]), np.arange(A.shape[1])] += self.nugget
-        
+
         A_inv = np.linalg.inv(A)
         P = self.compute_P(train_samples)
         return 1-np.trace(A_inv.dot(P))
@@ -1202,7 +1210,7 @@ class IVARSampler(object):
             [self.training_samples,
              new_train_samples_flat.reshape(
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
-                  order='F')])
+                 order='F')])
         xx = [q[0] for q in self.quad_rules]
         ww = [q[1] for q in self.quad_rules]
         new_samples_index = self.training_samples.shape[1]
@@ -1215,7 +1223,7 @@ class IVARSampler(object):
             [self.training_samples,
              new_train_samples_flat.reshape(
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
-                  order='F')])
+                 order='F')])
         val = gaussian_process_pointwise_variance(
             self.greedy_sampler.kernel, self.pred_samples,
             train_samples, self.nugget).mean()
@@ -1227,7 +1235,7 @@ class IVARSampler(object):
             [self.training_samples,
              new_train_samples_flat.reshape(
                  (self.nvars, new_train_samples_flat.shape[0]//self.nvars),
-                  order='F')])
+                 order='F')])
         new_samples_index = self.training_samples.shape[1]
         return RBF_posterior_variance_jacobian_wrt_samples(
             train_samples, self.pred_samples, self.greedy_sampler.kernel,
@@ -1235,16 +1243,16 @@ class IVARSampler(object):
 
     def set_weight_function(self, weight_function):
         self.greedy_sampler.set_weight_function(weight_function)
-        
+
     def set_kernel(self, kernel, kernels_1d=None):
         if ((self.use_gauss_quadrature is True) and (self.nvars != 1) and
-            ((type(kernel) != Matern) or (np.isfinite(kernel.nu)))):
+                ((type(kernel) != Matern) or (np.isfinite(kernel.nu)))):
             # TODO: To deal with sum kernel with noise, need to ammend
             # gradient computation which currently assumes no noise
             msg = f'GP Kernel type: {type(kernel)} '
             msg += 'Only squared exponential kernel supported when '
             msg += 'use_gauss_quadrature is True and nvars > 1'
-            #TODO add other tensor product kernels
+            # TODO add other tensor product kernels
             raise Exception(msg)
         self.greedy_sampler.set_kernel(copy.deepcopy(kernel), kernels_1d)
 
@@ -1260,7 +1268,7 @@ class IVARSampler(object):
             ubs = [v.interval(1)[1] for v in variables]
         lbs = np.repeat(lbs, nsamples)
         ubs = np.repeat(ubs, nsamples)
-        self.bounds = Bounds(lbs,ubs)
+        self.bounds = Bounds(lbs, ubs)
 
     def __call__(self, nsamples):
         self.nsamples_requested.append(nsamples)
@@ -1283,7 +1291,7 @@ class IVARSampler(object):
         # make sure greedy sampler recomputes all necessary information
         # but first extract necessary information
         pred_samples = self.greedy_sampler.pred_samples
-        if hasattr(self.greedy_sampler,'weight_function'):
+        if hasattr(self.greedy_sampler, 'weight_function'):
             weight_function = self.greedy_sampler.weight_function
         else:
             weight_function = None
@@ -1309,7 +1317,7 @@ class IVARSampler(object):
         # self.training_samples
         self.init_guess, chol_flag = self.greedy_sampler(nsamples)
         self.init_guess = self.init_guess[:, self.ntraining_samples:]
-        #assert np.allclose(
+        # assert np.allclose(
         #    self.greedy_sampler.L[:self.ntraining_samples,
         #                          :self.ntraining_samples],
         #    np.linalg.cholesky(kernel(self.training_samples.T)))
@@ -1326,11 +1334,12 @@ class IVARSampler(object):
         print(res)
 
         new_samples = res.x.reshape(
-            (self.nvars,res.x.shape[0]//self.nvars), order='F')
+            (self.nvars, res.x.shape[0]//self.nvars), order='F')
         self.training_samples = np.hstack([self.training_samples, new_samples])
         self.ntraining_samples = self.training_samples.shape[1]
 
         return new_samples, 0
+
 
 def matern_kernel_1d_inf(dists):
     return np.exp(-.5*dists**2)
@@ -1351,14 +1360,14 @@ def matern_kernel_1d_52(dists):
 
 
 def matern_kernel_general(nu, dists):
-    dists[dists==0] += np.finfo(float).eps
+    dists[dists == 0] += np.finfo(float).eps
     tmp = (np.sqrt(2*nu) * dists)
     return tmp**nu*(2**(1.-nu))/gamma(nu)*kv(nu, tmp)
 
 
 def matern_kernel_1d(nu, x, y, lscale):
-    explicit_funcs = {0.5:matern_kernel_1d_12, 1.5:matern_kernel_1d_32,
-                      2.:matern_kernel_1d_52, np.inf:matern_kernel_1d_inf}
+    explicit_funcs = {0.5: matern_kernel_1d_12, 1.5: matern_kernel_1d_32,
+                      2.: matern_kernel_1d_52, np.inf: matern_kernel_1d_inf}
     dist_func = partial(cdist, metric='euclidean')
     dists = dist_func(x.T/lscale, y.T/lscale)
     if nu in explicit_funcs:
@@ -1381,6 +1390,7 @@ class GreedyVarianceOfMeanSampler(object):
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
     """
+
     def __init__(self, num_vars, nquad_samples,
                  ncandidate_samples, generate_random_samples, variables=None,
                  use_gauss_quadrature=False, econ=True,
@@ -1406,7 +1416,7 @@ class GreedyVarianceOfMeanSampler(object):
         self.initialize()
         self.best_obj_vals = []
         self.pred_samples = None
-        
+
     def initialize(self):
         self.L = np.zeros((0, 0))
 
@@ -1434,7 +1444,7 @@ class GreedyVarianceOfMeanSampler(object):
         # to be negative if tau is comptued using an inaccurate quadrature rule.
         # This is not important if using gauss quadrature
         #pred_samples2 = self.generate_random_samples(self.pred_samples.shape[1])
-        #self.u = np.diag(
+        # self.u = np.diag(
         #    self.kernel(self.pred_samples.T, pred_samples2.T)).mean()
 
     def get_univariate_quadrature_rule(self, ii):
@@ -1450,21 +1460,21 @@ class GreedyVarianceOfMeanSampler(object):
         if np.isscalar(length_scale):
             length_scale = [length_scale]*nvars
         self.degrees = [self.nquad_samples]*nvars
-            
+
         self.univariate_quad_rules, self.pce = \
             get_univariate_quadrature_rules_from_variable(
                 self.variables, self.degrees)
         dist_func = partial(cdist, metric='sqeuclidean')
         self.tau = 1
-            
+
         for ii in range(self.nvars):
             # Get 1D quadrature rule
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
-            
+
             # Training samples of ith variable
             xtr = self.candidate_samples[ii:ii+1, :]
             lscale_ii = length_scale[ii]
-            #dists_1d_x1_xtr = dist_func(
+            # dists_1d_x1_xtr = dist_func(
             #    xx_1d[:, np.newaxis]/lscale_ii, xtr.T/lscale_ii)
             #K = np.exp(-.5*dists_1d_x1_xtr)
             K = self.kernels_1d[ii](xx_1d[np.newaxis, :], xtr, lscale_ii)
@@ -1495,10 +1505,10 @@ class GreedyVarianceOfMeanSampler(object):
         #     plt.plot(self.candidate_samples[0,J],obj_vals[J], 'rs')
         #     plt.show()
         return obj_vals
-    
+
     def refine_naive(self):
         if (self.init_pivots is not None and
-            len(self.pivots) < len(self.init_pivots)):
+                len(self.pivots) < len(self.init_pivots)):
             pivot = self.init_pivots[len(self.pivots)]
             obj_val = self.objective(pivot)
         else:
@@ -1510,7 +1520,7 @@ class GreedyVarianceOfMeanSampler(object):
 
     def refine_econ(self):
         if (self.init_pivots is not None and
-            len(self.pivots) < len(self.init_pivots)):
+                len(self.pivots) < len(self.init_pivots)):
             pivot = self.init_pivots[len(self.pivots)]
             obj_val = self.objective_econ(pivot)
         else:
@@ -1520,7 +1530,7 @@ class GreedyVarianceOfMeanSampler(object):
 
         assert np.isfinite(obj_vals[pivot])
 
-        if self.L.shape[0]==0:
+        if self.L.shape[0] == 0:
             self.L = np.atleast_2d(self.A[pivot, pivot])
         else:
             A_12 = self.A[self.pivots, pivot:pivot+1]
@@ -1540,10 +1550,10 @@ class GreedyVarianceOfMeanSampler(object):
             self.L = np.block(
                 [[self.L, np.zeros(L_12.shape)],
                  [L_12.T, L_22]])
-            
+
         assert np.isfinite(self.candidate_y_2[pivot])
         self.y_1 = np.concatenate([self.y_1, [self.candidate_y_2[pivot]]])
-        
+
         return pivot, obj_vals[pivot]
 
     def objective_vals_econ(self):
@@ -1603,35 +1613,36 @@ class GreedyVarianceOfMeanSampler(object):
         val = -(-self.best_obj_vals[-1] + self.tau[new_sample_index]*z_2 -
                 self.tau[self.pivots].dot(
                     solve_triangular(self.L.T, L_12*z_2, lower=False)))
-        return val[0,0]
-    
+        return val[0, 0]
+
     def set_kernel(self, kernel, kernels_1d=None):
         self.kernel = kernel
 
         self.kernels_1d = kernels_1d
         if self.kernels_1d is None and self.use_gauss_quadrature:
-            #TODO: remove kernels 1D and just create tensor product
+            # TODO: remove kernels 1D and just create tensor product
             # kernel with this as a property.
             assert self.kernel.nu == np.inf
-            self.kernels_1d = [partial(matern_kernel_1d,np.inf)]*self.nvars
+            self.kernels_1d = [partial(matern_kernel_1d, np.inf)]*self.nvars
 
         if ((self.use_gauss_quadrature is True) and (self.nvars != 1) and
-            ((type(kernel) != Matern) or (np.isfinite(kernel.nu)))):
+                ((type(kernel) != Matern) or (np.isfinite(kernel.nu)))):
             # TODO: To deal with sum kernel with noise, need to ammend
             # gradient computation which currently assumes no noise
             msg = f'GP Kernel type: {type(kernel)} '
             msg += 'Only squared exponential kernel supported when '
             msg += 'use_gauss_quadrature is True and nvars > 1'
-            #TODO add other tensor product kernels
+            # TODO add other tensor product kernels
             raise Exception(msg)
 
         self.active_candidates = np.ones(
-            self.candidate_samples.shape[1],dtype=bool)
+            self.candidate_samples.shape[1], dtype=bool)
         if self.use_gauss_quadrature:
             self.precompute_gauss_quadrature()
         else:
             self.precompute_monte_carlo()
-        self.A = self.kernel(self.candidate_samples.T,self.candidate_samples.T)
+        self.A = self.kernel(self.candidate_samples.T,
+                             self.candidate_samples.T)
         # designs are better if a small nugget is added to the diagonal
         self.add_nugget()
 
@@ -1641,7 +1652,7 @@ class GreedyVarianceOfMeanSampler(object):
         print(self.nugget)
 
     def set_init_pivots(self, init_pivots):
-        assert len(self.pivots)==0
+        assert len(self.pivots) == 0
         self.init_pivots = list(init_pivots)
 
     def __call__(self, nsamples, verbosity=1):
@@ -1673,16 +1684,16 @@ class GreedyVarianceOfMeanSampler(object):
                 #     if pivot < 0:
                 #         flag = 1
                 #         break
-            if verbosity>0:
+            if verbosity > 0:
                 print(f'Iter: {nn}, Objective: {obj_val}')
             self.best_obj_vals.append(obj_val)
-            
+
             self.pivots.append(pivot)
             new_sample = self.candidate_samples[:, pivot:pivot+1]
             self.training_samples = np.hstack(
                 [self.training_samples,
                  self.candidate_samples[:, pivot:pivot+1]])
-                #print(f'Number of points generated {nn+1}')
+            #print(f'Number of points generated {nn+1}')
             self.active_candidates[pivot] = False
             if self.compute_cond_nums is True:
                 if self.econ:
@@ -1694,10 +1705,11 @@ class GreedyVarianceOfMeanSampler(object):
             print(np.linalg.cond(
                 self.A[np.ix_(self.pivots, self.pivots)]))
 
-        new_samples = self.training_samples[:,ntraining_samples:]
+        new_samples = self.training_samples[:, ntraining_samples:]
         self.ntraining_samples = self.training_samples.shape[1]
 
         return new_samples, flag
+
 
 def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
     length_scale = np.asarray(length_scale)
@@ -1708,11 +1720,11 @@ def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
         tmp2 = (np.tile(
             query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
                 length_scale**2)
-        K  = np.exp(-tmp1)
+        K = np.exp(-tmp1)
         grad = -3*K.T*tmp2
     elif nu == 5/2:
         tmp1 = np.sqrt(5)*dists
-        K  = np.exp(-tmp1)
+        K = np.exp(-tmp1)
         tmp2 = (np.tile(
             query_sample.T, (other_samples.shape[1], 1))-other_samples.T)/(
                 length_scale**2)
@@ -1726,6 +1738,7 @@ def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
     else:
         raise Exception(f'Matern gradient with nu={nu} not supported')
     return grad
+
 
 class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
     """
@@ -1741,6 +1754,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
     ncandidate_samples : integer
         The number of samples used by the greedy downselection procedure
     """
+
     def initialize(self):
         self.L = np.zeros((0, 0))
         self.L_inv = np.zeros((0, 0))
@@ -1750,16 +1764,16 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         self.pred_samples = self.generate_random_samples(
             self.nquad_samples)
         #lscale = self.kernel.length_scale
-        #if np.isscalar(lscale):
+        # if np.isscalar(lscale):
         #    lscale = np.array([lscale]*self.nvars)
         #dist_func = partial(cdist, metric='sqeuclidean')
-        #dists_x1_xtr = dist_func(
+        # dists_x1_xtr = dist_func(
         #    self.pred_samples.T/lscale, self.candidate_samples.T/lscale)
         #K = np.exp(-.5*dists_x1_xtr)
         K = self.kernel(self.pred_samples.T, self.candidate_samples.T)
         ww = np.ones(self.pred_samples.shape[1])/self.pred_samples.shape[1]
         self.P = K.T.dot(ww[:, np.newaxis]*K)
-    
+
     def precompute_gauss_quadrature(self):
         self.degrees = [self.nquad_samples]*self.nvars
         length_scale = self.kernel.length_scale
@@ -1772,7 +1786,8 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
             xtr = self.candidate_samples[ii:ii+1, :]
-            K = self.kernels_1d[ii](xx_1d[np.newaxis, :], xtr, length_scale[ii])
+            K = self.kernels_1d[ii](
+                xx_1d[np.newaxis, :], xtr, length_scale[ii])
             P_ii = K.T.dot(ww_1d[:, np.newaxis]*K)
             self.P *= P_ii
 
@@ -1781,7 +1796,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             [self.pivots, [new_sample_index]]).astype(int)
         A = self.A[np.ix_(indices, indices)]
         A_inv = np.linalg.inv(A)
-        P = self.P[np.ix_(indices,indices)]
+        P = self.P[np.ix_(indices, indices)]
         # P1=1
         # length_scale = self.kernel.length_scale
         # if np.isscalar(length_scale):
@@ -1793,7 +1808,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         #     P_ii = K.T.dot(ww_1d[:, np.newaxis]*K)
         #     P1*=P_ii
         # assert np.allclose(P, P1)
-        
+
         return -np.trace(A_inv.dot(P))
 
     def objective_econ(self, new_sample_index):
@@ -1807,7 +1822,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         L_22 = np.sqrt(
             self.A[new_sample_index, new_sample_index] - L_12.T.dot(L_12))
         C = -np.dot(L_12.T/L_22, self.L_inv)
-       
+
         # TODO set self.P_11 when pivot is chosen so do not constantly
         # have to reduce matrix
         P_11 = self.P[np.ix_(self.pivots, self.pivots)]
@@ -1816,7 +1831,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
         val = -(-self.best_obj_vals[-1] + np.sum(C.T.dot(C)*P_11) +
                 2*np.sum(C.T/L_22*P_12) + 1/L_22**2*P_22)
-        return val[0,0]
+        return val[0, 0]
 
     def vectorized_objective_vals_econ(self):
         if self.L_inv.shape[0] == 0:
@@ -1841,9 +1856,9 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
         C = -np.dot((L_12/L_22).T, self.L_inv)
         vals = np.inf*np.ones((self.candidate_samples.shape[1]))
-        
-        vals[useful_candidates] =-(
-            -self.best_obj_vals[-1] + 
+
+        vals[useful_candidates] = -(
+            -self.best_obj_vals[-1] +
             np.sum(C.T*P_11.dot(C.T), axis=0) +
             2*np.sum(C.T/L_22*P_12, axis=0) + 1/L_22**2*P_22)
 
@@ -1851,7 +1866,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
     def refine_econ(self):
         if (self.init_pivots is not None and
-            len(self.pivots) < len(self.init_pivots)):
+                len(self.pivots) < len(self.init_pivots)):
             pivot = self.init_pivots[len(self.pivots)]
             obj_val = self.objective_econ(pivot)
         else:
@@ -1861,13 +1876,12 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
             pivot = np.argmin(obj_vals)
             obj_val = obj_vals[pivot]
 
-        if not np.isfinite(obj_val):# or obj_val < -1:
+        if not np.isfinite(obj_val):  # or obj_val < -1:
             # ill conditioning causes obj_val to go below -1 which should not
             # be possible
             return -1, np.inf
-        
 
-        if self.L_inv.shape[0]==0:
+        if self.L_inv.shape[0] == 0:
             self.L = np.atleast_2d(self.A[pivot, pivot])
             self.L_inv = np.atleast_2d(1/self.A[pivot, pivot])
             return pivot, obj_val
@@ -1885,7 +1899,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
                 return -1, np.inf
             self.L_inv = np.linalg.inv(self.L)
             return pivot, obj_val
-        
+
         L_22 = np.sqrt(L_22_sq)
 
         self.L = np.block(

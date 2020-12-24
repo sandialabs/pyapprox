@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 import numpy as np
 from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
 class GenzFunction(object):
@@ -41,7 +39,8 @@ class GenzFunction(object):
 
     def value_( self, samples ):
         assert samples.ndim == 1
-        if (self.func_type == "discontinuous" or self.func_type == "continuous"):
+        if (self.func_type == "discontinuous" or
+            self.func_type == "continuous"):
             result = np.empty( ( 1 ) , np.double )
         else:
             result = np.empty( ( self.num_vars+1 ) , np.double );
@@ -57,7 +56,8 @@ class GenzFunction(object):
             result[0] = 1.0
             for d in range( self.num_vars ):
                 result[0] *= ( 1.0 / ( self.c[d] * self.c[d] ) +
-                               ( samples[d] - self.w[d] ) *  ( samples[d] - self.w[d] ) )
+                               ( samples[d] - self.w[d] ) *  (
+                                   samples[d]-self.w[d] ) )
             for d in range( self.num_vars ):
                 result[1+d] = 2. * ( samples[d] - self.w[d] ) / result[0]
             result[0] = 1.0 / result[0]

@@ -174,3 +174,30 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
                 #    #print (denom)
                 #    raise Exception, 'Error values not finite'
     return result
+
+
+@cython.cdivision(True)     # Deactivate division by zero checking
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+cpdef tensor_product_lagrange_interpolation_pyx(
+    double [:, :] x, double [:, :] fn_vals, double [:, :, :] basis_vals_1d,
+    long [:, :] active_indices, long [:] active_vars):
+
+    cdef int ii, jj, dd, kk
+    cdef int nindices = active_indices.shape[1]
+    cdef int nsamples = x.shape[1]
+    cdef int nqoi = fn_vals.shape[1]
+    cdef int nactive_vars = active_vars.shape[0]
+    cdef double basis_val = 1
+    
+    values = np.zeros((nsamples, nqoi), dtype=float)
+    cdef double [:, :] values_view = values
+    for jj in range(nindices):
+        for ii in range(nsamples):
+            basis_val = 1
+            for dd in range(nactive_vars):
+                basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]
+            for kk in range(nqoi):
+                values_view[ii, kk] += basis_val*fn_vals[jj, kk]
+    return values
+    

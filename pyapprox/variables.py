@@ -2,12 +2,14 @@ import numpy as np
 
 def is_continuous_variable(rv):
     from scipy.stats import _continuous_distns, _discrete_distns
-    return rv.dist.name in _continuous_distns._distn_names
+    return bool((rv.dist.name in _continuous_distns._distn_names) or
+            rv.dist.name == 'continuous_rv_sample')
 
 def is_bounded_continuous_variable(rv):
     interval = rv.interval(1)
-    return (is_continuous_variable(rv) and
-            np.isfinite(interval[0]) and np.isfinite(interval[1]))
+    return bool(is_continuous_variable(rv) and
+            rv.dist.name != 'continuous_rv_sample'
+            and np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
 def get_distribution_info(rv):
     """
@@ -20,39 +22,41 @@ def get_distribution_info(rv):
     if shape_names is not None:
         shape_names = [name.strip() for name in shape_names.split(",")]
         shape_values = [
-            rv.args[ii] for ii in range(min(len(rv.args),len(shape_names)))]
+            rv.args[ii] for ii in range(min(len(rv.args), len(shape_names)))]
         shape_values += [
             rv.kwds[shape_names[ii]]
-            for ii in range(len(rv.args),len(shape_names))]
-        shapes = dict(zip(shape_names,shape_values))
+            for ii in range(len(rv.args), len(shape_names))]
+        shapes = dict(zip(shape_names, shape_values))
     else:
-        shapes=dict()
+        shapes = dict()
 
-    scale_values =  [rv.args[ii] for ii in range(len(shapes),len(rv.args))]
+    scale_values =  [rv.args[ii] for ii in range(len(shapes), len(rv.args))]
     scale_values += [rv.kwds[key] for key in rv.kwds if key not in shapes]
-    if len(scale_values)==0:
-        if (type(rv.dist)==float_rv_discrete and
-            rv.dist.name!='discrete_chebyshev'):
-            lb,ub=rv.dist.xk.min(),rv.dist.xk.max()
-            scale_values = [lb,ub-lb]
+    if len(scale_values) == 0:
+        if (type(rv.dist) == float_rv_discrete and
+            rv.dist.name != 'discrete_chebyshev' and
+            rv.dist.name != 'continuous_rv_sample'):
+            lb, ub = rv.dist.xk.min(), rv.dist.xk.max()
+            scale_values = [lb, ub-lb]
         else:
-            scale_values = [0,1]
-    elif len(scale_values)==1 and len(rv.args)>len(shapes):
+            scale_values = [0, 1]
+    elif len(scale_values) == 1 and len(rv.args) > len(shapes):
         scale_values += [1.]
-    elif len(scale_values)==1  and 'scale' not in rv.kwds:
+    elif len(scale_values) == 1  and 'scale' not in rv.kwds:
         scale_values += [1.]
-    elif len(scale_values)==1  and 'loc' not in rv.kwds:
+    elif len(scale_values) == 1  and 'loc' not in rv.kwds:
         scale_values = [0]+scale_values
-    scale_names = ['loc','scale']
-    scales = dict(zip(scale_names,np.atleast_1d(scale_values)))
+    scale_names = ['loc', 'scale']
+    scales = dict(zip(scale_names, np.atleast_1d(scale_values)))
 
-    if type(rv.dist)==float_rv_discrete:
+    if type(rv.dist) == float_rv_discrete:
         #shapes={'xk':rv.dist.xk,'pk':rv.dist.pk}
         xk = rv.dist.xk.copy()
-        if rv.dist.name!='discrete_chebyshev':
-            lb,ub=xk.min(),xk.max()
+        if (rv.dist.name != 'discrete_chebyshev' and
+            rv.dist.name != 'continuous_rv_sample'):
+            lb, ub = xk.min(), xk.max()
             xk = (xk-lb)/(ub-lb)
-        shapes={'xk':xk,'pk':rv.dist.pk}
+        shapes = {'xk':xk, 'pk':rv.dist.pk}
 
     return name, scales, shapes
 
@@ -62,7 +66,7 @@ def define_iid_random_variables(rv,num_vars):
     return IndependentMultivariateRandomVariable(
         unique_variables,unique_var_indices)
 
-def variables_equivalent(rv1,rv2):
+def variables_equivalent(rv1, rv2):
     """
     Determine if 2 scipy variables are equivalent
 
@@ -74,11 +78,12 @@ def variables_equivalent(rv1,rv2):
     """
     name1,scales1,shapes1=get_distribution_info(rv1)
     name2,scales2,shapes2=get_distribution_info(rv2)
-    if name1!=name2:
+    # print(scales1, shapes1, scales2, shapes2)
+    if name1 != name2:
         return False
-    if scales1!=scales2:
+    if scales1 != scales2:
         return False
-    return variable_shapes_equivalent(rv1,rv2)
+    return variable_shapes_equivalent(rv1, rv2)
 
 def get_unique_variables(variables):
     nvars = len(variables)
@@ -253,7 +258,7 @@ class float_rv_discrete(rv_sample):
     def __init__(self, a=0, b=np.inf, name=None, badvalue=None,
                  moment_tol=1e-8, values=None, inc=1, longname=None,
                  shapes=None, extradoc=None, seed=None):
-        super(float_rv_discrete,self).__init__(
+        super(float_rv_discrete, self).__init__(
             a,b,name,badvalue,moment_tol,values,inc,longname,shapes,extradoc,
             seed)
         self.xk = self.xk.astype(dtype=float)
@@ -280,7 +285,8 @@ class float_rv_discrete(rv_sample):
             Scale parameter (default=1).
         size : int or tuple of ints, optional
             Defining number of random variates (default is 1).
-        random_state : None or int or ``np.random.RandomState`` instance, optional
+        random_state : None or int or ``np.random.RandomState`` instance, 
+            optional
             If int or RandomState, use it for drawing the random variates.
             If None, rely on ``self.random_state``.
             Default is None.
@@ -329,18 +335,20 @@ class float_rv_discrete(rv_sample):
 
         return vals
 
-    def pdf(self,x):
+    def pdf(self, x):
         x = np.atleast_1d(x)
         vals = np.zeros(x.shape[0])
         for jj in range(x.shape[0]):
             for ii in range(self.xk.shape[0]):
-                if self.xk[ii]==x[jj]:
-                    vals[jj]=self.pk[ii]
+                if self.xk[ii] == x[jj]:
+                    vals[jj] = self.pk[ii]
                     break
         return vals
 
+    
 class DesignVariable(object):
-    def __init__(self,bounds):
-        self.bounds=bounds
+    def __init__(self, bounds):
+        self.bounds = bounds
+        
     def num_vars(self):
         return len(self.bounds.lb)

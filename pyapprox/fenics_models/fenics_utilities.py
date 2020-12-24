@@ -771,6 +771,29 @@ def get_2d_bndry_segment(x1,y1,x2,y2):
         
     return bndry
 
+
+from pyapprox.karhunen_loeve_expansion import MeshKLE
+class FenicsMeshKLE(MeshKLE):
+    def __init__(self, function_space, mean_field=0):
+        import dolfin as dl
+        self.function_space = function_space
+        mesh_coords = self.function_space.tabulate_dof_coordinates().T
+        if type(mean_field) == dl.Function:
+            super().__init__(mesh_coords, mean_field.vector().get_local().copy())
+        elif np.isscalar(mean_field):
+            super().__init__(mesh_coords, mean_field)
+        else:
+            raise Exception()
+
+    def __call__(self, coef):
+        import dolfin as dl
+        assert coef.shape[1] == 1
+        np_field = super().__call__(coef)[:, 0]
+        field = dl.Function(self.function_space)
+        field.vector()[:] = np_field
+        return field
+
+
 """
 NOTES
 If we want to set Dirichlet conditions for individual components of the

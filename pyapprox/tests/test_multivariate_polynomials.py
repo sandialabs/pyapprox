@@ -478,7 +478,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_discrete_chebyshev(self):
         N,degree=10,5
         xk,pk = np.arange(N),np.ones(N)/N
-        rv = float_rv_discrete(name='discrete_chebyshev',values=(xk,pk))()
+        rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))()
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -698,6 +698,75 @@ class TestMultivariatePolynomials(unittest.TestCase):
         samples = generate_independent_random_samples(variable,10)
         #print(poly3(samples),poly1(samples)*poly2(samples))
         assert np.allclose(poly4(samples),poly1(samples)-poly2(samples))
+
+    def test_composition_of_orthonormal_polynomials(self):
+        def fn1(z):
+            # return W_1
+            return (z[0, :]+3*z[0, :]**2)[:, None]
+
+        def fn2(z):
+            # return W_2
+            return (1+z[0, :]*z[1, :])[:, None]
+
+        def fn3(z):
+            # z is just random variables
+            return z[0:1, :].T + 35*(3*fn1(z)**2-1) + 3*z[0:1, :].T*fn2(z)
+
+        def fn3_trans(x):
+            """
+            x is z_1, W_1, W_2
+            """
+            return (x[0:1, :] + 35*(3*x[1:2, :]**2-1) + 3*x[0:1, :]*x[2:3, :])
+
+        nvars = 2
+        samples = np.random.uniform(-1, 1, (nvars, 100))
+        values = fn3(samples)
+
+        indices = compute_hyperbolic_indices(nvars, 4, 1)
+        poly = PolynomialChaosExpansion()
+        var_trans = define_iid_random_variable_transformation(
+            uniform(-1, 2), nvars) 
+        poly.configure({'poly_type':'legendre', 'var_trans':var_trans})
+        poly.set_indices(indices)
+        basis_mat = poly.basis_matrix(samples)
+        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+        mean = coef[0]
+        variance = np.sum(coef[1:]**2)
+        #print(mean, variance, 2595584/15-mean**2, 2059769/15)
+        assert np.allclose(mean, 189)
+        assert np.allclose(variance,  2595584/15-mean**2)
+
+        samples = np.random.uniform(-1, 1, (nvars, 100000))
+        basis_mat = poly.basis_matrix(samples)
+        x = samples[0:1,:].T
+        y = samples[1:2,:].T
+
+        assert np.allclose(
+            basis_mat.dot(coef),-35+4*x+3*x**2*y+105*x**2+630*x**3+945*x**4)
+        assert np.allclose(2/np.sqrt(5)*basis_mat[:, 3:4], (3*x**2-1))
+        assert np.allclose(
+            basis_mat.dot(coef),4*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+630*x**3+945*x**4)
+        assert np.allclose(
+            basis_mat.dot(coef),382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+945*x**4)
+        assert np.allclose(
+            basis_mat.dot(coef),382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+810*x**2-81)
+        assert np.allclose(
+            basis_mat.dot(coef),-81+270+382*x+3*x**2*y+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11])
+        assert np.allclose(
+            basis_mat.dot(coef),189+382*x+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+2/np.sqrt(15)*basis_mat[:, 8:9]+y)
+
+        assert np.allclose(
+            basis_mat.dot(coef),
+            189+
+            1/np.sqrt(3) *382*basis_mat[:, 1:2]+
+            2/np.sqrt(5) *305*basis_mat[:, 3:4]+
+            2/np.sqrt(7) *126*basis_mat[:, 6:7]+
+            8/np.sqrt(9) *27.*basis_mat[:, 10:11]+
+            2/np.sqrt(15)*1.0*basis_mat[:, 8:9]+
+            1/np.sqrt(3) *1.0*basis_mat[:, 2:3])
+        
+        assert np.allclose(variance, 382**2/3+(2*305)**2/5+(2*126)**2/7+(8*27)**2/9+4/15+1/3)
+
 
 if __name__== "__main__":    
     multivariate_polynomials_test_suite = \

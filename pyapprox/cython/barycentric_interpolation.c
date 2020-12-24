@@ -1659,6 +1659,9 @@ static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_ds_lon
 /* ObjectToMemviewSlice.proto */
 static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsds_long(PyObject *, int writable_flag);
 
+/* ObjectToMemviewSlice.proto */
+static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_double(PyObject *, int writable_flag);
+
 /* CIntToPy.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value);
 
@@ -1716,6 +1719,7 @@ static int __pyx_memoryview_thread_locks_used;
 static PyThread_type_lock __pyx_memoryview_thread_locks[8];
 static PyObject *__pyx_f_8pyapprox_6cython_25barycentric_interpolation_compute_barycentric_weights_1d_pyx(__Pyx_memviewslice, double, int __pyx_skip_dispatch); /*proto*/
 static PyObject *__pyx_f_8pyapprox_6cython_25barycentric_interpolation_multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(__Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, int __pyx_skip_dispatch); /*proto*/
+static PyObject *__pyx_f_8pyapprox_6cython_25barycentric_interpolation_tensor_product_lagrange_interpolation_pyx(__Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, __Pyx_memviewslice, int __pyx_skip_dispatch); /*proto*/
 static struct __pyx_array_obj *__pyx_array_new(PyObject *, Py_ssize_t, char *, char *, char *); /*proto*/
 static void *__pyx_align_pointer(void *, size_t); /*proto*/
 static PyObject *__pyx_memoryview_new(PyObject *, int, int, __Pyx_TypeInfo *); /*proto*/
@@ -1795,6 +1799,7 @@ static const char __pyx_k_numpy[] = "numpy";
 static const char __pyx_k_range[] = "range";
 static const char __pyx_k_shape[] = "shape";
 static const char __pyx_k_start[] = "start";
+static const char __pyx_k_zeros[] = "zeros";
 static const char __pyx_k_encode[] = "encode";
 static const char __pyx_k_format[] = "format";
 static const char __pyx_k_import[] = "__import__";
@@ -1825,10 +1830,13 @@ static const char __pyx_k_pyx_vtable[] = "__pyx_vtable__";
 static const char __pyx_k_MemoryError[] = "MemoryError";
 static const char __pyx_k_PickleError[] = "PickleError";
 static const char __pyx_k_active_dims[] = "active_dims";
+static const char __pyx_k_active_vars[] = "active_vars";
 static const char __pyx_k_pyx_checksum[] = "__pyx_checksum";
 static const char __pyx_k_stringsource[] = "stringsource";
+static const char __pyx_k_basis_vals_1d[] = "basis_vals_1d";
 static const char __pyx_k_pyx_getbuffer[] = "__pyx_getbuffer";
 static const char __pyx_k_reduce_cython[] = "__reduce_cython__";
+static const char __pyx_k_active_indices[] = "active_indices";
 static const char __pyx_k_View_MemoryView[] = "View.MemoryView";
 static const char __pyx_k_allocate_buffer[] = "allocate_buffer";
 static const char __pyx_k_dtype_is_object[] = "dtype_is_object";
@@ -1891,8 +1899,11 @@ static PyObject *__pyx_n_s_View_MemoryView;
 static PyObject *__pyx_n_s_abscissa_and_weights;
 static PyObject *__pyx_n_s_active_abscissa_indices_1d;
 static PyObject *__pyx_n_s_active_dims;
+static PyObject *__pyx_n_s_active_indices;
+static PyObject *__pyx_n_s_active_vars;
 static PyObject *__pyx_n_s_allocate_buffer;
 static PyObject *__pyx_n_s_base;
+static PyObject *__pyx_n_s_basis_vals_1d;
 static PyObject *__pyx_n_s_c;
 static PyObject *__pyx_n_u_c;
 static PyObject *__pyx_n_s_class;
@@ -1966,8 +1977,10 @@ static PyObject *__pyx_kp_s_unable_to_allocate_shape_and_str;
 static PyObject *__pyx_n_s_unpack;
 static PyObject *__pyx_n_s_update;
 static PyObject *__pyx_n_s_x;
+static PyObject *__pyx_n_s_zeros;
 static PyObject *__pyx_pf_8pyapprox_6cython_25barycentric_interpolation_compute_barycentric_weights_1d_pyx(CYTHON_UNUSED PyObject *__pyx_self, __Pyx_memviewslice __pyx_v_samples, double __pyx_v_C_inv); /* proto */
 static PyObject *__pyx_pf_8pyapprox_6cython_25barycentric_interpolation_2multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(CYTHON_UNUSED PyObject *__pyx_self, __Pyx_memviewslice __pyx_v_x, __Pyx_memviewslice __pyx_v_fn_vals, __Pyx_memviewslice __pyx_v_active_dims, __Pyx_memviewslice __pyx_v_active_abscissa_indices_1d, __Pyx_memviewslice __pyx_v_num_abscissa_1d, __Pyx_memviewslice __pyx_v_num_active_abscissa_1d, __Pyx_memviewslice __pyx_v_shifts, __Pyx_memviewslice __pyx_v_abscissa_and_weights); /* proto */
+static PyObject *__pyx_pf_8pyapprox_6cython_25barycentric_interpolation_4tensor_product_lagrange_interpolation_pyx(CYTHON_UNUSED PyObject *__pyx_self, __Pyx_memviewslice __pyx_v_x, __Pyx_memviewslice __pyx_v_fn_vals, __Pyx_memviewslice __pyx_v_basis_vals_1d, __Pyx_memviewslice __pyx_v_active_indices, __Pyx_memviewslice __pyx_v_active_vars); /* proto */
 static int __pyx_array___pyx_pf_15View_dot_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx_v_self, PyObject *__pyx_v_shape, Py_ssize_t __pyx_v_itemsize, PyObject *__pyx_v_format, PyObject *__pyx_v_mode, int __pyx_v_allocate_buffer); /* proto */
 static int __pyx_array___pyx_pf_15View_dot_MemoryView_5array_2__getbuffer__(struct __pyx_array_obj *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
 static void __pyx_array___pyx_pf_15View_dot_MemoryView_5array_4__dealloc__(struct __pyx_array_obj *__pyx_v_self); /* proto */
@@ -3963,6 +3976,8 @@ if (unlikely(__pyx_memoryview_copy_contents(__pyx_t_21, __pyx_t_26, 1, 1, 0) < 0
  *                 #    #print (denom)
  *                 #    raise Exception, 'Error values not finite'
  *     return result             # <<<<<<<<<<<<<<
+ * 
+ * 
  */
   __Pyx_XDECREF(__pyx_r);
   __Pyx_INCREF(__pyx_v_result);
@@ -4169,6 +4184,407 @@ static PyObject *__pyx_pf_8pyapprox_6cython_25barycentric_interpolation_2multiva
   __PYX_XDEC_MEMVIEW(&__pyx_v_num_active_abscissa_1d, 1);
   __PYX_XDEC_MEMVIEW(&__pyx_v_shifts, 1);
   __PYX_XDEC_MEMVIEW(&__pyx_v_abscissa_and_weights, 1);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "pyapprox/cython/barycentric_interpolation.pyx":182
+ * @cython.boundscheck(False)  # Deactivate bounds checking
+ * @cython.wraparound(False)   # Deactivate negative indexing.
+ * cpdef tensor_product_lagrange_interpolation_pyx(             # <<<<<<<<<<<<<<
+ *     double [:, :] x, double [:, :] fn_vals, double [:, :, :] basis_vals_1d,
+ *     long [:, :] active_indices, long [:] active_vars):
+ */
+
+static PyObject *__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_5tensor_product_lagrange_interpolation_pyx(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyObject *__pyx_f_8pyapprox_6cython_25barycentric_interpolation_tensor_product_lagrange_interpolation_pyx(__Pyx_memviewslice __pyx_v_x, __Pyx_memviewslice __pyx_v_fn_vals, __Pyx_memviewslice __pyx_v_basis_vals_1d, __Pyx_memviewslice __pyx_v_active_indices, __Pyx_memviewslice __pyx_v_active_vars, CYTHON_UNUSED int __pyx_skip_dispatch) {
+  int __pyx_v_ii;
+  int __pyx_v_jj;
+  int __pyx_v_dd;
+  int __pyx_v_kk;
+  int __pyx_v_nindices;
+  int __pyx_v_nsamples;
+  int __pyx_v_nqoi;
+  int __pyx_v_nactive_vars;
+  double __pyx_v_basis_val;
+  PyObject *__pyx_v_values = NULL;
+  __Pyx_memviewslice __pyx_v_values_view = { 0, 0, { 0 }, { 0 }, { 0 } };
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  PyObject *__pyx_t_2 = NULL;
+  PyObject *__pyx_t_3 = NULL;
+  PyObject *__pyx_t_4 = NULL;
+  __Pyx_memviewslice __pyx_t_5 = { 0, 0, { 0 }, { 0 }, { 0 } };
+  int __pyx_t_6;
+  int __pyx_t_7;
+  int __pyx_t_8;
+  int __pyx_t_9;
+  int __pyx_t_10;
+  int __pyx_t_11;
+  int __pyx_t_12;
+  int __pyx_t_13;
+  int __pyx_t_14;
+  Py_ssize_t __pyx_t_15;
+  Py_ssize_t __pyx_t_16;
+  Py_ssize_t __pyx_t_17;
+  Py_ssize_t __pyx_t_18;
+  Py_ssize_t __pyx_t_19;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("tensor_product_lagrange_interpolation_pyx", 0);
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":187
+ * 
+ *     cdef int ii, jj, dd, kk
+ *     cdef int nindices = active_indices.shape[1]             # <<<<<<<<<<<<<<
+ *     cdef int nsamples = x.shape[1]
+ *     cdef int nqoi = fn_vals.shape[1]
+ */
+  __pyx_v_nindices = (__pyx_v_active_indices.shape[1]);
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":188
+ *     cdef int ii, jj, dd, kk
+ *     cdef int nindices = active_indices.shape[1]
+ *     cdef int nsamples = x.shape[1]             # <<<<<<<<<<<<<<
+ *     cdef int nqoi = fn_vals.shape[1]
+ *     cdef int nactive_vars = active_vars.shape[0]
+ */
+  __pyx_v_nsamples = (__pyx_v_x.shape[1]);
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":189
+ *     cdef int nindices = active_indices.shape[1]
+ *     cdef int nsamples = x.shape[1]
+ *     cdef int nqoi = fn_vals.shape[1]             # <<<<<<<<<<<<<<
+ *     cdef int nactive_vars = active_vars.shape[0]
+ *     cdef double basis_val = 1
+ */
+  __pyx_v_nqoi = (__pyx_v_fn_vals.shape[1]);
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":190
+ *     cdef int nsamples = x.shape[1]
+ *     cdef int nqoi = fn_vals.shape[1]
+ *     cdef int nactive_vars = active_vars.shape[0]             # <<<<<<<<<<<<<<
+ *     cdef double basis_val = 1
+ * 
+ */
+  __pyx_v_nactive_vars = (__pyx_v_active_vars.shape[0]);
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":191
+ *     cdef int nqoi = fn_vals.shape[1]
+ *     cdef int nactive_vars = active_vars.shape[0]
+ *     cdef double basis_val = 1             # <<<<<<<<<<<<<<
+ * 
+ *     values = np.zeros((nsamples, nqoi), dtype=float)
+ */
+  __pyx_v_basis_val = 1.0;
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":193
+ *     cdef double basis_val = 1
+ * 
+ *     values = np.zeros((nsamples, nqoi), dtype=float)             # <<<<<<<<<<<<<<
+ *     cdef double [:, :] values_view = values
+ *     for jj in range(nindices):
+ */
+  __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_zeros); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_nsamples); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_nqoi); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_GIVEREF(__pyx_t_1);
+  PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1);
+  __Pyx_GIVEREF(__pyx_t_3);
+  PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_3);
+  __pyx_t_1 = 0;
+  __pyx_t_3 = 0;
+  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __Pyx_GIVEREF(__pyx_t_4);
+  PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_4);
+  __pyx_t_4 = 0;
+  __pyx_t_4 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_dtype, ((PyObject *)(&PyFloat_Type))) < 0) __PYX_ERR(0, 193, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 193, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __pyx_v_values = __pyx_t_1;
+  __pyx_t_1 = 0;
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":194
+ * 
+ *     values = np.zeros((nsamples, nqoi), dtype=float)
+ *     cdef double [:, :] values_view = values             # <<<<<<<<<<<<<<
+ *     for jj in range(nindices):
+ *         for ii in range(nsamples):
+ */
+  __pyx_t_5 = __Pyx_PyObject_to_MemoryviewSlice_dsds_double(__pyx_v_values, PyBUF_WRITABLE); if (unlikely(!__pyx_t_5.memview)) __PYX_ERR(0, 194, __pyx_L1_error)
+  __pyx_v_values_view = __pyx_t_5;
+  __pyx_t_5.memview = NULL;
+  __pyx_t_5.data = NULL;
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":195
+ *     values = np.zeros((nsamples, nqoi), dtype=float)
+ *     cdef double [:, :] values_view = values
+ *     for jj in range(nindices):             # <<<<<<<<<<<<<<
+ *         for ii in range(nsamples):
+ *             basis_val = 1
+ */
+  __pyx_t_6 = __pyx_v_nindices;
+  __pyx_t_7 = __pyx_t_6;
+  for (__pyx_t_8 = 0; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
+    __pyx_v_jj = __pyx_t_8;
+
+    /* "pyapprox/cython/barycentric_interpolation.pyx":196
+ *     cdef double [:, :] values_view = values
+ *     for jj in range(nindices):
+ *         for ii in range(nsamples):             # <<<<<<<<<<<<<<
+ *             basis_val = 1
+ *             for dd in range(nactive_vars):
+ */
+    __pyx_t_9 = __pyx_v_nsamples;
+    __pyx_t_10 = __pyx_t_9;
+    for (__pyx_t_11 = 0; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
+      __pyx_v_ii = __pyx_t_11;
+
+      /* "pyapprox/cython/barycentric_interpolation.pyx":197
+ *     for jj in range(nindices):
+ *         for ii in range(nsamples):
+ *             basis_val = 1             # <<<<<<<<<<<<<<
+ *             for dd in range(nactive_vars):
+ *                 basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]
+ */
+      __pyx_v_basis_val = 1.0;
+
+      /* "pyapprox/cython/barycentric_interpolation.pyx":198
+ *         for ii in range(nsamples):
+ *             basis_val = 1
+ *             for dd in range(nactive_vars):             # <<<<<<<<<<<<<<
+ *                 basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]
+ *             for kk in range(nqoi):
+ */
+      __pyx_t_12 = __pyx_v_nactive_vars;
+      __pyx_t_13 = __pyx_t_12;
+      for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
+        __pyx_v_dd = __pyx_t_14;
+
+        /* "pyapprox/cython/barycentric_interpolation.pyx":199
+ *             basis_val = 1
+ *             for dd in range(nactive_vars):
+ *                 basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]             # <<<<<<<<<<<<<<
+ *             for kk in range(nqoi):
+ *                 values_view[ii, kk] += basis_val*fn_vals[jj, kk]
+ */
+        __pyx_t_15 = __pyx_v_dd;
+        __pyx_t_16 = __pyx_v_jj;
+        __pyx_t_17 = __pyx_v_dd;
+        __pyx_t_18 = (*((long *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_active_indices.data + __pyx_t_15 * __pyx_v_active_indices.strides[0]) ) + __pyx_t_16 * __pyx_v_active_indices.strides[1]) )));
+        __pyx_t_19 = __pyx_v_ii;
+        __pyx_v_basis_val = (__pyx_v_basis_val * (*((double *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_basis_vals_1d.data + __pyx_t_17 * __pyx_v_basis_vals_1d.strides[0]) ) + __pyx_t_18 * __pyx_v_basis_vals_1d.strides[1]) ) + __pyx_t_19 * __pyx_v_basis_vals_1d.strides[2]) ))));
+      }
+
+      /* "pyapprox/cython/barycentric_interpolation.pyx":200
+ *             for dd in range(nactive_vars):
+ *                 basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]
+ *             for kk in range(nqoi):             # <<<<<<<<<<<<<<
+ *                 values_view[ii, kk] += basis_val*fn_vals[jj, kk]
+ *     return values
+ */
+      __pyx_t_12 = __pyx_v_nqoi;
+      __pyx_t_13 = __pyx_t_12;
+      for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
+        __pyx_v_kk = __pyx_t_14;
+
+        /* "pyapprox/cython/barycentric_interpolation.pyx":201
+ *                 basis_val *= basis_vals_1d[dd, active_indices[dd, jj], ii]
+ *             for kk in range(nqoi):
+ *                 values_view[ii, kk] += basis_val*fn_vals[jj, kk]             # <<<<<<<<<<<<<<
+ *     return values
+ * 
+ */
+        __pyx_t_16 = __pyx_v_jj;
+        __pyx_t_15 = __pyx_v_kk;
+        __pyx_t_19 = __pyx_v_ii;
+        __pyx_t_18 = __pyx_v_kk;
+        *((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_values_view.data + __pyx_t_19 * __pyx_v_values_view.strides[0]) ) + __pyx_t_18 * __pyx_v_values_view.strides[1]) )) += (__pyx_v_basis_val * (*((double *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_fn_vals.data + __pyx_t_16 * __pyx_v_fn_vals.strides[0]) ) + __pyx_t_15 * __pyx_v_fn_vals.strides[1]) ))));
+      }
+    }
+  }
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":202
+ *             for kk in range(nqoi):
+ *                 values_view[ii, kk] += basis_val*fn_vals[jj, kk]
+ *     return values             # <<<<<<<<<<<<<<
+ * 
+ */
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(__pyx_v_values);
+  __pyx_r = __pyx_v_values;
+  goto __pyx_L0;
+
+  /* "pyapprox/cython/barycentric_interpolation.pyx":182
+ * @cython.boundscheck(False)  # Deactivate bounds checking
+ * @cython.wraparound(False)   # Deactivate negative indexing.
+ * cpdef tensor_product_lagrange_interpolation_pyx(             # <<<<<<<<<<<<<<
+ *     double [:, :] x, double [:, :] fn_vals, double [:, :, :] basis_vals_1d,
+ *     long [:, :] active_indices, long [:] active_vars):
+ */
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_5, 1);
+  __Pyx_AddTraceback("pyapprox.cython.barycentric_interpolation.tensor_product_lagrange_interpolation_pyx", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_values);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_values_view, 1);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static PyObject *__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_5tensor_product_lagrange_interpolation_pyx(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyObject *__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_5tensor_product_lagrange_interpolation_pyx(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+  __Pyx_memviewslice __pyx_v_x = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_fn_vals = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_basis_vals_1d = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_active_indices = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_active_vars = { 0, 0, { 0 }, { 0 }, { 0 } };
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("tensor_product_lagrange_interpolation_pyx (wrapper)", 0);
+  {
+    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_x,&__pyx_n_s_fn_vals,&__pyx_n_s_basis_vals_1d,&__pyx_n_s_active_indices,&__pyx_n_s_active_vars,0};
+    PyObject* values[5] = {0,0,0,0,0};
+    if (unlikely(__pyx_kwds)) {
+      Py_ssize_t kw_args;
+      const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
+      switch (pos_args) {
+        case  5: values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
+        CYTHON_FALLTHROUGH;
+        case  4: values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
+        CYTHON_FALLTHROUGH;
+        case  3: values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+        CYTHON_FALLTHROUGH;
+        case  2: values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+        CYTHON_FALLTHROUGH;
+        case  1: values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      kw_args = PyDict_Size(__pyx_kwds);
+      switch (pos_args) {
+        case  0:
+        if (likely((values[0] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_x)) != 0)) kw_args--;
+        else goto __pyx_L5_argtuple_error;
+        CYTHON_FALLTHROUGH;
+        case  1:
+        if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_fn_vals)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("tensor_product_lagrange_interpolation_pyx", 1, 5, 5, 1); __PYX_ERR(0, 182, __pyx_L3_error)
+        }
+        CYTHON_FALLTHROUGH;
+        case  2:
+        if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_basis_vals_1d)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("tensor_product_lagrange_interpolation_pyx", 1, 5, 5, 2); __PYX_ERR(0, 182, __pyx_L3_error)
+        }
+        CYTHON_FALLTHROUGH;
+        case  3:
+        if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_active_indices)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("tensor_product_lagrange_interpolation_pyx", 1, 5, 5, 3); __PYX_ERR(0, 182, __pyx_L3_error)
+        }
+        CYTHON_FALLTHROUGH;
+        case  4:
+        if (likely((values[4] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_active_vars)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("tensor_product_lagrange_interpolation_pyx", 1, 5, 5, 4); __PYX_ERR(0, 182, __pyx_L3_error)
+        }
+      }
+      if (unlikely(kw_args > 0)) {
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "tensor_product_lagrange_interpolation_pyx") < 0)) __PYX_ERR(0, 182, __pyx_L3_error)
+      }
+    } else if (PyTuple_GET_SIZE(__pyx_args) != 5) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+      values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+      values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+      values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
+      values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
+    }
+    __pyx_v_x = __Pyx_PyObject_to_MemoryviewSlice_dsds_double(values[0], PyBUF_WRITABLE); if (unlikely(!__pyx_v_x.memview)) __PYX_ERR(0, 183, __pyx_L3_error)
+    __pyx_v_fn_vals = __Pyx_PyObject_to_MemoryviewSlice_dsds_double(values[1], PyBUF_WRITABLE); if (unlikely(!__pyx_v_fn_vals.memview)) __PYX_ERR(0, 183, __pyx_L3_error)
+    __pyx_v_basis_vals_1d = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_double(values[2], PyBUF_WRITABLE); if (unlikely(!__pyx_v_basis_vals_1d.memview)) __PYX_ERR(0, 183, __pyx_L3_error)
+    __pyx_v_active_indices = __Pyx_PyObject_to_MemoryviewSlice_dsds_long(values[3], PyBUF_WRITABLE); if (unlikely(!__pyx_v_active_indices.memview)) __PYX_ERR(0, 184, __pyx_L3_error)
+    __pyx_v_active_vars = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[4], PyBUF_WRITABLE); if (unlikely(!__pyx_v_active_vars.memview)) __PYX_ERR(0, 184, __pyx_L3_error)
+  }
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("tensor_product_lagrange_interpolation_pyx", 1, 5, 5, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 182, __pyx_L3_error)
+  __pyx_L3_error:;
+  __Pyx_AddTraceback("pyapprox.cython.barycentric_interpolation.tensor_product_lagrange_interpolation_pyx", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  __pyx_r = __pyx_pf_8pyapprox_6cython_25barycentric_interpolation_4tensor_product_lagrange_interpolation_pyx(__pyx_self, __pyx_v_x, __pyx_v_fn_vals, __pyx_v_basis_vals_1d, __pyx_v_active_indices, __pyx_v_active_vars);
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_8pyapprox_6cython_25barycentric_interpolation_4tensor_product_lagrange_interpolation_pyx(CYTHON_UNUSED PyObject *__pyx_self, __Pyx_memviewslice __pyx_v_x, __Pyx_memviewslice __pyx_v_fn_vals, __Pyx_memviewslice __pyx_v_basis_vals_1d, __Pyx_memviewslice __pyx_v_active_indices, __Pyx_memviewslice __pyx_v_active_vars) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("tensor_product_lagrange_interpolation_pyx", 0);
+  __Pyx_XDECREF(__pyx_r);
+  if (unlikely(!__pyx_v_x.memview)) { __Pyx_RaiseUnboundLocalError("x"); __PYX_ERR(0, 182, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_fn_vals.memview)) { __Pyx_RaiseUnboundLocalError("fn_vals"); __PYX_ERR(0, 182, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_basis_vals_1d.memview)) { __Pyx_RaiseUnboundLocalError("basis_vals_1d"); __PYX_ERR(0, 182, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_active_indices.memview)) { __Pyx_RaiseUnboundLocalError("active_indices"); __PYX_ERR(0, 182, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_active_vars.memview)) { __Pyx_RaiseUnboundLocalError("active_vars"); __PYX_ERR(0, 182, __pyx_L1_error) }
+  __pyx_t_1 = __pyx_f_8pyapprox_6cython_25barycentric_interpolation_tensor_product_lagrange_interpolation_pyx(__pyx_v_x, __pyx_v_fn_vals, __pyx_v_basis_vals_1d, __pyx_v_active_indices, __pyx_v_active_vars, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 182, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("pyapprox.cython.barycentric_interpolation.tensor_product_lagrange_interpolation_pyx", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __PYX_XDEC_MEMVIEW(&__pyx_v_x, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_fn_vals, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_basis_vals_1d, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_active_indices, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_active_vars, 1);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
@@ -17910,6 +18326,7 @@ static PyTypeObject __pyx_type___pyx_memoryviewslice = {
 static PyMethodDef __pyx_methods[] = {
   {"compute_barycentric_weights_1d_pyx", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_1compute_barycentric_weights_1d_pyx, METH_VARARGS|METH_KEYWORDS, 0},
   {"multivariate_hierarchical_barycentric_lagrange_interpolation_pyx", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_3multivariate_hierarchical_barycentric_lagrange_interpolation_pyx, METH_VARARGS|METH_KEYWORDS, 0},
+  {"tensor_product_lagrange_interpolation_pyx", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_8pyapprox_6cython_25barycentric_interpolation_5tensor_product_lagrange_interpolation_pyx, METH_VARARGS|METH_KEYWORDS, 0},
   {0, 0, 0, 0}
 };
 
@@ -17982,8 +18399,11 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_abscissa_and_weights, __pyx_k_abscissa_and_weights, sizeof(__pyx_k_abscissa_and_weights), 0, 0, 1, 1},
   {&__pyx_n_s_active_abscissa_indices_1d, __pyx_k_active_abscissa_indices_1d, sizeof(__pyx_k_active_abscissa_indices_1d), 0, 0, 1, 1},
   {&__pyx_n_s_active_dims, __pyx_k_active_dims, sizeof(__pyx_k_active_dims), 0, 0, 1, 1},
+  {&__pyx_n_s_active_indices, __pyx_k_active_indices, sizeof(__pyx_k_active_indices), 0, 0, 1, 1},
+  {&__pyx_n_s_active_vars, __pyx_k_active_vars, sizeof(__pyx_k_active_vars), 0, 0, 1, 1},
   {&__pyx_n_s_allocate_buffer, __pyx_k_allocate_buffer, sizeof(__pyx_k_allocate_buffer), 0, 0, 1, 1},
   {&__pyx_n_s_base, __pyx_k_base, sizeof(__pyx_k_base), 0, 0, 1, 1},
+  {&__pyx_n_s_basis_vals_1d, __pyx_k_basis_vals_1d, sizeof(__pyx_k_basis_vals_1d), 0, 0, 1, 1},
   {&__pyx_n_s_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 0, 1, 1},
   {&__pyx_n_u_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 1, 0, 1},
   {&__pyx_n_s_class, __pyx_k_class, sizeof(__pyx_k_class), 0, 0, 1, 1},
@@ -18057,6 +18477,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_unpack, __pyx_k_unpack, sizeof(__pyx_k_unpack), 0, 0, 1, 1},
   {&__pyx_n_s_update, __pyx_k_update, sizeof(__pyx_k_update), 0, 0, 1, 1},
   {&__pyx_n_s_x, __pyx_k_x, sizeof(__pyx_k_x), 0, 0, 1, 1},
+  {&__pyx_n_s_zeros, __pyx_k_zeros, sizeof(__pyx_k_zeros), 0, 0, 1, 1},
   {0, 0, 0, 0, 0, 0, 0}
 };
 static CYTHON_SMALL_CODE int __Pyx_InitCachedBuiltins(void) {
@@ -18690,12 +19111,12 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "pyapprox/cython/barycentric_interpolation.pyx":34
+  /* "pyapprox/cython/barycentric_interpolation.pyx":182
  * @cython.boundscheck(False)  # Deactivate bounds checking
  * @cython.wraparound(False)   # Deactivate negative indexing.
- * cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(             # <<<<<<<<<<<<<<
- *     double [:,:] x, double [:,:] fn_vals, long [:] active_dims,
- *     long [:,:] active_abscissa_indices_1d, long [:] num_abscissa_1d,
+ * cpdef tensor_product_lagrange_interpolation_pyx(             # <<<<<<<<<<<<<<
+ *     double [:, :] x, double [:, :] fn_vals, double [:, :, :] basis_vals_1d,
+ *     long [:, :] active_indices, long [:] active_vars):
  */
   __pyx_t_1 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -21895,6 +22316,29 @@ __pyx_fail:
     retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
                                                  PyBUF_RECORDS_RO | writable_flag, 2,
                                                  &__Pyx_TypeInfo_long, stack,
+                                                 &result, obj);
+    if (unlikely(retcode == -1))
+        goto __pyx_fail;
+    return result;
+__pyx_fail:
+    result.memview = NULL;
+    result.data = NULL;
+    return result;
+}
+
+/* ObjectToMemviewSlice */
+  static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_double(PyObject *obj, int writable_flag) {
+    __Pyx_memviewslice result = { 0, 0, { 0 }, { 0 }, { 0 } };
+    __Pyx_BufFmt_StackElem stack[1];
+    int axes_specs[] = { (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED) };
+    int retcode;
+    if (obj == Py_None) {
+        result.memview = (struct __pyx_memoryview_obj *) Py_None;
+        return result;
+    }
+    retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
+                                                 PyBUF_RECORDS_RO | writable_flag, 3,
+                                                 &__Pyx_TypeInfo_double, stack,
                                                  &result, obj);
     if (unlikely(retcode == -1))
         goto __pyx_fail;
