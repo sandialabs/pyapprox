@@ -11,5 +11,5 @@ def adaptive_approximate_multi_index_sparse_grid(fun, variable, options):
     """
     assert 'config_variables_idx' in options
     assert 'config_var_trans' in options
-    sparse_grid = adaptive_approximate(fun, variable,' sparse_grid', options)
+    sparse_grid = adaptive_approximate(fun, variable, 'sparse_grid', options)
     return sparse_grid

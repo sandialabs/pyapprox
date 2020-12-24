@@ -1,3 +1,6 @@
+from scipy.linalg import LinAlgWarning
+from sklearn.exceptions import ConvergenceWarning
+from sklearn.utils._testing import ignore_warnings
 from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
 import copy
 from pyapprox.probability_measure_sampling import \
@@ -6,7 +9,7 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox import compute_hyperbolic_indices
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
-    OrthogonalMatchingPursuitCV
+    OrthogonalMatchingPursuitCV, RidgeCV
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 from pyapprox.variables import is_bounded_continuous_variable
 import numpy as np
@@ -512,13 +515,17 @@ def approximate(train_samples, train_vals, method, options=None):
     return methods[method](train_samples, train_vals, **options)
 
 
+@ignore_warnings(category=ConvergenceWarning)
+@ignore_warnings(category=LinAlgWarning)
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     solvers = {'lasso_lars': LassoLarsCV(cv=kwargs['cv']).fit,
                'lasso': LassoCV(cv=kwargs['cv']).fit,
                'lars': LarsCV(cv=kwargs['cv']).fit,
                'omp': OrthogonalMatchingPursuitCV(
-                   cv=kwargs['cv'], verbose=5).fit}
+                   cv=kwargs['cv'], verbose=0).fit,
+               'ridge': RidgeCV(alphas=[1e-14], cv=kwargs['cv']).fit}
     assert train_vals.ndim == 2
+
     if solver_type in solvers:
         fit = solvers[solver_type]
         res = fit(basis_matrix, train_vals[:, 0])
@@ -554,7 +561,7 @@ def cross_validate_pce_degree(
     min_degree : integer
         The minimum degree to consider
 
-    min_degree : integer
+    max_degree : integer
         The maximum degree to consider. 
         All degrees in ``range(min_degree,max_deree+1)`` are considered
 
@@ -655,7 +662,6 @@ def _cross_validate_pce_degree(
         coef, cv_score = fit_linear_model(
             basis_matrix, train_vals, solver_type, cv=cv)
         pce.set_coefficients(coef)
-
         if verbosity > 0:
             print("{:<8} {:<10} {:<18} ".format(
                 degree, pce.num_terms(), cv_score))

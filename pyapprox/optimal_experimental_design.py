@@ -1,19 +1,23 @@
+from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
+from functools import partial
 import numpy as np
 from scipy.linalg import solve_triangular
 import copy
 
-def compute_prediction_variance(design_prob_measure,pred_factors,
-                                homog_outer_prods,noise_multiplier=None,
+
+def compute_prediction_variance(design_prob_measure, pred_factors,
+                                homog_outer_prods, noise_multiplier=None,
                                 regression_type='lstsq'):
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
-    u = np.linalg.solve(M1,pred_factors.T)
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+    u = np.linalg.solve(M1, pred_factors.T)
     if M0 is not None:
         M0u = M0.dot(u)
-        variances = np.sum(u*M0u,axis=0)
+        variances = np.sum(u*M0u, axis=0)
     else:
-        variances = np.sum(pred_factors.T*u,axis=0)
+        variances = np.sum(pred_factors.T*u, axis=0)
     return variances
+
 
 def compute_homoscedastic_outer_products(factors):
     r"""
@@ -22,7 +26,7 @@ def compute_homoscedastic_outer_products(factors):
     .. math:: f(x_i)f(x_i)^T\quad \forall i=0,\ldots,M
 
     at a set of design pts :math:`x_i`.
-    
+
     for the linear model
 
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon
@@ -38,16 +42,17 @@ def compute_homoscedastic_outer_products(factors):
        The outer products of each row of F with itself, i.e. 
        :math:`f(x_i)f(x_i)^T`
     """
-    num_design_pts,num_factors = factors.shape
+    num_design_pts, num_factors = factors.shape
     homoscedastic_outer_products = np.empty(
-        (num_factors,num_factors,num_design_pts),dtype=float)
+        (num_factors, num_factors, num_design_pts), dtype=float)
     for ii in range(num_design_pts):
-        homoscedastic_outer_products[:,:,ii]=np.outer(
-            factors[ii,:],factors[ii,:])
+        homoscedastic_outer_products[:, :, ii] = np.outer(
+            factors[ii, :], factors[ii, :])
     return homoscedastic_outer_products
 
+
 def get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type):
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type):
     r"""
     Compute the matrices :math:`M_0` and :math:`M_1` used to compute the
     asymptotic covariance matrix :math:`C(\mu) = M_1^{-1} M_0 M^{-1}` of the
@@ -60,7 +65,7 @@ def get_M0_and_M1_matrices(
     .. math:: M_0 = \sum_{i=1}^M\eta(x_i)^2f(x_i)f(x_i)^Tr_i
 
     .. math:: M_1 = \sum_{i=1}^Mf(x_i)f(x_i)^Tr_i
-    
+
     and for quantile regression
 
     .. math:: M_0 = \sum_{i=1}^M\frac{1}{\eta(x_i)}f(x_i)f(x_i)^Tr_i
@@ -90,24 +95,25 @@ def get_M0_and_M1_matrices(
 
     M1 : np.ndarray (num_factors,num_factors)
         The matrix :math:`M_1`
-    
+
     """
     if noise_multiplier is None:
         return None, homog_outer_prods.dot(design_prob_measure)
-    
-    if regression_type=='lstsq':
+
+    if regression_type == 'lstsq':
         M0 = homog_outer_prods.dot(design_prob_measure*noise_multiplier**2)
         M1 = homog_outer_prods.dot(design_prob_measure)
-    elif regression_type=='quantile':
+    elif regression_type == 'quantile':
         M0 = homog_outer_prods.dot(design_prob_measure)
         M1 = homog_outer_prods.dot(design_prob_measure/noise_multiplier)
     else:
         msg = f'regression type {regression_type} not supported'
         raise Exception(msg)
-    return M0,M1
+    return M0, M1
 
-def ioptimality_criterion(homog_outer_prods,design_factors,
-                          pred_factors,design_prob_measure,return_grad=True,
+
+def ioptimality_criterion(homog_outer_prods, design_factors,
+                          pred_factors, design_prob_measure, return_grad=True,
                           noise_multiplier=None,
                           regression_type='lstsq'):
     r"""
@@ -161,29 +167,29 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
         The gradient of the objective function. Only if return_grad is True.
     """
     #import time
-    #t0=time.time()
+    # t0=time.time()
     num_design_pts, num_design_factors = design_factors.shape
-    num_pred_pts,   num_pred_factors   = pred_factors.shape
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    num_pred_pts,   num_pred_factors = pred_factors.shape
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     if noise_multiplier is not None:
-        Q,R = np.linalg.qr(M1)
-        u = solve_triangular(R,Q.T.dot(pred_factors.T))
+        Q, R = np.linalg.qr(M1)
+        u = solve_triangular(R, Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
-        value = np.sum(u*M0u) / num_pred_pts;
+        value = np.sum(u*M0u) / num_pred_pts
         if (return_grad):
-            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
-            Fu  = design_factors.dot(u)
-            t   = noise_multiplier[:,np.newaxis] * Fu
-            Fgamma  = design_factors.dot(gamma)
-            if regression_type=='lstsq':
-                gradient = 2*np.sum(Fu*Fgamma,axis=1) + np.sum(t**2,axis=1)
-            elif regression_type=='quantile':
-                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier[:,np.newaxis],axis=1) + \
-                    np.sum(Fu**2,axis=1)
+            gamma = -solve_triangular(R, (Q.T.dot(M0u)))
+            Fu = design_factors.dot(u)
+            t = noise_multiplier[:, np.newaxis] * Fu
+            Fgamma = design_factors.dot(gamma)
+            if regression_type == 'lstsq':
+                gradient = 2*np.sum(Fu*Fgamma, axis=1) + np.sum(t**2, axis=1)
+            elif regression_type == 'quantile':
+                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
+                    np.sum(Fu**2, axis=1)
             gradient /= num_pred_pts
             #print('that took',time.time()-t0)
             return value, gradient.T
@@ -191,27 +197,27 @@ def ioptimality_criterion(homog_outer_prods,design_factors,
             return value
     else:
         #import time
-        #t0=time.time()
-        u = np.linalg.solve(M1,pred_factors.T)
+        # t0=time.time()
+        u = np.linalg.solve(M1, pred_factors.T)
         # Value
         # We want to sum the variances, i.e. the enties of the diagonal of
         # pred_factors.dot(M1.dot(pred_factors.T))
         # We know that diag(A.T.dot(B)) = (A*B).axis=0)
         # The following sums over all entries of A*B we get the mean of the
         # variance
-        value    = np.sum(pred_factors*u.T) / num_pred_pts;
+        value = np.sum(pred_factors*u.T) / num_pred_pts
         if (not return_grad):
             return value
         # Gradient
-        F_M1_inv_P = design_factors.dot(u);
-        gradient   = -np.sum(F_M1_inv_P**2,axis=1) / num_pred_pts;
+        F_M1_inv_P = design_factors.dot(u)
+        gradient = -np.sum(F_M1_inv_P**2, axis=1) / num_pred_pts
         #print('That took', time.time()-t0)
         return value, gradient.T
 
 
-def coptimality_criterion(homog_outer_prods,design_factors,
-                          design_prob_measure,return_grad=True,
-                          noise_multiplier=None,regression_type='lstsq'):
+def coptimality_criterion(homog_outer_prods, design_factors,
+                          design_prob_measure, return_grad=True,
+                          noise_multiplier=None, regression_type='lstsq'):
     r"""
     Evaluate the C-optimality criterion for a given design probability measure 
     for the linear model
@@ -261,41 +267,42 @@ def coptimality_criterion(homog_outer_prods,design_factors,
         The gradient of the objective function. Only if return_grad is True.
     """
     num_design_pts, num_design_factors = design_factors.shape
-    c = np.ones((num_design_factors,1))
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    c = np.ones((num_design_factors, 1))
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     if noise_multiplier is not None:
-        Q,R = np.linalg.qr(M1)
-        u = solve_triangular(R,Q.T.dot(c))
+        Q, R = np.linalg.qr(M1)
+        u = solve_triangular(R, Q.T.dot(c))
         M0u = M0.dot(u)
         value = u.T.dot(M0u)
         if (return_grad):
-            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
-            Fu  = design_factors.dot(u)
-            t   = noise_multiplier[:,np.newaxis] * Fu
-            Fgamma  = design_factors.dot(gamma)
-            if regression_type=='lstsq':
+            gamma = -solve_triangular(R, (Q.T.dot(M0u)))
+            Fu = design_factors.dot(u)
+            t = noise_multiplier[:, np.newaxis] * Fu
+            Fgamma = design_factors.dot(gamma)
+            if regression_type == 'lstsq':
                 gradient = 2*Fu*Fgamma + t**2
-            elif regression_type=='quantile':
-                gradient = 2*Fu*Fgamma/noise_multiplier[:,np.newaxis] + Fu**2
+            elif regression_type == 'quantile':
+                gradient = 2*Fu*Fgamma/noise_multiplier[:, np.newaxis] + Fu**2
             return value, gradient.T
         else:
             return value
     else:
-        u = np.linalg.solve(M1,c)
-        value    = c.T.dot(u);
+        u = np.linalg.solve(M1, c)
+        value = c.T.dot(u)
         if (not return_grad):
             return value
         # Gradient
-        F_M1_inv_c = design_factors.dot(u);
-        gradient   = -F_M1_inv_c**2
+        F_M1_inv_c = design_factors.dot(u)
+        gradient = -F_M1_inv_c**2
         return value, gradient.T
-        
-def doptimality_criterion(homog_outer_prods,design_factors,
-                          design_prob_measure,return_grad=True,
+
+
+def doptimality_criterion(homog_outer_prods, design_factors,
+                          design_prob_measure, return_grad=True,
                           noise_multiplier=None,
                           regression_type='lstsq',
                           use_cholesky=False,
@@ -307,7 +314,7 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon.
 
     The criteria is
-    
+
     .. math:: \log \mathrm{determinant} [ C(\mu) ]
 
     where
@@ -349,12 +356,12 @@ def doptimality_criterion(homog_outer_prods,design_factors,
     if return_hessian:
         assert return_grad
     num_design_pts, num_design_factors = design_factors.shape
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
     #M1 = homog_outer_prods.dot(design_prob_measure)
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     M1_inv = np.linalg.inv(M1)
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)
@@ -371,16 +378,18 @@ def doptimality_criterion(homog_outer_prods,design_factors,
             #     elif regression_type=='quantile':
             #         gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
             #             -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+ident).dot(M1_inv))
-            #return value, gradient
-            
-            if regression_type=='lstsq':
-                #computing diagonal elements with trace is more efficient than
+            # return value, gradient
+
+            if regression_type == 'lstsq':
+                # computing diagonal elements with trace is more efficient than
                 # extracting diagonal (below) and looping through each element
                 # (above)
                 #gradient = -2*np.diag(design_factors.dot(M1_inv.dot(design_factors.T)))+np.diag(noise_multiplier[:,np.newaxis]*design_factors.dot(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)))
-                gradient = -2*np.sum(design_factors.T*(M1_inv.dot(design_factors.T)),axis=0)+np.sum((noise_multiplier[:,np.newaxis]*design_factors).T*(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)),axis=0)
-            elif regression_type=='quantile':
-                gradient = -2*np.sum(design_factors.T*(M1_inv.dot((design_factors/noise_multiplier[:,np.newaxis]).T)),axis=0)+np.sum(design_factors.T*(M0_inv.dot(design_factors.T)),axis=0)
+                gradient = -2*np.sum(design_factors.T*(M1_inv.dot(design_factors.T)), axis=0)+np.sum(
+                    (noise_multiplier[:, np.newaxis]*design_factors).T*(M0_inv.dot((noise_multiplier[:, np.newaxis]*design_factors).T)), axis=0)
+            elif regression_type == 'quantile':
+                gradient = -2*np.sum(design_factors.T*(M1_inv.dot((design_factors/noise_multiplier[:, np.newaxis]).T)), axis=0)+np.sum(
+                    design_factors.T*(M0_inv.dot(design_factors.T)), axis=0)
             return value, gradient
         else:
             return value
@@ -389,30 +398,30 @@ def doptimality_criterion(homog_outer_prods,design_factors,
             chol_factor = np.linalg.cholesky(M1)
             value = -2 * np.log(np.diag(chol_factor)).sum()
         else:
-            value  = np.log(np.linalg.det(M1_inv))
+            value = np.log(np.linalg.det(M1_inv))
         # Gradient
         if (return_grad):
             if use_cholesky:
                 from scipy.linalg import solve_triangular
                 temp = solve_triangular(
-                    chol_factor,design_factors.T,lower=True)
+                    chol_factor, design_factors.T, lower=True)
                 gradient = -(temp**2).sum(axis=0)
-                temp = temp.T.dot(temp)#precompute for hessian
+                temp = temp.T.dot(temp)  # precompute for hessian
             else:
                 temp = design_factors.T*M1_inv.dot(design_factors.T)
                 gradient = -(temp).sum(axis=0)
             if not return_hessian:
                 return value, gradient.T
             else:
-                hessian = temp**2
-                return value,gradient.T,hessian
-        
+                hessian = temp.T.dot(temp)
+                return value, gradient.T, hessian
+
         else:
             return value
 
 
-def aoptimality_criterion(homog_outer_prods,design_factors,
-                          design_prob_measure,return_grad=True,
+def aoptimality_criterion(homog_outer_prods, design_factors,
+                          design_prob_measure, return_grad=True,
                           noise_multiplier=None,
                           regression_type='lstsq'):
     r"""
@@ -463,11 +472,11 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
 
     num_design_pts, num_design_factors = design_factors.shape
     # [:,:,0] just changes shape from (N,N,1) to (N,N)
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     M1_inv = np.linalg.inv(M1)
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)
@@ -475,35 +484,37 @@ def aoptimality_criterion(homog_outer_prods,design_factors,
         if (return_grad):
             ident = np.eye(gamma.shape[0])
             M0_inv = np.linalg.inv(M0)
-            kappa  = M1.dot(M0_inv)
+            kappa = M1.dot(M0_inv)
             gradient = np.zeros(num_design_pts)
             for ii in range(num_design_pts):
-                if regression_type=='lstsq':
-                    gradient[ii]=np.trace(
-                        M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
-                        -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
-                elif regression_type=='quantile':
-                    gradient[ii]=np.trace(
-                        M1_inv.dot(homog_outer_prods[:,:,ii]).dot(
-                        -2*gamma.T/noise_multiplier[:,np.newaxis][ii]+ident).dot(M1_inv))            
+                if regression_type == 'lstsq':
+                    gradient[ii] = np.trace(
+                        M1_inv.dot(homog_outer_prods[:, :, ii]).dot(
+                            -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                elif regression_type == 'quantile':
+                    gradient[ii] = np.trace(
+                        M1_inv.dot(homog_outer_prods[:, :, ii]).dot(
+                            -2*gamma.T/noise_multiplier[:, np.newaxis][ii]+ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
     else:
-        value  = np.trace(M1_inv)
+        value = np.trace(M1_inv)
         # Gradient
         if (return_grad):
             #gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
-            #below is faster than above
+            # below is faster than above
             temp = M1_inv.dot(M1_inv)
-            gradient = -np.sum(design_factors.T*(temp).dot(design_factors.T),axis=0)
+            gradient = -np.sum(design_factors.T *
+                               (temp).dot(design_factors.T), axis=0)
             return value, gradient.T
         else:
             return value
 
-def roptimality_criterion(beta,homog_outer_prods,design_factors,
-                          pred_factors,design_prob_measure,return_grad=True,
-                          noise_multiplier=None,regression_type='lstsq'):
+
+def roptimality_criterion(beta, homog_outer_prods, design_factors,
+                          pred_factors, design_prob_measure, return_grad=True,
+                          noise_multiplier=None, regression_type='lstsq'):
     r"""
     Evaluate the R-optimality criterion for a given design probability measure 
     for the linear model
@@ -556,57 +567,60 @@ def roptimality_criterion(beta,homog_outer_prods,design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-    assert beta>=0 and beta<=1
-    from pyapprox.cvar_regression import conditional_value_at_risk, \
-        conditional_value_at_risk_subgradient
+    assert beta >= 0 and beta <= 1
+    from pyapprox.risk_measures import conditional_value_at_risk
+    from pyapprox.cvar_regression import conditional_value_at_risk_subgradient
     num_design_pts, num_design_factors = design_factors.shape
-    num_pred_pts,   num_pred_factors   = pred_factors.shape
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    num_pred_pts,   num_pred_factors = pred_factors.shape
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     if noise_multiplier is not None:
-        Q,R = np.linalg.qr(M1)
-        u = solve_triangular(R,Q.T.dot(pred_factors.T))
+        Q, R = np.linalg.qr(M1)
+        u = solve_triangular(R, Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
-        variances = np.sum(u*M0u,axis=0)
-        value = conditional_value_at_risk(variances,beta)
+        variances = np.sum(u*M0u, axis=0)
+        value = conditional_value_at_risk(variances, beta)
         if (return_grad):
-            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
-            Fu  = design_factors.dot(u)
-            t   = noise_multiplier[:,np.newaxis] * Fu
-            Fgamma  = design_factors.dot(gamma)
-            cvar_grad = conditional_value_at_risk_subgradient(variances,beta)
-            if regression_type=='lstsq':
-                gradient = np.sum((2*Fu*Fgamma+t**2).T*cvar_grad[:,np.newaxis],axis=0)
-            elif regression_type=='quantile':
-                gradient = np.sum((2*Fu*Fgamma/noise_multiplier[:,np.newaxis]+Fu**2).T*cvar_grad[:,np.newaxis],axis=0)
-                
+            gamma = -solve_triangular(R, (Q.T.dot(M0u)))
+            Fu = design_factors.dot(u)
+            t = noise_multiplier[:, np.newaxis] * Fu
+            Fgamma = design_factors.dot(gamma)
+            cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+            if regression_type == 'lstsq':
+                gradient = np.sum((2*Fu*Fgamma+t**2).T *
+                                  cvar_grad[:, np.newaxis], axis=0)
+            elif regression_type == 'quantile':
+                gradient = np.sum(
+                    (2*Fu*Fgamma/noise_multiplier[:, np.newaxis]+Fu**2).T*cvar_grad[:, np.newaxis], axis=0)
+
             return value, gradient.T
         else:
             return value
     else:
-        u = np.linalg.solve(M1,pred_factors.T)
+        u = np.linalg.solve(M1, pred_factors.T)
         # Value
         # We want to sum the variances, i.e. the enties of the diagonal of
         # pred_factors.dot(M1.dot(pred_factors.T))
         # We know that diag(A.T.dot(B)) = (A*B).axis=0)
         # The following sums over all entries of A*B we get the diagonal
         # variances
-        variances = np.sum(pred_factors*u.T,axis=1)
-        value = conditional_value_at_risk(variances,beta)
+        variances = np.sum(pred_factors*u.T, axis=1)
+        value = conditional_value_at_risk(variances, beta)
         if (not return_grad):
             return value
         # Gradient
-        F_M1_inv_P = design_factors.dot(u);
-        cvar_grad = conditional_value_at_risk_subgradient(variances,beta)
-        gradient   = -np.sum(F_M1_inv_P.T**2*cvar_grad[:,np.newaxis],axis=0)
+        F_M1_inv_P = design_factors.dot(u)
+        cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+        gradient = -np.sum(F_M1_inv_P.T**2*cvar_grad[:, np.newaxis], axis=0)
         return value, gradient.T
 
-def goptimality_criterion(homog_outer_prods,design_factors,
-                          pred_factors,design_prob_measure,return_grad=True,
-                          noise_multiplier=None,regression_type='lstsq'):
+
+def goptimality_criterion(homog_outer_prods, design_factors,
+                          pred_factors, design_prob_measure, return_grad=True,
+                          noise_multiplier=None, regression_type='lstsq'):
     r"""
     valuate the G-optimality criterion for a given design probability measure 
     for the linear model
@@ -656,150 +670,167 @@ def goptimality_criterion(homog_outer_prods,design_factors,
         The gradient of the objective function. Only if return_grad is True.
     """
     num_design_pts, num_design_factors = design_factors.shape
-    num_pred_pts,   num_pred_factors   = pred_factors.shape
-    if design_prob_measure.ndim==2:
-        assert design_prob_measure.shape[1]==1
-        design_prob_measure = design_prob_measure[:,0]
-    M0,M1=get_M0_and_M1_matrices(
-        homog_outer_prods,design_prob_measure,noise_multiplier,regression_type)
+    num_pred_pts,   num_pred_factors = pred_factors.shape
+    if design_prob_measure.ndim == 2:
+        assert design_prob_measure.shape[1] == 1
+        design_prob_measure = design_prob_measure[:, 0]
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
     if noise_multiplier is not None:
-        Q,R = np.linalg.qr(M1)
-        u = solve_triangular(R,Q.T.dot(pred_factors.T))
+        Q, R = np.linalg.qr(M1)
+        u = solve_triangular(R, Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
-        variances = np.sum(u*M0u,axis=0)
+        variances = np.sum(u*M0u, axis=0)
         value = variances
         if (return_grad):
-            gamma   = -solve_triangular(R,(Q.T.dot(M0u)))
-            Fu  = design_factors.dot(u)
-            t   = noise_multiplier[:,np.newaxis] * Fu
-            Fgamma  = design_factors.dot(gamma)
-            if regression_type=='lstsq':
+            gamma = -solve_triangular(R, (Q.T.dot(M0u)))
+            Fu = design_factors.dot(u)
+            t = noise_multiplier[:, np.newaxis] * Fu
+            Fgamma = design_factors.dot(gamma)
+            if regression_type == 'lstsq':
                 gradient = 2*Fu*Fgamma + t**2
-            elif regression_type=='quantile':
-                gradient = 2*Fu*Fgamma/noise_multiplier[:,np.newaxis] + Fu**2
+            elif regression_type == 'quantile':
+                gradient = 2*Fu*Fgamma/noise_multiplier[:, np.newaxis] + Fu**2
             return value, gradient.T
         else:
             return value
     else:
-        u = np.linalg.solve(M1,pred_factors.T)
+        u = np.linalg.solve(M1, pred_factors.T)
         # Value
         # We want to sum the variances, i.e. the enties of the diagonal of
         # pred_factors.dot(M1.dot(pred_factors.T))
         # We know that diag(A.T.dot(B)) = (A*B).axis=0)00
         # The following sums over all entries of A*B we get the diagonal
         # variances
-        variances = np.sum(pred_factors*u.T,axis=1)
+        variances = np.sum(pred_factors*u.T, axis=1)
         value = variances
         if (not return_grad):
             return value
         # Gradient
-        F_M1_inv_P = design_factors.dot(u);
-        gradient   = -F_M1_inv_P**2
+        F_M1_inv_P = design_factors.dot(u)
+        gradient = -F_M1_inv_P**2
         return value, gradient.T
 
-from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
-from functools import partial
 
 def minimax_oed_objective(x):
     return x[0]
+
 
 def minimax_oed_objective_jacobian(x):
     vec = np.zeros_like(x)
     vec[0] = 1
     return vec
 
-def minimax_oed_constraint_objective(local_oed_obj,x):
+
+def minimax_oed_constraint_objective(local_oed_obj, x):
     return x[0]-local_oed_obj(x[1:])
 
-def minimax_oed_constraint_jacobian(local_oed_jac,x):
+
+def minimax_oed_constraint_jacobian(local_oed_jac, x):
     jac = -local_oed_jac(x[1:])
     jac = np.atleast_2d(jac)
-    return np.hstack([np.ones((jac.shape[0],1)),jac])
+    return np.hstack([np.ones((jac.shape[0], 1)), jac])
+
 
 def get_minimax_bounds(num_design_pts):
     return Bounds(
-        [0]+[0]*num_design_pts,[np.inf]+[1]*num_design_pts)
+        [0]+[0]*num_design_pts, [np.inf]+[1]*num_design_pts)
+
 
 def get_minimax_default_initial_guess(num_design_pts):
     x0 = np.ones(num_design_pts+1)/num_design_pts
-    x0[0]=1
+    x0[0] = 1
     return x0
+
 
 def get_minimax_linear_constraints(num_design_pts):
     lb_con = ub_con = np.atleast_1d(1)
-    A_con = np.ones((1,num_design_pts+1))
-    A_con[0,0] = 0
+    A_con = np.ones((1, num_design_pts+1))
+    A_con[0, 0] = 0
     return LinearConstraint(A_con, lb_con, ub_con)
+
 
 def extract_minimax_design_from_optimize_result(res):
     return res.x[1:]
 
-def r_oed_objective(beta,pred_weights,x):
+
+def r_oed_objective(beta, pred_weights, x):
     num_pred_pts = pred_weights.shape[0]
     t = x[0]
     u = x[1:num_pred_pts+1].squeeze()
     return x[0]+1/(1-beta)*u.dot(pred_weights)
 
-def r_oed_objective_jacobian(beta,pred_weights,x):
+
+def r_oed_objective_jacobian(beta, pred_weights, x):
     num_pred_pts = pred_weights.shape[0]
     vec = np.zeros(x.shape[0])
     vec[0] = 1
     vec[1:num_pred_pts+1] = pred_weights/(1-beta)
     return vec
 
-def r_oed_constraint_objective(num_design_pts,local_oed_obj,x):
+
+def r_oed_constraint_objective(num_design_pts, local_oed_obj, x):
     num_pred_pts = x.shape[0]-(1+num_design_pts)
     t = x[0]
     u = x[1:num_pred_pts+1].squeeze()
     return t+u-local_oed_obj(x[num_pred_pts+1:]).T
 
-def r_oed_constraint_jacobian(num_design_pts,local_oed_jac,x):
+
+def r_oed_constraint_jacobian(num_design_pts, local_oed_jac, x):
     num_pred_pts = x.shape[0]-(1+num_design_pts)
     jac = -local_oed_jac(x[num_pred_pts+1:])
-    assert jac.ndim==2 and jac.shape==(num_pred_pts,num_design_pts)
+    assert jac.ndim == 2 and jac.shape == (num_pred_pts, num_design_pts)
     jac = np.hstack(
-        [np.ones((jac.shape[0],1)),np.eye(jac.shape[0],num_pred_pts),jac])
+        [np.ones((jac.shape[0], 1)), np.eye(jac.shape[0], num_pred_pts), jac])
     return jac
 
-def r_oed_sparse_constraint_jacobian(num_design_pts,local_oed_jac,x):
+
+def r_oed_sparse_constraint_jacobian(num_design_pts, local_oed_jac, x):
     num_pred_pts = x.shape[0]-(1+num_design_pts)
     local_jac = -local_oed_jac(x[num_pred_pts+1:])
-    assert local_jac.ndim==2 and local_jac.shape==(num_pred_pts,num_design_pts)
-    size=num_pred_pts*num_design_pts+1
-    jac = np.empty((num_pred_pts,2+num_design_pts))
-    jac[:,:2]=1
-    jac[:,2:]=local_jac
+    assert local_jac.ndim == 2 and local_jac.shape == (
+        num_pred_pts, num_design_pts)
+    size = num_pred_pts*num_design_pts+1
+    jac = np.empty((num_pred_pts, 2+num_design_pts))
+    jac[:, :2] = 1
+    jac[:, 2:] = local_jac
     jac = jac.ravel()
     return jac
 
-def get_r_oed_bounds(num_pred_pts,num_design_pts):
-    return Bounds(
-        [-np.inf]+[0]*(num_pred_pts+num_design_pts),[np.inf]*(num_pred_pts+1)+[1]*(num_design_pts))
 
-def get_r_oed_default_initial_guess(num_pred_pts,num_design_pts):
+def get_r_oed_bounds(num_pred_pts, num_design_pts):
+    return Bounds(
+        [-np.inf]+[0]*(num_pred_pts+num_design_pts), [np.inf]*(num_pred_pts+1)+[1]*(num_design_pts))
+
+
+def get_r_oed_default_initial_guess(num_pred_pts, num_design_pts):
     x0 = np.ones(1+num_pred_pts+num_design_pts)/num_design_pts
-    x0[:num_pred_pts+1]=1
+    x0[:num_pred_pts+1] = 1
     return x0
 
-def get_r_oed_linear_constraints(num_pred_pts,num_design_pts):
+
+def get_r_oed_linear_constraints(num_pred_pts, num_design_pts):
     lb_con = ub_con = np.atleast_1d(1)
-    A_con = np.ones((1,1+num_pred_pts+num_design_pts))
-    A_con[0,:num_pred_pts+1] = 0
+    A_con = np.ones((1, 1+num_pred_pts+num_design_pts))
+    A_con[0, :num_pred_pts+1] = 0
     return LinearConstraint(A_con, lb_con, ub_con)
 
-def extract_r_oed_design_from_optimize_result(num_design_pts,res):
+
+def extract_r_oed_design_from_optimize_result(num_design_pts, res):
     num_pred_pts = res.x.shape[0]-(1+num_design_pts)
     return res.x[num_pred_pts+1:]
 
-def get_r_oed_jacobian_structure(num_pred_pts,num_design_pts):
+
+def get_r_oed_jacobian_structure(num_pred_pts, num_design_pts):
     nonlinear_constraint_structure = np.hstack(
-        [np.ones((num_pred_pts,1)),np.eye(num_pred_pts,num_pred_pts),np.ones((
-            num_pred_pts,num_design_pts))])
-    linear_constraint_structure = np.zeros((1,num_pred_pts+num_design_pts+1))
-    linear_constraint_structure[0,1+num_pred_pts:]=1
+        [np.ones((num_pred_pts, 1)), np.eye(num_pred_pts, num_pred_pts), np.ones((
+            num_pred_pts, num_design_pts))])
+    linear_constraint_structure = np.zeros((1, num_pred_pts+num_design_pts+1))
+    linear_constraint_structure[0, 1+num_pred_pts:] = 1
     structure = np.vstack(
-        [linear_constraint_structure,nonlinear_constraint_structure])
+        [linear_constraint_structure, nonlinear_constraint_structure])
     return np.nonzero(structure)
+
 
 class AlphabetOptimalDesign(object):
     r"""
@@ -812,57 +843,61 @@ class AlphabetOptimalDesign(object):
         # approximations.
         # The Hessian is not zero.
     """
-    def __init__(self,criteria,design_factors,noise_multiplier=None,
-                 opts=None,regression_type='lstsq'):
-        self.criteria=criteria
+
+    def __init__(self, criteria, design_factors, noise_multiplier=None,
+                 opts=None, regression_type='lstsq'):
+        self.criteria = criteria
         self.noise_multiplier = noise_multiplier
         self.design_factors = design_factors
-        self.opts=opts
-        self.regression_type=regression_type
-        
-    def get_objective_and_jacobian(self,design_factors,homog_outer_prods,
-                                   noise_multiplier,opts):
+        self.opts = opts
+        self.regression_type = regression_type
 
-        #criteria requiring pred_factors
+    def get_objective_and_jacobian(self, design_factors, homog_outer_prods,
+                                   noise_multiplier, opts):
+
+        # criteria requiring pred_factors
         pred_criteria_funcs = {
-            'G':goptimality_criterion,'I':ioptimality_criterion}
-        #criteria not requiring pred_factors
+            'G': goptimality_criterion, 'I': ioptimality_criterion}
+        # criteria not requiring pred_factors
         other_criteria_funcs = {
-            'A':aoptimality_criterion,'C':coptimality_criterion,
-            'D':doptimality_criterion}
+            'A': aoptimality_criterion, 'C': coptimality_criterion,
+            'D': doptimality_criterion}
 
         if self.criteria in other_criteria_funcs:
-            criteria_fun =  other_criteria_funcs[self.criteria]
+            criteria_fun = other_criteria_funcs[self.criteria]
             objective = partial(
-                criteria_fun,homog_outer_prods,design_factors,
-                noise_multiplier=noise_multiplier,return_grad=False,
+                criteria_fun, homog_outer_prods, design_factors,
+                noise_multiplier=noise_multiplier, return_grad=False,
                 regression_type=self.regression_type)
-            jac = lambda r: criteria_fun(
-                homog_outer_prods,design_factors,r,return_grad=True,
+
+            def jac(r): return criteria_fun(
+                homog_outer_prods, design_factors, r, return_grad=True,
                 noise_multiplier=noise_multiplier,
                 regression_type=self.regression_type)[1]
         elif self.criteria in pred_criteria_funcs:
-            criteria_fun =  pred_criteria_funcs[self.criteria]
+            criteria_fun = pred_criteria_funcs[self.criteria]
             pred_factors = opts['pred_factors']
             objective = partial(
-                criteria_fun,homog_outer_prods,design_factors,
-                pred_factors,noise_multiplier=noise_multiplier,
-                return_grad=False,regression_type=self.regression_type)
-            jac = lambda r: criteria_fun(
-                homog_outer_prods,design_factors,pred_factors,r,
-                return_grad=True,noise_multiplier=noise_multiplier,
+                criteria_fun, homog_outer_prods, design_factors,
+                pred_factors, noise_multiplier=noise_multiplier,
+                return_grad=False, regression_type=self.regression_type)
+
+            def jac(r): return criteria_fun(
+                homog_outer_prods, design_factors, pred_factors, r,
+                return_grad=True, noise_multiplier=noise_multiplier,
                 regression_type=self.regression_type)[1]
-        elif self.criteria=='R':
+        elif self.criteria == 'R':
             beta = opts['beta']
             pred_factors = opts['pred_factors']
             objective = partial(
-                roptimality_criterion,beta,homog_outer_prods,
-                design_factors,pred_factors,
-                noise_multiplier=noise_multiplier,return_grad=False,
+                roptimality_criterion, beta, homog_outer_prods,
+                design_factors, pred_factors,
+                noise_multiplier=noise_multiplier, return_grad=False,
                 regression_type=self.regression_type)
-            jac = lambda r: roptimality_criterion(
-                beta,homog_outer_prods,design_factors,pred_factors,r,
-                return_grad=True,noise_multiplier=noise_multiplier,
+
+            def jac(r): return roptimality_criterion(
+                beta, homog_outer_prods, design_factors, pred_factors, r,
+                return_grad=True, noise_multiplier=noise_multiplier,
                 regression_type=self.regression_type)[1]
         else:
             msg = f'Optimality criteria: {self.criteria} is not supported. '
@@ -873,77 +908,77 @@ class AlphabetOptimalDesign(object):
                 msg += f"\t{key}\n"
             msg += '\tR\n'
             raise Exception(msg)
-        return objective,jac
-        
+        return objective, jac
 
-    def solve(self,options=None,init_design=None,return_full=False):
+    def solve(self, options=None, init_design=None, return_full=False):
         num_design_pts = self.design_factors.shape[0]
         homog_outer_prods = compute_homoscedastic_outer_products(
             self.design_factors)
 
-        objective,jac = self.get_objective_and_jacobian(
-            self.design_factors,homog_outer_prods,
-            self.noise_multiplier,self.opts)
+        objective, jac = self.get_objective_and_jacobian(
+            self.design_factors, homog_outer_prods,
+            self.noise_multiplier, self.opts)
 
-        if self.criteria=='G': 
-            constraint_obj = partial(minimax_oed_constraint_objective,objective)
-            constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
+        if self.criteria == 'G':
+            constraint_obj = partial(
+                minimax_oed_constraint_objective, objective)
+            constraint_jac = partial(minimax_oed_constraint_jacobian, jac)
             nonlinear_constraints = [NonlinearConstraint(
-                constraint_obj,0,np.inf,jac=constraint_jac)]
+                constraint_obj, 0, np.inf, jac=constraint_jac)]
             return self._solve_minimax(
-                nonlinear_constraints,num_design_pts,options,return_full,
+                nonlinear_constraints, num_design_pts, options, return_full,
                 init_design)
-        elif self.criteria=='R' and not self.opts.get('nonsmooth',False):
-            #if nonsmooth is True then minimize then constraint objective
-            #(objective returned self.get_objective_and_jacobian) will not be
+        elif self.criteria == 'R' and not self.opts.get('nonsmooth', False):
+            # if nonsmooth is True then minimize then constraint objective
+            # (objective returned self.get_objective_and_jacobian) will not be
             # differentiable instead and the jacobian returned will consists of sub-differentials and this will be passed to minimize and this section skipped
-            self.criteria='G'
-            objective,jac = self.get_objective_and_jacobian(
-                self.design_factors,homog_outer_prods,
-                self.noise_multiplier,self.opts)
-            self.criteria='R'
+            self.criteria = 'G'
+            objective, jac = self.get_objective_and_jacobian(
+                self.design_factors, homog_outer_prods,
+                self.noise_multiplier, self.opts)
+            self.criteria = 'R'
             beta = self.opts['beta']
             num_pred_pts = self.opts['pred_factors'].shape[0]
             weights = np.ones(num_pred_pts)/num_pred_pts
-            assert weights.shape[0]==num_pred_pts
-            r_obj = partial(r_oed_objective,beta,weights)
-            r_jac = partial(r_oed_objective_jacobian,beta,weights)
+            assert weights.shape[0] == num_pred_pts
+            r_obj = partial(r_oed_objective, beta, weights)
+            r_jac = partial(r_oed_objective_jacobian, beta, weights)
             constraint_obj = partial(
-                r_oed_constraint_objective,num_design_pts,objective)
+                r_oed_constraint_objective, num_design_pts, objective)
             constraint_jac = partial(
-                r_oed_constraint_jacobian,num_design_pts,jac)
+                r_oed_constraint_jacobian, num_design_pts, jac)
             nonlinear_constraints = [NonlinearConstraint(
-                constraint_obj,0,np.inf,jac=constraint_jac)]
+                constraint_obj, 0, np.inf, jac=constraint_jac)]
             return self._solve_minimax(
-                nonlinear_constraints,num_design_pts,options,return_full,
-                init_design,objective=r_obj,jac=r_jac,
-                get_bounds=partial(get_r_oed_bounds,num_pred_pts),
+                nonlinear_constraints, num_design_pts, options, return_full,
+                init_design, objective=r_obj, jac=r_jac,
+                get_bounds=partial(get_r_oed_bounds, num_pred_pts),
                 get_init_guess=partial(
-                    get_r_oed_default_initial_guess,num_pred_pts),
+                    get_r_oed_default_initial_guess, num_pred_pts),
                 get_linear_constraint=partial(
-                    get_r_oed_linear_constraints,num_pred_pts),
+                    get_r_oed_linear_constraints, num_pred_pts),
                 extract_design_from_optimize_result=partial(
-                    extract_r_oed_design_from_optimize_result,num_design_pts))
+                    extract_r_oed_design_from_optimize_result, num_design_pts))
 
-        self.bounds = Bounds([0]*num_design_pts,[1]*num_design_pts)
+        self.bounds = Bounds([0]*num_design_pts, [1]*num_design_pts)
         lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts))
+        A_con = np.ones((1, num_design_pts))
         self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-        
+
         if init_design is None:
             x0 = np.ones(num_design_pts)/num_design_pts
         else:
             x0 = init_design
 
         if 'solver' in options:
-            options=options.copy()
+            options = options.copy()
             method = options['solver']
             del options['solver']
         else:
-            #method='trust-constr'
-            method='slsqp'
+            # method='trust-constr'
+            method = 'slsqp'
 
-        if method=='ipopt':
+        if method == 'ipopt':
             # when printing results of derivative_test The first floating point
             # number is the value given by the user code, and the second number
             # (after "~") is the finite differences estimation. Finally, the
@@ -960,57 +995,57 @@ class AlphabetOptimalDesign(object):
         else:
             res = minimize(
                 objective, x0, method=method, jac=jac, hess=None,
-                constraints=[self.linear_constraint],options=options,
+                constraints=[self.linear_constraint], options=options,
                 bounds=self.bounds)
-            
+
         weights = res.x
 
         if not return_full:
             return weights
-        
+
         return weights, res
 
-    def minimax_nonlinear_constraints(self,parameter_samples,design_samples):
+    def minimax_nonlinear_constraints(self, parameter_samples, design_samples):
         constraints = []
         for ii in range(parameter_samples.shape[1]):
             design_factors = self.design_factors(
-                parameter_samples[:,ii],design_samples)
+                parameter_samples[:, ii], design_samples)
             homog_outer_prods = compute_homoscedastic_outer_products(
                 design_factors)
             opts = copy.deepcopy(self.opts)
             if opts is not None and 'pred_factors' in opts:
-                opts['pred_factors']=opts['pred_factors'](
-                    parameter_samples[:,ii],opts['pred_samples'])
+                opts['pred_factors'] = opts['pred_factors'](
+                    parameter_samples[:, ii], opts['pred_samples'])
             if self.noise_multiplier is None:
-                noise_multiplier=None
+                noise_multiplier = None
             else:
-                noise_multiplier=self.noise_multiplier(
-                    parameter_samples[:,ii],design_samples).squeeze()
-                assert noise_multiplier.ndim==1
-                assert noise_multiplier.shape[0]==design_samples.shape[1]
-            obj,jac = self.get_objective_and_jacobian(
-                design_factors.copy(),homog_outer_prods.copy(),
-                noise_multiplier,copy.deepcopy(opts))
-            constraint_obj = partial(minimax_oed_constraint_objective,obj)
-            constraint_jac = partial(minimax_oed_constraint_jacobian,jac)
+                noise_multiplier = self.noise_multiplier(
+                    parameter_samples[:, ii], design_samples).squeeze()
+                assert noise_multiplier.ndim == 1
+                assert noise_multiplier.shape[0] == design_samples.shape[1]
+            obj, jac = self.get_objective_and_jacobian(
+                design_factors.copy(), homog_outer_prods.copy(),
+                noise_multiplier, copy.deepcopy(opts))
+            constraint_obj = partial(minimax_oed_constraint_objective, obj)
+            constraint_jac = partial(minimax_oed_constraint_jacobian, jac)
             constraint = NonlinearConstraint(
-                constraint_obj,0,np.inf,jac=constraint_jac)
+                constraint_obj, 0, np.inf, jac=constraint_jac)
             constraints.append(constraint)
-            
+
         return constraints
 
-    def _solve_minimax(self,nonlinear_constraints,num_design_pts,options,
-                       return_full,x0,objective=minimax_oed_objective,
+    def _solve_minimax(self, nonlinear_constraints, num_design_pts, options,
+                       return_full, x0, objective=minimax_oed_objective,
                        jac=minimax_oed_objective_jacobian,
                        get_bounds=get_minimax_bounds,
                        get_init_guess=get_minimax_default_initial_guess,
                        get_linear_constraint=get_minimax_linear_constraints,
                        extract_design_from_optimize_result=extract_minimax_design_from_optimize_result):
-        
+
         self.linear_constraint = get_linear_constraint(num_design_pts)
         constraints = [self.linear_constraint]
         constraints += nonlinear_constraints
-        
+
         self.bounds = get_bounds(num_design_pts)
 
         if x0 is None:
@@ -1018,150 +1053,153 @@ class AlphabetOptimalDesign(object):
 
         if 'solver' in options:
             method = options['solver']
-            options=options.copy()
+            options = options.copy()
             del options['solver']
         else:
-            #method='trust-constr'
-            method='slsqp'
+            # method='trust-constr'
+            method = 'slsqp'
 
-        if method=='ipopt':
-            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+        if method == 'ipopt':
+            bounds = [[lb, ub]
+                      for lb, ub in zip(self.bounds.lb, self.bounds.ub)]
             from scipy.optimize._constraints import new_constraint_to_old
             constraints = [
-                new_constraint_to_old(con,x0)[0] for con in constraints]
+                new_constraint_to_old(con, x0)[0] for con in constraints]
             from ipopt import minimize_ipopt
             try:
                 # if version of ipopt supports it pass in jacobian structure
                 options = options.copy()
                 constraint_jacobianstructure = options.get(
-                    'constraint_jacobianstructure',None)
+                    'constraint_jacobianstructure', None)
                 if 'constraint_jacobianstructure' in options:
                     del options['constraint_jacobianstructure']
                 res = minimize_ipopt(
-                    objective,x0,jac=jac,bounds=bounds,
+                    objective, x0, jac=jac, bounds=bounds,
                     constraints=constraints,
                     options=options,
                     constraint_jacobianstructure=constraint_jacobianstructure)
             except:
                 res = minimize_ipopt(
-                    objective,x0,jac=jac,bounds=bounds,constraints=constraints,
+                    objective, x0, jac=jac, bounds=bounds, constraints=constraints,
                     options=options)
         else:
             res = minimize(
-                objective, x0, method=method,jac=jac, hess=None,
-                constraints=constraints,options=options,
+                objective, x0, method=method, jac=jac, hess=None,
+                constraints=constraints, options=options,
                 bounds=self.bounds)
-        
+
         weights = extract_design_from_optimize_result(res)
         if not return_full:
             return weights
         else:
             return weights, res
 
-    def solve_nonlinear_minimax(self,parameter_samples,design_samples,
-                                options=None,return_full=False,x0=None):
+    def solve_nonlinear_minimax(self, parameter_samples, design_samples,
+                                options=None, return_full=False, x0=None):
         assert callable(self.design_factors)
         if self.noise_multiplier is not None:
             assert callable(self.noise_multiplier)
         nonlinear_constraints = self.minimax_nonlinear_constraints(
-            parameter_samples,design_samples)
+            parameter_samples, design_samples)
         num_design_pts = design_samples.shape[1]
-        return self._solve_minimax(nonlinear_constraints,num_design_pts,options,
-                                   return_full,x0)
+        return self._solve_minimax(nonlinear_constraints, num_design_pts, options,
+                                   return_full, x0)
 
     def bayesian_objective_jacobian_components(
-            self,parameter_samples,design_samples):
-        objs,jacs=[],[]
+            self, parameter_samples, design_samples):
+        objs, jacs = [], []
         for ii in range(parameter_samples.shape[1]):
             design_factors = self.design_factors(
-                parameter_samples[:,ii],design_samples)
+                parameter_samples[:, ii], design_samples)
             homog_outer_prods = compute_homoscedastic_outer_products(
                 design_factors)
             if self.noise_multiplier is None:
-                noise_multiplier=None
+                noise_multiplier = None
             else:
-                noise_multiplier=self.noise_multiplier(
-                    parameter_samples[:,ii],design_samples).squeeze()
-                assert noise_multiplier.ndim==1
-                assert noise_multiplier.shape[0]==design_samples.shape[1]
+                noise_multiplier = self.noise_multiplier(
+                    parameter_samples[:, ii], design_samples).squeeze()
+                assert noise_multiplier.ndim == 1
+                assert noise_multiplier.shape[0] == design_samples.shape[1]
             opts = copy.deepcopy(self.opts)
             if opts is not None and 'pred_factors' in opts:
-                opts['pred_factors']=opts['pred_factors'](
-                    parameter_samples[:,ii],opts['pred_samples'])
-            obj,jac = self.get_objective_and_jacobian(
-                design_factors.copy(),homog_outer_prods.copy(),
-                noise_multiplier,copy.deepcopy(opts))
+                opts['pred_factors'] = opts['pred_factors'](
+                    parameter_samples[:, ii], opts['pred_samples'])
+            obj, jac = self.get_objective_and_jacobian(
+                design_factors.copy(), homog_outer_prods.copy(),
+                noise_multiplier, copy.deepcopy(opts))
             objs.append(obj)
             jacs.append(jac)
-            
-        num_design_pts = homog_outer_prods.shape[2]
-        return objs,jacs,num_design_pts
 
-    def solve_nonlinear_bayesian(self,samples,design_samples,
-                                 sample_weights=None,options=None,
-                                 return_full=False,x0=None):
+        num_design_pts = homog_outer_prods.shape[2]
+        return objs, jacs, num_design_pts
+
+    def solve_nonlinear_bayesian(self, samples, design_samples,
+                                 sample_weights=None, options=None,
+                                 return_full=False, x0=None):
         assert callable(self.design_factors)
-        objs,jacs,num_design_pts = self.bayesian_objective_jacobian_components(
-            samples,design_samples)
+        objs, jacs, num_design_pts = self.bayesian_objective_jacobian_components(
+            samples, design_samples)
         lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1,num_design_pts))
+        A_con = np.ones((1, num_design_pts))
         linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
         constraints = [linear_constraint]
 
         if sample_weights is None:
             sample_weights = np.ones(
                 samples.shape[1])/samples.shape[1]
-        assert sample_weights.shape[0]==samples.shape[1]
-        
+        assert sample_weights.shape[0] == samples.shape[1]
+
         def objective(x):
             objective = 0
-            for obj,weight in zip(objs,sample_weights):
+            for obj, weight in zip(objs, sample_weights):
                 objective += obj(x)*weight
             return objective
-            
+
         def jacobian(x):
             vec = 0
-            for jac,weight in zip(jacs,sample_weights):
+            for jac, weight in zip(jacs, sample_weights):
                 vec += jac(x)*weight
             return vec
-                
+
         bounds = Bounds(
-            [0]*num_design_pts,[1]*num_design_pts)
+            [0]*num_design_pts, [1]*num_design_pts)
 
         if x0 is None:
             x0 = np.ones(num_design_pts)/num_design_pts
-            
+
         if 'solver' in options:
-            options=options.copy()
+            options = options.copy()
             method = options['solver']
             del options['solver']
         else:
-            #method='trust-constr'
-            method='slsqp'
-            
-        if method=='ipopt':
-            bounds = [[lb,ub] for lb,ub in zip(self.bounds.lb,self.bounds.ub)]
+            # method='trust-constr'
+            method = 'slsqp'
+
+        if method == 'ipopt':
+            bounds = [[lb, ub]
+                      for lb, ub in zip(self.bounds.lb, self.bounds.ub)]
             from ipopt import minimize_ipopt
             from scipy.optimize._constraints import new_constraint_to_old
-            con = new_constraint_to_old(self.linear_constraint,x0)
+            con = new_constraint_to_old(self.linear_constraint, x0)
             res = minimize_ipopt(
-                objective,x0,jac=jacobian,bounds=bounds,constraints=con,
+                objective, x0, jac=jacobian, bounds=bounds, constraints=con,
                 options=options)
         else:
             res = minimize(
-                objective, x0, method=method,jac=jacobian, hess=None,
-                constraints=constraints,options=options,
+                objective, x0, method=method, jac=jacobian, hess=None,
+                constraints=constraints, options=options,
                 bounds=bounds)
 
-        res['obj_fun']=objective
-        
+        res['obj_fun'] = objective
+
         weights = res.x
         if not return_full:
             return weights
         else:
             return weights, res
 
-def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',noise_multiplier=None, solver_opts=None, pred_factors=None, cvar_tol=None):
+
+def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq', noise_multiplier=None, solver_opts=None, pred_factors=None, cvar_tol=None):
     r"""
     Compute optimal experimental designs for models of the form
 
@@ -1169,7 +1207,7 @@ def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',n
 
     to be used with estimators, such as least-squares and quantile regression, to find approximate parameters 
     :math:`\hat{\theta}` that are the solutions of
-    
+
     .. math:: \mathrm{argmin}_\theta \frac{1}{M}\sum_{i=1}^M e(y_i-m(\rv_i;\theta))
 
     for some loss function :math:`e`
@@ -1181,9 +1219,9 @@ def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',n
 
     design_factors : callable or np.ndarray
        The function :math:`m(\rv;\theta)` with the signature
-    
+
        `design_factors(z,p)->np.ndarray`
-    
+
        where `z` are the design points and `p` are the unknown
        parameters of the function which will be estimated
        from data collected using the optimal design
@@ -1193,7 +1231,7 @@ def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',n
 
     criteria : string
        The optimality criteria. Supported criteria are
-    
+
        - ``'A'``
        - ``'D'``
        - ``'C'``
@@ -1223,9 +1261,9 @@ def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',n
 
     pred_factors : callable or np.ndarray
         The function :math:`g(\rv;\theta)` with the signature
-    
+
         `design_factors(z,p)->np.ndarray`
-    
+
         where `z` are the prediction points and `p` are the unknown
         parameters
 
@@ -1247,23 +1285,23 @@ def optimal_experimental_design(design_pts,fun,criteria,regresion_type='lstsq',n
     References
     ----------
     .. [KJLSIAMUQ2020] `D.P. Kouri, J.D. Jakeman, J. Lewis, Risk-Adapted Optimal Experimental Design.`
-       
+
     """
     if not callable(fun):
         design_factors = fun
 
     opts = None
     if pred_factors is not None:
-        opts = {'pred_factors':pred_factors}
+        opts = {'pred_factors': pred_factors}
         if cvar_tol is not None:
-            opts['beta']=cvar_tol
-    
+            opts['beta'] = cvar_tol
+
     ncandidate_design_pts = design_pts.shape[1]
-    opt_problem = AlphabetOptimalDesign(criteria,design_factors,regression_type='quantile',noise_multiplier=noise_multiplier,opts=opts)
+    opt_problem = AlphabetOptimalDesign(
+        criteria, design_factors, regression_type='quantile', noise_multiplier=noise_multiplier, opts=opts)
     if solver_opts is None:
-        solver_opts  = {'iprint': 1, 'ftol':1e-8}
+        solver_opts = {'iprint': 1, 'ftol': 1e-8}
     mu = opt_problem.solve(solver_opts)
     mu = np.round(mu*ncandidate_design_pts)
-    I= np.where(mu>0)[0]
-    return design_pts[:,I], mu[I]
-    
+    I = np.where(mu > 0)[0]
+    return design_pts[:, I], mu[I]

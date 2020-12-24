@@ -651,7 +651,7 @@ class CholeskySampler(object):
                 weights = np.sqrt(self.pivot_weights)
                 assert np.allclose(np.diag(weights).dot(self.Kmatrix.dot(
                     np.diag(weights))),
-                                   weights[:, np.newaxis]*self.Kmatrix*weights)
+                    weights[:, np.newaxis]*self.Kmatrix*weights)
                 self.Kmatrix = weights[:, np.newaxis]*self.Kmatrix*weights
                 self.pivot_weights = None
 
