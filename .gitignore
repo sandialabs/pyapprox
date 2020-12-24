@@ -11,3 +11,8 @@
 build/
 dist/
 *egg-info/
+.eggs/
+
+.vscode/
+
+workspace.code-workspace
