@@ -1,3 +1,5 @@
+from typing import Dict, List
+import warnings
 import numpy as np
 from scipy.linalg import solve_triangular
 
@@ -18,8 +20,8 @@ from pyapprox.nataf_transformation import (covariance_to_correlation,
 from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
 
 
-def map_hypercube_samples(current_samples, current_ranges, new_ranges,
-                          active_vars=None, tol=2*np.finfo(float).eps):
+def map_hypercube_samples(current_samples: np.ndarray, current_ranges: np.ndarray, new_ranges: np.ndarray,
+                          active_vars: np.ndarray = None, tol: np.float = 2*np.finfo(float).eps):
     """
     Transform samples from one hypercube to another hypercube with different
     bounds.
@@ -93,7 +95,22 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
     return new_samples
 
 
-class IdentityTransformation(object):
+class VariableTransformInterface(object):
+    """
+    Interface for the various VariableTransformation classes.
+    """
+    def map_from_canonical_space(self, samples):
+        pass
+
+    def map_to_canonical_space(self, samples):
+        pass
+
+    def num_vars(self):
+        return self.nvars
+
+
+
+class IdentityTransformation(VariableTransformInterface):
     def __init__(self, num_vars):
         self.nvars = num_vars
 
@@ -103,14 +120,11 @@ class IdentityTransformation(object):
     def map_to_canonical_space(self, samples):
         return samples
 
-    def num_vars(self):
-        return self.nvars
-
     def map_derivatives_from_canonical_space(self, derivatives):
         return derivatives
 
 
-class AffineBoundedVariableTransformation(object):
+class AffineBoundedVariableTransformation(VariableTransformInterface):
     def __init__(self, canonical_ranges, user_ranges):
         assert len(user_ranges) == len(canonical_ranges)
         self.canonical_ranges = np.asarray(canonical_ranges)
@@ -125,11 +139,8 @@ class AffineBoundedVariableTransformation(object):
         return map_hypercube_samples(
             user_samples, self.user_ranges, self.canonical_ranges)
 
-    def num_vars(self):
-        return self.nvars
 
-
-class AffineRandomVariableTransformation(object):
+class AffineRandomVariableTransformation(VariableTransformInterface):
     def __init__(self, variable, enforce_bounds=False):
         """
         Variable uniquness dependes on both the type of random variable
@@ -241,7 +252,7 @@ def define_iid_random_variable_transformation(variable_1d, num_vars):
     return var_trans
 
 
-class RosenblattTransformation(object):
+class RosenblattTransformation(VariableTransformInterface):
     def __init__(self, joint_density, num_vars, opts):
         self.joint_density = joint_density
         self.limits = opts['limits']
@@ -263,11 +274,8 @@ class RosenblattTransformation(object):
             self.num_quad_samples_1d)
         return canonical_samples
 
-    def num_vars(self):
-        return self.nvars
 
-
-class UniformMarginalTransformation(object):
+class UniformMarginalTransformation(VariableTransformInterface):
     """
     Transform variables to have uniform marginals on [0,1]
     """
@@ -302,11 +310,8 @@ class UniformMarginalTransformation(object):
                 user_samples[ii, :])
         return canonical_samples
 
-    def num_vars(self):
-        return self.nvars
 
-
-class NatafTransformation(object):
+class NatafTransformation(VariableTransformInterface):
     def __init__(self, x_marginal_cdfs, x_marginal_inv_cdfs,
                  x_marginal_pdfs, x_covariance, x_marginal_means,
                  bisection_opts=dict()):
@@ -338,9 +343,6 @@ class NatafTransformation(object):
             user_samples, self.x_marginal_cdfs,
             self.z_correlation_cholesky_factor)
 
-    def num_vars(self):
-        return self.nvars
-
 
 class TransformationComposition(object):
     def __init__(self, transformations):
@@ -356,14 +358,16 @@ class TransformationComposition(object):
 
     def map_from_canonical_space(self, canonical_samples):
         user_samples = canonical_samples
-        for ii in range(len(self.transformations)-1, -1, -1):
+        num_transforms = len(self.transformations)
+        for ii in range(num_transforms-1, -1, -1):
             user_samples = \
                 self.transformations[ii].map_from_canonical_space(user_samples)
         return user_samples
 
     def map_to_canonical_space(self, user_samples):
         canonical_samples = user_samples
-        for ii in range(len(self.transformations)):
+        num_transforms = len(self.transformations)
+        for ii in range(num_transforms):
             canonical_samples = \
                 self.transformations[ii].map_to_canonical_space(
                     canonical_samples)
