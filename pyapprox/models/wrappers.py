@@ -93,6 +93,31 @@ def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
     return values
 
 
+def vectorize_1darray_on_2d_array(function):
+    """Decorate given function to apply to an array, row-wise.
+
+    Parameters
+    ----------
+    function : Python function object
+        Function to decorate
+
+    Note
+    ----------
+    Results of function call will be returned as an NumPy array of shape 
+    N-by-D, where `N` is rows and `D` is columns and `D` is a minimum of 1
+    (i.e., it does not return a flat array).
+
+    Returns
+    ----------
+    Python function
+    """
+    def wrapped_func(arr, *args, **kwargs):
+        rows = arr.T.shape[0]
+        return np.apply_along_axis(function, 0, arr, *args, **kwargs).reshape(rows, -1)
+
+    return wrapped_func
+
+
 class PyFunction(object):
     def __init__(self, function):
         self.function = function
