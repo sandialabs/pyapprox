@@ -74,6 +74,8 @@ Additional optional packages can be installed via pip...
 
   pip install pyapprox[docs]
   pip install pyapprox[ode]
+
+For the visualization methods to work and general latex display, a copy of `MikTex <https://miktex.org/download>`_ should be installed as well
   
 
 Test
