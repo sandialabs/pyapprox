@@ -69,7 +69,7 @@ def get_exact_solution(mesh,degree,steady_state=False):
     #print (sp.printing.ccode(exact_sol_sympy))
     return exact_sol
 
-def get_forcing(kappa,mesh,degree,steady_state=False,advection=False):
+def get_forcing(kappa, mesh, degree, steady_state=False, advection=False):
     """
 
     u(x,y,t)=sin(2*pi*x)*sin(2*pi*y)*cos(2*pi*t)
@@ -86,13 +86,13 @@ def get_forcing(kappa,mesh,degree,steady_state=False,advection=False):
     if advection:
         bdxu = sum(u.diff(xi, 1) for xi in (x, y))# for beta = Constant([1,1])
         #bdxu = sum(u.diff(xi, 1) for xi in (x,)) # for beta = Constant([1,0])
-        forcing_sympy=dtu-kappa*dxu2+bdxu
-        assert dtu==kappa*dxu2-bdxu+forcing_sympy
+        forcing_sympy = dtu-kappa*dxu2+bdxu
+        assert dtu == kappa*dxu2-bdxu+forcing_sympy
     else:
-        forcing_sympy=(dtu-kappa*dxu2)
-        assert dtu==kappa*dxu2+forcing_sympy
+        forcing_sympy = (dtu-kappa*dxu2)
+        assert dtu == kappa*dxu2+forcing_sympy
     #print (sp.printing.ccode(forcing_sympy))
-    forcing = dl.Expression(
+    forcing = dla.Expression(
         sp.printing.ccode(forcing_sympy), cell=mesh.ufl_cell(), domain=mesh,
         degree=degree,t=0)
 
@@ -427,40 +427,40 @@ class TestSteadyStateDiffusion(unittest.TestCase):
 
 class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
     def test_maunfactured_solution_dirichlet_boundaries(self):
-
         # Define time stepping
         final_time = 0.7
         exact_sol_sympy = get_exact_solution_sympy(steady_state=False)[0]
-        exact_sol = dl.Expression(
-            sp.printing.ccode(exact_sol_sympy),t=0,degree=6)
-        exact_sol.t=final_time
+        exact_sol = dla.Expression(
+            sp.printing.ccode(exact_sol_sympy), t=0, degree=6)
+        exact_sol.t = final_time
 
         # Create mesh
         def run(nx,degree):
             dt = final_time/nx
-            mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, nx)
+            mesh = dla.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, nx)
             # Define function spaces
             function_space = dl.FunctionSpace(mesh, "CG", degree)
             # Define initial condition
-            initial_condition = dl.Constant(0.0)
+            initial_condition = dla.Constant(0.0)
 
             # Define velocity field
-            beta = dl.Expression(('1.0','1.0'),cell=mesh.ufl_cell(),domain=mesh,
-                                 degree=degree)
+            beta = dla.Expression(
+                ('1.0', '1.0'), cell=mesh.ufl_cell(), domain=mesh,
+                degree=degree)
             # Define diffusivity field
-            kappa = dl.Constant(1.0)
+            kappa = dla.Constant(1.0)
 
             # Define forcing
             forcing = get_forcing(
-                kappa,mesh,degree,steady_state=False,advection=True)
+                kappa, mesh, degree, steady_state=False, advection=True)
 
             #boundary_conditions = \
             #    get_dirichlet_boundary_conditions_from_expression(
             #        get_exact_solution(mesh,degree),0,1,0,1)
-            boundary_conditions=None
+            boundary_conditions = None
             sol = run_model(
-                function_space,kappa,forcing,initial_condition,dt,final_time,
-                boundary_conditions,velocity=beta,
+                function_space, kappa, forcing, initial_condition, dt,
+                final_time, boundary_conditions,velocity=beta,
                 second_order_timestepping=True)
             return sol
 
@@ -468,16 +468,16 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         #exact_sol=run(128,2)
         
         etypes, degrees, rates, errors = compute_convergence_rates(
-            run,exact_sol,max_degree=1, num_levels=4)
+            run, exact_sol ,max_degree=1, num_levels=4)
         degree=1
         print(rates[degree]['L2 norm'])
         assert np.allclose(
-            rates[degree]['L2 norm'][-1:],(degree+1)*np.ones(1),atol=1e-2)
+            rates[degree]['L2 norm'][-1:], (degree+1)*np.ones(1), atol=1e-2)
         #for error_type in etypes:
         #    print('\n' + error_type)
         #    for degree in degrees:
         #        print('P%d: %s' %(degree, str(rates[degree][error_type])[1:-1]))
-        
+       
     def test_maunfactured_solution_dirichlet_boundaries_using_object(self):
         # Define time stepping
         final_time = 0.7
@@ -514,39 +514,134 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
                 return get_forcing(
                     kappa,self.mesh,self.degree,steady_state=False,
                     advection=True)
-                
         
         def run(n,degree):
-            nx=np.log2(n)-2
-            model = NewModel(final_time,degree,qoi_functional_misc)
-            samples = np.array([[nx,nx,nx]]).T
+            nx = np.log2(n)-2
+            model = NewModel(final_time, degree, qoi_functional_misc)
+            samples = np.array([[nx, nx, nx]]).T
             sol = model.solve(samples)
             return sol
         etypes, degrees, rates, errors = compute_convergence_rates(
-            run,exact_sol,max_degree=1, num_levels=4)
-        degree=1
+            run, exact_sol, max_degree=1, num_levels=4)
+        degree = 1
         print(rates[degree]['L2 norm'])
         assert np.allclose(
-            rates[degree]['L2 norm'][-1:],(degree+1)*np.ones(1),atol=1e-2)
+            rates[degree]['L2 norm'][-1:], (degree+1)*np.ones(1), atol=1e-2)
 
     def test_advection_diffusion_base_class(self):
         """
         Just check the benchmark runs
         """
-        nvars,corr_len=2,0.1
+        nvars, corr_len = 2, 0.1
         benchmark = setup_advection_diffusion_benchmark(
-            nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
+            nvars=nvars, corr_len=corr_len, max_eval_concurrency=1)
         model = benchmark.fun
         #random_samples = np.zeros((nvars,1))
-        random_samples = -np.sqrt(3)*np.ones((nvars,1))
-        config_samples = 3*np.ones((3,1))
-        samples = np.vstack([random_samples,config_samples])
-        sol = model.base_model.solve(samples)
-        qoi = model.base_model(samples)
+        random_samples = -np.sqrt(3)*np.ones((nvars, 1))
+        config_samples = 3*np.ones((3, 1))
+        samples = np.vstack([random_samples, config_samples])
+        bmodel = model.base_model
+        qoi = bmodel(samples)
         assert np.all(np.isfinite(qoi))
+        sol = bmodel.solve(samples)
+
+        grad = qoi_functional_grad_misc(sol, bmodel)
+
+        kappa = bmodel.kappa
+        J = dl_qoi_functional_misc(sol)
+        control = dla.Control(kappa)
+        Jhat = dla.ReducedFunctional(J, control)
+        h = dla.Function(kappa.function_space())
+        h.vector()[:] = np.random.normal(
+            0, 1, kappa.function_space().dim())
+        #conv_rate = dla.taylor_test(Jhat, kappa, h)
+        #assert np.allclose(conv_rate, 2.0, atol=1e-3)
+
+        # Check that gradient with respect to kappa is calculated correctly
+        # this requires passing in entire kappa vector and not just variables
+        # used to compute the KLE.
+        from pyapprox.optimization import check_gradients
+        from pyapprox.models.wrappers import SingleFidelityWrapper
+        from functools import partial
+
+        init_condition, boundary_conditions, function_space, beta, \
+            forcing, kappa = bmodel.initialize_random_expressions(
+                random_samples[:, 0])
+        def fun(np_kappa):
+            dt = 0.1
+            fn_kappa = dla.Function(function_space)
+            fn_kappa.vector()[:] = np_kappa[:, 0]
+            bmodel.kappa = fn_kappa
+            sol = run_model(
+                function_space, fn_kappa, forcing,
+                init_condition, dt, bmodel.final_time,
+                boundary_conditions, velocity=beta,
+                second_order_timestepping=bmodel.second_order_timestepping,
+                intermediate_times=bmodel.options.get(
+                    'intermediate_times', None))
+            vals = np.atleast_1d(bmodel.qoi_functional(sol))
+            if vals.ndim == 1:
+                vals = vals[:, np.newaxis]
+            grad = bmodel.qoi_functional_grad(
+                sol, bmodel)
+            return vals, grad
         
-        #dl.plot(sol)
-        #plt.show()
+        kappa = bmodel.get_diffusivity(random_samples[:, 0])
+        x0 = dl.project(
+            kappa, function_space).vector()[:].copy()[:, None]
+        #check_gradients(fun, True, x0)
+
+        # Test that gradient with respect to kle coefficients is correct
+
+        from pyapprox.karhunen_loeve_expansion import \
+            compute_kle_gradient_from_mesh_gradient
+        vals, jac = bmodel(samples, jac=True)
+
+        # Extract mean field and KLE basis from expression
+        # TODO add ability to compute gradient of kle to
+        # nobile_diffusivity_fenics_class
+        kle = bmodel.get_diffusivity(np.zeros(random_samples.shape[0]))
+        mean_field_fn = dla.Function(function_space)
+        mean_field_fn = dla.interpolate(kle, function_space)
+        mean_field = mean_field_fn.vector()[:].copy()-np.exp(1)
+
+        mesh_coords = function_space.tabulate_dof_coordinates()[:, 0]
+        I = np.argsort(mesh_coords)
+        basis_matrix = np.empty((mean_field.shape[0], random_samples.shape[0]))
+        exact_basis_matrix = np.array([
+            mesh_coords*0+1,
+            np.sin((2)/2*np.pi*mesh_coords/bmodel.options['corr_len'])]).T
+        for ii in range(random_samples.shape[0]):
+            zz = np.zeros(random_samples.shape[0])
+            zz[ii] = 1.0
+            kle = bmodel.get_diffusivity(zz)
+            field_fn = dla.Function(function_space)
+            field_fn = dla.interpolate(kle, function_space)
+            # 1e-15 used to avoid taking log of zero
+            basis_matrix[:, ii] = np.log(
+                field_fn.vector()[:].copy()-mean_field+1e-15)-1
+            
+        assert np.allclose(
+            mean_field + np.exp(1+basis_matrix.dot(random_samples[:, 0])),
+            x0[:, 0])
+
+        # nobile diffusivity uses different definitions of KLE
+        # k = np.exp(1+basis_matrix.dot(coef))+mean_field
+        # than that assumed in compute_kle_gradient_from_mesh_gradient
+        # k = np.exp(basis_matrix.dot(coef)+mean_field)
+        # So to
+        # keep current interface set mean field to zero and then correct
+        # returned gradient
+        grad = compute_kle_gradient_from_mesh_gradient(
+            jac, basis_matrix, mean_field*0, True, random_samples[:, 0])
+        grad *= np.exp(1)
+
+        from pyapprox.optimization import approx_jacobian
+        fun = SingleFidelityWrapper(bmodel, config_samples[:, 0])
+        fd_grad = approx_jacobian(fun, random_samples)
+
+        # print(grad, fd_grad)
+        assert np.allclose(grad, fd_grad)
 
     def test_advection_diffusion_source_inversion_model(self):
         """

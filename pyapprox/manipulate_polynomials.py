@@ -4,6 +4,7 @@ from pyapprox.indexing import hash_array, argsort_indices_leixographically
 from pyapprox.indexing import compute_hyperbolic_level_indices
 from numba import njit
 
+
 @njit(cache=True)
 def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     """
@@ -48,7 +49,7 @@ def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     #         coeffs.append(coeff1*coeffs2[jj, :])
 
     # return group_like_terms(np.array(coeffs), np.array(indices).T)
-    
+
     indices_dict = dict()
     max_num_indices = num_indices1*num_indices2
     indices = np.empty((num_vars, max_num_indices), dtype=np.int64)
@@ -121,13 +122,13 @@ def precompute_polynomial_powers(max_pow, indices, coefs, var_idx,
     E.g. compute 1, p(x), p(x)^2, p(x)^3, ... p(x)^N
     """
     if max_pow < 0:
-        raise exception ('max_pow must >= 0')
-   
+        raise exception('max_pow must >= 0')
+
     # store input indices in global_var_idx
     assert indices.shape[0] == global_var_idx.shape[0]
     ind = np.zeros((num_global_vars, indices.shape[1]))
     ind[global_var_idx, :] = indices
-    
+
     polys = [coeffs_of_power_of_monomial(ind, coefs, 0)]
     for nn in range(1, max_pow+1):
         polys.append(multiply_multivariate_polynomials(
@@ -192,7 +193,7 @@ def substitute_polynomials_for_variables_in_another_polynomial(
     mask[unique_global_vars_in] = False
     mask2 = np.ones(indices.shape[0], dtype=bool)
     mask2[np.unique(var_idx)] = False
-        
+
     num_vars, num_terms = indices.shape
     new_indices = []
     new_coeffs = []
@@ -203,7 +204,7 @@ def substitute_polynomials_for_variables_in_another_polynomial(
         # ind, cf = substitute_polynomials_for_variables_in_single_basis_term(
         #   indices_in, coeffs_in, basis_index, coeffs[ii], var_idx,
         #   global_var_idx)
-        
+
         degree = basis_index[var_idx[0], 0]
         ind, cf = input_poly_powers[0][degree]
         for jj in range(1, num_inputs):
@@ -216,7 +217,7 @@ def substitute_polynomials_for_variables_in_another_polynomial(
         cf *= coeffs[ii]
         new_indices.append(ind)
         new_coeffs.append(cf)
-        
+
     new_indices = np.hstack(new_indices)
     new_coeffs = np.vstack(new_coeffs)
 
@@ -227,7 +228,7 @@ def substitute_polynomials_for_variables_in_another_polynomial(
     # for ii in range(repeated_idx.shape[0]):
     #     unique_coef[repeated_idx[ii]] += new_coeffs[ii]
     # return unique_indices, unique_coef
-    
+
 
 def substitute_polynomials_for_variables_in_single_basis_term(
         indices_in, coeffs_in, basis_index, basis_coeff, var_idx,
@@ -397,7 +398,7 @@ def multinomial_coefficient(index):
     res, ii = 1, np.sum(index)
     i0 = np.argmax(index)
     for a in np.hstack((index[:i0], index[i0+1:])):
-        for jj in range(1,a+1):
+        for jj in range(1, a+1):
             res *= ii
             res //= jj
             ii -= 1
@@ -494,7 +495,7 @@ def add_polynomials(indices_list, coeffs_list):
     all_indices = np.hstack(indices_list)
 
     return group_like_terms(all_coeffs, all_indices)
-    
+
     # unique_indices, repeated_idx = np.unique(
     #     all_indices, axis=1, return_inverse=True)
 
@@ -504,7 +505,7 @@ def add_polynomials(indices_list, coeffs_list):
     # for ii in range(repeated_idx.shape[0]):
     #     unique_coeff[repeated_idx[ii]] += all_coeffs[ii]
     # return unique_indices, unique_coeff
-    
+
     # indices_dict = dict()
 
     # indices = []
@@ -582,7 +583,7 @@ def shift_momomial_expansion(coef, shift, scale):
 
 
 def compress_and_sort_polynomial(coef, indices, tol=1e-12):
-    I = np.where(np.absolute(coef)>tol)[0]
+    I = np.where(np.absolute(coef) > tol)[0]
     indices = indices[:, I]
     coef = coef[I]
     J = argsort_indices_leixographically(indices)
@@ -590,6 +591,5 @@ def compress_and_sort_polynomial(coef, indices, tol=1e-12):
     coef = coef[J, :]
     return indices, coef
 
-# 1D versions of some of these functions can be found at 
+# 1D versions of some of these functions can be found at
 # https://docs.scipy.org/doc/numpy/reference/routines.polynomials.polynomial.html
-

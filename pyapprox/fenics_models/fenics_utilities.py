@@ -1,4 +1,9 @@
 import dolfin as dl
+try:
+    import fenics_adjoint as dla
+except:
+    import dolfin as dla
+
 import numpy as np
 
 def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
@@ -56,12 +61,12 @@ def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
             print ("Solving Unconstrained Nonlinear Problem")
 
     # Compute gradient and hessian
-    grad = dl.derivative(L, uh)
-    H    = dl.derivative(grad, uh)
+    grad = dla.derivative(L, uh)
+    H    = dla.derivative(grad, uh)
 
     # Applying boundary conditions
     if dirichlet_bcs is not None:
-        if type(dirichlet_bcs) is dl.DirichletBC:
+        if type(dirichlet_bcs) is dla.DirichletBC:
             bcsl  = [dirichlet_bcs]
         else:
             bcsl = dirichlet_bcs
@@ -69,19 +74,19 @@ def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
 
     if constraint_vec is not None:
         assert C is not None
-        dcd_state = dl.assemble(dl.derivative(C,u))
+        dcd_state = dla.assemble(dla.derivative(C,u))
         dcd_lagrangeMult = dcd_state*constraint_vec
         if not  dcd_lagrangeMult.norm("l2") < 1.e-14:
             msg= "The initial guess does not satisfy the constraint."
             raise ValueError(msg)
 
     # Setting variables
-    Fn = dl.assemble(F)
-    gn = dl.assemble(grad)
+    Fn = dla.assemble(F)
+    gn = dla.assemble(grad)
     g0_norm = gn.norm("l2")
     gn_norm = g0_norm
     tol = max(g0_norm*rtol, atol)
-    du = dl.Function(uh.function_space()).vector()
+    du = dla.Function(uh.function_space()).vector()
     
     #if linear_solver =='PETScLU': 
     #    linear_solver = dl.PETScLUSolver(uh.function_space().mesh().mpi_comm())
@@ -99,17 +104,17 @@ def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
          
     for it in range(max_iter):
         if bc0 is not None:
-            [Hn, gn] = dl.assemble_system(H, grad, bc0)
+            [Hn, gn] = dla.assemble_system(H, grad, bc0)
         else:
-            Hn = dl.assemble(H)
-            gn = dl.assemble(grad)
+            Hn = dla.assemble(H)
+            gn = dla.assemble(grad)
 
         Hn.init_vector(du,1)
         if linear_solver is None:
-            lin_it = dl.solve(Hn, du, -gn, "cg", "petsc_amg")
+            lin_it = dla.solve(Hn, du, -gn, "cg", "petsc_amg")
         else:
             print('a')
-            lin_it = dl.solve(Hn, du, -gn, "lu")
+            lin_it = dla.solve(Hn, du, -gn, "lu")
             #linear_solver.set_operator(Hn)
             #lin_it = linear_solver.solve(du, -gn)
         total_cg_iter += lin_it
@@ -121,7 +126,7 @@ def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
             converged = True
             reason = 3
             uh.vector().axpy(alpha,du)
-            Fn = dl.assemble(F)
+            Fn = dla.assemble(F)
             gn_norm = gn.norm("l2")
             break
 
@@ -132,7 +137,7 @@ def constrained_newton_energy_solve(F,uh,dirichlet_bcs=None,bc0=None,
         for j in range(max_backtrack):
             uh.assign(uh_backtrack)
             uh.vector().axpy(alpha,du)
-            Fnext = dl.assemble(F)
+            Fnext = dla.assemble(F)
             #print(Fnext,Fn + alpha*c_armijo*du_gn)
             if Fnext < Fn + alpha*c_armijo*du_gn:
                 Fn = Fnext
@@ -221,20 +226,20 @@ def unconstrained_newton_solve(F,J,uh,dirichlet_bcs=None,bc0=None,
 
     # Applying boundary conditions
     if dirichlet_bcs is not None:
-        if type(dirichlet_bcs) is dl.DirichletBC:
+        if type(dirichlet_bcs) is dla.DirichletBC:
             bcsl  = [dirichlet_bcs]
         else:
             bcsl = dirichlet_bcs
         [bc.apply(uh.vector()) for bc in bcsl]
 
-    if type(bc0) is dl.DirichletBC:
+    if type(bc0) is dla.DirichletBC:
         bc0  = [bc0]
 
 
     # Setting variables
-    gn = dl.assemble(F)
-    res_func = dl.Function(uh.function_space())
-    res_func.assign(dl.Function(uh.function_space(),gn))
+    gn = dla.assemble(F)
+    res_func = dla.Function(uh.function_space())
+    res_func.assign(dla.Function(uh.function_space(),gn))
     res = res_func.vector()
     if bc0 is not None:
         for bc in bc0:
@@ -244,10 +249,10 @@ def unconstrained_newton_solve(F,J,uh,dirichlet_bcs=None,bc0=None,
     gn_norm = g0_norm
     tol = max(g0_norm*rtol, atol)
     res_tol=max(Fn*rtol, atol)
-    du = dl.Function(uh.function_space()).vector()
+    du = dla.Function(uh.function_space()).vector()
     
     if linear_solver =='PETScLU': 
-        linear_solver = dl.PETScLUSolver(uh.function_space().mesh().mpi_comm())
+        linear_solver = dla.PETScLUSolver(uh.function_space().mesh().mpi_comm())
     else:
         assert linear_solver is None
 
@@ -263,14 +268,14 @@ def unconstrained_newton_solve(F,J,uh,dirichlet_bcs=None,bc0=None,
          
     for it in range(max_iter):
         if bc0 is not None:
-            [Hn, gn] = dl.assemble_system(J, F, bc0)
+            [Hn, gn] = dla.assemble_system(J, F, bc0)
         else:
-            Hn = dl.assemble(J)
-            gn = dl.assemble(F)
+            Hn = dla.assemble(J)
+            gn = dla.assemble(F)
 
         Hn.init_vector(du,1)
         if linear_solver is None:
-            lin_it = dl.solve(Hn, du, -gn, "cg", "petsc_amg")
+            lin_it = dla.solve(Hn, du, -gn, "cg", "petsc_amg")
         else:
             linear_solver.set_operator(Hn)
             lin_it = linear_solver.solve(du, -gn)
@@ -294,7 +299,7 @@ def unconstrained_newton_solve(F,J,uh,dirichlet_bcs=None,bc0=None,
         for nbt in range(max_backtrack):
             uh.assign(uh_backtrack)
             uh.vector().axpy(alpha,du)
-            res = dl.assemble(F)
+            res = dla.assemble(F)
             if bc0 is not None:
                 for bc in bc0:
                     bc.apply(res)
@@ -402,14 +407,14 @@ def get_robin_boundary_conditions_from_expression(expression,alpha):
     return boundary_conditions
 
 def copy_expression(expr):   
-    if hasattr(expr,'cppcode'):
+    if hasattr(expr, 'cppcode'):
         # old fenics versions
-        new_expr = dl.Expression(expr.cppcode,**expr.user_parameters,
-                              degree=expr.ufl_element().degree())
+        new_expr = dla.Expression(expr.cppcode,**expr.user_parameters,
+                                  degree=expr.ufl_element().degree())
     else:
         # fenics 2019
-        new_expr = dl.Expression(expr._cppcode,**expr._user_parameters,
-                              degree=expr.ufl_element().degree())
+        new_expr = dla.Expression(expr._cppcode, **expr._user_parameters,
+                                  degree=expr.ufl_element().degree())
     return new_expr
 
 def mark_boundaries(mesh,boundary_conditions):
@@ -426,16 +431,16 @@ def collect_dirichlet_boundaries(function_space,boundary_conditions,boundaries):
     num_bndrys = len(boundary_conditions)
     dirichlet_bcs = []
     for ii in range(num_bndrys):
-        if boundary_conditions[ii][0]=='dirichlet':
+        if boundary_conditions[ii][0] == 'dirichlet':
             bc_expr = boundary_conditions[ii][2]
             #ii must be same marker number as used in mark_boundaries()
             dirichlet_bcs.append(
-                dl.DirichletBC(function_space,bc_expr,boundaries,ii))
+                dla.DirichletBC(function_space, bc_expr ,boundaries, ii))
     return dirichlet_bcs
 
 def get_boundary_indices(function_space):
-    bc_map=dl.Function(function_space)
-    bc = dl.DirichletBC(function_space, dl.Constant(1.0), 'on_boundary')
+    bc_map=dla.Function(function_space)
+    bc = dla.DirichletBC(function_space, dla.Constant(1.0), 'on_boundary')
     bc.apply(bc_map.vector())
     indices=np.arange(bc_map.vector().size())[bc_map.vector().get_local()==1.0]
     return indices
@@ -447,7 +452,7 @@ def save_fenics_function(function,filename):
     fFile.close()
 
 def load_fenics_function(function_space,filename):
-    function = dl.Function(function_space)
+    function = dla.Function(function_space)
     fFile = dl.HDF5File(function_space.mesh().mpi_comm(),filename,"r")
     fFile.read(function,"/f")
     fFile.close()
@@ -457,8 +462,8 @@ def get_num_subdomain_dofs(Vh,subdomain):
     """
     Get the number of dofs on a subdomain
     """
-    temp = dl.Function(Vh)
-    bc = dl.DirichletBC(Vh, dl.Constant(1.0), subdomain)
+    temp = dla.Function(Vh)
+    bc = dla.DirichletBC(Vh, dla.Constant(1.0), subdomain)
     # warning applying bc does not just apply subdomain.inside to all coordinates
     # it does some boundary points more than once and other inside points not
     # at all.
@@ -485,7 +490,7 @@ def get_surface_of_3d_function(Vh_2d,z,function):
         #print(dofs,y)
         values[dofs] = y
 
-    function_2d = dl.Function(Vh_2d)
+    function_2d = dla.Function(Vh_2d)
     function_2d.vector()[:] = values
     return function_2d
 
@@ -524,9 +529,9 @@ def plot_functions(functions,nrows=1):
         plt.colorbar(pp)
 
 def homogenize_boundaries(bcs):
-    if isinstance(bcs,dl.DirichletBC):
+    if isinstance(bcs,dla.DirichletBC):
         bcs = [bcs]
-    hbcs=[dl.DirichletBC(bc) for bc in bcs]
+    hbcs=[dla.DirichletBC(bc) for bc in bcs]
     for hbc in hbcs:
         hbc.homogenize() 
     return hbcs
@@ -552,22 +557,22 @@ def compute_errors(u_e, u):
 
     # Explicit computation of L2 norm
     error = (u - u_e)**2*dl.dx
-    E1 = np.sqrt(abs(dl.assemble(error)))
+    E1 = np.sqrt(abs(dla.assemble(error)))
 
     # Explicit interpolation of u_e onto the same space as u
-    u_e_ = dl.interpolate(u_e, V)
+    u_e_ = dla.interpolate(u_e, V)
     error = (u - u_e_)**2*dl.dx
-    E2 = np.sqrt(abs(dl.assemble(error)))
+    E2 = np.sqrt(abs(dla.assemble(error)))
 
     # Explicit interpolation of u_e to higher-order elements.
     # u will also be interpolated to the space Ve before integration
     Ve = dl.FunctionSpace(V.mesh(), 'P', 5)
-    u_e_ = dl.interpolate(u_e, Ve)
+    u_e_ = dla.interpolate(u_e, Ve)
     error = (u - u_e)**2*dl.dx
-    E3 = np.sqrt(abs(dl.assemble(error)))
+    E3 = np.sqrt(abs(dla.assemble(error)))
 
     # Infinity norm based on nodal values
-    u_e_ = dl.interpolate(u_e, V)
+    u_e_ = dla.interpolate(u_e, V)
     E4 = abs(u_e_.vector().get_local() - u.vector().get_local()).max()
 
     # L2 norm
@@ -609,7 +614,7 @@ def compute_convergence_rates(run_model,u_e,max_degree=1,num_levels=5,min_n=8,
                 V = dl.FunctionSpace(
                     u.function_space().mesh(),u_e.ufl_element().family(),
                     u_e.ufl_element().degree())
-                u_e_interp = dl.Function(V)
+                u_e_interp = dla.Function(V)
                 u_e_interp.interpolate(u_e)
                 errors = compute_errors(u_e_interp, u)
             else:
@@ -773,23 +778,23 @@ def get_2d_bndry_segment(x1,y1,x2,y2):
 
 
 from pyapprox.karhunen_loeve_expansion import MeshKLE
+    
 class FenicsMeshKLE(MeshKLE):
     def __init__(self, function_space, mean_field=0):
-        import dolfin as dl
         self.function_space = function_space
         mesh_coords = self.function_space.tabulate_dof_coordinates().T
-        if type(mean_field) == dl.Function:
-            super().__init__(mesh_coords, mean_field.vector().get_local().copy())
+        if type(mean_field) == dl.Function or dla.Function:
+            super().__init__(
+                mesh_coords, mean_field.vector().get_local().copy())
         elif np.isscalar(mean_field):
             super().__init__(mesh_coords, mean_field)
         else:
             raise Exception()
 
     def __call__(self, coef):
-        import dolfin as dl
         assert coef.shape[1] == 1
         np_field = super().__call__(coef)[:, 0]
-        field = dl.Function(self.function_space)
+        field = dla.Function(self.function_space)
         field.vector()[:] = np_field
         return field
 

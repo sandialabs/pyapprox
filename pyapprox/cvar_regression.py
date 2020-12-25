@@ -262,7 +262,8 @@ def cvar_regression_quadrature(basis_matrix, values, alpha, nquad_intervals,
         constraints_J = np.hstack((constraints_1_J, constraints_3_J))
         constraints_data = np.hstack((constraints_1_data, constraints_3_data))
         G = spmatrix(
-            constraints_data, constraints_I, constraints_J, size=constraints_shape)
+            constraints_data, constraints_I, constraints_J,
+            size=constraints_shape)
         # assert np.allclose(np.asarray(matrix(G)),G_arr)
 
         h_arr = np.hstack((
