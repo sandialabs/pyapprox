@@ -143,9 +143,9 @@ class AffineBoundedVariableTransformation(VariableTransformInterface):
 class AffineRandomVariableTransformation(VariableTransformInterface):
     def __init__(self, variable, enforce_bounds=False):
         """
-        Variable uniquness dependes on both the type of random variable
-        e.g. beta, gaussian, etc. and the parameters of that distribution
-        e.g. loc and scale parameters as well as any additional parameters
+        Variable uniqueness depends on both the type of random variable
+        (e.g. beta, gaussian, etc.) and the parameters of that distribution
+        (e.g. loc and scale parameters) as well as any additional parameters.
         """
         if (type(variable) != IndependentMultivariateRandomVariable):
             variable = IndependentMultivariateRandomVariable(variable)
