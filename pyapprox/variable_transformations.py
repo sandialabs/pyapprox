@@ -150,6 +150,7 @@ class AffineRandomVariableTransformation(VariableTransformInterface):
         if (type(variable) != IndependentMultivariateRandomVariable):
             variable = IndependentMultivariateRandomVariable(variable)
         self.variable = variable
+        self.nvars = variable.num_vars()
         self.enforce_bounds = enforce_bounds
 
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
@@ -221,9 +222,6 @@ class AffineRandomVariableTransformation(VariableTransformInterface):
             loc, scale = self.scale_parameters[ii, :]
             mapped_derivatives[idx, :] /= scale
         return mapped_derivatives
-
-    def num_vars(self):
-        return self.variable.num_vars()
 
     def samples_of_bounded_variables_inside_domain(self, samples):
         for ii in range(self.variable.nunique_vars):
@@ -357,6 +355,7 @@ class TransformationComposition(object):
             map_from_canonical_space
         """
         self.transformations = transformations
+        self.nvars = self.transformations[0].num_vars()
 
     def map_from_canonical_space(self, canonical_samples):
         user_samples = canonical_samples
@@ -364,6 +363,7 @@ class TransformationComposition(object):
         for ii in range(num_transforms-1, -1, -1):
             user_samples = \
                 self.transformations[ii].map_from_canonical_space(user_samples)
+
         return user_samples
 
     def map_to_canonical_space(self, user_samples):
@@ -373,7 +373,5 @@ class TransformationComposition(object):
             canonical_samples = \
                 self.transformations[ii].map_to_canonical_space(
                     canonical_samples)
-        return canonical_samples
 
-    def num_vars(self):
-        return self.transformations[0].num_vars()
+        return canonical_samples
