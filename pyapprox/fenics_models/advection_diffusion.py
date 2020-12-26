@@ -5,8 +5,10 @@ import dolfin as dl
 from pyapprox.fenics_models.fenics_utilities import *
 try:
     import fenics_adjoint as dla
+    has_dla = True
 except:
     import fenics as dla
+    has_dla = False
 
 
 def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
@@ -231,7 +233,7 @@ def run_steady_state_model(function_space, kappa, forcing,
 
     if boundary_conditions == None:
         bndry_obj = dl.CompiledSubDomain("on_boundary")
-        boundary_conditions = [['dirichlet', bndry_obj, dl.Constant(0)]]
+        boundary_conditions = [['dirichlet', bndry_obj, dla.Constant(0)]]
 
     num_bndrys = len(boundary_conditions)
     boundaries = mark_boundaries(mesh, boundary_conditions)
@@ -265,17 +267,17 @@ def run_steady_state_model(function_space, kappa, forcing,
             beta = boundary_conditions[ii][2]
             L -= beta*v*ds(ii)
 
-    u = dl.Function(function_space)
-    A, b = dl.assemble_system(a, L, dirichlet_bcs)
+    u = dla.Function(function_space)
+    A, b = dla.assemble_system(a, L, dirichlet_bcs)
     # apply boundary conditions
     for bc in dirichlet_bcs:
         bc.apply(A, b)
-    dl.solve(A, u.vector(), b)
+    dla.solve(A, u.vector(), b)
 
     return u
 
 
-class Diffusivity(dl.UserExpression):
+class Diffusivity(dla.UserExpression):
     # def __init__(self,**kwargs):
     #    if '2019' in dl.__version__:
     #        # does not work for fenics 2017 only 2019
