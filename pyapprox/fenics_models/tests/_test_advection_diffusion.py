@@ -111,16 +111,6 @@ def get_forcing(kappa, mesh, degree, steady_state=False, advection=False):
     return forcing
 
 
-def get_exact_solution_py(mesh, degree):
-    return ExactSolution(cell=mesh.ufl_cell(),
-                         domain=mesh, degree=degree)
-
-
-def get_forcing_py(kappa, mesh, degree):
-    return Forcing(kappa, cell=mesh.ufl_cell(),
-                   domain=mesh, degree=degree)
-
-
 def get_gradu_dot_n(kappa, alpha, mesh, degree, phys_var, n):
     u, x, y, t = get_exact_solution_sympy(False)
     xi = [x, y][phys_var]
@@ -301,7 +291,6 @@ class TestSteadyStateDiffusion(unittest.TestCase):
                 if jj != ii:
                     boundary_conditions[jj] = [
                         'dirichlet', boundary_conditions[jj][1], 0]
-
             sol = run_steady_state_model(
                 function_space, kappa, dla.Constant(0.0),
                 boundary_conditions=boundary_conditions)
