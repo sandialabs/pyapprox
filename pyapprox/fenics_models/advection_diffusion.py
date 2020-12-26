@@ -20,7 +20,7 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
 
     du/dt = grad (k* grad u) - vel*grad u + f
 
-    WARNINGarningW: when point sources solution changes significantly when mesh is varied
+    WARNING: when point sources solution changes significantly when mesh is varied
     """
     mesh = function_space.mesh()
 
@@ -110,7 +110,6 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
                     beta_1 = beta
                 L -= (1-theta)*dt*beta_1*v*ds(ii)
 
-    time_independent_boundaries = False
     if time_independent_boundaries:
         # TODO this can be used if dirichlet and robin conditions are not
         # time dependent.
@@ -262,18 +261,20 @@ def run_steady_state_model(function_space, kappa, forcing,
             alpha = boundary_conditions[ii][3]
             a += alpha*u*v*ds(ii)
 
-        if ((boundary_conditions[ii][0] == 'robin') or
+        elif ((boundary_conditions[ii][0] == 'robin') or
                 (boundary_conditions[ii][0] == 'neumann')):
             beta = boundary_conditions[ii][2]
             L -= beta*v*ds(ii)
 
     u = dla.Function(function_space)
-    A, b = dla.assemble_system(a, L, dirichlet_bcs)
-    # apply boundary conditions
-    for bc in dirichlet_bcs:
-        bc.apply(A, b)
-    dla.solve(A, u.vector(), b)
-
+    # dl.assemble, apply and solve does not work with
+    # fenics adjoint
+    # A, b = dla.assemble_system(a, L, dirichlet_bcs)
+    # # apply boundary conditions
+    # for bc in dirichlet_bcs:
+    #     bc.apply(A, b)
+    # dla.solve(A, u.vector(), b)
+    dla.solve(a==L, u, dirichlet_bcs)
     return u
 
 
