@@ -612,7 +612,7 @@ class TestUtilities(unittest.TestCase):
         full_L, full_pivots, diag, chol_flag, ii, error = \
             continue_pivoted_cholesky_decomposition(
                 A, full_L, npivots, None, 0, True, pivot_weights,
-                full_pivots, diag, ncompleted_pivots, init_error)
+                full_pivots, diag, ncompleted_pivots, init_error, econ=True)
         #print(time.time()-t0)
 
         assert np.allclose(L,full_L)

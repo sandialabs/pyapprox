@@ -7,6 +7,7 @@ from functools import partial
 
 skiptest_rol = unittest.skipIf(
     not has_ROL, reason="rol package not found")
+skiptest = unittest.skip(reason="test incomplete")
 class TestFirstOrderStochasticDominance(unittest.TestCase):
 
     def setUp(self):
@@ -29,8 +30,6 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         x0 = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]
         shift = (values-basis_matrix.dot(x0)).max()
         x0[0] += shift
-
-        x0 = x0*0
                 
         return samples, values, fun, jac, probabilities, ncoef, x0
 
@@ -56,7 +55,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         # fd difference error should exhibit V-cycle. These values
         # test this for this specific problem
         assert err.min()<1e-6 and err.max()>0.1
-        err = check_gradients(
+        err = check_hessian(
             problem.objective_jac, problem.objective_hessp, x0, rel=False)
         # fd hessian  error should decay linearly (assuming first order fd)
         # because hessian is constant (indendent of x)
@@ -78,6 +77,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         err = check_hessian(constr_jac, constr_hessp, x0)
         assert err.min()<1e-5 and err.max()>0.1
 
+    @skiptest
     def test_1d_monomial_regression(self):
         smoother_type, eps = 'quartic', 1e-2
         nsamples, degree = 10, 1
