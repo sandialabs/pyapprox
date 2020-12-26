@@ -91,7 +91,7 @@ def numba_smooth_left_heaviside_function_second_derivative_quintic(
 
 
 def compute_quartic_spline_of_right_heaviside_function():
-    """
+    r"""
     Get spline approximation of step function enforcing all derivatives 
     at 0 and 1 are zero
     """
@@ -128,7 +128,7 @@ def linear_model_jac(basis_matrix, coef):
 
 
 class FSDOptProblem(object):
-    """
+    r"""
     Optimization problem used to solve least squares regression with first
     order dominance constraints.
 
@@ -249,7 +249,7 @@ class FSDOptProblem(object):
             raise Exception(msg)
 
     def constraint_fun(self, x):
-        """
+        r"""
         Compute the constraints. The nth row of the Jacobian is
         the derivative of the nth constraint :math:`c_n(x)`. 
         Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the 
@@ -280,7 +280,7 @@ class FSDOptProblem(object):
         return self.probabilities.dot(tmp1-tmp2)
 
     def constraint_jac(self, x):
-        """
+        r"""
         Compute the Jacobian of the constraints. The nth row of the Jacobian is
         the derivative of the nth constraint :math:`c_n(x)`. 
         Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the 
@@ -335,7 +335,7 @@ class FSDOptProblem(object):
         return con_jac
 
     def constraint_hess(self, x, lmult):
-        """
+        r"""
         Compute the Hessian of the constraints applied to the Lagrange 
         multipliers.
 
@@ -396,7 +396,7 @@ class FSDOptProblem(object):
     
     
     def solve(self, x0, optim_options={}, method=None):
-        """
+        r"""
         Returns
         -------
         res : OptimizeResult
