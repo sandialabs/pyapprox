@@ -223,6 +223,10 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         self.candidate_samples = candidate_samples
         self.factorization_type = factorization_type
 
+    @property
+    def num_samples(self):
+        return self.samples.shape[1]
+
     def precond_canonical_basis_matrix(self,samples):
         basis_matrix = self.pce.canonical_basis_matrix(samples)
         #precond_weights=np.sqrt(basis_matrix.shape[1])/np.linalg.norm(
