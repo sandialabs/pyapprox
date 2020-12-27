@@ -344,7 +344,7 @@ class NatafTransformation(VariableTransformInterface):
             self.z_correlation_cholesky_factor)
 
 
-class TransformationComposition(object):
+class TransformationComposition(VariableTransformInterface):
     def __init__(self, transformations):
         """
         Parameters
