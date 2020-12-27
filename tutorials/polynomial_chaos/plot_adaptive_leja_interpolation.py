@@ -18,9 +18,8 @@ from pyapprox.sparse_grid import plot_sparse_grid_2d
 import numpy as np
 import pyapprox as pya
 from pyapprox.configure_plots import *
-from scipy.stats import beta, uniform
 from functools import partial
-from pyapprox.models.genz import GenzFunction
+from pyapprox.benchmarks.benchmarks import setup_benchmark
 
 
 def compute_l2_error(validation_samples, validation_values, pce, relative=True):
@@ -39,12 +38,17 @@ np.random.seed(1)
 # %%
 # Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to approximate a function :math:`f(z): \reals^d \rightarrow \reals` parameterized by the random variables :math:`z=(z_1,\ldots,z_d)`. with the joint probability density function :math:`\pdf(\V{\rv})`. In the following we will use a function commonly used in the literature, the oscillatory Genz function. This function is well suited for testing as the number of variables and the non-linearity can be adjusted. We define the random variables and the function with the following code
 
-univariate_variables = [uniform(), beta(3, 3)]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
-
 c = np.array([10, 0.01])
-model = GenzFunction(
-    "oscillatory", variable.num_vars(), c=c, w=np.zeros_like(c))
+w = np.zeros(2)
+benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory', coefficients=(c,w))
+model = benchmark.fun
+variable = benchmark.variable
+
+#%% We can also use other benchmarks, for example by uncommenting the following code
+
+# benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+# variable = benchmark.variable
+# model = benchmark.fun
 
 # %%
 # Here we have intentionally set the coefficients :math:`c`: of the Genz function to be highly anisotropic, to emphasize the properties of the adaptive algorithm.
@@ -57,13 +61,11 @@ model = GenzFunction(
 #   f(\V{\rv}) &\approx f_N(\V{\rv}) = \sum_{\lambda\in\Lambda}\alpha_{\lambda}\phi_{\lambda}(\V{\rv}), & |\Lambda| &= N.
 #   \end{align*}
 #
-# where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index and :math:`\Lambda` specifies the terms included in the expansion. In :ref:`Polynomial Chaos Regression` we set :math:`\Lambda` to be a total degree expansion. This choice was somewhat arbitray. The exact indices in :math:`\Lambda` should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set :math:`\Lambda` in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE. Before starting the adaptive algorithm we must first define the PCE.
+# where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index and :math:`\Lambda` specifies the terms included in the expansion. In :ref:`Polynomial Chaos Regression` we set :math:`\Lambda` to be a total degree expansion. This choice was somewhat arbitray. The exact indices in :math:`\Lambda` should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set :math:`\Lambda` in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE.
+#
+#Before starting the adaptive algorithm  we will generate some test data to estimate the error in the PCE as the adaptive algorithm evolves. We will compute the error at each step using a callback function.
 
 var_trans = pya.AffineRandomVariableTransformation(variable)
-
-# %%
-# Next we will generate some test data to estimate the error in the PCE as the adaptive algorithm evolves. We will compute the error at each step using a callback function.
-
 validation_samples = pya.generate_independent_random_samples(
     var_trans.variable, int(1e3))
 validation_values = model(validation_samples)
@@ -80,8 +82,7 @@ def callback(pce):
 # %%
 # Now we setup the adaptive algorithm.
 
-
-max_num_samples = 100
+max_num_samples = 200
 error_tol = 1e-10
 candidate_samples = -np.cos(
     np.random.uniform(0, np.pi, (var_trans.num_vars(), int(1e4))))
