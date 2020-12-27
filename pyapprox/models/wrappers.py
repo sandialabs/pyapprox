@@ -45,6 +45,13 @@ def get_num_args(function):
     return num_args
 
 
+def get_arg_names(function):
+    import inspect
+    arg_list = inspect.getfullargspec(function)
+
+    return arg_list[0]
+
+
 def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
     """
     Evaluate a function at a set of samples using a function that only takes
