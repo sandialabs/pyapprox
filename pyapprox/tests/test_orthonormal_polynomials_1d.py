@@ -320,7 +320,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
 
     def test_convert_monomials_to_orthonormal_polynomials_1d(self):
         rho = 0.
-        degree = 15
+        degree = 10
         probability_measure = True
         ab = hermite_recurrence(
             degree+1, rho, probability=probability_measure)

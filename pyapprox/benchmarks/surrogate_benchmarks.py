@@ -5,7 +5,7 @@ def rosenbrock_function(samples):
 
 def rosenbrock_function_jacobian(samples):
     assert samples.shape[1]==1
-    return rosen_der(samples)
+    return rosen_der(samples).T
 
 def rosenbrock_function_hessian_prod(samples,vec):
     assert samples.shape[1]==1

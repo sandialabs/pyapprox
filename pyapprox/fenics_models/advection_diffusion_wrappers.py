@@ -302,7 +302,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
         r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
-        function_space = dla.FunctionSpace(self.mesh, "CG", self.degree)
+        function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
         bndry_objs = get_2d_rectangular_mesh_boundaries(0, 1, 0, 1)
         boundary_conditions = [
             ['neumann',  bndry_objs[0], dla.Constant(0)],
