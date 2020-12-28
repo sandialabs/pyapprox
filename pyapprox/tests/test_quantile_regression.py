@@ -5,11 +5,22 @@ from pyapprox.optimization import check_gradients
 from scipy.special import erf, erfinv, factorial
 from scipy import stats
 
+
+try:
+    import cvxopt
+    cvxopt_missing = False
+except:
+    cvxopt_missing = True
+skipcvxopttest = unittest.skipIf(
+    cvxopt_missing, reason="cvxopt package missing")
+
+
 class TestQuantileRegression(unittest.TestCase):
 
     def setUp(self):
         np.random.seed(1)
-        
+
+    @skipcvxopttest
     def test_quantile_regression(self):
         np.random.seed(1)
         nbasis = 20

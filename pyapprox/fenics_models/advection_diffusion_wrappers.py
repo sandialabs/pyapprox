@@ -1,6 +1,7 @@
 from pyapprox.fenics_models.advection_diffusion import *
 
-def qoi_functional_misc(u):
+
+def dl_qoi_functional_misc(u):
     r"""
     Use the QoI from [JEGGIJNME2020]
 
@@ -11,81 +12,100 @@ def qoi_functional_misc(u):
 
     The /sigma*sigma is an error it should be 1/(2*sigma*sigma)
     """
-    expr = dl.Expression(
+    expr = dla.Expression(
         '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sigma*sigma))',
-        xk=0.3,yk=0.5,sigma=0.16,degree=2)
-    qoi = dl.assemble(u*expr*dl.dx(u.function_space().mesh()))
-    return np.asarray([qoi])
+        xk=0.3, yk=0.5, sigma=0.16, degree=2)
+    qoi = dla.assemble(u*expr*dl.dx(u.function_space().mesh()))
+    return qoi
+
+
+def qoi_functional_misc(u):
+    return np.asarray([dl_qoi_functional_misc(u)])
+
+
+def qoi_functional_grad_misc(u, model):
+    J = dl_qoi_functional_misc(u)
+    control = dla.Control(model.kappa)
+    dJd_kappa = dla.compute_gradient(J, [control])[0]
+    return dJd_kappa.vector()[:].copy()
+
 
 def get_misc_forcing(degree):
     r"""
     Use the forcing from [JEGGIJNME2020]
     """
-    forcing = dl.Expression(
-        '(1.5+cos(2*pi*t))*cos(x[0])',degree=degree,t=0)
+    forcing = dla.Expression(
+        '(1.5+cos(2*pi*t))*cos(x[0])', degree=degree, t=0)
     return forcing
 
-def get_gaussian_source_forcing(degree,random_sample):
-    forcing = dl.Expression(
-        'A/(sig2*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sig2))',xk=random_sample[0],yk=random_sample[1],sig2=0.05**2,A=2.,degree=degree)
+
+def get_gaussian_source_forcing(degree, random_sample):
+    forcing = dla.Expression(
+        'A/(sig2*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/(2*sig2))', xk=random_sample[0], yk=random_sample[1], sig2=0.05**2, A=2., degree=degree)
     return forcing
 
-def get_nobile_diffusivity(corr_len,degree,random_sample):
+
+def get_nobile_diffusivity(corr_len, degree, random_sample):
     nvars = random_sample.shape[0]
     path = os.path.abspath(os.path.dirname(__file__))
     if '2017' in dl.__version__:
         filename = os.path.join(
-            path,"src,""nobile_diffusivity_fenics_class_2017.cpp")
+            path, "src,""nobile_diffusivity_fenics_class_2017.cpp")
     else:
         filename = os.path.join(
-            path,"src","nobile_diffusivity_fenics_class.cpp")
-    with open(filename,'r') as kappa_file:
-        kappa_code=kappa_file.read()
+            path, "src", "nobile_diffusivity_fenics_class.cpp")
+    with open(filename, 'r') as kappa_file:
+        kappa_code = kappa_file.read()
     if '2017' in dl.__version__:
-        kappa = dl.UserExpression(kappa_code,degree=degree)
+        kappa = dla.UserExpression(kappa_code, degree=degree)
     else:
-        kappa = dl.CompiledExpression(
+        kappa = dla.CompiledExpression(
             dl.compile_cpp_code(kappa_code).NobileDiffusivityExpression(),
             degree=degree)
-    kappa.initialize_kle(nvars,corr_len)
+    kappa.initialize_kle(nvars, corr_len)
 
     if '2017' in dl.__version__:
         for ii in range(random_sample.shape[0]):
-            kappa.set_random_sample(random_sample[ii],ii)
+            kappa.set_random_sample(random_sample[ii], ii)
     else:
         kappa.set_random_sample(random_sample)
     return kappa
 
-def get_default_velocity(degree,vel_vec):
-    if vel_vec.shape[0]==2:
-        beta = dl.Expression((str(vel_vec[0]),str(vel_vec[1])),degree=degree)
+
+def get_default_velocity(degree, vel_vec):
+    if vel_vec.shape[0] == 2:
+        beta = dla.Expression(
+            (str(vel_vec[0]), str(vel_vec[1])), degree=degree)
     else:
-        beta = dl.Constant(velocity[0])
+        beta = dla.Constant(velocity[0])
     return beta
 
+
 def setup_dirichlet_and_periodic_boundary_conditions_and_function_space(
-        degree,random_sample):
+        degree, random_sample):
     assert random_sample is None
-    pbc =  RectangularMeshPeriodicBoundary(1)
+    pbc = RectangularMeshPeriodicBoundary(1)
     function_space = dl.FunctionSpace(
         mesh, "CG", degree, constrained_domain=pbc)
     bndry_obj = dl.CompiledSubDomain(
         "on_boundary&&(near(x[0],0)||near(x[0],1))")
-    boundary_conditions = [['dirichlet',bndry_obj,dl.Constant(0)]]
+    boundary_conditions = [['dirichlet', bndry_obj, dla.Constant(0)]]
     return boundary_conditions
 
-def setup_zero_flux_neumann_boundary_conditions(degree,random_sample):
+
+def setup_zero_flux_neumann_boundary_conditions(degree, random_sample):
     assert random_sample is None
     function_space = dl.FunctionSpace(mesh, "CG", degree)
-    bndry_objs = get_2d_rectangular_mesh_boundaries(0,1,0,1)
+    bndry_objs = get_2d_rectangular_mesh_boundaries(0, 1, 0, 1)
     boundary_conditions = [
-        ['neumann',  bndry_objs[0],dl.Constant(0)],
-        ['neumann',  bndry_objs[1],dl.Constant(0)],
-        ['neumann',  bndry_objs[2],dl.Constant(0)],
-        ['neumann',  bndry_objs[3],dl.Constant(0)]]
+        ['neumann',  bndry_objs[0], dla.Constant(0)],
+        ['neumann',  bndry_objs[1], dla.Constant(0)],
+        ['neumann',  bndry_objs[2], dla.Constant(0)],
+        ['neumann',  bndry_objs[3], dla.Constant(0)]]
     return boundary_conditions
 
-class AdvectionDiffusionModel(object):   
+
+class AdvectionDiffusionModel(object):
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Change the following functions to modify governing equations
@@ -97,7 +117,7 @@ class AdvectionDiffusionModel(object):
     #     get_diffusivity()
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
-    def initialize_random_expressions(self,random_sample):
+    def initialize_random_expressions(self, random_sample):
         r"""
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
@@ -110,43 +130,43 @@ class AdvectionDiffusionModel(object):
         kappa = self.get_diffusivity(random_sample)
         return init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa
-            
-    def get_initial_condition(self,random_sample):
+
+    def get_initial_condition(self, random_sample):
         r"""By Default the initial condition is deterministic and set to zero"""
         assert random_sample is None
-        initial_condition=dl.Constant(0.0)
+        initial_condition = dla.Constant(0.0)
         return initial_condition
 
-    def get_boundary_conditions_and_function_space(self,random_sample):
+    def get_boundary_conditions_and_function_space(self, random_sample):
         r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
         boundary_conditions = None
-        return boundary_conditions,function_space
+        return boundary_conditions, function_space
 
-    def get_velocity(self,random_sample):
+    def get_velocity(self, random_sample):
         r"""By Default the advection is deterministic and set to zero"""
         assert random_sample is None
-        beta = dl.Expression((str(0),str(0)),degree=self.degree)
+        beta = dla.Expression((str(0), str(0)), degree=self.degree)
         return beta
 
-    def get_forcing(self,random_sample):
+    def get_forcing(self, random_sample):
         r"""By Default the forcing is deterministic and set to 
 
         .. math:: (1.5+\cos(2\pi t))*cos(x_1)
-        
+
         where :math:`t` is time and :math:`x_1` is the first spatial dimension.
         """
         forcing = get_misc_forcing(self.degree)
         return forcing
 
-    def get_diffusivity(self,random_sample):
+    def get_diffusivity(self, random_sample):
         r"""
         Use the random diffusivity specified in [JEGGIJNME2020].
         """
         kappa = get_nobile_diffusivity(
-            self.options['corr_len'],self.degree,random_sample)
+            self.options['corr_len'], self.degree, random_sample)
         return kappa
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
@@ -156,21 +176,21 @@ class AdvectionDiffusionModel(object):
     #     get_mesh_resolution()
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
-    def get_timestep(self,dt_level):
+    def get_timestep(self, dt_level):
         dt = self.final_time/2**(dt_level+2)
         return dt
 
-    def get_mesh_resolution(self,mesh_levels):
-        nx_level,ny_level = mesh_levels
+    def get_mesh_resolution(self, mesh_levels):
+        nx_level, ny_level = mesh_levels
         nx = 2**(nx_level+2)
         ny = 2**(ny_level+2)
-        return nx,ny
+        return nx, ny
 
-    def get_mesh(self,resolution_levels):
+    def get_mesh(self, resolution_levels):
         r"""The arguments to this function are the outputs of 
         get_degrees_of_freedom_and_timestep()"""
-        nx,ny=np.asarray(resolution_levels,dtype=int)
-        mesh = dl.RectangleMesh(dl.Point(0, 0),dl.Point(1, 1), nx, ny)
+        nx, ny = np.asarray(resolution_levels, dtype=int)
+        mesh = dla.RectangleMesh(dl.Point(0, 0), dl.Point(1, 1), nx, ny)
         return mesh
 
     def set_num_config_vars(self):
@@ -178,22 +198,24 @@ class AdvectionDiffusionModel(object):
         Should be equal to the number of physical dimensions + 1 
         (for the temporal resolution)
         """
-        self.num_config_vars=3
+        self.num_config_vars = 3
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Do not change the following functions
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
-    def __init__(self,final_time,degree,qoi_functional,
-                 second_order_timestepping=True,options={}):
-        self.final_time=final_time
-        self.qoi_functional=qoi_functional
-        self.degree=degree
-        self.second_order_timestepping=second_order_timestepping
+    def __init__(self, final_time, degree, qoi_functional,
+                 second_order_timestepping=True, options={},
+                 qoi_functional_grad=None):
+        self.final_time = final_time
+        self.qoi_functional = qoi_functional
+        self.degree = degree
+        self.second_order_timestepping = second_order_timestepping
         self.set_num_config_vars()
-        self.options=options
+        self.options = options
+        self.qoi_functional_grad = qoi_functional_grad
 
-    def solve(self,samples):
+    def solve(self, samples):
         r"""
         Run the simulation
 
@@ -202,36 +224,50 @@ class AdvectionDiffusionModel(object):
         Dolfin objects must be initialized inside this function otherwise 
         this object cannot be pickled and used with multiprocessing.Pool
         """
-        assert samples.ndim==2
-        assert samples.shape[1]==1
+        assert samples.ndim == 2
+        assert samples.shape[1] == 1
 
-        resolution_levels = samples[-self.num_config_vars:,0]
+        resolution_levels = samples[-self.num_config_vars:, 0]
         dt = self.get_timestep(resolution_levels[-1])
         self.mesh = self.get_mesh(
             self.get_mesh_resolution(resolution_levels[:-1]))
-        
-        random_sample = samples[:-self.num_config_vars,0]
+
+        random_sample = samples[:-self.num_config_vars, 0]
 
         init_condition, boundary_conditions, function_space, beta, \
-            forcing, kappa = self.initialize_random_expressions(random_sample)
+            forcing, kappa = self.initialize_random_expressions(
+                random_sample)
+        # when dla is dolfin_adjoint
+        # Must project dla.CompiledExpression to avoid error
+        # site-packages/pyadjoint/overloaded_type.py", line 136,
+        # in _ad_convert_type raise NotImplementedError
+        self.kappa = dla.interpolate(kappa, function_space)
+        # this is not necessary when just using dolfin
 
         sol = run_model(
-            function_space,kappa,forcing,
-            init_condition,dt,self.final_time,
-            boundary_conditions,velocity=beta,
+            function_space, self.kappa, forcing,
+            init_condition, dt, self.final_time,
+            boundary_conditions, velocity=beta,
             second_order_timestepping=self.second_order_timestepping,
-            intermediate_times=self.options.get('intermediate_times',None))
+            intermediate_times=self.options.get('intermediate_times', None))
         return sol
-        
-    def __call__(self,samples):
+
+    def __call__(self, samples, jac=False):
         sol = self.solve(samples)
         vals = np.atleast_1d(self.qoi_functional(sol))
-        if vals.ndim==1:
-            vals = vals[:,np.newaxis]
+        if vals.ndim == 1:
+            vals = vals[:, np.newaxis]
+
+        if jac is True:
+            assert self.qoi_functional_grad is not None
+            grad = self.qoi_functional_grad(sol, self)
+            return vals, grad
+
         return vals
 
+
 class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
-    def initialize_random_expressions(self,random_sample):
+    def initialize_random_expressions(self, random_sample):
         r"""
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
@@ -242,37 +278,39 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
         beta = self.get_velocity(None)
         forcing = self.get_forcing(random_sample[:2])
         kappa = self.get_diffusivity(random_sample[2:])
+        kappa = dla.project(kappa, function_space)
         return init_condition, boundary_conditions, function_space, beta, \
             forcing, kappa
 
-    def get_forcing(self,random_sample):
+    def get_forcing(self, random_sample):
         source_stop_time = self.final_time
-        s=self.options['source_strength']
-        h=self.options['source_width']
-        forcing = dl.Expression(
-            '((t>ft)?0.:1.)*s/(2.*pi*h*h)*std::exp(-(pow(x[0]-x0,2)+pow(x[1]-x1,2))/(2.*h*h))',x0=random_sample[0],x1=random_sample[1],t=0,ft=source_stop_time,s=s,h=h,degree=self.degree)
+        s = self.options['source_strength']
+        h = self.options['source_width']
+        forcing = dla.Expression(
+            '((t>ft)?0.:1.)*s/(2.*pi*h*h)*std::exp(-(pow(x[0]-x0,2)+pow(x[1]-x1,2))/(2.*h*h))', x0=random_sample[0], x1=random_sample[1], t=0, ft=source_stop_time, s=s, h=h, degree=self.degree)
         return forcing
 
-    def get_diffusivity(self,random_sample):
+    def get_diffusivity(self, random_sample):
         r"""
         Use the random diffusivity specified in [JEGGIJNME2020].
         """
-        kappa = dl.Constant(1.0)
+        kappa = dla.Constant(1.0)
         return kappa
 
     def get_boundary_conditions_and_function_space(
-            self,random_sample):
+            self, random_sample):
         r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
-        bndry_objs = get_2d_rectangular_mesh_boundaries(0,1,0,1)
+        bndry_objs = get_2d_rectangular_mesh_boundaries(0, 1, 0, 1)
         boundary_conditions = [
-            ['neumann',  bndry_objs[0],dl.Constant(0)],
-            ['neumann',  bndry_objs[1],dl.Constant(0)],
-            ['neumann',  bndry_objs[2],dl.Constant(0)],
-            ['neumann',  bndry_objs[3],dl.Constant(0)]]
-        return boundary_conditions,function_space
+            ['neumann',  bndry_objs[0], dla.Constant(0)],
+            ['neumann',  bndry_objs[1], dla.Constant(0)],
+            ['neumann',  bndry_objs[2], dla.Constant(0)],
+            ['neumann',  bndry_objs[3], dla.Constant(0)]]
+        return boundary_conditions, function_space
+
 
 def qoi_functional_source_inversion(sols):
     r"""
@@ -296,17 +334,19 @@ def qoi_functional_source_inversion(sols):
     noise_std = 0.4
     """
     sensor_locations = np.array(
-        [[0,0],[0,0.5],[0.,1.],[0.5,0],[0.5,0.5],[0.5,1.],
-         [1,0],[1,0.5],[1.,1.]]).T
+        [[0, 0], [0, 0.5], [0., 1.], [0.5, 0], [0.5, 0.5], [0.5, 1.],
+         [1, 0], [1, 0.5], [1., 1.]]).T
     vals = np.empty(sensor_locations.shape[1]*len(sols))
-    kk=0
-    for jj,sol in enumerate(sols):
-        for ii,loc in enumerate(sensor_locations.T):
-            vals[kk]=sol(loc)
-            kk+=1
+    kk = 0
+    for jj, sol in enumerate(sols):
+        for ii, loc in enumerate(sensor_locations.T):
+            vals[kk] = sol(loc)
+            kk += 1
     return vals
 
-def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
+
+def setup_advection_diffusion_benchmark(nvars, corr_len,
+                                        max_eval_concurrency=1):
     r"""
     Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
 
@@ -393,31 +433,34 @@ def setup_advection_diffusion_benchmark(nvars,corr_len,max_eval_concurrency=1):
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])
     """
-    
+
     from scipy import stats
     from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
     from pyapprox.models.wrappers import PoolModel
     from pyapprox.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
-    univariate_variables = [stats.uniform(-np.sqrt(3),2*np.sqrt(3))]*nvars
-    variable=IndependentMultivariateRandomVariable(univariate_variables)
-    final_time, degree = 1.0,1
-    options={'corr_len':corr_len}
+    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = 1.0, 1
+    options = {'corr_len': corr_len}
     base_model = AdvectionDiffusionModel(
-        final_time,degree,qoi_functional_misc,second_order_timestepping=False,
-        options=options)
+        final_time, degree, qoi_functional_misc, second_order_timestepping=False,
+        options=options, qoi_functional_grad=qoi_functional_grad_misc)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(base_model,base_model)
-    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    timer_model = TimerModelWrapper(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
 
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model,base_model,base_model.num_config_vars)
-    attributes = {'fun':model,'variable':variable}
+    model = WorkTrackingModel(pool_model, base_model,
+                              base_model.num_config_vars)
+    attributes = {'fun': model, 'variable': variable}
     return Benchmark(attributes)
 
+
 def setup_multi_level_advection_diffusion_benchmark(
-        nvars,corr_len,max_eval_concurrency=1):
+        nvars, corr_len, max_eval_concurrency=1):
     r"""
     Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep). An integer increase in the configure variable value will raise the 3 numerical discretiation paramaters by the same integer.
 
@@ -430,25 +473,27 @@ def setup_multi_level_advection_diffusion_benchmark(
     from pyapprox.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     from pyapprox.models.wrappers import MultiLevelWrapper
-    univariate_variables = [stats.uniform(-np.sqrt(3),2*np.sqrt(3))]*nvars
-    variable=IndependentMultivariateRandomVariable(univariate_variables)
-    final_time, degree = 1.0,1
-    options={'corr_len':corr_len}
+    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = 1.0, 1
+    options = {'corr_len': corr_len}
     base_model = AdvectionDiffusionModel(
-        final_time,degree,qoi_functional_misc,second_order_timestepping=False,
+        final_time, degree, qoi_functional_misc, second_order_timestepping=False,
         options=options)
-    multilevel_model=MultiLevelWrapper(
-        base_model,base_model.num_config_vars)
+    multilevel_model = MultiLevelWrapper(
+        base_model, base_model.num_config_vars)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(multilevel_model,base_model)
-    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
+    timer_model = TimerModelWrapper(multilevel_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
     model = WorkTrackingModel(
-        pool_model,base_model,multilevel_model.num_config_vars)
-    attributes = {'fun':model,'variable':variable,
-                  'multi_level_model':multilevel_model}
+        pool_model, base_model, multilevel_model.num_config_vars)
+    attributes = {'fun': model, 'variable': variable,
+                  'multi_level_model': multilevel_model}
     return Benchmark(attributes)
 
-def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05,0.15]),source_strength=0.5,source_width=0.1,true_sample=np.array([[0.25,0.75,4,4,4]]).T,noise_stdev=0.4,max_eval_concurrency=1):
+
+def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05, 0.15]), source_strength=0.5, source_width=0.1, true_sample=np.array([[0.25, 0.75, 4, 4, 4]]).T, noise_stdev=0.4, max_eval_concurrency=1):
     r"""
     Compute functionals of the following model of transient diffusion of 
     a contaminant
@@ -504,7 +549,7 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     true_sample : np.ndarray (2)
         The true location of the source used to generate the observations
         used in the likelihood function
-    
+
     noise_stdev : float
         The standard deviation :math:`sigma` of the observational noise
 
@@ -562,41 +607,39 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     The example from [LMSISC2014]_ can be obtained by setting `s=2`, `h=0.05`,
     `measurement_times=np.array([0.1,0.2])` and `noise_stdev=0.1`
     """
-    
+
     from scipy import stats
     from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
     from pyapprox.models.wrappers import PoolModel
     from pyapprox.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
-    univariate_variables = [stats.uniform(0,1)]*2
-    variable=IndependentMultivariateRandomVariable(univariate_variables)
-    final_time, degree = measurement_times.max(),2
-    options={'intermediate_times':measurement_times[:-1],
-             'source_strength':source_strength,'source_width':source_width}
+    univariate_variables = [stats.uniform(0, 1)]*2
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    final_time, degree = measurement_times.max(), 2
+    options = {'intermediate_times': measurement_times[:-1],
+               'source_strength': source_strength, 'source_width': source_width}
     base_model = AdvectionDiffusionSourceInversionModel(
-        final_time,degree,qoi_functional_source_inversion,
-        second_order_timestepping=False,options=options)
+        final_time, degree, qoi_functional_source_inversion,
+        second_order_timestepping=False, options=options)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(base_model,base_model)
-    pool_model=PoolModel(timer_model,max_eval_concurrency,base_model=base_model)
-    
+    timer_model = TimerModelWrapper(base_model, base_model)
+    pool_model = PoolModel(
+        timer_model, max_eval_concurrency, base_model=base_model)
+
     # add wrapper that tracks execution times.
-    model = WorkTrackingModel(pool_model,base_model)
-    
+    model = WorkTrackingModel(pool_model, base_model)
+
     from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
         GaussianLogLike
-    if true_sample.shape!=(5,1):
+    if true_sample.shape != (5, 1):
         msg = 'true_sample must be the concatenation of random sample and the '
         msg += 'configure sample'
         raise Exception(msg)
-    noiseless_data = model(true_sample)[0,:]
-    noise = np.random.normal(0,noise_stdev,(noiseless_data.shape[0]))
+    noiseless_data = model(true_sample)[0, :]
+    noise = np.random.normal(0, noise_stdev, (noiseless_data.shape[0]))
     data = noiseless_data + noise
-    loglike = GaussianLogLike(model,data,noise_stdev)
-    
-    attributes = {'fun':model,'variable':variable,'loglike':loglike}
+    loglike = GaussianLogLike(model, data, noise_stdev)
+
+    attributes = {'fun': model, 'variable': variable, 'loglike': loglike}
     return Benchmark(attributes)
-
-
-     
