@@ -584,8 +584,8 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         h = dla.Function(kappa.function_space())
         h.vector()[:] = np.random.normal(
             0, 1, kappa.function_space().dim())
-        #conv_rate = dla.taylor_test(Jhat, kappa, h)
-        #assert np.allclose(conv_rate, 2.0, atol=1e-3)
+        conv_rate = dla.taylor_test(Jhat, kappa, h)
+        assert np.allclose(conv_rate, 2.0, atol=1e-3)
 
         # Check that gradient with respect to kappa is calculated correctly
         # this requires passing in entire kappa vector and not just variables
@@ -620,7 +620,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         kappa = bmodel.get_diffusivity(random_samples[:, 0])
         x0 = dla.project(
             kappa, function_space).vector()[:].copy()[:, None]
-        #check_gradients(fun, True, x0)
+        check_gradients(fun, True, x0)
 
         # Test that gradient with respect to kle coefficients is correct
 

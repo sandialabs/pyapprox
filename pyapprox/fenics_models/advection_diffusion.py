@@ -136,9 +136,11 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
 
     while t < final_time-dt_tol:
         # Update current time
+        prev_t = t
+        forcing_1.t = prev_t
         t += dt
+        t = min(t, final_time)
         forcing.t = t
-        forcing_1.t = t-dt
 
         # set current time for time varying boundary conditions
         for ii in range(num_bndrys):
@@ -149,9 +151,9 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
         # using second order timestepping. lists will be empty if using
         # first order timestepping
         for jj in range(len(beta_1_list)):
-            beta_1_list[jj].t = t-dt
+            beta_1_list[jj].t = prev_t
         for jj in range(len(alpha_1_list)):
-            alpha_1_list[jj].t = t-dt
+            alpha_1_list[jj].t = prev_t
 
         #A, b = dl.assemble_system(a, L, dirichlet_bcs)
         # for bc in dirichlet_bcs:
@@ -203,7 +205,6 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
             # dl.plot(exact_sol,mesh=mesh)
             # plt.show()
 
-        t = min(t, final_time)
         if (intermediate_times is not None and
             intermediate_cnt < intermediate_times.shape[0] and
                 t >= intermediate_times[intermediate_cnt]):
