@@ -29,10 +29,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
-#      uses: conda-incubator/setup-miniconda@v2
-      uses: goanpeca/setup-miniconda@v1
+      uses: conda-incubator/setup-miniconda@v2
       with:
-      
         activate-environment: pyapprox-dev
         python-version: ${{ matrix.python-version }}
         channels: defaults,conda-forge
