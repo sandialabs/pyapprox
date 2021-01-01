@@ -1,5 +1,6 @@
 import numpy as np
 from pyapprox.fenics_models.fenics_utilities import *
+from functools import partial
 
 
 def run_model(function_space, time_step, final_time, forcing, boundary_conditions, init_condition, 
@@ -135,7 +136,7 @@ def compute_gamma(A, n=3):
 def var_form_max(a, b): return (a+b+abs(a-b))/dl.Constant(2)
 
 
-def shallow_ice_diffusion(n, gamma, bed,positivity_tol, beta, thickness):
+def shallow_ice_diffusion(n, gamma, bed, positivity_tol, beta, thickness):
     r"""
     Nonlinear diffusivity function of the shallow ice equation
 
@@ -172,6 +173,62 @@ def shallow_ice_diffusion(n, gamma, bed,positivity_tol, beta, thickness):
     return var_form
 
 
+def get_halfar_shallow_ice_exact_solution_sympy(Gamma, ndim):
+    from sympy.abc import t
+    import sympy as sp
+    x, y = sp.symbols('x[0] x[1]')
+
+    n, H0, R0 = 3, 3600., 750e3
+
+    if ndim == 2:
+        beta = 1./(5*n+3)
+        alpha = 2*beta
+        r = sp.sqrt(x**2+y**2)/R0
+    elif ndim == 1:
+        beta = 1./(3*n+2)
+        alpha = beta
+        r = sp.sqrt(x**2)/R0
+
+    t0 = (beta/Gamma) * (7/4)**3 * (R0**4/H0**7)
+    tt = t/t0
+
+    inside = sp.Max(0, 1-(r/tt**beta)**((n+1)/n))
+    H = H0*inside**(n/(2*n+1))/tt**alpha
+    return H, x, y, t
+
+
+def get_halfar_shallow_ice_exact_solution(Gamma, mesh, degree, ndim):
+    import sympy as sp
+    H, x, y, t = get_halfar_shallow_ice_exact_solution_sympy(Gamma, ndim)
+    exact_sol = dla.Expression(
+        sp.printing.ccode(H), cell=mesh.ufl_cell(),
+        domain=mesh, t=0, degree=degree)
+    return exact_sol
+
+
+def get_default_snes_nlsparams():
+    nlsparams = {'nonlinear_solver': 'snes', 'snes_solver': dict()}
+    nlsparams['snes_solver']['method'] = 'vinewtonrsls'
+    nlsparams['snes_solver']['relative_tolerance'] = 1e-12
+    nlsparams['snes_solver']['absolute_tolerance'] = 1e-6
+    nlsparams['snes_solver']['error_on_nonconvergence'] = True
+    nlsparams['snes_solver']['maximum_iterations'] = 100
+    nlsparams['snes_solver']['report'] = False
+    nlsparams['snes_solver']['line_search'] = 'bt'
+    nlsparams['snes_solver']['sign'] = 'nonnegative'
+    return nlsparams
+
+
+def get_default_newton_nlsparams():
+    nlsparams = {'nonlinear_solver': 'newton', 'newton_solver': dict()}
+    nlsparams['newton_solver']['relative_tolerance'] = 1e-6
+    nlsparams['newton_solver']['absolute_tolerance'] = 1e-6
+    nlsparams['newton_solver']['error_on_nonconvergence'] = True
+    nlsparams['newton_solver']['maximum_iterations'] = 100
+    nlsparams['newton_solver']['report'] = False
+    return nlsparams
+
+
 from pyapprox.fenics_models.advection_diffusion_wrappers import AdvectionDiffusionModel
 class HalfarShallowIceModel(AdvectionDiffusionModel):
 
@@ -200,29 +257,27 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
         """
-        self.set_constants()
+        assert random_sample.shape[0] == 0
         init_condition = self.get_initial_condition(None)
         boundary_conditions, function_space = \
             self.get_boundary_conditions_and_function_space(None)
-        beta = self.get_velocity(None)
         forcing = self.get_forcing(None)
-        kappa = self.get_diffusivity(random_sample)
-        return init_condition, boundary_conditions, function_space, beta, \
-            forcing, kappa
+        kappa_fun = self.get_diffusivity(None)
+        return init_condition, boundary_conditions, function_space, forcing, kappa_fun
 
     def get_initial_condition(self, random_sample):
         r"""By Default the initial condition is deterministic and set to zero"""
         assert random_sample is None
-        init_solution = get_shallow_ice_exact_solution(
+        init_condition = get_halfar_shallow_ice_exact_solution(
             self.Gamma, self.mesh, self.degree, self.nphys_dim)
-        init_solution.t = self.init_time
-        return initial_condition
+        init_condition.t = self.init_time
+        return init_condition
 
     def get_boundary_conditions_and_function_space(self, random_sample):
         r"""By Default the boundary conditions are deterministic, Dirichlet and 
            and set to zero"""
         assert random_sample is None
-        exact_solution = get_shallow_ice_exact_solution(
+        exact_solution = get_halfar_shallow_ice_exact_solution(
             self.Gamma, self.mesh, self.degree, self.nphys_dim)
         exact_solution.t = self.init_time
         if self.nphys_dim == 1:
@@ -237,12 +292,6 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
         return boundary_conditions, function_space
-
-    def get_velocity(self, random_sample):
-        r"""By Default the advection is deterministic and set to zero"""
-        assert random_sample is None
-        beta = dla.Expression((str(0), str(0)), degree=self.degree)
-        return beta
 
     def get_forcing(self, random_sample):
         r"""By Default the forcing is deterministic and set to 
@@ -275,16 +324,24 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         return dt
 
     def get_mesh_resolution(self, mesh_levels):
-        nx_level, ny_level = mesh_levels
-        nx = 2**(nx_level+2)
-        ny = 2**(ny_level+2)
+        if self.nphys_dim == 2:
+            nx_level, ny_level = mesh_levels
+            nx = 2**(nx_level+2)
+            ny = 2**(ny_level+2)
+        elif self.nphys_dim == 1:
+            nx_level = mesh_levels
+            nx = 2**(nx_level+2)
+            ny = 0
         return nx, ny
 
     def get_mesh(self, resolution_levels):
         r"""The arguments to this function are the outputs of 
         get_degrees_of_freedom_and_timestep()"""
         nx, ny = np.asarray(resolution_levels, dtype=int)
-        mesh = dla.RectangleMesh(dl.Point(0, 0), dl.Point(1, 1), nx, ny)
+        if self.nphys_dim == 2:
+            mesh = dla.RectangleMesh(dl.Point(-self.Lx, -self.Lx), dl.Point(self.Lx, self.Lx), nx, ny)
+        elif self.nphys_dim == 1:
+            mesh = dla.IntervalMesh(nx, -self.Lx, self.Lx)
         return mesh
 
     def set_num_config_vars(self):
@@ -292,23 +349,25 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         Should be equal to the number of physical dimensions + 1 
         (for the temporal resolution)
         """
-        self.num_config_vars = 3
+        self.num_config_vars = self.nphys_dim + 1
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Do not change the following functions
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
-    def __init__(self, init_time, final_time, degree, qoi_functional,
-                 second_order_timestepping=True, options={},
+    def __init__(self, nphys_dim, init_time, final_time, degree, qoi_functional,
+                 second_order_timestepping=True, nlsparams={},
                  qoi_functional_grad=None):
+        self.nphys_dim = nphys_dim
         self.init_time = init_time
         self.final_time = final_time
         self.qoi_functional = qoi_functional
         self.degree = degree
         self.second_order_timestepping = second_order_timestepping
         self.set_num_config_vars()
-        self.options = options
+        self.nlsparams = nlsparams
         self.qoi_functional_grad = qoi_functional_grad
+        self.set_constants()
 
     def solve(self, samples):
         r"""
@@ -329,22 +388,17 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
 
         random_sample = samples[:-self.num_config_vars, 0]
 
-        init_condition, boundary_conditions, function_space, beta, \
-            forcing, kappa = self.initialize_random_expressions(
+        init_condition, boundary_conditions, function_space, \
+            forcing, kappa_fun = self.initialize_random_expressions(
                 random_sample)
         # when dla is dolfin_adjoint
         # Must project dla.CompiledExpression to avoid error
         # site-packages/pyadjoint/overloaded_type.py", line 136,
-        # in _ad_convert_type raise NotImplementedError
-        self.kappa = dla.interpolate(kappa, function_space)
-        # this is not necessary when just using dolfin
-
         sol = run_model(
-            function_space, self.kappa, forcing,
-            init_condition, dt, self.final_time,
-            boundary_conditions, velocity=beta,
+            function_space, dt, self.final_time,
+            forcing, boundary_conditions, init_condition, kappa_fun,
             second_order_timestepping=self.second_order_timestepping,
-            intermediate_times=self.options.get('intermediate_times', None))
+            nlsparam=self.nlsparams, positivity_tol=self.positivity_tol)
         return sol
 
     def __call__(self, samples, jac=False):

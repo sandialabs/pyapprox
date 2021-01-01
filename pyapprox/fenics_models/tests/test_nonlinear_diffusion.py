@@ -167,51 +167,6 @@ class TestNonlinearDiffusion(unittest.TestCase):
         check_gradients(fun, True, x0)
 
 
-
-def get_shallow_ice_exact_solution_sympy(Gamma, ndim):
-    from sympy.abc import t
-    x, y = sp.symbols('x[0] x[1]')
-
-    n, H0, R0 = 3, 3600., 750e3
-
-    if ndim == 2:
-        beta = 1./(5*n+3)
-        alpha = 2*beta
-        r = sp.sqrt(x**2+y**2)/R0
-    elif ndim == 1:
-        beta = 1./(3*n+2)
-        alpha = beta
-        r = sp.sqrt(x**2)/R0
-
-    t0 = (beta/Gamma) * (7/4)**3 * (R0**4/H0**7)
-    tt = t/t0
-
-    inside = sp.Max(0, 1-(r/tt**beta)**((n+1)/n))
-    H = H0*inside**(n/(2*n+1))/tt**alpha
-    return H, x, y, t
-
-
-def get_shallow_ice_exact_solution(Gamma, mesh, degree, ndim):
-    H, x, y, t = get_shallow_ice_exact_solution_sympy(Gamma, ndim)
-    exact_sol = dla.Expression(
-        sp.printing.ccode(H), cell=mesh.ufl_cell(),
-        domain=mesh, t=0, degree=degree)
-    return exact_sol
-
-
-def shallow_ice_diffusion_sympy(Gamma, H):
-    """
-    Only valid for n=3
-    """
-    from sympy.abc import t
-    x, y = sp.symbols('x[0] x[1]')
-    bed = 0
-    grad_h = [sp.diff(H+b, xi) for xi in (x, y)]
-    diff = Gamma*H**(5)*(grad_h[0]**2+grad_h[1]**2)
-    diff = sp.simplify(diff)
-    return diff
-
-
 class TestShallowIceEquation(unittest.TestCase):
     def run_shallow_ice_halfar(self, nphys_dim):
         """
@@ -238,10 +193,10 @@ class TestShallowIceEquation(unittest.TestCase):
             ny, Ly = nx, Lx
             mesh = dla.RectangleMesh(dl.Point(-Lx, -Ly), dl.Point(Lx, Ly), nx, ny)
         function_space = dl.FunctionSpace(mesh, "Lagrange", degree)
-
+        
         bed = None
         forcing = dla.Constant(0.0)
-        exact_solution = get_shallow_ice_exact_solution(
+        exact_solution = get_halfar_shallow_ice_exact_solution(
             Gamma, mesh, degree, nphys_dim)
         if nphys_dim == 1:
             boundary_conditions = \
@@ -257,15 +212,7 @@ class TestShallowIceEquation(unittest.TestCase):
         secpera = 31556926  # seconds per anum
         exact_solution.t = 200*secpera
 
-        nlsparam = {'nonlinear_solver': 'snes', 'snes_solver': dict()}
-        nlsparam['snes_solver']['method'] = 'vinewtonrsls'
-        nlsparam['snes_solver']['relative_tolerance'] = 1e-12
-        nlsparam['snes_solver']['absolute_tolerance'] = 1e-6
-        nlsparam['snes_solver']['error_on_nonconvergence'] = True
-        nlsparam['snes_solver']['maximum_iterations'] = 100
-        nlsparam['snes_solver']['report'] = False
-        nlsparam['snes_solver']['line_search'] = 'bt'
-        nlsparam['snes_solver']['sign'] = 'nonnegative'
+        nlsparams = get_default_snes_nlsparams()
 
         beta = None
         diffusion = partial(
@@ -276,9 +223,9 @@ class TestShallowIceEquation(unittest.TestCase):
                    'second_order_timestepping': True,
                    'init_condition': exact_solution,
                    'nonlinear_diffusion': diffusion,
-                   'nlsparam': nlsparam,
+                   'nlsparam': nlsparams,
                    'positivity_tol': positivity_tol}
-        sol = run_model(function_space, options)
+        sol = run_model(function_space, **options)
 
         # exact_solution.t=forcing.t+options['time_step']
         exact_solution.t = options['final_time']
@@ -320,6 +267,34 @@ class TestShallowIceEquation(unittest.TestCase):
 
     def test_shallow_ice_halfar_2d(self):
         self.run_shallow_ice_halfar(2)
+
+    def test_halfar_model(self):
+        # nlsparams = get_default_snes_nlsparams()
+        nlsparams = get_default_newton_nlsparams()
+        
+        secpera = 31556926  # seconds per anum
+        init_time = 200*secpera
+        final_time, degree, nphys_dim = 600*secpera, 1, 1
+        model = HalfarShallowIceModel(nphys_dim, init_time, final_time, degree, None, second_order_timestepping=True, nlsparams=nlsparams)
+
+        # for nhys_dim=1 [8, 8] will produce error of 2.7 e-5
+        # but stagnates for a while at around 1e-4 fir values
+        # 5, 6, 7
+        config_sample = np.array([[5]*nphys_dim +[5]]).T
+        sample = config_sample
+        sol = model.solve(sample)
+
+
+        exact_solution = get_halfar_shallow_ice_exact_solution(
+            model.Gamma, model.mesh, model.degree, model.nphys_dim)
+        exact_solution.t = final_time
+        error = dl.errornorm(exact_solution, sol, mesh=model.mesh)
+        print('Abs. Error', error)
+        rel_error = error/dl.sqrt(dla.assemble(exact_solution**2*dl.dx(degree=5)))
+        print('Rel. Error', rel_error)
+
+        assert rel_error<1e-3
+
 
         
 
