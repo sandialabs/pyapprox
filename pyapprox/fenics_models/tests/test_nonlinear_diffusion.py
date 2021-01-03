@@ -271,19 +271,31 @@ class TestShallowIceEquation(unittest.TestCase):
     def test_halfar_model(self):
         # nlsparams = get_default_snes_nlsparams()
         nlsparams = get_default_newton_nlsparams()
+
+        def dl_qoi_functional(sol):
+            return dla.assemble(sol*dl.dx)
+
+        def qoi_functional(sol):
+            return np.atleast_1d(float(dl_qoi_functional(sol)))
+
+        def qoi_functional_grad(sol, model):
+            J = dl_qoi_functional(sol)
+            control = dla.Control(model.shallow_ice_diffusivity.Gamma)
+            dJd_gamma = dla.compute_gradient(J, [control])[0]
+            return np.atleast_2d(float(dJd_gamma))
         
         secpera = 31556926  # seconds per anum
         init_time = 200*secpera
         final_time, degree, nphys_dim = 600*secpera, 1, 1
-        model = HalfarShallowIceModel(nphys_dim, init_time, final_time, degree, None, second_order_timestepping=True, nlsparams=nlsparams)
+        model = HalfarShallowIceModel(nphys_dim, init_time, final_time, degree, qoi_functional, second_order_timestepping=True, nlsparams=nlsparams, qoi_functional_grad=qoi_functional_grad)
 
-        # for nhys_dim=1 [8, 8] will produce error of 2.7 e-5
-        # but stagnates for a while at around 1e-4 fir values
+        # for nphys_dim=1 [8, 8] will produce error of 2.7 e-5
+        # but stagnates for a while at around 1e-4 for values
         # 5, 6, 7
-        config_sample = np.array([[5]*nphys_dim +[5]]).T
-        sample = config_sample
+        random_sample = np.array([[0]]).T
+        config_sample = np.array([[4]*nphys_dim +[4]]).T
+        sample = np.vstack((random_sample, config_sample))
         sol = model.solve(sample)
-
 
         exact_solution = get_halfar_shallow_ice_exact_solution(
             model.Gamma, model.mesh, model.degree, model.nphys_dim)
@@ -294,6 +306,17 @@ class TestShallowIceEquation(unittest.TestCase):
         print('Rel. Error', rel_error)
 
         assert rel_error<1e-3
+
+        # TODO: complete test qoi grad but first add taylor_test
+        val, grad = model(sample, True)
+        print(val, grad)
+
+        from pyapprox.optimization import check_gradients
+        from pyapprox.models.wrappers import SingleFidelityWrapper
+        fun = SingleFidelityWrapper(partial(model, jac=True), config_sample[:, 0])
+        x0 = np.atleast_2d(model.Gamma)
+        check_gradients(fun, True, x0)
+        
 
 
         

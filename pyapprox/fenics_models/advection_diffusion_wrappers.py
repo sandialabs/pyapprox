@@ -257,13 +257,13 @@ class AdvectionDiffusionModel(object):
         vals = np.atleast_1d(self.qoi_functional(sol))
         if vals.ndim == 1:
             vals = vals[:, np.newaxis]
+        if jac is False:
+            return vals
+        assert self.qoi_functional_grad is not None
+        grad = self.qoi_functional_grad(sol, self)
+        return vals, grad
 
-        if jac is True:
-            assert self.qoi_functional_grad is not None
-            grad = self.qoi_functional_grad(sol, self)
-            return vals, grad
 
-        return vals
 
 
 class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):

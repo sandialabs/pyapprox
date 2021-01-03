@@ -1,6 +1,5 @@
 import numpy as np
 from pyapprox.fenics_models.fenics_utilities import *
-from functools import partial
 
 
 def run_model(function_space, time_step, final_time, forcing, boundary_conditions, init_condition, 
@@ -26,7 +25,6 @@ def run_model(function_space, time_step, final_time, forcing, boundary_condition
     v = dl.TestFunction(function_space)
 
     # Previous solution
-    #assert init_condition.t==0
     u_1 = dla.interpolate(init_condition, function_space)
 
     u_2 = dla.Function(function_space)
@@ -172,6 +170,17 @@ def shallow_ice_diffusion(n, gamma, bed, positivity_tol, beta, thickness):
     var_form += positivity_tol
     return var_form
 
+class ShallowIceDiffusivity(object):
+    def __init__(self, Gamma, bed, beta, positivity_tol):
+        self.Gamma = Gamma
+        self.bed = bed
+        self.beta = beta
+        self.n = 3
+        self.positivity_tol = positivity_tol
+
+    def __call__(self, thickness):
+        return shallow_ice_diffusion(self.n, self.Gamma, self.bed, self.positivity_tol, self.beta, thickness)
+        
 
 def get_halfar_shallow_ice_exact_solution_sympy(Gamma, ndim):
     from sympy.abc import t
@@ -249,7 +258,6 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         self.Lx = 1200e3
         self.bed = None
         self.beta = None
-
         self.positivity_tol = 0
 
     def initialize_random_expressions(self, random_sample):
@@ -257,12 +265,12 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         Overide this class to split random_samples into the parts that effect
         the 5 random quantities
         """
-        assert random_sample.shape[0] == 0
+        assert random_sample.shape[0] == 1
         init_condition = self.get_initial_condition(None)
         boundary_conditions, function_space = \
             self.get_boundary_conditions_and_function_space(None)
         forcing = self.get_forcing(None)
-        kappa_fun = self.get_diffusivity(None)
+        kappa_fun = self.get_diffusivity(random_sample[:1])
         return init_condition, boundary_conditions, function_space, forcing, kappa_fun
 
     def get_initial_condition(self, random_sample):
@@ -305,12 +313,11 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
 
     def get_diffusivity(self, random_sample):
         r"""
-        Use the random diffusivity specified in [JEGGIJNME2020].
         """
-        assert random_sample is None
-        kappa = partial(
-            shallow_ice_diffusion, self.glen_exponent, self.Gamma, self.bed, self.positivity_tol, self.beta)
-        return kappa
+        assert random_sample.shape[0] == 1
+        Gamma = dla.Constant(self.Gamma*(1+random_sample[0]))
+        self.shallow_ice_diffusivity = ShallowIceDiffusivity(Gamma, self.bed, self.beta, self.positivity_tol)
+        return self.shallow_ice_diffusivity
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
     # Change the following functions to modify mapping of discretization
@@ -319,9 +326,10 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
     #     get_mesh_resolution()
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
 
-    def get_timestep(self, dt_level):
-        dt = self.final_time/2**(dt_level+2)
-        return dt
+    # use base class function
+    # def get_timestep(self, dt_level):
+    #     dt = self.final_time/2**(dt_level+2)
+    #     return dt
 
     def get_mesh_resolution(self, mesh_levels):
         if self.nphys_dim == 2:
@@ -360,13 +368,10 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
                  qoi_functional_grad=None):
         self.nphys_dim = nphys_dim
         self.init_time = init_time
-        self.final_time = final_time
-        self.qoi_functional = qoi_functional
-        self.degree = degree
-        self.second_order_timestepping = second_order_timestepping
-        self.set_num_config_vars()
+        super().__init__(final_time, degree, qoi_functional,
+                         second_order_timestepping, options={},
+                         qoi_functional_grad=qoi_functional_grad)
         self.nlsparams = nlsparams
-        self.qoi_functional_grad = qoi_functional_grad
         self.set_constants()
 
     def solve(self, samples):
@@ -391,9 +396,7 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         init_condition, boundary_conditions, function_space, \
             forcing, kappa_fun = self.initialize_random_expressions(
                 random_sample)
-        # when dla is dolfin_adjoint
-        # Must project dla.CompiledExpression to avoid error
-        # site-packages/pyadjoint/overloaded_type.py", line 136,
+ 
         sol = run_model(
             function_space, dt, self.final_time,
             forcing, boundary_conditions, init_condition, kappa_fun,
@@ -401,17 +404,5 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
             nlsparam=self.nlsparams, positivity_tol=self.positivity_tol)
         return sol
 
-    def __call__(self, samples, jac=False):
-        sol = self.solve(samples)
-        vals = np.atleast_1d(self.qoi_functional(sol))
-        if vals.ndim == 1:
-            vals = vals[:, np.newaxis]
-
-        if jac is True:
-            assert self.qoi_functional_grad is not None
-            grad = self.qoi_functional_grad(sol, self)
-            return vals, grad
-
-        return vals
 
 

@@ -276,7 +276,7 @@ class MeshKLE(object):
         False - return k(x)
     """
 
-    def __init__(self, mesh_coords, mean_field=0, use_log=False):
+    def __init__(self, mesh_coords, mean_field=0, use_log=False, matern_nu=np.inf):
         assert mesh_coords.shape[0] <= 2
         self.mesh_coords = mesh_coords
         self.use_log = use_log
@@ -285,6 +285,25 @@ class MeshKLE(object):
             mean_field = np.ones(self.mesh_coords.shape[1])*mean_field
         assert mean_field.shape[0] == self.mesh_coords.shape[1]
         self.mean_field = mean_field
+        self.matern_nu = matern_nu
+
+    def compute_kernel_matrix(self, length_scale):
+        if self.matern_nu == np.inf:
+            dists = pdist(self.mesh_coords.T / length_scale, metric='sqeuclidean')
+            K = squareform(np.exp(-.5 * dists))
+            np.fill_diagonal(K, 1)
+            return K
+
+        dists = pdist(self.mesh_coords.T / length_scale, metric='euclidean')
+        if self.matern == 0.5:
+            K = squareform(np.exp(-dists))
+        elif self.matern == 1.5:
+            dists = np.sqrt(3)*dists
+            K = squareform((1+dists)*np.exp(-dists))
+        elif self.matern == 2.5:
+            K = squareform((1+dists+dists**2/3)*np.exp(-dists))
+        np.fill_diagonal(K, 1)
+        return K
 
     def compute_basis(self, length_scale, sigma=1, nterms=None):
         """
@@ -306,9 +325,7 @@ class MeshKLE(object):
         assert nterms <= self.mesh_coords.shape[1]
         self.nterms = nterms
 
-        dists = pdist(self.mesh_coords.T / length_scale, metric='sqeuclidean')
-        K = squareform(np.exp(-.5 * dists))
-        np.fill_diagonal(K, 1)
+        K = self.compute_kernel_matrix(length_scale)
         eig_vals, eig_vecs = eigh(
             K, turbo=True, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
         eig_vecs = adjust_sign_eig(eig_vecs)
