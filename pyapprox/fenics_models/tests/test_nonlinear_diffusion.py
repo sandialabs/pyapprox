@@ -1,13 +1,19 @@
 from functools import partial
 import matplotlib.pyplot as plt
-import sympy as sp
-from pyapprox.fenics_models.fenics_utilities import *
-from pyapprox.fenics_models.nonlinear_diffusion import *
-from pyapprox.fenics_models.tests.test_advection_diffusion import \
-    get_exact_solution as get_advec_exact_solution, get_forcing as get_advec_forcing
 import unittest
 
-dl.set_log_level(40)
+try:
+    import dolfin as dl
+    import sympy as sp
+    from pyapprox.fenics_models.fenics_utilities import *
+    from pyapprox.fenics_models.nonlinear_diffusion import *
+    from pyapprox.fenics_models.tests.test_advection_diffusion import \
+        get_exact_solution as get_advec_exact_solution, \
+        get_forcing as get_advec_forcing
+    dl.set_log_level(40)
+    dolfin_package_missing = False
+except:
+    dolfin_package_missing = True
 
 
 def quadratic_diffusion(u):
@@ -42,6 +48,10 @@ def get_diffusion_forcing(q, sol_func, mesh, degree):
 
 
 class TestNonlinearDiffusion(unittest.TestCase):
+    def setUp(self):
+        if dolfin_package_missing:
+            self.skipTest('Dolfin package not installed')
+    
     def test_quadratic_diffusion_dirichlet_boundary_conditions(self):
         """
         du/dt = div((1+u**2)*grad(u))+f   in the unit square.
@@ -59,10 +69,12 @@ class TestNonlinearDiffusion(unittest.TestCase):
             mesh, degree)
 
         options = {'time_step': 0.05, 'final_time': 1,
-                   'forcing': forcing, 'boundary_conditions': boundary_conditions,
+                   'forcing': forcing,
+                   'boundary_conditions': boundary_conditions,
                    'second_order_timestepping': True,
                    'init_condition': get_quadratic_diffusion_exact_solution(
-                       mesh, degree), 'nonlinear_diffusion': quadratic_diffusion}
+                       mesh, degree), 'nonlinear_diffusion':
+                   quadratic_diffusion}
         sol = run_model(function_space, options)
 
         exact_sol = get_quadratic_diffusion_exact_solution(mesh, degree)
@@ -150,7 +162,6 @@ class TestNonlinearDiffusion(unittest.TestCase):
             J = dl_qoi_functional(sol)
             control = dla.Control(kappa)
             dJd_kappa = dla.compute_gradient(J, [control])[0]
-            print(float(dJd_kappa))
             return np.atleast_1d(float(J)), np.atleast_2d(float(dJd_kappa))
 
         sol, kappa = dl_fun(np_kappa)
@@ -158,16 +169,21 @@ class TestNonlinearDiffusion(unittest.TestCase):
         J = dl_qoi_functional(sol)
         control = dla.Control(kappa)
         Jhat = dla.ReducedFunctional(J, control)
-        h = dla.Constant(np.random.normal(0, 1, 1))
+        # h = dla.Constant(np.random.normal(0, 1, 1))
         # conv_rate = dla.taylor_test(Jhat, kappa, h)
         # assert np.allclose(conv_rate, 2.0, atol=1e-2)
 
         from pyapprox.optimization import check_gradients
         x0 = np.atleast_2d(np_kappa)
-        check_gradients(fun, True, x0)
+        errors = check_gradients(fun, True, x0)
+        assert errors.min()<1e-7 and errors.max()>1e-1
 
 
 class TestShallowIceEquation(unittest.TestCase):
+    def setUp(self):
+        if dolfin_package_missing:
+            self.skipTest('Dolfin package not installed')
+    
     def run_shallow_ice_halfar(self, nphys_dim):
         """
         See 'Exact time-dependent similarity solutions for isothermal shallow 
@@ -191,7 +207,8 @@ class TestShallowIceEquation(unittest.TestCase):
 
         elif nphys_dim == 2:
             ny, Ly = nx, Lx
-            mesh = dla.RectangleMesh(dl.Point(-Lx, -Ly), dl.Point(Lx, Ly), nx, ny)
+            mesh = dla.RectangleMesh(
+                dl.Point(-Lx, -Ly), dl.Point(Lx, Ly), nx, ny)
         function_space = dl.FunctionSpace(mesh, "Lagrange", degree)
         
         bed = None
@@ -216,7 +233,8 @@ class TestShallowIceEquation(unittest.TestCase):
 
         beta = None
         diffusion = partial(
-            shallow_ice_diffusion, glen_exponent, Gamma, bed, positivity_tol, beta)
+            shallow_ice_diffusion, glen_exponent, Gamma, bed, positivity_tol,
+            beta)
         options = {'time_step': 10*secpera, 'final_time': 600*secpera,
                    'forcing': forcing,
                    'boundary_conditions': boundary_conditions,
@@ -231,7 +249,8 @@ class TestShallowIceEquation(unittest.TestCase):
         exact_solution.t = options['final_time']
         error = dl.errornorm(exact_solution, sol, mesh=mesh)
         print('Abs. Error', error)
-        rel_error = error/dl.sqrt(dla.assemble(exact_solution**2*dl.dx(degree=5)))
+        rel_error = error/dl.sqrt(
+            dla.assemble(exact_solution**2*dl.dx(degree=5)))
         print('Rel. Error', rel_error)
 
         plot = False
@@ -269,8 +288,8 @@ class TestShallowIceEquation(unittest.TestCase):
         self.run_shallow_ice_halfar(2)
 
     def test_halfar_model(self):
-        # nlsparams = get_default_snes_nlsparams()
-        nlsparams = get_default_newton_nlsparams()
+        nlsparams = get_default_snes_nlsparams()
+        # nlsparams = get_default_newton_nlsparams()
 
         def dl_qoi_functional(sol):
             return dla.assemble(sol*dl.dx)
@@ -282,12 +301,23 @@ class TestShallowIceEquation(unittest.TestCase):
             J = dl_qoi_functional(sol)
             control = dla.Control(model.shallow_ice_diffusivity.Gamma)
             dJd_gamma = dla.compute_gradient(J, [control])[0]
+            # apply chain rule. we want gradient of qoi as a function of x
+            # but fenics compute gradient with respect to g(x)=(1+x)*Gamma
+            # dq/dx = dq/dg*dg/dx
+            dJd_gamma *= model.shallow_ice_diffusivity.Gamma
+            # h = dla.Constant(1e-5) # h must be similar magnitude to Gamma
+            #Jhat = dla.ReducedFunctional(J, control)
+            #conv_rate = dla.taylor_test(
+            #    Jhat, model.shallow_ice_diffusivity.Gamma, h)
             return np.atleast_2d(float(dJd_gamma))
         
         secpera = 31556926  # seconds per anum
         init_time = 200*secpera
-        final_time, degree, nphys_dim = 600*secpera, 1, 1
-        model = HalfarShallowIceModel(nphys_dim, init_time, final_time, degree, qoi_functional, second_order_timestepping=True, nlsparams=nlsparams, qoi_functional_grad=qoi_functional_grad)
+        final_time, degree, nphys_dim = 300*secpera, 1, 1#600*secpera, 1, 1
+        model = HalfarShallowIceModel(
+            nphys_dim, init_time, final_time, degree, qoi_functional,
+            second_order_timestepping=True, nlsparams=nlsparams,
+            qoi_functional_grad=qoi_functional_grad)
 
         # for nphys_dim=1 [8, 8] will produce error of 2.7 e-5
         # but stagnates for a while at around 1e-4 for values
@@ -302,7 +332,8 @@ class TestShallowIceEquation(unittest.TestCase):
         exact_solution.t = final_time
         error = dl.errornorm(exact_solution, sol, mesh=model.mesh)
         print('Abs. Error', error)
-        rel_error = error/dl.sqrt(dla.assemble(exact_solution**2*dl.dx(degree=5)))
+        rel_error = error/dl.sqrt(
+            dla.assemble(exact_solution**2*dl.dx(degree=5)))
         print('Rel. Error', rel_error)
 
         assert rel_error<1e-3
@@ -313,9 +344,11 @@ class TestShallowIceEquation(unittest.TestCase):
 
         from pyapprox.optimization import check_gradients
         from pyapprox.models.wrappers import SingleFidelityWrapper
-        fun = SingleFidelityWrapper(partial(model, jac=True), config_sample[:, 0])
+        fun = SingleFidelityWrapper(
+            partial(model, jac=True), config_sample[:, 0])
         x0 = np.atleast_2d(model.Gamma)
-        check_gradients(fun, True, x0)
+        errors = check_gradients(fun, True, x0, direction=np.atleast_2d(1))
+        assert errors.min() < 3e-5 and errors.max()>1e-1
         
 
 

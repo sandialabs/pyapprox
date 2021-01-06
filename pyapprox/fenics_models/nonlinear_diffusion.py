@@ -271,7 +271,8 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
             self.get_boundary_conditions_and_function_space(None)
         forcing = self.get_forcing(None)
         kappa_fun = self.get_diffusivity(random_sample[:1])
-        return init_condition, boundary_conditions, function_space, forcing, kappa_fun
+        return init_condition, boundary_conditions, function_space, forcing, \
+            kappa_fun
 
     def get_initial_condition(self, random_sample):
         r"""By Default the initial condition is deterministic and set to zero"""
@@ -316,7 +317,8 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         """
         assert random_sample.shape[0] == 1
         Gamma = dla.Constant(self.Gamma*(1+random_sample[0]))
-        self.shallow_ice_diffusivity = ShallowIceDiffusivity(Gamma, self.bed, self.beta, self.positivity_tol)
+        self.shallow_ice_diffusivity = ShallowIceDiffusivity(
+            Gamma, self.bed, self.beta, self.positivity_tol)
         return self.shallow_ice_diffusivity
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
