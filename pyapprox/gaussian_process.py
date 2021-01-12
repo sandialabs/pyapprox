@@ -279,6 +279,10 @@ def integrate_gaussian_process(gp, variable, return_full=False):
         msg = 'Mean of training data was not zero. This is not supported'
         raise Exception(msg)
 
+    if np.any(gp._y_train_std != 1):
+        msg = 'std of training data was not zero. This is not supported'
+        raise Exception(msg)
+
     if gp._K_inv is None:
         L_inv = solve_triangular(gp.L_.T, np.eye(gp.L_.shape[0]), lower=False)
         K_inv = L_inv.dot(L_inv.T)
@@ -348,11 +352,11 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
         variable, degrees)
 
     lscale = np.atleast_1d(length_scale)
-    tau, u = 1, 1
-    P = np.ones((ntrain_samples, ntrain_samples))
-    lamda = np.ones(ntrain_samples)
-    Pi = np.ones((ntrain_samples, ntrain_samples))
-    xi_1, nu = 1, 1
+    #tau, u = 1, 1
+    #P = np.ones((ntrain_samples, ntrain_samples))
+    #lamda = np.ones(ntrain_samples)
+    #Pi = np.ones((ntrain_samples, ntrain_samples))
+    #xi_1, nu = 1, 1
 
     tau_list, P_list, u_list, lamda_list = [], [], [], []
     Pi_list, nu_list, xi_1_list = [], [], []
@@ -379,17 +383,17 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
 
         # Evaluate 1D integrals
         tau_ii, P_ii = integrate_tau_P(xx_1d, ww_1d, xtr, lscale[ii])
-        tau *= tau_ii
-        P *= P_ii
+        #tau *= tau_ii
+        #P *= P_ii
 
         u_ii, lamda_ii, Pi_ii, nu_ii = integrate_u_lamda_Pi_nu(
             xx_1d, ww_1d, xtr, lscale[ii])
-        u *= u_ii
-        lamda *= lamda_ii
-        Pi *= Pi_ii
-        nu *= nu_ii
+        #u *= u_ii
+        #lamda *= lamda_ii
+        #Pi *= Pi_ii
+        #nu *= nu_ii
         xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
-        xi_1 *= xi_1_ii
+        #xi_1 *= xi_1_ii
 
         tau_list.append(tau_ii)
         P_list.append(P_ii)
@@ -1943,3 +1947,82 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
              [-np.dot(L_22_inv.dot(L_12.T), self.L_inv), L_22_inv]])
 
         return pivot, obj_val
+
+
+class UnivariateMarginalizedGaussianProcess:
+    def __init__(self, tau , u, kernel, train_samples, L_factor, train_values):
+        self.tau = tau
+        assert self.tau.shape[0] == train_samples.shape[1]
+        self.u = u
+        # the names are chosen to match names of _gpr from sklearn
+        # so functions can be applied to both these methods in the same way
+        self.kernel_ = kernel
+        self.L_ = L_factor
+        self.L_inv = solve_triangular(self.L_.T,np.eye(self.L_.shape[0]))
+        self.K_inv_y = self.L_inv.dot(self.L_inv.T.dot(train_values))
+        self.X_train_ = train_samples.T
+        self.y_train_ = train_values
+        assert train_samples.shape[0] == 1
+        self._y_train_mean = 0
+        self._y_train_std = 1
+        self._K_inv = None
+
+    def __call__(self, samples, return_std=False):
+        assert samples.shape[0] == 1
+        K_pred = self.kernel_(samples.T, self.X_train_)*self.tau
+        mean = K_pred.dot(self.K_inv_y)
+
+        if not return_std:
+            return mean
+        
+        pointwise_cov = self.kernel_.diag(samples.T)*self.u-np.sum(
+            K_pred.dot(self.L_inv)**2, axis=1)
+        return mean, np.sqrt(pointwise_cov)
+
+    
+def marginalize_gaussian_process(gp, variable):
+    """
+    Return all 1D marginal Gaussian process obtained after excluding all
+    but a single variable
+    """
+    kernel_types = [RBF, Matern]
+    kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
+
+    constant_kernel = extract_covariance_kernel(gp.kernel_, [ConstantKernel])
+    if constant_kernel is not None:
+        kernel_var = constant_kernel.constant_value
+    else:
+        kernel_var = 1
+
+    if (not type(kernel) == RBF and not
+            (type(kernel) == Matern and not np.isfinite(kernel.nu))):
+        # Squared exponential kernel
+        msg = f'GP Kernel type: {type(kernel)} '
+        msg += 'Only squared exponential kernel supported'
+        raise Exception(msg)
+
+    if np.any(gp._y_train_mean != 0):
+        msg = 'Mean of training data was not zero. This is not supported'
+        raise Exception(msg)
+
+    if np.any(gp._y_train_std != 1):
+        msg = 'std of training data was not zero. This is not supported'
+        raise Exception(msg)
+
+    tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
+        get_gaussian_process_squared_exponential_kernel_1d_integrals(
+            gp.X_train_.T, kernel.length_scale, variable)
+
+    length_scale = np.atleast_1d(kernel.length_scale)
+    nvars = variable.num_vars()
+    marginalized_gps = []
+    for ii in range(nvars):
+        tau = np.prod(np.array(tau_list)[:ii], axis=0)*np.prod(
+            np.array(tau_list)[ii+1:], axis=0)
+        u = np.prod(u_list[:ii])*np.prod(u_list[ii+1:])
+        kernel = kernel_var*RBF(
+            length_scale[ii], length_scale_bounds='fixed')
+        gp_ii = UnivariateMarginalizedGaussianProcess(
+            tau , u, kernel, gp.X_train_[:, ii:ii+1].T, gp.L_, gp.y_train_)
+        marginalized_gps.append(gp_ii)
+    return marginalized_gps
