@@ -339,6 +339,69 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
     return xi_1
 
 
+def get_gaussian_process_squared_exponential_kernel_1d_integrals(
+        X_train, length_scale, variable):
+    ntrain_samples = X_train.shape[1]
+    nvars = variable.num_vars()
+    degrees = [50]*nvars
+    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
+        variable, degrees)
+
+    lscale = np.atleast_1d(length_scale)
+    tau, u = 1, 1
+    P = np.ones((ntrain_samples, ntrain_samples))
+    lamda = np.ones(ntrain_samples)
+    Pi = np.ones((ntrain_samples, ntrain_samples))
+    xi_1, nu = 1, 1
+
+    tau_list, P_list, u_list, lamda_list = [], [], [], []
+    Pi_list, nu_list, xi_1_list = [], [], []
+    for ii in range(nvars):
+        # TODO only compute quadrature once for each unique quadrature rules
+        # But all quantities must be computed for all dimensions because
+        # distances depend on either of both dimension dependent length scale
+        # and training sample values
+        # But others like u only needed to be computed for each unique
+        # Quadrature rule and raised to the power equal to the number of
+        # instances of a unique rule
+
+        # Define distance function
+        dist_func = partial(cdist, metric='sqeuclidean')
+
+        # Training samples of ith variable
+        xtr = X_train[ii:ii+1, :]
+
+        # Get 1D quadrature rule
+        xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
+        jj = pce.basis_type_index_map[ii]
+        loc, scale = pce.var_trans.scale_parameters[jj, :]
+        xx_1d = xx_1d*scale+loc
+
+        # Evaluate 1D integrals
+        tau_ii, P_ii = integrate_tau_P(xx_1d, ww_1d, xtr, lscale[ii])
+        tau *= tau_ii
+        P *= P_ii
+
+        u_ii, lamda_ii, Pi_ii, nu_ii = integrate_u_lamda_Pi_nu(
+            xx_1d, ww_1d, xtr, lscale[ii])
+        u *= u_ii
+        lamda *= lamda_ii
+        Pi *= Pi_ii
+        nu *= nu_ii
+        xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
+        xi_1 *= xi_1_ii
+
+        tau_list.append(tau_ii)
+        P_list.append(P_ii)
+        u_list.append(u_ii)
+        lamda_list.append(lamda_ii)
+        Pi_list.append(Pi_ii)
+        nu_list.append(nu_ii)
+        xi_1_list.append(xi_1_ii)
+        
+    return tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list 
+
+
 def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
                                                           K_inv,
                                                           length_scale,
@@ -414,52 +477,16 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
         The variance :math:`v_\Sigma^2` of the Gaussian random variable
         representing the variance :math:`\Sigma`
     """
-    ntrain_samples = X_train.shape[1]
-    nvars = variable.num_vars()
-    degrees = [50]*nvars
-    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
-        variable, degrees)
-
-    lscale = np.atleast_1d(length_scale)
-    tau, u = 1, 1
-    P = np.ones((ntrain_samples, ntrain_samples))
-    lamda = np.ones(ntrain_samples)
-    Pi = np.ones((ntrain_samples, ntrain_samples))
-    xi_1, nu = 1, 1
-
-    for ii in range(nvars):
-        # TODO only compute quadrature once for each unique quadrature rules
-        # But all quantities must be computed for all dimensions because
-        # distances depend on either of both dimension dependent length scale
-        # and training sample values
-        # But others like u only needed to be computed for each unique
-        # Quadrature rule and raised to the power equal to the number of
-        # instances of a unique rule
-
-        # Define distance function
-        dist_func = partial(cdist, metric='sqeuclidean')
-
-        # Training samples of ith variable
-        xtr = X_train[ii:ii+1, :]
-
-        # Get 1D quadrature rule
-        xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
-        jj = pce.basis_type_index_map[ii]
-        loc, scale = pce.var_trans.scale_parameters[jj, :]
-        xx_1d = xx_1d*scale+loc
-
-        # Evaluate 1D integrals
-        tau_ii, P_ii = integrate_tau_P(xx_1d, ww_1d, xtr, lscale[ii])
-        tau *= tau_ii
-        P *= P_ii
-
-        u_ii, lamda_ii, Pi_ii, nu_ii = integrate_u_lamda_Pi_nu(
-            xx_1d, ww_1d, xtr, lscale[ii])
-        u *= u_ii
-        lamda *= lamda_ii
-        Pi *= Pi_ii
-        nu *= nu_ii
-        xi_1 *= integrate_xi_1(xx_1d, ww_1d, lscale[ii])
+    tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
+        get_gaussian_process_squared_exponential_kernel_1d_integrals(
+            X_train, length_scale, variable)
+    tau = np.prod(np.array(tau_list), axis=0)
+    P = np.prod(np.array(P_list), axis=0)
+    u = np.prod(u_list)
+    lamda = np.prod(np.array(lamda_list), axis=0)
+    Pi = np.prod(np.array(Pi_list), axis=0)
+    nu = np.prod(nu_list)
+    xi_1 = np.prod(xi_1_list)
 
     # K_inv is inv(kernel_var*A). Thus multiply by kernel_var to get
     # Haylock formula
@@ -1615,6 +1642,11 @@ class GreedyVarianceOfMeanSampler(object):
                     solve_triangular(self.L.T, L_12*z_2, lower=False)))
         return val[0, 0]
 
+    def compute_A(self):
+        self.active_candidates = np.ones(
+            self.candidate_samples.shape[1], dtype=bool)
+        self.A = self.kernel(self.candidate_samples.T, self.candidate_samples.T)
+
     def set_kernel(self, kernel, kernels_1d=None):
         self.kernel = kernel
 
@@ -1635,25 +1667,28 @@ class GreedyVarianceOfMeanSampler(object):
             # TODO add other tensor product kernels
             raise Exception(msg)
 
-        self.active_candidates = np.ones(
-            self.candidate_samples.shape[1], dtype=bool)
         if self.use_gauss_quadrature:
             self.precompute_gauss_quadrature()
         else:
             self.precompute_monte_carlo()
-        self.A = self.kernel(self.candidate_samples.T,
-                             self.candidate_samples.T)
+        self.compute_A()
         # designs are better if a small nugget is added to the diagonal
         self.add_nugget()
 
     def add_nugget(self):
         self.A[np.arange(self.A.shape[0]), np.arange(self.A.shape[1])] += \
             self.nugget
-        print(self.nugget)
 
     def set_init_pivots(self, init_pivots):
         assert len(self.pivots) == 0
         self.init_pivots = list(init_pivots)
+
+    def update_training_samples(self, pivot):
+        self.pivots.append(pivot)
+        new_sample = self.candidate_samples[:, pivot:pivot+1]
+        self.training_samples = np.hstack(
+            [self.training_samples,
+             self.candidate_samples[:, pivot:pivot+1]])
 
     def __call__(self, nsamples, verbosity=1):
         if not hasattr(self, 'kernel'):
@@ -1688,11 +1723,7 @@ class GreedyVarianceOfMeanSampler(object):
                 print(f'Iter: {nn}, Objective: {obj_val}')
             self.best_obj_vals.append(obj_val)
 
-            self.pivots.append(pivot)
-            new_sample = self.candidate_samples[:, pivot:pivot+1]
-            self.training_samples = np.hstack(
-                [self.training_samples,
-                 self.candidate_samples[:, pivot:pivot+1]])
+            self.update_training_samples(pivot)
             #print(f'Number of points generated {nn+1}')
             self.active_candidates[pivot] = False
             if self.compute_cond_nums is True:
@@ -1702,8 +1733,8 @@ class GreedyVarianceOfMeanSampler(object):
                     self.cond_nums.append(
                         np.linalg.cond(
                             self.A[np.ix_(self.pivots, self.pivots)]))
-            print(np.linalg.cond(
-                self.A[np.ix_(self.pivots, self.pivots)]))
+            #print(np.linalg.cond(
+            #    self.A[np.ix_(self.pivots, self.pivots)]))
 
         new_samples = self.training_samples[:, ntraining_samples:]
         self.ntraining_samples = self.training_samples.shape[1]

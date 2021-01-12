@@ -20,7 +20,8 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
 
     du/dt = grad (k* grad u) - vel*grad u + f
 
-    WARNING: when point sources solution changes significantly when mesh is varied
+    WARNING: when point sources solution changes significantly when mesh is 
+    varied
     """
     mesh = function_space.mesh()
 

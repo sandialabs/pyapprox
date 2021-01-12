@@ -2,15 +2,22 @@ import numpy as np
 from pyapprox.fenics_models.fenics_utilities import *
 
 
-def run_model(function_space, time_step, final_time, forcing, boundary_conditions, init_condition, 
-              nonlinear_diffusion, second_order_timestepping=False, nlsparam=dict(), positivity_tol=0):
+def run_model(function_space, time_step, final_time, forcing,
+              boundary_conditions, init_condition, nonlinear_diffusion,
+              second_order_timestepping=False, nlsparam=dict(),
+              positivity_tol=0):
+
+    if boundary_conditions is None:
+        bndry_obj = dl.CompiledSubDomain("on_boundary")
+        boundary_conditions = [['dirichlet', bndry_obj, dla.Constant(0)]]
 
     dt = time_step
     mesh = function_space.mesh()
     num_bndrys = len(boundary_conditions)
+    assert num_bndrys > 0 # specify None for no boundaries
 
     if (len(boundary_conditions) == 1 and
-            isinstance(boundary_conditions[0][2], DirichletBC)):
+            isinstance(boundary_conditions[0][2], dla.DirichletBC)):
         ds = dl.Measure('ds', domain=mesh)
         dirichlet_bcs = [boundary_conditions[0][2]]
     else:
@@ -84,7 +91,6 @@ def run_model(function_space, time_step, final_time, forcing, boundary_condition
         t = init_condition.t
     else:
         t = 0.0
-    # print(init_condition.t)
     while t < final_time:
         # print('TIME',t)
         # Update current time
@@ -110,7 +116,8 @@ def run_model(function_space, time_step, final_time, forcing, boundary_condition
         # solver must be redefined at every timestep
         F = a-L
         F = dl.action(F, u_2)
-        dla.solve(F == 0, u_2, dirichlet_bcs, solver_parameters=nlsparam)
+        J = dl.derivative(F, u_2, u)
+        dla.solve(F == 0, u_2, dirichlet_bcs, J=J, solver_parameters=nlsparam)
         
         # import matplotlib.pyplot as plt
         # pl = dl.plot(sol); plt.colorbar(pl); plt.show()
@@ -164,7 +171,7 @@ def shallow_ice_diffusion(n, gamma, bed, positivity_tol, beta, thickness):
     if beta is not None:
         g = 9.81 #GravityAcceleration
         rho = 910 #IceDensity
-        var_form += rho*g/2*height**2/dla.exp(beta)
+        var_form += rho*g/2*height**2/beta#dl.exp(beta)
 
     # var_form = var_form_max(var_form,positivity_tol) # doesnt work well
     var_form += positivity_tol
@@ -398,7 +405,7 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         init_condition, boundary_conditions, function_space, \
             forcing, kappa_fun = self.initialize_random_expressions(
                 random_sample)
- 
+
         sol = run_model(
             function_space, dt, self.final_time,
             forcing, boundary_conditions, init_condition, kappa_fun,
