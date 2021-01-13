@@ -6,6 +6,9 @@ import pyapprox as pya
 
 
 class TestSensitivityAnalysis(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+    
     def test_get_sobol_indices_from_pce(self):
         num_vars = 5
         degree = 5
@@ -347,11 +350,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
                     normalize=True)
 
         mean_main_effects = mean_sobol_indices[:nvars]
-        # print(mean_main_effects[:, 0], benchmark.main_effects)
-        # print(mean_sobol_indices)
-        # print(std_sobol_indices)
-        assert np.allclose(mean_main_effects[:, 0],
+        assert np.allclose(mean_main_effects,
                            benchmark.main_effects, atol=2e-2)
+        assert np.allclose(mean_total_effects,
+                           benchmark.total_effects, atol=2e-2)
 
 
 

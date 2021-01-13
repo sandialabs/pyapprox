@@ -402,7 +402,9 @@ class TestGaussianProcess(unittest.TestCase):
 
     def test_marginalize_gaussian_process_uniform(self):
         nvars = 2
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+        a = np.array([1, 0.25])
+        # a = np.array([1, 1])
+        def func(x): return np.sum(a[:, None]*x**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 10
         train_samples = np.random.uniform(-1, 1, (nvars, ntrain_samples))
@@ -429,11 +431,12 @@ class TestGaussianProcess(unittest.TestCase):
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
 
-        true_mean = nvars/3
+        true_mean = 1/3*a.sum()
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var = integrate_gaussian_process(gp, variable)
         # only satisfied with more training data. But more training data
         # makes it hard to test computation of marginal gp mean and variances
+        # print(expected_random_mean - true_mean)
         # assert abs(expected_random_mean - true_mean)/true_mean < 1e-3
 
         marginalized_gps = marginalize_gaussian_process(gp, variable)
@@ -442,20 +445,25 @@ class TestGaussianProcess(unittest.TestCase):
             gp_ii =  marginalized_gps[ii]
             variable_ii = pya.IndependentMultivariateRandomVariable(
                 [univariate_variables[ii]])
-            expected_random_mean, variance_random_mean, expected_random_var, \
-                variance_random_var = integrate_gaussian_process(
-                    gp_ii, variable_ii)
+
+            xx = np.linspace(-1, 1, 11)
+            A_inv = np.linalg.inv(gp.L_.dot(gp.L_.T))
+            K_pred = gp_ii.kernel_(xx[:, None], gp_ii.X_train_)#*gp_ii.tau
+            stdev_ii = np.sqrt(
+                kernel_var*gp_ii.kernel_.k2.u-np.diag(
+                    K_pred.dot(A_inv).dot(K_pred.T)))
+            vals_ii, std_ii = gp_ii(xx[np.newaxis, :], return_std=True)
+            assert np.allclose(stdev_ii, std_ii, atol=5e-8)
 
             xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
             gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)
 
-            xx = np.linspace(-1, 1, 11)
             xx_2d = cartesian_product([xx_quad, xx])
             if ii == 0:
                 xx_2d = np.vstack([xx_2d[1], xx_2d[0]])
             nreps = 10000
             marginalized_vals = []
-            for ii in range(nreps):
+            for jj in range(nreps):
                 vals_flat = gp.predict_random_realization(xx_2d, nugget=1e-12)
                 vals = vals_flat.reshape(
                     xx_quad.shape[0], xx.shape[0], order='F')
@@ -469,22 +477,20 @@ class TestGaussianProcess(unittest.TestCase):
 
             mc_mean_ii = np.mean(np.asarray(marginalized_vals), axis=0)
             mc_stdev_ii = np.std(np.asarray(marginalized_vals), axis=0)
-
-            A_inv = np.linalg.inv(gp.L_.dot(gp.L_.T))
-            K_pred = gp_ii.kernel_(xx[:, None], gp_ii.X_train_)*gp_ii.tau
-            stdev_ii = np.sqrt(
-                kernel_var*gp_ii.u-np.diag(K_pred.dot(A_inv).dot(K_pred.T)))
-            vals_ii, std_ii = gp_ii(xx[np.newaxis, :], return_std=True)
-            assert np.allclose(stdev_ii, std_ii, rtol=1e-12)
-            assert np.allclose(mc_mean_ii, vals_ii[:, 0], atol=1e-3)
+            # print(mc_mean_ii-vals_ii[:, 0])
+            # print(mc_stdev_ii-std_ii)
+            assert np.allclose(mc_mean_ii, vals_ii[:, 0], atol=2e-3)
             assert np.allclose(mc_stdev_ii, std_ii, atol=2e-3)
-            # vals_ii = vals_ii[:, 0]
-            # vals = gp(np.vstack((xx[np.newaxis, :], xx[np.newaxis, :]*0)))
-            # plt.plot(xx, vals0)
+            # plt.plot(xx, vals_ii[:, 0], label='marginalized GP')
             # plt.fill_between(
-            #     xx, vals0-2*std0, vals0+2*std0, color='gray', alpha=0.5)
-            # plt.plot(xx, vals, '--')
-            # # plt.show()
+            #     xx, vals_ii[:, 0]-2*std_ii, vals_ii[:, 0]+2*std_ii,
+            #     color='gray', alpha=0.5)
+            # vals = gp(np.vstack((xx[np.newaxis, :], xx[np.newaxis, :]*0)))
+            # plt.plot(xx, vals, '--', label='2D cross section')
+            # plt.plot(train_samples[ii, :], train_vals, 'bo',
+            #          label='Projected train data')
+            # plt.legend()
+            # plt.show()
 
 
 class TestSamplers(unittest.TestCase):

@@ -49,13 +49,21 @@ class GaussianProcess(GaussianProcessRegressor):
         """
         return self.predict(samples.T, return_std, return_cov)
 
-    def predict_random_realization(self, samples, nugget=0):
+    def predict_random_realization(self, samples, nugget=0, 
+                                   rand_noise=1):
         mean, cov = self(samples, return_cov=True)
         # add small number to diagonal to ensure covariance matrix is
         # positive definite
         cov[np.arange(cov.shape[0]), np.arange(cov.shape[0])] += nugget
         L = np.linalg.cholesky(cov)
-        return mean + L.dot(np.random.normal(0, 1, mean.shape))
+        # create nsamples x nvars then transpose so same samples
+        # are produced if this function is called repeately with nsamples=1
+        if np.isscalar(rand_noise):
+            rand_noise = np.random.normal(0, 1, (rand_noise, mean.shape[0])).T
+        else:
+            assert rand_noise.shape[0] == mean.shape[0]
+        vals = mean + L.dot(rand_noise)
+        return vals
 
     def num_training_samples(self):
         return self.X_train_.shape[0]
@@ -1950,10 +1958,7 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
 
 class UnivariateMarginalizedGaussianProcess:
-    def __init__(self, tau , u, kernel, train_samples, L_factor, train_values):
-        self.tau = tau
-        assert self.tau.shape[0] == train_samples.shape[1]
-        self.u = u
+    def __init__(self, kernel, train_samples, L_factor, train_values):
         # the names are chosen to match names of _gpr from sklearn
         # so functions can be applied to both these methods in the same way
         self.kernel_ = kernel
@@ -1969,15 +1974,33 @@ class UnivariateMarginalizedGaussianProcess:
 
     def __call__(self, samples, return_std=False):
         assert samples.shape[0] == 1
-        K_pred = self.kernel_(samples.T, self.X_train_)*self.tau
+        K_pred = self.kernel_(samples.T, self.X_train_)
         mean = K_pred.dot(self.K_inv_y)
 
         if not return_std:
             return mean
-        
-        pointwise_cov = self.kernel_.diag(samples.T)*self.u-np.sum(
+
+        pointwise_cov = self.kernel_.diag(samples.T)-np.sum(
             K_pred.dot(self.L_inv)**2, axis=1)
         return mean, np.sqrt(pointwise_cov)
+
+
+class UnivariateMarginalizedSquaredExponentialKernel(RBF):
+    def __init__(self, tau , u, length_scale, X_train):
+        super().__init__(length_scale, length_scale_bounds='fixed')
+        self.tau = tau
+        self.u = u
+        self.X_train = X_train
+        assert self.tau.shape[0] == X_train.shape[0]
+
+    def __call__(self, X, Y):
+        assert np.allclose(Y, self.X_train)
+        assert Y is not None # only used for prediction
+        K = super().__call__(X, Y)
+        return K*self.tau
+
+    def diag(self, X):
+        return super().diag(X)*self.u
 
     
 def marginalize_gaussian_process(gp, variable):
@@ -2020,9 +2043,9 @@ def marginalize_gaussian_process(gp, variable):
         tau = np.prod(np.array(tau_list)[:ii], axis=0)*np.prod(
             np.array(tau_list)[ii+1:], axis=0)
         u = np.prod(u_list[:ii])*np.prod(u_list[ii+1:])
-        kernel = kernel_var*RBF(
-            length_scale[ii], length_scale_bounds='fixed')
+        kernel = kernel_var*UnivariateMarginalizedSquaredExponentialKernel(
+            tau, u, length_scale[ii], gp.X_train_[:, ii:ii+1])
         gp_ii = UnivariateMarginalizedGaussianProcess(
-            tau , u, kernel, gp.X_train_[:, ii:ii+1].T, gp.L_, gp.y_train_)
+            kernel, gp.X_train_[:, ii:ii+1].T, gp.L_, gp.y_train_)
         marginalized_gps.append(gp_ii)
     return marginalized_gps
