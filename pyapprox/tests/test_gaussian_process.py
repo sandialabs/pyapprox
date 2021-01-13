@@ -400,6 +400,62 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.plot(xx,vals)
         # plt.show()
 
+    def test_integrate_gaussian_process_uniform_mixed_bounds(self):
+        nvars = 2
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        ntrain_samples = 25
+        train_samples = np.cos(
+            np.random.uniform(0, np.pi, (nvars,ntrain_samples)))
+        train_samples[1, :]  = (train_samples[1, :]+1)/2
+        train_vals = func(train_samples)
+
+        nu = np.inf
+        length_scale = np.ones(nvars)
+        kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1)
+        gp.fit(train_samples, train_vals)
+
+        univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+
+        expected_random_mean, variance_random_mean, expected_random_var, \
+            variance_random_var = integrate_gaussian_process(gp, variable)
+
+        true_mean = 2/3
+        true_var = 28/45-true_mean**2
+
+        print('True mean', true_mean)
+        print('Expected random mean', expected_random_mean)
+        std_random_mean = np.sqrt(variance_random_mean)
+        print('Variance random mean', variance_random_mean)
+        print('Stdev random mean', std_random_mean)
+        print('Expected random mean +/- 3 stdev',
+              [expected_random_mean-3*std_random_mean,
+               expected_random_mean+3*std_random_mean])
+        assert np.allclose(true_mean, expected_random_mean, rtol=5e-2)
+
+        print('True var', true_var)
+        print('Expected random var', expected_random_var)
+        assert np.allclose(expected_random_var, true_var, rtol=1e-2)
+
+        nsamples = 1000
+        random_means = []
+        xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
+        quad_points = pya.cartesian_product([xx, (xx+1)/2])
+        quad_weights = pya.outer_product([ww]*nvars)
+        for ii in range(nsamples):
+            vals = gp.predict_random_realization(quad_points, 1e-8)[:, 0]
+            random_means.append(vals.dot(quad_weights))
+
+        print('MC expected random mean', np.mean(random_means))
+        print('MC variance random mean', np.var(random_means))
+        assert np.allclose(
+            np.mean(random_means), expected_random_mean, rtol=1e-2)
+        assert np.allclose(
+            np.var(random_means), variance_random_mean, rtol=1e-2)
+
     def test_marginalize_gaussian_process_uniform(self):
         nvars = 2
         a = np.array([1, 0.25])

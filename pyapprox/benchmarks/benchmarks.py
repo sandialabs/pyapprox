@@ -10,6 +10,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import *
 from pyapprox.models.genz import GenzFunction
 
 from scipy.optimize import OptimizeResult
+
+
 class Benchmark(OptimizeResult):
     """
     Contains functions and results needed to implement known
@@ -57,6 +59,7 @@ class Benchmark(OptimizeResult):
     """
     pass
 
+
 def setup_sobol_g_function(nvars):
     r"""
     Setup the Sobol-G function benchmark 
@@ -84,17 +87,19 @@ def setup_sobol_g_function(nvars):
     ----------
     .. [Saltelli1995] `Saltelli, A., & Sobol, I. M. About the use of rank transformation in sensitivity analysis of model output. Reliability Engineering & System Safety, 50(3), 225-239, 1995. <https://doi.org/10.1016/0951-8320(95)00099-2>`_
     """
-    
-    univariate_variables = [stats.uniform(0,1)]*nvars
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
-    a = (np.arange(1,nvars+1)-2)/2
+
+    univariate_variables = [stats.uniform(0, 1)]*nvars
+    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    a = (np.arange(1, nvars+1)-2)/2
     mean, variance, main_effects, total_effects = \
         get_sobol_g_function_statistics(a)
-    return Benchmark({'fun':partial(sobol_g_function,a),
-            'mean':mean,'variance':variance,'main_effects':main_effects,
-            'total_effects':total_effects,'variable':variable})
+    return Benchmark({'fun': partial(sobol_g_function, a),
+                      'mean': mean, 'variance': variance,
+                      'main_effects': main_effects,
+                      'total_effects': total_effects, 'variable': variable})
 
-def setup_ishigami_function(a,b):
+
+def setup_ishigami_function(a, b):
     r"""
     Setup the Ishigami function benchmark 
 
@@ -124,18 +129,19 @@ def setup_ishigami_function(a,b):
     ----------
     .. [Ishigami1990] `T. Ishigami and T. Homma, "An importance quantification technique in uncertainty analysis for computer models," [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403 <https://doi.org/10.1109/ISUMA.1990.151285>`_
     """
-    univariate_variables = [stats.uniform(-np.pi,2*np.pi)]*3
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    univariate_variables = [stats.uniform(-np.pi, 2*np.pi)]*3
+    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
     mean, variance, main_effects, total_effects, sobol_indices, \
         sobol_interaction_indices = get_ishigami_funciton_statistics()
     return Benchmark(
-        {'fun':partial(ishigami_function,a=a,b=b),
-         'jac':partial(ishigami_function_jacobian,a=a,b=b),
-         'hess':partial(ishigami_function_hessian,a=a,b=b),
-         'variable':variable,'mean':mean,'variance':variance,
-         'main_effects':main_effects,'total_effects':total_effects,
-         'sobol_indices':sobol_indices,
-         'sobol_interaction_indices':sobol_interaction_indices})
+        {'fun': partial(ishigami_function, a=a, b=b),
+         'jac': partial(ishigami_function_jacobian, a=a, b=b),
+         'hess': partial(ishigami_function_hessian, a=a, b=b),
+         'variable': variable, 'mean': mean, 'variance': variance,
+         'main_effects': main_effects, 'total_effects': total_effects,
+         'sobol_indices': sobol_indices,
+         'sobol_interaction_indices': sobol_interaction_indices})
+
 
 def setup_oakley_function():
     r"""
@@ -160,12 +166,13 @@ def setup_oakley_function():
     .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
     """
     univariate_variables = [stats.norm()]*15
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
     mean, variance, main_effects = oakley_function_statistics()
     return Benchmark(
-        {'fun':oakley_function,
-         'variable':variable,'mean':mean,'variance':variance,
-         'main_effects':main_effects})
+        {'fun': oakley_function,
+         'variable': variable, 'mean': mean, 'variance': variance,
+         'main_effects': main_effects})
+
 
 def setup_rosenbrock_function(nvars):
     r"""
@@ -175,17 +182,17 @@ def setup_rosenbrock_function(nvars):
 
     This benchmark can also be used to test Bayesian inference methods. 
     Specifically this benchmarks returns the log likelihood
-    
+
     .. math:: l(z) = -f(z)
 
     which can be used to compute the posterior distribution
-    
+
     .. math:: \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
     where the prior is the tensor product of :math:`d` independent and 
     identically distributed uniform variables on :math:`[-2,2]`, i.e. 
     :math:`\pi(\rv)=\frac{1}{4^d}`, and the likelihood is given by
-    
+
     .. math:: \pi(\V{y}|\rv)=\exp\left(l(\rv)\right)
 
     Parameters
@@ -217,7 +224,7 @@ def setup_rosenbrock_function(nvars):
 
     hessp : callable
         Hessian of  ``fun`` times an arbitrary vector p with signature
-    
+
         ``hessp(z, p) ->  ndarray shape (nvars,1)``
 
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an 
@@ -261,24 +268,25 @@ def setup_rosenbrock_function(nvars):
     >>> print(benchmark.keys())
     dict_keys(['fun', 'jac', 'hessp', 'variable', 'mean', 'loglike', 'loglike_grad'])
     """
-    univariate_variables = [stats.uniform(-2,4)]*nvars
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    univariate_variables = [stats.uniform(-2, 4)]*nvars
+    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
 
     benchmark = Benchmark(
-        {'fun':rosenbrock_function,'jac':rosenbrock_function_jacobian,
-         'hessp':rosenbrock_function_hessian_prod,'variable':variable,
-         'mean':rosenbrock_function_mean(nvars)})
-    benchmark.update({'loglike':lambda x: -benchmark['fun'](x),
-                      'loglike_grad':lambda x: -benchmark['jac'](x)})
+        {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
+         'hessp': rosenbrock_function_hessian_prod, 'variable': variable,
+         'mean': rosenbrock_function_mean(nvars)})
+    benchmark.update({'loglike': lambda x: -benchmark['fun'](x),
+                      'loglike_grad': lambda x: -benchmark['jac'](x)})
     return benchmark
 
-def setup_genz_function(nvars,test_name,coefficients=None):
+
+def setup_genz_function(nvars, test_name, coefficients=None):
     r"""
     Setup the Genz Benchmarks.
-    
+
     For example, the two-dimensional oscillatory Genz problem can be defined 
     using
-    
+
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('genz',nvars=2,test_name='oscillatory')
     >>> print(benchmark.keys())
@@ -288,7 +296,7 @@ def setup_genz_function(nvars,test_name,coefficients=None):
     ----------
     nvars : integer
         The number of variables of the Genz function
-    
+
     test_name : string
         The test_name of the specific Genz function. See notes
         for options the string needed is given in brackets
@@ -327,7 +335,7 @@ def setup_genz_function(nvars,test_name,coefficients=None):
     Continuous ('continuous')
 
     .. math:: f(z) = \exp\left( -\sum_{i=1}^d c_i\lvert z_i-w_i\rvert\right)
-    
+
     Product Peak ('product-peak')
 
     .. math:: f(z) = \prod_{i=1}^d \left(c_i^{-2}+(z_i-w_i)^2\right)^{-1}
@@ -335,20 +343,21 @@ def setup_genz_function(nvars,test_name,coefficients=None):
     Discontinuous ('discontinuous')
 
     .. math:: f(z) = \begin{cases}0 & x_1>u_1 \;\mathrm{or}\; x_2>u_2\\\exp\left(\sum_{i=1}^d c_iz_i\right) & \mathrm{otherwise}\end{cases}
-    
+
     """
-    genz = GenzFunction(test_name,nvars)
-    univariate_variables = [stats.uniform(0,1)]*nvars
-    variable=pya.IndependentMultivariateRandomVariable(univariate_variables)
+    genz = GenzFunction(test_name, nvars)
+    univariate_variables = [stats.uniform(0, 1)]*nvars
+    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
     if coefficients is None:
-        genz.set_coefficients(1,'squared-exponential-decay',0)
+        genz.set_coefficients(1, 'squared-exponential-decay', 0)
     else:
-        genz.c,genz.w = coefficients
-    attributes = {'fun':genz,'mean':genz.integrate(),'variable':variable}
-    if test_name=='corner-peak':
-        attributes['variance']=genz.variance()
+        genz.c, genz.w = coefficients
+    attributes = {'fun': genz, 'mean': genz.integrate(), 'variable': variable}
+    if test_name == 'corner-peak':
+        attributes['variance'] = genz.variance()
         from scipy.optimize import OptimizeResult
     return Benchmark(attributes)
+
 
 try:
     from pyapprox.fenics_models.advection_diffusion_wrappers import \
@@ -360,25 +369,25 @@ try:
 except:
     pass
 
-def setup_benchmark(name,**kwargs):
-    benchmarks = {'sobol_g':setup_sobol_g_function,
-                  'ishigami':setup_ishigami_function,
-                  'oakley':setup_oakley_function,
-                  'rosenbrock':setup_rosenbrock_function,
-                  'genz':setup_genz_function,
-                  'cantilever_beam':setup_cantilever_beam_benchmark}
+
+def setup_benchmark(name, **kwargs):
+    benchmarks = {'sobol_g': setup_sobol_g_function,
+                  'ishigami': setup_ishigami_function,
+                  'oakley': setup_oakley_function,
+                  'rosenbrock': setup_rosenbrock_function,
+                  'genz': setup_genz_function,
+                  'cantilever_beam': setup_cantilever_beam_benchmark}
     try:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
-        fenics_benchmarks={
-            'multi_index_advection_diffusion':setup_advection_diffusion_benchmark,
-            'multi_index_advection_diffusion_source_inversion':setup_advection_diffusion_source_inversion_benchmark,
-            'multi_level_advection_diffusion':setup_multi_level_advection_diffusion_benchmark,
-            'mfnets_helmholtz':setup_mfnets_helmholtz_benchmark}
+        fenics_benchmarks = {
+            'multi_index_advection_diffusion': setup_advection_diffusion_benchmark,
+            'multi_index_advection_diffusion_source_inversion': setup_advection_diffusion_source_inversion_benchmark,
+            'multi_level_advection_diffusion': setup_multi_level_advection_diffusion_benchmark,
+            'mfnets_helmholtz': setup_mfnets_helmholtz_benchmark}
         benchmarks.update(fenics_benchmarks)
     except:
         pass
-
 
     if name not in benchmarks:
         msg = f'Benchmark "{name}" not found.\n Avaialble benchmarks are:\n'
@@ -387,15 +396,15 @@ def setup_benchmark(name,**kwargs):
         raise Exception(msg)
 
     return benchmarks[name](**kwargs)
-    
+
 
 def setup_cantilever_beam_benchmark():
     variable, design_variable = define_beam_random_variables()
-    attributes = {'fun':cantilever_beam_objective,
-                  'jac':cantilever_beam_objective_grad,
-                  'constraint_fun':cantilever_beam_constraints,
-                  'constraint_jac':cantilever_beam_constraints_jacobian,
-                  'variable':variable,
-                  'design_variable':design_variable,
-                  'design_var_indices':np.array([4,5])}
+    attributes = {'fun': cantilever_beam_objective,
+                  'jac': cantilever_beam_objective_grad,
+                  'constraint_fun': cantilever_beam_constraints,
+                  'constraint_jac': cantilever_beam_constraints_jacobian,
+                  'variable': variable,
+                  'design_variable': design_variable,
+                  'design_var_indices': np.array([4, 5])}
     return Benchmark(attributes)

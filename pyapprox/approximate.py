@@ -930,10 +930,10 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
 
     Parameters
     ----------
-    train_samples : np.ndarray (nvars,nsamples)
+    train_samples : np.ndarray (nvars, nsamples)
         The inputs of the function used to train the approximation
 
-    train_vals : np.ndarray (nvars,nsamples)
+    train_vals : np.ndarray (nvars, 1)
         The values of the function at ``train_samples``
 
     kernel_nu : string

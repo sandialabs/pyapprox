@@ -275,7 +275,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         nsamples = 10000
         nvars = benchmark.variable.num_vars()
-        order = 2
+        order = 3
         interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, 
             np.where(interaction_terms.max(axis=0)==1)[0]]
@@ -290,6 +290,13 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         assert np.allclose(
             total_effect_indices, benchmark.total_effects, atol=2e-3)
+        
+        for ii in range(interaction_terms.shape[1]):
+            index = interaction_terms[:, ii]
+            assert np.allclose(
+                np.where(index>0)[0], benchmark.sobol_interaction_indices[ii])
+        assert np.allclose(sobol_indices, benchmark.sobol_indices,
+                           rtol=5e-3, atol=1e-3)
 
     def test_qmc_sobol_sensitivity_analysis_oakley(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
@@ -317,25 +324,32 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.approximate import approximate
-        benchmark = setup_benchmark("sobol_g", nvars=2)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+        nvars = benchmark.variable.num_vars()
 
-        num_samples = 300
+        # nsobol_samples and ntrain_samples effect assert tolerances
+        ntrain_samples = 300
+        nsobol_samples = 3000
         train_samples = pya.generate_independent_random_samples(
-            benchmark.variable, num_samples)
-        train_vals = benchmark.fun(train_samples)
+           benchmark.variable, ntrain_samples)
+        # from pyapprox import CholeskySampler
+        # sampler = CholeskySampler(nvars, 10000, benchmark.variable)
+        # kernel = pya.Matern(
+        #     np.array([1]*nvars), length_scale_bounds='fixed', nu=np.inf)
+        # sampler.set_kernel(kernel)
+        # train_samples = sampler(ntrain_samples)[0]
 
+        train_vals = benchmark.fun(train_samples)
         approx = approximate(
-            train_samples, train_vals, 'gaussian_process', {'nu':1.5}).approx
+            train_samples, train_vals, 'gaussian_process', {'nu':np.inf}).approx
 
         from pyapprox.approximate import compute_l2_error
-        nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
-            nsamples, rel=True)
+            nsobol_samples, rel=True)
         print(error)
         # assert error < 4e-2
 
-        nvars = benchmark.variable.num_vars()
 
         order = 2
         interaction_terms = compute_hyperbolic_indices(nvars, order)
@@ -345,15 +359,58 @@ class TestSensitivityAnalysis(unittest.TestCase):
         mean_sobol_indices, mean_total_effects, mean_variance, \
             std_sobol_indices, std_total_effects, std_variance = \
                 sampling_based_sobol_indices_from_gaussian_process(
-                    approx, benchmark.variable, interaction_terms, nsamples,
-                    sampling_method='sobol', ngp_realizations=10,
-                    normalize=True)
+                    approx, benchmark.variable, interaction_terms,
+                    nsobol_samples, sampling_method='sobol',
+                    ngp_realizations=1000, normalize=True)
 
         mean_main_effects = mean_sobol_indices[:nvars]
         assert np.allclose(mean_main_effects,
-                           benchmark.main_effects, atol=2e-2)
+                           benchmark.main_effects[:, 0], atol=4e-2)
         assert np.allclose(mean_total_effects,
-                           benchmark.total_effects, atol=2e-2)
+                           benchmark.total_effects[:, 0], atol=2e-2)
+        assert np.allclose(mean_sobol_indices,
+                           benchmark.sobol_indices[:-1, 0], atol=5e-2)
+        print(benchmark.main_effects[:, 0]-mean_main_effects)
+        print(benchmark.total_effects[:, 0]-mean_total_effects)
+        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+        # mean_main_effects = mean_sobol_indices[:nvars]
+        # std_main_effects = std_sobol_indices[:nvars]
+        # axs[0].set_title(r'$\mathrm{Main\;Effects}$')
+        # axs[2].set_title(r'$\mathrm{Total\;Effects}$')
+        # axs[1].set_title(r'$\mathrm{Sobol\;Indices}$')
+        # bp0 = plot_sensitivity_indices_with_confidence_intervals(
+        #     mean_main_effects, std_main_effects,
+        #     [r'$z_{%d}$'%(ii+1) for ii in range(nvars)], axs[0],
+        #     benchmark.main_effects)
+        # # axs[0].legend([bp0['means'][0]], ['$\mathrm{Truth}$'])
+        # bp2 = plot_sensitivity_indices_with_confidence_intervals(
+        #     mean_total_effects, std_total_effects,
+        #     [r'$z_{%d}$'%(ii+1) for ii in range(nvars)], axs[2],
+        #     benchmark.total_effects)
+        # axs[2].legend([bp2['means'][0]], ['$\mathrm{Truth}$'])
+        # I = np.argsort(mean_sobol_indices+2*std_sobol_indices)
+        # mean_sobol_indices = mean_sobol_indices[I]
+        # std_sobol_indices = std_sobol_indices[I]
+        # rv = 'z'
+        # labels = []
+        # interaction_terms = [
+        #     np.where(index>0)[0] for index in interaction_terms.T]
+        # for ii in range(I.shape[0]):
+        #     l = '($'
+        #     for jj in range(len(interaction_terms[ii])-1):
+        #         l += '%s_{%d},' % (rv, interaction_terms[ii][jj]+1)
+        #     l += '%s_{%d}$)' % (rv, interaction_terms[ii][-1]+1)
+        #     labels.append(l)
+        # labels = [labels[ii] for ii in I]
+        # bp1 = plot_sensitivity_indices_with_confidence_intervals(
+        #     mean_sobol_indices, std_sobol_indices, labels, axs[1],
+        #     benchmark.sobol_indices[I])
+        # # axs[1].legend([bp1['means'][0]], ['$\mathrm{Truth}$'])
+        # plt.tight_layout()
+        # plt.show()
 
 
 

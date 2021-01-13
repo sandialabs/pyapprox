@@ -154,6 +154,42 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     return p
 
 
+def plot_sensitivity_indices_with_confidence_intervals(
+        sa_indices_mean, sa_indices_std, labels, ax, reference_values=None):
+    import matplotlib.cbook as cbook
+    nindices = len(sa_indices_mean)
+    assert len(sa_indices_std) == nindices
+    assert len(labels) == nindices
+    if reference_values is not None:
+        assert len(reference_values) == nindices
+    stats = [dict() for nn in range(nindices)]
+    for nn in range(nindices):
+        # use boxplot stats mean entry to store reference values.
+        if reference_values is not None:
+            stats[nn]['mean'] = reference_values[nn]
+        stats[nn]['med'] = sa_indices_mean[nn]
+        stats[nn]['whislo'] = sa_indices_mean[nn]-2*sa_indices_std[nn]
+        stats[nn]['whishi'] = sa_indices_mean[nn]+2*sa_indices_std[nn]
+        stats[nn]['q1'] = sa_indices_mean[nn]-sa_indices_std[nn]
+        stats[nn]['q3'] = sa_indices_mean[nn]+sa_indices_std[nn]
+        stats[nn]['label'] = labels[nn]
+
+    if reference_values is not None:
+        showmeans = True
+    else:
+        showmeans = False
+    bp = ax.bxp(stats, showfliers=False, showmeans=showmeans, patch_artist=True,
+                meanprops=dict(marker='o',markerfacecolor='blue',
+                               markeredgecolor='blue', markersize=12),
+                medianprops=dict(color='red'))
+
+    colors = ['gray']*nindices
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+    colors = ['red']*nindices
+    return bp
+
+
 def plot_total_effects(total_effects, ax, truncation_pct=0.95,
                        rv='z', qoi=0):
     r"""
@@ -692,6 +728,13 @@ def sampling_based_sobol_indices(
 
     Variance based sensitivity analysis of model output. Design and estimator 
     for the total sensitivity index
+
+    Parameters
+    ----------
+    interaction_terms : np.ndarray (nvars, nterms)
+        Index defining the active terms in each interaction. If the
+        ith  variable is active interaction_terms[i] == 1 and zero otherwise
+        This index must be downward closed due to way sobol indices are computed
     """
     nvars = interaction_terms.shape[0]
     nterms = interaction_terms.shape[1]
@@ -703,6 +746,7 @@ def sampling_based_sobol_indices(
     variance = valuesA.var(axis=0)
     interaction_values = np.empty((nterms, valuesA.shape[1]))
     total_effect_values = [None for ii in range(nvars)]
+    interaction_values_dict = dict()
     for ii in range(nterms):
         index = interaction_terms[:, ii]
         assert index.sum() > 0
@@ -711,12 +755,33 @@ def sampling_based_sobol_indices(
         valuesAB = fun(samplesAB)
         interaction_values[ii, :] = \
             (valuesB*(valuesAB-valuesA)).mean(axis=0)/variance
+        interaction_values_dict[tuple(np.where(index>0)[0])] = ii
         if index.sum() == 1:
             dd = np.where(index==1)[0][0]
             total_effect_values[dd] = 0.5 * \
                 np.mean((valuesA-valuesAB)**2, axis=0)/variance
 
-    return interaction_values, np.asarray(total_effect_values), variance
+    # must substract of contributions from lower-dimensional terms from
+    # each interaction value For example, let R_ij be interaction_values
+    # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
+    from pyapprox.indexing import argsort_indices_leixographically
+    I = argsort_indices_leixographically(interaction_terms)
+    from itertools import combinations
+    sobol_indices = interaction_values.copy()
+    sobol_indices_dict = dict()
+    for ii in range(I.shape[0]):
+        index = interaction_terms[:, I[ii]]
+        active_vars = np.where(index>0)[0]
+        nactive_vars = index.sum()
+        sobol_indices_dict[tuple(active_vars)] = I[ii]
+        if nactive_vars > 1:
+            for jj in range(nactive_vars-1):
+                indices = combinations(active_vars, jj+1)
+                for key in indices:
+                    sobol_indices[I[ii]] -= \
+                        sobol_indices[sobol_indices_dict[key]]
+
+    return sobol_indices, np.asarray(total_effect_values), variance
 
 
 def sampling_based_sobol_indices_from_gaussian_process(
@@ -726,11 +791,21 @@ def sampling_based_sobol_indices_from_gaussian_process(
     Compute sobol indices from Gaussian process using sampling. 
     This function returns the mean and variance of these values with 
     respect to the variability in the GP (i.e. its function error)
+
+    Parameters
+    ----------
+    ngp_realizations : integer
+        The number of random realizations of the Gaussian process
+        if ngp_realizations == 0 then the sensitivity indices will
+        only be computed using the mean of the GP.
     """
     all_interaction_values, all_total_effect_values, all_variances = [], [], []
     rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
-    fun = partial(gp.predict_random_realization, nugget=nugget,
-                  rand_noise=rand_noise)
+    if ngp_realizations > 0:
+        fun = partial(gp.predict_random_realization, nugget=nugget,
+                      rand_noise=rand_noise)
+    else:
+        fun = gp
     iv1, tv1, vr1 = sampling_based_sobol_indices(
         fun, variables, interaction_terms, nsamples,
         sampling_method='sobol')
@@ -741,4 +816,4 @@ def sampling_based_sobol_indices_from_gaussian_process(
         tv1 *= vr1
     return iv1.mean(axis=1), tv1.mean(axis=1), vr1.mean(), \
         iv1.std(axis=1), tv1.std(axis=1), vr1.std(),
- 
+    

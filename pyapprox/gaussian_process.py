@@ -51,9 +51,9 @@ class GaussianProcess(GaussianProcessRegressor):
 
     def predict_random_realization(self, samples, nugget=0, 
                                    rand_noise=1):
+        """
+        """
         mean, cov = self(samples, return_cov=True)
-        # add small number to diagonal to ensure covariance matrix is
-        # positive definite
         cov[np.arange(cov.shape[0]), np.arange(cov.shape[0])] += nugget
         L = np.linalg.cholesky(cov)
         # create nsamples x nvars then transpose so same samples
