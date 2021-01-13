@@ -786,7 +786,7 @@ def sampling_based_sobol_indices(
 
 def sampling_based_sobol_indices_from_gaussian_process(
     gp, variables, interaction_terms, nsamples, sampling_method='sobol',
-        ngp_realizations=1, normalize=True, nugget=0):
+        ngp_realizations=1, normalize=True):
     """
     Compute sobol indices from Gaussian process using sampling. 
     This function returns the mean and variance of these values with 
@@ -802,8 +802,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
     all_interaction_values, all_total_effect_values, all_variances = [], [], []
     rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
     if ngp_realizations > 0:
-        fun = partial(gp.predict_random_realization, nugget=nugget,
-                      rand_noise=rand_noise)
+        fun = partial(gp.predict_random_realization, rand_noise=rand_noise)
     else:
         fun = gp
     iv1, tv1, vr1 = sampling_based_sobol_indices(

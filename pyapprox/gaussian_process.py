@@ -49,13 +49,16 @@ class GaussianProcess(GaussianProcessRegressor):
         """
         return self.predict(samples.T, return_std, return_cov)
 
-    def predict_random_realization(self, samples, nugget=0, 
-                                   rand_noise=1):
+    def predict_random_realization(self, samples, rand_noise=1):
         """
+        Replace gp.sample_y(samples.T, n_samples=rand_noise, random_state=0)
+        which cannot be passed rand_noise vectors
         """
         mean, cov = self(samples, return_cov=True)
-        cov[np.arange(cov.shape[0]), np.arange(cov.shape[0])] += nugget
-        L = np.linalg.cholesky(cov)
+        # Use SVD because it is more robust than Cholesky
+        # L = np.linalg.cholesky(cov) 
+        U, S, V = np.linalg.svd(cov)
+        L = U*np.sqrt(S)
         # create nsamples x nvars then transpose so same samples
         # are produced if this function is called repeately with nsamples=1
         if np.isscalar(rand_noise):
@@ -283,23 +286,31 @@ def integrate_gaussian_process(gp, variable, return_full=False):
         msg += 'Only squared exponential kernel supported'
         raise Exception(msg)
 
-    if np.any(gp._y_train_mean != 0):
-        msg = 'Mean of training data was not zero. This is not supported'
-        raise Exception(msg)
-
-    if np.any(gp._y_train_std != 1):
-        msg = 'std of training data was not zero. This is not supported'
-        raise Exception(msg)
-
     if gp._K_inv is None:
         L_inv = solve_triangular(gp.L_.T, np.eye(gp.L_.shape[0]), lower=False)
         K_inv = L_inv.dot(L_inv.T)
     else:
         K_inv = gp._K_inv
 
-    return integrate_gaussian_process_squared_exponential_kernel(
-        gp.X_train_.T, gp.y_train_, K_inv, kernel.length_scale, kernel_var,
-        variable, return_full)
+    result = integrate_gaussian_process_squared_exponential_kernel(
+                gp.X_train_.T, gp.y_train_, K_inv, kernel.length_scale,
+                kernel_var, variable, return_full)
+    expected_random_mean, variance_random_mean, expected_random_var, \
+        variance_random_var = result[:4]
+    # correct for normalization of gaussian process training data
+    # gp.y_train_ is normalized such that 
+    # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
+    expected_random_mean = gp._y_train_std*expected_random_mean + \
+        gp._y_train_mean
+    variance_random_mean = variance_random_mean*gp._y_train_std**2
+    expected_random_var = expected_random_var*gp._y_train_std**2
+    variance_random_var = variance_random_var*gp._y_train_std**4
+    if return_full is True:
+        return expected_random_mean, variance_random_mean, \
+            expected_random_var, variance_random_var, result[4]
+        
+    return expected_random_mean, variance_random_mean, \
+        expected_random_var, variance_random_var
 
 
 def integrate_tau_P(xx_1d, ww_1d, xtr, lscale_ii):
@@ -505,14 +516,14 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
     A_inv = K_inv*kernel_var
     # No kernel_var because it cancels out because it appears in K (1/s^2)
     # and t (s^2)
-    expected_random_mean = tau.dot(A_inv.dot(Y_train))
+    A_inv_y = A_inv.dot(Y_train)
+    expected_random_mean = tau.dot(A_inv_y)
 
     varpi = compute_varpi(tau, A_inv)
     varsigma_sq = compute_varsigma_sq(u, varpi)
     variance_random_mean = variance_of_mean(kernel_var, varsigma_sq)
 
     A_inv_P = A_inv.dot(P)
-    A_inv_y = A_inv.dot(Y_train)
     A_inv_tau = A_inv.dot(tau)
     v_sq = compute_v_sq(A_inv, P)
     # zeta = compute_zeta(Y_train, A_inv, P)

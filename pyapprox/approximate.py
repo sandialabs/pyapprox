@@ -913,7 +913,8 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
-                                 n_restarts_optimizer=5, verbosity=0):
+                                 n_restarts_optimizer=5, verbosity=0,
+                                 normalize_y=False):
     r"""
     Compute a Gaussian process approximation of a function from a fixed data 
     set using the Matern kernel
@@ -964,6 +965,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     kernel = 1*kernel
     # optimize gp noise
     kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
-    gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer)
+    gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
+                         normalize_y=normalize_y)
     gp.fit(train_samples, train_vals)
     return ApproximateResult({'approx': gp})

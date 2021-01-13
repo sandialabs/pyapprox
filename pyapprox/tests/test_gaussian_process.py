@@ -285,34 +285,33 @@ class TestGaussianProcess(unittest.TestCase):
             nxx = 100
         else:
             nxx = 15
-        xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
-        xx = xx*sigma_scalar + mu_scalar
-        quad_points = pya.cartesian_product([xx]*nvars)
-        quad_weights = pya.outer_product([ww]*nvars)
-        mean_of_mean_quad, variance_of_mean_quad, mean_of_variance_quad = \
-            compute_mean_and_variance_of_gaussian_process(
-                gp, length_scale, train_samples, A_inv, kernel_var, train_vals,
-                quad_points, quad_weights)
+            xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
+            xx = xx*sigma_scalar + mu_scalar
+            quad_points = pya.cartesian_product([xx]*nvars)
+            quad_weights = pya.outer_product([ww]*nvars)
+            mean_of_mean_quad, variance_of_mean_quad, mean_of_variance_quad = \
+                compute_mean_and_variance_of_gaussian_process(
+                    gp, length_scale, train_samples, A_inv, kernel_var,
+                    train_vals, quad_points, quad_weights)
 
         assert np.allclose(mean_of_mean_quad, expected_random_mean)
         assert np.allclose(variance_of_mean_quad, variance_random_mean)
         assert np.allclose(mean_of_variance_quad, expected_random_var)
 
-        nsamples = 4000
+        nsamples = 10000
         random_means, random_variances = [], []
         random_I2sq, random_I4, random_I2Isq = [], [], []
         xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
-        for ii in range(nsamples):
-            vals = gp.predict_random_realization(quad_points)[:, 0]
-            I, I2 = vals.dot(quad_weights), (vals**2).dot(quad_weights)
-            random_means.append(I)
-            random_variances.append(I2-I**2)
-            random_I2sq.append(I2**2)
-            random_I2Isq.append(I2*I**2)
-            random_I4.append(I**4)
+        vals = gp.predict_random_realization(quad_points, nsamples)
+        I, I2 = vals.T.dot(quad_weights), (vals.T**2).dot(quad_weights)
+        random_means = I
+        random_variances = I2-I**2
+        random_I2sq = I2**2
+        random_I2Isq = I2*I**2
+        random_I4 = I**4
 
         # print('MC expected random mean', np.mean(random_means))
         # print('MC variance random mean', np.var(random_means))
@@ -333,57 +332,72 @@ class TestGaussianProcess(unittest.TestCase):
 
     def test_integrate_gaussian_process_uniform(self):
         nvars = 1
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
-
-        ntrain_samples = 7
-        train_samples = np.cos(
-            np.linspace(0, np.pi, ntrain_samples))[np.newaxis, :]
-        train_vals = func(train_samples)
-
-        nu = np.inf
-        kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
-        # optimize variance
-        # kernel = 1*kernel
-        # optimize gp noise
-        # kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
-        gp = GaussianProcess(kernel, n_restarts_optimizer=1)
-        gp.fit(train_samples, train_vals)
+        constant = 1e3
+        # nuggets larger than this, e.g. 1e-8 will cause test to fail
+        nugget = 1e-6
+        normalize_y = True
+        def func(x): return constant*np.sum((x+.5)**2, axis=0)[:, np.newaxis]
 
         univariate_variables = [stats.uniform(-1, 2)]
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
 
+        ntrain_samples = 10
+        train_samples = np.cos(
+            np.linspace(0, np.pi, ntrain_samples))[np.newaxis, :]
+
+        train_vals = func(train_samples)
+
+        nu = np.inf
+        kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
+        # kernel needs to be multiplied by a constant kernel
+        # if normalize_y=False
+        if not normalize_y:
+            kernel = ConstantKernel(
+                constant_value=constant, constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(
+            kernel, n_restarts_optimizer=5, normalize_y=normalize_y,
+            alpha=nugget)
+        gp.fit(train_samples, train_vals)
+        print(gp.kernel_.length_scale)
+
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var = integrate_gaussian_process(gp, variable)
 
-        true_mean = 1/3
-        true_var = 1/5-1/3**2
+        true_mean = constant*7/12
+        true_var = constant**2*61/80-true_mean**2
 
         print('True mean', true_mean)
         print('Expected random mean', expected_random_mean)
-        std_random_mean = np.sqrt(variance_random_mean)
         print('Variance random mean', variance_random_mean)
+        std_random_mean = np.sqrt(variance_random_mean)
         print('Stdev random mean', std_random_mean)
         print('Expected random mean +/- 3 stdev',
               [expected_random_mean-3*std_random_mean,
                expected_random_mean+3*std_random_mean])
-        assert np.allclose(true_mean, expected_random_mean, rtol=1e-2)
-
         print('True var', true_var)
         print('Expected random var', expected_random_var)
-        assert np.allclose(expected_random_var, true_var, rtol=1e-2)
+        print('Variance random var', variance_random_var)
 
-        nsamples = 1000
+        nsamples = 100000
         random_means = []
         xx, ww = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
-        for ii in range(nsamples):
-            vals = gp.predict_random_realization(quad_points, 1e-14)[:, 0]
-            random_means.append(vals.dot(quad_weights))
+        vals = gp.sample_y(quad_points.T, n_samples=nsamples, random_state=0)
+        # vals = gp.predict_random_realization(quad_points, nsamples)
+        #plt.plot(xx, vals, '-')
+        #plt.show()
+        random_means = vals.T.dot(quad_weights)
+        random_variances = (vals.T**2).dot(quad_weights)-random_means**2
 
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
+        print('MC expected random var', np.mean(random_variances))
+        print('MC variance random var', "{:e}".format(np.var(random_variances)))
+
+        assert np.allclose(true_mean, expected_random_mean, rtol=1e-2)
+        assert np.allclose(expected_random_var, true_var, rtol=1e-2)
         assert np.allclose(
             np.mean(random_means), expected_random_mean, rtol=1e-2)
         assert np.allclose(
@@ -445,9 +459,8 @@ class TestGaussianProcess(unittest.TestCase):
         xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
         quad_points = pya.cartesian_product([xx, (xx+1)/2])
         quad_weights = pya.outer_product([ww]*nvars)
-        for ii in range(nsamples):
-            vals = gp.predict_random_realization(quad_points, 1e-8)[:, 0]
-            random_means.append(vals.dot(quad_weights))
+        vals = gp.predict_random_realization(quad_points, nsamples)
+        random_means = vals.T.dot(quad_weights)
 
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
@@ -519,16 +532,17 @@ class TestGaussianProcess(unittest.TestCase):
                 xx_2d = np.vstack([xx_2d[1], xx_2d[0]])
             nreps = 10000
             marginalized_vals = []
+            all_vals = gp.predict_random_realization(xx_2d, nreps)
             for jj in range(nreps):
-                vals_flat = gp.predict_random_realization(xx_2d, nugget=1e-12)
+                vals_flat = all_vals[:, jj]
                 vals = vals_flat.reshape(
                     xx_quad.shape[0], xx.shape[0], order='F')
                 # check we reshaped correctly
                 assert np.allclose(
-                    vals[:xx_quad.shape[0], 0], vals_flat[:xx_quad.shape[0], 0])
+                    vals[:xx_quad.shape[0], 0], vals_flat[:xx_quad.shape[0]])
                 assert np.allclose(
                     vals[:xx_quad.shape[0], 1],
-                    vals_flat[xx_quad.shape[0]:xx_quad.shape[0]*2, 0])
+                    vals_flat[xx_quad.shape[0]:xx_quad.shape[0]*2])
                 marginalized_vals.append(vals.T.dot(ww_quad))
 
             mc_mean_ii = np.mean(np.asarray(marginalized_vals), axis=0)

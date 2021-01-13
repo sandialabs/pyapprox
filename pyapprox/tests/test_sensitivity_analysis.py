@@ -341,7 +341,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         train_vals = benchmark.fun(train_samples)
         approx = approximate(
-            train_samples, train_vals, 'gaussian_process', {'nu':np.inf}).approx
+            train_samples, train_vals, 'gaussian_process', {
+                'nu':np.inf, 'normalize_y': True}).approx
 
         from pyapprox.approximate import compute_l2_error
         error = compute_l2_error(
@@ -349,7 +350,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
             nsobol_samples, rel=True)
         print(error)
         # assert error < 4e-2
-
 
         order = 2
         interaction_terms = compute_hyperbolic_indices(nvars, order)
@@ -411,7 +411,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # # axs[1].legend([bp1['means'][0]], ['$\mathrm{Truth}$'])
         # plt.tight_layout()
         # plt.show()
-
 
 
 if __name__ == "__main__":
