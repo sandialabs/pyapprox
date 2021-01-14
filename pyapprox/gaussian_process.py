@@ -16,9 +16,18 @@ from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
 from pyapprox.utilities import pivoted_cholesky_decomposition, \
     continue_pivoted_cholesky_decomposition
 from scipy.special import kv, gamma
-
+from pyapprox.variables import IndependentMultivariateRandomVariable
+from pyapprox.variable_transformations import AffineRandomVariableTransformation
 
 class GaussianProcess(GaussianProcessRegressor):
+    def set_variable_transformation(self, var_trans):
+        self.var_trans = var_trans
+
+    def map_to_canonical_space(self, samples):
+        if hasattr(self,'var_trans'):
+            return self.var_trans.map_to_canonical_space(samples)
+        return samples
+    
     def fit(self, train_samples, train_values):
         r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.fit
@@ -32,7 +41,8 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
-        return super().fit(train_samples.T, train_values)
+        canonical_train_samples = self.map_to_canonical_space(train_samples)
+        return super().fit(canonical_train_samples.T, train_values)
 
     def __call__(self, samples, return_std=False, return_cov=False):
         r"""
@@ -47,13 +57,15 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
-        return self.predict(samples.T, return_std, return_cov)
+        canonical_samples = self.map_to_canonical_space(samples)
+        return self.predict(canonical_samples.T, return_std, return_cov)
 
     def predict_random_realization(self, samples, rand_noise=1):
         """
         Replace gp.sample_y(samples.T, n_samples=rand_noise, random_state=0)
         which cannot be passed rand_noise vectors
         """
+        # mapping of samples is performed in __call__
         mean, cov = self(samples, return_cov=True)
         # Use SVD because it is more robust than Cholesky
         # L = np.linalg.cholesky(cov) 
@@ -292,9 +304,12 @@ def integrate_gaussian_process(gp, variable, return_full=False):
     else:
         K_inv = gp._K_inv
 
+    transform_quad_rules = (not hasattr(gp, 'var_trans'))
+    # gp.X_train_ will already be in the canonical space if var_trans is used
+    x_train = gp.X_train_.T
     result = integrate_gaussian_process_squared_exponential_kernel(
-                gp.X_train_.T, gp.y_train_, K_inv, kernel.length_scale,
-                kernel_var, variable, return_full)
+                x_train, gp.y_train_, K_inv, kernel.length_scale,
+                kernel_var, variable, return_full, transform_quad_rules)
     expected_random_mean, variance_random_mean, expected_random_var, \
         variance_random_var = result[:4]
     # correct for normalization of gaussian process training data
@@ -363,7 +378,7 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
 
 
 def get_gaussian_process_squared_exponential_kernel_1d_integrals(
-        X_train, length_scale, variable):
+        X_train, length_scale, variable, transform_quad_rules):
     ntrain_samples = X_train.shape[1]
     nvars = variable.num_vars()
     degrees = [50]*nvars
@@ -396,9 +411,10 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
 
         # Get 1D quadrature rule
         xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
-        jj = pce.basis_type_index_map[ii]
-        loc, scale = pce.var_trans.scale_parameters[jj, :]
-        xx_1d = xx_1d*scale+loc
+        if transform_quad_rules is True:
+            jj = pce.basis_type_index_map[ii]
+            loc, scale = pce.var_trans.scale_parameters[jj, :]
+            xx_1d = xx_1d*scale+loc
 
         # Evaluate 1D integrals
         tau_ii, P_ii = integrate_tau_P(xx_1d, ww_1d, xtr, lscale[ii])
@@ -425,12 +441,15 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
     return tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list 
 
 
-def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
-                                                          K_inv,
-                                                          length_scale,
-                                                          kernel_var,
-                                                          variable,
-                                                          return_full=False):
+def integrate_gaussian_process_squared_exponential_kernel(
+        X_train,
+        Y_train,
+        K_inv,
+        length_scale,
+        kernel_var,
+        variable,
+        return_full=False,
+        transform_quad_rules=False):
     r"""
     Compute
 
@@ -502,7 +521,7 @@ def integrate_gaussian_process_squared_exponential_kernel(X_train, Y_train,
     """
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
-            X_train, length_scale, variable)
+            X_train, length_scale, variable, transform_quad_rules)
     tau = np.prod(np.array(tau_list), axis=0)
     P = np.prod(np.array(P_list), axis=0)
     u = np.prod(u_list)
@@ -1982,16 +2001,26 @@ class UnivariateMarginalizedGaussianProcess:
         self._y_train_mean = 0
         self._y_train_std = 1
         self._K_inv = None
+        self.var_trans = None
+        
+    def map_to_canonical_space(self, samples):
+        if self.var_trans is not None:
+            return self.var_trans.map_to_canonical_space(samples)
+        return samples
+
+    def set_variable_transformation(self, var_trans):
+        self.var_trans = var_trans
 
     def __call__(self, samples, return_std=False):
         assert samples.shape[0] == 1
-        K_pred = self.kernel_(samples.T, self.X_train_)
+        canonical_samples = self.map_to_canonical_space(samples)
+        K_pred = self.kernel_(canonical_samples.T, self.X_train_)
         mean = K_pred.dot(self.K_inv_y)
 
         if not return_std:
             return mean
 
-        pointwise_cov = self.kernel_.diag(samples.T)-np.sum(
+        pointwise_cov = self.kernel_.diag(canonical_samples.T)-np.sum(
             K_pred.dot(self.L_inv)**2, axis=1)
         return mean, np.sqrt(pointwise_cov)
 
@@ -2001,11 +2030,11 @@ class UnivariateMarginalizedSquaredExponentialKernel(RBF):
         super().__init__(length_scale, length_scale_bounds='fixed')
         self.tau = tau
         self.u = u
-        self.X_train = X_train
+        self.X_train_ = X_train
         assert self.tau.shape[0] == X_train.shape[0]
 
     def __call__(self, X, Y):
-        assert np.allclose(Y, self.X_train)
+        assert np.allclose(Y, self.X_train_)
         assert Y is not None # only used for prediction
         K = super().__call__(X, Y)
         return K*self.tau
@@ -2043,9 +2072,12 @@ def marginalize_gaussian_process(gp, variable):
         msg = 'std of training data was not zero. This is not supported'
         raise Exception(msg)
 
+    transform_quad_rules = (not hasattr(gp, 'var_trans'))
+    # gp.X_train_ will already be in the canonical space if var_trans is used
+    x_train = gp.X_train_.T
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
-            gp.X_train_.T, kernel.length_scale, variable)
+            x_train, kernel.length_scale, variable, transform_quad_rules)
 
     length_scale = np.atleast_1d(kernel.length_scale)
     nvars = variable.num_vars()
@@ -2058,5 +2090,10 @@ def marginalize_gaussian_process(gp, variable):
             tau, u, length_scale[ii], gp.X_train_[:, ii:ii+1])
         gp_ii = UnivariateMarginalizedGaussianProcess(
             kernel, gp.X_train_[:, ii:ii+1].T, gp.L_, gp.y_train_)
+        if hasattr(gp, 'var_trans'):
+            variable_ii = IndependentMultivariateRandomVariable(
+                [gp.var_trans.variable.all_variables()[ii]])
+            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            gp_ii.set_variable_transformation(var_trans_ii)
         marginalized_gps.append(gp_ii)
     return marginalized_gps

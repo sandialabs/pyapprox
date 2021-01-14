@@ -281,9 +281,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
         sampling_method = 'sobol'
-        sobol_indices, total_effect_indices, var = sampling_based_sobol_indices(
-            benchmark.fun, benchmark.variable, interaction_terms, nsamples,
-            sampling_method)
+        sobol_indices, total_effect_indices, var, mean = \
+            sampling_based_sobol_indices(
+                benchmark.fun, benchmark.variable, interaction_terms, nsamples,
+                sampling_method)
+
+        assert np.allclose(mean, benchmark.mean, atol=2e-3)
 
         main_effects = sobol_indices[:nvars]
         assert np.allclose(main_effects, benchmark.main_effects, atol=2e-3)
@@ -311,9 +314,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
         sampling_method = 'sobol'
-        sobol_indices, total_effect_indices, var = sampling_based_sobol_indices(
-            benchmark.fun, benchmark.variable, interaction_terms, nsamples,
-            sampling_method)
+        sobol_indices, total_effect_indices, var, mean = \
+            sampling_based_sobol_indices(
+                benchmark.fun, benchmark.variable, interaction_terms, nsamples,
+                sampling_method)
+
+        assert np.allclose(mean, benchmark.mean, atol=2e-2)
 
         assert np.allclose(benchmark.variance, var, rtol=2e-2)
 
@@ -329,7 +335,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         # nsobol_samples and ntrain_samples effect assert tolerances
         ntrain_samples = 300
-        nsobol_samples = 3000
+        nsobol_samples = 1000
         train_samples = pya.generate_independent_random_samples(
            benchmark.variable, ntrain_samples)
         # from pyapprox import CholeskySampler
@@ -356,13 +362,15 @@ class TestSensitivityAnalysis(unittest.TestCase):
         interaction_terms = interaction_terms[:, 
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
-        mean_sobol_indices, mean_total_effects, mean_variance, \
-            std_sobol_indices, std_total_effects, std_variance = \
+        mean_sobol_indices, mean_total_effects, mean_variance, mean_mean, \
+            std_sobol_indices, std_total_effects, std_variance, std_mean = \
                 sampling_based_sobol_indices_from_gaussian_process(
                     approx, benchmark.variable, interaction_terms,
                     nsobol_samples, sampling_method='sobol',
                     ngp_realizations=1000, normalize=True)
 
+        assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
+        
         mean_main_effects = mean_sobol_indices[:nvars]
         assert np.allclose(mean_main_effects,
                            benchmark.main_effects[:, 0], atol=4e-2)

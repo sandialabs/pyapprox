@@ -743,6 +743,7 @@ def sampling_based_sobol_indices(
     assert nvars == samplesA.shape[0]
     valuesA = fun(samplesA)
     valuesB = fun(samplesB)
+    mean = valuesA.mean(axis=0)
     variance = valuesA.var(axis=0)
     interaction_values = np.empty((nterms, valuesA.shape[1]))
     total_effect_values = [None for ii in range(nvars)]
@@ -781,7 +782,7 @@ def sampling_based_sobol_indices(
                     sobol_indices[I[ii]] -= \
                         sobol_indices[sobol_indices_dict[key]]
 
-    return sobol_indices, np.asarray(total_effect_values), variance
+    return sobol_indices, np.asarray(total_effect_values), variance, mean
 
 
 def sampling_based_sobol_indices_from_gaussian_process(
@@ -805,7 +806,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
         fun = partial(gp.predict_random_realization, rand_noise=rand_noise)
     else:
         fun = gp
-    iv1, tv1, vr1 = sampling_based_sobol_indices(
+    iv1, tv1, vr1, m1 = sampling_based_sobol_indices(
         fun, variables, interaction_terms, nsamples,
         sampling_method='sobol')
     if not normalize:
@@ -813,6 +814,6 @@ def sampling_based_sobol_indices_from_gaussian_process(
         # of these quantities. The analytical values cannot be normalized
         iv1 *= vr1
         tv1 *= vr1
-    return iv1.mean(axis=1), tv1.mean(axis=1), vr1.mean(), \
-        iv1.std(axis=1), tv1.std(axis=1), vr1.std(),
+    return iv1.mean(axis=1), tv1.mean(axis=1), vr1.mean(),  m1.mean(), \
+        iv1.std(axis=1), tv1.std(axis=1), vr1.std(), m1.std()
     

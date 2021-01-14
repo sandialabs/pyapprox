@@ -1,6 +1,7 @@
 import unittest
 from pyapprox.gaussian_process import *
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF
+from pyapprox.variable_transformations import AffineRandomVariableTransformation
 import pyapprox as pya
 from scipy import stats
 from scipy.linalg import solve_triangular
@@ -333,19 +334,18 @@ class TestGaussianProcess(unittest.TestCase):
     def test_integrate_gaussian_process_uniform(self):
         nvars = 1
         constant = 1e3
-        # nuggets larger than this, e.g. 1e-8 will cause test to fail
-        nugget = 1e-6
-        normalize_y = True
-        def func(x): return constant*np.sum((x+.5)**2, axis=0)[:, np.newaxis]
+        nugget = 0
+        normalize_y = False#True
+        def func(x): return constant*np.sum((2*x-.5)**2, axis=0)[:, np.newaxis]
 
-        univariate_variables = [stats.uniform(-1, 2)]
+        univariate_variables = [stats.uniform(0, 1)]
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
 
         ntrain_samples = 10
-        train_samples = np.cos(
-            np.linspace(0, np.pi, ntrain_samples))[np.newaxis, :]
-
+        train_samples = (np.cos(
+            np.linspace(0, np.pi, ntrain_samples))[np.newaxis, :]+1)/2
         train_vals = func(train_samples)
 
         nu = np.inf
@@ -358,8 +358,9 @@ class TestGaussianProcess(unittest.TestCase):
         gp = GaussianProcess(
             kernel, n_restarts_optimizer=5, normalize_y=normalize_y,
             alpha=nugget)
+        gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
-        print(gp.kernel_.length_scale)
+        #print(gp.kernel_.length_scale)
 
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var = integrate_gaussian_process(gp, variable)
@@ -381,15 +382,18 @@ class TestGaussianProcess(unittest.TestCase):
 
         nsamples = 100000
         random_means = []
-        xx, ww = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
+        xx, ww = pya.gauss_jacobi_pts_wts_1D(300, 0, 0)
+        xx = (xx+1)/2
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
-        vals = gp.sample_y(quad_points.T, n_samples=nsamples, random_state=0)
-        # vals = gp.predict_random_realization(quad_points, nsamples)
+        #vals = gp.sample_y(
+        #    quad_points.T, n_samples=nsamples, random_state=0)[:, 0, :]
+        vals = gp.predict_random_realization(quad_points, nsamples)
         #plt.plot(xx, vals, '-')
         #plt.show()
         random_means = vals.T.dot(quad_weights)
-        random_variances = (vals.T**2).dot(quad_weights)-random_means**2
+        random_variances = ((vals)**2).T.dot(quad_weights)-random_means**2
+        print(random_variances.shape)
 
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
@@ -424,15 +428,17 @@ class TestGaussianProcess(unittest.TestCase):
         train_samples[1, :]  = (train_samples[1, :]+1)/2
         train_vals = func(train_samples)
 
+        univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+
         nu = np.inf
         length_scale = np.ones(nvars)
         kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
         gp = GaussianProcess(kernel, n_restarts_optimizer=1)
+        gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
-
-        univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
-        variable = pya.IndependentMultivariateRandomVariable(
-            univariate_variables)
 
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var = integrate_gaussian_process(gp, variable)
@@ -473,11 +479,17 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 2
         a = np.array([1, 0.25])
         # a = np.array([1, 1])
-        def func(x): return np.sum(a[:, None]*x**2, axis=0)[:, np.newaxis]
+        def func(x): return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 10
-        train_samples = np.random.uniform(-1, 1, (nvars, ntrain_samples))
+        train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         train_vals = func(train_samples)
+
+        univariate_variables = [stats.uniform(0, 1)]*nvars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+
 
         nu = np.inf
         kernel_var = 2.
@@ -486,19 +498,16 @@ class TestGaussianProcess(unittest.TestCase):
         kernel = ConstantKernel(
             constant_value=kernel_var, constant_value_bounds='fixed')*kernel
         gp = GaussianProcess(kernel, n_restarts_optimizer=1)
+        gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
 
-        validation_samples = np.random.uniform(-1, 1, (nvars, ntrain_samples))
+        validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         validation_vals = func(validation_samples)
         error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
             np.linalg.norm(validation_vals)
         # only satisfied with more training data. But more training data
         # makes it hard to test computation of marginal gp mean and variances
         # assert error < 1e-3
-
-        univariate_variables = [stats.uniform(-1, 2)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
-            univariate_variables)
 
         true_mean = 1/3*a.sum()
         expected_random_mean, variance_random_mean, expected_random_var, \
@@ -515,9 +524,11 @@ class TestGaussianProcess(unittest.TestCase):
             variable_ii = pya.IndependentMultivariateRandomVariable(
                 [univariate_variables[ii]])
 
-            xx = np.linspace(-1, 1, 11)
+            # kernel must be evaluated in canonical space
+            # gp must be evaluated in user space
+            xx = np.linspace(0, 1, 11)
             A_inv = np.linalg.inv(gp.L_.dot(gp.L_.T))
-            K_pred = gp_ii.kernel_(xx[:, None], gp_ii.X_train_)#*gp_ii.tau
+            K_pred = gp_ii.kernel_(2*xx[:, None]-1, gp_ii.X_train_)
             stdev_ii = np.sqrt(
                 kernel_var*gp_ii.kernel_.k2.u-np.diag(
                     K_pred.dot(A_inv).dot(K_pred.T)))
@@ -525,6 +536,7 @@ class TestGaussianProcess(unittest.TestCase):
             assert np.allclose(stdev_ii, std_ii, atol=5e-8)
 
             xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
+            xx_quad = (xx_quad+1)/2
             gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)
 
             xx_2d = cartesian_product([xx_quad, xx])

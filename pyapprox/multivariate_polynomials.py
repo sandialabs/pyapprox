@@ -501,8 +501,9 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
             # up to degree specified if using recursion for polynomial
             # orthogonal to a discrete variable with finite non-zero
             # probability measures
-            assert (pce.recursion_coeffs[pce.basis_type_index_map[dd]].shape[0] >=
-                    degrees[dd]+1)
+            assert (
+                pce.recursion_coeffs[pce.basis_type_index_map[dd]].shape[0] >=
+                degrees[dd]+1)
             univariate_quadrature_rules.append(
                 partial(gauss_quadrature,
                         pce.recursion_coeffs[pce.basis_type_index_map[dd]]))

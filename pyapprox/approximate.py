@@ -914,7 +914,11 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
                                  n_restarts_optimizer=5, verbosity=0,
-                                 normalize_y=False):
+                                 normalize_y=False, alpha=0,
+                                 noise_level=None, noise_level_bounds='fixed',
+                                 kernel_variance=None,
+                                 kernel_variance_bounds='fixed',
+                                 var_trans=None):
     r"""
     Compute a Gaussian process approximation of a function from a fixed data 
     set using the Matern kernel
@@ -956,16 +960,23 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     approx : :class:`pyapprox.gaussian_process.GaussianProcess`
         The Gaussian process
     """
-    from sklearn.gaussian_process.kernels import Matern, WhiteKernel
+    from sklearn.gaussian_process.kernels import Matern, WhiteKernel, \
+        ConstantKernel
     from pyapprox.gaussian_process import GaussianProcess
     nvars = train_samples.shape[0]
     length_scale = np.array([1]*nvars)
     kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
     # optimize variance
-    kernel = 1*kernel
+    if kernel_variance is not None:
+        kernel = ConstantKernel(
+            constant_value=kernel_variance,
+            constant_value_bounds=kernel_variance_bounds)*kernel
     # optimize gp noise
-    kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
+    if noise_level is not None:
+        kernel += WhiteKernel(noise_level, noise_level_bounds=noise_level_bounds)
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
-                         normalize_y=normalize_y)
+                         normalize_y=normalize_y, alpha=alpha)
+    if var_trans is not None:
+        gp.set_variable_transformation(var_trans)
     gp.fit(train_samples, train_vals)
     return ApproximateResult({'approx': gp})
