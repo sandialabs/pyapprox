@@ -335,7 +335,7 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 1
         constant = 1e3
         nugget = 0
-        normalize_y = False#True
+        normalize_y = True
         def func(x): return constant*np.sum((2*x-.5)**2, axis=0)[:, np.newaxis]
 
         univariate_variables = [stats.uniform(0, 1)]
@@ -343,7 +343,7 @@ class TestGaussianProcess(unittest.TestCase):
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
-        ntrain_samples = 10
+        ntrain_samples = 7
         train_samples = (np.cos(
             np.linspace(0, np.pi, ntrain_samples))[np.newaxis, :]+1)/2
         train_vals = func(train_samples)
@@ -351,7 +351,6 @@ class TestGaussianProcess(unittest.TestCase):
         nu = np.inf
         kernel = Matern(length_scale_bounds=(1e-2, 10), nu=nu)
         # kernel needs to be multiplied by a constant kernel
-        # if normalize_y=False
         if not normalize_y:
             kernel = ConstantKernel(
                 constant_value=constant, constant_value_bounds='fixed')*kernel
@@ -360,7 +359,11 @@ class TestGaussianProcess(unittest.TestCase):
             alpha=nugget)
         gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
-        #print(gp.kernel_.length_scale)
+        # avoid training data when checking variance
+        zz = np.linspace(0.01, 0.99, 100)
+        mean, std = gp(zz[None, :], return_std=True)
+        vals = gp.predict_random_realization(zz[None, :], 100000)
+        assert np.allclose(vals.std(axis=1), std, rtol=5e-3)
 
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var = integrate_gaussian_process(gp, variable)
@@ -389,11 +392,11 @@ class TestGaussianProcess(unittest.TestCase):
         #vals = gp.sample_y(
         #    quad_points.T, n_samples=nsamples, random_state=0)[:, 0, :]
         vals = gp.predict_random_realization(quad_points, nsamples)
-        #plt.plot(xx, vals, '-')
+        #plt.plot(zz, mean[:, 0]+vals.std(axis=1), ':')
         #plt.show()
         random_means = vals.T.dot(quad_weights)
         random_variances = ((vals)**2).T.dot(quad_weights)-random_means**2
-        print(random_variances.shape)
+        print(random_variances.shape, vals.shape, random_means.shape, (vals**2).T.dot(quad_weights).shape)
 
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
@@ -406,6 +409,10 @@ class TestGaussianProcess(unittest.TestCase):
             np.mean(random_means), expected_random_mean, rtol=1e-2)
         assert np.allclose(
             np.var(random_means), variance_random_mean, rtol=1e-2)
+        assert np.allclose(
+            np.mean(random_variances), expected_random_var, rtol=1e-2)
+        assert np.allclose(
+            np.var(random_variances), variance_random_var, rtol=1e-2)
 
         # xx=np.linspace(-1,1,101)
         # plt.plot(xx,func(xx[np.newaxis,:]))
@@ -489,7 +496,6 @@ class TestGaussianProcess(unittest.TestCase):
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
-
 
         nu = np.inf
         kernel_var = 2.

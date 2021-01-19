@@ -1638,3 +1638,56 @@ def split_dataset(samples, values, ndata1):
     values1 = values[I[:ndata1], :]
     values2 = values[I[ndata1:], :]
     return samples1, samples2, values1, values2
+
+
+def leave_one_out_lsq_cross_validation(basis_mat, values):
+    """
+    let :math:`x_i` be the ith row of :math:`X` and let 
+    :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals 
+    at the training samples satisfy
+
+    .. math:: r_i = X\beta-y
+
+    then the leave one out cross validation errors are given by
+
+    .. math:: e_i = \frac{r_i}{1-h_i}
+
+    where
+
+    :math:`h_i = x_i^\top(X^\top X)^{-1}x_i`
+    """
+    assert values.ndim == 2
+    gram_mat = basis_mat.T.dot(basis_mat)
+    H_mat = basis_mat.dot(np.linalg.inv(gram_mat).dot(basis_mat.T))
+    H_diag = np.diag(H_mat)
+    coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+    assert coef.ndim == 2
+    residuals = basis_mat.dot(coef) - values
+    cv_errors = residuals / (1-H_diag[:, None])
+    cv_score = np.sqrt(np.sum(cv_errors**2, axis=0))
+    return cv_errors, cv_score
+
+
+def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices):
+    nfolds = len(fold_sample_indices)
+    cv_errors = []
+    cv_score = 0
+    coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+    residuals = basis_mat.dot(coef) - values
+    gram_mat = basis_mat.T.dot(basis_mat)
+    gram_mat_inv = np.linalg.inv(gram_mat)
+    for ii in range(nfolds):
+        indices_ii = fold_sample_indices[ii]
+        nvalidation_samples_ii = indices_ii.shape[0]
+        basis_mat_ii = basis_mat[indices_ii, :]
+        residuals_ii = residuals[indices_ii, :]
+        
+        H_mat = np.eye(nvalidation_samples_ii) - basis_mat_ii.dot(
+            gram_mat_inv.dot(basis_mat_ii.T))
+        H_mat_inv = np.linalg.inv(H_mat)
+        cv_errors.append(H_mat_inv.dot(residuals_ii))
+        cv_score += np.sum(cv_errors[-1]**2, axis=0)
+    return cv_errors, np.sqrt(cv_score)
+        
+        
+        

@@ -58,6 +58,7 @@ class GaussianProcess(GaussianProcessRegressor):
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
         canonical_samples = self.map_to_canonical_space(samples)
+        # assert canonical_samples.min()>=-1-1e-14 and canonical_samples.max()<=1+1e-14
         return self.predict(canonical_samples.T, return_std, return_cov)
 
     def predict_random_realization(self, samples, rand_noise=1):
@@ -281,7 +282,8 @@ def mean_of_variance(zeta, v_sq, kernel_var, expected_random_mean,
     return zeta+v_sq*kernel_var-expected_random_mean**2-variance_random_mean
 
 
-def integrate_gaussian_process(gp, variable, return_full=False):
+def integrate_gaussian_process(gp, variable, return_full=False,
+                               nquad_samples=50):
     kernel_types = [RBF, Matern]
     kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
 
@@ -307,19 +309,18 @@ def integrate_gaussian_process(gp, variable, return_full=False):
     transform_quad_rules = (not hasattr(gp, 'var_trans'))
     # gp.X_train_ will already be in the canonical space if var_trans is used
     x_train = gp.X_train_.T
-    result = integrate_gaussian_process_squared_exponential_kernel(
-                x_train, gp.y_train_, K_inv, kernel.length_scale,
-                kernel_var, variable, return_full, transform_quad_rules)
-    expected_random_mean, variance_random_mean, expected_random_var, \
-        variance_random_var = result[:4]
+    
     # correct for normalization of gaussian process training data
     # gp.y_train_ is normalized such that 
     # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
-    expected_random_mean = gp._y_train_std*expected_random_mean + \
-        gp._y_train_mean
-    variance_random_mean = variance_random_mean*gp._y_train_std**2
-    expected_random_var = expected_random_var*gp._y_train_std**2
-    variance_random_var = variance_random_var*gp._y_train_std**4
+    y_train =  gp._y_train_std*gp.y_train_+gp._y_train_mean
+    kernel_var *= gp._y_train_std**2
+    K_inv /=  gp._y_train_std**2
+    result = integrate_gaussian_process_squared_exponential_kernel(
+                x_train, y_train, K_inv, kernel.length_scale,
+                kernel_var, variable, return_full, transform_quad_rules)
+    expected_random_mean, variance_random_mean, expected_random_var, \
+        variance_random_var = result[:4]
     if return_full is True:
         return expected_random_mean, variance_random_mean, \
             expected_random_var, variance_random_var, result[4]
@@ -378,10 +379,11 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
 
 
 def get_gaussian_process_squared_exponential_kernel_1d_integrals(
-        X_train, length_scale, variable, transform_quad_rules):
+        X_train, length_scale, variable, transform_quad_rules,
+        nquad_samples=50):
     ntrain_samples = X_train.shape[1]
     nvars = variable.num_vars()
-    degrees = [50]*nvars
+    degrees = [nquad_samples]*nvars
     univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
         variable, degrees)
 
@@ -449,7 +451,8 @@ def integrate_gaussian_process_squared_exponential_kernel(
         kernel_var,
         variable,
         return_full=False,
-        transform_quad_rules=False):
+        transform_quad_rules=False,
+        nquad_samples=50):
     r"""
     Compute
 
@@ -521,7 +524,8 @@ def integrate_gaussian_process_squared_exponential_kernel(
     """
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
-            X_train, length_scale, variable, transform_quad_rules)
+            X_train, length_scale, variable, transform_quad_rules,
+            nquad_samples)
     tau = np.prod(np.array(tau_list), axis=0)
     P = np.prod(np.array(P_list), axis=0)
     u = np.prod(u_list)

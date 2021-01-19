@@ -969,6 +969,50 @@ class TestUtilities(unittest.TestCase):
 
         #print(R.T,'\n',cholL[chol_pivots])
         assert np.allclose(np.absolute(R.T),np.absolute(cholL[chol_pivots]))
+
+    def test_least_sqaures_loo_cross_validation(self):
+        degree = 2
+        nsamples = 2*(degree+1)
+        samples = np.random.uniform(-1, 1, (1, nsamples))
+        basis_mat = samples.T**np.arange(degree+1)
+        values = np.exp(samples).T
+        cv_errors, cv_score = leave_one_out_lsq_cross_validation(
+            basis_mat, values)
+        true_cv_errors = np.empty_like(cv_errors)
+        for ii in range(nsamples):
+            samples_ii = np.hstack((samples[:, :ii], samples[:, ii+1:]))
+            basis_mat_ii = samples_ii.T**np.arange(degree+1)
+            values_ii = np.vstack((values[:ii], values[ii+1:]))
+            coef_ii = np.linalg.lstsq(basis_mat_ii, values_ii, rcond=None)[0]
+            true_cv_errors[ii] = (basis_mat.dot(coef_ii)-values)[ii]
+        assert np.allclose(cv_errors, true_cv_errors)
+
+    def test_leave_many_out_lsq_cross_validation(self):
+        degree = 2
+        nsamples = 2*(degree+1)
+        samples = np.random.uniform(-1, 1, (1, nsamples))
+        basis_mat = samples.T**np.arange(degree+1)
+        values = np.exp(samples).T
+
+        assert nsamples%2 == 0
+        fold_sample_indices = [
+            np.arange(2*ii, 2*ii+2) for ii in range(nsamples//2)]
+        cv_errors, cv_score = leave_many_out_lsq_cross_validation(
+            basis_mat, values, fold_sample_indices)
+        
+        true_cv_errors = np.empty_like(cv_errors)
+        for ii in range(len(fold_sample_indices)):
+            I = np.ones(nsamples, dtype=bool)
+            I[fold_sample_indices[ii]] = False
+            samples_ii = samples[:, I]
+            basis_mat_ii = basis_mat[I, :]
+            values_ii = values[I, :]
+            coef_ii = np.linalg.lstsq(basis_mat_ii, values_ii, rcond=None)[0]
+            true_cv_errors[ii] = \
+                (basis_mat.dot(coef_ii)-values)[fold_sample_indices[ii]]
+        assert np.allclose(cv_errors, true_cv_errors)
+        
+            
  
 if __name__== "__main__":    
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(

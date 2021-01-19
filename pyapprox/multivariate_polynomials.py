@@ -242,6 +242,15 @@ def evaluate_multivariate_orthonormal_polynomial(
 
 
 class PolynomialChaosExpansion(object):
+    """
+    Notes
+    -----
+    When pickling this class from a file that file must contain
+    from pyapprox.variable_transformations import AffineRandomVariableTransformation
+    Otherwise the following error will be thrown
+
+    AttributeError: 'AffineRandomVariableTransformation' object has no attribute 'enforce_bounds'
+    """
     def __init__(self):
         self.coefficients = None
         self.indices = None
@@ -781,4 +790,6 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
 
     indices, coefs = add_polynomials(basis_indices, basis_coefs)
     return indices, coefs
+    
+    
     

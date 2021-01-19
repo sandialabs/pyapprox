@@ -918,7 +918,9 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
                                  noise_level=None, noise_level_bounds='fixed',
                                  kernel_variance=None,
                                  kernel_variance_bounds='fixed',
-                                 var_trans=None):
+                                 var_trans=None,
+                                 length_scale=1,
+                                 length_scale_bounds=(1e-2, 10)):
     r"""
     Compute a Gaussian process approximation of a function from a fixed data 
     set using the Matern kernel
@@ -964,8 +966,11 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         ConstantKernel
     from pyapprox.gaussian_process import GaussianProcess
     nvars = train_samples.shape[0]
-    length_scale = np.array([1]*nvars)
-    kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+    if np.isscalar(length_scale):
+        length_scale = np.array([length_scale]*nvars)
+    assert length_scale.shape[0] == nvars
+    kernel = Matern(length_scale, length_scale_bounds=length_scale_bounds,
+                    nu=nu)
     # optimize variance
     if kernel_variance is not None:
         kernel = ConstantKernel(
@@ -976,6 +981,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         kernel += WhiteKernel(noise_level, noise_level_bounds=noise_level_bounds)
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
                          normalize_y=normalize_y, alpha=alpha)
+    
     if var_trans is not None:
         gp.set_variable_transformation(var_trans)
     gp.fit(train_samples, train_vals)
