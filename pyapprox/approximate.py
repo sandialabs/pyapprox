@@ -20,7 +20,6 @@ from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
-
 from scipy.optimize import OptimizeResult
 
 
@@ -58,8 +57,8 @@ def adaptive_approximate_sparse_grid(
         where approx_k is the current approximation object.
 
     refinement_indicator : callable
-        A function that retuns an estimate of the error of a sparse grid subspace
-        with signature
+        A function that retuns an estimate of the error of a sparse grid 
+        subspace with signature
 
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
@@ -520,17 +519,36 @@ def approximate(train_samples, train_vals, method, options=None):
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # verbose=1 will display lars path on entire data setUp
     # verbose>1 will also show this plus paths on each cross validation set
-    verbose = max(0, kwargs['verbosity']-1)
-    solvers = {'lasso_lars': LassoLarsCV(cv=kwargs['cv'], verbose=verbose).fit,
-               'lasso': LassoCV(cv=kwargs['cv'], verbose=verbose).fit,
-               'lars': LarsCV(cv=kwargs['cv'], verbose=verbose).fit,
-               'omp': OrthogonalMatchingPursuitCV(
-                   cv=kwargs['cv'], verbose=verbose).fit,
-               'ridge': RidgeCV(alphas=[1e-14], cv=kwargs['cv']).fit}
+    solvers = {'lasso_lars': LassoLarsCV,
+               'lasso': LassoCV,
+               'lars': LarsCV,
+               'omp': OrthogonalMatchingPursuitCV,
+               'ridge': RidgeCV}
     assert train_vals.ndim == 2
 
+    # cv interpolates each residual onto a common set of alphas
+    # This is problematic if the alpha path is not monotonically decreasing
+    # For some problems alpha will increase for last few sample sizes. This
+    # messes up interpolation and causes the best_alpha to be estimated
+    # very poorly in some cases. I belive all_alphas = np.unique(all_alphas)
+    # is the culprit. To avoid the aforementioned issue set max_iter to
+    # ntrain_samples//2 This is typically stops the algorithm after
+    # what would have been chosen as the best_alpha but before
+    # alphas start increasing. Ideally sklearn should exit when
+    # alphas increase.
+    if (kwargs.get('max_iter', basis_matrix.shape[0]//2) >
+        basis_matrix.shape[0]//2):
+        msg = "Warning: max_iter is set large this can effect not just "
+        msg += "Computational cost but also final accuracy"
+        print(msg)
+
+    if 'cv' not in kwargs:
+        kwargs['cv'] = 10
+        msg = 'Warning cv argument not set. Setting cv=10'
+        print(msg)
+
     if solver_type in solvers:
-        fit = solvers[solver_type]
+        fit = solvers[solver_type](**kwargs).fit
         res = fit(basis_matrix, train_vals[:, 0])
     else:
         msg = f'Solver type {solver_type} not supported\n'
@@ -547,7 +565,8 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
 
 def cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
-        hcross_strength=1, cv=10, solver_type='lars', verbosity=0):
+        hcross_strength=1, solver_type='lars', verbose=0,
+        linear_solver_options={}):
     r"""
     Use cross validation to find the polynomial degree which best fits the data.
     A polynomial is constructed for each degree and the degree with the highest
@@ -584,7 +603,7 @@ def cross_validate_pce_degree(
         - 'lasso'
         - 'omp'
 
-    verbosity : integer
+    verbose : integer
         Controls the amount of information printed to screen
 
     Returns
@@ -609,11 +628,11 @@ def cross_validate_pce_degree(
     unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
-        if verbosity > 1:
+        if verbose > 1:
             print(f'Approximating QoI: {ii}')
         pce_ii, score_ii, degree_ii = _cross_validate_pce_degree(
             pce, train_samples, train_vals[:, ii:ii+1], min_degree, max_degree,
-            hcross_strength, cv, solver_type, verbosity)
+            hcross_strength, linear_solver_options, solver_type, verbose)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -638,8 +657,8 @@ def cross_validate_pce_degree(
 
 def _cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
-        hcross_strength=1,
-        cv=10, solver_type='lasso_lars', verbosity=0):
+        hcross_strength=1, linear_solver_options={},
+        solver_type='lasso_lars', verbose=0):
     assert train_vals.shape[1] == 1
     num_samples = train_samples.shape[1]
     if min_degree is None:
@@ -651,7 +670,7 @@ def _cross_validate_pce_degree(
     best_cv_score = -np.finfo(np.double).max
     best_degree = min_degree
     prev_num_terms = 0
-    if verbosity > 0:
+    if verbose > 0:
         print("{:<8} {:<10} {:<18}".format('degree', 'num_terms', 'cv score',))
     for degree in range(min_degree, max_degree+1):
         indices = compute_hyperbolic_indices(
@@ -663,9 +682,9 @@ def _cross_validate_pce_degree(
 
         basis_matrix = pce.basis_matrix(train_samples)
         coef, cv_score = fit_linear_model(
-            basis_matrix, train_vals, solver_type, cv=cv, verbosity=verbosity)
+            basis_matrix, train_vals, solver_type, **linear_solver_options)
         pce.set_coefficients(coef)
-        if verbosity > 0:
+        if verbose > 0:
             print("{:<8} {:<10} {:<18} ".format(
                 degree, pce.num_terms(), cv_score))
         if (cv_score > best_cv_score):
@@ -679,7 +698,7 @@ def _cross_validate_pce_degree(
     pce.set_indices(compute_hyperbolic_indices(
         pce.num_vars(), best_degree, hcross_strength))
     pce.set_coefficients(best_coef)
-    if verbosity > 0:
+    if verbose > 0:
         print('best degree:', best_degree)
     return pce, best_cv_score, best_degree
 
@@ -723,8 +742,8 @@ def expand_basis(indices):
 
 
 def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
-                            verbosity=1, max_num_terms=None,
-                            solver_type='lasso_lars', cv=10,
+                            verbose=1, max_num_terms=None,
+                            solver_type='lasso_lars', linear_solver_options={},
                             restriction_tol=np.finfo(float).eps*2):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
@@ -754,7 +773,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         - 'lasso'
         - 'omp'
 
-    verbosity : integer
+    verbose : integer
         Controls the amount of information printed to screen
 
     restriction_tol : float
@@ -782,11 +801,12 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
-        if verbosity > 1:
+        if verbose > 1:
             print(f'Approximating QoI: {ii}')
         pce_ii, score_ii = _expanding_basis_omp_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
-            verbosity, max_num_terms, solver_type, cv, restriction_tol)
+            verbose, max_num_terms, solver_type, linear_solver_options,
+            restriction_tol)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -808,8 +828,8 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 
 def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
-                             verbosity=1, max_num_terms=None,
-                             solver_type='lasso_lars', cv=10,
+                             verbose=1, max_num_terms=None,
+                             solver_type='lasso_lars', linear_solver_options={},
                              restriction_tol=np.finfo(float).eps*2):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
@@ -831,17 +851,17 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     pce.set_indices(
         compute_hyperbolic_indices(num_vars, degree, hcross_strength))
 
-    if verbosity > 0:
+    if verbose > 0:
         msg = f'Initializing basis with hyperbolic cross of degree {degree} '
         msg += f'and strength {hcross_strength} with {pce.num_terms()} terms'
         print(msg)
 
     basis_matrix = pce.basis_matrix(train_samples)
     best_coef, best_cv_score = fit_linear_model(
-        basis_matrix, train_vals, solver_type, cv=cv, verbosity=verbosity)
+        basis_matrix, train_vals, solver_type, **linear_solver_options)
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
-    if verbosity > 0:
+    if verbose > 0:
         print("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
         print("{:<10} {:<10} {:<18}".format(
             pce.num_terms(), np.count_nonzero(pce.coefficients), best_cv_score))
@@ -872,11 +892,10 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
             coef, cv_score = fit_linear_model(
-                basis_matrix, train_vals, solver_type, cv=cv,
-                verbosity=verbosity)
+                basis_matrix, train_vals, solver_type, **linear_solver_options)
             pce.set_coefficients(coef)
 
-            if verbosity > 0:
+            if verbose > 0:
                 print("{:<10} {:<10} {:<18}".format(
                     pce.num_terms(), np.count_nonzero(pce.coefficients),
                     cv_score))
@@ -909,7 +928,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     I = np.nonzero(best_coef[:, 0])[0]
     pce.set_indices(best_indices[:, I])
     pce.set_coefficients(best_coef[I])
-    if verbosity > 0:
+    if verbose > 0:
         msg = f'Final basis has {pce.num_terms()} terms selected from {nindices}'
         msg += f' using {train_samples.shape[1]} samples'
         print(msg)
@@ -917,7 +936,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
-                                 n_restarts_optimizer=5, verbosity=0,
+                                 n_restarts_optimizer=5, verbose=0,
                                  normalize_y=False, alpha=0,
                                  noise_level=None, noise_level_bounds='fixed',
                                  kernel_variance=None,
@@ -955,7 +974,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         The number of local optimizeation problems solved to find the 
         GP hyper-parameters
 
-    verbosity : integer
+    verbose : integer
         Controls the amount of information printed to screen
 
     Returns

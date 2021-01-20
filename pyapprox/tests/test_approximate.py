@@ -68,7 +68,7 @@ class TestApproximate(unittest.TestCase):
             nsamples)
         assert error < 1e-12
 
-    def help_cross_validate_pce_degree(self, solver_type):
+    def help_cross_validate_pce_degree(self, solver_type, solver_options):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = pya.IndependentMultivariateRandomVariable(
@@ -95,8 +95,9 @@ class TestApproximate(unittest.TestCase):
         poly = approximate(
             train_samples, train_vals, 'polynomial_chaos',
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
-             'options': {'verbosity': 3, 'solver_type': solver_type,
-                         'min_degree': 1, 'max_degree': degree+1}}).approx
+             'options': {'verbose': 3, 'solver_type': solver_type,
+                         'min_degree': 1, 'max_degree': degree+1,
+                         'linear_solver_options':solver_options}}).approx
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
@@ -113,8 +114,13 @@ class TestApproximate(unittest.TestCase):
 
     def test_cross_validate_pce_degree(self):
         # lasso and omp do not pass this test so recommend not using them
-        for solver_type in ['ridge', 'lasso_lars', 'lars']:
-            self.help_cross_validate_pce_degree(solver_type)
+        solver_type_list = ['ridge', 'lasso_lars', 'lars']
+        solver_options_list = [
+            {'alphas': [1e-14]}, {'max_iter': 500, 'cv': 10},
+            {'max_iter': 500, 'cv': 10}]
+        for solver_type, solver_options in zip(
+                solver_type_list, solver_options_list):
+            self.help_cross_validate_pce_degree(solver_type, solver_options)
 
     def test_pce_basis_expansion(self):
         num_vars = 2
@@ -178,7 +184,8 @@ class TestApproximate(unittest.TestCase):
         train_vals = kernel(train_samples.T, X.T).dot(alpha)[:, np.newaxis]
 
         gp = approximate(
-            train_samples, train_vals, 'gaussian_process', {'nu': nu}).approx
+            train_samples, train_vals, 'gaussian_process',
+            {'nu': nu, 'noise_level': 1e-8}).approx
 
         error = np.linalg.norm(gp(X)[:, 0]-kernel(X.T, X.T).dot(alpha))/np.sqrt(
             X.shape[1])
