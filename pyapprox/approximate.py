@@ -518,11 +518,14 @@ def approximate(train_samples, train_vals, method, options=None):
 @ignore_warnings(category=ConvergenceWarning)
 @ignore_warnings(category=LinAlgWarning)
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
-    solvers = {'lasso_lars': LassoLarsCV(cv=kwargs['cv']).fit,
-               'lasso': LassoCV(cv=kwargs['cv']).fit,
-               'lars': LarsCV(cv=kwargs['cv']).fit,
+    # verbose=1 will display lars path on entire data setUp
+    # verbose>1 will also show this plus paths on each cross validation set
+    verbose = max(0, kwargs['verbosity']-1)
+    solvers = {'lasso_lars': LassoLarsCV(cv=kwargs['cv'], verbose=verbose).fit,
+               'lasso': LassoCV(cv=kwargs['cv'], verbose=verbose).fit,
+               'lars': LarsCV(cv=kwargs['cv'], verbose=verbose).fit,
                'omp': OrthogonalMatchingPursuitCV(
-                   cv=kwargs['cv'], verbose=0).fit,
+                   cv=kwargs['cv'], verbose=verbose).fit,
                'ridge': RidgeCV(alphas=[1e-14], cv=kwargs['cv']).fit}
     assert train_vals.ndim == 2
 
@@ -660,7 +663,7 @@ def _cross_validate_pce_degree(
 
         basis_matrix = pce.basis_matrix(train_samples)
         coef, cv_score = fit_linear_model(
-            basis_matrix, train_vals, solver_type, cv=cv)
+            basis_matrix, train_vals, solver_type, cv=cv, verbosity=verbosity)
         pce.set_coefficients(coef)
         if verbosity > 0:
             print("{:<8} {:<10} {:<18} ".format(
@@ -829,13 +832,13 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         compute_hyperbolic_indices(num_vars, degree, hcross_strength))
 
     if verbosity > 0:
-        msg = f'Initializing basis with hyperbolic cross of degree {degree} and '
-        msg += f' strength {hcross_strength} with {pce.num_terms()} terms'
+        msg = f'Initializing basis with hyperbolic cross of degree {degree} '
+        msg += f'and strength {hcross_strength} with {pce.num_terms()} terms'
         print(msg)
 
     basis_matrix = pce.basis_matrix(train_samples)
     best_coef, best_cv_score = fit_linear_model(
-        basis_matrix, train_vals, solver_type, cv=cv)
+        basis_matrix, train_vals, solver_type, cv=cv, verbosity=verbosity)
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
     if verbosity > 0:
@@ -869,7 +872,8 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
             coef, cv_score = fit_linear_model(
-                basis_matrix, train_vals, solver_type, cv=cv)
+                basis_matrix, train_vals, solver_type, cv=cv,
+                verbosity=verbosity)
             pce.set_coefficients(coef)
 
             if verbosity > 0:

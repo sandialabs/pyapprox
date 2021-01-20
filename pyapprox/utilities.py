@@ -1640,7 +1640,7 @@ def split_dataset(samples, values, ndata1):
     return samples1, samples2, values1, values2
 
 
-def leave_one_out_lsq_cross_validation(basis_mat, values):
+def leave_one_out_lsq_cross_validation(basis_mat, values, coef=None):
     """
     let :math:`x_i` be the ith row of :math:`X` and let 
     :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals 
@@ -1657,10 +1657,12 @@ def leave_one_out_lsq_cross_validation(basis_mat, values):
     :math:`h_i = x_i^\top(X^\top X)^{-1}x_i`
     """
     assert values.ndim == 2
+    assert basis_mat.shape[0] > basis_mat.shape[1]+2
     gram_mat = basis_mat.T.dot(basis_mat)
     H_mat = basis_mat.dot(np.linalg.inv(gram_mat).dot(basis_mat.T))
     H_diag = np.diag(H_mat)
-    coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+    if coef is None:
+        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
     assert coef.ndim == 2
     residuals = basis_mat.dot(coef) - values
     cv_errors = residuals / (1-H_diag[:, None])
@@ -1668,26 +1670,54 @@ def leave_one_out_lsq_cross_validation(basis_mat, values):
     return cv_errors, cv_score
 
 
-def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices):
+def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
+                                        coef=None):
     nfolds = len(fold_sample_indices)
+    nsamples = basis_mat.shape[0]
     cv_errors = []
     cv_score = 0
-    coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+    if coef is None:
+        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
     residuals = basis_mat.dot(coef) - values
     gram_mat = basis_mat.T.dot(basis_mat)
     gram_mat_inv = np.linalg.inv(gram_mat)
-    for ii in range(nfolds):
-        indices_ii = fold_sample_indices[ii]
-        nvalidation_samples_ii = indices_ii.shape[0]
-        basis_mat_ii = basis_mat[indices_ii, :]
-        residuals_ii = residuals[indices_ii, :]
+    for kk in range(nfolds):
+        indices_kk = fold_sample_indices[kk]
+        nvalidation_samples_kk = indices_kk.shape[0]
+        assert nsamples - nvalidation_samples_kk >= basis_mat.shape[1]
+        basis_mat_kk = basis_mat[indices_kk, :]
+        residuals_kk = residuals[indices_kk, :]
         
-        H_mat = np.eye(nvalidation_samples_ii) - basis_mat_ii.dot(
-            gram_mat_inv.dot(basis_mat_ii.T))
+        H_mat = np.eye(nvalidation_samples_kk) - basis_mat_kk.dot(
+            gram_mat_inv.dot(basis_mat_kk.T))
+        print('gram_mat cond number', np.linalg.cond(gram_mat))
+        print('H_mat cond number', np.linalg.cond(H_mat))
         H_mat_inv = np.linalg.inv(H_mat)
-        cv_errors.append(H_mat_inv.dot(residuals_ii))
+        cv_errors.append(H_mat_inv.dot(residuals_kk))
         cv_score += np.sum(cv_errors[-1]**2, axis=0)
-    return cv_errors, np.sqrt(cv_score)
-        
-        
+    return np.asarray(cv_errors), np.sqrt(cv_score)
+
+
+def get_random_k_fold_sample_indices(nsamples, nfolds):
+    sample_indices = np.random.permutation(
+        np.arange(nsamples))
+    fold_sample_indices = [np.empty(0, dtype=int) for kk in range(nfolds)]
+    nn = 0 
+    while nn < nsamples:
+        for jj in range(nfolds):
+            fold_sample_indices[jj] = np.append(
+                fold_sample_indices[jj], sample_indices[nn])
+            nn += 1
+            if nn >= nsamples:
+                break
+    assert np.unique(np.hstack(fold_sample_indices)).shape[0] == nsamples
+    return fold_sample_indices
+
+def get_cross_validation_rsquared_coefficient_of_variation(cv_score, train_vals):
+    # total sum of squares (proportional to variance)
+    tss = ((train_vals-np.mean(train_vals, axis=0)[:, None])**2).sum(axis=0)
+    rsq = 1-cv_score**2/tss
+    return rsq
+
+
         

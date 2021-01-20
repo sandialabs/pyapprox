@@ -55,7 +55,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sandialabs/pyapprox",
     packages=setuptools.find_packages(),
-    python_requires='>=3.6',
+    python_requires='>=3.6,<=3.8', # numba only compiles with <=3.8
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

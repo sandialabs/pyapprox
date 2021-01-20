@@ -984,7 +984,7 @@ class TestUtilities(unittest.TestCase):
             basis_mat_ii = samples_ii.T**np.arange(degree+1)
             values_ii = np.vstack((values[:ii], values[ii+1:]))
             coef_ii = np.linalg.lstsq(basis_mat_ii, values_ii, rcond=None)[0]
-            true_cv_errors[ii] = (basis_mat.dot(coef_ii)-values)[ii]
+            true_cv_errors[ii] = (basis_mat[ii].dot(coef_ii)-values[ii])
         assert np.allclose(cv_errors, true_cv_errors)
 
     def test_leave_many_out_lsq_cross_validation(self):
@@ -992,27 +992,32 @@ class TestUtilities(unittest.TestCase):
         nsamples = 2*(degree+1)
         samples = np.random.uniform(-1, 1, (1, nsamples))
         basis_mat = samples.T**np.arange(degree+1)
-        values = np.exp(samples).T
+        values = np.exp(samples).T*100
 
         assert nsamples%2 == 0
-        fold_sample_indices = [
-            np.arange(2*ii, 2*ii+2) for ii in range(nsamples//2)]
+        nfolds = nsamples//3
+        fold_sample_indices = get_random_k_fold_sample_indices(
+            nsamples, nfolds)
         cv_errors, cv_score = leave_many_out_lsq_cross_validation(
             basis_mat, values, fold_sample_indices)
         
         true_cv_errors = np.empty_like(cv_errors)
-        for ii in range(len(fold_sample_indices)):
-            I = np.ones(nsamples, dtype=bool)
-            I[fold_sample_indices[ii]] = False
-            samples_ii = samples[:, I]
-            basis_mat_ii = basis_mat[I, :]
-            values_ii = values[I, :]
-            coef_ii = np.linalg.lstsq(basis_mat_ii, values_ii, rcond=None)[0]
-            true_cv_errors[ii] = \
-                (basis_mat.dot(coef_ii)-values)[fold_sample_indices[ii]]
+        for kk in range(len(fold_sample_indices)):
+            K = np.ones(nsamples, dtype=bool)
+            K[fold_sample_indices[kk]] = False
+            basis_mat_kk = basis_mat[K, :]
+            values_kk = values[K, :]
+            coef_kk = np.linalg.lstsq(basis_mat_kk, values_kk, rcond=None)[0]
+            true_cv_errors[kk] = basis_mat[fold_sample_indices[kk], :].dot(
+                coef_kk)-values[fold_sample_indices[kk]]
         assert np.allclose(cv_errors, true_cv_errors)
+        true_cv_score = np.sqrt((true_cv_errors**2).sum(axis=(0, 1)))
+        assert np.allclose(true_cv_score, cv_score)
+
+        rsq = get_cross_validation_rsquared_coefficient_of_variation(
+            cv_score, values)
         
-            
+        print(rsq)   
  
 if __name__== "__main__":    
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(
