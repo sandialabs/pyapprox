@@ -536,8 +536,10 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # what would have been chosen as the best_alpha but before
     # alphas start increasing. Ideally sklearn should exit when
     # alphas increase.
-    if (kwargs.get('max_iter', basis_matrix.shape[0]//2) >
-        basis_matrix.shape[0]//2):
+    if 'max_iter' not in kwargs:
+        kwargs['max_iter'] = basis_matrix.shape[0]//2
+        
+    if kwargs['max_iter'] > basis_matrix.shape[0]//2:
         msg = "Warning: max_iter is set large this can effect not just "
         msg += "Computational cost but also final accuracy"
         print(msg)
@@ -929,8 +931,8 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     pce.set_indices(best_indices[:, I])
     pce.set_coefficients(best_coef[I])
     if verbose > 0:
-        msg = f'Final basis has {pce.num_terms()} terms selected from {nindices}'
-        msg += f' using {train_samples.shape[1]} samples'
+        msg = f'Final basis has {pce.num_terms()} terms selected from '
+        msg += f'{nindices} using {train_samples.shape[1]} samples'
         print(msg)
     return pce, best_cv_score
 
@@ -1001,7 +1003,8 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
             constant_value_bounds=kernel_variance_bounds)*kernel
     # optimize gp noise
     if noise_level is not None:
-        kernel += WhiteKernel(noise_level, noise_level_bounds=noise_level_bounds)
+        kernel += WhiteKernel(
+            noise_level, noise_level_bounds=noise_level_bounds)
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
                          normalize_y=normalize_y, alpha=alpha)
     
@@ -1009,3 +1012,27 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         gp.set_variable_transformation(var_trans)
     gp.fit(train_samples, train_vals)
     return ApproximateResult({'approx': gp})
+
+
+from pyapprox.utilities import get_random_k_fold_sample_indices
+def cross_validate_approximation(
+        train_samples, train_vals, options, nfolds, method):
+    ntrain_samples = train_samples.shape[1]
+    fold_sample_indices = get_random_k_fold_sample_indices(
+        ntrain_samples, nfolds)
+    approx_list = []
+    residues_list = []
+    for kk in range(len(fold_sample_indices)):
+        K = np.ones(ntrain_samples, dtype=bool)
+        K[fold_sample_indices[kk]] = False
+        train_samples_kk = train_samples[:, K]
+        train_vals_kk = train_vals[K, :]
+        test_samples_kk = train_samples[:, fold_sample_indices[kk]]
+        test_vals_kk = train_vals[fold_sample_indices[kk]]
+        approx_kk = approximate(
+            train_samples_kk, train_vals_kk, method, options).approx
+        residues = approx_kk(test_samples_kk) - test_vals_kk
+        approx_list.append(approx_kk)
+        residues_list.append(residues)
+    return approx_list, np.asarray(residues_list), \
+        np.sqrt(np.mean(residues**2, axis=(0, 1)))

@@ -326,7 +326,8 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         pivoted_precond_weights = pivot_rows(
             self.seq_pivots, self.precond_weights,False)
         self.LU_factor = unprecondition_LU_factor(
-            self.LU_factor, pivoted_precond_weights_prev/pivoted_precond_weights,
+            self.LU_factor,
+            pivoted_precond_weights_prev/pivoted_precond_weights,
             num_samples)
         
         it = self.poly_indices.shape[1]
