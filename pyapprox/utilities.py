@@ -1640,7 +1640,7 @@ def split_dataset(samples, values, ndata1):
     return samples1, samples2, values1, values2
 
 
-def leave_one_out_lsq_cross_validation(basis_mat, values, coef=None):
+def leave_one_out_lsq_cross_validation(basis_mat, values, alpha=0, coef=None):
     """
     let :math:`x_i` be the ith row of :math:`X` and let 
     :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals 
@@ -1659,27 +1659,29 @@ def leave_one_out_lsq_cross_validation(basis_mat, values, coef=None):
     assert values.ndim == 2
     assert basis_mat.shape[0] > basis_mat.shape[1]+2
     gram_mat = basis_mat.T.dot(basis_mat)
+    gram_mat += alpha*np.eye(gram_mat.shape[0])
     H_mat = basis_mat.dot(np.linalg.inv(gram_mat).dot(basis_mat.T))
     H_diag = np.diag(H_mat)
     if coef is None:
-        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
+        coef = np.linalg.lstsq(gram_mat, basis_mat.T.dot(values), rcond=None)[0]
     assert coef.ndim == 2
     residuals = basis_mat.dot(coef) - values
     cv_errors = residuals / (1-H_diag[:, None])
-    cv_score = np.sqrt(np.sum(cv_errors**2, axis=0))
-    return cv_errors, cv_score
+    cv_score = np.sqrt(np.sum(cv_errors**2, axis=0)/basis_mat.shape[0])
+    return cv_errors, cv_score, coef
 
 
 def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
-                                        coef=None):
+                                        alpha=0, coef=None):
     nfolds = len(fold_sample_indices)
     nsamples = basis_mat.shape[0]
     cv_errors = []
     cv_score = 0
-    if coef is None:
-        coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
-    residuals = basis_mat.dot(coef) - values
     gram_mat = basis_mat.T.dot(basis_mat)
+    gram_mat += alpha*np.eye(gram_mat.shape[0])
+    if coef is None:
+        coef = np.linalg.lstsq(gram_mat, basis_mat.T.dot(values), rcond=None)[0]
+    residuals = basis_mat.dot(coef) - values
     gram_mat_inv = np.linalg.inv(gram_mat)
     for kk in range(nfolds):
         indices_kk = fold_sample_indices[kk]
@@ -1690,17 +1692,18 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
         
         H_mat = np.eye(nvalidation_samples_kk) - basis_mat_kk.dot(
             gram_mat_inv.dot(basis_mat_kk.T))
-        print('gram_mat cond number', np.linalg.cond(gram_mat))
-        print('H_mat cond number', np.linalg.cond(H_mat))
+        # print('gram_mat cond number', np.linalg.cond(gram_mat))
+        # print('H_mat cond number', np.linalg.cond(H_mat))
         H_mat_inv = np.linalg.inv(H_mat)
         cv_errors.append(H_mat_inv.dot(residuals_kk))
         cv_score += np.sum(cv_errors[-1]**2, axis=0)
-    return np.asarray(cv_errors), np.sqrt(cv_score)
+    return np.asarray(cv_errors), np.sqrt(cv_score/basis_mat.shape[0]), coef
 
 
-def get_random_k_fold_sample_indices(nsamples, nfolds):
-    sample_indices = np.random.permutation(
-        np.arange(nsamples))
+def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
+    sample_indices = np.arange(nsamples)
+    if random is True:
+        sample_indices = np.random.permutation(sample_indices)
     fold_sample_indices = [np.empty(0, dtype=int) for kk in range(nfolds)]
     nn = 0 
     while nn < nsamples:

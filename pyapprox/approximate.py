@@ -514,18 +514,73 @@ def approximate(train_samples, train_vals, method, options=None):
     return methods[method](train_samples, train_vals, **options)
 
 
+from sklearn.linear_model._base import LinearModel
+class LinearLeastSquaresCV(LinearModel):
+    """
+    Parameters
+    ----------
+    - None, to use the default 5-fold cross-validation
+    - integer to specify the number of folds
+    """
+    def __init__(self, alphas=[0.], cv=None):
+        if cv is None:
+            # sklearn RidgeCV can only be applied with leave one out cross
+            # validation. Use this as the default here
+            cv = 1
+        self.cv = cv
+        self.alphas = alphas
+
+    def fit(self, X, y):
+        if y.ndim == 1:
+            y = y[:, None]
+        fold_sample_indices = get_random_k_fold_sample_indices(
+            X.shape[0], self.cv)
+        results = []
+        for ii in range(len(self.alphas)):
+            results.append(leave_many_out_lsq_cross_validation(
+                X, y, fold_sample_indices, self.alphas[ii]))
+        cv_scores = [r[1] for r in results]
+        ii_best_alpha = np.argmin(cv_scores)
+
+        self.cv_score_ = cv_scores[ii_best_alpha][0]
+        self.alpha_ = self.alphas[ii_best_alpha]
+        self.coef_ = results[ii_best_alpha][2]
+        # Do not current support fit_intercept = True
+        self.intercept_ = 0
+        return self
+
+
 @ignore_warnings(category=ConvergenceWarning)
 @ignore_warnings(category=LinAlgWarning)
+@ignore_warnings(category=RuntimeWarning)
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # verbose=1 will display lars path on entire data setUp
     # verbose>1 will also show this plus paths on each cross validation set
-    solvers = {'lasso_lars': LassoLarsCV,
-               'lasso': LassoCV,
+    solvers = {'lasso': LassoLarsCV,
+               'lasso_grad': LassoCV,
                'lars': LarsCV,
                'omp': OrthogonalMatchingPursuitCV,
-               'ridge': RidgeCV}
-    assert train_vals.ndim == 2
+               'lstsq': LinearLeastSquaresCV}
 
+    if not solver_type in solvers:
+        msg = f'Solver type {solver_type} not supported\n'
+        msg += 'Supported solvers are:\n'
+        for key in solvers.keys():
+            msg += f'\t{key}\n'
+        raise Exception(msg)
+
+    if solver_type == 'lars':
+        msg = 'Currently lars does not exit when alpha starts to grow '
+        msg += 'this causes problems with cross validation. The lasso variant '
+        msg += 'lars does work because this exit condition is implemented'
+        raise Exception(msg)
+    
+    assert train_vals.ndim == 2
+    assert train_vals.shape[1] == 1
+
+    # The following cooment and two conditional statemenets are only true
+    # for lars which I have switched off.
+    
     # cv interpolates each residual onto a common set of alphas
     # This is problematic if the alpha path is not monotonically decreasing
     # For some problems alpha will increase for last few sample sizes. This
@@ -536,33 +591,52 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # what would have been chosen as the best_alpha but before
     # alphas start increasing. Ideally sklearn should exit when
     # alphas increase.
-    if 'max_iter' not in kwargs:
-        kwargs['max_iter'] = basis_matrix.shape[0]//2
+    # if solver_type != 'lstsq' and 'max_iter' not in kwargs:
+    #    kwargs['max_iter'] = basis_matrix.shape[0]//2
         
-    if kwargs['max_iter'] > basis_matrix.shape[0]//2:
-        msg = "Warning: max_iter is set large this can effect not just "
-        msg += "Computational cost but also final accuracy"
-        print(msg)
+    # if 'max_iter' in kwargs and kwargs['max_iter'] > basis_matrix.shape[0]//2:
+    #     msg = "Warning: max_iter is set large this can effect not just "
+    #     msg += "Computational cost but also final accuracy"
+    #     print(msg)
+
+    if solver_type == 'omp' and 'max_iter' in kwargs:
+        # unlike lasso/lars max iter is not allowed to be greater than
+        # number of columns (features/bases)
+        kwargs['max_iter'] = min(kwargs['max_iter'], basis_matrix.shape[1])
+        # for omp to work sklean must be patched to store mse_path_.
+        # Add the line         self.mse_path_ = mse_folds.T
+        # as the last line (913) before return self in the function fit of
+        # OrthogonalMatchingPursuitCV in
+        # site-packages/sklearn/linear_model/_omp.py
 
     if 'cv' not in kwargs:
         kwargs['cv'] = 10
         msg = 'Warning cv argument not set. Setting cv=10'
         print(msg)
 
-    if solver_type in solvers:
-        fit = solvers[solver_type](**kwargs).fit
-        res = fit(basis_matrix, train_vals[:, 0])
-    else:
-        msg = f'Solver type {solver_type} not supported\n'
-        msg += 'Supported solvers are:\n'
-        for key in solvers.keys():
-            msg += f'\t{key}\n'
-        raise Exception(msg)
-
-    cv_score = res.score(basis_matrix, train_vals[:, 0])
-    coef = res.coef_[:, np.newaxis]
-    coef[0] = res.intercept_
+    fit = solvers[solver_type](**kwargs).fit
+    res = fit(basis_matrix, train_vals[:, 0])
+    cv_score = extract_cross_validation_score(res)
+    coef = res.coef_
+    if coef.ndim == 1:
+        coef = coef[:, np.newaxis]
+        # some methods allow fit_intercept to be set. If True this method
+        # extracts of mean of data before computing coefficients.
+        # res.predict then makes predictions as X.dot(coef_) + res.intercept_
+        # I assume first coefficient is constant basis and want to be able
+        # to simply return X.dot(coef_) (e.g. as done be Polynomial Chaos
+        # Expansion). Thus add res.intercept_ to first coefficient, i.e.
+    coef[0] += res.intercept_
     return coef, cv_score
+
+
+def extract_cross_validation_score(linear_model):
+    if hasattr(linear_model, 'cv_score_'):
+        return linear_model.cv_score_
+    elif hasattr(linear_model, 'mse_path_'):
+        return np.sqrt(linear_model.mse_path_.mean(axis=-1).min())
+    else:
+        raise Exception('attribute mse_path_ not found')
 
 
 def cross_validate_pce_degree(
@@ -600,9 +674,9 @@ def cross_validate_pce_degree(
     solver_type : string
         The type of regression used to train the polynomial
 
-        - 'lasso_lars'
-        - 'lars'
         - 'lasso'
+        - 'lars'
+        - 'lasso_grad'
         - 'omp'
 
     verbose : integer
@@ -633,8 +707,9 @@ def cross_validate_pce_degree(
         if verbose > 1:
             print(f'Approximating QoI: {ii}')
         pce_ii, score_ii, degree_ii = _cross_validate_pce_degree(
-            pce, train_samples, train_vals[:, ii:ii+1], min_degree, max_degree,
-            hcross_strength, linear_solver_options, solver_type, verbose)
+            pce, train_samples, train_vals[:, ii:ii+1], min_degree,
+            max_degree, hcross_strength, linear_solver_options,
+            solver_type, verbose)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -660,7 +735,7 @@ def cross_validate_pce_degree(
 def _cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
         hcross_strength=1, linear_solver_options={},
-        solver_type='lasso_lars', verbose=0):
+        solver_type='lasso', verbose=0):
     assert train_vals.shape[1] == 1
     num_samples = train_samples.shape[1]
     if min_degree is None:
@@ -669,32 +744,38 @@ def _cross_validate_pce_degree(
         max_degree = np.iinfo(int).max-1
 
     best_coef = None
-    best_cv_score = -np.finfo(np.double).max
+    best_cv_score = np.finfo(np.double).max
     best_degree = min_degree
     prev_num_terms = 0
     if verbose > 0:
         print("{:<8} {:<10} {:<18}".format('degree', 'num_terms', 'cv score',))
+
+    rng_state = np.random.get_state()
     for degree in range(min_degree, max_degree+1):
         indices = compute_hyperbolic_indices(
             pce.num_vars(), degree, hcross_strength)
         pce.set_indices(indices)
         if ((pce.num_terms() > 100000) and
-                (100000-prev_num_terms < pce.num_terms()-100000)):
+            (100000-prev_num_terms < pce.num_terms()-100000)):
             break
 
         basis_matrix = pce.basis_matrix(train_samples)
+
+        # use the same state (thus cross validation folds) for each degree
+        np.random.set_state(rng_state)
         coef, cv_score = fit_linear_model(
             basis_matrix, train_vals, solver_type, **linear_solver_options)
+        np.random.set_state(rng_state)
         pce.set_coefficients(coef)
         if verbose > 0:
             print("{:<8} {:<10} {:<18} ".format(
                 degree, pce.num_terms(), cv_score))
-        if (cv_score > best_cv_score):
+        if ((cv_score >= best_cv_score) and (degree-best_degree > 1)):
+            break
+        if (cv_score < best_cv_score):
             best_cv_score = cv_score
             best_coef = coef.copy()
             best_degree = degree
-        if ((cv_score >= best_cv_score) and (degree-best_degree > 1)):
-            break
         prev_num_terms = pce.num_terms()
 
     pce.set_indices(compute_hyperbolic_indices(
@@ -745,7 +826,7 @@ def expand_basis(indices):
 
 def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                             verbose=1, max_num_terms=None,
-                            solver_type='lasso_lars', linear_solver_options={},
+                            solver_type='lasso', linear_solver_options={},
                             restriction_tol=np.finfo(float).eps*2):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
@@ -770,9 +851,9 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     solver_type : string
         The type of regression used to train the polynomial
 
-        - 'lasso_lars'
-        - 'lars'
         - 'lasso'
+        - 'lars'
+        - 'lasso_grad'
         - 'omp'
 
     verbose : integer
@@ -831,7 +912,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                              verbose=1, max_num_terms=None,
-                             solver_type='lasso_lars', linear_solver_options={},
+                             solver_type='lasso', linear_solver_options={},
                              restriction_tol=np.finfo(float).eps*2):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
@@ -857,10 +938,12 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         msg = f'Initializing basis with hyperbolic cross of degree {degree} '
         msg += f'and strength {hcross_strength} with {pce.num_terms()} terms'
         print(msg)
-
+        
+    rng_state = np.random.get_state()
     basis_matrix = pce.basis_matrix(train_samples)
     best_coef, best_cv_score = fit_linear_model(
         basis_matrix, train_vals, solver_type, **linear_solver_options)
+    np.random.set_state(rng_state) 
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
     if verbose > 0:
@@ -893,8 +976,10 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             # Compute solution #
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
+            np.random.set_state(rng_state) 
             coef, cv_score = fit_linear_model(
                 basis_matrix, train_vals, solver_type, **linear_solver_options)
+            np.random.set_state(rng_state) 
             pce.set_coefficients(coef)
 
             if verbose > 0:
@@ -902,7 +987,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                     pce.num_terms(), np.count_nonzero(pce.coefficients),
                     cv_score))
 
-            if (cv_score > best_cv_score_iter):
+            if (cv_score < best_cv_score_iter):
                 best_cv_score_iter = cv_score
                 best_indices_iter = pce.indices.copy()
                 best_coef_iter = pce.coefficients.copy()
@@ -915,7 +1000,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
 
             max_num_expansion_steps += 1
 
-        if (best_cv_score_iter > best_cv_score):
+        if (best_cv_score_iter < best_cv_score):
             best_cv_score = best_cv_score_iter
             best_coef = best_coef_iter.copy()
             best_indices = best_indices_iter.copy()
@@ -1014,7 +1099,8 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     return ApproximateResult({'approx': gp})
 
 
-from pyapprox.utilities import get_random_k_fold_sample_indices
+from pyapprox.utilities import get_random_k_fold_sample_indices, \
+    leave_many_out_lsq_cross_validation
 def cross_validate_approximation(
         train_samples, train_vals, options, nfolds, method):
     ntrain_samples = train_samples.shape[1]
@@ -1022,6 +1108,7 @@ def cross_validate_approximation(
         ntrain_samples, nfolds)
     approx_list = []
     residues_list = []
+    cv_score = 0
     for kk in range(len(fold_sample_indices)):
         K = np.ones(ntrain_samples, dtype=bool)
         K[fold_sample_indices[kk]] = False
@@ -1034,5 +1121,6 @@ def cross_validate_approximation(
         residues = approx_kk(test_samples_kk) - test_vals_kk
         approx_list.append(approx_kk)
         residues_list.append(residues)
-    return approx_list, np.asarray(residues_list), \
-        np.sqrt(np.mean(residues**2, axis=(0, 1)))
+        cv_score += np.sum(residues**2)
+    cv_score = np.sqrt(cv_score/ntrain_samples)
+    return approx_list, residues_list, cv_score

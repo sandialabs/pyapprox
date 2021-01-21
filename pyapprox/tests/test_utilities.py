@@ -972,20 +972,26 @@ class TestUtilities(unittest.TestCase):
 
     def test_least_sqaures_loo_cross_validation(self):
         degree = 2
+        alpha = 1e-3
         nsamples = 2*(degree+1)
         samples = np.random.uniform(-1, 1, (1, nsamples))
         basis_mat = samples.T**np.arange(degree+1)
         values = np.exp(samples).T
-        cv_errors, cv_score = leave_one_out_lsq_cross_validation(
-            basis_mat, values)
+        cv_errors, cv_score, coef = leave_one_out_lsq_cross_validation(
+            basis_mat, values, alpha)
         true_cv_errors = np.empty_like(cv_errors)
         for ii in range(nsamples):
             samples_ii = np.hstack((samples[:, :ii], samples[:, ii+1:]))
             basis_mat_ii = samples_ii.T**np.arange(degree+1)
             values_ii = np.vstack((values[:ii], values[ii+1:]))
-            coef_ii = np.linalg.lstsq(basis_mat_ii, values_ii, rcond=None)[0]
+            coef_ii = np.linalg.lstsq(
+                basis_mat_ii.T.dot(basis_mat_ii)+
+                alpha*np.eye(basis_mat.shape[1]), basis_mat_ii.T.dot(values_ii),
+                rcond=None)[0]
             true_cv_errors[ii] = (basis_mat[ii].dot(coef_ii)-values[ii])
         assert np.allclose(cv_errors, true_cv_errors)
+        assert np.allclose(
+            cv_score, np.sqrt(np.sum(true_cv_errors**2, axis=0)/nsamples))
 
     def test_leave_many_out_lsq_cross_validation(self):
         degree = 2
@@ -993,25 +999,29 @@ class TestUtilities(unittest.TestCase):
         samples = np.random.uniform(-1, 1, (1, nsamples))
         basis_mat = samples.T**np.arange(degree+1)
         values = np.exp(samples).T*100
+        alpha = 1e-3 # ridge regression regularization parameter value
 
         assert nsamples%2 == 0
         nfolds = nsamples//3
         fold_sample_indices = get_random_k_fold_sample_indices(
             nsamples, nfolds)
-        cv_errors, cv_score = leave_many_out_lsq_cross_validation(
-            basis_mat, values, fold_sample_indices)
+        cv_errors, cv_score, coef = leave_many_out_lsq_cross_validation(
+            basis_mat, values, fold_sample_indices, alpha)
         
         true_cv_errors = np.empty_like(cv_errors)
         for kk in range(len(fold_sample_indices)):
             K = np.ones(nsamples, dtype=bool)
             K[fold_sample_indices[kk]] = False
             basis_mat_kk = basis_mat[K, :]
-            values_kk = values[K, :]
-            coef_kk = np.linalg.lstsq(basis_mat_kk, values_kk, rcond=None)[0]
+            gram_mat_kk = basis_mat_kk.T.dot(basis_mat_kk) + np.eye(
+                basis_mat_kk.shape[1])*alpha
+            values_kk = basis_mat_kk.T.dot(values[K, :])
+            coef_kk = np.linalg.lstsq(gram_mat_kk, values_kk, rcond=None)[0]
             true_cv_errors[kk] = basis_mat[fold_sample_indices[kk], :].dot(
                 coef_kk)-values[fold_sample_indices[kk]]
+        print(cv_errors, true_cv_errors)
         assert np.allclose(cv_errors, true_cv_errors)
-        true_cv_score = np.sqrt((true_cv_errors**2).sum(axis=(0, 1)))
+        true_cv_score = np.sqrt((true_cv_errors**2).sum(axis=(0, 1))/nsamples)
         assert np.allclose(true_cv_score, cv_score)
 
         rsq = get_cross_validation_rsquared_coefficient_of_variation(

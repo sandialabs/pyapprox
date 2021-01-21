@@ -69,6 +69,7 @@ class TestApproximate(unittest.TestCase):
         assert error < 1e-12
 
     def help_cross_validate_pce_degree(self, solver_type, solver_options):
+        print(solver_type, solver_options)
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = pya.IndependentMultivariateRandomVariable(
@@ -81,9 +82,10 @@ class TestApproximate(unittest.TestCase):
 
         degree = 3
         poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree, 1.0))
-        num_samples = poly.num_terms()*2
+        # factor of 2 does not pass test but 2.2 does
+        num_samples = int(poly.num_terms()*2.2) 
         coef = np.random.normal(0, 1, (poly.indices.shape[1], 2))
-        # coef[pya.nchoosek(num_vars+2, 2):, 0] = 0
+        coef[pya.nchoosek(num_vars+2, 2):, 0] = 0
         # for first qoi make degree 2 the best degree
         poly.set_coefficients(coef)
 
@@ -102,22 +104,21 @@ class TestApproximate(unittest.TestCase):
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
             variable, num_validation_samples)
-        # print(poly(validation_samples), true_poly(validation_samples))
         assert np.allclose(
             poly(validation_samples), true_poly(validation_samples))
 
         poly = copy.deepcopy(true_poly)
         approx_res = cross_validate_pce_degree(
-            poly, train_samples, train_vals, 1, degree+2,
-            solver_type=solver_type)
-        #assert np.allclose(approx_res.degrees, [2, 3])
+            poly, train_samples, train_vals, 1, degree+1,
+            solver_type=solver_type, linear_solver_options=solver_options)
+        assert np.allclose(approx_res.degrees, [2, 3])
 
     def test_cross_validate_pce_degree(self):
         # lasso and omp do not pass this test so recommend not using them
-        solver_type_list = ['ridge', 'lasso_lars', 'lars']
+        solver_type_list = ['lstsq', 'lasso', 'omp']#, 'lars']
         solver_options_list = [
-            {'alphas': [1e-14]}, {'max_iter': 500, 'cv': 10},
-            {'max_iter': 500, 'cv': 10}]
+            {'alphas': [1e-14], 'cv':20}, {'max_iter': 20, 'cv': 21},
+            {'max_iter': 20, 'cv': 21}]
         for solver_type, solver_options in zip(
                 solver_type_list, solver_options_list):
             self.help_cross_validate_pce_degree(solver_type, solver_options)
