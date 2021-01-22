@@ -687,16 +687,17 @@ def generate_sobol_index_sample_sets(samplesA, samplesB, index):
 
 
 def get_AB_sample_sets_for_sobol_sensitivity_analysis(
-        variables, nsamples, method):
+        variables, nsamples, method, qmc_start_index=0):
     if method == 'random':
         samplesA = generate_independent_random_samples(variables, nsamples)
         samplesB = generate_independent_random_samples(variables, nsamples)
     elif method == 'halton' or 'sobol':
         nvars = variables.num_vars()
         if method == 'halton':
-            qmc_samples = halton_sequence(2*nvars, 0, nsamples)
+            qmc_samples = halton_sequence(
+                2*nvars, qmc_start_index, qmc_start_index+nsamples)
         else:
-            qmc_samples = sobol_sequence(2*nvars, nsamples)
+            qmc_samples = sobol_sequence(2*nvars, nsamples, qmc_start_index)
         samplesA = qmc_samples[:nvars, :]
         samplesB = qmc_samples[nvars:, :]
         for ii, rv in enumerate(variables.all_variables()):
@@ -720,7 +721,8 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
 
 
 def sampling_based_sobol_indices(
-        fun, variables, interaction_terms, nsamples, sampling_method='sobol'):
+        fun, variables, interaction_terms, nsamples, sampling_method='sobol',
+        qmc_start_index=0):
     """
     See I.M. Sobol′ / Mathematics and Computers in Simulation 55 (2001) 271–280
 
@@ -739,7 +741,7 @@ def sampling_based_sobol_indices(
     nvars = interaction_terms.shape[0]
     nterms = interaction_terms.shape[1]
     samplesA, samplesB = get_AB_sample_sets_for_sobol_sensitivity_analysis(
-        variables, nsamples, sampling_method)
+        variables, nsamples, sampling_method, qmc_start_index)
     assert nvars == samplesA.shape[0]
     valuesA = fun(samplesA)
     valuesB = fun(samplesB)
@@ -785,9 +787,30 @@ def sampling_based_sobol_indices(
     return sobol_indices, np.asarray(total_effect_values), variance, mean
 
 
+def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
+                                        nsamples, sampling_method,
+                                        nsobol_realizations):
+    means, variances, sobol_values,  total_values = [], [], [], []
+    qmc_start_index = 0
+    for ii in range(nsobol_realizations):
+        sv, tv, vr, me = sampling_based_sobol_indices(
+            fun, variables, interaction_terms, nsamples,
+            sampling_method='sobol', qmc_start_index=qmc_start_index)
+        means.append(me)
+        variances.append(vr)
+        sobol_values.append(sv)
+        total_values.append(tv)
+        qmc_start_index += nsamples
+    means = np.asarray(means)
+    variances = np.asarray(variances)
+    sobol_values = np.asarray(sobol_values)
+    total_values = np.asarray(total_values)
+    return sobol_values, total_values, variances, means
+
+
 def sampling_based_sobol_indices_from_gaussian_process(
     gp, variables, interaction_terms, nsamples, sampling_method='sobol',
-        ngp_realizations=1, normalize=True):
+        ngp_realizations=1, normalize=True, nsobol_realizations=1):
     """
     Compute sobol indices from Gaussian process using sampling. 
     This function returns the mean and variance of these values with 
@@ -800,20 +823,17 @@ def sampling_based_sobol_indices_from_gaussian_process(
         if ngp_realizations == 0 then the sensitivity indices will
         only be computed using the mean of the GP.
     """
-    all_interaction_values, all_total_effect_values, all_variances = [], [], []
-    rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
     if ngp_realizations > 0:
+        rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
         fun = partial(gp.predict_random_realization, rand_noise=rand_noise)
     else:
         fun = gp
-    iv1, tv1, vr1, m1 = sampling_based_sobol_indices(
-        fun, variables, interaction_terms, nsamples,
-        sampling_method='sobol')
-    if not normalize:
-        # useful for testing analytical variance and mean of gp estimates
-        # of these quantities. The analytical values cannot be normalized
-        iv1 *= vr1
-        tv1 *= vr1
-    return iv1.mean(axis=1), tv1.mean(axis=1), vr1.mean(),  m1.mean(), \
-        iv1.std(axis=1), tv1.std(axis=1), vr1.std(), m1.std()
-    
+        
+    sobol_values, total_values, variances, means = \
+        repeat_sampling_based_sobol_indices(
+            fun, variables, interaction_terms, nsamples,
+            sampling_method, nsobol_realizations)
+
+    return (sobol_values.mean(axis=(0, 2)), total_values.mean(axis=(0, 2)), 
+            variances.mean(),  means.mean(), sobol_values.std(axis=(0, 2)),
+            total_values.std(axis=(0, 2)), variances.std(), means.std())

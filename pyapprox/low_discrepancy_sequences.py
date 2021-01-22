@@ -136,7 +136,7 @@ def compute_direction_numbers(seq, max_nbits, power, a_val):
     return dir_nums
 
 
-def sobol_sequence(nvars, nsamples):
+def _sobol_sequence(nvars, nsamples):
     """
     Compute Sobol sequence using 
     Algorithm 659: Implementing Sobol’s quasirandom sequence generator
@@ -181,3 +181,6 @@ def sobol_sequence(nvars, nsamples):
             tmp1 = tmp2
     assert samples.max()<=1 and samples.min()>=0
     return samples
+
+def sobol_sequence(nvars, nsamples, start_index=0):
+    return _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]

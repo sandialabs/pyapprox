@@ -284,7 +284,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         sobol_indices, total_effect_indices, var, mean = \
             sampling_based_sobol_indices(
                 benchmark.fun, benchmark.variable, interaction_terms, nsamples,
-                sampling_method)
+                sampling_method, qmc_start_index=100)
 
         assert np.allclose(mean, benchmark.mean, atol=2e-3)
 
@@ -298,6 +298,47 @@ class TestSensitivityAnalysis(unittest.TestCase):
             index = interaction_terms[:, ii]
             assert np.allclose(
                 np.where(index>0)[0], benchmark.sobol_interaction_indices[ii])
+        assert np.allclose(sobol_indices, benchmark.sobol_indices,
+                           rtol=5e-3, atol=1e-3)
+
+    def test_repeat_qmc_sobol_sensitivity_analysis_ishigami(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.approximate import approximate
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+
+        nsamples = 10000
+        nvars = benchmark.variable.num_vars()
+        order = 3
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
+        interaction_terms = interaction_terms[:, 
+            np.where(interaction_terms.max(axis=0)==1)[0]]
+
+        sampling_method = 'sobol'
+        nsobol_realizations = 5
+        rep_sobol_indices, rep_total_effect_indices, rep_var, rep_mean = \
+            repeat_sampling_based_sobol_indices(
+                benchmark.fun, benchmark.variable, interaction_terms, nsamples,
+                sampling_method, nsobol_realizations=nsobol_realizations)
+
+        assert np.allclose(rep_mean.mean(axis=0), benchmark.mean, atol=2e-3)
+        # check that there is variation in output. If not then we are not
+        # generating different samlpe sets for each sobol realization
+        assert rep_mean.std(axis=0) > 0
+
+        sobol_indices = rep_sobol_indices.mean(axis=0)
+        main_effects = sobol_indices[:nvars]
+        assert np.allclose(main_effects, benchmark.main_effects, atol=2e-3)
+
+        total_effect_indices = rep_total_effect_indices.mean(axis=0)
+        assert np.allclose(
+            total_effect_indices, benchmark.total_effects, atol=2e-3)
+        
+        for ii in range(interaction_terms.shape[1]):
+            index = interaction_terms[:, ii]
+            assert np.allclose(
+                np.where(index>0)[0], benchmark.sobol_interaction_indices[ii])
+
+        sobol_indies = rep_sobol_indices.mean(axis=0)
         assert np.allclose(sobol_indices, benchmark.sobol_indices,
                            rtol=5e-3, atol=1e-3)
 
@@ -367,7 +408,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 sampling_based_sobol_indices_from_gaussian_process(
                     approx, benchmark.variable, interaction_terms,
                     nsobol_samples, sampling_method='sobol',
-                    ngp_realizations=1000, normalize=True)
+                    ngp_realizations=1000, normalize=True,
+                    nsobol_realizations=3)
 
         assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
         
@@ -378,9 +420,9 @@ class TestSensitivityAnalysis(unittest.TestCase):
                            benchmark.total_effects[:, 0], atol=2e-2)
         assert np.allclose(mean_sobol_indices,
                            benchmark.sobol_indices[:-1, 0], atol=5e-2)
-        print(benchmark.main_effects[:, 0]-mean_main_effects)
-        print(benchmark.total_effects[:, 0]-mean_total_effects)
-        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        #print(benchmark.main_effects[:, 0]-mean_main_effects)
+        #print(benchmark.total_effects[:, 0]-mean_total_effects)
+        #print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
 
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))

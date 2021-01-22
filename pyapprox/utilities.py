@@ -1716,10 +1716,22 @@ def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
     assert np.unique(np.hstack(fold_sample_indices)).shape[0] == nsamples
     return fold_sample_indices
 
-def get_cross_validation_rsquared_coefficient_of_variation(cv_score, train_vals):
+
+def get_cross_validation_rsquared_coefficient_of_variation(
+        cv_score, train_vals):
+    """
+    cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where 
+    :math:`e_n` are the cross  validation residues at each test point and 
+    :math:`N` is the number of traing vals
+
+    We define r_sq as 
+
+    .. math:: 1-\frac{N^{-1}\left(\sum_{n=1}^N e_n\right)}/mathbb{V}\left[Y\right] where Y is the vector of training vals
+    """
     # total sum of squares (proportional to variance)
-    tss = ((train_vals-np.mean(train_vals, axis=0)[:, None])**2).sum(axis=0)
-    rsq = 1-cv_score**2/tss
+    denom = np.std(train_vals)
+    # the factors of 1/N in numerator and denomiator cancel out
+    rsq = 1-(cv_score/denom)**2
     return rsq
 
 

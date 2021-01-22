@@ -641,7 +641,7 @@ def extract_cross_validation_score(linear_model):
 
 def cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
-        hcross_strength=1, solver_type='lars', verbose=0,
+        hcross_strength=1, solver_type='lasso', verbose=0,
         linear_solver_options={}):
     r"""
     Use cross validation to find the polynomial degree which best fits the data.
