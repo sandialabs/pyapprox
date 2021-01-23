@@ -27,7 +27,12 @@ class GaussianProcess(GaussianProcessRegressor):
         if hasattr(self,'var_trans'):
             return self.var_trans.map_to_canonical_space(samples)
         return samples
-    
+
+    def map_from_canonical_space(self, canonical_samples):
+        if hasattr(self,'var_trans'):
+            return self.var_trans.map_from_canonical_space(canonical_samples)
+        return canonical_samples
+
     def fit(self, train_samples, train_values):
         r"""
         A light weight wrapper of sklearn GaussianProcessRegressor.fit
@@ -61,23 +66,72 @@ class GaussianProcess(GaussianProcessRegressor):
         # assert canonical_samples.min()>=-1-1e-14 and canonical_samples.max()<=1+1e-14
         return self.predict(canonical_samples.T, return_std, return_cov)
 
-    def predict_random_realization(self, samples, rand_noise=1):
+    def predict_random_realization(self, samples, rand_noise=1,
+                                   truncated_svd=None):
         """
-        Replace gp.sample_y(samples.T, n_samples=rand_noise, random_state=0)
-        which cannot be passed rand_noise vectors
+        Predict values of a random realization of the Gaussian process
+        
+        Notes
+        -----
+        A different realization will be returned for two different samples
+        Even if the same random noise i used. To see this for a 1D GP use:
+
+        xx = np.linspace(0, 1, 101)
+        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        plt.plot(xx, yy)
+        xx = np.linspace(0, 1, 97)
+        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        plt.plot(xx, yy)
+        plt.show()
+
+        Parameters
+        ----------
+        truncated_svd : dictionary
+           Dictionary containing the following attribues needed to define
+           a truncated singular values decomposition. If None then
+           factor the entire matrix
+
+        nsingular_vals : integer
+            Only compute the first n singular values when
+            factorizing the covariance matrix. n=truncated_svd
+
+        tol : float
+            The contribution to total variance from the truncated singular
+            values must not exceed this value.
+        Notes
+        -----
+        This function replaces 
+        gp.sample_y(samples.T, n_samples=rand_noise, random_state=0)
+        which cannot be passed rand_noise vectors and cannot use truncated SVD
         """
         # mapping of samples is performed in __call__
         mean, cov = self(samples, return_cov=True)
         # Use SVD because it is more robust than Cholesky
-        # L = np.linalg.cholesky(cov) 
-        U, S, V = np.linalg.svd(cov)
+        # L = np.linalg.cholesky(cov)
+        if truncated_svd is None:
+            U, S, V = np.linalg.svd(cov)
+        else:
+            from sklearn.decomposition import TruncatedSVD
+            svd = TruncatedSVD(
+                n_components=min(samples.shape[1]-1,
+                                 truncated_svd['nsingular_vals']), n_iter=7)
+            svd.fit(cov)
+            U = svd.components_.T
+            S = svd.singular_values_
+            print('Explained variance', svd.explained_variance_ratio_.sum())
+            assert svd.explained_variance_ratio_.sum() >= truncated_svd['tol']
+            # print(S.shape, cov.shape)
         L = U*np.sqrt(S)
         # create nsamples x nvars then transpose so same samples
-        # are produced if this function is called repeately with nsamples=1
+        # are produced if this function is called repeatedly with nsamples=1
         if np.isscalar(rand_noise):
             rand_noise = np.random.normal(0, 1, (rand_noise, mean.shape[0])).T
         else:
             assert rand_noise.shape[0] == mean.shape[0]
+        if truncated_svd is not None:
+            rand_noise = rand_noise[:S.shape[0], :]
         vals = mean + L.dot(rand_noise)
         return vals
 
@@ -86,6 +140,65 @@ class GaussianProcess(GaussianProcessRegressor):
 
     def condition_number(self):
         return np.linalg.cond(self.L_.dot(self.L_.T))
+
+
+class RandomGaussianProcessRealizations:
+    """
+    Light weight wrapper that allows random realizations of a Gaussian process
+    to be evaluated at an arbitrary set of samples. 
+    GaussianProcess.predict_random_realization can only evaluate the GP
+    at a finite set of samples. This wrapper can only compute the mean 
+    interpolant as we assume that the number of training samples
+    was sufficient to produce an approximation with accuracy (samll pointwise
+    variance acceptable to the user. Unlike GaussianProcess predictions
+    can return a np.ndarray (nsamples, nrandom_realizations) 
+    instead of size (nsamples, 1) where nrandom_realizations is the number 
+    of random realizations interpolated
+    """
+    def __init__(self, gp):
+        self.gp = gp
+
+    def fit(self, candidate_samples, rand_noise=None,
+            ninterpolation_samples=500):
+        """
+        Construct interpolants of random realizations evalauted at the 
+        training data and at a new set of additional points
+        """
+        assert (ninterpolation_samples <=
+                candidate_samples.shape[1] + self.gp.X_train_.T.shape[1])
+
+        canonical_candidate_samples = self.gp.map_to_canonical_space(
+            candidate_samples)
+        #canonical_candidate_samples = np.hstack(
+        #    (self.gp.X_train_.T, canonical_candidate_samples))
+        Kmatrix = self.gp.kernel_(canonical_candidate_samples.T)
+        #init_pivots = np.arange(self.gp.X_train_.T.shape[1])
+        init_pivots = None
+        L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
+                Kmatrix, ninterpolation_samples,
+                init_pivots=init_pivots, pivot_weights=None,
+                error_on_small_tol=True, return_full=False, econ=True)
+        L = L[pivots, :]
+        print('Condition Number', np.linalg.cond(L.dot(L.T)))
+        self.selected_canonical_samples = canonical_candidate_samples[:, pivots]
+        # remove this check
+        assert np.allclose(
+            L.dot(L.T), self.gp.kernel_(self.selected_canonical_samples.T))
+
+        self.vals = self.gp.predict_random_realization(
+            self.gp.map_from_canonical_space(self.selected_canonical_samples),
+            rand_noise=rand_noise, truncated_svd=None)
+
+        L_inv = np.linalg.inv(L.T)
+        # L_inv = solve_triangular(L.T, np.eye(L.shape[0]))
+        self.K_inv_ = L_inv.dot(L_inv.T)
+        self.alpha_ = self.K_inv_.dot(self.vals)
+        
+    def __call__(self, samples):
+        canonical_samples = self.gp.map_to_canonical_space(samples)
+        K_pred = self.gp.kernel_(
+            canonical_samples.T, self.selected_canonical_samples.T)
+        return K_pred.dot(self.alpha_)
 
 
 class AdaptiveGaussianProcess(GaussianProcess):

@@ -119,6 +119,42 @@ class TestGaussianProcess(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_gaussian_process_random_realization_interpolation(self):
+        nvars = 1
+        lb, ub = 0, 1
+        ntrain_samples = 5
+        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+
+        train_samples = pya.cartesian_product(
+            [np.linspace(lb, ub, ntrain_samples)]*nvars)
+        train_vals = func(train_samples)
+
+        kernel = Matern(0.4, length_scale_bounds='fixed', nu=np.inf)
+        kernel = ConstantKernel(
+            constant_value=2., constant_value_bounds='fixed')*kernel
+        kernel += WhiteKernel(noise_level=1e-5, noise_level_bounds='fixed')
+        gp = GaussianProcess(kernel)
+
+        gp.fit(train_samples, train_vals)
+
+        ngp_realizations, ninterpolation_samples = 2, 5
+        rand_noise = np.random.normal(
+            0, 1, (ninterpolation_samples, ngp_realizations))
+        candidate_samples = np.random.uniform(lb, ub, (nvars, 1000))
+        gp_realizations = RandomGaussianProcessRealizations(gp)
+        gp_realizations.fit(
+            candidate_samples, rand_noise, ninterpolation_samples)
+        interp_random_gp_vals = gp_realizations(
+            gp.map_from_canonical_space(
+                gp_realizations.selected_canonical_samples))
+        print(gp_realizations.vals-interp_random_gp_vals)
+        # assert np.allclose(gp_realizations.vals, interp_random_gp_vals)
+        random_gp_vals = gp.predict_random_realization(
+            gp.map_from_canonical_space(
+                gp_realizations.selected_canonical_samples), rand_noise)
+        print(random_gp_vals-interp_random_gp_vals)
+        #assert np.allclose(interp_random_gp_vals, random_gp_vals)
+
     def test_gaussian_process_pointwise_variance(self):
         nvars = 1
         lb, ub = 0, 1
@@ -357,12 +393,25 @@ class TestGaussianProcess(unittest.TestCase):
         gp = GaussianProcess(
             kernel, n_restarts_optimizer=5, normalize_y=normalize_y,
             alpha=nugget)
+
+        xx = np.linspace(0, 1, 101)
+        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        plt.plot(xx, yy)
+        xx = np.linspace(0, 1, 97)
+        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        plt.plot(xx, yy)
+        plt.show()
+        
         gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
         # avoid training data when checking variance
         zz = np.linspace(0.01, 0.99, 100)
         mean, std = gp(zz[None, :], return_std=True)
-        vals = gp.predict_random_realization(zz[None, :], 100000)
+        vals = gp.predict_random_realization(
+            zz[None, :], 100000,
+            truncated_svd={'nsingular_vals': 10, 'tol': 1e-8})
         assert np.allclose(vals.std(axis=1), std, rtol=5e-3)
 
         expected_random_mean, variance_random_mean, expected_random_var, \

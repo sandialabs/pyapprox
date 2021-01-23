@@ -6,6 +6,8 @@ from pyapprox.indexing import compute_hyperbolic_indices, hash_array
 from pyapprox.utilities import nchoosek
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from functools import partial
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):
@@ -155,10 +157,11 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
 
 
 def plot_sensitivity_indices_with_confidence_intervals(
-        sa_indices_mean, sa_indices_std, labels, ax, reference_values=None):
+        labels, ax, sa_indices_median, sa_indices_q1, sa_indices_q3,
+        sa_indices_min, sa_indices_max, reference_values=None):
     import matplotlib.cbook as cbook
-    nindices = len(sa_indices_mean)
-    assert len(sa_indices_std) == nindices
+    nindices = len(sa_indices_median)
+    assert len(sa_indices_median) == nindices
     assert len(labels) == nindices
     if reference_values is not None:
         assert len(reference_values) == nindices
@@ -167,18 +170,21 @@ def plot_sensitivity_indices_with_confidence_intervals(
         # use boxplot stats mean entry to store reference values.
         if reference_values is not None:
             stats[nn]['mean'] = reference_values[nn]
-        stats[nn]['med'] = sa_indices_mean[nn]
-        stats[nn]['whislo'] = sa_indices_mean[nn]-2*sa_indices_std[nn]
-        stats[nn]['whishi'] = sa_indices_mean[nn]+2*sa_indices_std[nn]
-        stats[nn]['q1'] = sa_indices_mean[nn]-sa_indices_std[nn]
-        stats[nn]['q3'] = sa_indices_mean[nn]+sa_indices_std[nn]
+        stats[nn]['med'] = sa_indices_median[nn]
+        stats[nn]['q1'] = sa_indices_q1[nn]
+        stats[nn]['q3'] = sa_indices_q3[nn]
         stats[nn]['label'] = labels[nn]
+        # use whiskers for min and max instead of fliers
+        stats[nn]['whislo'] = sa_indices_min[nn]
+        stats[nn]['whishi'] = sa_indices_max[nn]
+        # stats[nn]['fliers'] = [sa_indices_min[nn], sa_indices_max[nn]]
 
     if reference_values is not None:
         showmeans = True
     else:
         showmeans = False
-    bp = ax.bxp(stats, showfliers=False, showmeans=showmeans, patch_artist=True,
+    bp = ax.bxp(stats, showfliers=False, showmeans=showmeans,
+                patch_artist=True,
                 meanprops=dict(marker='o',markerfacecolor='blue',
                                markeredgecolor='blue', markersize=12),
                 medianprops=dict(color='red'))
@@ -784,12 +790,35 @@ def sampling_based_sobol_indices(
                     sobol_indices[I[ii]] -= \
                         sobol_indices[sobol_indices_dict[key]]
 
-    return sobol_indices, np.asarray(total_effect_values), variance, mean
+    total_effect_values = np.asarray(total_effect_values)
+    assert np.all(variance>=0)
+    main_effects = sobol_indices[interaction_terms.sum(axis=0)==1, :]
+    # We cannot guarantee that the main_effects will be <= 1. Because
+    # variance and each interaction_index are computed with different sample
+    # sets. Consider function of two variables which is constant in one variable
+    # then interaction_index[0] should equal variance. But with different sample
+    # sets interaction_index could be smaller or larger than the variance.
+    # assert np.all(main_effects<=1)
+    # Similarly we cannot even guarantee main effects will be non-negative
+    # assert np.all(main_effects>=0)
+    # We also cannot guarantee that the sobol indices will be non-negative.
+    # assert np.all(total_effect_values>=0)
+    # assert np.all(sobol_indices>=0)
+    return sobol_indices, total_effect_values, variance, mean
 
 
 def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
                                         nsamples, sampling_method,
                                         nsobol_realizations):
+    """
+    Compute sobol indices for different sample sets. This allows estimation
+    of error due to finite sample sizes. This function requires evaluting
+    the function at nsobol_realizations * N, where N is the 
+    number of samples required by sampling_based_sobol_indices. Thus
+    This function is useful when applid to a random 
+    realization of a Gaussian process requires the Cholesky decomposition
+    of a nsamples x nsamples matrix which becomes to costly for nsamples >1000
+    """
     means, variances, sobol_values,  total_values = [], [], [], []
     qmc_start_index = 0
     for ii in range(nsobol_realizations):
@@ -810,7 +839,9 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
 
 def sampling_based_sobol_indices_from_gaussian_process(
     gp, variables, interaction_terms, nsamples, sampling_method='sobol',
-        ngp_realizations=1, normalize=True, nsobol_realizations=1):
+        ngp_realizations=1, normalize=True, nsobol_realizations=1,
+        stat_functions=(np.mean, np.median, np.min, np.max),
+        truncated_svd=None):
     """
     Compute sobol indices from Gaussian process using sampling. 
     This function returns the mean and variance of these values with 
@@ -822,10 +853,37 @@ def sampling_based_sobol_indices_from_gaussian_process(
         The number of random realizations of the Gaussian process
         if ngp_realizations == 0 then the sensitivity indices will
         only be computed using the mean of the GP.
+
+    nsobol_realizations : integer
+        The number of random realizations of the random samples used to 
+        compute the sobol indices. This number should be similar to 
+        ngp_realizations, as mean and stdev are taken over both these 
+        random values.
+
+    stat_functions : list
+        List of callable functions with signature fun(np.ndarray)
+        E.g. np.mean. If fun has arguments then we must wrap then with partial
+        and set a meaniningful __name__, e.g. fun = partial(np.quantile, q=0.5)
+        fun.__name__ == 'quantile-0.25'. 
+        Note: np.min and np.min names are amin, amax
+
+    Returns
+    -------
+    result : dictionary
+        Result containing the numpy functions in stat_funtions applied
+        to the mean, variance, sobol_indices and total_effects of the Gaussian
+        process. To access the data associated with a fun in stat_function
+        use the key fun.__name__, For example  if the stat_function is np.mean
+        the mean sobol indices are accessed via result['sobol_indices']['mean'].
+        The raw values of each iteration are stored in 
+        result['sobol_indices]['values']
     """
+    assert nsobol_realizations > 0
+    
     if ngp_realizations > 0:
         rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
-        fun = partial(gp.predict_random_realization, rand_noise=rand_noise)
+        fun = partial(gp.predict_random_realization, rand_noise=rand_noise,
+                      truncated_svd=truncated_svd)
     else:
         fun = gp
         
@@ -834,6 +892,15 @@ def sampling_based_sobol_indices_from_gaussian_process(
             fun, variables, interaction_terms, nsamples,
             sampling_method, nsobol_realizations)
 
-    return (sobol_values.mean(axis=(0, 2)), total_values.mean(axis=(0, 2)), 
-            variances.mean(),  means.mean(), sobol_values.std(axis=(0, 2)),
-            total_values.std(axis=(0, 2)), variances.std(), means.std())
+    result = dict()
+    data = [sobol_values, total_values, variances, means]
+    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    for item, name in zip(data, data_names):
+        subdict = dict()
+        for ii, sfun in enumerate(stat_functions):
+            # have to deal with averaging over axis = (0, 1) and axis = (0, 2)
+            # for mean, variance and sobol_indices, total_effects respectively
+            subdict[sfun.__name__] = sfun(item, axis=(0, -1))
+        subdict['values'] = item
+        result[name] = subdict
+    return result
