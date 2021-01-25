@@ -432,7 +432,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
         Type of approximation. Should be one of
 
         - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree` 
-        - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_omp_pce`
+        - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_pce`
         - 'fixed' see :func:`pyapprox.approximate.approximate_fixed_pce`
 
     variable : pya.IndependentMultivariateRandomVariable
@@ -449,9 +449,9 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
          - :func:`pyapprox.approximate.cross_validate_pce_degree` 
 
-         - :func:`pyapprox.approximate.expanding_basis_omp_pce`
+         - :func:`pyapprox.approximate.expanding_basis_pce`
     """
-    funcs = {'expanding_basis': expanding_basis_omp_pce,
+    funcs = {'expanding_basis': expanding_basis_pce,
              'hyperbolic_cross': cross_validate_pce_degree,
              'fixed': approximate_fixed_pce}
     if variable is None:
@@ -675,7 +675,7 @@ def extract_cross_validation_score(linear_model):
 def cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
         hcross_strength=1, solver_type='lasso', verbose=0,
-        linear_solver_options={}):
+        linear_solver_options={'cv': 10}):
     r"""
     Use cross validation to find the polynomial degree which best fits the data.
     A polynomial is constructed for each degree and the degree with the highest
@@ -774,7 +774,7 @@ def cross_validate_pce_degree(
 
 def _cross_validate_pce_degree(
         pce, train_samples, train_vals, min_degree=1, max_degree=3,
-        hcross_strength=1, linear_solver_options={},
+        hcross_strength=1, linear_solver_options={'cv': 10},
         solver_type='lasso', verbose=0):
     assert train_vals.shape[1] == 1
     num_samples = train_samples.shape[1]
@@ -865,9 +865,10 @@ def expand_basis(indices):
     return np.asarray(new_indices).T
 
 
-def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
+def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                             verbose=1, max_num_terms=None,
-                            solver_type='lasso', linear_solver_options={},
+                            solver_type='lasso',
+                            linear_solver_options={'cv': 10},
                             restriction_tol=np.finfo(float).eps*2):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
@@ -932,7 +933,7 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     for ii in range(nqoi):
         if verbose > 1:
             print(f'Approximating QoI: {ii}')
-        pce_ii, score_ii, reg_param_ii = _expanding_basis_omp_pce(
+        pce_ii, score_ii, reg_param_ii = _expanding_basis_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
             verbose, max_num_terms, solver_type, linear_solver_options,
             restriction_tol)
@@ -958,9 +959,10 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                               'reg_params': reg_params})
 
 
-def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
+def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                              verbose=1, max_num_terms=None,
-                             solver_type='lasso', linear_solver_options={},
+                             solver_type='lasso',
+                             linear_solver_options={'cv': 10},
                              restriction_tol=np.finfo(float).eps*2):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
