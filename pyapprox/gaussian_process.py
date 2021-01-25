@@ -4,7 +4,7 @@ from scipy.optimize import minimize, Bounds
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
-    ConstantKernel
+    ConstantKernel, WhiteKernel
 from pyapprox import get_polynomial_from_variable, \
     get_univariate_quadrature_rules_from_variable
 from pyapprox.utilities import cartesian_product, outer_product, \
@@ -162,6 +162,12 @@ class RandomGaussianProcessRealizations:
     """
     def __init__(self, gp):
         self.gp = gp
+        kernel_types = [RBF, Matern]
+        # ignore white noise kernel as we want to interpolate the data
+        self.kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
+        product_kernel = extract_covariance_kernel(gp.kernel_, [Product])
+        if product_kernel is not None:
+            self.kernel = product_kernel*self.kernel
 
     def fit(self, candidate_samples, rand_noise=None,
             ninterpolation_samples=500, nvalidation_samples=100):
@@ -178,7 +184,7 @@ class RandomGaussianProcessRealizations:
             candidate_samples)
         #canonical_candidate_samples = np.hstack(
         #    (self.gp.X_train_.T, canonical_candidate_samples))
-        Kmatrix = self.gp.kernel_(canonical_candidate_samples.T)
+        Kmatrix = self.kernel(canonical_candidate_samples.T)
         #init_pivots = np.arange(self.gp.X_train_.T.shape[1])
         init_pivots = None
         L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
@@ -223,17 +229,18 @@ class RandomGaussianProcessRealizations:
         tmp = solve_triangular(L, self.train_vals, lower=True)
         self.alpha_ = solve_triangular(L.T, tmp, lower=False)
 
-        approx_validation_vals = self.gp.kernel_(
+        approx_validation_vals = self.kernel(
             self.canonical_validation_samples.T,
             self.selected_canonical_samples.T).dot(self.alpha_)
         error = np.linalg.norm(
             approx_validation_vals-self.validation_vals, axis=0)/(
                 np.linalg.norm(self.validation_vals, axis=0))
         print('Worst case relative interpolation error', error.max())
+        print('Median relative interpolation error', np.median(error))
         
     def __call__(self, samples):
         canonical_samples = self.gp.map_to_canonical_space(samples)
-        K_pred = self.gp.kernel_(
+        K_pred = self.kernel(
             canonical_samples.T, self.selected_canonical_samples.T)
         return K_pred.dot(self.alpha_)
 
@@ -445,6 +452,9 @@ def mean_of_variance(zeta, v_sq, kernel_var, expected_random_mean,
 
 def integrate_gaussian_process(gp, variable, return_full=False,
                                nquad_samples=50):
+    if extract_covariance_kernel(gp.kernel_, [WhiteKernel]) is not None:
+        raise Exception('kernels with noise not supported')
+    
     kernel_types = [RBF, Matern]
     kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
 

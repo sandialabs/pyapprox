@@ -256,6 +256,10 @@ class TestApproximate(unittest.TestCase):
         once regularization parameters have been chosen.
         These can be used to show variance in predictions of values, sensitivity
         indices, etc.
+
+        Ideally this could be avoided if sklearn stored the coefficients 
+        and alphas for each fold and then we can just find the coefficients
+        that correspond to the first time the path drops below the best_alpha
         """
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars

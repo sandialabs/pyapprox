@@ -409,8 +409,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
             approx, benchmark.variable, interaction_terms,
             nsobol_samples, sampling_method='sobol',
             ngp_realizations=1000, normalize=True, nsobol_realizations=3,
-            stat_functions=(np.mean, np.std), ninterpolation_samples=500,
-            ncandidate_samples=1000)
+            stat_functions=(np.mean, np.std), ninterpolation_samples=1000,
+            ncandidate_samples=2000)
 
         mean_mean = result['mean']['mean']
         mean_sobol_indices = result['sobol_indices']['mean']

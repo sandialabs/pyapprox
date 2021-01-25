@@ -911,8 +911,12 @@ def sampling_based_sobol_indices_from_gaussian_process(
         # fun = partial(gp.predict_random_realization, rand_noise=rand_noise,
         #               truncated_svd=truncated_svd)
         gp_realizations = RandomGaussianProcessRealizations(gp)
-        candidate_samples = generate_independent_random_samples(
-            variables, ncandidate_samples)
+        generate_random_samples = partial(
+            generate_independent_random_samples, variables)
+        from pyapprox.gaussian_process import generate_candidate_samples
+        candidate_samples = generate_candidate_samples(
+            variables.num_vars(), ncandidate_samples, generate_random_samples,
+            variables)
         gp_realizations.fit(
             candidate_samples, rand_noise, ninterpolation_samples,
             nvalidation_samples)
