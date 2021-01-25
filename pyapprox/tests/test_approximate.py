@@ -248,9 +248,15 @@ class TestApproximate(unittest.TestCase):
 
         solver.fit(basis_matrix, train_vals[:, 1:2])
         assert np.allclose(solver.cv_score_, cv_score[1])
-        
 
     def test_cross_validate_approximation_after_regularization_selection(self):
+        """
+        This test is useful as it shows how to use cross_validate_approximation
+        to produce a list of approximations on each cross validation fold
+        once regularization parameters have been chosen.
+        These can be used to show variance in predictions of values, sensitivity
+        indices, etc.
+        """
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = pya.IndependentMultivariateRandomVariable(
@@ -282,9 +288,25 @@ class TestApproximate(unittest.TestCase):
 
         result = approximate(
             train_samples, train_vals, 'polynomial_chaos',
-            {'basis_type': 'expanding_basis', 'variable': variable}).approx
+            {'basis_type': 'expanding_basis', 'variable': variable})
 
-        print(result)
+        # Even with the same folds, iterative methods such as Lars, LarsLasso
+        # and OMP will not have cv_score from approximate and cross validate
+        # approximation exactly the same because iterative methods interpolate
+        # residuals to compute cross validation scores
+        nfolds = 10
+        linear_solver_options = [
+            {'alpha':result.reg_params[0]}, {'alpha':result.reg_params[1]}]
+        indices = [result.approx.indices[:, np.where(np.absolute(c)>0)[0]]
+                   for c in result.approx.coefficients.T]
+        options = {'basis_type': 'fixed', 'variable': variable,
+                   'options': {'linear_solver_options': linear_solver_options,
+                               'indices': indices}}
+        approx_list, residues_list, cv_score = cross_validate_approximation(
+            train_samples, train_vals, options, nfolds, 'polynomial_chaos',
+            random_folds='sklearn')
+
+        assert (np.all(cv_score < 6e-15) and np.all(result.scores < 6e-15))
 
 
 if __name__ == "__main__":

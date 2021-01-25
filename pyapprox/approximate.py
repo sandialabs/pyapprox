@@ -655,9 +655,15 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
 
 
 def extract_best_regularization_parameters(res):
-    if (type(res) == LarsCV or type(res) == LassoLarsCV or
-        type(res) == LinearLeastSquaresCV):
+    if (type(res) == LassoLarsCV or type(res) == LinearLeastSquaresCV):
         return res.alpha_
+    elif type(res) == LarsCV:
+        assert len(res.n_iter_) == 1
+        # The Lars (not LarsCV) model takes max_iters as regularization parameter
+        # so return it here as well as the alpha. Sklearn
+        # has an inconsistency alpha is used to choose best cv score but Lars
+        # uses max_iters to stop algorithm early.
+        return (res.alpha_, res.n_iter_[0])
     elif type(res) == OrthogonalMatchingPursuitCV:
         return res.n_nonzero_coefs_
     else:
@@ -1114,16 +1120,35 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
     reg_params : np.ndarray (nqoi)
         The regularization parameters for each QoI.
     """
-    pce.set_indices(indices)
-    basis_matrix = pce.basis_matrix(train_samples)
     nqoi = train_vals.shape[1]
     coefs = []
+    if type(linear_solver_options) == dict:
+        linear_solver_options = [linear_solver_options]*nqoi
+    if type(indices) == np.ndarray:
+        indices = [indices.copy() for ii in range(nqoi)]
+    unique_indices = []
+    indices_dict = dict()
     for ii in range(nqoi):
+        pce.set_indices(indices[ii])
+        basis_matrix = pce.basis_matrix(train_samples)
         coef_ii, _, reg_param_ii = fit_linear_model(
             basis_matrix, train_vals[:, ii:ii+1], solver_type,
-            **linear_solver_options)
+            **linear_solver_options[ii])
         coefs.append(coef_ii)
-    pce.set_coefficients(np.hstack(coefs))
+        for index in indices[ii].T:
+            key = hash_array(index)
+            if key not in indices_dict:
+                indices_dict[key] = len(unique_indices)
+                unique_indices.append(index)
+
+    unique_indices = np.array(unique_indices).T
+    all_coefs = np.zeros((unique_indices.shape[1], nqoi))
+    for ii in range(nqoi):
+        for jj, index in enumerate(indices[ii].T):
+            key = hash_array(index)
+            all_coefs[indices_dict[key], ii] = coefs[ii][jj, 0]
+    pce.set_indices(unique_indices)
+    pce.set_coefficients(all_coefs)
     return ApproximateResult({'approx': pce})
 
 
@@ -1209,8 +1234,16 @@ from pyapprox.utilities import get_random_k_fold_sample_indices, \
 def cross_validate_approximation(
         train_samples, train_vals, options, nfolds, method, random_folds=True):
     ntrain_samples = train_samples.shape[1]
-    fold_sample_indices = get_random_k_fold_sample_indices(
-        ntrain_samples, nfolds, random_folds)
+    if random_folds != 'sklearn':
+        fold_sample_indices = get_random_k_fold_sample_indices(
+            ntrain_samples, nfolds, random_folds)
+    else:
+        from sklearn.model_selection._split import KFold
+        sklearn_cv = KFold(nfolds)
+        indices = np.arange(train_samples.shape[1])
+        fold_sample_indices = [
+            te for tr, te in sklearn_cv.split(train_vals, train_vals)]
+
     approx_list = []
     residues_list = []
     cv_score = 0
