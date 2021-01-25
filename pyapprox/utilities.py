@@ -1730,7 +1730,7 @@ def get_cross_validation_rsquared_coefficient_of_variation(
     """
     # total sum of squares (proportional to variance)
     denom = np.std(train_vals)
-    # the factors of 1/N in numerator and denomiator cancel out
+    # the factors of 1/N in numerator and denominator cancel out
     rsq = 1-(cv_score/denom)**2
     return rsq
 

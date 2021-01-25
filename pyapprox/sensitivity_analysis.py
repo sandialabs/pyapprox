@@ -8,6 +8,7 @@ from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from functools import partial
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
+from pyapprox.gaussian_process import RandomGaussianProcessRealizations
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):
@@ -841,11 +842,21 @@ def sampling_based_sobol_indices_from_gaussian_process(
     gp, variables, interaction_terms, nsamples, sampling_method='sobol',
         ngp_realizations=1, normalize=True, nsobol_realizations=1,
         stat_functions=(np.mean, np.median, np.min, np.max),
-        truncated_svd=None):
+        ninterpolation_samples=500, nvalidation_samples=100,
+        ncandidate_samples=1000):
     """
     Compute sobol indices from Gaussian process using sampling. 
     This function returns the mean and variance of these values with 
     respect to the variability in the GP (i.e. its function error)
+
+    Following Kennedy and O'hagan we evaluate random realizations of each
+    GP at a discrete set of points. To predict at larger sample sizes we 
+    interpolate these points and use the resulting approximation to make any 
+    subsequent predictions. This introduces an error but the error can be 
+    made arbitrarily small by setting ninterpolation_samples large enough.
+    The geometry of the interpolation samples can effect accuracy of the
+    interpolants. Consequently we use Pivoted cholesky algorithm in 
+    Harbrecht et al for choosing the interpolation samples.
 
     Parameters
     ----------
@@ -867,6 +878,18 @@ def sampling_based_sobol_indices_from_gaussian_process(
         fun.__name__ == 'quantile-0.25'. 
         Note: np.min and np.min names are amin, amax
 
+    ninterpolation_samples : integer
+        The number of samples used to interpolate the discrete random 
+        realizations of a Gaussian Process
+
+    nvalidation_samples : integer
+        The number of samples used to assess the accuracy of the interpolants
+        of the random realizations
+
+    ncanidate_samples : integer
+        The number of candidate samples selected from when building the 
+        interpolants of the random realizations
+        
     Returns
     -------
     result : dictionary
@@ -881,9 +904,19 @@ def sampling_based_sobol_indices_from_gaussian_process(
     assert nsobol_realizations > 0
     
     if ngp_realizations > 0:
-        rand_noise = np.random.normal(0, 1, (ngp_realizations, nsamples)).T
-        fun = partial(gp.predict_random_realization, rand_noise=rand_noise,
-                      truncated_svd=truncated_svd)
+        assert ncandidate_samples > ninterpolation_samples
+        rand_noise = np.random.normal(
+            0, 1,
+            (ngp_realizations, ninterpolation_samples+nvalidation_samples)).T
+        # fun = partial(gp.predict_random_realization, rand_noise=rand_noise,
+        #               truncated_svd=truncated_svd)
+        gp_realizations = RandomGaussianProcessRealizations(gp)
+        candidate_samples = generate_independent_random_samples(
+            variables, ncandidate_samples)
+        gp_realizations.fit(
+            candidate_samples, rand_noise, ninterpolation_samples,
+            nvalidation_samples)
+        fun = gp_realizations
     else:
         fun = gp
         

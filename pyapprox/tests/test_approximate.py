@@ -164,8 +164,8 @@ class TestApproximate(unittest.TestCase):
         error = np.linalg.norm(poly(validation_samples)-true_poly(
             validation_samples))/np.sqrt(num_validation_samples)
         assert np.allclose(
-            poly(validation_samples), true_poly(validation_samples), atol=1e-8),\
-            error
+            poly(validation_samples), true_poly(validation_samples),
+            atol=1e-8), error
 
     def test_approximate_gaussian_process(self):
         from sklearn.gaussian_process.kernels import Matern
@@ -200,6 +200,99 @@ class TestApproximate(unittest.TestCase):
         #     X[0,:],vals[:,0]-2*std,vals[:,0]+2*std,color='b',alpha=0.5)
         # plt.plot(train_samples[0,:], train_vals[:,0],'ro')
         # plt.show()
+
+    def test_approximate_fixed_pce(self):
+        num_vars = 2
+        univariate_variables = [stats.uniform(-1, 2)]*num_vars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        poly = pya.PolynomialChaosExpansion()
+        poly_opts = pya.define_poly_options_from_variable_transformation(
+            var_trans)
+        poly.configure(poly_opts)
+
+        degree, hcross_strength = 7, 0.4
+        poly.set_indices(
+            pya.compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+        num_samples = poly.num_terms()*2
+        degrees = poly.indices.sum(axis=0)
+        coef = np.random.normal(
+            0, 1, (poly.indices.shape[1], 2))/(degrees[:, np.newaxis]+1)**2
+        # set some coefficients to zero to make sure that different qoi
+        # are treated correctly.
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I, 0] = 0
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I, 1] = 0
+        poly.set_coefficients(coef)
+        train_samples = pya.generate_independent_random_samples(
+            variable, num_samples)
+        train_vals = poly(train_samples)
+
+        indices = compute_hyperbolic_indices(num_vars, 1, 1)
+        nfolds = 10
+        method = 'polynomial_chaos'
+        options = {'basis_type': 'fixed', 'variable': variable,
+                   'options': {'linear_solver_options': {},
+                               'indices': indices,'solver_type': 'lstsq'}}
+        approx_list, residues_list, cv_score = cross_validate_approximation(
+            train_samples, train_vals, options, nfolds, method,
+            random_folds=False)
+
+        solver = LinearLeastSquaresCV(cv=nfolds, random_folds=False)
+        poly.set_indices(indices)
+        basis_matrix = poly.basis_matrix(train_samples)
+        solver.fit(basis_matrix, train_vals[:, 0:1])
+        assert np.allclose(solver.cv_score_, cv_score[0])
+
+        solver.fit(basis_matrix, train_vals[:, 1:2])
+        assert np.allclose(solver.cv_score_, cv_score[1])
+        
+
+    def test_cross_validate_approximation_after_regularization_selection(self):
+        num_vars = 2
+        univariate_variables = [stats.uniform(-1, 2)]*num_vars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        poly = pya.PolynomialChaosExpansion()
+        poly_opts = pya.define_poly_options_from_variable_transformation(
+            var_trans)
+        poly.configure(poly_opts)
+
+        degree, hcross_strength = 7, 0.4
+        poly.set_indices(
+            pya.compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+        num_samples = poly.num_terms()*2
+        degrees = poly.indices.sum(axis=0)
+        coef = np.random.normal(
+            0, 1, (poly.indices.shape[1], 2))/(degrees[:, np.newaxis]+1)**2
+        # set some coefficients to zero to make sure that different qoi
+        # are treated correctly.
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I, 0] = 0
+        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[I, 1] = 0
+        poly.set_coefficients(coef)
+        train_samples = pya.generate_independent_random_samples(
+            variable, num_samples)
+        train_vals = poly(train_samples)
+        true_poly = poly
+
+        poly = approximate(
+            train_samples, train_vals, 'polynomial_chaos',
+            {'basis_type': 'expanding_basis', 'variable': variable}).approx
+
+        num_validation_samples = 100
+        validation_samples = pya.generate_independent_random_samples(
+            variable, num_validation_samples)
+        validation_samples = train_samples
+        error = np.linalg.norm(poly(validation_samples)-true_poly(
+            validation_samples))/np.sqrt(num_validation_samples)
+        assert np.allclose(
+            poly(validation_samples), true_poly(validation_samples),
+            atol=1e-8), error
 
 
 if __name__ == "__main__":

@@ -338,7 +338,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(variance_of_mean_quad, variance_random_mean)
         assert np.allclose(mean_of_variance_quad, expected_random_var)
 
-        nsamples = 10000
+        nsamples = int(1e5)
         random_means, random_variances = [], []
         random_I2sq, random_I4, random_I2Isq = [], [], []
         xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
@@ -346,6 +346,10 @@ class TestGaussianProcess(unittest.TestCase):
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
         vals = gp.predict_random_realization(quad_points, nsamples)
+        # when quad_points.shape is less than 1000 just compute
+        # realizations exactly
+        # vals = evaluate_random_gaussian_process_realizations_via_interpolation(
+        #     gp, quad_points, nsamples)
         I, I2 = vals.T.dot(quad_weights), (vals.T**2).dot(quad_weights)
         random_means = I
         random_variances = I2-I**2
@@ -362,13 +366,13 @@ class TestGaussianProcess(unittest.TestCase):
         # print('expected random variance', expected_random_var)
         # print('variance random variance', variance_random_var)
         assert np.allclose(
-            np.mean(random_means), expected_random_mean, rtol=1e-2)
+            np.mean(random_means), expected_random_mean, rtol=1e-3)
         assert np.allclose(
-            np.var(random_means), variance_random_mean, rtol=2.1e-2)
+            np.var(random_means), variance_random_mean, rtol=5e-3)
         assert np.allclose(
-            expected_random_var, np.mean(random_variances), rtol=1e-2)
+            expected_random_var, np.mean(random_variances), rtol=1e-3)
         assert np.allclose(
-            variance_random_var, np.var(random_variances), rtol=2.2e-2)
+            variance_random_var, np.var(random_variances), rtol=5e-3)
 
     def test_integrate_gaussian_process_uniform(self):
         nvars = 1
@@ -397,15 +401,17 @@ class TestGaussianProcess(unittest.TestCase):
             kernel, n_restarts_optimizer=5, normalize_y=normalize_y,
             alpha=nugget)
 
-        xx = np.linspace(0, 1, 101)
-        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
-        yy = gp.predict_random_realization(xx[None, :], rand_noise)
-        plt.plot(xx, yy)
-        xx = np.linspace(0, 1, 97)
-        rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
-        yy = gp.predict_random_realization(xx[None, :], rand_noise)
-        plt.plot(xx, yy)
-        plt.show()
+        # This code block shows that for same rand_noise different samples xx
+        # will produce different realizations
+        # xx = np.linspace(0, 1, 101)
+        # rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        # yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        # plt.plot(xx, yy)
+        # xx = np.linspace(0, 1, 97)
+        # rand_noise = np.random.normal(0, 1, (xx.shape[0], 1))
+        # yy = gp.predict_random_realization(xx[None, :], rand_noise)
+        # plt.plot(xx, yy)
+        # plt.show()
         
         gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
@@ -435,36 +441,31 @@ class TestGaussianProcess(unittest.TestCase):
         print('Expected random var', expected_random_var)
         print('Variance random var', variance_random_var)
 
-        nsamples = 100000
+        nsamples = int(1e5)
         random_means = []
         xx, ww = pya.gauss_jacobi_pts_wts_1D(300, 0, 0)
         xx = (xx+1)/2
         quad_points = pya.cartesian_product([xx]*nvars)
         quad_weights = pya.outer_product([ww]*nvars)
-        #vals = gp.sample_y(
-        #    quad_points.T, n_samples=nsamples, random_state=0)[:, 0, :]
         vals = gp.predict_random_realization(quad_points, nsamples)
-        #plt.plot(zz, mean[:, 0]+vals.std(axis=1), ':')
-        #plt.show()
         random_means = vals.T.dot(quad_weights)
         random_variances = ((vals)**2).T.dot(quad_weights)-random_means**2
-        print(random_variances.shape, vals.shape, random_means.shape, (vals**2).T.dot(quad_weights).shape)
 
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
         print('MC expected random var', np.mean(random_variances))
         print('MC variance random var', "{:e}".format(np.var(random_variances)))
 
-        assert np.allclose(true_mean, expected_random_mean, rtol=1e-2)
-        assert np.allclose(expected_random_var, true_var, rtol=1e-2)
+        assert np.allclose(true_mean, expected_random_mean, rtol=1e-3)
+        assert np.allclose(expected_random_var, true_var, rtol=1e-3)
         assert np.allclose(
-            np.mean(random_means), expected_random_mean, rtol=1e-2)
+            np.mean(random_means), expected_random_mean, rtol=1e-3)
         assert np.allclose(
-            np.var(random_means), variance_random_mean, rtol=1e-2)
+            np.var(random_means), variance_random_mean, rtol=3e-3)
         assert np.allclose(
-            np.mean(random_variances), expected_random_var, rtol=1e-2)
+            np.mean(random_variances), expected_random_var, rtol=1e-3)
         assert np.allclose(
-            np.var(random_variances), variance_random_var, rtol=1e-2)
+            np.var(random_variances), variance_random_var, rtol=3e-3)
 
         # xx=np.linspace(-1,1,101)
         # plt.plot(xx,func(xx[np.newaxis,:]))
@@ -519,7 +520,7 @@ class TestGaussianProcess(unittest.TestCase):
         print('Expected random var', expected_random_var)
         assert np.allclose(expected_random_var, true_var, rtol=1e-2)
 
-        nsamples = 1000
+        nsamples = int(1e4)
         random_means = []
         xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
         quad_points = pya.cartesian_product([xx, (xx+1)/2])
@@ -530,9 +531,9 @@ class TestGaussianProcess(unittest.TestCase):
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
         assert np.allclose(
-            np.mean(random_means), expected_random_mean, rtol=1e-2)
+            np.mean(random_means), expected_random_mean, rtol=1e-5)
         assert np.allclose(
-            np.var(random_means), variance_random_mean, rtol=1e-2)
+            np.var(random_means), variance_random_mean, rtol=1e-5)
 
     def test_marginalize_gaussian_process_uniform(self):
         nvars = 2

@@ -170,7 +170,9 @@ class RandomGaussianProcessRealizations:
         training data and at a new set of additional points
         """
         assert (ninterpolation_samples <=
-                candidate_samples.shape[1] + self.gp.X_train_.T.shape[1])
+                candidate_samples.shape[1] + self.gp.X_train_.T.shape[1]), (
+                    ninterpolation_samples,
+                    candidate_samples.shape[1] + self.gp.X_train_.T.shape[1])
 
         canonical_candidate_samples = self.gp.map_to_canonical_space(
             candidate_samples)
@@ -196,7 +198,6 @@ class RandomGaussianProcessRealizations:
             # step of cholesky factorization triggered the incomplete flag
             
         L = L[pivots, :pivots.shape[0]]
-        print(L.shape)
         # print('Condition Number', np.linalg.cond(L.dot(L.T)))
         self.selected_canonical_samples = canonical_candidate_samples[:, pivots]
 
@@ -225,15 +226,27 @@ class RandomGaussianProcessRealizations:
         approx_validation_vals = self.gp.kernel_(
             self.canonical_validation_samples.T,
             self.selected_canonical_samples.T).dot(self.alpha_)
-        error = np.linalg.norm(approx_validation_vals-self.validation_vals)/(
-            np.linalg.norm(self.validation_vals))
-        print('Relative interpolation error', error)
+        error = np.linalg.norm(
+            approx_validation_vals-self.validation_vals, axis=0)/(
+                np.linalg.norm(self.validation_vals, axis=0))
+        print('Worst case relative interpolation error', error.max())
         
     def __call__(self, samples):
         canonical_samples = self.gp.map_to_canonical_space(samples)
         K_pred = self.gp.kernel_(
             canonical_samples.T, self.selected_canonical_samples.T)
         return K_pred.dot(self.alpha_)
+
+    
+def evaluate_random_gaussian_process_realizations_via_interpolation(
+        gp, samples, ngp_realizations,
+        ninterpolation_samples=500,
+        nvalidation_samples=100):
+     gp_realizations = RandomGaussianProcessRealizations(gp)
+     gp_realizations.fit(
+         samples, ngp_realizations, ninterpolation_samples, nvalidation_samples)
+     interp_vals = gp_realizations(samples)
+     return interp_vals
 
 
 class AdaptiveGaussianProcess(GaussianProcess):

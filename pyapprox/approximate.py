@@ -9,7 +9,8 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox import compute_hyperbolic_indices
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
-    OrthogonalMatchingPursuitCV, RidgeCV
+    OrthogonalMatchingPursuitCV, Lasso, LassoLars, Lars, \
+    OrthogonalMatchingPursuit
 from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 from pyapprox.variables import is_bounded_continuous_variable
 import numpy as np
@@ -432,6 +433,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
         - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree` 
         - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_omp_pce`
+        - 'fixed' see :func:`pyapprox.approximate.approximate_fixed_pce`
 
     variable : pya.IndependentMultivariateRandomVariable
         Object containing information of the joint density of the inputs z.
@@ -450,7 +452,8 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
          - :func:`pyapprox.approximate.expanding_basis_omp_pce`
     """
     funcs = {'expanding_basis': expanding_basis_omp_pce,
-             'hyperbolic_cross': cross_validate_pce_degree}
+             'hyperbolic_cross': cross_validate_pce_degree,
+             'fixed': approximate_fixed_pce}
     if variable is None:
         msg = 'pce requires that variable be defined'
         raise Exception(msg)
@@ -515,6 +518,20 @@ def approximate(train_samples, train_vals, method, options=None):
 
 
 from sklearn.linear_model._base import LinearModel
+class LinearLeastSquares(LinearModel):
+    def __init__(self, alpha=0.):
+        self.alpha = alpha
+
+    def fit(self, X, y):
+        gram_mat = X.T.dot(X)
+        gram_mat += self.alpha*np.eye(gram_mat.shape[0])
+        self.coef_ = np.linalg.lstsq(
+            gram_mat, X.T.dot(y), rcond=None)[0]
+        # Do not current support fit_intercept = True
+        self.intercept_ = 0
+        return self
+
+
 class LinearLeastSquaresCV(LinearModel):
     """
     Parameters
@@ -522,19 +539,21 @@ class LinearLeastSquaresCV(LinearModel):
     - None, to use the default 5-fold cross-validation
     - integer to specify the number of folds
     """
-    def __init__(self, alphas=[0.], cv=None):
+    def __init__(self, alphas=[0.], cv=None, random_folds=True):
         if cv is None:
             # sklearn RidgeCV can only be applied with leave one out cross
             # validation. Use this as the default here
             cv = 1
         self.cv = cv
         self.alphas = alphas
+        self.random_folds = random_folds
 
     def fit(self, X, y):
         if y.ndim == 1:
             y = y[:, None]
+        assert y.shape[1] == 1
         fold_sample_indices = get_random_k_fold_sample_indices(
-            X.shape[0], self.cv)
+            X.shape[0], self.cv, self.random_folds)
         results = []
         for ii in range(len(self.alphas)):
             results.append(leave_many_out_lsq_cross_validation(
@@ -556,11 +575,11 @@ class LinearLeastSquaresCV(LinearModel):
 def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # verbose=1 will display lars path on entire data setUp
     # verbose>1 will also show this plus paths on each cross validation set
-    solvers = {'lasso': LassoLarsCV,
-               'lasso_grad': LassoCV,
-               'lars': LarsCV,
-               'omp': OrthogonalMatchingPursuitCV,
-               'lstsq': LinearLeastSquaresCV}
+    solvers = {'lasso': [LassoLarsCV, LassoLars],
+               'lasso_grad': [LassoCV, Lasso],
+               'lars': [LarsCV, Lars],
+               'omp': [OrthogonalMatchingPursuitCV, OrthogonalMatchingPursuit],
+               'lstsq': [LinearLeastSquaresCV,LinearLeastSquares]}
 
     if not solver_type in solvers:
         msg = f'Solver type {solver_type} not supported\n'
@@ -578,7 +597,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     assert train_vals.ndim == 2
     assert train_vals.shape[1] == 1
 
-    # The following cooment and two conditional statemenets are only true
+    # The following co,ment and two conditional statements are only true
     # for lars which I have switched off.
     
     # cv interpolates each residual onto a common set of alphas
@@ -609,14 +628,13 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
         # OrthogonalMatchingPursuitCV in
         # site-packages/sklearn/linear_model/_omp.py
 
-    if 'cv' not in kwargs:
-        kwargs['cv'] = 10
-        msg = 'Warning cv argument not set. Setting cv=10'
-        print(msg)
+    if 'cv' not in kwargs or kwargs['cv'] is False:
+        solver_idx = 1
+    else:
+        solver_idx = 0
 
-    fit = solvers[solver_type](**kwargs).fit
+    fit = solvers[solver_type][solver_idx](**kwargs).fit
     res = fit(basis_matrix, train_vals[:, 0])
-    cv_score = extract_cross_validation_score(res)
     coef = res.coef_
     if coef.ndim == 1:
         coef = coef[:, np.newaxis]
@@ -627,8 +645,23 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
         # to simply return X.dot(coef_) (e.g. as done be Polynomial Chaos
         # Expansion). Thus add res.intercept_ to first coefficient, i.e.
     coef[0] += res.intercept_
-    return coef, cv_score
+    if 'cv' in kwargs:
+        cv_score = extract_cross_validation_score(res)
+        best_regularization_param = extract_best_regularization_parameters(res)
+    else:
+        cv_score = None
+        best_regularization_param = None
+    return coef, cv_score, best_regularization_param
 
+
+def extract_best_regularization_parameters(res):
+    if (type(res) == LarsCV or type(res) == LassoLarsCV or
+        type(res) == LinearLeastSquaresCV):
+        return res.alpha_
+    elif type(res) == OrthogonalMatchingPursuitCV:
+        return res.n_nonzero_coefs_
+    else:
+        raise Exception()
 
 def extract_cross_validation_score(linear_model):
     if hasattr(linear_model, 'cv_score_'):
@@ -695,18 +728,23 @@ def cross_validate_pce_degree(
 
     degrees : np.ndarray (nqoi)
         The best degree for each QoI
+
+    reg_params : np.ndarray (nqoi)
+        The best regularization parameters for each QoI chosen by cross 
+        validation.
     """
     coefs = []
     scores = []
     indices = []
     degrees = []
+    reg_params = []
     indices_dict = dict()
     unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
         if verbose > 1:
             print(f'Approximating QoI: {ii}')
-        pce_ii, score_ii, degree_ii = _cross_validate_pce_degree(
+        pce_ii, score_ii, degree_ii, reg_param_ii = _cross_validate_pce_degree(
             pce, train_samples, train_vals[:, ii:ii+1], min_degree,
             max_degree, hcross_strength, linear_solver_options,
             solver_type, verbose)
@@ -714,6 +752,7 @@ def cross_validate_pce_degree(
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
         degrees.append(degree_ii)
+        reg_params.append(reg_param_ii)
         for index in indices[ii].T:
             key = hash_array(index)
             if key not in indices_dict:
@@ -729,7 +768,8 @@ def cross_validate_pce_degree(
     pce.set_indices(unique_indices)
     pce.set_coefficients(all_coefs)
     return ApproximateResult({'approx': pce, 'scores': np.array(scores),
-                              'degrees': np.array(degrees)})
+                              'degrees': np.array(degrees),
+                              'reg_params': reg_params})
 
 
 def _cross_validate_pce_degree(
@@ -763,7 +803,7 @@ def _cross_validate_pce_degree(
 
         # use the same state (thus cross validation folds) for each degree
         np.random.set_state(rng_state)
-        coef, cv_score = fit_linear_model(
+        coef, cv_score, reg_param = fit_linear_model(
             basis_matrix, train_vals, solver_type, **linear_solver_options)
         np.random.set_state(rng_state)
         pce.set_coefficients(coef)
@@ -776,6 +816,7 @@ def _cross_validate_pce_degree(
             best_cv_score = cv_score
             best_coef = coef.copy()
             best_degree = degree
+            best_reg_param = reg_param
         prev_num_terms = pce.num_terms()
 
     pce.set_indices(compute_hyperbolic_indices(
@@ -783,7 +824,7 @@ def _cross_validate_pce_degree(
     pce.set_coefficients(best_coef)
     if verbose > 0:
         print('best degree:', best_degree)
-    return pce, best_cv_score, best_degree
+    return pce, best_cv_score, best_degree, best_reg_param
 
 
 def restrict_basis(indices, coefficients, tol):
@@ -873,6 +914,10 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     scores : np.ndarray (nqoi)
         The best cross validation score for each QoI
 
+    reg_params : np.ndarray (nqoi)
+        The best regularization parameters for each QoI chosen by cross 
+        validation.
+
     References
     ----------
     .. [JESJCP2015] `J.D. Jakeman, M.S. Eldred, and K. Sargsyan. Enhancing l1-minimization estimates of polynomial chaos expansions using basis selection. Journal of Computational Physics, 289(0):18 – 34, 2015 <https://doi.org/10.1016/j.jcp.2015.02.025>`_
@@ -880,19 +925,21 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
     coefs = []
     scores = []
     indices = []
+    reg_params = []
     indices_dict = dict()
     unique_indices = []
     nqoi = train_vals.shape[1]
     for ii in range(nqoi):
         if verbose > 1:
             print(f'Approximating QoI: {ii}')
-        pce_ii, score_ii = _expanding_basis_omp_pce(
+        pce_ii, score_ii, reg_param_ii = _expanding_basis_omp_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
             verbose, max_num_terms, solver_type, linear_solver_options,
             restriction_tol)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
+        reg_params.append(reg_param_ii)
         for index in indices[ii].T:
             key = hash_array(index)
             if key not in indices_dict:
@@ -907,7 +954,8 @@ def expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             all_coefs[indices_dict[key], ii] = coefs[ii][jj, 0]
     pce.set_indices(unique_indices)
     pce.set_coefficients(all_coefs)
-    return ApproximateResult({'approx': pce, 'scores': np.array(scores)})
+    return ApproximateResult({'approx': pce, 'scores': np.array(scores),
+                              'reg_params': reg_params})
 
 
 def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
@@ -941,7 +989,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         
     rng_state = np.random.get_state()
     basis_matrix = pce.basis_matrix(train_samples)
-    best_coef, best_cv_score = fit_linear_model(
+    best_coef, best_cv_score, best_reg_param = fit_linear_model(
         basis_matrix, train_vals, solver_type, **linear_solver_options)
     np.random.set_state(rng_state) 
     pce.set_coefficients(best_coef)
@@ -977,7 +1025,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
             np.random.set_state(rng_state) 
-            coef, cv_score = fit_linear_model(
+            coef, cv_score, reg_param = fit_linear_model(
                 basis_matrix, train_vals, solver_type, **linear_solver_options)
             np.random.set_state(rng_state) 
             pce.set_coefficients(coef)
@@ -992,6 +1040,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
                 best_indices_iter = pce.indices.copy()
                 best_coef_iter = pce.coefficients.copy()
                 best_num_expansion_steps_iter = num_expansion_steps
+                best_reg_param_iter = reg_param
 
             if (num_terms >= max_num_terms):
                 break
@@ -1005,6 +1054,7 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
             best_coef = best_coef_iter.copy()
             best_indices = best_indices_iter.copy()
             best_num_expansion_steps = best_num_expansion_steps_iter
+            best_reg_param = best_reg_param_iter
             best_it = it
         elif (it - best_it >= 2):
             break
@@ -1019,7 +1069,60 @@ def _expanding_basis_omp_pce(pce, train_samples, train_vals, hcross_strength=1,
         msg = f'Final basis has {pce.num_terms()} terms selected from '
         msg += f'{nindices} using {train_samples.shape[1]} samples'
         print(msg)
-    return pce, best_cv_score
+    return pce, best_cv_score, best_reg_param
+
+
+def approximate_fixed_pce(pce, train_samples, train_vals, indices,
+                          verbose=1, solver_type='lasso',
+                          linear_solver_options={}):
+    r"""
+    Estimate the coefficients of a polynomial chaos using regression methods
+    and pre-specified (fixed) basis and regularization parameters
+
+    Parameters
+    ----------
+    train_samples : np.ndarray (nvars, nsamples)
+        The inputs of the function used to train the approximation
+
+    train_vals : np.ndarray (nvars, nqoi)
+        The values of the function at ``train_samples``
+
+    indices : np.ndarray (nvars, nindices)
+        The multivariate indices representing each basis in the expansion.
+
+    solver_type : string
+        The type of regression used to train the polynomial
+
+        - 'lasso'
+        - 'lars'
+        - 'lasso_grad'
+        - 'omp'
+
+    verbose : integer
+        Controls the amount of information printed to screen
+
+    Returns
+    -------
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+
+    reg_params : np.ndarray (nqoi)
+        The regularization parameters for each QoI.
+    """
+    pce.set_indices(indices)
+    basis_matrix = pce.basis_matrix(train_samples)
+    nqoi = train_vals.shape[1]
+    coefs = []
+    for ii in range(nqoi):
+        coef_ii, _, reg_param_ii = fit_linear_model(
+            basis_matrix, train_vals[:, ii:ii+1], solver_type,
+            **linear_solver_options)
+        coefs.append(coef_ii)
+    pce.set_coefficients(np.hstack(coefs))
+    return ApproximateResult({'approx': pce})
 
 
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
@@ -1102,10 +1205,10 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
 from pyapprox.utilities import get_random_k_fold_sample_indices, \
     leave_many_out_lsq_cross_validation
 def cross_validate_approximation(
-        train_samples, train_vals, options, nfolds, method):
+        train_samples, train_vals, options, nfolds, method, random_folds=True):
     ntrain_samples = train_samples.shape[1]
     fold_sample_indices = get_random_k_fold_sample_indices(
-        ntrain_samples, nfolds)
+        ntrain_samples, nfolds, random_folds)
     approx_list = []
     residues_list = []
     cv_score = 0
@@ -1121,6 +1224,6 @@ def cross_validate_approximation(
         residues = approx_kk(test_samples_kk) - test_vals_kk
         approx_list.append(approx_kk)
         residues_list.append(residues)
-        cv_score += np.sum(residues**2)
+        cv_score += np.sum(residues**2, axis=0)
     cv_score = np.sqrt(cv_score/ntrain_samples)
     return approx_list, residues_list, cv_score

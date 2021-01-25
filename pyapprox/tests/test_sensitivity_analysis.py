@@ -377,8 +377,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nvars = benchmark.variable.num_vars()
 
         # nsobol_samples and ntrain_samples effect assert tolerances
-        ntrain_samples = 300
-        nsobol_samples = 1000
+        ntrain_samples = 500
+        nsobol_samples = int(1e4)
         train_samples = pya.generate_independent_random_samples(
            benchmark.variable, ntrain_samples)
         # from pyapprox import CholeskySampler
@@ -409,24 +409,25 @@ class TestSensitivityAnalysis(unittest.TestCase):
             approx, benchmark.variable, interaction_terms,
             nsobol_samples, sampling_method='sobol',
             ngp_realizations=1000, normalize=True, nsobol_realizations=3,
-            stat_functions=(np.mean, np.std))
+            stat_functions=(np.mean, np.std), ninterpolation_samples=500,
+            ncandidate_samples=1000)
 
         mean_mean = result['mean']['mean']
         mean_sobol_indices = result['sobol_indices']['mean']
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
 
-        # print(benchmark.mean-mean_mean)
-        # print(benchmark.main_effects[:, 0]-mean_main_effects)
-        # print(benchmark.total_effects[:, 0]-mean_total_effects)
-        # print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        print(benchmark.mean-mean_mean)
+        print(benchmark.main_effects[:, 0]-mean_main_effects)
+        print(benchmark.total_effects[:, 0]-mean_total_effects)
+        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
         assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
         assert np.allclose(mean_main_effects,
-                           benchmark.main_effects[:, 0], atol=4e-2)
+                           benchmark.main_effects[:, 0], atol=1e-2)
         assert np.allclose(mean_total_effects,
-                           benchmark.total_effects[:, 0], atol=2e-2)
+                           benchmark.total_effects[:, 0], atol=1e-2)
         assert np.allclose(mean_sobol_indices,
-                           benchmark.sobol_indices[:-1, 0], atol=5e-2)
+                           benchmark.sobol_indices[:-1, 0], atol=1e-2)
 
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
