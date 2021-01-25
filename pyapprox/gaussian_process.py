@@ -63,7 +63,6 @@ class GaussianProcess(GaussianProcessRegressor):
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
         canonical_samples = self.map_to_canonical_space(samples)
-        # assert canonical_samples.min()>=-1-1e-14 and canonical_samples.max()<=1+1e-14
         return self.predict(canonical_samples.T, return_std, return_cov)
 
     def predict_random_realization(self, samples, rand_noise=1,
@@ -154,12 +153,18 @@ class RandomGaussianProcessRealizations:
     can return a np.ndarray (nsamples, nrandom_realizations) 
     instead of size (nsamples, 1) where nrandom_realizations is the number 
     of random realizations interpolated
+
+    Parameters
+    ----------
+    nvalidation_samples : integer
+        The number of samples of the random realization used to compute the
+        accuracy of the interpolant.
     """
     def __init__(self, gp):
         self.gp = gp
 
     def fit(self, candidate_samples, rand_noise=None,
-            ninterpolation_samples=500):
+            ninterpolation_samples=500, nvalidation_samples=100):
         """
         Construct interpolants of random realizations evalauted at the 
         training data and at a new set of additional points
@@ -177,22 +182,52 @@ class RandomGaussianProcessRealizations:
         L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
                 Kmatrix, ninterpolation_samples,
                 init_pivots=init_pivots, pivot_weights=None,
-                error_on_small_tol=True, return_full=False, econ=True)
-        L = L[pivots, :]
-        print('Condition Number', np.linalg.cond(L.dot(L.T)))
+                error_on_small_tol=False, return_full=False, econ=True)
+        if chol_flag > 0:
+            pivots = pivots[:-1]
+            msg = f"Number of samples used for interpolation {pivots.shape[0]}"
+            msg += f" was less than requested {ninterpolation_samples}"
+            print(msg)
+            # then not all points requested were selected
+            # because L became illconditioned. This usually means that no
+            # more candidate samples are useful and that error in interpolant
+            # will be small. Note  chol_flag > 0 even when 
+            # pivots.shape[0] == ninterpolation_samples. This means last
+            # step of cholesky factorization triggered the incomplete flag
+            
+        L = L[pivots, :pivots.shape[0]]
+        print(L.shape)
+        # print('Condition Number', np.linalg.cond(L.dot(L.T)))
         self.selected_canonical_samples = canonical_candidate_samples[:, pivots]
-        # remove this check
-        assert np.allclose(
-            L.dot(L.T), self.gp.kernel_(self.selected_canonical_samples.T))
 
-        self.vals = self.gp.predict_random_realization(
-            self.gp.map_from_canonical_space(self.selected_canonical_samples),
-            rand_noise=rand_noise, truncated_svd=None)
+        mask = np.ones(canonical_candidate_samples.shape[1], dtype=bool)
+        mask[pivots] = False
+        canonical_validation_samples = canonical_candidate_samples[:, mask]
+        self.canonical_validation_samples = canonical_validation_samples[
+            :, :nvalidation_samples]
 
-        L_inv = np.linalg.inv(L.T)
+        samples = np.hstack(
+            (self.selected_canonical_samples,
+             self.canonical_validation_samples))
+        vals = self.gp.predict_random_realization(
+            self.gp.map_from_canonical_space(samples),
+            rand_noise=rand_noise[:samples.shape[1], :], truncated_svd=None)
+        self.train_vals = vals[:pivots.shape[0]]
+        self.validation_vals = vals[pivots.shape[0]:]
+
+        # L_inv = np.linalg.inv(L.T)
         # L_inv = solve_triangular(L.T, np.eye(L.shape[0]))
-        self.K_inv_ = L_inv.dot(L_inv.T)
-        self.alpha_ = self.K_inv_.dot(self.vals)
+        # self.K_inv_ = L_inv.dot(L_inv.T)
+        # self.alpha_ = self.K_inv_.dot(self.train_vals)
+        tmp = solve_triangular(L, self.train_vals, lower=True)
+        self.alpha_ = solve_triangular(L.T, tmp, lower=False)
+
+        approx_validation_vals = self.gp.kernel_(
+            self.canonical_validation_samples.T,
+            self.selected_canonical_samples.T).dot(self.alpha_)
+        error = np.linalg.norm(approx_validation_vals-self.validation_vals)/(
+            np.linalg.norm(self.validation_vals))
+        print('Relative interpolation error', error)
         
     def __call__(self, samples):
         canonical_samples = self.gp.map_to_canonical_space(samples)
