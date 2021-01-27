@@ -741,14 +741,9 @@ class TestGaussianProcess(unittest.TestCase):
             np.linalg.norm(validation_vals)
         print(error)
 
-        nquad_samples = 50
-        expected_random_mean, variance_random_mean, expected_random_var,\
-            variance_random_var = integrate_gaussian_process(
-                gp, variable, nquad_samples=nquad_samples)
-        
-
         from pyapprox.approximate import approximate
-        from pyapprox.sensitivity_analysis import get_sobol_indices
+        from pyapprox.sensitivity_analysis import get_sobol_indices, \
+            get_main_and_total_effect_indices_from_pce
         pce = approximate(
             train_samples, train_vals, 'polynomial_chaos',
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
@@ -758,6 +753,9 @@ class TestGaussianProcess(unittest.TestCase):
 
         pce_interaction_terms, pce_sobol_indices = get_sobol_indices(
             pce.get_coefficients(), pce.get_indices(), max_order=3)
+        pce_main_effects, pce_total_effects = \
+            get_main_and_total_effect_indices_from_pce(
+                pce.coefficients, pce.indices)
 
         interaction_terms = np.zeros(
             (nvars, len(pce_interaction_terms)), dtype=int)
@@ -766,11 +764,14 @@ class TestGaussianProcess(unittest.TestCase):
         
 
         nquad_samples = 100
-        sobol_indices = compute_expected_sobol_indices(
+        sobol_indices, total_effects = compute_expected_sobol_indices(
                 gp, variable, interaction_terms, nquad_samples=nquad_samples)
-        print(sobol_indices, pce_sobol_indices)
+        # print(sobol_indices, pce_sobol_indices)
         assert np.allclose(
             sobol_indices, pce_sobol_indices, rtol=1e-4, atol=1e-4)
+        # print(total_effects, pce_total_effects)
+        assert np.allclose(
+            total_effects, pce_total_effects, rtol=1e-4, atol=1e-4)
 
 
 class TestSamplers(unittest.TestCase):

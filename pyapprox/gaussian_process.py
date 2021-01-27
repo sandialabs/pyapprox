@@ -2363,9 +2363,16 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
         zeta, v_sq, kernel_var, expected_random_mean, variance_random_mean)
 
     assert interaction_terms.max() == 1
-    unnormalized_interaction_values = np.empty((interaction_terms.shape[1], 1))
-    for jj in range(interaction_terms.shape[1]):
-        index = interaction_terms[:, jj]
+    # add indices need to compute main effects. These may already be
+    # in interaction terms but cost of recomputing them is negligible
+    # and avoids extra book keeping
+    total_effect_interaction_terms = np.ones((nvars, nvars))-np.eye(nvars)
+    myinteraction_terms = np.hstack(
+        (interaction_terms, total_effect_interaction_terms))
+    unnormalized_interaction_values = np.empty(
+        (myinteraction_terms.shape[1], 1))
+    for jj in range(myinteraction_terms.shape[1]):
+        index = myinteraction_terms[:, jj]
         P_p, U_p = 1, 1
         for ii in range(nvars):
             if index[ii] == 1:
@@ -2378,6 +2385,10 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
             U_p-np.trace(A_inv.dot(P_p))) + A_inv_y.T.dot(P_p.dot(A_inv_y))
         unnormalized_interaction_values[jj] -= \
             variance_random_mean+expected_random_mean**2
+    unnormalized_total_effect_values = \
+        unnormalized_interaction_values[interaction_terms.shape[1]:]
+    unnormalized_interaction_values = \
+        unnormalized_interaction_values[:interaction_terms.shape[1]]
 
     I = argsort_indices_leixographically(interaction_terms)
     from itertools import combinations
@@ -2394,4 +2405,5 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
                 for key in indices:
                     unnormalized_sobol_indices[I[ii]] -= \
                         unnormalized_sobol_indices[sobol_indices_dict[key]]
-    return unnormalized_sobol_indices/expected_random_var
+    return unnormalized_sobol_indices/expected_random_var, \
+        1-unnormalized_total_effect_values/expected_random_var
