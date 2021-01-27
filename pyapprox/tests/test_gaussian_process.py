@@ -2,6 +2,7 @@ import unittest
 from pyapprox.gaussian_process import *
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
+from pyapprox.indexing import compute_hyperbolic_indices
 import pyapprox as pya
 from scipy import stats
 from scipy.linalg import solve_triangular
@@ -218,10 +219,10 @@ class TestGaussianProcess(unittest.TestCase):
         # optimize gp noise
         # kernel += WhiteKernel(noise_level_bounds=(1e-8, 1))
         # fix gp noise
-        kernel += WhiteKernel(noise_level=1e-5, noise_level_bounds='fixed')
+        # kernel += WhiteKernel(noise_level=1e-5, noise_level_bounds='fixed')
         # white kernel K(x_i,x_j) is only nonzeros when x_i=x_j, i.e.
         # it is not used when calling gp.predict
-        gp = GaussianProcess(kernel, n_restarts_optimizer=10)
+        gp = GaussianProcess(kernel, n_restarts_optimizer=10, alpha=1e-8)
         gp.fit(train_samples, train_vals)
         # print(gp.kernel_)
 
@@ -234,12 +235,13 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.fill_between(xx,gp_mean-2*gp_std,gp_mean+2*gp_std,alpha=0.5)
         # plt.show()
 
-        import time
-        t0 = time.time()
+        # import time
+        # t0 = time.time()
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermediate_quantities =\
-            integrate_gaussian_process(gp, variable, return_full=True)
-        print('time', time.time()-t0)
+                integrate_gaussian_process(gp, variable, return_full=True,
+                                           nquad_samples=100)
+        # print('time', time.time()-t0)
 
         # mu and sigma should match variable
         kernel_types = [Matern]
@@ -338,7 +340,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(variance_of_mean_quad, variance_random_mean)
         assert np.allclose(mean_of_variance_quad, expected_random_var)
 
-        nsamples = int(1e5)
+        nsamples = int(1e6)
         random_means, random_variances = [], []
         random_I2sq, random_I4, random_I2Isq = [], [], []
         xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
@@ -371,6 +373,7 @@ class TestGaussianProcess(unittest.TestCase):
             np.var(random_means), variance_random_mean, rtol=5e-3)
         assert np.allclose(
             expected_random_var, np.mean(random_variances), rtol=1e-3)
+        print(variance_random_var-np.var(random_variances), np.var(random_variances))
         assert np.allclose(
             variance_random_var, np.var(random_variances), rtol=5e-3)
 
@@ -570,7 +573,8 @@ class TestGaussianProcess(unittest.TestCase):
 
         true_mean = 1/3*a.sum()
         expected_random_mean, variance_random_mean, expected_random_var, \
-            variance_random_var = integrate_gaussian_process(gp, variable)
+            variance_random_var, intermediate_quantities = \
+                integrate_gaussian_process(gp, variable, return_full=True)
         # only satisfied with more training data. But more training data
         # makes it hard to test computation of marginal gp mean and variances
         # print(expected_random_mean - true_mean)
@@ -586,16 +590,22 @@ class TestGaussianProcess(unittest.TestCase):
             # kernel must be evaluated in canonical space
             # gp must be evaluated in user space
             xx = np.linspace(0, 1, 11)
+            xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
+            xx = (xx+1)/2
             A_inv = np.linalg.inv(gp.L_.dot(gp.L_.T))
             K_pred = gp_ii.kernel_(2*xx[:, None]-1, gp_ii.X_train_)
-            stdev_ii = np.sqrt(
-                kernel_var*gp_ii.kernel_.k2.u-np.diag(
-                    K_pred.dot(A_inv).dot(K_pred.T)))
+            variance_ii = kernel_var*gp_ii.kernel_.k2.u-np.diag(
+                K_pred.dot(A_inv).dot(K_pred.T))
+            # print(variance_ii)
+            assert variance_ii.min()>-1e-7
+            stdev_ii = np.sqrt(np.maximum(0, variance_ii))
             vals_ii, std_ii = gp_ii(xx[np.newaxis, :], return_std=True)
+            # print(stdev_ii-std_ii)
             assert np.allclose(stdev_ii, std_ii, atol=5e-8)
 
             xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
             xx_quad = (xx_quad+1)/2
+
             gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)
 
             xx_2d = cartesian_product([xx_quad, xx])
@@ -632,6 +642,135 @@ class TestGaussianProcess(unittest.TestCase):
             #          label='Projected train data')
             # plt.legend()
             # plt.show()
+
+    def test_compute_sobol_indices_gaussian_process_uniform_2d(self):
+        nvars = 2
+        a = np.array([1, 0.25])
+        # a = np.array([1, 1])
+        def func(x): return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
+
+        ntrain_samples = 100
+        #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        train_samples = sobol_sequence(nvars, ntrain_samples)
+        train_vals = func(train_samples)
+
+        univariate_variables = [stats.uniform(0, 1)]*nvars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+
+        nu = np.inf
+        kernel_var = 1.
+        length_scale = np.array([1]*nvars)
+        kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+        kernel = ConstantKernel(
+            constant_value=kernel_var, constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6)
+        # gp.set_variable_transformation(var_trans)
+        gp.fit(train_samples, train_vals)
+
+        validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        validation_vals = func(validation_samples)
+        error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
+            np.linalg.norm(validation_vals)
+        print(error)
+
+        nquad_samples = 50
+        expected_random_mean, variance_random_mean, expected_random_var,\
+            variance_random_var = integrate_gaussian_process(
+                gp, variable, nquad_samples=nquad_samples)
+        print('v',variance_random_mean, expected_random_var)
+
+        true_mean = 1/3*a.sum()
+        unnormalized_main_effect_0 = a[0]**2/5+(2*a[0]*a[1])/9+a[1]**2/9 -\
+            true_mean**2
+        unnormalized_main_effect_1 = a[1]**2/5+(2*a[0]*a[1])/9+a[0]**2/9 -\
+            true_mean**2
+        true_unnormalized_main_effects = np.array(
+            [[unnormalized_main_effect_0, unnormalized_main_effect_1]]).T
+        true_var = np.sum(true_unnormalized_main_effects)
+
+        order = 2
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
+        interaction_terms = interaction_terms[:, 
+            np.where(interaction_terms.max(axis=0)==1)[0]]
+
+        nquad_samples = 100
+        sobol_indices = compute_expected_sobol_indices(
+                gp, variable, interaction_terms, nquad_samples=nquad_samples)
+        true_unnormalized_sobol_indices = np.vstack((
+            true_unnormalized_main_effects, [[0]]))
+        # print(np.absolute(unnormalized_sobol_indices-true_unnormalized_sobol_indices) - 1e-3*true_unnormalized_sobol_indices)
+        true_sobol_indices = true_unnormalized_sobol_indices/true_var
+        assert np.allclose(
+            sobol_indices, true_sobol_indices, rtol=1e-4, atol=1e-4)
+
+    def test_compute_sobol_indices_gaussian_process_uniform_3d(self):
+        nvars = 3
+        coef = np.array([1, 0.25, 0.25])
+        
+        def func(x):
+            return (np.prod(x[:2],axis=0)+np.sum(
+                coef[:, None]*(2*x-1)**2, axis=0))[:, np.newaxis]
+
+        ntrain_samples = 300
+        #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        train_samples = sobol_sequence(nvars, ntrain_samples)
+        train_vals = func(train_samples)
+
+        univariate_variables = [stats.uniform(0, 1)]*nvars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+
+        nu = np.inf
+        kernel_var = 1.
+        length_scale = np.array([1]*nvars)
+        kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
+        kernel = ConstantKernel(
+            constant_value=kernel_var, constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6)
+        # gp.set_variable_transformation(var_trans)
+        gp.fit(train_samples, train_vals)
+
+        validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        validation_vals = func(validation_samples)
+        error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
+            np.linalg.norm(validation_vals)
+        print(error)
+
+        nquad_samples = 50
+        expected_random_mean, variance_random_mean, expected_random_var,\
+            variance_random_var = integrate_gaussian_process(
+                gp, variable, nquad_samples=nquad_samples)
+        
+
+        from pyapprox.approximate import approximate
+        from pyapprox.sensitivity_analysis import get_sobol_indices
+        pce = approximate(
+            train_samples, train_vals, 'polynomial_chaos',
+            {'basis_type': 'hyperbolic_cross', 'variable': variable,
+             'options': {'max_degree': 4}}).approx
+        assert np.linalg.norm(validation_vals - pce(validation_samples))/ \
+            np.linalg.norm(validation_vals) < 1e-15
+
+        pce_interaction_terms, pce_sobol_indices = get_sobol_indices(
+            pce.get_coefficients(), pce.get_indices(), max_order=3)
+
+        interaction_terms = np.zeros(
+            (nvars, len(pce_interaction_terms)), dtype=int)
+        for ii, idx in enumerate(pce_interaction_terms.T):
+            interaction_terms[idx, ii] = 1
+        
+
+        nquad_samples = 100
+        sobol_indices = compute_expected_sobol_indices(
+                gp, variable, interaction_terms, nquad_samples=nquad_samples)
+        print(sobol_indices, pce_sobol_indices)
+        assert np.allclose(
+            sobol_indices, pce_sobol_indices, rtol=1e-4, atol=1e-4)
 
 
 class TestSamplers(unittest.TestCase):

@@ -18,6 +18,8 @@ from pyapprox.utilities import pivoted_cholesky_decomposition, \
 from scipy.special import kv, gamma
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
+from pyapprox.indexing import argsort_indices_leixographically
+
 
 class GaussianProcess(GaussianProcessRegressor):
     def set_variable_transformation(self, var_trans):
@@ -336,6 +338,7 @@ def gaussian_Pi(train_samples, delta, mu, sigma):
 
 
 def compute_v_sq(A_inv, P):
+    # v_sq = 1-np.trace(A_inv.dot(P))
     v_sq = (1-np.sum(A_inv*P))
     return v_sq
 
@@ -450,12 +453,11 @@ def mean_of_variance(zeta, v_sq, kernel_var, expected_random_mean,
     return zeta+v_sq*kernel_var-expected_random_mean**2-variance_random_mean
 
 
-def integrate_gaussian_process(gp, variable, return_full=False,
-                               nquad_samples=50):
+def extract_gaussian_process_attributes_for_integration(gp):
     if extract_covariance_kernel(gp.kernel_, [WhiteKernel]) is not None:
         raise Exception('kernels with noise not supported')
     
-    kernel_types = [RBF, Matern]
+    kernel_types = [RBF, Matern, UnivariateMarginalizedSquaredExponentialKernel]
     kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
 
     constant_kernel = extract_covariance_kernel(gp.kernel_, [ConstantKernel])
@@ -465,7 +467,8 @@ def integrate_gaussian_process(gp, variable, return_full=False,
         kernel_var = 1
 
     if (not type(kernel) == RBF and not
-            (type(kernel) == Matern and not np.isfinite(kernel.nu))):
+        (type(kernel) == Matern and not np.isfinite(kernel.nu)) and not
+        (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
         # Squared exponential kernel
         msg = f'GP Kernel type: {type(kernel)} '
         msg += 'Only squared exponential kernel supported'
@@ -480,16 +483,33 @@ def integrate_gaussian_process(gp, variable, return_full=False,
     transform_quad_rules = (not hasattr(gp, 'var_trans'))
     # gp.X_train_ will already be in the canonical space if var_trans is used
     x_train = gp.X_train_.T
-    
+
     # correct for normalization of gaussian process training data
     # gp.y_train_ is normalized such that 
     # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
     y_train =  gp._y_train_std*gp.y_train_+gp._y_train_mean
     kernel_var *= gp._y_train_std**2
     K_inv /=  gp._y_train_std**2
+    return x_train, y_train, K_inv, kernel.length_scale, \
+        kernel_var, transform_quad_rules
+
+def integrate_gaussian_process(gp, variable, return_full=False,
+                               nquad_samples=50):
+    """
+    The alpha regularization parameter used to construct the gp stored 
+    in gp.alpha can significantly impact condition number of A_inv
+    and thus the accuracy that can be obtained in estimates of integrals
+    particularly associated with variance. However setting alpha too large 
+    will also limit the accuracy that can be achieved
+    """
+    x_train, y_train, K_inv, kernel_length_scale, kernel_var, \
+        transform_quad_rules = \
+        extract_gaussian_process_attributes_for_integration(gp)
+    
     result = integrate_gaussian_process_squared_exponential_kernel(
-                x_train, y_train, K_inv, kernel.length_scale,
-                kernel_var, variable, return_full, transform_quad_rules)
+        x_train, y_train, K_inv, kernel_length_scale,
+        kernel_var, variable, return_full, transform_quad_rules,
+        nquad_samples)
     expected_random_mean, variance_random_mean, expected_random_var, \
         variance_random_var = result[:4]
     if return_full is True:
@@ -551,7 +571,7 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
 
 def get_gaussian_process_squared_exponential_kernel_1d_integrals(
         X_train, length_scale, variable, transform_quad_rules,
-        nquad_samples=50):
+        nquad_samples=50, skip_xi_1=False):
     ntrain_samples = X_train.shape[1]
     nvars = variable.num_vars()
     degrees = [nquad_samples]*nvars
@@ -600,7 +620,10 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
         #lamda *= lamda_ii
         #Pi *= Pi_ii
         #nu *= nu_ii
-        xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
+        if skip_xi_1 is False:
+            xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
+        else:
+            xi_1_ii = None
         #xi_1 *= xi_1_ii
 
         tau_list.append(tau_ii)
@@ -2272,3 +2295,103 @@ def marginalize_gaussian_process(gp, variable):
             gp_ii.set_variable_transformation(var_trans_ii)
         marginalized_gps.append(gp_ii)
     return marginalized_gps
+
+
+def compute_conditional_P(xx_1d, ww_1d, xtr, lscale_ii):
+    # Get 2D tensor product quadrature rule
+    xx_2d = cartesian_product([xx_1d]*2)
+    ww_2d = outer_product([ww_1d]*2)
+
+    ntrain_samples = xtr.shape[1]
+    dist_func = partial(cdist, metric='sqeuclidean')
+    dists_2d_x2_xtr = dist_func(xx_2d[1:2, :].T/lscale_ii, xtr.T/lscale_ii)
+    dists_2d_x1_xtr = dist_func(xx_2d[0:1, :].T/lscale_ii, xtr.T/lscale_ii)
+    P = np.exp(-.5*dists_2d_x1_xtr).T.dot(ww_2d[:, np.newaxis]*np.exp(
+        -.5*dists_2d_x2_xtr))
+    return P
+
+def compute_expected_sobol_indices(gp, variable, interaction_terms,
+                                   nquad_samples=50):
+    """
+    The alpha regularization parameter used to construct the gp stored 
+    in gp.alpha can significantly impact condition number of A_inv
+    and thus the accuracy that can be obtained in estimates of integrals
+    particularly associated with variance. However setting alpha too large 
+    will also limit the accuracy that can be achieved
+    """
+    x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
+        extract_gaussian_process_attributes_for_integration(gp)
+
+    tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, _  = \
+        get_gaussian_process_squared_exponential_kernel_1d_integrals(
+            x_train, lscale, variable, transform_quad_rules,
+            nquad_samples=nquad_samples, skip_xi_1=True)
+
+    ntrain_samples = x_train.shape[1]
+    nvars = variable.num_vars()
+    degrees = [nquad_samples]*nvars
+    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
+        variable, degrees)
+
+    P_mod_list = []
+    for ii in range(nvars):
+        # Training samples of ith variable
+        xtr = x_train[ii:ii+1, :]
+        xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
+        if transform_quad_rules is True:
+            jj = pce.basis_type_index_map[ii]
+            loc, scale = pce.var_trans.scale_parameters[jj, :]
+            xx_1d = xx_1d*scale+loc
+        P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
+
+    A_inv = K_inv*kernel_var
+    # print(np.linalg.cond(A_inv))
+    A_inv_y = A_inv.dot(y_train)
+    tau = np.prod(np.array(tau_list), axis=0)
+    u = np.prod(np.array(u_list), axis=0)
+    expected_random_mean = tau.dot(A_inv_y)
+    varpi = compute_varpi(tau, A_inv)
+    varsigma_sq = compute_varsigma_sq(u, varpi)
+    variance_random_mean = variance_of_mean(kernel_var, varsigma_sq)
+
+    P = np.prod(np.array(P_list), axis=0)
+    A_inv_P = A_inv.dot(P)
+    v_sq = compute_v_sq(A_inv, P)
+    zeta = compute_zeta_econ(y_train, A_inv_y, A_inv_P)
+
+    expected_random_var = mean_of_variance(
+        zeta, v_sq, kernel_var, expected_random_mean, variance_random_mean)
+
+    assert interaction_terms.max() == 1
+    unnormalized_interaction_values = np.empty((interaction_terms.shape[1], 1))
+    for jj in range(interaction_terms.shape[1]):
+        index = interaction_terms[:, jj]
+        P_p, U_p = 1, 1
+        for ii in range(nvars):
+            if index[ii] == 1:
+                P_p *= P_list[ii]
+                U_p *= 1
+            else:
+                P_p *= P_mod_list[ii]
+                U_p *= u_list[ii]
+        unnormalized_interaction_values[jj] = kernel_var*(
+            U_p-np.trace(A_inv.dot(P_p))) + A_inv_y.T.dot(P_p.dot(A_inv_y))
+        unnormalized_interaction_values[jj] -= \
+            variance_random_mean+expected_random_mean**2
+
+    I = argsort_indices_leixographically(interaction_terms)
+    from itertools import combinations
+    unnormalized_sobol_indices = unnormalized_interaction_values.copy()
+    sobol_indices_dict = dict()
+    for ii in range(I.shape[0]):
+        index = interaction_terms[:, I[ii]]
+        active_vars = np.where(index>0)[0]
+        nactive_vars = index.sum()
+        sobol_indices_dict[tuple(active_vars)] = I[ii]
+        if nactive_vars > 1:
+            for jj in range(nactive_vars-1):
+                indices = combinations(active_vars, jj+1)
+                for key in indices:
+                    unnormalized_sobol_indices[I[ii]] -= \
+                        unnormalized_sobol_indices[sobol_indices_dict[key]]
+    return unnormalized_sobol_indices/expected_random_var

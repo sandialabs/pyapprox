@@ -1220,6 +1220,9 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     if noise_level is not None:
         kernel += WhiteKernel(
             noise_level, noise_level_bounds=noise_level_bounds)
+    # Note noise_level is different to alpha
+    # noise_kernel applies nugget to both training and test data
+    # alpha only applies it to training data
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
                          normalize_y=normalize_y, alpha=alpha)
     

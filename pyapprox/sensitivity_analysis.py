@@ -735,8 +735,9 @@ def sampling_based_sobol_indices(
 
     and  
 
-    Variance based sensitivity analysis of model output. Design and estimator 
-    for the total sensitivity index
+    Saltelli, Annoni et. al, Variance based sensitivity analysis of model 
+    output. Design and estimator for the total sensitivity index. 2010.
+    https://doi.org/10.1016/j.cpc.2009.09.018
 
     Parameters
     ----------
@@ -763,13 +764,15 @@ def sampling_based_sobol_indices(
         samplesAB = generate_sobol_index_sample_sets(
             samplesA, samplesB, index)
         valuesAB = fun(samplesAB)
+        # entry b in Table 2 of Saltelli, Annoni et. al
         interaction_values[ii, :] = \
             (valuesB*(valuesAB-valuesA)).mean(axis=0)/variance
         interaction_values_dict[tuple(np.where(index>0)[0])] = ii
         if index.sum() == 1:
             dd = np.where(index==1)[0][0]
+            # entry f in Table 2 of Saltelli, Annoni et. al
             total_effect_values[dd] = 0.5 * \
-                np.mean((valuesA-valuesAB)**2, axis=0)/variance
+                np.mean((valuesA-valuesAB)**2, axis=0)/variance 
 
     # must substract of contributions from lower-dimensional terms from
     # each interaction value For example, let R_ij be interaction_values
