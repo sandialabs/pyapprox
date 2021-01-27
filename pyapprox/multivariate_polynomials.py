@@ -1,7 +1,10 @@
+import copy
 from pyapprox.variable_transformations import \
     AffineRandomVariableTransformation
-from pyapprox.variables import get_distribution_info
-from pyapprox.utilities import get_tensor_product_quadrature_rule
+from pyapprox.variables import get_distribution_info, \
+    IndependentMultivariateRandomVariable
+from pyapprox.utilities import get_tensor_product_quadrature_rule, \
+    unique_matrix_rows
 from pyapprox.orthonormal_polynomials_1d import get_recursion_coefficients
 from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
 from functools import partial
@@ -266,7 +269,6 @@ class PolynomialChaosExpansion(object):
         else:
             poly1 = other
             poly2 = self
-        import copy
         poly1 = copy.deepcopy(poly1)
         poly2 = copy.deepcopy(poly2)
         max_degrees1 = poly1.indices.max(axis=1)
@@ -311,7 +313,6 @@ class PolynomialChaosExpansion(object):
             poly.set_coefficients(np.ones([1, self.coefficients.shape[1]]))
             return poly
 
-        import copy
         poly = copy.deepcopy(self)
         for ii in range(2, order+1):
             poly = poly*self
@@ -625,34 +626,51 @@ def conditional_moments_of_polynomial_chaos_expansion(poly, samples, inactive_id
     return mean, variance
 
 
-def remove_variables_from_polynomial_chaos_expansion(poly, inactive_idx):
+def marginalize_polynomial_chaos_expansion(poly, inactive_idx):
     """
     This function is not optimal. It will recreate the options
     used to configure the polynomial. Any recursion coefficients 
     calculated which are still relevant will need to be computed.
     This is probably not a large overhead though
     """
-    fixed_pce = PolynomialChaosExpansion()
-    opts = poly.config_opts.copy()
-    opts['var_trans'] = AffineRandomVariableTransformation(
-        IndependentMultivariateRandomVariable(
-            poly.var_trans.variables.all_variables()[inactive_idx]))
+    marginalized_pce = PolynomialChaosExpansion()
+    opts = copy.deepcopy(poly.config_opts) # poly.config_opts.copy will not work
+    all_variables = poly.var_trans.variable.all_variables()
+    active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
+    active_variables = IndependentMultivariateRandomVariable(
+        [all_variables[ii] for ii in active_idx])
+    opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
 
     if opts['poly_types'] is not None:
+        marginalized_var_nums = -np.ones(poly.num_vars())
+        marginalized_var_nums[active_idx] = np.arange(active_idx.shape[0])
+        keys_to_delete = []
         for key, poly_opts in opts['poly_types'].items():
             var_nums = poly_opts['var_nums']
             poly_opts['var_nums'] = np.array(
-                [var_nums[ii] for ii in range(len(var_nums))
-                 if var_nums[ii] not in inactive_idx])
+                [marginalized_var_nums[v] for v in var_nums
+                 if v in active_idx], dtype=int)
+            if poly_opts['var_nums'].shape[0] == 0:
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            del opts['poly_types'][key]
     # else # no need to do anything same basis is used for all variables
 
-    fixed_pce.configure(opts)
+    marginalized_pce.configure(opts)
     if poly.indices is not None:
-        active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
-        reduced_indices = indices[active_idx, :]
-    pce.set_indices(reduced_indices)
-    assert pce.coefficients is None
-    return fixed_pce
+        marginalized_array_indices = []
+        for ii, index in enumerate(poly.indices.T):
+            if (index.sum() == 0 or
+                np.any(index[active_idx]) and
+                (not np.any(index[inactive_idx]>0))):
+                marginalized_array_indices.append(ii)
+        marginalized_pce.set_indices(
+            poly.indices[
+                np.ix_(active_idx, np.array(marginalized_array_indices))])
+        if poly.coefficients is not None:
+            marginalized_pce.set_coefficients(
+                poly.coefficients[marginalized_array_indices, :].copy())
+    return marginalized_pce
 
 
 def get_polynomial_from_variable(variable):

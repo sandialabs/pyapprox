@@ -2186,7 +2186,15 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
 
 
 class UnivariateMarginalizedGaussianProcess:
-    def __init__(self, kernel, train_samples, L_factor, train_values):
+    """
+    Parameters
+    ----------
+    mean : float
+        The expectation of the gaussian process with respect to the random 
+        variables. If provided then the marginalized gaussian process will
+        the main effect used in sensitivity analysis.
+    """
+    def __init__(self, kernel, train_samples, L_factor, train_values, mean=0):
         # the names are chosen to match names of _gpr from sklearn
         # so functions can be applied to both these methods in the same way
         self.kernel_ = kernel
@@ -2200,6 +2208,7 @@ class UnivariateMarginalizedGaussianProcess:
         self._y_train_std = 1
         self._K_inv = None
         self.var_trans = None
+        self.mean = mean
         
     def map_to_canonical_space(self, samples):
         if self.var_trans is not None:
