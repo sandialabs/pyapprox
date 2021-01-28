@@ -859,9 +859,12 @@ def analytic_sobol_indices_from_gaussian_process(
     # L_inv = np.linalg.inv(gp_realizations.L)
     # K_inv = L_inv.T.dot(L_inv)
     K_inv = np.linalg.inv(gp_realizations.L.dot(gp_realizations.L.T))
-    kernel_var *= gp._y_train_std**2
     x_train = gp_realizations.selected_canonical_samples
-    y_train = gp._y_train_std*gp_realizations.train_vals+gp._y_train_mean
+    # gp_realizations.train_vals is unnormalized
+    y_train = gp_realizations.train_vals
+    # so do not do the following two lines
+    #y_train = gp._y_train_std*gp_realizations.train_vals+gp._y_train_mean
+    # kernel_var *= gp._y_train_std**2
     K_inv /=  gp._y_train_std**2
 
     sobol_values, total_values, means, variances = \

@@ -482,7 +482,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         train_vals = benchmark.fun(train_samples)
         approx = approximate(
             train_samples, train_vals, 'gaussian_process', {
-                'nu':np.inf, 'normalize_y': False}).approx
+                'nu':np.inf, 'normalize_y': True}).approx
 
         nsobol_samples = int(1e4)
         from pyapprox.approximate import compute_l2_error
@@ -506,17 +506,17 @@ class TestSensitivityAnalysis(unittest.TestCase):
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
 
-        print(benchmark.mean-mean_mean)
-        print(benchmark.main_effects[:, 0]-mean_main_effects)
-        print(benchmark.total_effects[:, 0]-mean_total_effects)
-        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
-        assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
+        # print(benchmark.mean-mean_mean)
+        # print(benchmark.main_effects[:, 0]-mean_main_effects)
+        # print(benchmark.total_effects[:, 0]-mean_total_effects)
+        # print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_main_effects,
-                           benchmark.main_effects[:, 0], atol=1e-2)
+                           benchmark.main_effects[:, 0], rtol=1e-3, atol=1e-3)
         assert np.allclose(mean_total_effects,
-                           benchmark.total_effects[:, 0], atol=1e-2)
+                           benchmark.total_effects[:, 0], rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_sobol_indices,
-                           benchmark.sobol_indices[:-1, 0], atol=1e-2)
+                           benchmark.sobol_indices[:-1, 0], rtol=1e-3, atol=3e-3)
 
 
 if __name__ == "__main__":
