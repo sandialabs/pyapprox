@@ -35,9 +35,28 @@ class TestLowDiscrepancySequences(unittest.TestCase):
              [0.125, 0.625, 0.375],
              [0.1875, 0.3125, 0.9375],
              [0.6875, 0.8125, 0.4375]]).T
-        print(samples.T)
-        print(true_samples.T)
         assert np.allclose(true_samples[:, 2:], samples)
+
+    def test_sobol_sequence_variable_transformation(self):
+        from pyapprox.variables import IndependentMultivariateRandomVariable
+        from scipy.stats import uniform
+        variables = IndependentMultivariateRandomVariable(
+            [uniform(-1, 2), uniform(0, 1), uniform(0,3)])
+        samples = sobol_sequence(3, 10, variable=variables)
+        true_samples = np.asarray(
+            [[0,0,0],
+             [0.5, 0.5, 0.5],
+             [0.75, 0.25, 0.25],
+             [0.25, 0.75, 0.75],
+             [0.375, 0.375, 0.625],
+             [0.875, 0.875, 0.125],
+             [0.625, 0.125, 0.875],
+             [0.125, 0.625, 0.375],
+             [0.1875, 0.3125, 0.9375],
+             [0.6875, 0.8125, 0.4375]]).T
+        true_samples[0, :] = true_samples[0, :]*2-1
+        true_samples[2, :] = true_samples[2, :]*3
+        assert np.allclose(true_samples, samples) 
 
     def test_halton_sequence(self):
         samples = halton_sequence(3, 0, 10)
@@ -75,3 +94,4 @@ if __name__== "__main__":
         TestLowDiscrepancySequences)
     unittest.TextTestRunner(verbosity=2).run(
         low_discrepancy_sequences_test_suite)
+    

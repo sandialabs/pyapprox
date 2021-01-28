@@ -723,7 +723,8 @@ class TestGaussianProcess(unittest.TestCase):
             np.where(interaction_terms.max(axis=0)==1)[0]]
 
         nquad_samples = 100
-        sobol_indices = compute_expected_sobol_indices(
+        sobol_indices, total_effects, mean, variance = \
+            compute_expected_sobol_indices(
                 gp, variable, interaction_terms, nquad_samples=nquad_samples)
         true_unnormalized_sobol_indices = np.vstack((
             true_unnormalized_main_effects, [[0]]))
@@ -757,7 +758,8 @@ class TestGaussianProcess(unittest.TestCase):
         kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
         kernel = ConstantKernel(
             constant_value=kernel_var, constant_value_bounds='fixed')*kernel
-        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6)
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-6,
+                             normalize_y=True)
         # gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
 
@@ -787,7 +789,8 @@ class TestGaussianProcess(unittest.TestCase):
         
 
         nquad_samples = 100
-        sobol_indices, total_effects = compute_expected_sobol_indices(
+        sobol_indices, total_effects, mean, variance = \
+            compute_expected_sobol_indices(
                 gp, variable, interaction_terms, nquad_samples=nquad_samples)
         # print(sobol_indices, pce_sobol_indices)
         assert np.allclose(

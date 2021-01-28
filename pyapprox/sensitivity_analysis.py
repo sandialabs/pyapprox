@@ -8,7 +8,9 @@ from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from functools import partial
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.gaussian_process import RandomGaussianProcessRealizations
+from pyapprox.gaussian_process import RandomGaussianProcessRealizations,\
+    _compute_expected_sobol_indices, \
+    extract_gaussian_process_attributes_for_integration
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):
@@ -841,6 +843,80 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
     return sobol_values, total_values, variances, means
 
 
+def analytic_sobol_indices_from_gaussian_process(
+        gp, variable, interaction_terms, ngp_realizations=1,
+        stat_functions=(np.mean, np.median, np.min, np.max),
+        ninterpolation_samples=500, nvalidation_samples=100,
+        ncandidate_samples=1000, nquad_samples=50):
+
+    gp_realizations = generate_gp_realizations(
+        gp, ngp_realizations, ninterpolation_samples, nvalidation_samples,
+        ncandidate_samples, variable)
+
+    x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
+        extract_gaussian_process_attributes_for_integration(gp)
+    
+    # L_inv = np.linalg.inv(gp_realizations.L)
+    # K_inv = L_inv.T.dot(L_inv)
+    K_inv = np.linalg.inv(gp_realizations.L.dot(gp_realizations.L.T))
+    kernel_var *= gp._y_train_std**2
+    x_train = gp_realizations.selected_canonical_samples
+    y_train = gp._y_train_std*gp_realizations.train_vals+gp._y_train_mean
+    K_inv /=  gp._y_train_std**2
+
+    sobol_values, total_values, means, variances = \
+        _compute_expected_sobol_indices(
+            gp, variable, interaction_terms, nquad_samples,
+            x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules)
+    sobol_values = sobol_values.T
+    total_values = total_values.T
+
+    # means, variances, sobol_values,  total_values = [], [], [], []
+    # for ii in range(ngp_realizations):
+    #     sv, tv, me, vr = _compute_expected_sobol_indices(
+    #         gp, variable, interaction_terms, nquad_samples,
+    #         x_train, y_train[:, ii:ii+1],
+    #         K_inv, lscale, kernel_var, transform_quad_rules)
+    #     means.append(me)
+    #     variances.append(vr)
+    #     sobol_values.append(sv)
+    #     total_values.append(tv)
+    # means = np.asarray(means)[:, 0]
+    # variances = np.asarray(variances)[:, 0]
+    # sobol_values = np.asarray(sobol_values)[:, :, 0]
+    # total_values = np.asarray(total_values)[:, :, 0]
+
+    result = dict()
+    data = [sobol_values, total_values, variances, means]
+    data_names = ['sobol_indices', 'total_effects', 'variance', 'mean']
+    for item, name in zip(data, data_names):
+        subdict = dict()
+        for ii, sfun in enumerate(stat_functions):
+            subdict[sfun.__name__] = sfun(item, axis=(0))
+        subdict['values'] = item
+        result[name] = subdict
+    return result
+
+        
+def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples, 
+                             nvalidation_samples, ncandidate_samples,
+                             variable):
+    rand_noise = np.random.normal(
+        0, 1, (ngp_realizations, ninterpolation_samples+nvalidation_samples)).T
+    gp_realizations = RandomGaussianProcessRealizations(gp)
+    generate_random_samples = partial(
+        generate_independent_random_samples, variable)
+    from pyapprox.gaussian_process import generate_candidate_samples
+    candidate_samples = generate_candidate_samples(
+        variable.num_vars(), ncandidate_samples, generate_random_samples,
+        variable)
+    gp_realizations.fit(
+        candidate_samples, rand_noise, ninterpolation_samples,
+        nvalidation_samples)
+    fun = gp_realizations
+    return fun
+
+
 def sampling_based_sobol_indices_from_gaussian_process(
     gp, variables, interaction_terms, nsamples, sampling_method='sobol',
         ngp_realizations=1, normalize=True, nsobol_realizations=1,
@@ -908,21 +984,9 @@ def sampling_based_sobol_indices_from_gaussian_process(
     
     if ngp_realizations > 0:
         assert ncandidate_samples > ninterpolation_samples
-        rand_noise = np.random.normal(
-            0, 1,
-            (ngp_realizations, ninterpolation_samples+nvalidation_samples)).T
-        # fun = partial(gp.predict_random_realization, rand_noise=rand_noise,
-        #               truncated_svd=truncated_svd)
-        gp_realizations = RandomGaussianProcessRealizations(gp)
-        generate_random_samples = partial(
-            generate_independent_random_samples, variables)
-        from pyapprox.gaussian_process import generate_candidate_samples
-        candidate_samples = generate_candidate_samples(
-            variables.num_vars(), ncandidate_samples, generate_random_samples,
-            variables)
-        gp_realizations.fit(
-            candidate_samples, rand_noise, ninterpolation_samples,
-            nvalidation_samples)
+        gp_realizations = generate_gp_realizations(
+            gp, ngp_realizations, ninterpolation_samples, nvalidation_samples,
+            ncandidate_samples, variables)
         fun = gp_realizations
     else:
         fun = gp

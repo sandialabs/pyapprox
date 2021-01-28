@@ -187,6 +187,7 @@ class RandomGaussianProcessRealizations:
         #canonical_candidate_samples = np.hstack(
         #    (self.gp.X_train_.T, canonical_candidate_samples))
         Kmatrix = self.kernel(canonical_candidate_samples.T)
+        K = self.gp.L_.dot(self.gp.L_.T)
         #init_pivots = np.arange(self.gp.X_train_.T.shape[1])
         init_pivots = None
         L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
@@ -205,7 +206,7 @@ class RandomGaussianProcessRealizations:
             # pivots.shape[0] == ninterpolation_samples. This means last
             # step of cholesky factorization triggered the incomplete flag
             
-        L = L[pivots, :pivots.shape[0]]
+        self.L = L[pivots, :pivots.shape[0]]
         # print('Condition Number', np.linalg.cond(L.dot(L.T)))
         self.selected_canonical_samples = canonical_candidate_samples[:, pivots]
 
@@ -228,8 +229,8 @@ class RandomGaussianProcessRealizations:
         # L_inv = solve_triangular(L.T, np.eye(L.shape[0]))
         # self.K_inv_ = L_inv.dot(L_inv.T)
         # self.alpha_ = self.K_inv_.dot(self.train_vals)
-        tmp = solve_triangular(L, self.train_vals, lower=True)
-        self.alpha_ = solve_triangular(L.T, tmp, lower=False)
+        tmp = solve_triangular(self.L, self.train_vals, lower=True)
+        self.alpha_ = solve_triangular(self.L.T, tmp, lower=False)
 
         approx_validation_vals = self.kernel(
             self.canonical_validation_samples.T,
@@ -487,7 +488,7 @@ def extract_gaussian_process_attributes_for_integration(gp):
     # correct for normalization of gaussian process training data
     # gp.y_train_ is normalized such that 
     # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
-    y_train =  gp._y_train_std*gp.y_train_+gp._y_train_mean
+    y_train = gp._y_train_std*gp.y_train_+gp._y_train_mean
     kernel_var *= gp._y_train_std**2
     K_inv /=  gp._y_train_std**2
     return x_train, y_train, K_inv, kernel.length_scale, \
@@ -2330,6 +2331,13 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
     """
     x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
         extract_gaussian_process_attributes_for_integration(gp)
+    return _compute_expected_sobol_indices(
+        gp, variable, interaction_terms, nquad_samples, x_train, y_train,
+        K_inv, lscale, kernel_var, transform_quad_rules)
+
+def _compute_expected_sobol_indices(
+        gp, variable, interaction_terms, nquad_samples, x_train, y_train,
+        K_inv, lscale, kernel_var, transform_quad_rules):
 
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, _  = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
@@ -2354,22 +2362,25 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     A_inv = K_inv*kernel_var
-    # print(np.linalg.cond(A_inv))
-    A_inv_y = A_inv.dot(y_train)
     tau = np.prod(np.array(tau_list), axis=0)
     u = np.prod(np.array(u_list), axis=0)
-    expected_random_mean = tau.dot(A_inv_y)
     varpi = compute_varpi(tau, A_inv)
     varsigma_sq = compute_varsigma_sq(u, varpi)
-    variance_random_mean = variance_of_mean(kernel_var, varsigma_sq)
-
     P = np.prod(np.array(P_list), axis=0)
     A_inv_P = A_inv.dot(P)
     v_sq = compute_v_sq(A_inv, P)
-    zeta = compute_zeta_econ(y_train, A_inv_y, A_inv_P)
 
-    expected_random_var = mean_of_variance(
-        zeta, v_sq, kernel_var, expected_random_mean, variance_random_mean)
+    A_inv_y = A_inv.dot(y_train)
+    expected_random_mean = tau.dot(A_inv_y)
+    variance_random_mean = np.empty_like(expected_random_mean)
+    expected_random_var = np.empty_like(expected_random_mean)
+    for ii in range(y_train.shape[1]):
+        variance_random_mean[ii] = variance_of_mean(kernel_var, varsigma_sq)
+        zeta = compute_zeta_econ(
+            y_train[:, ii:ii+1], A_inv_y[:, ii:ii+1], A_inv_P)
+        expected_random_var[ii] = mean_of_variance(
+            zeta, v_sq, kernel_var, expected_random_mean[ii],
+            variance_random_mean[ii])
 
     assert interaction_terms.max() == 1
     # add indices need to compute main effects. These may already be
@@ -2379,7 +2390,7 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
     myinteraction_terms = np.hstack(
         (interaction_terms, total_effect_interaction_terms))
     unnormalized_interaction_values = np.empty(
-        (myinteraction_terms.shape[1], 1))
+        (myinteraction_terms.shape[1], y_train.shape[1]))
     for jj in range(myinteraction_terms.shape[1]):
         index = myinteraction_terms[:, jj]
         P_p, U_p = 1, 1
@@ -2390,10 +2401,14 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
             else:
                 P_p *= P_mod_list[ii]
                 U_p *= u_list[ii]
-        unnormalized_interaction_values[jj] = kernel_var*(
-            U_p-np.trace(A_inv.dot(P_p))) + A_inv_y.T.dot(P_p.dot(A_inv_y))
-        unnormalized_interaction_values[jj] -= \
-            variance_random_mean+expected_random_mean**2
+        trace_A_inv_Pp = np.sum(A_inv*P_p)# U_p-np.trace(A_inv.dot(P_p))
+        for ii in range(y_train.shape[1]):
+            unnormalized_interaction_values[jj, ii] = kernel_var*(
+                # U_p-np.trace(A_inv.dot(P_p))) + \
+                U_p-trace_A_inv_Pp) + \
+                A_inv_y[:, ii:ii+1].T.dot(P_p.dot(A_inv_y[:, ii:ii+1]))
+            unnormalized_interaction_values[jj, ii] -= \
+                variance_random_mean[ii]+expected_random_mean[ii]**2
     unnormalized_total_effect_values = \
         unnormalized_interaction_values[interaction_terms.shape[1]:]
     unnormalized_interaction_values = \
@@ -2415,4 +2430,5 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
                     unnormalized_sobol_indices[I[ii]] -= \
                         unnormalized_sobol_indices[sobol_indices_dict[key]]
     return unnormalized_sobol_indices/expected_random_var, \
-        1-unnormalized_total_effect_values/expected_random_var
+        1-unnormalized_total_effect_values/expected_random_var, \
+        expected_random_mean, expected_random_var

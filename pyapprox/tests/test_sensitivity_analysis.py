@@ -380,7 +380,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         ntrain_samples = 500
         nsobol_samples = int(1e4)
         train_samples = pya.generate_independent_random_samples(
-           benchmark.variable, ntrain_samples)
+            benchmark.variable, ntrain_samples)
         # from pyapprox import CholeskySampler
         # sampler = CholeskySampler(nvars, 10000, benchmark.variable)
         # kernel = pya.Matern(
@@ -397,7 +397,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)
-        print(error)
+        print('error', error)
         # assert error < 4e-2
 
         order = 2
@@ -466,6 +466,57 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # # axs[1].legend([bp1['means'][0]], ['$\mathrm{Truth}$'])
         # plt.tight_layout()
         # plt.show()
+
+    def test_analytic_sobol_indices_from_gaussian_process(self):
+        from pyapprox.benchmarks.benchmarks import setup_benchmark
+        from pyapprox.approximate import approximate
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+        nvars = benchmark.variable.num_vars()
+
+        ntrain_samples = 1000
+        # train_samples = pya.generate_independent_random_samples(
+        #     benchmark.variable, ntrain_samples)
+        train_samples = pya.sobol_sequence(
+            nvars, ntrain_samples, variable=benchmark.variable)
+
+        train_vals = benchmark.fun(train_samples)
+        approx = approximate(
+            train_samples, train_vals, 'gaussian_process', {
+                'nu':np.inf, 'normalize_y': False}).approx
+
+        nsobol_samples = int(1e4)
+        from pyapprox.approximate import compute_l2_error
+        error = compute_l2_error(
+            approx, benchmark.fun, benchmark.variable,
+            nsobol_samples, rel=True)
+        print(error)
+
+        order = 2
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
+        interaction_terms = interaction_terms[:, 
+            np.where(interaction_terms.max(axis=0)==1)[0]]
+
+        result = analytic_sobol_indices_from_gaussian_process(
+            approx, benchmark.variable, interaction_terms,
+            ngp_realizations=1000, stat_functions=(np.mean, np.std),
+            ninterpolation_samples=1000, ncandidate_samples=2000)
+
+        mean_mean = result['mean']['mean']
+        mean_sobol_indices = result['sobol_indices']['mean']
+        mean_total_effects = result['total_effects']['mean']
+        mean_main_effects = mean_sobol_indices[:nvars]
+
+        print(benchmark.mean-mean_mean)
+        print(benchmark.main_effects[:, 0]-mean_main_effects)
+        print(benchmark.total_effects[:, 0]-mean_total_effects)
+        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        assert np.allclose(mean_mean, benchmark.mean, atol=3e-2)
+        assert np.allclose(mean_main_effects,
+                           benchmark.main_effects[:, 0], atol=1e-2)
+        assert np.allclose(mean_total_effects,
+                           benchmark.total_effects[:, 0], atol=1e-2)
+        assert np.allclose(mean_sobol_indices,
+                           benchmark.sobol_indices[:-1, 0], atol=1e-2)
 
 
 if __name__ == "__main__":

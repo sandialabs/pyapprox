@@ -213,14 +213,16 @@ class IndependentMultivariateRandomVariable(object):
         return stats
 
     def evaluate(self, function_name, x):
+        stats = None
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
-            stats_ii = np.atleast_1d(getattr(var, function_name)(x[ii, :]))
-            assert stats_ii.ndim == 1
-            if ii == 0:
-                stats = np.empty((self.num_vars(), stats_ii.shape[0]))
-            stats[indices] = stats_ii
+            for jj in indices:
+                stats_jj = np.atleast_1d(getattr(var, function_name)(x[jj, :]))
+                assert stats_jj.ndim == 1
+                if stats is None:
+                    stats = np.empty((self.num_vars(), stats_jj.shape[0]))
+                stats[jj] = stats_jj
         return stats
 
     def pdf(self, x):

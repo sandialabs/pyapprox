@@ -182,5 +182,9 @@ def _sobol_sequence(nvars, nsamples):
     assert samples.max()<=1 and samples.min()>=0
     return samples
 
-def sobol_sequence(nvars, nsamples, start_index=0):
-    return _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
+def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
+    samples =  _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
+    if variable is None:
+        return samples
+    samples = variable.evaluate('ppf', samples)
+    return samples
