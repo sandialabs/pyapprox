@@ -2411,10 +2411,10 @@ def _compute_expected_sobol_indices(
         variance_random_mean[ii] = variance_of_mean(kernel_var, varsigma_sq)
         zeta = compute_zeta_econ(
             y_train[:, ii:ii+1], A_inv_y[:, ii:ii+1], A_inv_P)
+        zeta += 2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2
         expected_random_var[ii] = mean_of_variance(
             zeta, v_sq, kernel_var, expected_random_mean[ii],
             variance_random_mean[ii])
-    expected_random_var += 2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2
 
     from pyapprox.probability_measure_sampling import \
         generate_independent_random_samples
@@ -2453,12 +2453,14 @@ def _compute_expected_sobol_indices(
                 U_p *= u_list[ii]
         trace_A_inv_Pp = np.sum(A_inv*P_p)# U_p-np.trace(A_inv.dot(P_p))
         for ii in range(y_train.shape[1]):
-            unnormalized_interaction_values[jj, ii] = kernel_var*(
-                # U_p-np.trace(A_inv.dot(P_p))) + \
-                U_p-trace_A_inv_Pp) + \
-                A_inv_y[:, ii:ii+1].T.dot(P_p.dot(A_inv_y[:, ii:ii+1]))
-            unnormalized_interaction_values[jj, ii] -= \
-                variance_random_mean[ii]+expected_random_mean[ii]**2
+            # varsigma_ii = U_p-np.trace(A_inv.dot(P_p)))
+            v_sq_ii = U_p-trace_A_inv_Pp
+            zeta_ii = A_inv_y[:, ii:ii+1].T.dot(P_p.dot(A_inv_y[:, ii:ii+1]))
+            zeta_ii += 2*tau.dot(A_inv_y[:, ii:ii+1])*y_train_mean+\
+                y_train_mean**2
+            unnormalized_interaction_values[jj, ii] = mean_of_variance(
+                zeta_ii, v_sq_ii, kernel_var, expected_random_mean[ii],
+                variance_random_mean[ii])
     unnormalized_total_effect_values = \
         unnormalized_interaction_values[interaction_terms.shape[1]:]
     unnormalized_interaction_values = \

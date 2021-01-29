@@ -460,7 +460,8 @@ class TestGaussianProcess(unittest.TestCase):
         print('MC expected random mean', np.mean(random_means))
         print('MC variance random mean', np.var(random_means))
         print('MC expected random var', np.mean(random_variances))
-        print('MC variance random var', "{:e}".format(np.var(random_variances)))
+        print('MC variance random var', "{:e}".format(
+            np.var(random_variances)))
 
         assert np.allclose(true_mean, expected_random_mean, rtol=1e-3)
         assert np.allclose(expected_random_var, true_var, rtol=1e-3)
@@ -545,7 +546,8 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 2
         a = np.array([1, 0.25])
         # a = np.array([1, 1])
-        def func(x): return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
+        def func(x):
+            return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 20
         #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
@@ -673,7 +675,8 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 2
         a = np.array([1, 0.25])
         # a = np.array([1, 1])
-        def func(x): return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
+        def func(x):
+            return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 100
         #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
@@ -706,7 +709,7 @@ class TestGaussianProcess(unittest.TestCase):
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var = integrate_gaussian_process(
                 gp, variable, nquad_samples=nquad_samples)
-        print('v',variance_random_mean, expected_random_var)
+        # print('v',variance_random_mean, expected_random_var)
 
         true_mean = 1/3*a.sum()
         unnormalized_main_effect_0 = a[0]**2/5+(2*a[0]*a[1])/9+a[1]**2/9 -\
@@ -728,10 +731,10 @@ class TestGaussianProcess(unittest.TestCase):
                 gp, variable, interaction_terms, nquad_samples=nquad_samples)
         true_unnormalized_sobol_indices = np.vstack((
             true_unnormalized_main_effects, [[0]]))
-        # print(np.absolute(unnormalized_sobol_indices-true_unnormalized_sobol_indices) - 1e-3*true_unnormalized_sobol_indices)
         true_sobol_indices = true_unnormalized_sobol_indices/true_var
+        # print(np.absolute(sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
         assert np.allclose(
-            sobol_indices, true_sobol_indices, rtol=1e-4, atol=1e-4)
+            sobol_indices, true_sobol_indices, rtol=1e-5, atol=3e-5)
 
     def test_compute_sobol_indices_gaussian_process_uniform_3d(self):
         nvars = 3
