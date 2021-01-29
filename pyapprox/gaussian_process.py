@@ -512,7 +512,7 @@ def extract_gaussian_process_attributes_for_integration(gp):
     # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
     # shift must be accounted for in integration so do not add here
     y_train = gp._y_train_std*gp.y_train_
-    kernel_var *= gp._y_train_std**2
+    kernel_var *= float(gp._y_train_std**2)
     K_inv /= gp._y_train_std**2
     return x_train, y_train, K_inv, kernel.length_scale, \
         kernel_var, transform_quad_rules
@@ -2225,7 +2225,8 @@ class UnivariateMarginalizedGaussianProcess:
         variables. If provided then the marginalized gaussian process will
         the main effect used in sensitivity analysis.
     """
-    def __init__(self, kernel, train_samples, L_factor, train_values, mean=0):
+    def __init__(self, kernel, train_samples, L_factor, train_values,
+                 y_train_mean=0, y_train_std=1, mean=0):
         # the names are chosen to match names of _gpr from sklearn
         # so functions can be applied to both these methods in the same way
         self.kernel_ = kernel
@@ -2235,8 +2236,8 @@ class UnivariateMarginalizedGaussianProcess:
         self.X_train_ = train_samples.T
         self.y_train_ = train_values
         assert train_samples.shape[0] == 1
-        self._y_train_mean = 0
-        self._y_train_std = 1
+        self._y_train_mean = y_train_mean
+        self._y_train_std = y_train_std
         self._K_inv = None
         self.var_trans = None
         self.mean = mean
@@ -2254,13 +2255,14 @@ class UnivariateMarginalizedGaussianProcess:
         canonical_samples = self.map_to_canonical_space(samples)
         K_pred = self.kernel_(canonical_samples.T, self.X_train_)
         mean = K_pred.dot(self.K_inv_y)
+        mean = self._y_train_std*mean + self._y_train_mean
 
         if not return_std:
             return mean
 
         pointwise_cov = self.kernel_.diag(canonical_samples.T)-np.sum(
             K_pred.dot(self.L_inv)**2, axis=1)
-        return mean, np.sqrt(pointwise_cov)
+        return mean, self._y_train_std*np.sqrt(pointwise_cov)
 
 
 class UnivariateMarginalizedSquaredExponentialKernel(RBF):
@@ -2295,39 +2297,30 @@ def marginalize_gaussian_process(gp, variable):
     else:
         kernel_var = 1
 
-    if (not type(kernel) == RBF and not
-            (type(kernel) == Matern and not np.isfinite(kernel.nu))):
-        # Squared exponential kernel
-        msg = f'GP Kernel type: {type(kernel)} '
-        msg += 'Only squared exponential kernel supported'
-        raise Exception(msg)
-
-    if np.any(gp._y_train_mean != 0):
-        msg = 'Mean of training data was not zero. This is not supported'
-        raise Exception(msg)
-
-    if np.any(gp._y_train_std != 1):
-        msg = 'std of training data was not zero. This is not supported'
-        raise Exception(msg)
-
-    transform_quad_rules = (not hasattr(gp, 'var_trans'))
-    # gp.X_train_ will already be in the canonical space if var_trans is used
     x_train = gp.X_train_.T
-    tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, xi_1_list = \
+    kernel_length_scale = kernel.length_scale
+    transform_quad_rules = (not hasattr(gp, 'var_trans'))
+    L_factor = gp.L_.copy()
+    
+    tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, __ = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
-            x_train, kernel.length_scale, variable, transform_quad_rules)
+            x_train, kernel_length_scale, variable, transform_quad_rules,
+            skip_xi_1=True)
 
-    length_scale = np.atleast_1d(kernel.length_scale)
+    length_scale = np.atleast_1d(kernel_length_scale)
     nvars = variable.num_vars()
     marginalized_gps = []
     for ii in range(nvars):
         tau = np.prod(np.array(tau_list)[:ii], axis=0)*np.prod(
             np.array(tau_list)[ii+1:], axis=0)
         u = np.prod(u_list[:ii])*np.prod(u_list[ii+1:])
+        assert np.isscalar(kernel_var)
         kernel = kernel_var*UnivariateMarginalizedSquaredExponentialKernel(
             tau, u, length_scale[ii], gp.X_train_[:, ii:ii+1])
+        # undo kernel_var *= gp._y_train_std**2 in extact_gaussian_process_attr
         gp_ii = UnivariateMarginalizedGaussianProcess(
-            kernel, gp.X_train_[:, ii:ii+1].T, gp.L_, gp.y_train_)
+            kernel, gp.X_train_[:, ii:ii+1].T, L_factor, gp.y_train_,
+            gp._y_train_mean, gp._y_train_std)
         if hasattr(gp, 'var_trans'):
             variable_ii = IndependentMultivariateRandomVariable(
                 [gp.var_trans.variable.all_variables()[ii]])

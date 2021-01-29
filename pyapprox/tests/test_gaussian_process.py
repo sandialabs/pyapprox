@@ -549,7 +549,7 @@ class TestGaussianProcess(unittest.TestCase):
         def func(x):
             return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
-        ntrain_samples = 20
+        ntrain_samples = 30
         #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         from pyapprox.low_discrepancy_sequences import sobol_sequence
         train_samples = sobol_sequence(nvars, ntrain_samples)
@@ -566,7 +566,8 @@ class TestGaussianProcess(unittest.TestCase):
         kernel = Matern(length_scale, length_scale_bounds=(1e-2, 10), nu=nu)
         kernel = ConstantKernel(
             constant_value=kernel_var, constant_value_bounds='fixed')*kernel
-        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-8)
+        gp = GaussianProcess(kernel, n_restarts_optimizer=1, alpha=1e-8,
+                             normalize_y=True)
         gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
 
@@ -636,11 +637,12 @@ class TestGaussianProcess(unittest.TestCase):
 
             mc_mean_ii = np.mean(np.asarray(marginalized_vals), axis=0)
             mc_stdev_ii = np.std(np.asarray(marginalized_vals), axis=0)
-            # print(mc_mean_ii-vals_ii[:, 0])
-            # print(mc_stdev_ii-std_ii)
+            print(mc_mean_ii-vals_ii[:, 0])
+            print(mc_stdev_ii-std_ii)
             assert np.allclose(mc_mean_ii, vals_ii[:, 0], atol=2e-3)
             assert np.allclose(mc_stdev_ii, std_ii, atol=2e-3)
             # plt.plot(xx, vals_ii[:, 0], label='marginalized GP')
+            # plt.plot(xx, mc_mean_ii, ':', label='MC marginalized GP')
             # plt.fill_between(
             #     xx, vals_ii[:, 0]-2*std_ii, vals_ii[:, 0]+2*std_ii,
             #     color='gray', alpha=0.5)
