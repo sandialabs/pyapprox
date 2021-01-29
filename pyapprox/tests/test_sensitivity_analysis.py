@@ -473,7 +473,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
-        ntrain_samples = 1000
+        ntrain_samples = 500
         # train_samples = pya.generate_independent_random_samples(
         #     benchmark.variable, ntrain_samples)
         train_samples = pya.sobol_sequence(
@@ -482,7 +482,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         train_vals = benchmark.fun(train_samples)
         approx = approximate(
             train_samples, train_vals, 'gaussian_process', {
-                'nu':np.inf, 'normalize_y': True}).approx
+                'nu':np.inf, 'normalize_y': True, 'alpha':1e-10}).approx
 
         nsobol_samples = int(1e4)
         from pyapprox.approximate import compute_l2_error
@@ -499,20 +499,22 @@ class TestSensitivityAnalysis(unittest.TestCase):
         result = analytic_sobol_indices_from_gaussian_process(
             approx, benchmark.variable, interaction_terms,
             ngp_realizations=1000, stat_functions=(np.mean, np.std),
-            ninterpolation_samples=1000, ncandidate_samples=2000)
+            ninterpolation_samples=2000, ncandidate_samples=3000,
+            use_cholesky=False, alpha=1e-8)
 
         mean_mean = result['mean']['mean']
         mean_sobol_indices = result['sobol_indices']['mean']
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
 
-        # print(benchmark.mean-mean_mean)
-        # print(benchmark.main_effects[:, 0]-mean_main_effects)
-        # print(benchmark.total_effects[:, 0]-mean_total_effects)
-        # print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        print(result['mean']['values'][-1])
+        print(result['variance']['values'][-1])
+        print(benchmark.main_effects[:, 0]-mean_main_effects)
+        print(benchmark.total_effects[:, 0]-mean_total_effects)
+        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
         assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_main_effects,
-                           benchmark.main_effects[:, 0], rtol=1e-3, atol=1e-3)
+                           benchmark.main_effects[:, 0], rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_total_effects,
                            benchmark.total_effects[:, 0], rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_sobol_indices,

@@ -376,7 +376,7 @@ class TestGaussianProcess(unittest.TestCase):
             np.var(random_means), variance_random_mean, rtol=5e-3)
         assert np.allclose(
             expected_random_var, np.mean(random_variances), rtol=1e-3)
-        print(variance_random_var-np.var(random_variances), np.var(random_variances))
+        # print(variance_random_var-np.var(random_variances), np.var(random_variances))
         assert np.allclose(
             variance_random_var, np.var(random_variances), rtol=5e-3)
 
@@ -447,7 +447,7 @@ class TestGaussianProcess(unittest.TestCase):
         print('Expected random var', expected_random_var)
         print('Variance random var', variance_random_var)
 
-        nsamples = int(1e5)
+        nsamples = int(1e6)
         random_means = []
         xx, ww = pya.gauss_jacobi_pts_wts_1D(300, 0, 0)
         xx = (xx+1)/2
@@ -798,6 +798,124 @@ class TestGaussianProcess(unittest.TestCase):
         # print(total_effects, pce_total_effects)
         assert np.allclose(
             total_effects, pce_total_effects, rtol=1e-4, atol=1e-4)
+
+    def generate_gp_realizations(self):
+        bounds = np.array(
+            [0.2, 0.6, 1.15e-8, 1.15e-4, 0.2e-3, 160.e-3, 0.02, 0.1, 1., 5.,
+             2., 8., 0.1, 0.5, 600., 1800., 0.2, 1., 7.e-7, 3.e-6])
+        # I = [0, 1, 7, 8]
+        # I = [0, 1, 2, 3]
+        # bounds = bounds[I]
+        # lb, ub = bounds[:2]
+        length_scale = (bounds[1::2]-bounds[::2])/1
+        univariate_variables = [
+        stats.uniform(bounds[2*ii], bounds[2*ii+1]-bounds[2*ii])
+            for ii in range(len(bounds)//2)]
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        # lb, ub = 1e4, 1e5
+        # # lb, ub = 1e0, 1e1
+        # variable =  pya.IndependentMultivariateRandomVariable(
+        #     [stats.uniform(lb, ub-lb)])#, stats.uniform(1e4, 1e5-1e4)])
+        # length_scale = (ub-lb)/10
+        
+        nvars = variable.num_vars()
+        
+        fkernel = Matern(length_scale, length_scale_bounds='fixed', nu=np.inf)
+        fkernel = ConstantKernel(
+            constant_value=1e5, constant_value_bounds='fixed')*fkernel
+
+        coef = np.random.normal(0, 1, (1000, 1))
+        kernel_samples = pya.generate_independent_random_samples(
+            variable, coef.shape[0])
+        def fun(samples):
+            return fkernel(samples.T, kernel_samples.T).dot(coef)
+        
+        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        if nvars == 1:
+            ntrain_samples = 5
+        else:
+            ntrain_samples = 106
+            
+        # train_samples = sobol_sequence(
+        #     nvars, ntrain_samples, variable=variable)
+        marginal_icdfs = [v.ppf for v in variable.all_variables()]
+        start_index = 2000
+        # start_index needs to be large so validation samples
+        # are not the same as candidate samples used by
+        # RandomGaussianProcessRealizations
+        train_samples = transformed_halton_sequence(
+            marginal_icdfs, nvars, ntrain_samples, start_index)
+        
+        train_vals = fun(train_samples)
+        normalize_y, constant_value = True, 1
+        # normalize_y, constant_value = False, fkernel.k1.constant_value
+
+        alpha = 1e-8
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        kernel = Matern(
+            np.ones(nvars), length_scale_bounds=(1e-1, 1e1), nu=np.inf)
+        kernel = ConstantKernel(
+            constant_value=constant_value, constant_value_bounds='fixed')*kernel
+        gp = GaussianProcess(kernel, alpha=alpha, normalize_y=normalize_y)
+        gp.set_variable_transformation(var_trans=var_trans)
+        gp.fit(train_samples, train_vals)
+        print(gp.kernel_)
+        print(fkernel)
+
+        # X, Y, Z = pya.get_meshgrid_function_data(fun, bounds, 30)
+        # cset = plt.contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(),Z.max(), 20))
+        # plt.show()
+
+        ngp_realizations = 100000
+        nvalidation_samples = 400
+        ncandidate_samples = 1000
+        ninterpolation_samples = 500
+        gp_realizations = generate_gp_realizations(
+            gp, ngp_realizations, ninterpolation_samples, 
+            nvalidation_samples, ncandidate_samples,
+            variable, use_cholesky=False, alpha=alpha)
+
+        if nvars == 1:
+            validation_samples = np.linspace(lb, ub, 101)[None, :]
+        else:
+            validation_samples = pya.generate_independent_random_samples(
+                variable, 10)
+            
+        mean_vals, std = gp(validation_samples, return_std=True)
+
+        print('error', np.linalg.norm(mean_vals-fun(validation_samples))/
+              np.linalg.norm(fun(validation_samples)))
+        
+        #realization_vals = gp_realizations(validation_samples)
+        realization_vals = gp.predict_random_realization(
+            validation_samples, ngp_realizations)
+        print('cond num', np.linalg.cond(gp._K_inv))
+        #realization_vals = gp.sample_y(
+        #    validation_samples.T, ngp_realizations)[:, 0, :]
+
+        std_error = np.linalg.norm(
+            std-realization_vals.std(axis=1))/np.linalg.norm(std)
+        # print(std, realization_vals.std(axis=1))
+        mean_error = np.linalg.norm(
+            mean_vals[:, 0]-realization_vals.mean(axis=1))/np.linalg.norm(
+                mean_vals[:, 0])
+        print('std of realizations error', std_error)
+        print('mean of realizations error', mean_error)
+        assert std_error<3e-3
+        assert mean_error<1e-3
+
+        #plt.plot(validation_samples[0, :], realization_vals, '-k', lw=0.5)
+        # plt.plot(validation_samples[0, :], mean_vals, '-r')
+        # plt.plot(validation_samples[0, :], realization_vals.mean(axis=1), '--b')
+        # plt.plot(train_samples[0, :], train_vals[:, 0], 'or')
+        # plt.plot(validation_samples[0, :], fun(validation_samples), 'g')
+        # plt.plot(validation_samples[0, :], mean_vals[:, 0]+std, 'k-')
+        # plt.plot(validation_samples[0, :], realization_vals.mean(axis=1)+realization_vals.std(axis=1), 'y--')
+        # plt.show()
+        
+
 
 
 class TestSamplers(unittest.TestCase):

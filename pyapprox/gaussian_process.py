@@ -68,7 +68,7 @@ class GaussianProcess(GaussianProcessRegressor):
         return self.predict(canonical_samples.T, return_std, return_cov)
 
     def predict_random_realization(self, samples, rand_noise=1,
-                                   truncated_svd=None):
+                                   truncated_svd=None, keep_normalized=False):
         """
         Predict values of a random realization of the Gaussian process
         
@@ -109,6 +109,9 @@ class GaussianProcess(GaussianProcessRegressor):
         """
         # mapping of samples is performed in __call__
         mean, cov = self(samples, return_cov=True)
+        if keep_normalized is True:
+            mean = (mean - self._y_train_mean) / self._y_train_std
+            cov /=  self._y_train_std**2
         # Use SVD because it is more robust than Cholesky
         # L = np.linalg.cholesky(cov)
         if truncated_svd is None:
@@ -162,14 +165,18 @@ class RandomGaussianProcessRealizations:
         The number of samples of the random realization used to compute the
         accuracy of the interpolant.
     """
-    def __init__(self, gp):
+    def __init__(self, gp, use_cholesky=False, alpha=0):
         self.gp = gp
         kernel_types = [RBF, Matern]
         # ignore white noise kernel as we want to interpolate the data
         self.kernel = extract_covariance_kernel(gp.kernel_, kernel_types)
-        product_kernel = extract_covariance_kernel(gp.kernel_, [Product])
-        if product_kernel is not None:
-            self.kernel = product_kernel*self.kernel
+        constant_kernel = extract_covariance_kernel(gp.kernel_, [ConstantKernel])
+        if constant_kernel is not None:
+            self.kernel = constant_kernel*self.kernel
+        self.use_cholesky = use_cholesky
+        # it is useful to specify alpha different to the one use to invert
+        # Kernel marix at training data of gp
+        self.alpha = alpha 
 
     def fit(self, candidate_samples, rand_noise=None,
             ninterpolation_samples=500, nvalidation_samples=100):
@@ -184,46 +191,67 @@ class RandomGaussianProcessRealizations:
 
         canonical_candidate_samples = self.gp.map_to_canonical_space(
             candidate_samples)
-        #canonical_candidate_samples = np.hstack(
-        #    (self.gp.X_train_.T, canonical_candidate_samples))
-        Kmatrix = self.kernel(canonical_candidate_samples.T)
-        K = self.gp.L_.dot(self.gp.L_.T)
-        #init_pivots = np.arange(self.gp.X_train_.T.shape[1])
-        init_pivots = None
-        L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
+        canonical_candidate_samples = np.hstack(
+            (self.gp.X_train_.T, canonical_candidate_samples))
+        if self.use_cholesky is True:
+            Kmatrix = self.kernel(canonical_candidate_samples.T)
+            Kmatrix[np.diag_indices_from(Kmatrix)] += self.alpha
+            init_pivots = np.arange(self.gp.X_train_.T.shape[1])
+            # init_pivots = None
+            L, pivots, error, chol_flag = pivoted_cholesky_decomposition(
                 Kmatrix, ninterpolation_samples,
                 init_pivots=init_pivots, pivot_weights=None,
                 error_on_small_tol=False, return_full=False, econ=True)
-        if chol_flag > 0:
-            pivots = pivots[:-1]
-            msg = f"Number of samples used for interpolation {pivots.shape[0]}"
-            msg += f" was less than requested {ninterpolation_samples}"
-            print(msg)
-            # then not all points requested were selected
-            # because L became illconditioned. This usually means that no
-            # more candidate samples are useful and that error in interpolant
-            # will be small. Note  chol_flag > 0 even when 
-            # pivots.shape[0] == ninterpolation_samples. This means last
-            # step of cholesky factorization triggered the incomplete flag
+            if chol_flag > 0:
+                pivots = pivots[:-1]
+                msg = f"Number of samples used for interpolation "
+                msg += f"{pivots.shape[0]} "
+                msg += f"was less than requested {ninterpolation_samples}"
+                print(msg)
+                # then not all points requested were selected
+                # because L became illconditioned. This usually means that no
+                # more candidate samples are useful and that error in
+                # interpolant will be small. Note  chol_flag > 0 even when 
+                # pivots.shape[0] == ninterpolation_samples. This means last
+                # step of cholesky factorization triggered the incomplete flag
             
-        self.L = L[pivots, :pivots.shape[0]]
-        # print('Condition Number', np.linalg.cond(L.dot(L.T)))
-        self.selected_canonical_samples = canonical_candidate_samples[:, pivots]
+            self.L = L[pivots, :pivots.shape[0]]
+            # print('Condition Number', np.linalg.cond(L.dot(L.T)))
+            self.selected_canonical_samples = \
+                canonical_candidate_samples[:, pivots]
 
-        mask = np.ones(canonical_candidate_samples.shape[1], dtype=bool)
-        mask[pivots] = False
-        canonical_validation_samples = canonical_candidate_samples[:, mask]
-        self.canonical_validation_samples = canonical_validation_samples[
-            :, :nvalidation_samples]
-
+            mask = np.ones(canonical_candidate_samples.shape[1], dtype=bool)
+            mask[pivots] = False
+            canonical_validation_samples = canonical_candidate_samples[
+                :, mask]
+            self.canonical_validation_samples = \
+                canonical_validation_samples[:, :nvalidation_samples]
+        else:
+            assert (ninterpolation_samples + nvalidation_samples <=
+                    candidate_samples.shape[1])
+            self.selected_canonical_samples = \
+                    canonical_candidate_samples[:, :ninterpolation_samples]
+            self.canonical_validation_samples = \
+                canonical_candidate_samples[:, ninterpolation_samples:ninterpolation_samples+nvalidation_samples]
+            Kmatrix = self.kernel(self.selected_canonical_samples.T)
+            Kmatrix[np.diag_indices_from(Kmatrix)] += self.alpha
+            self.L = np.linalg.cholesky(Kmatrix)
+                
         samples = np.hstack(
             (self.selected_canonical_samples,
              self.canonical_validation_samples))
+        # make last sample mean of gaussian process
+        rand_noise = rand_noise[:samples.shape[1], :]
+        rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))
         vals = self.gp.predict_random_realization(
             self.gp.map_from_canonical_space(samples),
-            rand_noise=rand_noise[:samples.shape[1], :], truncated_svd=None)
-        self.train_vals = vals[:pivots.shape[0]]
-        self.validation_vals = vals[pivots.shape[0]:]
+            rand_noise=rand_noise, truncated_svd=None,
+            keep_normalized=True)
+        self.train_vals = vals[:self.selected_canonical_samples.shape[1]]
+        self.validation_vals = vals[self.selected_canonical_samples.shape[1]:]
+        # Entries of the following should be size of alpha when
+        # rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))
+        #print(self.train_vals[:, -1]-self.gp.y_train_[:, 0])
 
         # L_inv = np.linalg.inv(L.T)
         # L_inv = solve_triangular(L.T, np.eye(L.shape[0]))
@@ -238,6 +266,9 @@ class RandomGaussianProcessRealizations:
         error = np.linalg.norm(
             approx_validation_vals-self.validation_vals, axis=0)/(
                 np.linalg.norm(self.validation_vals, axis=0))
+        # Error in interpolation of gp mean when
+        # rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))
+        #print(np.linalg.norm((approx_validation_vals[:, -1]*self.gp._y_train_std+self.gp._y_train_mean)-self.gp(self.canonical_validation_samples)[:, 0])/np.linalg.norm(self.gp(self.canonical_validation_samples)[:, 0]))
         print('Worst case relative interpolation error', error.max())
         print('Median relative interpolation error', np.median(error))
         
@@ -245,18 +276,9 @@ class RandomGaussianProcessRealizations:
         canonical_samples = self.gp.map_to_canonical_space(samples)
         K_pred = self.kernel(
             canonical_samples.T, self.selected_canonical_samples.T)
-        return K_pred.dot(self.alpha_)
-
-    
-def evaluate_random_gaussian_process_realizations_via_interpolation(
-        gp, samples, ngp_realizations,
-        ninterpolation_samples=500,
-        nvalidation_samples=100):
-     gp_realizations = RandomGaussianProcessRealizations(gp)
-     gp_realizations.fit(
-         samples, ngp_realizations, ninterpolation_samples, nvalidation_samples)
-     interp_vals = gp_realizations(samples)
-     return interp_vals
+        vals = K_pred.dot(self.alpha_)
+        vals = self.gp._y_train_std*vals + self.gp._y_train_mean
+        return vals
 
 
 class AdaptiveGaussianProcess(GaussianProcess):
@@ -283,12 +305,12 @@ def is_covariance_kernel(kernel, kernel_types):
 def extract_covariance_kernel(kernel, kernel_types):
     cov_kernel = None
     if is_covariance_kernel(kernel, kernel_types):
-        return kernel
+        return copy.deepcopy(kernel)
     if type(kernel) == Product or type(kernel) == Sum:
         cov_kernel = extract_covariance_kernel(kernel.k1, kernel_types)
         if cov_kernel is None:
             cov_kernel = extract_covariance_kernel(kernel.k2, kernel_types)
-    return cov_kernel
+    return copy.deepcopy(cov_kernel)
 
 
 def gaussian_tau(train_samples, delta, mu, sigma):
@@ -479,7 +501,7 @@ def extract_gaussian_process_attributes_for_integration(gp):
         L_inv = solve_triangular(gp.L_.T, np.eye(gp.L_.shape[0]), lower=False)
         K_inv = L_inv.dot(L_inv.T)
     else:
-        K_inv = gp._K_inv
+        K_inv = gp._K_inv.copy()
 
     transform_quad_rules = (not hasattr(gp, 'var_trans'))
     # gp.X_train_ will already be in the canonical space if var_trans is used
@@ -488,9 +510,10 @@ def extract_gaussian_process_attributes_for_integration(gp):
     # correct for normalization of gaussian process training data
     # gp.y_train_ is normalized such that 
     # y_train = gp._y_train_std*gp.y_train_ + gp._y_train_mean
-    y_train = gp._y_train_std*gp.y_train_+gp._y_train_mean
+    # shift must be accounted for in integration so do not add here
+    y_train = gp._y_train_std*gp.y_train_
     kernel_var *= gp._y_train_std**2
-    K_inv /=  gp._y_train_std**2
+    K_inv /= gp._y_train_std**2
     return x_train, y_train, K_inv, kernel.length_scale, \
         kernel_var, transform_quad_rules
 
@@ -510,7 +533,7 @@ def integrate_gaussian_process(gp, variable, return_full=False,
     result = integrate_gaussian_process_squared_exponential_kernel(
         x_train, y_train, K_inv, kernel_length_scale,
         kernel_var, variable, return_full, transform_quad_rules,
-        nquad_samples)
+        nquad_samples, gp._y_train_mean)
     expected_random_mean, variance_random_mean, expected_random_var, \
         variance_random_var = result[:4]
     if return_full is True:
@@ -647,7 +670,8 @@ def integrate_gaussian_process_squared_exponential_kernel(
         variable,
         return_full=False,
         transform_quad_rules=False,
-        nquad_samples=50):
+        nquad_samples=50,
+        y_train_mean=0):
     r"""
     Compute
 
@@ -736,6 +760,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
     # and t (s^2)
     A_inv_y = A_inv.dot(Y_train)
     expected_random_mean = tau.dot(A_inv_y)
+    expected_random_mean += y_train_mean
 
     varpi = compute_varpi(tau, A_inv)
     varsigma_sq = compute_varsigma_sq(u, varpi)
@@ -746,6 +771,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
     v_sq = compute_v_sq(A_inv, P)
     # zeta = compute_zeta(Y_train, A_inv, P)
     zeta = compute_zeta_econ(Y_train, A_inv_y, A_inv_P)
+    zeta += 2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2
 
     expected_random_var = mean_of_variance(
         zeta, v_sq, kernel_var, expected_random_mean, variance_random_mean)
@@ -760,9 +786,13 @@ def integrate_gaussian_process_squared_exponential_kernel(
     varrho = compute_varrho_econ(lamda, A_inv_y, A_inv_P, tau)
     # phi = compute_phi(Y_train, A_inv, Pi, P)
     phi = compute_phi_econ(A_inv_y, A_inv_P, Pi, P)
+    # adjust phi with unadjusted varrho 
+    phi += 2*y_train_mean*varrho+y_train_mean**2*varsigma_sq
+    # now adjust varrho
+    varrho += y_train_mean*varsigma_sq
     # xi = compute_xi(xi_1, lamda, tau, P, A_inv)
     xi = compute_xi_econ(xi_1, lamda, tau, A_inv_P, A_inv_tau)
-
+    
     term1 = compute_var_of_var_term1(phi, kernel_var, chi, zeta, v_sq)
     term2 = compute_var_of_var_term2(
         eta, varrho, kernel_var, xi, zeta, v_sq, varsigma_sq)
@@ -2331,13 +2361,14 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
     """
     x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules = \
         extract_gaussian_process_attributes_for_integration(gp)
-    return _compute_expected_sobol_indices(
+    result = _compute_expected_sobol_indices(
         gp, variable, interaction_terms, nquad_samples, x_train, y_train,
-        K_inv, lscale, kernel_var, transform_quad_rules)
+        K_inv, lscale, kernel_var, transform_quad_rules, gp._y_train_mean)
+    return result
 
 def _compute_expected_sobol_indices(
         gp, variable, interaction_terms, nquad_samples, x_train, y_train,
-        K_inv, lscale, kernel_var, transform_quad_rules):
+        K_inv, lscale, kernel_var, transform_quad_rules, y_train_mean=0):
 
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, _  = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
@@ -2362,6 +2393,7 @@ def _compute_expected_sobol_indices(
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     A_inv = K_inv*kernel_var
+    print('cond num', np.linalg.cond(A_inv))
     tau = np.prod(np.array(tau_list), axis=0)
     u = np.prod(np.array(u_list), axis=0)
     varpi = compute_varpi(tau, A_inv)
@@ -2372,6 +2404,7 @@ def _compute_expected_sobol_indices(
 
     A_inv_y = A_inv.dot(y_train)
     expected_random_mean = tau.dot(A_inv_y)
+    expected_random_mean += y_train_mean
     variance_random_mean = np.empty_like(expected_random_mean)
     expected_random_var = np.empty_like(expected_random_mean)
     for ii in range(y_train.shape[1]):
@@ -2381,6 +2414,23 @@ def _compute_expected_sobol_indices(
         expected_random_var[ii] = mean_of_variance(
             zeta, v_sq, kernel_var, expected_random_mean[ii],
             variance_random_mean[ii])
+    expected_random_var += 2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2
+
+    from pyapprox.probability_measure_sampling import \
+        generate_independent_random_samples
+    vs = generate_independent_random_samples(variable, int(1e6))
+    vs = pce.var_trans.map_to_canonical_space(vs)
+    K_trans = gp.kernel_(vs.T, gp.X_train_)
+    A_inv_y = A_inv.dot(y_train)
+    mean_vals = K_trans.dot(A_inv_y).mean(axis=0)+y_train_mean
+    mc_mean = mean_vals.mean(axis=0)
+    # print('mc_mean', mc_mean)
+    # print((mean_vals**2).mean(axis=0)-(zeta+2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2))
+    # print((mean_vals**2).mean(axis=0))
+    # print(zeta+2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2)
+    # mc_var = (mean_vals**2).mean(axis=0) + v_sq*kernel_var - (
+    #     expected_random_mean**2 + variance_random_mean)
+    # print('mc_var', mc_var)
 
     assert interaction_terms.max() == 1
     # add indices need to compute main effects. These may already be
@@ -2429,6 +2479,30 @@ def _compute_expected_sobol_indices(
                 for key in indices:
                     unnormalized_sobol_indices[I[ii]] -= \
                         unnormalized_sobol_indices[sobol_indices_dict[key]]
+
     return unnormalized_sobol_indices/expected_random_var, \
         1-unnormalized_total_effect_values/expected_random_var, \
         expected_random_mean, expected_random_var
+
+
+def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples, 
+                             nvalidation_samples, ncandidate_samples,
+                             variable, use_cholesky=True, alpha=0):
+    rand_noise = np.random.normal(
+        0, 1, (ngp_realizations, ninterpolation_samples+nvalidation_samples)).T
+    gp_realizations = RandomGaussianProcessRealizations(gp, use_cholesky,
+                                                        alpha)
+    if use_cholesky is True:
+        generate_random_samples = partial(
+            generate_independent_random_samples, variable)
+    else:
+        generate_random_samples = None
+    from pyapprox.gaussian_process import generate_candidate_samples
+    candidate_samples = generate_candidate_samples(
+        variable.num_vars(), ncandidate_samples, generate_random_samples,
+        variable)
+    gp_realizations.fit(
+        candidate_samples, rand_noise, ninterpolation_samples,
+        nvalidation_samples)
+    fun = gp_realizations
+    return fun
