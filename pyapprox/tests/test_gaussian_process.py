@@ -145,14 +145,18 @@ class TestGaussianProcess(unittest.TestCase):
         rand_noise = np.random.normal(
             0, 1, (ninterpolation_samples+nvalidation_samples, ngp_realizations))
         candidate_samples = np.random.uniform(lb, ub, (nvars, 1000))
-        gp_realizations = RandomGaussianProcessRealizations(gp)
+        gp_realizations = RandomGaussianProcessRealizations(gp, alpha=1e-14)
         gp_realizations.fit(
             candidate_samples, rand_noise, ninterpolation_samples,
             nvalidation_samples)
         interp_random_gp_vals = gp_realizations(
             gp.map_from_canonical_space(
                 gp_realizations.selected_canonical_samples))
-        assert np.allclose(gp_realizations.train_vals, interp_random_gp_vals)
+        # print(np.absolute(gp_realizations.train_vals-interp_random_gp_vals))
+        # adding alpha means we wont interpolate the data exactly
+        assert np.allclose(
+            gp_realizations.train_vals, interp_random_gp_vals,
+            rtol=1e-6, atol=1e-6)
         samples = gp.map_from_canonical_space(np.hstack((
             gp_realizations.selected_canonical_samples,
             gp_realizations.canonical_validation_samples)))

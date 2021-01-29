@@ -19,6 +19,8 @@ from scipy.special import kv, gamma
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from pyapprox.indexing import argsort_indices_leixographically
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
 
 
 class GaussianProcess(GaussianProcessRegressor):
