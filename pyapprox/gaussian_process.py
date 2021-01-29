@@ -2369,7 +2369,7 @@ def compute_expected_sobol_indices(gp, variable, interaction_terms,
 def _compute_expected_sobol_indices(
         gp, variable, interaction_terms, nquad_samples, x_train, y_train,
         K_inv, lscale, kernel_var, transform_quad_rules, y_train_mean=0):
-
+    assert np.isscalar(y_train_mean) or y_train_mean.shape == (1,)
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, _  = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
             x_train, lscale, variable, transform_quad_rules,
@@ -2393,7 +2393,7 @@ def _compute_expected_sobol_indices(
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     A_inv = K_inv*kernel_var
-    print('cond num', np.linalg.cond(A_inv))
+    # print('cond num', np.linalg.cond(A_inv))
     tau = np.prod(np.array(tau_list), axis=0)
     u = np.prod(np.array(u_list), axis=0)
     varpi = compute_varpi(tau, A_inv)
@@ -2409,28 +2409,12 @@ def _compute_expected_sobol_indices(
     expected_random_var = np.empty_like(expected_random_mean)
     for ii in range(y_train.shape[1]):
         variance_random_mean[ii] = variance_of_mean(kernel_var, varsigma_sq)
-        zeta = compute_zeta_econ(
+        zeta_ii = compute_zeta_econ(
             y_train[:, ii:ii+1], A_inv_y[:, ii:ii+1], A_inv_P)
-        zeta += 2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2
+        zeta_ii += 2*tau.dot(A_inv_y[:, ii:ii+1])*y_train_mean+y_train_mean**2
         expected_random_var[ii] = mean_of_variance(
-            zeta, v_sq, kernel_var, expected_random_mean[ii],
+            zeta_ii, v_sq, kernel_var, expected_random_mean[ii],
             variance_random_mean[ii])
-
-    from pyapprox.probability_measure_sampling import \
-        generate_independent_random_samples
-    vs = generate_independent_random_samples(variable, int(1e6))
-    vs = pce.var_trans.map_to_canonical_space(vs)
-    K_trans = gp.kernel_(vs.T, gp.X_train_)
-    A_inv_y = A_inv.dot(y_train)
-    mean_vals = K_trans.dot(A_inv_y).mean(axis=0)+y_train_mean
-    mc_mean = mean_vals.mean(axis=0)
-    # print('mc_mean', mc_mean)
-    # print((mean_vals**2).mean(axis=0)-(zeta+2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2))
-    # print((mean_vals**2).mean(axis=0))
-    # print(zeta+2*tau.dot(A_inv_y)*y_train_mean+y_train_mean**2)
-    # mc_var = (mean_vals**2).mean(axis=0) + v_sq*kernel_var - (
-    #     expected_random_mean**2 + variance_random_mean)
-    # print('mc_var', mc_var)
 
     assert interaction_terms.max() == 1
     # add indices need to compute main effects. These may already be
@@ -2453,7 +2437,6 @@ def _compute_expected_sobol_indices(
                 U_p *= u_list[ii]
         trace_A_inv_Pp = np.sum(A_inv*P_p)# U_p-np.trace(A_inv.dot(P_p))
         for ii in range(y_train.shape[1]):
-            # varsigma_ii = U_p-np.trace(A_inv.dot(P_p)))
             v_sq_ii = U_p-trace_A_inv_Pp
             zeta_ii = A_inv_y[:, ii:ii+1].T.dot(P_p.dot(A_inv_y[:, ii:ii+1]))
             zeta_ii += 2*tau.dot(A_inv_y[:, ii:ii+1])*y_train_mean+\

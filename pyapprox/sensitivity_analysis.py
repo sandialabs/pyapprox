@@ -161,7 +161,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
 
 def plot_sensitivity_indices_with_confidence_intervals(
         labels, ax, sa_indices_median, sa_indices_q1, sa_indices_q3,
-        sa_indices_min, sa_indices_max, reference_values=None):
+        sa_indices_min, sa_indices_max, reference_values=None, fliers=None):
     import matplotlib.cbook as cbook
     nindices = len(sa_indices_median)
     assert len(sa_indices_median) == nindices
@@ -180,13 +180,20 @@ def plot_sensitivity_indices_with_confidence_intervals(
         # use whiskers for min and max instead of fliers
         stats[nn]['whislo'] = sa_indices_min[nn]
         stats[nn]['whishi'] = sa_indices_max[nn]
-        # stats[nn]['fliers'] = [sa_indices_min[nn], sa_indices_max[nn]]
+        if fliers is not None:
+            stats[nn]['fliers'] = fliers[nn]
 
     if reference_values is not None:
         showmeans = True
     else:
         showmeans = False
-    bp = ax.bxp(stats, showfliers=False, showmeans=showmeans,
+
+    if fliers is not None:
+        showfliers = True
+    else:
+        showfliers = False
+        
+    bp = ax.bxp(stats, showfliers=showfliers, showmeans=showmeans,
                 patch_artist=True,
                 meanprops=dict(marker='o',markerfacecolor='blue',
                                markeredgecolor='blue', markersize=12),
@@ -499,7 +506,7 @@ def downselect_morris_trajectories(samples, ntrajectories):
     return samples
 
 
-class SensivitityResult(OptimizeResult):
+class SensitivityResult(OptimizeResult):
     pass
 
 
@@ -527,7 +534,7 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories, nlevels
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     mu : np.ndarray (nvars,nqoi) 
@@ -554,7 +561,7 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories, nlevels
     elem_effects = get_morris_elementary_effects(samples, values)
     mu, sigma = get_morris_sensitivity_indices(elem_effects)
 
-    return SensivitityResult(
+    return SensitivityResult(
         {'morris_mu': pce_main_effects,
          'morris_sigma': pce_total_effects,
          'samples': samples, 'values': values})
@@ -581,7 +588,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     main_effects : np.ndarray (nvars)
@@ -615,7 +622,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
     interaction_terms, pce_sobol_indices = get_sobol_indices(
         pce.get_coefficients(), pce.get_indices(), max_order=max_order)
 
-    return SensivitityResult(
+    return SensitivityResult(
         {'main_effects': pce_main_effects,
          'total_effects': pce_total_effects,
          'sobol_indices': pce_sobol_indices,
@@ -642,7 +649,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensivitityResult`
+    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     main_effects : np.ndarray (nvars)
@@ -666,7 +673,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
         pce.get_coefficients(), pce.get_indices(),
         max_order=max_order)
 
-    return SensivitityResult(
+    return SensitivityResult(
         {'main_effects': pce_main_effects,
          'total_effects': pce_total_effects,
          'sobol_indices': pce_sobol_indices,
@@ -876,7 +883,7 @@ def analytic_sobol_indices_from_gaussian_process(
     
         x_train = gp_realizations.selected_canonical_samples
         # gp_realizations.train_vals is normalized so unnormalize
-        y_train = gp._y_train_std*gp_realizations.train_vals+gp._y_train_mean
+        y_train = gp._y_train_std*gp_realizations.train_vals
         # kernel_var has already been adjusted by call to
         # extract_gaussian_process_attributes_for_integration
         # kernel_var *= gp._y_train_std**2
@@ -884,14 +891,12 @@ def analytic_sobol_indices_from_gaussian_process(
         # K_inv = L_inv.T.dot(L_inv)
         K_inv = np.linalg.inv(gp_realizations.L.dot(gp_realizations.L.T))
         K_inv /= gp._y_train_std**2
-        #print(K_inv.shape, np.linalg.norm(K_inv))
-        #print(np.linalg.norm(x_train))
-        # print(np.linalg.norm(y_train))
 
     sobol_values, total_values, means, variances = \
         _compute_expected_sobol_indices(
             gp, variable, interaction_terms, nquad_samples,
-            x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules)
+            x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules,
+            gp._y_train_mean)
     sobol_values = sobol_values.T
     total_values = total_values.T
 
