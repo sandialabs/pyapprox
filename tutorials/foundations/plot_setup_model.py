@@ -37,7 +37,7 @@ values = benchmark.fun(samples)
 #%%
 #User defined functions
 #^^^^^^^^^^^^^^^^^^^^^^
-#Pyapprox can be used with pretty much any function provided an appropriate interface is defined. Here will show how to setup a simple function.
+#PyApprox can be used with pretty much any function provided an appropriate interface is defined. Here will show how to setup a simple function.
 #
 #PyApprox requires all functions to take 2D np.ndarray with shape (nvars,nsamples) and requires a function to return a 2D np.ndarray with shape (nsampels,nqoi). nqoi==1 for scalar valued functions and nqoi>1 for vectored value functions.
 #
