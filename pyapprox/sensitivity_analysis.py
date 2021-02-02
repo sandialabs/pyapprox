@@ -578,7 +578,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
        The sparse grid
 
     max_order : integer
-        The maximum interaction order of Sonol indices to compute. A value
+        The maximum interaction order of Sobol indices to compute. A value
         of 2 will compute all pairwise interactions, a value of 3 will 
         compute indices for all interactions involving 3 variables. The number
         of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
@@ -640,7 +640,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
        The polynomial chaos expansion
 
     max_order : integer
-        The maximum interaction order of Sonol indices to compute. A value
+        The maximum interaction order of Sobol indices to compute. A value
         of 2 will compute all pairwise interactions, a value of 3 will 
         compute indices for all interactions involving 3 variables. The number
         of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
