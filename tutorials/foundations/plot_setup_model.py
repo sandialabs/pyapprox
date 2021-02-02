@@ -14,7 +14,7 @@ benchmark = setup_benchmark('rosenbrock',nvars=2)
 print(benchmark.keys())
 
 #%%
-#Any of these attributes, e.g. the Rosenbrock function (the attribute ``fun`` can be accessed using benchmark.fun.
+#Any of these attributes can be accessed, e.g. the Rosenbrock function can be accessed using ``benchmark.fun`` (i.e. the attribute ``fun``).
 #
 #Now lets define the inputs to the function of interest. For independent random variables we use SciPy random variablest to represent each one-dimensional variables. For documentation refer to the `scipy.stats module <https://docs.scipy.org/doc/scipy/reference/stats.html>`_.
 #
