@@ -8,7 +8,14 @@ from scipy.optimize import NonlinearConstraint, Bounds
 def smooth_max_function_log(eps, shift, x):
     if shift is True:
         x = x-eps
-    vals = (x + eps*np.log(1+np.exp(-x/eps)))
+    x_div_eps = x/eps
+    # vals = (x + eps*np.log(1+np.exp(-x_div_eps)))
+    # avoid overflow
+    vals = np.zeros_like(x)
+    I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
+    vals[I] = x[I]+eps*np.log(1+np.exp(-x_div_eps[I]))
+    J = np.where(x_div_eps>=1e2)
+    vals[J] = x[J]
     assert np.all(np.isfinite(vals))
     return vals
 
@@ -454,6 +461,18 @@ class FSDOptProblem(object):
             #         hessian[kk, jj] = hessian[jj, kk]
         return hessian
 
+    def get_unknowns_bounds(self):
+        lb = -np.inf*np.ones(self.ncoef)
+        ub = np.inf*np.ones(self.ncoef)
+        bounds = Bounds(lb, ub)
+        return bounds
+
+    def get_constraint_bounds(self):
+        nconstraints = self.eta_indices.shape[0]
+        lb = -np.inf*np.ones(nconstraints)
+        ub = np.zeros(nconstraints)
+        return lb, ub
+
     def solve(self, x0, optim_options={}, method=None):
         r"""
         Returns
@@ -473,17 +492,12 @@ class FSDOptProblem(object):
         if method == 'trust_constr':
             x_grad = None
 
-        lb = np.zeros(self.ncoef)
-        lb[:self.ncoef] = -np.inf
-        ub = np.ones(self.ncoef)
-        ub[:self.ncoef] = np.inf
-        bounds = Bounds(lb, ub)
+        bounds = self.get_unknowns_bounds()
 
         keep_feasible = True
-        nconstraints = self.eta_indices.shape[0]
+        constr_lb, constr_ub = self.get_constraint_bounds()
         constraint = NonlinearConstraint(
-            self.constraint_fun,
-            -np.inf*np.ones(nconstraints), 0*np.ones(nconstraints),
+            self.constraint_fun, constr_lb, constr_ub,
             jac=self.constraint_jac, hess=self.constraint_hess,
             keep_feasible=keep_feasible)
 
@@ -558,9 +572,8 @@ def solve_FSD_constrained_least_squares_smooth(
     scaled_values = values/values_std
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
-    I = np.argmax(scaled_values)
-    residual = scaled_values[I]-basis_matrix[I].dot(x0)
-    x0[0] += max(0, residual)
+    residual = scaled_values-basis_matrix.dot(x0)
+    x0[0] += max(0, residual.max())
 
     fsd_opt_problem = FSDOptProblem(
         scaled_values, fun, jac, None, eta_indices, probabilities,

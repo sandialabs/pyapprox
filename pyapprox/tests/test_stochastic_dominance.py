@@ -1,5 +1,6 @@
 import unittest
 from pyapprox.first_order_stochastic_dominance import *
+from pyapprox.second_order_stochastic_dominance import *
 from pyapprox.optimization import check_gradients, check_hessian
 from pyapprox.rol_minimize import has_ROL
 from functools import partial
@@ -110,6 +111,49 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         optim_options = {'verbose': 2, 'maxiter': maxiter}
         coef = problem.solve(x0, optim_options, method).x
         coef *= values_std
+
+    def test_second_order_stochastic_dominance_constraints(self):      
+        # import matplotlib.pyplot as plt
+        # eps = 1e-1
+        # xx = np.linspace(-1, 1, 101)
+        # yy = smooth_max_function_log(eps, 0, xx)
+        # plt.plot(xx, yy)
+        # plt.show()
+        
+        nbasis = 2
+        def func(x):
+            return (1+x-x**2+x**3).T
+        samples = np.random.uniform(-1, 1, (1, 20))
+        samples = np.sort(samples)
+        values = func(samples)
+        def eval_basis_matrix(x):
+            return (x**np.arange(nbasis)[:, None]).T
+        tau = 0.75
+        tol = 1e-14
+        eps = 1e-3
+        optim_options = {'verbose': 3, 'maxiter':2000,
+                         'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
+        ssd_coef = solve_SSD_constrained_least_squares_smooth(
+            samples, values, eval_basis_matrix, optim_options=optim_options,
+            eps=eps, method='trust-constr')
+        true_coef = np.zeros((nbasis))
+        approx_vals = eval_basis_matrix(samples).dot(ssd_coef)
+        assert approx_vals.max() >= values.max()
+        assert approx_vals.mean() >= values.mean()
+
+        pce_vals = eval_basis_matrix(samples).dot(ssd_coef)
+        pce_econds = compute_conditional_expectations(pce_vals, pce_vals, True)
+        train_econds = compute_conditional_expectations(
+            pce_vals, values[:, 0], True)
+        print(train_econds-pce_econds)
+        assert np.all(train_econds<=pce_econds+2e-5)
+        
+        # import matplotlib.pyplot as plt
+        # xx = np.linspace(-1, 1, 101)
+        # yy = eval_basis_matrix(xx[None, :]).dot(ssd_coef)
+        # plt.plot(xx, yy)
+        # plt.plot(samples[0, :], values, 'o')
+        # plt.show()
         
         
 
