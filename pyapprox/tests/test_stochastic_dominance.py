@@ -154,9 +154,6 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         # plt.plot(xx, yy)
         # plt.plot(samples[0, :], values, 'o')
         # plt.show()
-        
-        
-
 
 if __name__ == "__main__":
     fsd_test_suite = unittest.TestLoader().loadTestsFromTestCase(
