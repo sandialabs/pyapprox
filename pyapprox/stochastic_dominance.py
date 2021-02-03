@@ -1182,43 +1182,4 @@ class FSDOptProblem(SmoothDisutilitySSDOptProblem):
         plt.show()
 
 
-def solve_FSD_constrained_least_squares_smooth(
-        samples, values, eval_basis_matrix, eta_indices=None,
-        probabilities=None, eps=None, optim_options=None, return_full=False,
-        method='trust_constr', smoother_type=2):
-    """
-    First order stochastic dominance FSD
-    """
-    num_samples = samples.shape[1]
-    if probabilities is None:
-        probabilities = np.ones((num_samples))/num_samples
-
-    if eta_indices is None:
-        eta_indices = np.arange(num_samples)
-    eta = values[eta_indices, 0]
-    print(eta.shape, eta_indices)
-
-    basis_matrix = eval_basis_matrix(samples)
-
-    fsd_opt_problem = FSDOptProblem(
-        basis_matrix, values[:, 0], eta, probabilities,
-        eps=eps, smoother_type=smoother_type)
-
-    coef = fsd_opt_problem.solve(optim_options, method)
-
-    # xx = np.linspace(-1.5,2,100)
-    # import matplotlib.pyplot as plt
-    # print(samples)
-    # print(fsd_opt_problem.init_guess.shape)
-    # plt.plot(xx,eval_basis_matrix(xx[None, :]).dot(coef))
-    # plt.plot(xx,eval_basis_matrix(xx[None, :]).dot(fsd_opt_problem.init_guess[:coef.shape[0]]),'--')
-    # plt.show()
-    # assert False
-
-    if return_full:
-        return coef, fsd_opt_problem
-    else:
-        return coef
-
-
 

@@ -7,7 +7,6 @@ from functools import partial
 
 skiptest_rol = unittest.skipIf(
     not has_ROL, reason="rol package not found")
-skiptest = unittest.skip(reason="test incomplete")
 class TestFirstOrderStochasticDominance(unittest.TestCase):
 
     def setUp(self):
@@ -77,21 +76,41 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         err = check_hessian(constr_jac, constr_hessp, x0)
         assert err.min()<1e-5 and err.max()>0.1
 
-    @skiptest
+    # @skiptest
     def test_1d_monomial_regression(self):
-        smoother_type, eps = 'quartic', 1e-2
-        nsamples, degree = 10, 1
+        # smoother_type, eps = 'quartic', 1e-2
+        smoother_type, eps = 'quintic', 1e-1
+        # smoother_type, eps = 'log', 5e-2
+        nsamples, degree = 10, 3
+        # nsamples, degree, eps = 10, 1, 5e-2 converges but it takes a long time
+        # convergence seems to get easier (I can decrease eps) as degree
+        # increases. I think because size of residuals gets smaller
+
+        # import matplotlib.pyplot as plt
+        # xx = np.linspace(-1, 1, 101)
+        # yy = smooth_left_heaviside_function_log(eps, 0, xx)
+        # plt.plot(xx, yy)
+        # yy = numba_smooth_left_heaviside_function_quartic(
+        #     eps, 0, xx[:, None])
+        # plt.plot(xx, yy)
+        # plt.show()
 
         samples, values, fun, jac, probabilities, ncoef, x0 = \
             self.setup_linear_regression_problem(nsamples, degree, eps)
+        values_std = 1 #values.std()
+        scaled_values = values/values_std
 
         eta = np.arange(nsamples)
         problem = FSDOptProblem(
-            values, fun, jac, None, eta, probabilities, smoother_type, eps,
+            scaled_values, fun, jac, None, eta, probabilities, smoother_type, eps,
             ncoef)
 
-        optim_options = {'verbose': 2, 'maxiter':2}
-        problem.solve(x0, optim_options)
+        method, maxiter = 'rol-trust-constr', 100
+        # method, maxiter = 'trust-constr', 1000
+        optim_options = {'verbose': 2, 'maxiter': maxiter}
+        coef = problem.solve(x0, optim_options, method).x
+        coef *= values_std
+        
         
 
 

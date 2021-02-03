@@ -577,7 +577,6 @@ class TestRiskMeasures(unittest.TestCase):
         # print(cvar_exact,ecvar)
         assert np.allclose(cvar_exact, ecvar)
 
-
     def test_conditional_value_at_risk_using_opitmization_formula(self):
         """
         Compare value obtained via optimization and analytical formula

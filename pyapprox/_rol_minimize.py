@@ -1,3 +1,4 @@
+from scipy.optimize import rosen, rosen_der, rosen_hess
 import numpy as np
 import ROL
 from ROL import StdVector as RolVector
@@ -6,6 +7,8 @@ from ROL import StdVector as RolVector
 from scipy.optimize import LinearConstraint, NonlinearConstraint, Bounds, \
     OptimizeResult, BFGS
 from functools import partial
+
+
 def std_vector_to_numpy(x):
     size = x.dimension()
     res = np.empty((size), dtype=float)
@@ -13,11 +16,13 @@ def std_vector_to_numpy(x):
         res[ii] = x[ii]
     return res
 
+
 def rol_vector_to_numpy(x):
     if hasattr(x, 'data'):
         return x.data
     else:
         return std_vector_to_numpy(x)
+
 
 def numpy_to_rol_vector(np_x, x):
     if hasattr(x, 'data'):
@@ -26,6 +31,7 @@ def numpy_to_rol_vector(np_x, x):
         size = np_x.shape[0]
         for ii in range(size):
             x[ii] = np_x[ii]
+
 
 class ROLObj(ROL.Objective):
     def __init__(self, fun, jac, hess=None, hessp=None):
@@ -73,7 +79,7 @@ class ROLConstraint(ROL.Constraint):
         self.fun = fun
         self.jac = jac
         self.hessp = hessp
-        
+
         assert callable(self.jac)
         if self.hessp is not None:
             assert callable(self.hessp)
@@ -92,7 +98,7 @@ class ROLConstraint(ROL.Constraint):
         # print(res,'jv',flush=True)
         # print(np_x,'x',flush=True)
         # print(np_v,'v',flush=True)
-  
+
     def applyAdjointJacobian(self, jv, v, x, tol):
         np_x = rol_vector_to_numpy(x)
         np_v = rol_vector_to_numpy(v)
@@ -127,7 +133,7 @@ def get_rol_parameters(method, use_bfgs, options):
     if paramlist_filename is not None:
         paramlist = ROL.ParameterList(paramlist_filename)
         return paramlist
-        
+
     paramsDict = {}
     # method = "Augmented Lagrangian"
     # method = "Fletcher"
@@ -138,7 +144,7 @@ def get_rol_parameters(method, use_bfgs, options):
     paramsDict["Step"] = {"Type": method}
     #paramsDict["Step"]["Fletcher"] = {}
     #paramsDict["Step"]["Fletcher"]['Penalty Parameter'] = 1e8
-    
+
     paramsDict["Step"]["Trust Region"] = {}
     paramsDict["Step"]["Trust Region"]["Subproblem Solver"] = "Truncated CG"
     paramsDict["Step"]["Trust Region"]["Subproblem Model"] = "Kelley Sachs"
@@ -146,24 +152,24 @@ def get_rol_parameters(method, use_bfgs, options):
     #paramsDict["Step"]["Trust Region"]["Subproblem Model"] = "Coleman-Li"
     #paramsDict["Step"]["Trust Region"]["Subproblem Solver"] = "Lin-More"
     #paramsDict["Step"]["Trust Region"]["Subproblem Model"] = "Lin-More"
-    
-    paramsDict["Step"]["Augmented Lagrangian"]  = {
-    #     'Initial Optimality Tolerance':1e-1,
-    #     'Initial Feasibility Tolerance':1e-1,
-    'Use Default Problem Scaling':False,
-    'Print Intermediate Optimization History':(options.get('verbose', 0)>2),
-    'Use Default Initial Penalty Parameter':False,
-    'Initial Penalty Parameter':1e3,
-    'Maximum Penalty Parameter':1e8,
-    'Penalty Parameter Growth Factor':2,
-    #    'Subproblem Iteration Limit':200
+
+    paramsDict["Step"]["Augmented Lagrangian"] = {
+        #     'Initial Optimality Tolerance':1e-1,
+        #     'Initial Feasibility Tolerance':1e-1,
+        'Use Default Problem Scaling': False,
+        'Print Intermediate Optimization History': (options.get('verbose', 0) > 2),
+        'Use Default Initial Penalty Parameter': False,
+        'Initial Penalty Parameter': 1e3,
+        'Maximum Penalty Parameter': 1e8,
+        'Penalty Parameter Growth Factor': 2,
+        #    'Subproblem Iteration Limit':200
     }
     # paramsDict["Step"]["Moreau-Yosida Penalty"]  = {
     #    'Subproblem':{'Iteration Limit':20}, 'Initial Penalty Parameter':1e-2,
     #    'Penalty Parameter Growth Factor':2, 'Update Penalty':True}
-    
+
     paramsDict["General"] = {
-        'Print Verbosity': int(options.get('verbose', 0)>3)}
+        'Print Verbosity': int(options.get('verbose', 0) > 3)}
     paramsDict["General"]["Secant"] = {"Use as Hessian": False}
     if use_bfgs:
         paramsDict["General"]["Secant"]["Use as Hessian"] = True
@@ -171,41 +177,40 @@ def get_rol_parameters(method, use_bfgs, options):
         paramsDict["Step"]["Line Search"]["Descent Method"] = {}
         paramsDict["Step"]["Line Search"]["Descent Method"]["Type"] = \
             "Quasi-Newton Method"
-        
+
     paramsDict["Status Test"] = {
-            "Gradient Tolerance" : options.get('gtol', 1e-8),
-            "Step Tolerance" : options.get('xtol', 1e-14),
-            "Constraint Tolerance" : options.get('ctol', 1e-8),
-            "Iteration Limit" : options.get("maxiter", 100)}
+        "Gradient Tolerance": options.get('gtol', 1e-8),
+        "Step Tolerance": options.get('xtol', 1e-14),
+        "Constraint Tolerance": options.get('ctol', 1e-8),
+        "Iteration Limit": options.get("maxiter", 100)}
     paramlist = ROL.ParameterList(paramsDict, "Parameters")
     return paramlist
 
 
 def get_rol_bounds(py_lb, py_ub):
     nvars = len(py_lb)
-    #if np.all(py_lb == -np.inf) and np.all(py_ub == np.inf):
+    # if np.all(py_lb == -np.inf) and np.all(py_ub == np.inf):
     #    raise Exception('Bounds not needed lb and ub are -inf, +inf')
     if np.any(py_lb == np.inf):
         raise Exception('A lower bound was set to +inf')
     if np.any(py_ub == -np.inf):
         raise Exception('An upper bound was set to -inf')
-        
-    
+
     lb, ub = RolVector(nvars), RolVector(nvars)
     for ii in range(nvars):
         lb[ii], ub[ii] = py_lb[ii], py_ub[ii]
-        
-    #if np.all(py_lb == -np.inf) and not np.all(py_ub == np.inf):
+
+    # if np.all(py_lb == -np.inf) and not np.all(py_ub == np.inf):
     #    return ROL.Bounds(ub, False, 1.0)
-    #elif np.all(py_ub == np.inf) and not np.all(py_lb == -np.inf):
+    # elif np.all(py_ub == np.inf) and not np.all(py_lb == -np.inf):
     #    return ROL.Bounds(lb, True, 1.0)
     # avoid overflow warnings created by numpy_vector.py
     I = np.where(~np.isfinite(py_lb))[0]
     J = np.where(~np.isfinite(py_ub))[0]
     for ii in I:
-        lb[ii] = -1e6#-np.finfo(float).max/100
+        lb[ii] = -1e6  # -np.finfo(float).max/100
     for jj in J:
-        ub[jj] = 1e6#np.finfo(float).max/100
+        ub[jj] = 1e6  # np.finfo(float).max/100
     # print(lb.data, ub.data)
     return ROL.Bounds(lb, ub, 1.0)
 
@@ -216,14 +221,15 @@ def get_rol_numpy_vector(np_vec):
         vec[ii] = np_vec[ii]
     return vec
 
+
 def get_constraints(scipy_constraints, scipy_bounds, x0=None):
     bnd, econs, emuls, icons, imuls, ibnds = None, [], [], [], [], []
     if scipy_bounds is not None:
         bnd = get_rol_bounds(scipy_bounds.lb, scipy_bounds.ub)
 
-    #print(len(scipy_constraints),'Z')
+    # print(len(scipy_constraints),'Z')
     for constr in scipy_constraints:
-        #print(type(constr))
+        # print(type(constr))
         if type(constr) == LinearConstraint:
             cfun = partial(linear_constraint_fun, constr.A)
             cjac = partial(linear_constraint_jac, constr.A)
@@ -255,18 +261,19 @@ def check_constraint_gradient(constr, rol_constr, x0):
     print("Testing constraint Jacobian", flush=True)
     x = get_rol_numpy_vector(x0)
     #v = get_rol_numpy_vector(np.random.normal(0, 1, x0.shape[0]))
-    v = get_rol_numpy_vector(np.ones(x0.shape[0])) # temp hack for comparisons
+    v = get_rol_numpy_vector(np.ones(x0.shape[0]))  # temp hack for comparisons
     jv = get_rol_numpy_vector(np.zeros(len(constr.lb)))
     rol_constr.checkApplyJacobian(x, v, jv, 12, 1)
     w = get_rol_numpy_vector(np.random.normal(0, 1, len(constr.lb)))
     rol_constr.checkAdjointConsistencyJacobian(w, v, x)
     if rol_constr.hessp is not None:
         #u = get_rol_numpy_vector(np.random.normal(0, 1, len(constr.lb)))
-        u = get_rol_numpy_vector(np.ones(len(constr.lb))) # temp hack for comparisons
+        # temp hack for comparisons
+        u = get_rol_numpy_vector(np.ones(len(constr.lb)))
         hv = get_rol_numpy_vector(np.zeros(x0.shape[0]))
         print("Testing constraint Hessian", flush=True)
         rol_constr.checkApplyAdjointHessian(x, u, v, hv, 12, 1)
-    
+
 
 def rol_minimize(fun, x0, method=None, jac=None, hess=None,
                  hessp=None, bounds=None, constraints=(), tol=None,
@@ -286,7 +293,7 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
         use_bfgs = True
     for constr in constraints:
         if (type(constr) != LinearConstraint and
-            (type(constr.hess) == BFGS or constr.hess is None)):
+                (type(constr.hess) == BFGS or constr.hess is None)):
             use_bfgs = True
             constr.hess = None
 
@@ -311,9 +318,11 @@ def rol_minimize(fun, x0, method=None, jac=None, hess=None,
         x=rol_vector_to_numpy(x), fun=state.value, cnorm=state.cnorm,
         gnorm=state.gnorm, snorm=state.snorm, success=success, nit=state.iter,
         nfev=state.nfval, ngev=state.ngrad, constr_nfev=state.ncval,
-        status=state.statusFlag.name, message=f'Optimization terminated early {state.statusFlag.name}'
+        status=state.statusFlag.name,
+        message=f'Optimization terminated early {state.statusFlag.name}'
     )
     return res
+
 
 def test_TR():
     def fun(x):
@@ -330,23 +339,23 @@ def test_TR():
     assert round(x[0] - 1.0, 6) == 0.0
     assert round(x[1], 6) == 0.0
 
-from scipy.optimize import rosen, rosen_der, rosen_hess
+
 def test_rosenbrock_TR():
     x0 = np.zeros(2)
     x = rol_minimize(rosen, x0, jac=rosen_der, hess=rosen_hess).x
     assert np.allclose(x, np.ones(2))
 
-    
+
 def test_rosenbrock_TR_constrained():
     bounds = Bounds([0, -0.5], [1.0, 2.0])
-    
+
     linear_constraint = LinearConstraint(
         np.array([[1, 2], [2, 1]]), [-np.inf, 1], [1, 1])
     linear_constraint1 = LinearConstraint(
         np.array([[1, 2]]), [-np.inf], [1])
     linear_constraint2 = LinearConstraint(
         np.array([[2, 1]]), [1], [1])
-    
+
     def cons_f(x):
         return np.array([x[0]**2 + x[1], x[0]**2 - x[1]])
 
@@ -361,18 +370,18 @@ def test_rosenbrock_TR_constrained():
         cons_f, -np.inf*np.ones(2), 1*np.ones(2), jac=cons_J, hess=cons_H)
 
     #constraints = [linear_constraint, nonlinear_constraint]
-    constraints = [linear_constraint1, linear_constraint2, nonlinear_constraint]
-    options = {'maxiter':100, 'gtol':1e-8, 'ctol':1e-8, 'verbose':3}
+    constraints = [linear_constraint1,
+                   linear_constraint2, nonlinear_constraint]
+    options = {'maxiter': 100, 'gtol': 1e-8, 'ctol': 1e-8, 'verbose': 3}
 
     #constraints = ()
-    
+
     x0 = np.array([0.5, 0])
     x_grad = None
     res = rol_minimize(
         rosen, x0, jac=rosen_der, hess=rosen_hess, constraints=constraints,
         bounds=bounds, options=options,
-        x_grad = x_grad)
+        x_grad=x_grad)
     print(res)
     print(res.x, -np.array([0.41494531, 0.17010937]))
     assert np.allclose(res.x, [0.41494531, 0.17010937], atol=1e-6)
-    
