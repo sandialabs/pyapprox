@@ -3,6 +3,11 @@ from pyapprox.risk_measures import compute_conditional_expectations
 
 
 class SSDOptProblem(FSDOptProblem):
+    """
+    Solve disutility stochastic dominance
+
+    -Y \ge -Y^\prime
+    """
     
     def set_smoother(self, smoother_type, eps):
         self.smoother_type = smoother_type
@@ -68,7 +73,7 @@ class SSDOptProblem(FSDOptProblem):
 def solve_SSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
         probabilities=None, eps=1e-1, optim_options={}, return_full=False,
-        method='rol-trust-constr', smoother_type='log', scale_data=False):
+        method='trust-constr', smoother_type='log', scale_data=False):
     """
     Second order stochastic dominance SSD
     """
@@ -94,7 +99,7 @@ def solve_SSD_constrained_least_squares_smooth(
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
     residual = scaled_values-basis_matrix.dot(x0)
-    x0[0] += max(0, residual.max())
+    x0[0] += max(0, residual.max()+eps)
 
     ssd_opt_problem = SSDOptProblem(
         scaled_values, fun, jac, None, eta_indices, probabilities,

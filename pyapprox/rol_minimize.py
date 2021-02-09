@@ -32,7 +32,8 @@ def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
             options, x_grad)
 
     x0 = x0.squeeze() # scipy only takes 1D np.ndarrays
-    assert x0.ndim == 1
+    x0 = np.atleast_1d(x0) # change scalars to np.ndarrays
+    assert x0.ndim <= 1
     if method == 'rol-trust-constr' and not has_ROL:
         print('ROL requested by not available switching to scipy.minimize')
         method = 'trust-constr'

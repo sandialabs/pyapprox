@@ -808,7 +808,7 @@ def get_total_degree_polynomials(univariate_variables,degrees):
 
 def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
                        axs,samples,data,labels,ranges,hf_data_mean=None,
-                       colors=None):    
+                       colors=None, mean_label='MFNet'):    
     if samples[-1].ndim!=1 and samples[-1].shape[0]>1:
         print('Cannot plot num_vars>1')
         return
@@ -828,7 +828,7 @@ def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
         approx_prior_mean+= hf_data_mean
         
     approx_post_std = np.sqrt(np.diag(approx_post_covariance))
-    axs.plot(xx,approx_post_mean,'--g',label='MFNet')
+    axs.plot(xx,approx_post_mean,'--g',label=mean_label)
     axs.fill_between(xx,approx_post_mean-2*approx_post_std,
                      approx_post_mean+2*approx_post_std,color='green',alpha=0.5)
 

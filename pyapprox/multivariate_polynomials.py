@@ -5,7 +5,7 @@ from pyapprox.variables import get_distribution_info, \
     IndependentMultivariateRandomVariable
 from pyapprox.utilities import get_tensor_product_quadrature_rule, \
     unique_matrix_rows
-from pyapprox.orthonormal_polynomials_1d import get_recursion_coefficients
+from pyapprox.univariate_quadrature import get_recursion_coefficients
 from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
 from functools import partial
 import numpy as np

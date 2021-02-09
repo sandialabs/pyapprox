@@ -12,10 +12,12 @@ from pyapprox.variables import IndependentMultivariateRandomVariable,\
     float_rv_discrete
 from functools import partial
 from pyapprox.indexing import sort_indices_lexiographically
-from scipy.stats import uniform, beta, norm, hypergeom, binom
+from scipy.stats import uniform, beta, norm, hypergeom, binom, gumbel_r, lognorm
 
 
 class TestMultivariatePolynomials(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_evaluate_multivariate_orthonormal_polynomial(self):
         num_vars = 2
@@ -520,6 +522,47 @@ class TestMultivariatePolynomials(unittest.TestCase):
         p = poly.basis_matrix(xk[np.newaxis, :])
         w = pk
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
+
+    def test_pce_for_gumbel_variable(self):
+        degree = 3
+        mean, std = 1e4, 7.5e3
+        beta = std*np.sqrt(6)/np.pi
+        mu = mean - beta*np.euler_gamma
+        rv1 = gumbel_r(loc=mu, scale=beta)
+        assert np.allclose(rv1.mean(), mean) and np.allclose(rv1.std(), std)
+        rv2 = lognorm(1)
+        for rv in [rv2, rv1]:
+            print(rv.dist.name)
+            ncoef = degree+1
+            var_trans = AffineRandomVariableTransformation([rv])
+            poly = PolynomialChaosExpansion()
+            poly_opts = define_poly_options_from_variable_transformation(
+                var_trans)
+            poly_opts['numerically_generated_poly_accuracy_tolerance'] = 1e-8
+            poly.configure(poly_opts)
+            poly.set_indices(np.arange(degree+1)[np.newaxis, :])
+            poly.set_coefficients(np.ones((poly.indices.shape[1], 1)))
+            def integrand(x):
+                p = poly.basis_matrix(x[np.newaxis, :])
+                G = np.empty((x.shape[0], p.shape[1]**2))
+                kk = 0
+                for ii in range(p.shape[1]):
+                    for jj in range(p.shape[1]):
+                        G[:, kk] = p[:, ii]*p[:, jj]
+                        kk += 1
+                return G*rv.pdf(x)[:, None]
+            lb, ub = rv.interval(1)
+            interval_size = rv.interval(0.99)[1]-rv.interval(0.99)[0]
+            interval_size *= 10
+            from pyapprox.utilities import \
+                integrate_using_univariate_gauss_legendre_quadrature_unbounded
+            res = \
+                integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+                    integrand, lb, ub, 10, interval_size=interval_size,
+                    verbose=0, max_steps=10000)
+            res = np.reshape(
+                res, (poly.indices.shape[1],poly.indices.shape[1]), order='C')
+            assert np.allclose(res, np.eye(degree+1), atol=1e-6)
 
     def test_conditional_moments_of_polynomial_chaos_expansion(self):
         num_vars = 3

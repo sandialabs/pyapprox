@@ -1027,8 +1027,52 @@ class TestUtilities(unittest.TestCase):
         rsq = get_cross_validation_rsquared_coefficient_of_variation(
             cv_score, values)
         
-        print(rsq)   
- 
+        print(rsq)
+
+    def test_integrate_using_univariate_gauss_legendre_quadrature_unbounded(self):
+        from scipy.stats import norm, gamma, beta
+
+        # unbounded
+        rv = norm(0, 1)
+        def integrand(x):
+            return rv.pdf(x)[:, None]
+        lb, ub = rv.interval(1)
+        nquad_samples = 100
+        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=2)
+        assert np.allclose(res, 1)
+
+        # left bounded
+        rv = gamma(1)
+        def integrand(x):
+            return rv.pdf(x)[:, None]
+        lb, ub = rv.interval(1)
+        nquad_samples = 100
+        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=2)
+        assert np.allclose(res, 1)
+
+        # bounded
+        rv = beta(20, 10, -2, 5)
+        def integrand(x):
+            return rv.pdf(x)[:, None]
+        lb, ub = rv.interval(1)
+        nquad_samples = 100
+        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=2)
+        assert np.allclose(res, 1)
+
+        # multiple qoi
+        rv = norm(2, 3)
+        def integrand(x):
+            return rv.pdf(x)[:, None]*x[:, None]**np.arange(3)[None , :]
+        lb, ub = rv.interval(1)
+        nquad_samples = 100
+        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=2)
+        assert np.allclose(res, [1, 2, 3**2+2**2])
+        
+
 if __name__== "__main__":    
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestUtilities)

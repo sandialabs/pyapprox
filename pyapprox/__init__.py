@@ -30,7 +30,6 @@ from pyapprox.density import *
 from pyapprox.arbitrary_polynomial_chaos import *
 from pyapprox.multivariate_polynomials import *
 from pyapprox.sensitivity_analysis import *
-from pyapprox.stochastic_dominance import * # very slow
 from pyapprox.gaussian_network import *
 from pyapprox.gaussian_process import *
 

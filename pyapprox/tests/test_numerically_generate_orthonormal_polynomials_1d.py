@@ -5,7 +5,7 @@ from scipy.stats import binom, hypergeom
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import *
 from pyapprox.orthonormal_polynomials_1d import *
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from scipy.stats import beta as beta_rv
+from scipy import stats
 from functools import partial
 from pyapprox.variables import float_rv_discrete
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
@@ -89,7 +89,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         alpha_stat,beta_stat=2,2
         probability_measure=True
         # using scipy to compute moments is extermely slow
-        #moments = [beta_rv.moment(n,alpha_stat,beta_stat,loc=-1,scale=2)
+        #moments = [stats.beta.moment(n,alpha_stat,beta_stat,loc=-1,scale=2)
         #           for n in range(2*nterms)]
         quad_x,quad_w = gauss_jacobi_pts_wts_1D(
             4*nterms,beta_stat-1,alpha_stat-1)
@@ -124,6 +124,54 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
         w = rv.pmf(xk)
         assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+
+    def test_predictor_corrector_known_scipy_pdf(self):
+        nterms = 5
+        quad_options = {'nquad_samples': 10, 'atol': 1e-8, 'rtol': 1e-8,
+                        'max_steps': 10000, 'verbose': 1}
+
+        rv = stats.beta(1, 1, -1, 2)
+        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
+        true_ab = jacobi_recurrence(nterms, 0, 0)
+        assert np.allclose(ab, true_ab)
+
+        
+        rv = stats.norm()
+        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
+        true_ab = hermite_recurrence(nterms)
+        assert np.allclose(ab, true_ab)
+
+        # lognormal is a very hard test
+        rv = stats.lognorm(1)
+
+        # mean, std = 1e4, 7.5e3
+        # beta = std*np.sqrt(6)/np.pi
+        # mu = mean - beta*np.euler_gamma
+        # rv = stats.gumbel_r(loc=mu, scale=beta)
+        
+        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
+
+        def integrand(x):
+            p = evaluate_orthonormal_polynomial_1d(x, nterms-1, ab)
+            G = np.empty((x.shape[0], nterms**2))
+            kk = 0
+            for ii in range(nterms):
+                for jj in range(nterms):
+                    G[:, kk] = p[:, ii]*p[:, jj]
+                    kk += 1
+            return G*rv.pdf(x)[:, None]
+        lb, ub = rv.interval(1)
+        xx, __ = gauss_quadrature(ab, nterms)
+        interval_size = xx.max()-xx.min()
+        quad_opts = quad_options.copy()
+        del quad_opts['nquad_samples']
+        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, quad_options['nquad_samples'],
+            interval_size=interval_size, **quad_opts)
+        res = np.reshape(res, (nterms, nterms), order='C')
+        assert np.absolute(res-np.eye(nterms)).max() < 5e-6
+
+        
 
 
 if __name__ == "__main__":

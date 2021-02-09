@@ -287,8 +287,9 @@ class FSDOptProblem(object):
         coef = x[:self.ncoef]
         __approx_values = self.fun(x)
         assert __approx_values.shape == self.values.shape
-
-        return 0.5*np.sum(self.probabilities*(self.values-__approx_values)**2)
+        val = 0.5*np.sum(self.probabilities*(self.values-__approx_values)**2)
+        assert np.isfinite(val)
+        return val
 
     def objective_jac(self, x):
         coef = x[:self.ncoef]
@@ -299,6 +300,7 @@ class FSDOptProblem(object):
         assert __jac.shape == (self.values.shape[0], self.ncoef)
         grad[:self.ncoef] = - \
             __jac.T.dot(self.probabilities*(self.values-__approx_values))
+        assert np.all(np.isfinite(grad))
         return grad
 
     def objective_hessp(self, x, v):
@@ -344,7 +346,9 @@ class FSDOptProblem(object):
             __approx_values[:, None]-__approx_values[None, self.eta_indices])
         tmp2 = self.smooth_fun(
             self.values[:, None]-__approx_values[None, self.eta_indices])
-        return self.probabilities.dot(tmp1-tmp2)
+        val = self.probabilities.dot(tmp1-tmp2)
+        assert np.all(np.isfinite(val))
+        return val
 
     def constraint_jac(self, x):
         r"""
@@ -500,7 +504,6 @@ class FSDOptProblem(object):
             self.constraint_fun, constr_lb, constr_ub,
             jac=self.constraint_jac, hess=self.constraint_hess,
             keep_feasible=keep_feasible)
-
         res = pyapprox_minimize(
             self.objective_fun, x0, method=method,
             jac=self.objective_jac, hessp=self.objective_hessp,
@@ -541,16 +544,22 @@ class FSDOptProblem(object):
         # axs[1].plot(samples, cdf3(samples), '*', c=color)
         # print((cdf1(approx_values[self.eta_indices])-cdf2(approx_values[self.eta_indices])))
         plt.legend()
+        plt.show()
         return fig, axs
 
 
 def solve_FSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
         probabilities=None, eps=1e-1, optim_options={}, return_full=False,
-        method='rol-trust-constr', smoother_type='log', scale_data=False):
+        method='trust-constr', smoother_type='log', scale_data=False):
     """
     First order stochastic dominance FSD
     """
+    # only useful for 1D plotting
+    # I = np.argsort(samples)[0]
+    # samples = samples[:, I]
+    # values = values[I]
+
     num_samples = samples.shape[1]
     if probabilities is None:
         probabilities = np.ones((num_samples))/num_samples
@@ -573,11 +582,14 @@ def solve_FSD_constrained_least_squares_smooth(
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
     residual = scaled_values-basis_matrix.dot(x0)
-    x0[0] += max(0, residual.max())
+    x0[0] += max(0, residual.max()+eps)
 
     fsd_opt_problem = FSDOptProblem(
         scaled_values, fun, jac, None, eta_indices, probabilities,
         smoother_type, eps, ncoef)
+    # print(fsd_opt_problem.constraint_fun(x0))
+
+    # fsd_opt_problem.debug_plot(x0, samples[0, :])
 
     result = fsd_opt_problem.solve(x0, optim_options, method)
     assert result.success is True

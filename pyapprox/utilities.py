@@ -4,6 +4,8 @@ from scipy.special import beta as beta_fn
 from functools import partial
 from scipy.linalg import solve_triangular
 from numba import njit
+from numpy.polynomial.legendre import leggauss
+
 
 def sub2ind(sizes, multi_index):
     r"""
@@ -1735,4 +1737,105 @@ def get_cross_validation_rsquared_coefficient_of_variation(
     return rsq
 
 
+def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
+        integrand, lb, ub, nquad_samples, rtol=1e-8, atol=1e-8,
+        verbose=0, adaptive=True):
+    # Adaptive
+    nquad_samples = 10
+    prev_res = np.inf
+    it = 0
+    while True:
+        xx_canonical, ww_canonical = leggauss(nquad_samples)
+        xx = (xx_canonical+1)/2*(ub-lb)+lb
+        ww = ww_canonical*(ub-lb)/2
+        res = integrand(xx).T.dot(ww).T
+        diff = np.absolute(prev_res-res)
+        if verbose > 1:
+            print(it, nquad_samples, diff)
+        if (np.all(np.absolute(prev_res-res) < rtol*np.absolute(res)+atol) or
+            adaptive is False):
+            break
+        prev_res = res
+        nquad_samples *= 2
+        it += 1
+    if verbose > 0:
+        print(f'adaptive quadrature converged in {it} iterations')
+    return res
+        
+
+    
+
+def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+        integrand, lb, ub, nquad_samples, atol=1e-8, rtol=1e-8,
+        interval_size=2, max_steps=1000, verbose=0, adaptive=True):
+    """
+    Compute unbounded integrals by moving left and right from origin.
+    Assume that integral decays towards +/- infinity. And that once integral
+    over a sub interval drops below tolerance it will not increase again if
+    we keep moving in same direction.
+    """
+    if np.isfinite(lb) and np.isfinite(ub):
+        partial_lb, partial_ub = lb, ub
+    elif np.isfinite(lb) and not np.isfinite(ub):
+        partial_lb, partial_ub = lb, lb+interval_size
+    elif not np.isfinite(lb) and np.isfinite(ub):
+        partial_lb, partial_ub = ub+interval_size, ub
+    else:
+        partial_lb, partial_ub = -interval_size/2, interval_size/2
+
+    result = __integrate_using_univariate_gauss_legendre_quadrature_bounded(
+        integrand, partial_lb, partial_ub, nquad_samples, rtol,
+        atol, verbose-1, adaptive)
+
+    step = 0
+    partial_result = np.inf
+    plb, pub = partial_lb-interval_size, partial_lb
+    while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
+           and (plb >= lb) and step<max_steps):
+        partial_result = \
+            __integrate_using_univariate_gauss_legendre_quadrature_bounded(
+                integrand, plb, pub, nquad_samples, rtol, atol,
+                verbose-1, adaptive)
+        result += partial_result
+        pub = plb
+        plb -= interval_size
+        step += 1
+        if verbose > 1:
+            print('Left', step, result, partial_result, plb, pub, interval_size)
+        if verbose > 0:
+            if step >= max_steps:
+                print('Early termination when computing left integral')
+            if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
+                msg = f'Tolerance {atol} {rtol} for left integral reached in '
+                msg += f'{step} iterations'
+                print(msg)
+
+    step = 0
+    partial_result = np.inf
+    plb, pub = partial_ub, partial_ub+interval_size
+    while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
+           and (pub <= ub) and step<max_steps):
+        partial_result = \
+            __integrate_using_univariate_gauss_legendre_quadrature_bounded(
+                integrand, plb, pub, nquad_samples, rtol, atol,
+                verbose-1, adaptive)
+        result += partial_result
+        plb = pub
+        pub += interval_size
+        step += 1
+        if verbose > 1:
+            print('Right', step, result, partial_result, plb, pub, interval_size)
+        if verbose > 0:
+            if step >= max_steps:
+                print('Early termination when computing right integral')
+            if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
+                msg = f'Tolerance {atol} {rtol} for right integral reached in '
+                msg += f'{step} iterations'
+                print(msg)
+        #print(partial_result, plb, pub)
+
+    return result
+
+    
+        
         
