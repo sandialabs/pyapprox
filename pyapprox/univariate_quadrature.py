@@ -458,7 +458,6 @@ def get_recursion_coefficients(
     elif poly_type == 'monomial':
         recursion_coeffs = None
     elif var_type in predcorr_rv_dict:
-       print(opts)
        quad_options = {
            'nquad_samples': 10,
            'atol': numerically_generated_poly_accuracy_tolerance,

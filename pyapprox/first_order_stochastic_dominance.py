@@ -6,8 +6,7 @@ from scipy.optimize import NonlinearConstraint, Bounds
 
 
 def smooth_max_function_log(eps, shift, x):
-    if shift is True:
-        x = x-eps
+    x = x+shift
     x_div_eps = x/eps
     # vals = (x + eps*np.log(1+np.exp(-x_div_eps)))
     # avoid overflow
@@ -21,53 +20,61 @@ def smooth_max_function_log(eps, shift, x):
 
 
 def smooth_max_function_first_derivative_log(eps, shift, x):
+    x = x+shift
     x_div_eps = x/eps
-    # vals = 1./(1+np.exp(-x_div_eps))
+    # vals = 1./(1+np.exp(-x_div_eps+shift))
     # Avoid overflow.
     I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
     vals = np.zeros(x.shape)
-    vals[I] = 1./(1+np.exp(-x_div_eps[I]))
+    vals[I] = 1./(1+np.exp(-x_div_eps[I]-shift/eps))
     vals[x_div_eps>=1e2] = 1.
     assert np.all(np.isfinite(vals))
     return vals
 
 
 def smooth_max_function_second_derivative_log(eps, shift, x):
+    x = x+shift
     x_div_eps = x/eps
     vals = np.zeros(x.shape)
     # Avoid overflow.
     I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
-    vals[I] = 1/(eps*(np.exp(-x_div_eps[I])+2+np.exp(x_div_eps[I])))
+    vals[I] = np.exp(x_div_eps[I]+shift/eps)/(
+        eps*(np.exp(x_div_eps[I]+shift/eps)+1)**2)
     assert np.all(np.isfinite(vals))
     return vals
 
 
 def smooth_max_function_third_derivative_log(eps, shift, x):
+    x = x+shift
     x_div_eps = x/eps
     vals = np.zeros_like(x)
     # Avoid overflow.
     I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
-    vals[I] = np.exp(-x_div_eps[I])*(np.exp(-x_div_eps[I])-1)/(
-        eps**2*(1+np.exp(-x_div_eps[I]))**3)
+    #vals[I] = np.exp(-x_div_eps[I])*(np.exp(-x_div_eps[I])-1)/(
+    #    eps**2*(1+np.exp(-x_div_eps[I]))**3)
+    vals[I] = np.exp(x_div_eps[I]+shift/eps)/(
+        eps**2*(1+np.exp(x_div_eps[I]+shift/eps))**2)
+    vals[I] -= 2*np.exp(x_div_eps[I]+shift/eps)**2/(
+        eps**2*(1+np.exp(x_div_eps[I]+shift/eps))**3)
     return vals
 
 
 def smooth_left_heaviside_function_log(eps, shift, x):
-    return smooth_max_function_first_derivative_log(eps, shift, -x)
+    return smooth_max_function_first_derivative_log(eps, -shift, -x)
 
 
 def smooth_left_heaviside_function_first_derivative_log(eps, shift, x):
-    return -smooth_max_function_second_derivative_log(eps, shift, -x)
+    return -smooth_max_function_second_derivative_log(eps, -shift, -x)
 
 
 def smooth_left_heaviside_function_second_derivative_log(eps, shift, x):
-    return smooth_max_function_third_derivative_log(eps, shift, -x)
+    return smooth_max_function_third_derivative_log(eps, -shift, -x)
 
 
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
-    if shift is True:
-        x = x-eps
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.ones_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
@@ -80,9 +87,10 @@ def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
 
 
 @jit(nopython=True)
-def numba_smooth_left_heaviside_function_first_derivative_quartic(eps, shift, x):
-    if shift is True:
-        x = x-eps
+def numba_smooth_left_heaviside_function_first_derivative_quartic(
+        eps, shift, x):
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
@@ -94,8 +102,8 @@ def numba_smooth_left_heaviside_function_first_derivative_quartic(eps, shift, x)
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_second_derivative_quartic(
         eps, shift, x):
-    if shift is True:
-        x = x-eps
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
         for jj in range(x.shape[1]):
@@ -107,8 +115,8 @@ def numba_smooth_left_heaviside_function_second_derivative_quartic(
 
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
-    if shift is True:
-        x = x-eps
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.ones_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
@@ -122,9 +130,10 @@ def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
 
 
 @jit(nopython=True)
-def numba_smooth_left_heaviside_function_first_derivative_quintic(eps, shift, x):
-    if shift is True:
-        x = x-eps  # x -= eps will overwrite x outside function
+def numba_smooth_left_heaviside_function_first_derivative_quintic(
+        eps, shift, x):
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
@@ -138,8 +147,8 @@ def numba_smooth_left_heaviside_function_first_derivative_quintic(eps, shift, x)
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_second_derivative_quintic(
         eps, shift, x):
-    if shift is True:
-        x = x-eps
+    assert shift == 0 # need to employ chain rule to accound for shift
+    x = x+shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6
     for ii in range(x.shape[0]):
@@ -281,7 +290,7 @@ class FSDOptProblem(object):
             raise Exception(f'Smoother {smoother_type} not found')
 
         self.smooth_fun, self.smooth_jac, self.smooth_hess = \
-            [partial(f, self.eps, True) for f in smoothers[smoother_type]]
+            [partial(f, self.eps, -self.eps) for f in smoothers[smoother_type]]
 
     def objective_fun(self, x):
         coef = x[:self.ncoef]
@@ -513,12 +522,16 @@ class FSDOptProblem(object):
         return res
 
     def debug_plot(self, coef, samples):
-        import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
         approx_values = self.fun(coef)
-        xx = samples
-        axs[0].plot(xx, approx_values, 'o-')
-        axs[0].plot(xx, self.values, 's-')
+        import matplotlib.pyplot as plt
+        if samples.shape[0] == 1:
+            fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+            xx = samples
+            axs[1].plot(xx, approx_values, 'o-')
+            axs[1].plot(xx, self.values, 's-')
+        else:
+            fig, axs = plt.subplots(1, 1, figsize=(8, 6))
+            axs = [axs]
         yy = np.linspace(min(self.values.min(), approx_values.min()),
                          max(self.values.max(), approx_values.max()), 101)
 
@@ -533,16 +546,16 @@ class FSDOptProblem(object):
         def cdf3(zz): return self.probabilities.dot(
             np.heaviside(-(self.values[:, None]-zz[None, :]), 1))
 
-        color = next(axs[1]._get_lines.prop_cycler)['color']
-        axs[1].plot(yy, cdf1(yy), '-', c=color, label='approx-approx')
-        axs[1].plot(approx_values, cdf1(approx_values), 'o', c=color)
-        color = next(axs[1]._get_lines.prop_cycler)['color']
-        axs[1].plot(yy, cdf2(yy), '-', c=color, label='values-approx')
-        axs[1].plot(approx_values, cdf2(approx_values), 's', c=color)
-        # color = next(axs[1]._get_lines.prop_cycler)['color']
-        # axs[1].plot(yy, cdf3(yy), '--', c=color)
-        # axs[1].plot(samples, cdf3(samples), '*', c=color)
-        # print((cdf1(approx_values[self.eta_indices])-cdf2(approx_values[self.eta_indices])))
+        color = next(axs[0]._get_lines.prop_cycler)['color']
+        axs[0].plot(yy, cdf1(yy), '-', c=color, label='approx-approx')
+        axs[0].plot(approx_values, cdf1(approx_values), 'o', c=color)
+        color = next(axs[0]._get_lines.prop_cycler)['color']
+        axs[0].plot(yy, cdf2(yy), '-', c=color, label='values-approx')
+        axs[0].plot(approx_values, cdf2(approx_values), 's', c=color)
+        color = next(axs[0]._get_lines.prop_cycler)['color']
+        axs[0].plot(yy, cdf3(yy), '--', c=color)
+        # print(approx_values[np.where((cdf2(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
+        # print(approx_values[np.where((cdf1(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
         plt.legend()
         plt.show()
         return fig, axs
@@ -593,6 +606,9 @@ def solve_FSD_constrained_least_squares_smooth(
 
     result = fsd_opt_problem.solve(x0, optim_options, method)
     assert result.success is True
+
+    fsd_opt_problem.debug_plot(result.x, samples[0, :])
+    
     coef = result.x*values_std
 
     # xx = np.linspace(-1.5,2,100)

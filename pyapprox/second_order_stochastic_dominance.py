@@ -23,7 +23,7 @@ class SSDOptProblem(FSDOptProblem):
             raise Exception(f'Smoother {smoother_type} not found')
 
         self.smooth_fun, self.smooth_jac, self.smooth_hess = \
-            [partial(f, self.eps, True) for f in smoothers[smoother_type]]
+            [partial(f, self.eps, 0) for f in smoothers[smoother_type]]
 
     def constraint_fun(self, x):
         r"""

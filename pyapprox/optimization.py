@@ -618,7 +618,7 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_grad = jac(zz_perturbed)
         fd_directional_derivative = (perturbed_grad-grad)/fd_eps[ii]
-        print(directional_derivative, fd_directional_derivative)
+        # print(directional_derivative, fd_directional_derivative)
         errors.append(np.linalg.norm(
             fd_directional_derivative.reshape(directional_derivative.shape) -
             directional_derivative))

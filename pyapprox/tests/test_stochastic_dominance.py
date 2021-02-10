@@ -80,8 +80,8 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
     # @skiptest
     def test_1d_monomial_regression(self):
         # smoother_type, eps = 'quartic', 1e-2
-        smoother_type, eps = 'quintic', 1e-1
-        # smoother_type, eps = 'log', 5e-2
+        # smoother_type, eps = 'quintic', 5e-1
+        smoother_type, eps = 'log', 5e-2
         nsamples, degree = 10, 3
         # nsamples, degree, eps = 10, 1, 5e-2 converges but it takes a long time
         # convergence seems to get easier (I can decrease eps) as degree
@@ -98,13 +98,20 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
 
         samples, values, fun, jac, probabilities, ncoef, x0 = \
             self.setup_linear_regression_problem(nsamples, degree, eps)
-        values_std = 1 #values.std()
+        values_std = values.std()
         scaled_values = values/values_std
 
         eta = np.arange(nsamples)
         problem = FSDOptProblem(
-            scaled_values, fun, jac, None, eta, probabilities, smoother_type, eps,
-            ncoef)
+            scaled_values, fun, jac, None, eta, probabilities, smoother_type,
+            eps, ncoef)
+
+        # import matplotlib.pyplot as plt
+        # xx = np.linspace(-1, 1 , 101)
+        # print(problem.smooth_fun(np.array([[0]])))
+        # plt.plot(xx, problem.smooth_fun(xx[:, None]))
+        # plt.show()
+
 
         method, maxiter = 'rol-trust-constr', 100
         # method, maxiter = 'trust-constr', 1000
@@ -135,7 +142,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
                          'gtol':tol, 'xtol':tol, 'barrier_tol':tol}
         ssd_coef = solve_SSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, optim_options=optim_options,
-            eps=eps, method='trust-constr')
+            eps=eps, method='trust-constr', scale_data=True)
         true_coef = np.zeros((nbasis))
         approx_vals = eval_basis_matrix(samples).dot(ssd_coef)
         assert approx_vals.max() >= values.max()
@@ -146,7 +153,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         train_econds = compute_conditional_expectations(
             pce_vals, values[:, 0], True)
         print(train_econds-pce_econds)
-        assert np.all(train_econds<=pce_econds+2e-5)
+        assert np.all(train_econds<=pce_econds+4e-5)
         
         # import matplotlib.pyplot as plt
         # xx = np.linspace(-1, 1, 101)
