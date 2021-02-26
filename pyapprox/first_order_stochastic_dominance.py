@@ -552,8 +552,8 @@ class FSDOptProblem(object):
         color = next(axs[0]._get_lines.prop_cycler)['color']
         axs[0].plot(yy, cdf2(yy), '-', c=color, label='values-approx')
         axs[0].plot(approx_values, cdf2(approx_values), 's', c=color)
-        color = next(axs[0]._get_lines.prop_cycler)['color']
-        axs[0].plot(yy, cdf3(yy), '--', c=color)
+        #color = next(axs[0]._get_lines.prop_cycler)['color']
+        #axs[0].plot(yy, cdf3(yy), '--', c=color)
         # print(approx_values[np.where((cdf2(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
         # print(approx_values[np.where((cdf1(approx_values[self.eta_indices])-cdf3(approx_values[self.eta_indices]))>0)])
         plt.legend()
@@ -607,7 +607,7 @@ def solve_FSD_constrained_least_squares_smooth(
     result = fsd_opt_problem.solve(x0, optim_options, method)
     assert result.success is True
 
-    fsd_opt_problem.debug_plot(result.x, samples[0, :])
+    # fsd_opt_problem.debug_plot(result.x, samples[0, :])
     
     coef = result.x*values_std
 

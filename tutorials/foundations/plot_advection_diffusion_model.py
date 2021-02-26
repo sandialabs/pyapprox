@@ -96,19 +96,29 @@ Example: Advection-Diffusion
 ----------------------------
 The following function can be used to setup the numerical approximation of the aforementioned advection-diffusion model.
 """
+from functools import partial
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+import matplotlib.pyplot as plt
 import pyapprox as pya
 import numpy as np
-def setup_model(num_vars,corr_len,max_eval_concurrency):
-    second_order_timestepping=False
+# Make sure that if user has fenics_adjoint installed it is not used.
+# Fenics adjoint cannot be used with PoolModel. The following error will occur
+# Error: Duplication of MPI communicator failed
+import fenics as dla
+has_dla = False
+
+
+def setup_model(num_vars, corr_len, max_eval_concurrency):
+    second_order_timestepping = False
     final_time = 1.0
 
     from pyapprox.fenics_models.advection_diffusion import qoi_functional_misc,\
         AdvectionDiffusionModel
-    qoi_functional=qoi_functional_misc
-    degree=1
+    qoi_functional = qoi_functional_misc
+    degree = 1
     # setup advection diffusion finite element model
     base_model = AdvectionDiffusionModel(
-        num_vars,corr_len,final_time,degree,qoi_functional,
+        num_vars, corr_len, final_time, degree, qoi_functional,
         add_work_to_qoi=False,
         second_order_timestepping=second_order_timestepping)
     # add wrapper to allow execution times to be captured
@@ -122,75 +132,80 @@ def setup_model(num_vars,corr_len,max_eval_concurrency):
 
 #%%
 #The following code computes the expectation of the QoI for a set of model discretization choices
-def error_vs_cost(model,generate_random_samples,validation_levels,
+
+
+def error_vs_cost(model, generate_random_samples, validation_levels,
                   num_samples=10):
     validation_levels = np.asarray(validation_levels)
-    assert len(validation_levels)==model.base_model.num_config_vars
+    assert len(validation_levels) == model.base_model.num_config_vars
     config_vars = pya.cartesian_product(
         [np.arange(ll) for ll in validation_levels])
 
-    random_samples=generate_random_samples(num_samples)
-    samples = pya.get_all_sample_combinations(random_samples,config_vars)
+    random_samples = generate_random_samples(num_samples)
+    samples = pya.get_all_sample_combinations(random_samples, config_vars)
 
-    reference_samples = samples[:,::config_vars.shape[1]].copy()
-    reference_samples[-model.base_model.num_config_vars:,:]=\
-            validation_levels[:,np.newaxis]
+    reference_samples = samples[:, ::config_vars.shape[1]].copy()
+    reference_samples[-model.base_model.num_config_vars:, :] =\
+        validation_levels[:, np.newaxis]
 
     reference_values = model(reference_samples)
-    reference_mean = reference_values[:,0].mean()
+    reference_mean = reference_values[:, 0].mean()
 
     values = model(samples)
 
     # put keys in order returned by cartesian product
-    keys = sorted(model.work_tracker.costs.keys(),key=lambda x: x[::-1])
-    keys = keys[:-1]# remove validation key associated with validation samples
-    costs,ndofs,means,errors = [],[],[],[]
+    keys = sorted(model.work_tracker.costs.keys(), key=lambda x: x[::-1])
+    # remove validation key associated with validation samples
+    keys = keys[:-1]
+    costs, ndofs, means, errors = [], [], [], []
     for ii in range(len(keys)):
-        key=keys[ii]
+        key = keys[ii]
         costs.append(np.median(model.work_tracker.costs[key]))
-        #nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
+        # nx,ny,dt = model.base_model.get_degrees_of_freedom_and_timestep(
         #    np.asarray(key))
-        nx,ny = model.base_model.get_mesh_resolution(np.asarray(key)[:2])
+        nx, ny = model.base_model.get_mesh_resolution(np.asarray(key)[:2])
         dt = model.base_model.get_timestep(key[2])
         ndofs.append(nx*ny*model.base_model.final_time/dt)
-        means.append(np.mean(values[ii::config_vars.shape[1],0]))
+        means.append(np.mean(values[ii::config_vars.shape[1], 0]))
         errors.append(abs(means[-1]-reference_mean)/abs(reference_mean))
 
     times = costs.copy()
     # make costs relative
     costs /= costs[-1]
 
-    n1,n2,n3 = validation_levels
+    n1, n2, n3 = validation_levels
     indices = np.reshape(
         np.arange(len(keys), dtype=int), (n1, n2, n3), order='F')
-    costs = np.reshape(np.array(costs),(n1,n2,n3),order='F')
-    ndofs = np.reshape(np.array(ndofs),(n1,n2,n3),order='F')
-    errors = np.reshape(np.array(errors),(n1,n2,n3),order='F')
-    times = np.reshape(np.array(times),(n1,n2,n3),order='F')
-    
-    validation_index = reference_samples[-model.base_model.num_config_vars:,0]
+    costs = np.reshape(np.array(costs), (n1, n2, n3), order='F')
+    ndofs = np.reshape(np.array(ndofs), (n1, n2, n3), order='F')
+    errors = np.reshape(np.array(errors), (n1, n2, n3), order='F')
+    times = np.reshape(np.array(times), (n1, n2, n3), order='F')
+
+    validation_index = reference_samples[-model.base_model.num_config_vars:, 0]
     validation_time = np.median(
         model.work_tracker.costs[tuple(validation_levels)])
     validation_cost = validation_time/costs[-1]
-    validation_ndof = np.prod(reference_values[:,-2:],axis=1)
+    validation_ndof = np.prod(reference_values[:, -2:], axis=1)
 
-    data = {"costs":costs,"errors":errors,"indices":indices,
-            "times":times,"validation_index":validation_index,
-            "validation_cost":validation_cost,"validation_ndof":validation_ndof,
-            "validation_time":validation_time,"ndofs":ndofs}
+    data = {"costs": costs, "errors": errors, "indices": indices,
+            "times": times, "validation_index": validation_index,
+            "validation_cost": validation_cost, "validation_ndof": validation_ndof,
+            "validation_time": validation_time, "ndofs": ndofs}
 
     return data
 
 #%%
 #We can use this function to plot the error in the QoI mean as a function of the discretization parameters.
-def plot_error_vs_cost(data,cost_type='ndof'):
-    
-    errors,costs,indices=data['errors'],data['costs'],data['indices']
 
-    if cost_type=='ndof':
+
+def plot_error_vs_cost(data, cost_type='ndof'):
+
+    errors, costs, indices = data['errors'], data['costs'], data['indices']
+
+    if cost_type == 'ndof':
         costs = data['ndofs']/data['ndofs'].max()
-    Z = costs[:,:,-1]
-    #print('validation_time',data['validation_time'],data['validation_index'])
+    Z = costs[:, :, -1]
+    # print('validation_time',data['validation_time'],data['validation_index'])
     from pyapprox.convert_to_latex_table import convert_to_latex_table
 
     import matplotlib as mpl
@@ -198,79 +213,84 @@ def plot_error_vs_cost(data,cost_type='ndof'):
     mpl.rcParams['axes.titlesize'] = 30
     mpl.rcParams['xtick.labelsize'] = 30
     mpl.rcParams['ytick.labelsize'] = 30
-    mpl.rcParams['text.latex.preamble'] = [r'\usepackage{siunitx}', r'\usepackage{amsmath}',r'\usepackage{amssymb}']
+    mpl.rcParams['text.latex.preamble'] = [
+        r'\usepackage{siunitx}', r'\usepackage{amsmath}', r'\usepackage{amssymb}']
     validation_levels = costs.shape
-    fig,axs = plt.subplots(1,len(validation_levels),
-                           figsize=(len(validation_levels)*8,6),
-                           sharey=True)
-    if len(validation_levels)==1:
-        label=r'$(\cdot)$'
-        axs.loglog(costs,errors,'o-',label=label)
-    if len(validation_levels)==2:
+    fig, axs = plt.subplots(1, len(validation_levels),
+                            figsize=(len(validation_levels)*8, 6),
+                            sharey=True)
+    if len(validation_levels) == 1:
+        label = r'$(\cdot)$'
+        axs.loglog(costs, errors, 'o-', label=label)
+    if len(validation_levels) == 2:
         for ii in range(validation_levels[0]):
-            label=r'$(\cdot,%d)$'%(ii)
-            axs[0].loglog(costs[:,ii],errors[:,ii],'o-',label=label)
+            label = r'$(\cdot,%d)$' % (ii)
+            axs[0].loglog(costs[:, ii], errors[:, ii], 'o-', label=label)
         for ii in range(validation_levels[0]):
-            label=r'$(%d,\cdot)$'%(ii)
-            axs[1].loglog(costs[ii,:],errors[ii,:],'o-',label=label)
-    if len(validation_levels)==3:
+            label = r'$(%d,\cdot)$' % (ii)
+            axs[1].loglog(costs[ii, :], errors[ii, :], 'o-', label=label)
+    if len(validation_levels) == 3:
         for ii in range(validation_levels[1]):
             jj = costs.shape[2]-1
-            label=r'$(\cdot,%d,%d)$'%(ii,jj)
-            axs[0].loglog(costs[:,ii,jj],errors[:,ii,jj],'o-',label=label)
+            label = r'$(\cdot,%d,%d)$' % (ii, jj)
+            axs[0].loglog(costs[:, ii, jj], errors[:, ii, jj],
+                          'o-', label=label)
         for ii in range(validation_levels[0]):
             jj = costs.shape[2]-1
-            label=r'$(%d,\cdot,%d)$'%(ii,jj)
-            axs[1].loglog(costs[ii,:,jj],errors[ii,:,jj],'o-',label=label)
+            label = r'$(%d,\cdot,%d)$' % (ii, jj)
+            axs[1].loglog(costs[ii, :, jj], errors[ii, :, jj],
+                          'o-', label=label)
             jj = costs.shape[1]-1
-            label=r'$(%d,%d,\cdot)$'%(ii,jj)
-            axs[2].loglog(costs[ii,jj,:],errors[ii,jj,:],'o-',label=label)
+            label = r'$(%d,%d,\cdot)$' % (ii, jj)
+            axs[2].loglog(costs[ii, jj, :], errors[ii, jj, :],
+                          'o-', label=label)
 
         # plot expected congergence rates
         ii = validation_levels[1]-1
         jj = validation_levels[2]-1
-        axs[0].loglog(costs[:,ii,jj],costs[:,ii,jj]**(-2)/costs[0,ii,jj]**(-2),
-                      ':',color='gray')
+        axs[0].loglog(costs[:, ii, jj], costs[:, ii, jj]**(-2)/costs[0, ii, jj]**(-2),
+                      ':', color='gray')
         ii = validation_levels[0]-1
-        axs[1].loglog(costs[ii,:,jj],costs[ii,:,jj]**(-2)/costs[ii,0,jj]**(-2),
-                      ':',color='gray')
+        axs[1].loglog(costs[ii, :, jj], costs[ii, :, jj]**(-2)/costs[ii, 0, jj]**(-2),
+                      ':', color='gray')
         jj = validation_levels[1]-1
-        axs[2].loglog(costs[ii,jj,:],
-                      costs[ii,jj,:]**(-1)/costs[ii,jj,0]**(-1)*1e-1,
-                      ':',color='gray')
-        
+        axs[2].loglog(costs[ii, jj, :],
+                      costs[ii, jj, :]**(-1)/costs[ii, jj, 0]**(-1)*1e-1,
+                      ':', color='gray')
+
     axs[0].legend()
     axs[1].legend()
     axs[2].legend()
     for ii in range(len(validation_levels)):
         axs[ii].set_xlabel(r'$\mathrm{Work}$ $W_{\alpha}$')
-        axs[0].set_ylabel(r'$\left| \mathbb{E}[f]-\mathbb{E}[f_{\alpha}]\right| / \left| \mathbb{E}[f]\right|$')
-    return fig,axs
+        axs[0].set_ylabel(
+            r'$\left| \mathbb{E}[f]-\mathbb{E}[f_{\alpha}]\right| / \left| \mathbb{E}[f]\right|$')
+    return fig, axs
 
-def generate_random_samples(m,n):
-    samples = pya.halton_sequence(m,0,n)
+
+def generate_random_samples(m, n):
+    samples = pya.halton_sequence(m, 0, n)
     samples = samples*2*np.sqrt(3)-np.sqrt(3)
     return samples
 
-from functools import partial
-import matplotlib.pyplot as plt
-nvars,corr_len = 2,0.1
-#model = setup_model(nvars,corr_len,max_eval_concurrency=1)
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+
+nvars, corr_len = 2, 0.1
+#model = setup_model(nvars,corr_len, max_eval_concurrency=1)
 benchmark = setup_benchmark(
-    'multi_index_advection_diffusion',nvars=nvars,corr_len=corr_len,max_eval_concurrency=1)
+    'multi_index_advection_diffusion', nvars=nvars, corr_len=corr_len,
+    max_eval_concurrency=1)
 model = benchmark.fun
 validation_levels = [5]*3
 data = error_vs_cost(
-    model,partial(generate_random_samples,benchmark.variable.num_vars()),
+    model, partial(generate_random_samples, benchmark.variable.num_vars()),
     validation_levels)
-plot_error_vs_cost(data,'time')
+plot_error_vs_cost(data, 'time')
 plt.show()
 
 #%%
-#The above figure depicts the changes induced in the error of the mean of the QoI, i.e. :math:`\mathbb{E}[f_\ai]`, as the mesh and temporal discretizations are changed.  The legend labels denote the mesh discretization parameter values :math:`(\alpha_1,\alpha_2,\alpha_3)` used to solve the advection diffusion equation. Numeric values represent discretization parameters that are held fixed while the symbol :math:`\cdot` denotes that the corresponding parameter is varying. The reference solution is obtained using the model indexed by :math:`(6,6,6)`. 
+#The above figure depicts the changes induced in the error of the mean of the QoI, i.e. :math:`\mathbb{E}[f_\ai]`, as the mesh and temporal discretizations are changed.  The legend labels denote the mesh discretization parameter values :math:`(\alpha_1,\alpha_2,\alpha_3)` used to solve the advection diffusion equation. Numeric values represent discretization parameters that are held fixed while the symbol :math:`\cdot` denotes that the corresponding parameter is varying. The reference solution is obtained using the model indexed by :math:`(6,6,6)`.
 #
-#The dashed lines represent the theoretical rates of the convergence of the deterministic error when refining :math:`h_1` (left), :math:`h_2` (middle), and :math:`\Delta t` (right). 
+#The dashed lines represent the theoretical rates of the convergence of the deterministic error when refining :math:`h_1` (left), :math:`h_2` (middle), and :math:`\Delta t` (right).
 #The error decreases quadratically with both :math:`h_1` and :math:`h_2` and linearly with :math:`\Delta t` until a saturation point is reached. These saturation points occur when the error induced by a coarse resolution in one mesh parameter dominates the others. For example the left plot shows that when refining :math:`h_1` the final error in :math:`\mathbb{E}[f]` is dictated by the error induced by using the mesh size :math:`h_2`, provided :math:`\Delta t` is small enough. Similarly the right plot shows, that for fixed :math:`h_2`, the highest accuracy that can be obtained by refining :math:`\Delta t` is dependent on the resolution of :math:`h_1`.
 #
 #Note the expectations computed in the tutorial is estimated using the same 10 samples for all model resolutions. This allows the error in the statistical estimate induced by small numbers of samples to be ignored. The effect of sample size on Monte Carlo estimates of expectations is covered in :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_monte_carlo.py`.
@@ -279,4 +299,3 @@ plt.show()
 #References
 #^^^^^^^^^^
 #.. [NTWSIAMNA2008] `Nobile F, Tempone R, Webster CG. A Sparse Grid Stochastic Collocation Method for Partial Differential Equations with Random Input Data. SIAM Journal on Numerical Analysis 2008;46(5):2309–2345. <https://doi.org/10.1137/060663660>`_
-

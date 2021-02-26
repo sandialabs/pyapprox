@@ -2257,7 +2257,7 @@ class UnivariateMarginalizedGaussianProcess:
         canonical_samples = self.map_to_canonical_space(samples)
         K_pred = self.kernel_(canonical_samples.T, self.X_train_)
         mean = K_pred.dot(self.K_inv_y)
-        mean = self._y_train_std*mean + self._y_train_mean
+        mean = self._y_train_std*mean + self._y_train_mean - self.mean
 
         if not return_std:
             return mean
@@ -2285,7 +2285,7 @@ class UnivariateMarginalizedSquaredExponentialKernel(RBF):
         return super().diag(X)*self.u
 
     
-def marginalize_gaussian_process(gp, variable):
+def marginalize_gaussian_process(gp, variable, center=True):
     """
     Return all 1D marginal Gaussian process obtained after excluding all
     but a single variable
@@ -2299,15 +2299,32 @@ def marginalize_gaussian_process(gp, variable):
     else:
         kernel_var = 1
 
-    x_train = gp.X_train_.T
-    kernel_length_scale = kernel.length_scale
-    transform_quad_rules = (not hasattr(gp, 'var_trans'))
+    # Warning  extract_gaussian_process scales kernel_var by gp.y_train_std**2
+    x_train, y_train, K_inv, kernel_length_scale, kernel_var, \
+        transform_quad_rules = \
+            extract_gaussian_process_attributes_for_integration(gp)
+
+    # x_train = gp.X_train_.T
+    # kernel_length_scale = kernel.length_scale
+    # transform_quad_rules = (not hasattr(gp, 'var_trans'))
     L_factor = gp.L_.copy()
     
     tau_list, P_list, u_list, lamda_list, Pi_list, nu_list, __ = \
         get_gaussian_process_squared_exponential_kernel_1d_integrals(
             x_train, kernel_length_scale, variable, transform_quad_rules,
             skip_xi_1=True)
+
+    if center is True:
+        A_inv = K_inv*kernel_var
+        tau = np.prod(np.array(tau_list), axis=0)
+        A_inv_y = A_inv.dot(y_train)
+        shift = tau.dot(A_inv_y)
+        shift += gp._y_train_mean
+    else:
+        shift = 0
+
+    kernel_var /= float(gp._y_train_std**2)
+
 
     length_scale = np.atleast_1d(kernel_length_scale)
     nvars = variable.num_vars()
@@ -2322,7 +2339,7 @@ def marginalize_gaussian_process(gp, variable):
         # undo kernel_var *= gp._y_train_std**2 in extact_gaussian_process_attr
         gp_ii = UnivariateMarginalizedGaussianProcess(
             kernel, gp.X_train_[:, ii:ii+1].T, L_factor, gp.y_train_,
-            gp._y_train_mean, gp._y_train_std)
+            gp._y_train_mean, gp._y_train_std, mean=shift)
         if hasattr(gp, 'var_trans'):
             variable_ii = IndependentMultivariateRandomVariable(
                 [gp.var_trans.variable.all_variables()[ii]])

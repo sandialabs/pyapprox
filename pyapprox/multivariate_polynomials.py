@@ -626,7 +626,7 @@ def conditional_moments_of_polynomial_chaos_expansion(poly, samples, inactive_id
     return mean, variance
 
 
-def marginalize_polynomial_chaos_expansion(poly, inactive_idx):
+def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     """
     This function is not optimal. It will recreate the options
     used to configure the polynomial. Any recursion coefficients 
@@ -660,7 +660,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx):
     if poly.indices is not None:
         marginalized_array_indices = []
         for ii, index in enumerate(poly.indices.T):
-            if (index.sum() == 0 or
+            if ((index.sum() == 0 and center is False) or
                 np.any(index[active_idx]) and
                 (not np.any(index[inactive_idx]>0))):
                 marginalized_array_indices.append(ii)

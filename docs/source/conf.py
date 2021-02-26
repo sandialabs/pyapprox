@@ -93,6 +93,7 @@ sphinx_gallery_conf = {
     'gallery_dirs': ['auto_tutorials'],#'auto_examples',
     #'first_notebook_cell' : "%matplotlib inline",
     'within_subsection_order': ExamplesExplicitOrder,
+    'ignore_pattern': r'plot_advection_diffusion_model\.py',
 }
 #If want to specify user latex macrors to jupyter using sphinx-gallery go to
 #/miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py

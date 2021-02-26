@@ -1949,6 +1949,61 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         validation_values = function(validation_samples)
         assert np.allclose(validation_values, vals)
 
+    def test_insitu_update_sparse_grid_quadrature_rule(self):
+        num_vars = 2
+        
+        import pyapprox as pya
+        from scipy.stats import beta, uniform
+        def function(samples):
+            return ((samples+1)**5).sum(axis=0)[:, np.newaxis]
+        
+        univariate_variables = [uniform(-1, 2), uniform(0, 1)]
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        sparse_grid = CombinationSparseGrid(var_trans.num_vars())
+        admissibility_function = partial(
+            max_level_admissibility_function, np.inf,
+            [6]*2, 100, 0, verbose=False)
+        quad_rules, growth_rules, unique_quadrule_indices = \
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans)
+        sparse_grid.setup(
+            function, None, isotropic_refinement_indicator,
+            admissibility_function, growth_rules, quad_rules,
+            var_trans, unique_quadrule_indices=unique_quadrule_indices)
+
+        ninitial_refine_steps = 2
+        nsubsequent_refine_steps = 2
+        for ii in range(ninitial_refine_steps):
+            sparse_grid.refine()
+
+        quadrule_variables = [uniform(-2,4), uniform(0,2)]
+        sparse_grid = insitu_update_sparse_grid_quadrature_rule(
+            sparse_grid, quadrule_variables)
+        
+        for ii in range(nsubsequent_refine_steps):
+            sparse_grid.refine()
+
+        sparse_grid_true = CombinationSparseGrid(num_vars)
+        sparse_grid_true.set_function(
+            function, sparse_grid.variable_transformation)
+        sparse_grid_true.set_refinement_functions(
+            isotropic_refinement_indicator, admissibility_function,
+            sparse_grid.compact_univariate_growth_rule, None, None,
+            sparse_grid.unique_quadrule_indices)
+        sparse_grid_true.set_univariate_rules(
+            sparse_grid.compact_univariate_quad_rule)
+
+        for ii in range(nsubsequent_refine_steps+ninitial_refine_steps):
+            sparse_grid_true.refine()
+
+        assert np.allclose(sparse_grid.samples, sparse_grid_true.samples)
+
+        validation_samples = pya.generate_independent_random_samples(
+            sparse_grid.variable_transformation.variable, 100)
+        assert np.allclose(sparse_grid(validation_samples),
+                           sparse_grid_true(validation_samples))
 
 if __name__ == "__main__":
     # these functions need to be defined here so pickeling works

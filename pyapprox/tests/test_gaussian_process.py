@@ -593,10 +593,15 @@ class TestGaussianProcess(unittest.TestCase):
         # print(expected_random_mean - true_mean)
         # assert abs(expected_random_mean - true_mean)/true_mean < 1e-3
 
-        marginalized_gps = marginalize_gaussian_process(gp, variable)
+        center = False
+        marginalized_gps = marginalize_gaussian_process(
+            gp, variable, center=center)
 
+        expected_random_mean = integrate_gaussian_process(gp, variable)[0]
         for ii in range(nvars):
             gp_ii =  marginalized_gps[ii]
+            if center is True:
+                assert np.allclose(gp_ii.mean, expected_random_mean)
             variable_ii = pya.IndependentMultivariateRandomVariable(
                 [univariate_variables[ii]])
 
@@ -613,13 +618,14 @@ class TestGaussianProcess(unittest.TestCase):
             assert variance_ii.min()>-1e-7
             stdev_ii = np.sqrt(np.maximum(0, variance_ii))
             vals_ii, std_ii = gp_ii(xx[np.newaxis, :], return_std=True)
+            vals_ii += gp_ii.mean
             # print(stdev_ii-std_ii)
             # assert np.allclose(stdev_ii, std_ii, atol=5e-8)
 
             xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
             xx_quad = (xx_quad+1)/2
 
-            gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)
+            gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)+gp_ii.mean
 
             xx_2d = cartesian_product([xx_quad, xx])
             if ii == 0:
@@ -663,19 +669,20 @@ class TestGaussianProcess(unittest.TestCase):
             train_samples, train_vals, 'polynomial_chaos',
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'max_degree': 4}}).approx
+        print(pce.coefficients[0,0])
         marginalized_pces = []
         for ii in range(nvars):
             inactive_idx = np.hstack((np.arange(ii), np.arange(ii+1, nvars)))
             marginalized_pces.append(
                 marginalize_polynomial_chaos_expansion(
-                    pce, inactive_idx))
+                    pce, inactive_idx, center=center))
             # xx = np.linspace(0, 1, 101)
             # plt.plot(xx, marginalized_pces[ii](xx[None, :]), '-')
             # plt.plot(xx, marginalized_gps[ii](xx[None, :]), '--')
             # plt.show()
             assert np.allclose(
                 marginalized_pces[ii](xx[None, :]),
-                marginalized_gps[ii](xx[None, :]), rtol=1e-2, atol=1e-2)
+                marginalized_gps[ii](xx[None, :]), rtol=1e-2, atol=1.3e-2)
 
     def test_compute_sobol_indices_gaussian_process_uniform_2d(self):
         nvars = 2

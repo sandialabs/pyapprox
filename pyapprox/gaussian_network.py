@@ -808,7 +808,7 @@ def get_total_degree_polynomials(univariate_variables,degrees):
 
 def plot_1d_lvn_approx(xx,nmodels,hf_vandermonde,gauss_post,gauss_prior,
                        axs,samples,data,labels,ranges,hf_data_mean=None,
-                       colors=None, mean_label='MFNet'):    
+                       colors=None, mean_label=r'$\mathrm{MFNet}$'):    
     if samples[-1].ndim!=1 and samples[-1].shape[0]>1:
         print('Cannot plot num_vars>1')
         return

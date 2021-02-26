@@ -1240,7 +1240,8 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
     def set_univariate_rules(self, univariate_quad_rule):
         if self.univariate_growth_rule is None:
-            msg = "Must call set_refinement_functions before set_univariate rules"
+            msg = "Must call set_refinement_functions before set_univariate "
+            msg += "rules"
             raise Exception(msg)
         max_level = 2
         self.univariate_quad_rule = univariate_quad_rule
@@ -1552,6 +1553,53 @@ class ConfigureVariableTransformation(object):
         """
         return self.nvars
 
+
+from pyapprox.variable_transformations import AffineRandomVariableTransformation
+def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
+                                              quadrule_variables):
+    num_vars = sparse_grid.num_vars
+    assert len(quadrule_variables) == num_vars
+    univariate_growth_rules = []
+    unique_quadrule_indices = [[ii] for ii in range(num_vars)]
+    new_var_trans = AffineRandomVariableTransformation(
+        quadrule_variables)
+    quad_rules = []
+    max_levels = sparse_grid.subspace_indices.max(axis=1)
+    initial_points_list = []
+    growth_rules = []
+    for ii in range(num_vars):
+        initial_points = sparse_grid.samples_1d[ii][max_levels[ii]][None, :]
+        # samples_1d are in the canonical domain
+        initial_points = \
+            sparse_grid.variable_transformation.map_from_canonical_space_1d(
+                initial_points, ii)
+        # map to old user domain
+        initial_points = new_var_trans.map_to_canonical_space_1d(
+                initial_points, ii)
+        # map to new canonical domain
+        initial_points_list.append(initial_points)
+
+        for jj, inds in enumerate(sparse_grid.unique_quadrule_indices):
+            if ii in inds:
+                break
+        growth_rule = sparse_grid.compact_univariate_growth_rule[jj]
+        growth_rules.append(growth_rule)
+        quad_rules.append(get_univariate_leja_quadrature_rule(
+            quadrule_variables[ii], growth_rule, 'christoffel',
+            initial_points=initial_points))
+        
+    sparse_grid.set_univariate_growth_rules(
+        growth_rules, unique_quadrule_indices)
+    sparse_grid.set_univariate_rules(quad_rules)
+    sparse_grid_samples = sparse_grid.samples.copy()
+    sparse_grid_samples = \
+        sparse_grid.variable_transformation.map_from_canonical_space(
+            sparse_grid_samples)
+    sparse_grid_samples = new_var_trans.map_to_canonical_space(
+        sparse_grid_samples)
+    sparse_grid.samples = sparse_grid_samples
+    sparse_grid.variable_transformation = new_var_trans
+    return sparse_grid
 
 """
 Notes if use combination technique to manage only adaptive refinement in configure variables and another strategy (e.g. another independent combination technique to refine in stochastic space) then this will remove downward index constraint

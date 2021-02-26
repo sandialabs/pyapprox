@@ -245,7 +245,7 @@ def jacobi_recurrence(N, alpha=0., beta=0., probability=True):
     ab[2:, 1] = 4 * inds * (inds + alpha) * \
         (inds + beta) * (inds + alpha + beta)
     ab[2:, 1] /= (2. * inds + alpha + beta)**2 * (2. * inds +
-                                                  alpha + beta + 1.) * (2. * inds + alpha + beta - 1)
+        alpha + beta + 1.) * (2. * inds + alpha + beta - 1)
 
     ab[:, 1] = np.sqrt(ab[:, 1])
 

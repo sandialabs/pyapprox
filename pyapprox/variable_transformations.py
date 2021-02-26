@@ -182,6 +182,20 @@ class AffineRandomVariableTransformation(object):
 
         return user_samples
 
+    def map_to_canonical_space_1d(self, samples, ii):
+        for jj in range(self.variable.nunique_vars):
+            if ii in self.variable.unique_variable_indices[jj]:
+                loc, scale = self.scale_parameters[jj, :]
+                return (samples-loc)/scale
+        raise Exception()
+
+    def map_from_canonical_space_1d(self, canonical_samples, ii):
+        for jj in range(self.variable.nunique_vars):
+            if ii in self.variable.unique_variable_indices[jj]:
+                loc, scale = self.scale_parameters[jj, :]
+                return canonical_samples*scale+loc
+        raise Exception()
+
     def map_derivatives_from_canonical_space(self, derivatives):
         assert derivatives.shape[0] % self.num_vars() == 0
         num_samples = int(derivatives.shape[0]/self.num_vars())

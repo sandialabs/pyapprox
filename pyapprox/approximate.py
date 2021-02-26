@@ -966,10 +966,10 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 
 def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
-                             verbose=1, max_num_terms=None,
-                             solver_type='lasso',
-                             linear_solver_options={'cv': 10},
-                             restriction_tol=np.finfo(float).eps*2):
+                         verbose=1, max_num_terms=None,
+                         solver_type='lasso',
+                         linear_solver_options={'cv': 10},
+                         restriction_tol=np.finfo(float).eps*2):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
     if max_num_terms is None:

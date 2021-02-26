@@ -38,6 +38,8 @@ def stieltjes(nodes, weights, N):
         sum_2 = nodes.dot(weights*p2**2)
         ab[k+1, 0] = sum_2/sum_1
         ab[k+1, 1] = sum_1/sum_0
+        print(k+1, p0, p1, p2)
+        print(ab[k+1])
         sum_0 = sum_1
     ab[:, 1] = np.sqrt(ab[:, 1])
     ab[0, 1] = 1

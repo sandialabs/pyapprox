@@ -111,8 +111,9 @@ def get_lognormal_example_exact_quantities(mu, sigma):
 
     # PDF of output variable (lognormal PDF)
     def f_pdf(y):
-        vals = np.zeros_like(y)
+        vals = np.zeros_like(y, dtype=float)
         II = np.where(y > 0)[0]
+        print(II)
         vals[II] = np.exp(-(np.log(y[II])-mu)**2/(2*sigma**2))/(
             sigma*np.sqrt(2*np.pi)*y[II])
         return vals
@@ -125,7 +126,7 @@ def get_lognormal_example_exact_quantities(mu, sigma):
         (mu+sigma**2-np.log(VaR(p)))/sigma)/(1-p)
 
     def cond_exp_le_eta(y):
-        vals = np.zeros_like(y)
+        vals = np.zeros_like(y, dtype=float)
         II = np.where(y > 0)[0]
         vals[II] = mean*stats.norm.cdf((np.log(y[II])-mu-sigma**2)/sigma)/f_cdf(
             y[II])
@@ -134,7 +135,7 @@ def get_lognormal_example_exact_quantities(mu, sigma):
     def ssd(y): return f_cdf(y)*(y-cond_exp_le_eta(y))
 
     def cond_exp_y_ge_eta(y):
-        vals = np.ones_like(y)*mean
+        vals = np.ones_like(y, dtype=float)*mean
         II = np.where(y > 0)[0]
         vals[II] = mean*stats.norm.cdf(
             (mu+sigma**2-np.log(y[II]))/sigma)/(1-f_cdf(y[II]))

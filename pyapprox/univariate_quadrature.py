@@ -759,20 +759,21 @@ def get_univariate_leja_quadrature_rule(
         variable,
         growth_rule,
         method='pdf',
-        numerically_generated_poly_accuracy_tolerance=1e-12):
+        numerically_generated_poly_accuracy_tolerance=1e-12,
+        initial_points=None):
     
     if not is_continuous_variable(variable):
         return get_discrete_univariate_leja_quadrature_rule(
-            variable, growth_rule)
+            variable, growth_rule, initial_points=initial_points)
     
     if method == 'christoffel':
         return partial(
             univariate_christoffel_leja_quadrature_rule,variable, growth_rule,
-            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance)
+            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance, initial_points=initial_points)
 
     if method == 'pdf':
         return partial(univariate_pdf_weighted_leja_quadrature_rule,
-                       variable, growth_rule)
+                       variable, growth_rule, initial_points=initial_points)
 
     assert method == 'deprecated'
     var_type, __, shapes = get_distribution_info(variable)

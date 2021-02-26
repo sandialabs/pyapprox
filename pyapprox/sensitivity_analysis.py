@@ -740,7 +740,7 @@ def sampling_based_sobol_indices(
         fun, variables, interaction_terms, nsamples, sampling_method='sobol',
         qmc_start_index=0):
     """
-    See I.M. Sobol′ / Mathematics and Computers in Simulation 55 (2001) 271–280
+    See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280
 
     and  
 
