@@ -1567,26 +1567,30 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     max_levels = sparse_grid.subspace_indices.max(axis=1)
     initial_points_list = []
     growth_rules = []
+    all_variable = sparse_grid.variable_transformation.variable.all_variables()
     for ii in range(num_vars):
-        initial_points = sparse_grid.samples_1d[ii][max_levels[ii]][None, :]
-        # samples_1d are in the canonical domain
-        initial_points = \
-            sparse_grid.variable_transformation.map_from_canonical_space_1d(
-                initial_points, ii)
-        # map to old user domain
-        initial_points = new_var_trans.map_to_canonical_space_1d(
-                initial_points, ii)
-        # map to new canonical domain
-        initial_points_list.append(initial_points)
-
         for jj, inds in enumerate(sparse_grid.unique_quadrule_indices):
             if ii in inds:
                 break
         growth_rule = sparse_grid.compact_univariate_growth_rule[jj]
         growth_rules.append(growth_rule)
+        if all_variable[ii] == quadrule_variables[ii]:
+            quad_rules.append(sparse_grid.compact_univariate_quad_rule[jj])
+            continue
+        canonical_initial_points = \
+            sparse_grid.samples_1d[ii][max_levels[ii]][None, :]
+        # samples_1d are in the canonical domain map to old user domain
+        initial_points_old = \
+            sparse_grid.variable_transformation.map_from_canonical_space_1d(
+                canonical_initial_points, ii)
+        # map to new canonical domain
+        canonical_initial_points_new = new_var_trans.map_to_canonical_space_1d(
+                initial_points_old, ii)
+        initial_points_list.append(canonical_initial_points_new)
+
         quad_rules.append(get_univariate_leja_quadrature_rule(
             quadrule_variables[ii], growth_rule, 'christoffel',
-            initial_points=initial_points))
+            initial_points=canonical_initial_points_new))
         
     sparse_grid.set_univariate_growth_rules(
         growth_rules, unique_quadrule_indices)

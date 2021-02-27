@@ -564,8 +564,8 @@ def univariate_christoffel_leja_quadrature_rule(
             scale /= (ub-lb)
             loc = loc-scale*lb
             initial_points = (initial_points-loc)/scale  
-        assert np.all((initial_points>=canonical_bounds[0])&
-                      (initial_points<=canonical_bounds[1]))
+        assert np.all((initial_points>=canonical_bounds[0]-np.finfo(float).eps)&
+                      (initial_points<=canonical_bounds[1]+np.finfo(float).eps))
         # always produce sequence in canonical space
         bounds = canonical_bounds
     else:
@@ -590,7 +590,7 @@ def univariate_christoffel_leja_quadrature_rule(
     leja_sequence = get_christoffel_leja_sequence_1d(
         max_nsamples, initial_points, bounds, basis_fun,
         {'gtol':1e-8, 'verbose':False}, callback=None)
-
+    
     __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
     ordered_weights_1d =  get_christoffel_leja_quadrature_weights_1d(
             leja_sequence, growth_rule, __basis_fun, level, True)
