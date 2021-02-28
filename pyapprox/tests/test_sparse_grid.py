@@ -1973,7 +1973,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
             admissibility_function, growth_rules, quad_rules,
             var_trans, unique_quadrule_indices=unique_quadrule_indices)
 
-        ninitial_refine_steps = 2
+        ninitial_refine_steps = 8
         nsubsequent_refine_steps = 2
         for ii in range(ninitial_refine_steps):
             sparse_grid.refine()

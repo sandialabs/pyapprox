@@ -1238,12 +1238,11 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         self.set_univariate_rules(univariate_quad_rule)
         self.verbose = verbose
 
-    def set_univariate_rules(self, univariate_quad_rule):
+    def set_univariate_rules(self, univariate_quad_rule, max_level=2):
         if self.univariate_growth_rule is None:
             msg = "Must call set_refinement_functions before set_univariate "
             msg += "rules"
             raise Exception(msg)
-        max_level = 2
         self.univariate_quad_rule = univariate_quad_rule
 
         if self.config_variables_idx is None:
@@ -1594,7 +1593,8 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
         
     sparse_grid.set_univariate_growth_rules(
         growth_rules, unique_quadrule_indices)
-    sparse_grid.set_univariate_rules(quad_rules)
+    max_level = sparse_grid.subspace_indices.max()
+    sparse_grid.set_univariate_rules(quad_rules, max_level)
     sparse_grid_samples = sparse_grid.samples.copy()
     sparse_grid_samples = \
         sparse_grid.variable_transformation.map_from_canonical_space(
