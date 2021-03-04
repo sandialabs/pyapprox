@@ -975,7 +975,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
         The number of samples used to assess the accuracy of the interpolants
         of the random realizations
 
-    ncanidate_samples : integer
+    ncandidate_samples : integer
         The number of candidate samples selected from when building the 
         interpolants of the random realizations
         
