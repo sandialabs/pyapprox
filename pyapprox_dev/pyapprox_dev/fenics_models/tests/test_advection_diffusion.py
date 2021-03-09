@@ -1,11 +1,10 @@
+import unittest
 import sympy as sp
 import dolfin as dl
-from pyapprox.fenics_models.advection_diffusion import *
-from pyapprox.fenics_models.advection_diffusion_wrappers import *
-from pyapprox.fenics_models.fenics_utilities import *
-import unittest
+from pyapprox_dev.fenics_models.advection_diffusion import *
+from pyapprox_dev.fenics_models.advection_diffusion_wrappers import *
+from pyapprox_dev.fenics_models.fenics_utilities import *
 import matplotlib.pyplot as plt
-
 
 skiptest = unittest.skipIf(
     not has_dla, reason="fenics_adjoint package missing")
@@ -561,6 +560,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         assert np.all(np.isfinite(qoi))
         sol = bmodel.solve(samples)
 
+    @skiptest
     def test_advection_diffusion_base_class_adjoint(self):
         nvars, corr_len = 2, 0.1
         benchmark = setup_advection_diffusion_benchmark(
@@ -701,3 +701,17 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         assert np.all(np.isfinite(qoi))
 
 # TODO implement a test that has time varying dirichlet conditions and another with time varing alpha in robin conditions. Then write code to preassemble a when these two things are not time varying.
+
+
+if __name__ == "__main__":
+    transient_diffusion_test_suite =\
+        unittest.TestLoader().loadTestsFromTestCase(TestTransientDiffusion)
+    unittest.TextTestRunner(verbosity=2).run(transient_diffusion_test_suite)
+    steady_state_diffusion_test_suite =\
+        unittest.TestLoader().loadTestsFromTestCase(TestSteadyStateDiffusion)
+    unittest.TextTestRunner(verbosity=2).run(steady_state_diffusion_test_suite)
+    transient_advection_diffusion_equation_test_suite =\
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestTransientAdvectionDiffusionEquation)
+    unittest.TextTestRunner(verbosity=2).run(
+        transient_advection_diffusion_equation_test_suite)

@@ -1,151 +1,174 @@
 import numpy as np
 import dolfin as dl
-import pathlib, os
-from pyapprox.fenics_models.fenics_utilities import generate_polygonal_mesh, get_polygon_boundary_segments
+import pathlib
+import os
+from pyapprox_dev.fenics_models.fenics_utilities import \
+    generate_polygonal_mesh, get_polygon_boundary_segments
 from pyapprox.fenics_models.helmholtz import run_model
 from pyapprox.benchmarks.benchmarks import Benchmark
+from pyapprox_dev.fenics_models.fenics_utilities import get_vertices_of_polygon
 
-def generate_helmholtz_bases(samples,mesh_resolution=51):
-    frequency=400;speaker_amplitudes=1
-    sound_speed=np.array([343,6320,343])
-    kappa,forcing,function_space,boundary_conditions,nedges,nsegments_per_edge,bndry_obj=\
-        setup_helmholtz_model(
-            mesh_resolution,frequency,speaker_amplitudes,
+
+def generate_helmholtz_bases(samples, mesh_resolution=51):
+    frequency = 400
+    speaker_amplitudes = 1
+    sound_speed = np.array([343, 6320, 343])
+    kappa, forcing, function_space, boundary_conditions, nedges, \
+        nsegments_per_edge, bndry_obj = setup_helmholtz_model(
+            mesh_resolution, frequency, speaker_amplitudes,
             sound_speed)
 
     speaker_segment_indices, cabinet_segment_indices = \
-        get_speaker_boundary_segment_indices(nedges,nsegments_per_edge)
+        get_speaker_boundary_segment_indices(nedges, nsegments_per_edge)
 
     sols = []
     for jj in speaker_segment_indices:
-        boundary_conditions =get_helmholtz_speaker_boundary_conditions(nedges,nsegments_per_edge,bndry_obj,speaker_amplitudes,frequency)
+        boundary_conditions = get_helmholtz_speaker_boundary_conditions(
+            nedges, nsegments_per_edge, bndry_obj, speaker_amplitudes,
+            frequency)
         for kk in range(nedges*nsegments_per_edge):
-            if jj!=kk:
-                boundary_conditions[kk][2][1]=dl.Constant(0)
-        pii=run_model(kappa,forcing,function_space,boundary_conditions)
+            if jj != kk:
+                boundary_conditions[kk][2][1] = dl.Constant(0)
+        pii = run_model(kappa, forcing, function_space, boundary_conditions)
         sols.append(pii)
 
-    basis = np.empty((samples.shape[1],len(sols)),dtype=float)
+    basis = np.empty((samples.shape[1], len(sols)), dtype=float)
     for ii in range(samples.shape[1]):
         for jj in range(len(sols)):
-            basis[ii,jj] = sols[jj](samples[0,ii],samples[1,ii])[1]
+            basis[ii, jj] = sols[jj](samples[0, ii], samples[1, ii])[1]
 
     return basis, sols, function_space
 
-def helmholtz_basis(sols,active_speakers,samples):
+
+def helmholtz_basis(sols, active_speakers, samples):
     sols = [sols[ii] for ii in active_speakers]
-    basis = np.empty((samples.shape[1],len(sols)),dtype=float)
+    basis = np.empty((samples.shape[1], len(sols)), dtype=float)
     for ii in range(samples.shape[1]):
         for jj in range(len(sols)):
-            basis[ii,jj] = sols[jj](samples[0,ii],samples[1,ii])[1]
+            basis[ii, jj] = sols[jj](samples[0, ii], samples[1, ii])[1]
     return basis
 
+
 class HelmholtzBasis(object):
-    def __init__(self,sols,active_speakers):
-        self.sols=sols
+    def __init__(self, sols, active_speakers):
+        self.sols = sols
         self.active_speakers = np.array(active_speakers)
-        
-    def __call__(self,samples):
-        return helmholtz_basis(self.sols,self.active_speakers,samples)
+
+    def __call__(self, samples):
+        return helmholtz_basis(self.sols, self.active_speakers, samples)
 
     def get_indices(self):
-        return self.active_speakers.copy()[np.newaxis,:]
+        return self.active_speakers.copy()[np.newaxis, :]
 
-def get_helmholtz_speaker_boundary_conditions(nedges,nsegments_per_edge,bndry_obj,speaker_amplitudes,frequency):
+
+def get_helmholtz_speaker_boundary_conditions(
+        nedges, nsegments_per_edge, bndry_obj, speaker_amplitudes, frequency):
     speaker_segment_indices, cabinet_segment_indices = \
-        get_speaker_boundary_segment_indices(nedges,nsegments_per_edge)
+        get_speaker_boundary_segment_indices(nedges, nsegments_per_edge)
     if np.isscalar(speaker_amplitudes):
-        speaker_amplitudes = np.array([speaker_amplitudes]*len(speaker_segment_indices))
+        speaker_amplitudes = np.array(
+            [speaker_amplitudes]*len(speaker_segment_indices))
 
-    #1.204 is the standard atmospheric pressure
+    # 1.204 is the standard atmospheric pressure
     omega = 2.*np.pi*frequency
-    boundary_conditions=[
-        ['neumann',bndry_obj[ii],
-         [dl.Constant(0),dl.Constant(1.204*omega*speaker_amplitudes[jj])]]
-        for jj,ii in enumerate(speaker_segment_indices)]
+    boundary_conditions = [
+        ['neumann', bndry_obj[ii],
+         [dl.Constant(0), dl.Constant(1.204*omega*speaker_amplitudes[jj])]]
+        for jj, ii in enumerate(speaker_segment_indices)]
 
-    #gamma=8.4e-4
-    #alpha=kappa*dl.Constant(gamma)
-    #make solution entirely imaginary, i.e. real part is zero
-    alpha=0
-    if alpha==0:
-        #print('neumann')
-        boundary_conditions+=[
-            ['neumann',bndry_obj[ii], [dl.Constant(0),dl.Constant(0)]]
+    # gamma=8.4e-4
+    # alpha=kappa*dl.Constant(gamma)
+    # make solution entirely imaginary, i.e. real part is zero
+    alpha = 0
+    if alpha == 0:
+        # print('neumann')
+        boundary_conditions += [
+            ['neumann', bndry_obj[ii], [dl.Constant(0), dl.Constant(0)]]
             for ii in cabinet_segment_indices]
     else:
-        boundary_conditions+=[
-            ['robin',bndry_obj[ii],
-             [dl.Constant(0),dl.Constant(0)],[dl.Constant(0),alpha]]
+        boundary_conditions += [
+            ['robin', bndry_obj[ii],
+             [dl.Constant(0), dl.Constant(0)], [dl.Constant(0), alpha]]
             for ii in cabinet_segment_indices]
 
     tmp = [None for ii in range(len(boundary_conditions))]
     for ii in range(len(speaker_segment_indices)):
-        tmp[speaker_segment_indices[ii]]=boundary_conditions[ii]
+        tmp[speaker_segment_indices[ii]] = boundary_conditions[ii]
     for ii in range(len(cabinet_segment_indices)):
-        tmp[cabinet_segment_indices[ii]]=\
+        tmp[cabinet_segment_indices[ii]] =\
             boundary_conditions[ii+len(speaker_segment_indices)]
-    boundary_conditions=tmp
+    boundary_conditions = tmp
     return boundary_conditions
 
-def get_speaker_boundary_segment_indices(nedges,nsegments_per_edge):
-    assert nsegments_per_edge>2
+
+def get_speaker_boundary_segment_indices(nedges, nsegments_per_edge):
+    assert nsegments_per_edge > 2
     speaker_segment_indices = []
     for ii in range(nedges):
-        speaker_segment_indices+=list(np.arange(ii*nsegments_per_edge,(ii+1)*nsegments_per_edge)[1:-1])
-    cabinet_segment_indices = np.setdiff1d(np.arange(nedges*nsegments_per_edge),speaker_segment_indices)
+        speaker_segment_indices += list(
+            np.arange(ii*nsegments_per_edge, (ii+1)*nsegments_per_edge)[1:-1])
+    cabinet_segment_indices = np.setdiff1d(
+        np.arange(nedges*nsegments_per_edge), speaker_segment_indices)
     #print(speaker_segment_indices, cabinet_segment_indices)
     return speaker_segment_indices, cabinet_segment_indices
 
-def setup_helmholtz_model(mesh_resolution,frequency=400,speaker_amplitudes=1,
-                          sound_speed=np.array([343,6320,343])):
+
+def setup_helmholtz_model(mesh_resolution, frequency=400, speaker_amplitudes=1,
+                          sound_speed=np.array([343, 6320, 343])):
     """
     # 6320 speed of sound in aluminium
     # 343 speed of sound of air at 20 degrees celsius
     """
-    nedges=8
-    ampothem=1.5
-    radius=0.5
+    nedges = 8
+    ampothem = 1.5
+    radius = 0.5
     #edge_length = 2*np.tan(180/nedges)
-    #print(edge_length)
+    # print(edge_length)
 
     # mesh creation uses random ray tracing so load mesh from file
-    mesh_filename = 'helmholtz-mesh-res-%d.xml'%mesh_resolution
+    mesh_filename = 'helmholtz-mesh-res-%d.xml' % mesh_resolution
     if not os.path.exists(mesh_filename):
         #print('generating mesh')
         mesh = generate_polygonal_mesh(
-            mesh_resolution,ampothem,nedges,radius,False)
+            mesh_resolution, ampothem, nedges, radius, False)
         mesh_file = dl.File(mesh_filename)
         mesh_file << mesh
     else:
         #print('loading mesh', mesh_filename)
-        mesh=dl.Mesh(mesh_filename)
+        mesh = dl.Mesh(mesh_filename)
 
-    degree=1
-    P1=dl.FiniteElement('Lagrange',mesh.ufl_cell(),degree)
-    element=dl.MixedElement([P1,P1])
-    function_space=dl.FunctionSpace(mesh,element)
+    degree = 1
+    P1 = dl.FiniteElement('Lagrange', mesh.ufl_cell(), degree)
+    element = dl.MixedElement([P1, P1])
+    function_space = dl.FunctionSpace(mesh, element)
 
     omega = 2.*np.pi*frequency
 
     kappas = omega/sound_speed
-    cx1 = 0; cx2 = cx1-radius/np.sqrt(8)
-    kappa = dl.Expression('((x[0]-c1)*(x[0]-c1)+(x[1]-c1)*(x[1]-c1) >= r*r + tol) ? k_0 : ((x[0]-c2)*(x[0]-c2)+(x[1]-c2)*(x[1]-c2)>=r*r/4+tol ? k_1 : k_2)', degree=0, tol=1e-14, k_0=kappas[0], k_1=kappas[1],k_2=kappas[2],r=radius,c1=cx1,c2=cx2)
+    cx1 = 0
+    cx2 = cx1-radius/np.sqrt(8)
+    kappa = dl.Expression(
+        '((x[0]-c1)*(x[0]-c1)+(x[1]-c1)*(x[1]-c1) >= r*r + tol) ? k_0 : ((x[0]-c2)*(x[0]-c2)+(x[1]-c2)*(x[1]-c2)>=r*r/4+tol ? k_1 : k_2)',
+        degree=0, tol=1e-14, k_0=kappas[0], k_1=kappas[1], k_2=kappas[2],
+        r=radius, c1=cx1, c2=cx2)
 
-    #pp=dl.plot(kappa,mesh=mesh)
-    #plt.colorbar(pp)
-    #plt.show()
+    # pp=dl.plot(kappa,mesh=mesh)
+    # plt.colorbar(pp)
+    # plt.show()
 
-    forcing=[dl.Constant(0),dl.Constant(0)]
+    forcing = [dl.Constant(0), dl.Constant(0)]
 
     nsegments_per_edge = 3
-    cumulative_segment_sizes = [0.0625,0.9375,1.]
-    bndry_obj = get_polygon_boundary_segments(ampothem,nedges,nsegments_per_edge)
-    boundary_conditions = get_helmholtz_speaker_boundary_conditions(nedges,nsegments_per_edge,bndry_obj,speaker_amplitudes,frequency)
-    return kappa,forcing,function_space,boundary_conditions,nedges,\
+    cumulative_segment_sizes = [0.0625, 0.9375, 1.]
+    bndry_obj = get_polygon_boundary_segments(
+        ampothem, nedges, nsegments_per_edge)
+    boundary_conditions = get_helmholtz_speaker_boundary_conditions(
+        nedges, nsegments_per_edge, bndry_obj, speaker_amplitudes, frequency)
+    return kappa, forcing, function_space, boundary_conditions, nedges,\
         nsegments_per_edge, bndry_obj
 
-def setup_mfnets_helmholtz_benchmark(mesh_resolution=51,noise_std=1):
+
+def setup_mfnets_helmholtz_benchmark(mesh_resolution=51, noise_std=1):
     r"""
     Setup the multi-fidelity benchmark used to combine helmholtz data.
 
@@ -203,55 +226,57 @@ def setup_mfnets_helmholtz_benchmark(mesh_resolution=51,noise_std=1):
 
     bases : np.ndarray (nsamples,8)
         The basis functions :math:`\phi_i` used to model the observations
-        
+
     noise_std : float
         The standard deviation of the IID noise in the observations. 
         This is just the value passed in to this function, stored for 
         convienience.
     """
-    active_speakers = [[0,1,2,3,4,5,6,7],[2,4,6],[1,3,5,7]]
-    amplitudes = [[1,1,1,1,1,1,1,1],[2,2,2],[3,3,3,3]]
+    active_speakers = [[0, 1, 2, 3, 4, 5, 6, 7], [2, 4, 6], [1, 3, 5, 7]]
+    amplitudes = [[1, 1, 1, 1, 1, 1, 1, 1], [2, 2, 2], [3, 3, 3, 3]]
     nsources = len(active_speakers)
 
     data_path = pathlib.Path(__file__).parent.absolute()
-    filename = os.path.join(data_path,'helmholtz_noise_data.txt')
-    samples=[np.loadtxt(filename)[:,:2].T.copy() for ii in range(nsources)]
+    filename = os.path.join(data_path, 'helmholtz_noise_data.txt')
+    samples = [np.loadtxt(filename)[:, :2].T.copy() for ii in range(nsources)]
 
-    basis,sols,function_space=generate_helmholtz_bases(
-        samples[0],mesh_resolution)
-    
-    values = [basis[:,active_speakers[ii]].dot(amplitudes[ii])[:,np.newaxis]
+    basis, sols, function_space = generate_helmholtz_bases(
+        samples[0], mesh_resolution)
+
+    values = [basis[:, active_speakers[ii]].dot(amplitudes[ii])[:, np.newaxis]
               for ii in range(nsources)]
-    
+
     if np.isscalar(noise_std):
         noise_std = [noise_std]*nsources
     np.random.seed(2)
-    values = [v+np.random.normal(0,s,(v.shape[0],1))
-              for v,s in zip(values,noise_std)]
+    values = [v+np.random.normal(0, s, (v.shape[0], 1))
+              for v, s in zip(values, noise_std)]
 
-    bases = [HelmholtzBasis(sols,active_speakers[ii])
-                   for ii in range(nsources)]
-        
-    return Benchmark({'samples':samples,'obs':values,
-                      'bases':bases,'noise_std':noise_std})
+    bases = [HelmholtzBasis(sols, active_speakers[ii])
+             for ii in range(nsources)]
+
+    return Benchmark({'samples': samples, 'obs': values,
+                      'bases': bases, 'noise_std': noise_std})
+
 
 def plot_mfnets_helmholtz_benchmark_data(benchmark):
-    from pyapprox.fenics_models.fenics_utilities import \
-        get_vertices_of_polygon
     import matplotlib.pyplot as plt
-    ampothem,nedges=1.5,8
-    vertices = get_vertices_of_polygon(ampothem,nedges)
-    vertices = np.hstack([vertices,vertices[:,:1]])
-    active_speakers = [[0,1,2,3,4,5,6,7],[2,4,6],[1,3,5,7]]
+    ampothem, nedges = 1.5, 8
+    vertices = get_vertices_of_polygon(ampothem, nedges)
+    vertices = np.hstack([vertices, vertices[:, :1]])
+    active_speakers = [[0, 1, 2, 3, 4, 5, 6, 7], [2, 4, 6], [1, 3, 5, 7]]
 
-    fig,axs=plt.subplots(1,3,figsize=(3*8,6))
+    fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
     for ii in range(3):
-        axs[ii].add_artist(plt.Circle((0,0),0.5,fill=False,lw=3))
-        axs[ii].add_artist(plt.Circle((-0.5/np.sqrt(8),-0.5/np.sqrt(8)),0.25,fill=False,lw=3))
+        axs[ii].add_artist(plt.Circle((0, 0), 0.5, fill=False, lw=3))
+        axs[ii].add_artist(plt.Circle(
+            (-0.5/np.sqrt(8), -0.5/np.sqrt(8)), 0.25, fill=False, lw=3))
 
         for jj in range(len(active_speakers[ii])):
-            I = [active_speakers[ii][jj],active_speakers[ii][jj]+1]
-            axs[ii].plot(vertices[0,I],vertices[1,I],'k-',lw=5)
-        p=axs[ii].scatter(benchmark.samples[ii][0,:],benchmark.samples[ii][1,:],c=np.absolute(benchmark.obs[ii][:,0]),cmap="viridis_r")
-        plt.colorbar(p,ax=axs[ii])
+            I = [active_speakers[ii][jj], active_speakers[ii][jj]+1]
+            axs[ii].plot(vertices[0, I], vertices[1, I], 'k-', lw=5)
+        p = axs[ii].scatter(
+            benchmark.samples[ii][0, :], benchmark.samples[ii]
+            [1, :], c=np.absolute(benchmark.obs[ii][:, 0]), cmap="viridis_r")
+        plt.colorbar(p, ax=axs[ii])
         axs[ii].axis('off')

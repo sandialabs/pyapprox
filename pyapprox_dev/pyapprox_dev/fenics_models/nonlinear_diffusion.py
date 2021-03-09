@@ -1,5 +1,15 @@
+from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
+    AdvectionDiffusionModel
 import numpy as np
-from pyapprox.fenics_models.fenics_utilities import *
+from pyapprox_dev.fenics_models.fenics_utilities import *
+
+
+try:
+    import fenics_adjoint as dla
+    has_dla = True
+except:
+    import fenics as dla
+    has_dla = False
 
 
 def run_model(function_space, time_step, final_time, forcing,
@@ -14,7 +24,7 @@ def run_model(function_space, time_step, final_time, forcing,
     dt = time_step
     mesh = function_space.mesh()
     num_bndrys = len(boundary_conditions)
-    assert num_bndrys > 0 # specify None for no boundaries
+    assert num_bndrys > 0  # specify None for no boundaries
 
     if (len(boundary_conditions) == 1 and
             isinstance(boundary_conditions[0][2], dla.DirichletBC)):
@@ -118,7 +128,7 @@ def run_model(function_space, time_step, final_time, forcing,
         F = dl.action(F, u_2)
         J = dl.derivative(F, u_2, u)
         dla.solve(F == 0, u_2, dirichlet_bcs, J=J, solver_parameters=nlsparam)
-        
+
         # import matplotlib.pyplot as plt
         # pl = dl.plot(sol); plt.colorbar(pl); plt.show()
         # import matplotlib.pyplot as plt
@@ -132,8 +142,8 @@ def run_model(function_space, time_step, final_time, forcing,
 
 def compute_gamma(A, n=3):
     """n = 3 # GlenExponent"""
-    g = 9.81 #GravityAcceleration
-    rho = 910 #IceDensity
+    g = 9.81  # GravityAcceleration
+    rho = 910  # IceDensity
     gamma = 2.0*A*(rho*g)**n/(n+2)
     return gamma
 
@@ -164,18 +174,19 @@ def shallow_ice_diffusion(n, gamma, bed, positivity_tol, beta, thickness):
         height += bed
 
     var_form = gamma*thickness**(n+2)*dl.inner(
-        dl.grad(height),dl.grad(height))**((n-1)/2)
-    #var_form = gamma*thickness**(n+2)*(dl.inner(    
+        dl.grad(height), dl.grad(height))**((n-1)/2)
+    # var_form = gamma*thickness**(n+2)*(dl.inner(
     #    dl.grad(height),dl.grad(height))+positivity_tol)**((n-1)/2)
 
     if beta is not None:
-        g = 9.81 #GravityAcceleration
-        rho = 910 #IceDensity
-        var_form += rho*g/2*height**2/beta#dl.exp(beta)
+        g = 9.81  # GravityAcceleration
+        rho = 910  # IceDensity
+        var_form += rho*g/2*height**2/beta  # dl.exp(beta)
 
     # var_form = var_form_max(var_form,positivity_tol) # doesnt work well
     var_form += positivity_tol
     return var_form
+
 
 class ShallowIceDiffusivity(object):
     def __init__(self, Gamma, bed, beta, positivity_tol):
@@ -187,7 +198,7 @@ class ShallowIceDiffusivity(object):
 
     def __call__(self, thickness):
         return shallow_ice_diffusion(self.n, self.Gamma, self.bed, self.positivity_tol, self.beta, thickness)
-        
+
 
 def get_halfar_shallow_ice_exact_solution_sympy(Gamma, ndim):
     from sympy.abc import t
@@ -245,7 +256,6 @@ def get_default_newton_nlsparams():
     return nlsparams
 
 
-from pyapprox.fenics_models.advection_diffusion_wrappers import AdvectionDiffusionModel
 class HalfarShallowIceModel(AdvectionDiffusionModel):
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
@@ -305,7 +315,6 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
                 get_dirichlet_boundary_conditions_from_expression(
                     exact_solution, -self.Lx, self.Lx, -self.Lx, self.Lx)
 
-        
         function_space = dl.FunctionSpace(self.mesh, "CG", self.degree)
         return boundary_conditions, function_space
 
@@ -356,7 +365,8 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
         get_degrees_of_freedom_and_timestep()"""
         nx, ny = np.asarray(resolution_levels, dtype=int)
         if self.nphys_dim == 2:
-            mesh = dla.RectangleMesh(dl.Point(-self.Lx, -self.Lx), dl.Point(self.Lx, self.Lx), nx, ny)
+            mesh = dla.RectangleMesh(
+                dl.Point(-self.Lx, -self.Lx), dl.Point(self.Lx, self.Lx), nx, ny)
         elif self.nphys_dim == 1:
             mesh = dla.IntervalMesh(nx, -self.Lx, self.Lx)
         return mesh
@@ -412,6 +422,3 @@ class HalfarShallowIceModel(AdvectionDiffusionModel):
             second_order_timestepping=self.second_order_timestepping,
             nlsparam=self.nlsparams, positivity_tol=self.positivity_tol)
         return sol
-
-
-

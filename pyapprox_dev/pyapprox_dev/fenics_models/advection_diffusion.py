@@ -2,7 +2,7 @@ import os
 import time
 import numpy as np
 import dolfin as dl
-from pyapprox.fenics_models.fenics_utilities import *
+from pyapprox_dev.fenics_models.fenics_utilities import *
 try:
     import fenics_adjoint as dla
     has_dla = True
@@ -276,7 +276,7 @@ def run_steady_state_model(function_space, kappa, forcing,
     # for bc in dirichlet_bcs:
     #     bc.apply(A, b)
     # dla.solve(A, u.vector(), b)
-    dla.solve(a==L, u, dirichlet_bcs)
+    dla.solve(a == L, u, dirichlet_bcs)
     return u
 
 

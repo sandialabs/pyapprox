@@ -1,9 +1,9 @@
-name: pyapprox-base
+name: pyapprox-dev
 channels:
   - defaults
-#  - conda-forge #using conda-forge delays solving environment step significanty
+  - conda-forge
 dependencies:
-  - python >=3.6,<=3.8 # numba does requires <=3.8
+ - python >=3.6,<=3.8 # numba does requires <=3.8
   - numpy
   - matplotlib
   - scipy
@@ -19,9 +19,9 @@ dependencies:
   - seaborn
   - sympy
   - networkx
-  # make html in docs folder
   - sphinx
-#  - sphinx-gallery # requires conda-forge
+  - fenics=2019 # currently only 1 of 2 additional dependencies beyond base
+  - mshr	# currently only 1 of 2 additional dependencies beyond base
   - pip:
     - sphinx-gallery
     - sphinx_copybutton
