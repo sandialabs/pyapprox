@@ -332,6 +332,8 @@ def constant_increment_growth_rule(increment, level):
     num_samples_1d : integer
         The number of samples in the quadrature rule
     """
+    if level == 1:
+        return 3
     return increment*level+1
 
 
@@ -563,9 +565,10 @@ def univariate_christoffel_leja_quadrature_rule(
             lb, ub = -1, 1
             scale /= (ub-lb)
             loc = loc-scale*lb
-            initial_points = (initial_points-loc)/scale  
-        assert np.all((initial_points>=canonical_bounds[0]-np.finfo(float).eps)&
-                      (initial_points<=canonical_bounds[1]+np.finfo(float).eps))
+            initial_points = (initial_points-loc)/scale
+        eps = 1e-13#np.finfo(float).eps
+        assert np.all((initial_points>=canonical_bounds[0]-eps)&
+                      (initial_points<=canonical_bounds[1]+eps))
         # always produce sequence in canonical space
         bounds = canonical_bounds
     else:

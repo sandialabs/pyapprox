@@ -716,13 +716,19 @@ def plot_gaussian_contours(mean,chol_factor,show=False,
 
 from scipy.interpolate import interp1d
 class EmpiricalCDF(object):
-    def __init__(self, samples):
+    def __init__(self, samples, weights=None):
         assert samples.ndim==1
         self.samples = samples
         self.sorted_samples = np.sort(self.samples)
-        self.ecdf = [
-            (ii+1)/self.sorted_samples.shape[0]
-            for ii in range(self.sorted_samples.shape[0])]
+        if weights is None:
+            self.ecdf = [
+                (ii+1)/self.sorted_samples.shape[0]
+                for ii in range(self.sorted_samples.shape[0])]
+        else:
+            assert weights.ndim == 1
+            I = np.argsort(self.samples)
+            self.ecdf = np.cumsum(weights[I])
+
         self.interp = interp1d(
             self.sorted_samples,self.ecdf,kind="zero",fill_value=(0,1),
             bounds_error=False)
