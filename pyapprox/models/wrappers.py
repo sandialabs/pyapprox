@@ -103,7 +103,7 @@ class PyFunction(object):
 
 def run_shell_command(shell_command, opts={}):
     """
-    Execulte a shell command.
+    Execute a shell command.
 
     Parameters
     ----------
