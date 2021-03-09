@@ -359,15 +359,15 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     return Benchmark(attributes)
 
 
-try:
-    from pyapprox.fenics_models.advection_diffusion_wrappers import \
+import pkg_resources
+installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
+if 'pyapprox_dev' in installed_pkgs:
+    from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
         setup_advection_diffusion_benchmark,\
         setup_advection_diffusion_source_inversion_benchmark,\
         setup_multi_level_advection_diffusion_benchmark
-    from pyapprox.fenics_models.helmholtz_benchmarks import \
+    from pyapprox_dev.fenics_models.helmholtz_benchmarks import \
         setup_mfnets_helmholtz_benchmark
-except:
-    pass
 
 
 def setup_benchmark(name, **kwargs):
@@ -377,17 +377,18 @@ def setup_benchmark(name, **kwargs):
                   'rosenbrock': setup_rosenbrock_function,
                   'genz': setup_genz_function,
                   'cantilever_beam': setup_cantilever_beam_benchmark}
-    try:
+    if 'pyapprox_dev' in installed_pkgs:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
         fenics_benchmarks = {
-            'multi_index_advection_diffusion': setup_advection_diffusion_benchmark,
-            'multi_index_advection_diffusion_source_inversion': setup_advection_diffusion_source_inversion_benchmark,
-            'multi_level_advection_diffusion': setup_multi_level_advection_diffusion_benchmark,
+            'multi_index_advection_diffusion':
+            setup_advection_diffusion_benchmark,
+            'multi_index_advection_diffusion_source_inversion':
+            setup_advection_diffusion_source_inversion_benchmark,
+            'multi_level_advection_diffusion':
+            setup_multi_level_advection_diffusion_benchmark,
             'mfnets_helmholtz': setup_mfnets_helmholtz_benchmark}
         benchmarks.update(fenics_benchmarks)
-    except:
-        pass
 
     if name not in benchmarks:
         msg = f'Benchmark "{name}" not found.\n Avaialble benchmarks are:\n'

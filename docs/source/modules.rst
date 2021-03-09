@@ -19,23 +19,11 @@ Developer Reference Guide
 
 .. automodapi:: pyapprox.benchmarks.sensitivity_benchmarks
    :no-inheritance-diagram:
-   		
-
-.. automodapi:: pyapprox.fenics_models.advection_diffusion_wrappers
-   :no-inheritance-diagram:
-   
-
-.. automodapi:: pyapprox.fenics_models.helmholtz_benchmarks
-   :no-inheritance-diagram:
-   
+   		   
 
 .. automodapi:: pyapprox.multivariate_polynomials
    :no-inheritance-diagram:
    		
-
-.. automodapi:: pyapprox.bayesian_inference.markov_chain_monte_carlo
-   :no-inheritance-diagram:
-   
 
 .. automodapi:: pyapprox.optimal_experimental_design
    :no-inheritance-diagram:

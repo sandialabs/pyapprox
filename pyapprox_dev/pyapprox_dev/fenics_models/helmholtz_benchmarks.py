@@ -4,7 +4,7 @@ import pathlib
 import os
 from pyapprox_dev.fenics_models.fenics_utilities import \
     generate_polygonal_mesh, get_polygon_boundary_segments
-from pyapprox.fenics_models.helmholtz import run_model
+from pyapprox_dev.fenics_models.helmholtz import run_model
 from pyapprox.benchmarks.benchmarks import Benchmark
 from pyapprox_dev.fenics_models.fenics_utilities import get_vertices_of_polygon
 

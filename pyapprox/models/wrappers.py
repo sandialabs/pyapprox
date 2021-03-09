@@ -328,6 +328,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples, pool=Non
         pool = Pool(max_eval_concurrency)
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
+    pool.close()
     num_qoi = result[0].shape[1]
     values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):

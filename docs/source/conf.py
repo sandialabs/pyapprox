@@ -57,25 +57,34 @@ extensions += ['sphinx_gallery.gen_gallery']
 from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
     'plot_setup_model.py',
-    'plot_advection_diffusion_model.py',
     'plot_monte_carlo.py',
-    'plot_bayesian_inference.py',
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
     'plot_sensitivity_analysis.py',
     'plot_bayesian_networks.py',
-    #'plot_design_under_uncertainty.py'
     'plot_adaptive_leja_interpolation.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
     'plot_multi_level_monte_carlo.py',
     'plot_multi_fidelity_monte_carlo.py',
     'plot_many_model_approximate_control_variate_monte_carlo.py',
-    #'plot_recursive_control_variate_monte_carlo.py',#redundant remove when ready
-    #'plot_approximate_control_variate_sample_allocation.py',#redundant remove when ready
-    'plot_multi_index_collocation.py',
     'plot_gaussian_mfnets.py'
 ]
+
+example_dirs = ['../../tutorials']
+
+import pkg_resources
+installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
+if 'pyapprox_dev' in installed_pkgs:
+    # add documentation for modules in pyapprox_dev
+    example_dirs += ['../../pyapprox_dev/tutorials']
+    example_filenames_in_order.insert(1, 'plot_advection_diffusion_model.py')
+    example_filenames_in_order.insert(3, 'plot_bayesian_inference.py')
+    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
+    
+
+print(example_filenames_in_order)
+
 class ExamplesExplicitOrder(_SortKey):
 
     def __call__(self, filename):
@@ -88,7 +97,7 @@ class ExamplesExplicitOrder(_SortKey):
 # addition to .py files
 sphinx_gallery_conf = {
     # path to your example scripts
-    'examples_dirs': ['../../tutorials'],#'../../examples',
+    'examples_dirs': example_dirs,
     # path to where to save gallery generated output
     'gallery_dirs': ['auto_tutorials'],#'auto_examples',
     #'first_notebook_cell' : "%matplotlib inline",

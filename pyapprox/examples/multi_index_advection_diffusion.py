@@ -4,7 +4,7 @@ from pyapprox.utilities import get_all_sample_combinations
 from pyapprox.low_discrepancy_sequences import *
 from pyapprox.models.wrappers import PoolModel, WorkTracker
 import multiprocessing
-from pyapprox.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
+from pyapprox_dev.fenics_models.advection_diffusion import AdvectionDiffusionModel,\
     qoi_functional_misc
 from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
 def setup_model(num_vars,max_eval_concurrency):

@@ -38,18 +38,23 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_incorrect_benchmark_name(self):
         self.assertRaises(Exception, setup_benchmark, "missing", a=7, b=0.1)
-        benchmark = Benchmark({'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
-                               'hessp': rosenbrock_function_hessian_prod})
+        benchmark = Benchmark(
+            {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
+             'hessp': rosenbrock_function_hessian_prod})
 
     def test_cantilever_beam_gradients(self):
         benchmark = setup_benchmark('cantilever_beam')
         from pyapprox.models.wrappers import ActiveSetVariableModel
         fun = ActiveSetVariableModel(
-            benchmark.fun, benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-            benchmark.variable.get_statistics('mean'), benchmark.design_var_indices)
+            benchmark.fun,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),
+            benchmark.design_var_indices)
         jac = ActiveSetVariableModel(
-            benchmark.jac, benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-            benchmark.variable.get_statistics('mean'), benchmark.design_var_indices)
+            benchmark.jac,
+            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.get_statistics('mean'),
+            benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
         errors = pya.check_gradients(
             fun, jac, init_guess, disp=True)
@@ -58,11 +63,13 @@ class TestBenchmarks(unittest.TestCase):
         constraint_fun = ActiveSetVariableModel(
             benchmark.constraint_fun,
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-            benchmark.variable.get_statistics('mean'), benchmark.design_var_indices)
+            benchmark.variable.get_statistics('mean'),
+            benchmark.design_var_indices)
         constraint_jac = ActiveSetVariableModel(
             benchmark.constraint_jac,
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
-            benchmark.variable.get_statistics('mean'), benchmark.design_var_indices)
+            benchmark.variable.get_statistics('mean'),
+            benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
         errors = pya.check_gradients(
             constraint_fun, constraint_jac, init_guess, disp=True)
@@ -81,7 +88,8 @@ class TestBenchmarks(unittest.TestCase):
             samples, benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
         errors = pya.check_gradients(
-            lambda x: constraint_fun(x).flatten(order='F'), constraint_jac, init_guess, disp=True)
+            lambda x: constraint_fun(x).flatten(order='F'), constraint_jac,
+            init_guess, disp=True)
         assert errors.min() < 4e-7
 
 

@@ -51,119 +51,128 @@ to define the univariate Lagrange polynomials. The number of points :math:`m(l)`
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
 """
 
+import pyapprox as pya
+import matplotlib as mpl
 from pyapprox.examples.tensor_product_lagrange_interpolation import *
-fig = plt.figure(figsize=(2*8,6))
-ax=fig.add_subplot(1,2,1,projection='3d')
-level = 2; ii=1; jj=1
-plot_tensor_product_lagrange_basis_2d(level,ii,jj,ax)
+fig = plt.figure(figsize=(2*8, 6))
+ax = fig.add_subplot(1, 2, 1, projection='3d')
+level = 2
+ii = 1
+jj = 1
+plot_tensor_product_lagrange_basis_2d(level, ii, jj, ax)
 
-ax=fig.add_subplot(1,2,2,projection='3d')
-level = 2; ii=1; jj=3
-plot_tensor_product_lagrange_basis_2d(level,ii,jj,ax)
+ax = fig.add_subplot(1, 2, 2, projection='3d')
+level = 2
+ii = 1
+jj = 3
+plot_tensor_product_lagrange_basis_2d(level, ii, jj, ax)
 
-#%%
-#To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
+# %%
+# To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
 #
-#.. math:: f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2
+# .. math:: f_\ai(\rv) = \cos(2\pi\rv_1)\cos(2\pi\rv_2), \qquad \rv\in\rvdom=[-1,1]^2
 
-f = lambda z : (np.cos(2*np.pi*z[0,:])*np.cos(2*np.pi*z[1,:]))[:,np.newaxis]
-def get_interpolant(function,level):
+
+def f(z): return (np.cos(2*np.pi*z[0, :]) *
+                  np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
+
+
+def get_interpolant(function, level):
     level = np.asarray(level)
-    univariate_samples_func = lambda l: pya.clenshaw_curtis_pts_wts_1D(l)[0]
+    def univariate_samples_func(l): return pya.clenshaw_curtis_pts_wts_1D(l)[0]
     abscissa_1d = [univariate_samples_func(level[0]),
                    univariate_samples_func(level[1])]
 
-    
     samples_1d = pya.get_1d_samples_weights(
         [pya.clenshaw_curtis_in_polynomial_order]*2,
-        [pya.clenshaw_curtis_rule_growth]*2,level)[0]
+        [pya.clenshaw_curtis_rule_growth]*2, level)[0]
 
     poly_indices = pya.get_subspace_polynomial_indices(
-        level,[pya.clenshaw_curtis_rule_growth]*2,config_variables_idx=None)
-    samples = pya.get_subspace_samples(level,poly_indices,samples_1d)
+        level, [pya.clenshaw_curtis_rule_growth]*2, config_variables_idx=None)
+    samples = pya.get_subspace_samples(level, poly_indices, samples_1d)
     fn_vals = function(samples)
 
-    interp = lambda samples: pya.evaluate_sparse_grid_subspace(
-        samples,level,fn_vals,samples_1d,None,False)
+    def interp(samples): return pya.evaluate_sparse_grid_subspace(
+        samples, level, fn_vals, samples_1d, None, False)
     hier_indices = pya.get_hierarchical_sample_indices(
-        level,poly_indices,samples_1d,config_variables_idx=None)
-    
+        level, poly_indices, samples_1d, config_variables_idx=None)
+
     return interp, samples, hier_indices, abscissa_1d[0].shape[0], \
-      abscissa_1d[1].shape[0]
+        abscissa_1d[1].shape[0]
 
-import pyapprox as pya
-level = [2,3]
-interp,samples,_ = get_interpolant(f,level)[:3]
 
-marker_color='k'
-alpha=1.0
-fig,axs = plt.subplots(1,1,figsize=(8,6))
-axs.plot(samples[0,:],samples[1,:],'o',color=marker_color,ms=10,alpha=alpha)
+level = [2, 3]
+interp, samples, _ = get_interpolant(f, level)[:3]
 
-plot_limits = [-1,1,-1,1]
+marker_color = 'k'
+alpha = 1.0
+fig, axs = plt.subplots(1, 1, figsize=(8, 6))
+axs.plot(samples[0, :], samples[1, :], 'o',
+         color=marker_color, ms=10, alpha=alpha)
+
+plot_limits = [-1, 1, -1, 1]
 num_pts_1d = 101
-X,Y,Z = get_meshgrid_function_data(
+X, Y, Z = get_meshgrid_function_data(
     interp, plot_limits, num_pts_1d)
 
-num_contour_levels=10
-import matplotlib as mpl
+num_contour_levels = 10
 cmap = mpl.cm.coolwarm
-levels = np.linspace(Z.min(),Z.max(),num_contour_levels)
+levels = np.linspace(Z.min(), Z.max(), num_contour_levels)
 cset = axs.contourf(
-    X, Y, Z, levels=levels,cmap=cmap,alpha=alpha)
+    X, Y, Z, levels=levels, cmap=cmap, alpha=alpha)
 plt.show()
 
-#%%
+# %%
 # The error in the tensor product interpolant is given by
 #
-#.. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}
+# .. math:: \lVert f_\ai-f_{\ai,\bi}\rVert_{L^\infty(\rvdom)} \le C_{d,r} N_{\bi}^{-s/d}
 #
-#Post-processing
-#---------------
-#Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.
+# Post-processing
+# ---------------
+# Once a surrogate has been constructed it can be used for many different purposes. For example one can use it to estimate moments, perform sensitivity analysis, or simply approximate the evaluation of the expensive model at new locations where expensive simulation model data is not available.
 #
-#To use the surrogate for computing moments we simply draw realizations of the input random variables :math:`\rv` and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.
+# To use the surrogate for computing moments we simply draw realizations of the input random variables :math:`\rv` and evaluate the surrogate at those samples. We can approximate the mean of the expensive simluation model as the average of the surrogate values at the random samples.
 #
-#We know from :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
+# We know from :ref:`sphx_glr_auto_tutorials_foundations_plot_monte_carlo.py` that the error in the Monte carlo estimate of the mean using the surrogate is
 #
-#.. math::
+# .. math::
 #   \mean{\left(Q_{\alpha}-\mean{Q}\right)^2}&=N^{-1}\var{Q_\alpha}+\left(\mean{Q_{\alpha}}-\mean{Q}\right)^2\\
 #   &\le N^{-1}\var{Q_\alpha}+C_{d,r} N_{\bi}^{-s/d}
 #
-#Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than \frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.
+# Because a surrogate is inexpensive to evaluate the first term can be driven to zero so that only the bias remains. Thus the error in the Monte Carlo estimate of the mean using the surrogate is dominated by the error in the surrogate. If this error can be reduced more quickly than \frac{N^{-1}} (as is the case for low-dimensional tensor-product interpolation) then using surrogates for computing moments is very effective.
 #
-#Note that moments can be estimated without using Monte-Carlo sampling by levaraging properties of the univariate interpolation rules used to build the multi-variate interpolant. Specifically, the expectation of a tensor product interpolant can be computed without explicitly forming the interpolant and is given by
+# Note that moments can be estimated without using Monte-Carlo sampling by levaraging properties of the univariate interpolation rules used to build the multi-variate interpolant. Specifically, the expectation of a tensor product interpolant can be computed without explicitly forming the interpolant and is given by
 #
-#.. math::
+# .. math::
 #
 #   \mu_{\bi}=\int_{\rvdom} \sum_{\V{j}\le\bi}f_\ai(\rv^{(\V{j})})\prod_{i=1}^d\phi_{i,j_i}(\rv_i) w(\rv)\,d\rv=\sum_{\V{j}\le\bi} f_\ai(\rv^{(\V{j})}) v_{\V{j}}.
 #
-#The expectation is simply the weighted sum of the Cartesian-product of the univariate quadrature weights
+# The expectation is simply the weighted sum of the Cartesian-product of the univariate quadrature weights
 #
-#.. math:: v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),
+# .. math:: v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),
 #
-#which can be computed analytically.
-x,w=pya.get_tensor_product_quadrature_rule(
-    level,2,pya.clenshaw_curtis_pts_wts_1D)
-surrogate_mean = f(x)[:,0].dot(w)
-print('Quadrature mean',surrogate_mean)
-#%%
-#Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
+# which can be computed analytically.
+x, w = pya.get_tensor_product_quadrature_rule(
+    level, 2, pya.clenshaw_curtis_pts_wts_1D)
+surrogate_mean = f(x)[:, 0].dot(w)
+print('Quadrature mean', surrogate_mean)
+# %%
+# Here we have recomptued the values of :math:`f` at the interpolation samples, but in practice we sould just re-use the values collected when building the interpolant.
 #
-#Now let us compare the quadrature mean with the MC mean computed using the surrogate
+# Now let us compare the quadrature mean with the MC mean computed using the surrogate
 num_samples = int(1e6)
-samples = np.random.uniform(-1,1,(2,num_samples))
+samples = np.random.uniform(-1, 1, (2, num_samples))
 values = interp(samples)
 mc_mean = values.mean()
-print('Monte Carlo surrogate mean',mc_mean)
-#%%
-#References
-#^^^^^^^^^^
+print('Monte Carlo surrogate mean', mc_mean)
+# %%
+# References
+# ^^^^^^^^^^
 #
-#.. [XKSISC2002] `D. Xiu and G.E. Karniadakis. The Wiener-Askey Polynomial Chaos for stochastic differential equations. SIAM J. Sci. Comput., 24(2), 619-644, 2002. <http://dx.doi.org/10.1137/S1064827501387826>`_
+# .. [XKSISC2002] `D. Xiu and G.E. Karniadakis. The Wiener-Askey Polynomial Chaos for stochastic differential equations. SIAM J. Sci. Comput., 24(2), 619-644, 2002. <http://dx.doi.org/10.1137/S1064827501387826>`_
 #
-#.. [RWMIT2006] `C.E Rasmussen and C. Williams. Gaussian Processes for Machine Learning. MIT Press, 2006. <http://www.gaussianprocess.org/gpml/chapters/>`_
+# .. [RWMIT2006] `C.E Rasmussen and C. Williams. Gaussian Processes for Machine Learning. MIT Press, 2006. <http://www.gaussianprocess.org/gpml/chapters/>`_
 #
-#.. [BGAN2004] `H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004. <http://dx.doi.org/10.1017/S0962492904000182>`_
+# .. [BGAN2004] `H. Bungartz and M. Griebel. Sparse Grids. Acta Numerica, 13, 147-269, 2004. <http://dx.doi.org/10.1017/S0962492904000182>`_
 #
-#.. [SFIJNME2017] `C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017. <https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312>`_
+# .. [SFIJNME2017] `C Soize and C. Farhat. A nonparametric probabilistic approach for quantifying uncertainties in low-dimensional and high-dimensional nonlinear models. International Journal for Numerical Methods in Engineering, 109(6), 837-888, 2017. <https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5312>`_

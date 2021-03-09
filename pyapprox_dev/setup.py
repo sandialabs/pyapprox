@@ -22,7 +22,7 @@ setuptools.setup(
     ],
     include_dirs=[np.get_include()],
     setup_requires=['numpy >= 1.16.4','Cython','scipy >= 1.0.0'],
-    install_requires=['pyapprox'],
+    install_requires=['pyapprox', 'pymc3'],
     extras_require={'docs':
                     ['numpydoc','sphinx','sphinx_automodapi','sphinx_rtd_theme',
                      'sphinx-gallery','jupyter']

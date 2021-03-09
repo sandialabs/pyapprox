@@ -37,57 +37,56 @@ where :math:`\V{e}_i` is the unit vector, with only one non-zero entry located a
 
 Sobol indices can be computed different ways. In the following we will use polynomial chaos expansions, as in [SRESS2008]_.
 """
+import matplotlib.pyplot as plt
 import numpy as np
 import pyapprox as pya
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.approximate import approximate
-benchmark = setup_benchmark("ishigami",a=7,b=0.1)
+benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
 num_samples = 1000
-train_samples=pya.generate_independent_random_samples(
-    benchmark.variable,num_samples)
+train_samples = pya.generate_independent_random_samples(
+    benchmark.variable, num_samples)
 train_vals = benchmark.fun(train_samples)
 
 approx_res = approximate(
-    train_samples,train_vals,'polynomial_chaos',
-    {'basis_type':'hyperbolic_cross','variable':benchmark.variable,
-     'options':{'max_degree':8}})
+    train_samples, train_vals, 'polynomial_chaos',
+    {'basis_type': 'hyperbolic_cross', 'variable': benchmark.variable,
+     'options': {'max_degree': 8}})
 pce = approx_res.approx
 
 res = pya.analyze_sensitivity_polynomial_chaos(pce)
 
-#%%
-#Now lets compare the estimated values with the exact value
-print(res.main_effects[:,0])
-print(benchmark.main_effects[:,0])
+# %%
+# Now lets compare the estimated values with the exact value
+print(res.main_effects[:, 0])
+print(benchmark.main_effects[:, 0])
 
-#%%
-#We can visualize the sensitivity indices using the following
+# %%
+# We can visualize the sensitivity indices using the following
 
-import matplotlib.pyplot as plt
-fig,axs = plt.subplots(1,3,figsize=(3*8,6))
-pya.plot_main_effects(benchmark.main_effects,axs[0])
-pya.plot_total_effects(benchmark.total_effects,axs[1])
-pya.plot_interaction_values(benchmark.sobol_indices,benchmark.sobol_interaction_indices,axs[2])
+fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
+pya.plot_main_effects(benchmark.main_effects, axs[0])
+pya.plot_total_effects(benchmark.total_effects, axs[1])
+pya.plot_interaction_values(benchmark.sobol_indices,
+                            benchmark.sobol_interaction_indices, axs[2])
 axs[0].set_title(r'$\mathrm{Main\;Effects}$')
 axs[1].set_title(r'$\mathrm{Total\;Effects}$')
 axs[2].set_title(r'$\mathrm{Sobol\;Indices}$')
 plt.show()
 
 
-
-#%%
-#..
+# %%
+# ..
 #  Morris One-at-a-time
 #  --------------------
 #  [MT1991]_
 
 
-#%%
-#References
-#^^^^^^^^^^
-#.. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
-#.. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
-#..
-#  .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_ 
-
+# %%
+# References
+# ^^^^^^^^^^
+# .. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
+# .. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
+# ..
+#  .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_
