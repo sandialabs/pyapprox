@@ -188,11 +188,15 @@ def evaluate_multivariate_orthonormal_polynomial(
     indices : np.ndarray (num_vars, num_indices)
         The exponents of each polynomial term
 
-    recursion_coeffs : np.ndarray (num_indices,2)
-        The coefficients of each monomial term
+    recursion_coeffs : list of np.ndarray (num_indices,2)
+        The recursion coefficients for each unique polynomial
 
     deriv_order : integer in [0,1]
        The maximum order of the derivatives to evaluate.
+
+    basis_type_index_map : list
+        The index into recursion coeffs that points to the unique recursion
+        coefficients associated with each dimension
 
     Return
     ------

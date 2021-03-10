@@ -1,7 +1,7 @@
 r"""
 Sensitivity Analysis
 ====================
-Quantifying the sensitivity of a model output :math:`f` to the model parameters :math:`\rv` can be an important component of any modeling exercise. This section demonstrates how to use opoular local and global sensitivity analysis.
+Quantifying the sensitivity of a model output :math:`f` to the model parameters :math:`\rv` can be an important component of any modeling exercise. This section demonstrates how to use popular local and global sensitivity analysis.
 
 Sobol Indices
 -------------
