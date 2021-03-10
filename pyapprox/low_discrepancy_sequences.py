@@ -1,5 +1,5 @@
 import numpy as np
-from pyapprox.utilities import get_first_n_primes
+from pyapprox.utilities import get_first_n_primes, module_exists
 from numba import njit
 
 
@@ -9,12 +9,11 @@ def halton_sequence(num_vars, index1, index2):
 
     primes = get_first_n_primes(num_vars)
 
-    try:
+    if module_exists('pyapprox.cython.utilities'):
         from pyapprox.cython.utilities import halton_sequence_pyx
         return halton_sequence_pyx(primes, index1, index2)
-    except:
+    else:
         print('halton_sequence extension failed')
-        pass
 
     return __halton_sequence(num_vars, index1, index2)
 

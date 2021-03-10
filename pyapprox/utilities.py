@@ -5,6 +5,8 @@ from functools import partial
 from scipy.linalg import solve_triangular
 from numba import njit
 from numpy.polynomial.legendre import leggauss
+import pkg_resources
+import importlib
 
 
 def sub2ind(sizes, multi_index):
@@ -1836,6 +1838,11 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
 
     return result
 
-    
-        
-        
+
+def package_installed(name):
+    installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
+    return name in installed_pkgs
+
+
+def module_exists(name):
+    return importlib.util.find_spec("numpy") is not None

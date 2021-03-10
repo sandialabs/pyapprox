@@ -307,8 +307,8 @@ class DataFunctionModel(object):
         return values
 
 
-def run_model_samples_in_parallel(model, max_eval_concurrency, samples, pool=None,
-                                  assert_omp=True):
+def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
+                                  pool=None, assert_omp=True):
     """
     Warning
     -------
@@ -321,14 +321,19 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples, pool=Non
         if ('OMP_NUM_THREADS' not in os.environ or
                 not int(os.environ['OMP_NUM_THREADS']) == 1):
             msg = 'User set assert_omp=True but OMP_NUM_THREADS has not been '
-            msg += 'set to 1. Run script with OMP_NUM_THREADS=1 python script.py'
+            msg += 'set to 1. Run script with '
+            msg += 'OMP_NUM_THREADS=1 python script.py'
             raise Exception(msg)
 
     if pool is None:
+        pool_given = False
         pool = Pool(max_eval_concurrency)
+    else:
+        pool_given = True
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
-    pool.close()
+    if pool_given is False:
+        pool.close()
     num_qoi = result[0].shape[1]
     values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):
@@ -602,7 +607,6 @@ class PoolModel(object):
             being used
         """
         self.max_eval_concurrency = max_eval_concurrency
-        self.pool = Pool(self.max_eval_concurrency)
 
     def __call__(self, samples):
         """
@@ -616,7 +620,7 @@ class PoolModel(object):
         """
         vals = run_model_samples_in_parallel(
             self.pool_function, self.max_eval_concurrency, samples,
-            pool=self.pool, assert_omp=self.assert_omp)
+            pool=None, assert_omp=self.assert_omp)
         return vals
 
 

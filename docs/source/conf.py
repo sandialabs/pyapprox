@@ -72,18 +72,21 @@ example_filenames_in_order = [
 ]
 
 example_dirs = ['../../tutorials']
+gallery_dirs = ['auto_tutorials']
 
 import pkg_resources
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
-if 'pyapprox_dev' in installed_pkgs:
+if 'pyapprox-dev' in installed_pkgs:
     # add documentation for modules in pyapprox_dev
     example_dirs += ['../../pyapprox_dev/tutorials']
+    gallery_dirs += ['auto_dev_tutorials']
     example_filenames_in_order.insert(1, 'plot_advection_diffusion_model.py')
     example_filenames_in_order.insert(3, 'plot_bayesian_inference.py')
-    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
-    
+    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py') 
 
+# print(installed_pkgs)
 print(example_filenames_in_order)
+print(example_dirs)
 
 class ExamplesExplicitOrder(_SortKey):
 
@@ -95,24 +98,25 @@ class ExamplesExplicitOrder(_SortKey):
 # Note sphink-gallery only runs examples in files that start with plot_
 # To add subfolders in examples must add README.rst to that subfolder in
 # addition to .py files
+# gallery_dirs and example_dirs must be the same length
 sphinx_gallery_conf = {
     # path to your example scripts
     'examples_dirs': example_dirs,
     # path to where to save gallery generated output
-    'gallery_dirs': ['auto_tutorials'],#'auto_examples',
-    #'first_notebook_cell' : "%matplotlib inline",
+    'gallery_dirs': gallery_dirs,
+    # 'first_notebook_cell' : "%matplotlib inline",
     'within_subsection_order': ExamplesExplicitOrder,
-    'ignore_pattern': r'plot_advection_diffusion_model\.py',
+    # 'ignore_pattern': r'plot_advection_diffusion_model\.py',
 }
-#If want to specify user latex macrors to jupyter using sphinx-gallery go to
-#/miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
-#in function jupyter_notebook replace        
+# If want to specify user latex macrors to jupyter using sphinx-gallery go to
+# /miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py
+# in function jupyter_notebook replace
 #     add_code_cell(work_notebook, first_cell)
-#with       
+# with
 #     add_markdown_cell(work_notebook, first_cell)#jdj
 #     add_code_cell(work_notebook,"%matplotlib inline")#jdj
 # then add user defs like so
-sphinx_gallery_conf['first_notebook_cell']=r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\mathrm{d}#1}$$"
+sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}[1]{{\boldsymbol{#1}}}\newcommand{mean}[1]{{\mathbb{E}\left[#1\right]}}\newcommand{var}[1]{{\mathbb{V}\left[#1\right]}}\newcommand{covar}[2]{\mathbb{C}\text{ov}\left[#1,#2\right]}\newcommand{corr}[2]{\mathbb{C}\text{or}\left[#1,#2\right]}\newcommand{argmin}{\mathrm{argmin}}\def\rv{z}\def\reals{\mathbb{R}}\def\pdf{\rho}\def\rvdom{\Gamma}\def\coloneqq{\colon=}\newcommand{norm}{\lVert #1 \rVert}\def\argmax{\operatorname{argmax}}\def\ai{\alpha}\def\bi{\beta}\newcommand{\dx}[1]{\;\mathrm{d}#1}$$"
 
 # if change conf make sure to remove source/auto_examples, using make clean
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
@@ -153,9 +157,9 @@ autodoc_default_flags = ['members']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-#html_theme = 'alabaster'
-#html_theme = 'sphinxdoc'
-#html_theme = 'scipy-sphinx-theme'
+# html_theme = 'alabaster'
+# html_theme = 'sphinxdoc'
+# html_theme = 'scipy-sphinx-theme'
 html_theme = 'sphinx_rtd_theme'
 
 html_theme_options = {
