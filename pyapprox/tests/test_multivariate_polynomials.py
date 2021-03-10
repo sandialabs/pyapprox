@@ -834,66 +834,6 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(variance, 382**2/3+(2*305)**2 /
                            5+(2*126)**2/7+(8*27)**2/9+4/15+1/3)
 
-    def test_marginalize_polynomial_chaos_expansions(self):
-        univariate_variables = [
-            uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
-        num_vars = len(univariate_variables)
-
-        poly = PolynomialChaosExpansion()
-        poly_opts = define_poly_options_from_variable_transformation(var_trans)
-        poly.configure(poly_opts)
-
-        degree = 2
-        indices = compute_hyperbolic_indices(num_vars, degree, 1)
-        poly.set_indices(indices)
-        poly.set_coefficients(np.ones((indices.shape[1], 1)))
-
-        for ii in range(num_vars):
-            # Marginalize out 2 variables
-            xx = np.linspace(-1, 1, 101)
-            inactive_idx = np.hstack((np.arange(ii), np.arange(ii+1, num_vars)))
-            marginalized_pce = marginalize_polynomial_chaos_expansion(
-                poly, inactive_idx)
-            mvals = marginalized_pce(xx[None, :])
-            variable_ii = variable.all_variables()[ii:ii+1]
-            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
-            poly_ii = PolynomialChaosExpansion()
-            poly_opts_ii = define_poly_options_from_variable_transformation(
-                var_trans_ii)
-            poly_ii.configure(poly_opts_ii)
-            indices_ii = compute_hyperbolic_indices(1, degree, 1.)
-            poly_ii.set_indices(indices_ii)
-            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
-            pvals = poly_ii(xx[None, :])
-            # import matplotlib.pyplot as plt
-            # plt.plot(xx, pvals)
-            # plt.plot(xx, mvals, '--')
-            # plt.show()
-            assert np.allclose(mvals, pvals)
-
-            # Marginalize out 1 variable
-            xx = cartesian_product([xx]*2)
-            inactive_idx = np.array([ii])
-            marginalized_pce = marginalize_polynomial_chaos_expansion(
-                poly, inactive_idx)
-            mvals = marginalized_pce(xx)
-            variable_ii = variable.all_variables()[:ii]+\
-                variable.all_variables()[ii+1:]
-            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
-            poly_ii = PolynomialChaosExpansion()
-            poly_opts_ii = define_poly_options_from_variable_transformation(
-                var_trans_ii)
-            poly_ii.configure(poly_opts_ii)
-            indices_ii = compute_hyperbolic_indices(2, degree, 1.)
-            poly_ii.set_indices(indices_ii)
-            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
-            pvals = poly_ii(xx)
-            assert np.allclose(mvals, pvals)
-
-            
-
 
 if __name__ == "__main__":
     multivariate_polynomials_test_suite = \

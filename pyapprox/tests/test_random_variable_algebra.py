@@ -22,8 +22,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         power = 2
         variable = stats.norm(mean, np.sqrt(var))
         yy = np.linspace(1e-3, stats.chi2.ppf(0.999, df=1), 101)
-        assert np.allclose(power_of_random_variable_pdf(variable.pdf, power, yy),
-                           stats.chi2.pdf(yy, df=1))
+        assert np.allclose(
+            power_of_random_variable_pdf(variable.pdf, power, yy),
+            stats.chi2.pdf(yy, df=1))
 
     def test_get_inverse_derivatives_cubic_polynomial(self):
         lb, ub = 0, 1
@@ -60,7 +61,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         def x_cdf(tt): return (tt*(tt**2-3*tt+3)).squeeze()
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)
         # plt.plot(zz,z_cdf_vals,label='Approx.')
-        #plt.plot(zz,stats.uniform(0,1).cdf(zz),label='True'); plt.legend();plt.show()
+        # plt.plot(zz,stats.uniform(0,1).cdf(zz),label='True');
+        # plt.legend();plt.show()
         assert np.allclose(z_cdf_vals, stats.uniform(0, 1).cdf(zz), atol=1e-8)
 
     def test_variable_transformation_uniform_cosine_taylor_series_expansion(self):
@@ -77,8 +79,10 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         poly = np.poly1d(coef[::-1])
         x_pdf = stats.uniform(lb, ub-lb).pdf
         #xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
-        #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));plt.plot(xx,xx*np.cos(xx));plt.plot(xx,poly(xx),'--');plt.show()
-        # poly_min,poly_max = get_global_maxima_and_minima_of_monomial_expansion(
+        #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));
+        # plt.plot(xx,xx*np.cos(xx));plt.plot(xx,poly(xx),'--');plt.show()
+        # poly_min,poly_max = \
+        #     get_global_maxima_and_minima_of_monomial_expansion(
         #    poly,lb,ub)
         # zz_bounds = [poly_min,poly_max]
         # due to singularities at 0 and 1 zz is only defined on 0<zz<1
@@ -86,8 +90,10 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         zz_bounds = [function(3.42561846)+1e-3, function(6.439062046)-1e-3]
         zz = np.linspace(zz_bounds[0], zz_bounds[1], 101)
         z_pdf_vals = get_pdf_from_monomial_expansion(coef, lb, ub, x_pdf, zz)
-        # plt.hist(function(np.random.uniform(lb,ub,10001)),density=True,bins=100)
-        #plt.plot(zz,z_pdf_vals); plt.show()
+        from matplotlib import pyplot as plt
+        plt.hist(
+            function(np.random.uniform(lb,ub,10001)),density=True,bins=100)
+        plt.plot(zz,z_pdf_vals); plt.show()
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)
@@ -97,15 +103,18 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # fig,axs=plt.subplots(1,2,figsize=(2*8,6))
         critical_points = get_all_local_extrema_of_monomial_expansion_1d(
             poly, lb, ub)
-        # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));axs[0].plot(critical_points,poly(critical_points),'o')
+        # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));
+        # axs[0].plot(critical_points,poly(critical_points),'o')
         #zz_rand = np.sort(function(np.random.uniform(lb,ub,10001)))
         #ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
         # axs[1].plot(zz_rand,ecdf,label='ECDF')
         # axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
         # axs[1].legend();plt.show()
-        #plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,label='PDF approx')
+        #plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,
+        #    label='PDF approx')
         #plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
-        # print(np.linalg.norm((z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps)))
+        # print(np.linalg.norm(
+        #    (z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps)))
         assert np.allclose(
             z_pdf_vals, (z_cdf_vals_perturbed-z_cdf_vals)/fd_eps, atol=1e-5)
 
@@ -121,14 +130,16 @@ class TestRandomVariableAlgebra(unittest.TestCase):
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
         zz = np.linspace(min(poly([lb, ub]).min(), poly(critical_points).min(
-        ))*1.001, max(poly([lb, ub]).max(), poly(critical_points).max())*0.999, 101)
+        ))*1.001, max(poly([lb, ub]).max(),
+                      poly(critical_points).max())*0.999, 101)
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)
         zz_rand = np.sort(function(np.random.uniform(lb, ub, 1001)))
         ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
         # fig,axs=plt.subplots(1,2,figsize=(2*8,6))
         critical_points = get_all_local_extrema_of_monomial_expansion_1d(
             poly, lb, ub)
-        # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));axs[0].plot(critical_points,poly(critical_points),'o')
+        # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));
+        # axs[0].plot(critical_points,poly(critical_points),'o')
 
         # axs[1].plot(zz_rand,ecdf,label='ECDF')
         #axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
@@ -161,7 +172,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         zz = np.linspace(zz_bounds[0], zz_bounds[1], 100)
         z_pdf_vals = get_pdf_from_monomial_expansion(coef, lb, ub, x_pdf, zz)
         # plt.plot(zz,z_pdf_vals,label='Approx.')
-        #plt.plot(zz,stats.chi2.pdf(zz,df=1),label='True'); plt.legend();plt.show()
+        # plt.plot(zz,stats.chi2.pdf(zz,df=1),label='True');
+        # plt.legend();plt.show()
         assert np.allclose(z_pdf_vals, stats.chi2.pdf(zz, df=1), atol=1e-8)
 
         zz_bounds = stats.chi2.interval(0.999, df=1)
@@ -170,7 +182,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         x_cdf = stats.norm(mean, np.sqrt(var)).cdf
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)
         # plt.plot(zz,z_cdf_vals,label='Approx.')
-        #plt.plot(zz,stats.chi2.cdf(zz,df=1),label='True'); plt.legend();plt.show()
+        # plt.plot(zz,stats.chi2.cdf(zz,df=1),label='True');
+        # plt.legend();plt.show()
         assert np.allclose(z_cdf_vals, stats.chi2.cdf(zz, df=1), atol=1e-8)
 
     def test_sum_of_independent_uniform_and_gaussian_variables(self):
@@ -305,7 +318,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         #plt.plot(zz,true_pdf(zz), label='True PDF')
         #plt.plot(zz,product_pdf, '--', label='Approx PDF')
         # nsamples=10000
-        #vals = np.random.uniform(lb1,ub1,nsamples)+np.random.uniform(lb2,ub2,nsamples)
+        #vals = np.random.uniform(lb1,ub1,nsamples)+np.random.uniform(
+        #    lb2,ub2,nsamples)
         # plt.hist(vals,bins=100,density=True)
         # plt.legend();plt.show()
         # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))

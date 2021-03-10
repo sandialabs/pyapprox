@@ -1,7 +1,7 @@
 import unittest
 from pyapprox.sensitivity_analysis import *
 from pyapprox.benchmarks.sensitivity_benchmarks import *
-from scipy.stats import uniform
+from scipy.stats import uniform, norm
 import pyapprox as pya
 
 
@@ -520,6 +520,75 @@ class TestSensitivityAnalysis(unittest.TestCase):
         assert np.allclose(mean_sobol_indices,
                            benchmark.sobol_indices[:-1, 0], rtol=1e-3, atol=3e-3)
 
+    def test_marginalize_polynomial_chaos_expansions(self):
+        univariate_variables = [
+            uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        num_vars = len(univariate_variables)
+
+        poly = pya.PolynomialChaosExpansion()
+        poly_opts = pya.define_poly_options_from_variable_transformation(
+            var_trans)
+        poly.configure(poly_opts)
+
+        degree = 2
+        indices = pya.compute_hyperbolic_indices(num_vars, degree, 1)
+        poly.set_indices(indices)
+        poly.set_coefficients(np.ones((indices.shape[1], 1)))
+
+        pce_main_effects, pce_total_effects =\
+            pya.get_main_and_total_effect_indices_from_pce(
+                poly.get_coefficients(), poly.get_indices())
+        print(poly.num_terms())
+
+        for ii in range(num_vars):
+            # Marginalize out 2 variables
+            xx = np.linspace(-1, 1, 101)
+            inactive_idx = np.hstack((np.arange(ii), np.arange(ii+1, num_vars)))
+            marginalized_pce = pya.marginalize_polynomial_chaos_expansion(
+                poly, inactive_idx, center=True)
+            mvals = marginalized_pce(xx[None, :])
+            variable_ii = variable.all_variables()[ii:ii+1]
+            var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
+            poly_ii = pya.PolynomialChaosExpansion()
+            poly_opts_ii = pya.define_poly_options_from_variable_transformation(
+                var_trans_ii)
+            poly_ii.configure(poly_opts_ii)
+            indices_ii = compute_hyperbolic_indices(1, degree, 1.)
+            poly_ii.set_indices(indices_ii)
+            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
+            pvals = poly_ii(xx[None, :])
+            # import matplotlib.pyplot as plt
+            # plt.plot(xx, pvals)
+            # plt.plot(xx, mvals, '--')
+            # plt.show()
+            assert np.allclose(mvals, pvals-poly.mean())
+            assert np.allclose(
+                poly_ii.variance()/poly.variance(), pce_main_effects[ii])
+            poly_ii.coefficients /= np.sqrt(poly.variance())
+            assert np.allclose(poly_ii.variance(), pce_main_effects[ii])
+
+
+            # Marginalize out 1 variable
+            xx = pya.cartesian_product([xx]*2)
+            inactive_idx = np.array([ii])
+            marginalized_pce = pya.marginalize_polynomial_chaos_expansion(
+                poly, inactive_idx, center=True)
+            mvals = marginalized_pce(xx)
+            variable_ii = variable.all_variables()[:ii]+\
+                variable.all_variables()[ii+1:]
+            var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
+            poly_ii = pya.PolynomialChaosExpansion()
+            poly_opts_ii = pya.define_poly_options_from_variable_transformation(
+                var_trans_ii)
+            poly_ii.configure(poly_opts_ii)
+            indices_ii = pya.compute_hyperbolic_indices(2, degree, 1.)
+            poly_ii.set_indices(indices_ii)
+            poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
+            pvals = poly_ii(xx)
+            assert np.allclose(mvals, pvals-poly.mean())
 
 if __name__ == "__main__":
     sensitivity_analysis_test_suite = \

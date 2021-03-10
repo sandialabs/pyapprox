@@ -1,6 +1,6 @@
 from pyapprox.variables import variable_shapes_equivalent
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    get_univariate_leja_quadrature_rule
+    get_univariate_leja_quadrature_rule, clenshaw_curtis_rule_growth
 from pyapprox.univariate_quadrature import leja_growth_rule, \
     constant_increment_growth_rule
 from pyapprox.sparse_grid import *
@@ -366,8 +366,12 @@ def variance_refinement_indicator(subspace_index, num_new_subspace_samples,
     if mean_only:
         error = np.absolute(new_moments[0]-moments[0])
     else:
-        error = np.absolute(new_moments[0]-moments[0])**2 +\
-            np.absolute(new_moments[1]-moments[1])
+        #old version from misc paper
+        #error = np.absolute(new_moments[0]-moments[0])**2 +\
+        #    np.absolute(new_moments[1]-moments[1])
+        # new version from integrated surrogates paper
+        error = np.absolute(new_moments[0]-moments[0]) +\
+            np.sqrt(np.absolute(new_moments[1]-moments[1]))
 
     indicator = error.copy()
 
@@ -378,7 +382,10 @@ def variance_refinement_indicator(subspace_index, num_new_subspace_samples,
         denom = np.absolute(sparse_grid.values[0, :])
         I = np.where(denom < 1e-6)[0]
         denom[I] = 1
-        indicator /= denom**2
+        #old version from misc paper
+        #indicator /= denom**2
+        # new version from integrated surrogates paper
+        indicator /= denom
 
     qoi_chosen = np.argmax(indicator)
     #print (qoi_chosen)
@@ -685,7 +692,7 @@ class SubSpaceRefinementManager(object):
         if self.verbose > 1:
             msg = f'refining index {best_active_subspace_index} '
             msg += f'with priority {priority}\n'
-            msg += 'The Current number of equivalent function evaluations is '
+            msg += 'The current number of equivalent function evaluations is '
             msg += f'{self.num_equivalent_function_evaluations}'
             print(msg)
 
@@ -786,6 +793,10 @@ class SubSpaceRefinementManager(object):
                     self.admissibility_function(self, neighbor_index)):
                 new_active_subspace_indices = np.hstack(
                     (new_active_subspace_indices, neighbor_index[:, np.newaxis]))
+            else:
+                if self.verbose > 1:
+                    msg = f'Subspace {neighbor_index} is not admissible'
+                    print(msg)
 
         if self.enforce_variable_ordering:
             new_active_subspace_indices = self.postpone_subspace_refinement(
@@ -1157,7 +1168,7 @@ def get_unique_quadrule_variables(var_trans):
 
 
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
-        var_trans, growth_rules=None, method='pdf'):
+        var_trans, growth_rules=None, method='pdf', growth_incr=2):
     """
     Return a list of unique quadrature rules. If each dimension has the same
     rule then list will only have one entry.
@@ -1165,8 +1176,10 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
     assert var_trans is not None
 
     if growth_rules is None:
-        #growth_rules = leja_growth_rule
-        growth_rules = partial(constant_increment_growth_rule, 2)
+        if growth_incr == 'clenshaw':
+            growth_rules = clenshaw_curtis_rule_growth
+        else:
+            growth_rules = partial(constant_increment_growth_rule, growth_incr)
 
     unique_quadrule_variables, unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)
@@ -1557,9 +1570,10 @@ from pyapprox.variable_transformations import AffineRandomVariableTransformation
 def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
                                               quadrule_variables):
     num_vars = sparse_grid.num_vars
-    assert len(quadrule_variables) == num_vars
+    num_random_vars = num_vars-sparse_grid.num_config_vars
+    assert len(quadrule_variables) == num_random_vars
     univariate_growth_rules = []
-    unique_quadrule_indices = [[ii] for ii in range(num_vars)]
+    unique_quadrule_indices = [[ii] for ii in range(num_random_vars)]
     new_var_trans = AffineRandomVariableTransformation(
         quadrule_variables)
     quad_rules = []
@@ -1567,7 +1581,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     initial_points_list = []
     growth_rules = []
     all_variable = sparse_grid.variable_transformation.variable.all_variables()
-    for ii in range(num_vars):
+    for ii in range(num_random_vars):
         for jj, inds in enumerate(sparse_grid.unique_quadrule_indices):
             if ii in inds:
                 break
