@@ -1,18 +1,23 @@
 import unittest
 from scipy import special as sp
+import numpy as np
 from pyapprox.multivariate_polynomials import *
 from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D, \
     gauss_jacobi_pts_wts_1D
-from pyapprox.utilities import get_tensor_product_quadrature_rule, approx_fprime
+from pyapprox.utilities import get_tensor_product_quadrature_rule, \
+    approx_fprime
 from pyapprox.variable_transformations import \
     define_iid_random_variable_transformation, IdentityTransformation,\
     AffineRandomVariableTransformation
-from pyapprox.density import map_to_canonical_gaussian
 from pyapprox.variables import IndependentMultivariateRandomVariable,\
     float_rv_discrete
 from functools import partial
 from pyapprox.indexing import sort_indices_lexiographically
-from scipy.stats import uniform, beta, norm, hypergeom, binom, gumbel_r, lognorm
+from scipy.stats import uniform, beta, norm, hypergeom, binom, gumbel_r, \
+    lognorm
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
+from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence
 
 
 class TestMultivariatePolynomials(unittest.TestCase):

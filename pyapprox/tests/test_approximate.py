@@ -310,7 +310,7 @@ class TestApproximate(unittest.TestCase):
             train_samples, train_vals, options, nfolds, 'polynomial_chaos',
             random_folds='sklearn')
 
-        assert (np.all(cv_score < 1e-14) and np.all(result.scores < 1e-14))
+        assert (np.all(cv_score < 3e-14) and np.all(result.scores < 3e-14))
 
 
 if __name__ == "__main__":

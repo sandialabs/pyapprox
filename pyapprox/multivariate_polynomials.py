@@ -3,24 +3,18 @@ from pyapprox.variable_transformations import \
     AffineRandomVariableTransformation
 from pyapprox.variables import get_distribution_info, \
     IndependentMultivariateRandomVariable
-from pyapprox.utilities import get_tensor_product_quadrature_rule, \
-    unique_matrix_rows
+from pyapprox.utilities import get_tensor_product_quadrature_rule
 from pyapprox.univariate_quadrature import get_recursion_coefficients
 from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
 from functools import partial
 import numpy as np
-from pyapprox.indexing import \
-    compute_hyperbolic_indices
+from pyapprox.indexing import compute_hyperbolic_indices
 from pyapprox.utilities import cartesian_product, outer_product
 from pyapprox.orthonormal_polynomials_1d import \
-    jacobi_recurrence, evaluate_orthonormal_polynomial_deriv_1d, \
-    hermite_recurrence, krawtchouk_recurrence, hahn_recurrence, \
-    discrete_chebyshev_recurrence, evaluate_orthonormal_polynomial_1d
+    evaluate_orthonormal_polynomial_deriv_1d, evaluate_orthonormal_polynomial_1d
 from pyapprox.monomial import monomial_basis_matrix
 from pyapprox.utilities import \
     flattened_rectangular_lower_triangular_matrix_index
-from pyapprox.probability_measure_sampling import \
-    generate_independent_random_samples
 from pyapprox.manipulate_polynomials import add_polynomials
 
 
@@ -44,7 +38,7 @@ def precompute_multivariate_orthonormal_polynomial_univariate_values(
         samples, indices, recursion_coeffs, deriv_order, basis_type_index_map):
     num_vars = indices.shape[0]
     # axis keyword is not supported when usingnumba
-    #max_level_1d = indices.max(axis=1)
+    # max_level_1d = indices.max(axis=1)
     # so replace with
     max_level_1d = np.empty((num_vars), dtype=np.int)
     for ii in range(num_vars):
@@ -102,7 +96,7 @@ def evaluate_multivariate_orthonormal_polynomial_derivs(
     temp2 = temp1[indices.ravel()+np.repeat(
         np.arange(num_vars)*basis_vals_1d.shape[1], num_indices), :].reshape(
             num_vars, num_indices, num_samples)
-    values = np.prod(temp2, axis=0).T
+    # values = np.prod(temp2, axis=0).T
     # derivs are stored immeadiately after values in basis_vals_1d
     # if max_level_1d[dd]!=max_level_1d.max() then there will be some
     # uninitialized values at the end of the array but these are never accessed
@@ -153,7 +147,8 @@ def evaluate_multivariate_orthonormal_polynomial_values_deprecated(
     return values
 
 
-def evaluate_multivariate_orthonormal_polynomial_derivs_deprecated(indices, max_level_1d, basis_vals_1d, num_samples, deriv_order):
+def evaluate_multivariate_orthonormal_polynomial_derivs_deprecated(
+        indices, max_level_1d, basis_vals_1d, num_samples, deriv_order):
 
     num_vars, num_indices = indices.shape
     values = np.zeros(((deriv_order*num_vars)*num_samples, num_indices))
@@ -176,7 +171,7 @@ def evaluate_multivariate_orthonormal_polynomial(
         samples, indices, recursion_coeffs, deriv_order=0,
         basis_type_index_map=None):
     """
-    Evaluate a multivaiate orthonormal polynomial and its s-derivatives 
+    Evaluate a multivaiate orthonormal polynomial and its s-derivatives
     (s=1,...,num_derivs) using a three-term recurrence coefficients.
 
     Parameters
@@ -206,7 +201,7 @@ def evaluate_multivariate_orthonormal_polynomial(
     num_vars, num_indices = indices.shape
     assert samples.shape[0] == num_vars
     assert samples.shape[1] > 0
-    #assert recursion_coeffs.shape[0]>indices.max()
+    # assert recursion_coeffs.shape[0]>indices.max()
     max_level_1d = indices.max(axis=1)
 
     assert deriv_order >= 0 and deriv_order <= 1
@@ -283,9 +278,11 @@ class PolynomialChaosExpansion(object):
             poly1, max_degrees1, max_degrees2)
         # print(product_coefs_1d)
 
-        indices, coefs = multiply_multivariate_orthonormal_polynomial_expansions(
-            product_coefs_1d, poly1.get_indices(), poly1.get_coefficients(),
-            poly2.get_indices(), poly2.get_coefficients())
+        indices, coefs = \
+            multiply_multivariate_orthonormal_polynomial_expansions(
+                product_coefs_1d, poly1.get_indices(),
+                poly1.get_coefficients(),
+                poly2.get_indices(), poly2.get_coefficients())
         # get_polynomial_from_variable(self.var_trans.variable)
         poly = copy.deepcopy(self)
         poly.set_indices(indices)
@@ -327,10 +324,10 @@ class PolynomialChaosExpansion(object):
     #     Final polynomial will use orthonormal basis of other for any variable
     #     in other. E.g. if other is denoted z = p(x,y) and we are computing
     #     f(z)
-    #     then f(z) = f(x,y) where we use basis associated with x and y and not 
+    #     then f(z) = f(x,y) where we use basis associated with x and y and not
     #     with z.
 
-    #     I have code to do this but it requires a transformation from an 
+    #     I have code to do this but it requires a transformation from an
     #     orthogonal basis into the monomial basis then into another orthogonal
     #     basis and this transformation can be ill-conditioned.
     #     """
@@ -385,7 +382,7 @@ class PolynomialChaosExpansion(object):
                 self.numerically_generated_poly_accuracy_tolerance)]
 
     def set_indices(self, indices):
-        #assert indices.dtype==int
+        # assert indices.dtype==int
         if indices.ndim == 1:
             indices = indices.reshape((1, indices.shape[0]))
 
@@ -476,7 +473,7 @@ class PolynomialChaosExpansion(object):
 
     def covariance(self):
         """
-        Compute the covariance between each quantity of interest of the 
+        Compute the covariance between each quantity of interest of the
         polynomial chaos expansion
 
         Returns
@@ -484,7 +481,7 @@ class PolynomialChaosExpansion(object):
         covar : np.ndarray (nqoi)
             The covariance between each quantitity of interest
         """
-        nqoi = self.coefficients.shape[1]
+        # nqoi = self.coefficients.shape[1]
         covar = self.coefficients[1:, :].T.dot(self.coefficients[1:, :])
         return covar
 
@@ -543,7 +540,7 @@ def get_tensor_product_quadrature_rule_from_pce(pce, degrees):
         pce, degrees)
     canonical_samples, weights = \
         get_tensor_product_quadrature_rule(
-            degrees+1, num_vars, univariate_quadrature_rules)
+            degrees+1, pce.num_vars(), univariate_quadrature_rules)
     samples = pce.var_trans.map_from_canonical_space(
         canonical_samples)
     return samples, weights
@@ -589,7 +586,7 @@ def conditional_moments_of_polynomial_chaos_expansion(poly, samples, inactive_id
        The conditional mean (num_qoi)
 
     variance : np.ndarray
-       The conditional variance (num_qoi). Only returned if 
+       The conditional variance (num_qoi). Only returned if
        return_variance=True. Computing variance is significantly slower than
        computing mean. TODO check it is indeed slower
     """
@@ -633,12 +630,13 @@ def conditional_moments_of_polynomial_chaos_expansion(poly, samples, inactive_id
 def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     """
     This function is not optimal. It will recreate the options
-    used to configure the polynomial. Any recursion coefficients 
+    used to configure the polynomial. Any recursion coefficients
     calculated which are still relevant will need to be computed.
     This is probably not a large overhead though
     """
     marginalized_pce = PolynomialChaosExpansion()
-    opts = copy.deepcopy(poly.config_opts) # poly.config_opts.copy will not work
+    # poly.config_opts.copy will not work
+    opts = copy.deepcopy(poly.config_opts)
     all_variables = poly.var_trans.variable.all_variables()
     active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
     active_variables = IndependentMultivariateRandomVariable(
@@ -666,7 +664,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
         for ii, index in enumerate(poly.indices.T):
             if ((index.sum() == 0 and center is False) or
                 np.any(index[active_idx]) and
-                (not np.any(index[inactive_idx]>0))):
+                (not np.any(index[inactive_idx] > 0))):
                 marginalized_array_indices.append(ii)
         marginalized_pce.set_indices(
             poly.indices[
@@ -689,7 +687,7 @@ def get_polynomial_from_variable(variable):
 def compute_univariate_orthonormal_basis_products(get_recursion_coefficients,
                                                   max_degree1, max_degree2):
     """
-    Compute all the products of univariate orthonormal bases and re-express 
+    Compute all the products of univariate orthonormal bases and re-express
     them as expansions using the orthnormal basis.
     """
     assert max_degree1 >= max_degree2
@@ -741,7 +739,7 @@ def compute_multivariate_orthonormal_basis_product(
         product_coefs_1d, poly_index_ii, poly_index_jj, max_degrees1,
         max_degrees2, tol=2*np.finfo(float).eps):
     """
-    Compute the product of two multivariate orthonormal bases and re-express 
+    Compute the product of two multivariate orthonormal bases and re-express
     as an expansion using the orthnormal basis.
     """
     num_vars = poly_index_ii.shape[0]
@@ -784,15 +782,12 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
     assert poly_coefficients1.shape[0] == num_indices1
     assert poly_coefficients2.shape[0] == num_indices2
 
-    num_vars = poly_indices1.shape[0]
-    num_qoi = poly_coefficients1.shape[1]
     # following assumes the max degrees were used to create product_coefs_1d
     max_degrees1 = poly_indices1.max(axis=1)
     max_degrees2 = poly_indices2.max(axis=1)
     basis_coefs, basis_indices = [], []
     for ii in range(num_indices1):
         poly_index_ii = poly_indices1[:, ii]
-        active_vars_ii = np.where(poly_index_ii > 0)[0]
         for jj in range(num_indices2):
             poly_index_jj = poly_indices2[:, jj]
             product_indices, product_coefs = \
@@ -812,6 +807,3 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
 
     indices, coefs = add_polynomials(basis_indices, basis_coefs)
     return indices, coefs
-    
-    
-    

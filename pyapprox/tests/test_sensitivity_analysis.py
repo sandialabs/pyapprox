@@ -553,8 +553,9 @@ class TestSensitivityAnalysis(unittest.TestCase):
             variable_ii = variable.all_variables()[ii:ii+1]
             var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
             poly_ii = pya.PolynomialChaosExpansion()
-            poly_opts_ii = pya.define_poly_options_from_variable_transformation(
-                var_trans_ii)
+            poly_opts_ii = \
+                pya.define_poly_options_from_variable_transformation(
+                    var_trans_ii)
             poly_ii.configure(poly_opts_ii)
             indices_ii = compute_hyperbolic_indices(1, degree, 1.)
             poly_ii.set_indices(indices_ii)
@@ -577,12 +578,13 @@ class TestSensitivityAnalysis(unittest.TestCase):
             marginalized_pce = pya.marginalize_polynomial_chaos_expansion(
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx)
-            variable_ii = variable.all_variables()[:ii]+\
+            variable_ii = variable.all_variables()[:ii] +\
                 variable.all_variables()[ii+1:]
             var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
             poly_ii = pya.PolynomialChaosExpansion()
-            poly_opts_ii = pya.define_poly_options_from_variable_transformation(
-                var_trans_ii)
+            poly_opts_ii = \
+                pya.define_poly_options_from_variable_transformation(
+                    var_trans_ii)
             poly_ii.configure(poly_opts_ii)
             indices_ii = pya.compute_hyperbolic_indices(2, degree, 1.)
             poly_ii.set_indices(indices_ii)
