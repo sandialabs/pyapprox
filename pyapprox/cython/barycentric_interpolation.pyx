@@ -5,19 +5,19 @@ cimport numpy as np
 import numpy as np
 
 
-ctypedef np.float_t float_t
+ctypedef np.double_t double_t
 
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
-cpdef compute_barycentric_weights_1d_pyx(np.ndarray[float_t] samples, float C_inv):
+cpdef compute_barycentric_weights_1d_pyx(np.ndarray[double_t] samples, double C_inv):
     cdef:
         int jj, kk
         int num_samples = samples.shape[0]
 
         np.ndarray[double, ndim=2] weights = \
-            np.empty((num_samples, num_samples), dtype=np.float)
+            np.empty((num_samples, num_samples), dtype=np.double)
 
         double[:,:] weights_view = weights
         double[:]   samples_view = samples
@@ -54,7 +54,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
         bint has_inactive_abscissa, is_active_dim, done
         double x_dim_k, denom, denom_d, basis
 
-        double mach_eps = np.finfo(float).eps
+        double mach_eps = np.finfo(np.float64).eps
     
         Py_ssize_t num_pts = x.shape[1]
         Py_ssize_t num_act_dims = active_dims.shape[0]
@@ -64,7 +64,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
 
         Py_ssize_t num_qoi = fn_vals.shape[1]
 
-        np.ndarray[float_t, ndim=2] result = np.empty((num_pts,num_qoi),dtype=float)
+        np.ndarray[double_t, ndim=2] result = np.empty((num_pts,num_qoi), dtype=np.float64)
         double[:,:] result_view = result
     
     # Allocate persistent memory. Each point will fill in a varying amount
