@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.special import comb as nchoosek
-from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from scipy.special import factorial
 from numba import njit
+
+from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.utilities import cartesian_product
+from .pya_utilities import trace_error_with_msg
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
