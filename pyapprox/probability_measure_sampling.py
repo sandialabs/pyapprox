@@ -133,7 +133,8 @@ def generate_independent_random_samples_deprecated(var_trans, num_samples):
     samples : np.ndarray (num_vars, num_samples)
         Independent samples from the target distribution
     """
-    assert type(var_trans) == AffineRandomVariableTransformation
+    assert type(var_trans) == AffineRandomVariableTransformation, \
+        "`var_trans` must be of AffineRandomVariableTransformation type"
     num_vars = var_trans.num_vars()
 
     canonical_samples = np.empty((num_vars, num_samples), dtype=float)
@@ -167,7 +168,8 @@ def generate_independent_random_samples(variable, num_samples,
     samples : np.ndarray (num_vars, num_samples)
         Independent samples from the target distribution
     """
-    assert type(variable) == IndependentMultivariateRandomVariable
+    assert type(variable) == IndependentMultivariateRandomVariable, \
+        "`variable` must be of IndependentMultivariateRandomVariable type"
     num_vars = variable.num_vars()
 
     samples = np.empty((num_vars, num_samples), dtype=float)
