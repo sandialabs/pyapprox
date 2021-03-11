@@ -1,7 +1,9 @@
+from pyapprox.variables import IndependentMultivariateRandomVariable
 import numpy as np
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 
-def print_statistics(samples,values,sample_labels=None,value_labels=None):
+
+def print_statistics(samples, values, sample_labels=None, value_labels=None):
     """
     Print statistics about a set of samples and associated values
 
@@ -9,7 +11,7 @@ def print_statistics(samples,values,sample_labels=None,value_labels=None):
     ----------
     samples : np.ndarray (num_vars,num_samples)
         Random samples 
-    
+
     values : np.ndarray (num_samples,num_qoi)
        Function values at samples
 
@@ -30,26 +32,26 @@ def print_statistics(samples,values,sample_labels=None,value_labels=None):
     75%      0.637410    0.743020    2.397208    4.794417
     max      2.185575    2.528326    9.575905   19.151810
     """
-    if values.ndim==1:
-        values = values[:,np.newaxis]
+    if values.ndim == 1:
+        values = values[:, np.newaxis]
     from pandas import DataFrame
-    num_vars,nsamples = samples.shape
+    num_vars, nsamples = samples.shape
     num_qoi = values.shape[1]
     assert nsamples == values.shape[0]
     if sample_labels is None:
-        sample_labels = ['z%d'%ii for ii in range(num_vars)]
+        sample_labels = ['z%d' % ii for ii in range(num_vars)]
     if value_labels is None:
-        value_labels = ['y%d'%ii for ii in range(num_qoi)]
-    
-    data =  [(label,s) for s, label in zip(samples,sample_labels)]
-    data += [(label,s) for s, label in zip(values.T,value_labels)]
+        value_labels = ['y%d' % ii for ii in range(num_qoi)]
+
+    data = [(label, s) for s, label in zip(samples, sample_labels)]
+    data += [(label, s) for s, label in zip(values.T, value_labels)]
     data = dict(data)
-    df = DataFrame(index=np.arange(nsamples),data=data)
+    df = DataFrame(index=np.arange(nsamples), data=data)
     print(df.describe())
-    
+
 
 def generate_canonical_univariate_random_samples(
-        var_type,variable_parameters,num_samples,num_vars):
+        var_type, variable_parameters, num_samples, num_vars):
     """
     Generate samples from a one-dimensional probability measure.
 
@@ -78,39 +80,41 @@ def generate_canonical_univariate_random_samples(
         Independent samples from the target distribution
     """
     if var_type == 'uniform':
-        samples = np.random.uniform(-1., 1., (num_vars,num_samples))
+        samples = np.random.uniform(-1., 1., (num_vars, num_samples))
     elif var_type == 'beta':
-        alpha_stat=variable_parameters['alpha_stat']
-        beta_stat=variable_parameters['beta_stat']
-        samples = 2.*np.random.beta(alpha_stat,beta_stat,(num_vars,num_samples))-1.
+        alpha_stat = variable_parameters['alpha_stat']
+        beta_stat = variable_parameters['beta_stat']
+        samples = 2.*np.random.beta(alpha_stat,
+                                    beta_stat, (num_vars, num_samples))-1.
     elif var_type == 'gaussian':
-        samples = np.random.normal(0., 1., (num_vars,num_samples))
+        samples = np.random.normal(0., 1., (num_vars, num_samples))
     elif var_type == 'exponential':
-        samples = np.random.exponential(1., (num_vars,num_samples))
+        samples = np.random.exponential(1., (num_vars, num_samples))
     elif var_type == 'uniform_discrete':
         # samples = np.random.randint(0,variable_parameters['num_trials']+1,
         #                             (num_vars,num_samples))
         samples = np.random.randint(
-            variable_parameters['range'][0],variable_parameters['range'][1]+1,
-            (num_vars,num_samples))
+            variable_parameters['range'][0], variable_parameters['range'][1]+1,
+            (num_vars, num_samples))
     elif var_type == 'binomial_discrete':
         samples = np.random.binomial(
             variable_parameters['num_trials'],
-            variable_parameters['prob_success'],(num_vars,num_samples))
+            variable_parameters['prob_success'], (num_vars, num_samples))
     elif var_type == 'hypergeometric_discrete':
         samples = np.random.hypergeometric(
-            variable_parameters['num_type1'],variable_parameters['num_type2'],
-            variable_parameters['num_trials'],(num_vars,num_samples))
-    elif var_type=='arbitrary_discrete':
+            variable_parameters['num_type1'], variable_parameters['num_type2'],
+            variable_parameters['num_trials'], (num_vars, num_samples))
+    elif var_type == 'arbitrary_discrete':
         masses = variable_parameters['prob_masses']
         mass_locations = variable_parameters['prob_mass_locations']
-        samples = np.random.choice(mass_locations,size=(num_vars,num_samples),
+        samples = np.random.choice(mass_locations, size=(num_vars, num_samples),
                                    p=masses)
     else:
-        raise Exception('var_type %s not supported'%var_type)
+        raise Exception('var_type %s not supported' % var_type)
     return samples
 
-def generate_independent_random_samples_deprecated(var_trans,num_samples):
+
+def generate_independent_random_samples_deprecated(var_trans, num_samples):
     """
     Generate samples from a tensor-product probability measure.
 
@@ -128,10 +132,10 @@ def generate_independent_random_samples_deprecated(var_trans,num_samples):
     samples : np.ndarray (num_vars, num_samples)
         Independent samples from the target distribution
     """
-    assert type(var_trans)==AffineRandomVariableTransformation
+    assert type(var_trans) == AffineRandomVariableTransformation
     num_vars = var_trans.num_vars()
 
-    canonical_samples = np.empty((num_vars,num_samples),dtype=float)
+    canonical_samples = np.empty((num_vars, num_samples), dtype=float)
     variables = var_trans.variables
     num_unique_var_types = len(variables.unique_var_types)
     for var_type in list(variables.unique_var_types.keys()):
@@ -139,15 +143,15 @@ def generate_independent_random_samples_deprecated(var_trans,num_samples):
         num_vars_of_type = len(variables.unique_var_indices[type_index])
         for jj in range(num_vars_of_type):
             var_index = variables.unique_var_indices[type_index][jj]
-            canonical_samples[var_index,:] = \
-              generate_canonical_univariate_random_samples(
-                  var_type,variables.unique_var_parameters[type_index][jj],
-                  num_samples,1)[0,:]
-        
+            canonical_samples[var_index, :] = \
+                generate_canonical_univariate_random_samples(
+                var_type, variables.unique_var_parameters[type_index][jj],
+                num_samples, 1)[0, :]
+
     return var_trans.map_from_canonical_space(canonical_samples)
 
-from pyapprox.variables import IndependentMultivariateRandomVariable
-def generate_independent_random_samples(variable,num_samples,
+
+def generate_independent_random_samples(variable, num_samples,
                                         random_state=None):
     """
     Generate samples from a tensor-product probability measure.
@@ -162,22 +166,23 @@ def generate_independent_random_samples(variable,num_samples,
     samples : np.ndarray (num_vars, num_samples)
         Independent samples from the target distribution
     """
-    assert type(variable)==IndependentMultivariateRandomVariable
+    assert type(variable) == IndependentMultivariateRandomVariable
     num_vars = variable.num_vars()
 
-    samples = np.empty((num_vars,num_samples),dtype=float)
+    samples = np.empty((num_vars, num_samples), dtype=float)
     for ii in range(variable.nunique_vars):
         var = variable.unique_variables[ii]
         indices = variable.unique_variable_indices[ii]
-        samples[indices,:] = var.rvs(
-            size=(indices.shape[0],num_samples),random_state=random_state)
-        
+        samples[indices, :] = var.rvs(
+            size=(indices.shape[0], num_samples), random_state=random_state)
+
     return samples
 
-def rejection_sampling( target_density, proposal_density, 
-                        generate_proposal_samples, envelope_factor,
-                        num_vars, num_samples, verbose=False,
-                        batch_size=None):
+
+def rejection_sampling(target_density, proposal_density,
+                       generate_proposal_samples, envelope_factor,
+                       num_vars, num_samples, verbose=False,
+                       batch_size=None):
     """
     Obtain samples from a density f(x) using samples from a proposal 
     distribution g(x).
@@ -217,40 +222,41 @@ def rejection_sampling( target_density, proposal_density,
     """
     if batch_size is None:
         batch_size = num_samples
-    
+
     cntr = 0
     num_proposal_samples = 0
-    samples = np.empty((num_vars,num_samples), dtype=float)
+    samples = np.empty((num_vars, num_samples), dtype=float)
     while cntr < num_samples:
         proposal_samples = generate_proposal_samples(batch_size)
-        target_density_vals = target_density( proposal_samples)
+        target_density_vals = target_density(proposal_samples)
         proposal_density_vals = proposal_density(proposal_samples)
-        assert target_density_vals.shape[0]==batch_size
-        assert proposal_density_vals.shape[0]==batch_size
-        urand = np.random.uniform(0.,1.,(batch_size))
+        assert target_density_vals.shape[0] == batch_size
+        assert proposal_density_vals.shape[0] == batch_size
+        urand = np.random.uniform(0., 1., (batch_size))
 
         # ensure envelop_factor is large enough
-        if np.any(target_density_vals>(envelope_factor*proposal_density_vals)):
+        if np.any(target_density_vals > (envelope_factor*proposal_density_vals)):
             I = np.argmax(
                 target_density_vals/(envelope_factor*proposal_density_vals))
             msg = 'proposal_density*envelop factor does not bound target '
-            msg += 'density: %f,%f'%(
+            msg += 'density: %f,%f' % (
                 target_density_vals[I],
                 (envelope_factor*proposal_density_vals)[I])
             raise Exception(msg)
-        
-        I = np.where(
-            urand<target_density_vals/(envelope_factor*proposal_density_vals))[0]
 
-        num_batch_samples_accepted = min(I.shape[0],num_samples-cntr)
+        I = np.where(
+            urand < target_density_vals/(envelope_factor*proposal_density_vals))[0]
+
+        num_batch_samples_accepted = min(I.shape[0], num_samples-cntr)
         I = I[:num_batch_samples_accepted]
-        samples[:,cntr:cntr+num_batch_samples_accepted]=proposal_samples[:,I]
-        cntr+=num_batch_samples_accepted
+        samples[:, cntr:cntr+num_batch_samples_accepted] = proposal_samples[:, I]
+        cntr += num_batch_samples_accepted
         num_proposal_samples += batch_size
-        
+
     if verbose:
         print(('num accepted', num_samples))
         print(('num rejected', num_proposal_samples-num_samples))
         print(('inverse envelope factor', 1/envelope_factor))
-        print(('acceptance probability', float(num_samples)/float(num_proposal_samples)))
+        print(('acceptance probability', float(
+            num_samples)/float(num_proposal_samples)))
     return samples
