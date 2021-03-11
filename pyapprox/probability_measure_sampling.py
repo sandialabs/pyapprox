@@ -1,5 +1,6 @@
-from pyapprox.variables import IndependentMultivariateRandomVariable
 import numpy as np
+
+from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 
 
