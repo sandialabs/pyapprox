@@ -959,7 +959,8 @@ class SubSpaceRefinementManager(object):
             canonical_samples)
         config_samples = self.map_config_samples_from_canonical_space(
             canonical_samples)
-        samples = np .vstack((random_samples, config_samples))
+        samples = np.vstack((random_samples, config_samples))
+
         values = self.function(samples)
 
         return values
