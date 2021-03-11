@@ -15,3 +15,5 @@ dist/
 pyapprox/cython/*.pyd
 pyapprox/cython/*.c
 .vscode/
+
+pyapprox/__pycache__/
