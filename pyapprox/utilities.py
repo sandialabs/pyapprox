@@ -6,6 +6,8 @@ from scipy.linalg import solve_triangular
 from numba import njit
 from numpy.polynomial.legendre import leggauss
 
+from .sys_utilities import hash_array
+
 
 def sub2ind(sizes, multi_index):
     r"""
@@ -257,30 +259,6 @@ def outer_product(input_sets):
             result[ii] *= input_sets[jj][multi_index[jj]]
 
     return result
-
-
-def hash_array(array, decimals=None):
-    r"""
-    Hash an array for dictionary or set based lookup
-
-    Parameters
-    ----------
-    array : np.ndarray
-       The integer array to hash
-
-    Returns
-    -------
-    key : integer
-       The hash value of the array
-    """
-    #assert array.ndim==1
-    #array = np.ascontiguousarray(array)
-    #array.flags.writeable = False
-    # return hash(array.data)
-    if decimals is not None:
-        array = np.around(array, decimals)
-    # return hash(array.tostring())
-    return hash(array.tobytes())
 
 
 def unique_matrix_rows(matrix):
