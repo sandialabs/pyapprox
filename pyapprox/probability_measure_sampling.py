@@ -111,7 +111,7 @@ def generate_canonical_univariate_random_samples(
         samples = np.random.choice(mass_locations, size=(num_vars, num_samples),
                                    p=masses)
     else:
-        raise Exception('var_type %s not supported' % var_type)
+        raise TypeError('var_type %s not supported' % var_type)
     return samples
 
 
@@ -245,7 +245,7 @@ def rejection_sampling(target_density, proposal_density,
             msg += 'density: %f,%f' % (
                 target_density_vals[I],
                 (envelope_factor*proposal_density_vals)[I])
-            raise Exception(msg)
+            raise ValueError(msg)
 
         I = np.where(
             urand < target_density_vals/(envelope_factor*proposal_density_vals))[0]
