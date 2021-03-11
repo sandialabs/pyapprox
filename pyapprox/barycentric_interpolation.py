@@ -46,9 +46,11 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     try:
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
+        
         weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
-    except:
-        print('compute_barycentric_weights_1d extension failed')
+    except Exception as e:
+        msg = 'compute_barycentric_weights_1d extension failed'
+        trace_error_with_msg(msg, e)
 
         # X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
         # result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
@@ -72,7 +74,7 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
         # where interval [a,b] is not very useful
         # print('max_weights',result.min(),result.max())
         if normalize_weights:
-            raise Exception('I do not think I want to support this option')
+            raise NotImplementedError('I do not think I want to support this option')
             result /= np.absolute(result).max()
             # result[I]=result
 
@@ -191,12 +193,11 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 num_abscissa_1d, num_active_abscissa_1d, shifts,
                 abscissa_and_weights)
         if np.any(np.isnan(result)):
-            raise Exception('Error values not finite')
+            raise ValueError('Error values not finite')
         return result
-    except:
-        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation '
-        msg += 'extension failed'
-        print(msg)
+    except Exception as e:
+        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
+        trace_error_with_msg(msg, e)
 
     return __multivariate_hierarchical_barycentric_lagrange_interpolation(
         x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
@@ -339,7 +340,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                 if np.any(np.isnan(result[kk, :])):
                     #print (c_persistent [:,num_act_dims_pt-1])
                     #print (denom)
-                    raise Exception('Error values not finite')
+                    raise ValueError('Error values not finite')
     return result
 
 
