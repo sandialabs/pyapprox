@@ -4,6 +4,7 @@ try:
 except:
     has_ROL = False
 
+import numpy as np
 from scipy.optimize import minimize as scipy_minimize
 
 
