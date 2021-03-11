@@ -1262,13 +1262,13 @@ def get_first_n_primes(n):
     num = 3
     while len(primes) < n:
         # np.all does not work with numba
-        #if np.all([num % i != 0 for i in range(2, int(num**.5) + 1)]):
+        # if np.all([num % i != 0 for i in range(2, int(num**.5) + 1)]):
         flag = True
         for i in range(2, int(num**.5) + 1):
             if (num % i == 0):
                 flag = False
                 break
-        if flag is True:    
+        if flag is True:
             primes.append(num)
         num += 2
     return np.asarray(primes)
@@ -1643,7 +1643,8 @@ def leave_one_out_lsq_cross_validation(basis_mat, values, alpha=0, coef=None):
     H_mat = basis_mat.dot(np.linalg.inv(gram_mat).dot(basis_mat.T))
     H_diag = np.diag(H_mat)
     if coef is None:
-        coef = np.linalg.lstsq(gram_mat, basis_mat.T.dot(values), rcond=None)[0]
+        coef = np.linalg.lstsq(
+            gram_mat, basis_mat.T.dot(values), rcond=None)[0]
     assert coef.ndim == 2
     residuals = basis_mat.dot(coef) - values
     cv_errors = residuals / (1-H_diag[:, None])
@@ -1660,7 +1661,8 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
     gram_mat = basis_mat.T.dot(basis_mat)
     gram_mat += alpha*np.eye(gram_mat.shape[0])
     if coef is None:
-        coef = np.linalg.lstsq(gram_mat, basis_mat.T.dot(values), rcond=None)[0]
+        coef = np.linalg.lstsq(
+            gram_mat, basis_mat.T.dot(values), rcond=None)[0]
     residuals = basis_mat.dot(coef) - values
     gram_mat_inv = np.linalg.inv(gram_mat)
     for kk in range(nfolds):
@@ -1669,7 +1671,7 @@ def leave_many_out_lsq_cross_validation(basis_mat, values, fold_sample_indices,
         assert nsamples - nvalidation_samples_kk >= basis_mat.shape[1]
         basis_mat_kk = basis_mat[indices_kk, :]
         residuals_kk = residuals[indices_kk, :]
-        
+
         H_mat = np.eye(nvalidation_samples_kk) - basis_mat_kk.dot(
             gram_mat_inv.dot(basis_mat_kk.T))
         # print('gram_mat cond number', np.linalg.cond(gram_mat))
@@ -1685,7 +1687,7 @@ def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
     if random is True:
         sample_indices = np.random.permutation(sample_indices)
     fold_sample_indices = [np.empty(0, dtype=int) for kk in range(nfolds)]
-    nn = 0 
+    nn = 0
     while nn < nsamples:
         for jj in range(nfolds):
             fold_sample_indices[jj] = np.append(
@@ -1731,7 +1733,7 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
         if verbose > 1:
             print(it, nquad_samples, diff)
         if (np.all(np.absolute(prev_res-res) < rtol*np.absolute(res)+atol) or
-            adaptive is False):
+                adaptive is False):
             break
         prev_res = res
         nquad_samples *= 2
@@ -1739,9 +1741,7 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
     if verbose > 0:
         print(f'adaptive quadrature converged in {it} iterations')
     return res
-        
 
-    
 
 def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         integrand, lb, ub, nquad_samples, atol=1e-8, rtol=1e-8,
@@ -1769,7 +1769,7 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
     partial_result = np.inf
     plb, pub = partial_lb-interval_size, partial_lb
     while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
-           and (plb >= lb) and step<max_steps):
+           and (plb >= lb) and step < max_steps):
         partial_result = \
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
                 integrand, plb, pub, nquad_samples, rtol, atol,
@@ -1792,7 +1792,7 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
     partial_result = np.inf
     plb, pub = partial_ub, partial_ub+interval_size
     while (np.any(np.absolute(partial_result) >= rtol*np.absolute(result)+atol)
-           and (pub <= ub) and step<max_steps):
+           and (pub <= ub) and step < max_steps):
         partial_result = \
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
                 integrand, plb, pub, nquad_samples, rtol, atol,
@@ -1813,7 +1813,3 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         #print(partial_result, plb, pub)
 
     return result
-
-    
-        
-        
