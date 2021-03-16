@@ -282,11 +282,10 @@ def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
     num_active_vars, num_vars = W1_trans.shape
     num_as_moments = as_poly_indices.shape[1]
     moments = np.zeros((num_as_moments), float)
-    monomial_power_indices = []
-    monomial_power_coeffs = []
+
+    monomial_power_indices = [[]]*num_active_vars
+    monomial_power_coeffs = [[]]*num_active_vars
     for var_num in range(num_active_vars):
-        monomial_power_indices.append([])
-        monomial_power_coeffs.append([])
         for degree in range(as_poly_indices[var_num, :].max()+1):
             coeffs, indices = coeffs_of_power_of_nd_linear_monomial(
                 num_vars, degree, W1_trans[var_num, :])
@@ -322,10 +321,13 @@ def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
                     multiply_multivariate_polynomials_pyx
                 indices, coeffs = multiply_multivariate_polynomials_pyx(
                     indices, coeffs, indices_dd, coeffs_dd)
-            except:
-                print('multiply_multivariate_polynomials extension failed')
+            except (ImportError, TypeError) as e:
+                from pyapprox.sys_utilities import trace_error_with_msg
+                trace_error_with_msg('multiply_multivariate_polynomials extension failed', e)
+
                 indices, coeffs = multiply_multivariate_polynomials(
                     indices, coeffs, indices_dd, coeffs_dd)
+
         indices_list.append(indices)
         coeffs_list.append(coeffs)
 
