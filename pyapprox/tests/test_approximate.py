@@ -1,8 +1,14 @@
-import unittest
+import sys
+import unittest, pytest
 from scipy import stats
-from pyapprox.approximate import *
-from pyapprox.benchmarks.benchmarks import setup_benchmark
-import pyapprox as pya
+
+
+if sys.platform == 'win32':
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
+else:
+    from pyapprox.approximate import *
+    from pyapprox.benchmarks.benchmarks import setup_benchmark
+    import pyapprox as pya
 
 
 class TestApproximate(unittest.TestCase):
@@ -310,7 +316,7 @@ class TestApproximate(unittest.TestCase):
             train_samples, train_vals, options, nfolds, 'polynomial_chaos',
             random_folds='sklearn')
 
-        assert (np.all(cv_score < 1e-14) and np.all(result.scores < 1e-14))
+        assert (np.all(cv_score < 3e-14) and np.all(result.scores < 3e-14))
 
 
 if __name__ == "__main__":

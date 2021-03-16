@@ -3,12 +3,7 @@ from pyapprox.manipulate_polynomials import *
 from pyapprox.indexing import compute_hyperbolic_indices, \
     argsort_indices_leixographically
 from scipy.special import binom
-from pyapprox.monomial import monomial_mean_uniform_variables, \
-    monomial_basis_matrix
-from pyapprox.multivariate_polynomials import jacobi_recurrence, \
-    evaluate_multivariate_orthonormal_polynomial
-from pyapprox.orthonormal_polynomials_1d import \
-    evaluate_orthonormal_polynomial_1d
+from pyapprox.monomial import monomial_basis_matrix
 
 
 class TestManipulatePolynomials(unittest.TestCase):

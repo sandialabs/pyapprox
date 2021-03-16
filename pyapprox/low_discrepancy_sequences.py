@@ -1,20 +1,21 @@
 import numpy as np
-from pyapprox.utilities import get_first_n_primes
 from numba import njit
+
+from pyapprox.utilities import get_first_n_primes
+from pyapprox.sys_utilities import trace_error_with_msg
 
 
 def halton_sequence(num_vars, index1, index2):
-    assert index1 < index2
-    assert num_vars <= 100
+    assert index1 < index2, "Index 1 must be < Index 2"
+    assert num_vars <= 100, "Number of variables must be <= 100"
 
     primes = get_first_n_primes(num_vars)
 
     try:
         from pyapprox.cython.utilities import halton_sequence_pyx
         return halton_sequence_pyx(primes, index1, index2)
-    except:
-        print('halton_sequence extension failed')
-        pass
+    except Exception as e:
+        trace_error_with_msg('halton_sequence extension failed', e)
 
     return __halton_sequence(num_vars, index1, index2)
 

@@ -1,4 +1,8 @@
 import sys, os
+import pkg_resources
+import importlib
+
+import numpy as np
 
 
 def trace_error_with_msg(msg, e: Exception):
@@ -35,3 +39,12 @@ def hash_array(array, decimals=None):
         array = np.around(array, decimals)
     # return hash(array.tostring())
     return hash(array.tobytes())
+
+
+def package_installed(name):
+    installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
+    return name in installed_pkgs
+
+
+def module_exists(name):
+    return importlib.util.find_spec(name) is not None

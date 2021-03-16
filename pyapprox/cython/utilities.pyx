@@ -1,8 +1,11 @@
+from libc.stdint cimport int32_t, int64_t
+
 import numpy as np
-cimport numpy as cnp
+cimport numpy as np
 import cython
 cimport cython
-fused_type = cython.fused_type(cython.numeric, cnp.float64_t)
+
+fused_type = cython.fused_type(cython.numeric, np.float64_t)
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
@@ -221,18 +224,18 @@ cpdef outer_product_pyx(input_sets, fused_type element):
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
-def halton_sequence_pyx(cython.integral [:] primes, cython.integral index1, cython.integral index2):
-    cdef int ii
-    cdef int kk
-    cdef int num_vars = primes.shape[0]
-    cdef long [:] ff = np.empty((num_vars),dtype=np.int64)
-    cdef double [:] prime_inv = np.empty((num_vars),dtype=np.double)
-    cdef long summand
+def halton_sequence_pyx(int64_t[:] primes, int32_t index1, int32_t index2):
+    cdef:
+        Py_ssize_t ii, kk
+        int64_t summand
+        Py_ssize_t num_vars = primes.shape[0]
+        int64_t[:] ff = np.empty((num_vars), dtype=np.int64)
+        double[:] prime_inv = np.empty((num_vars), dtype=np.double)
     
-    sequence = np.zeros((num_vars,index2-index1),dtype=np.double)
+    sequence = np.zeros((num_vars, index2-index1), dtype=np.double)
     cdef double [:,:] seq_view = sequence
     kk=0
-    for ii in range(index1,index2):
+    for ii in range(index1, index2):
         ff[:] = ii
         for jj in range(num_vars):
             prime_inv[jj] = 1./primes[jj]
@@ -242,7 +245,7 @@ def halton_sequence_pyx(cython.integral [:] primes, cython.integral index1, cyth
             for jj in range(num_vars):
                 seq_view[jj,kk] += (ff[jj]%primes[jj])*prime_inv[jj]
                 prime_inv[jj] /= primes[jj]
-                ff[jj]=ff[jj]//primes[jj]
+                ff[jj] = ff[jj] // primes[jj]
                 summand += ff[jj]
         kk+=1
     return sequence

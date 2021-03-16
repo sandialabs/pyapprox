@@ -15,6 +15,7 @@ dependencies:
   - setuptools
   - scikit-learn
   - Cython
+  - pymc3 >=3.11.2
   - seaborn
   - sympy
   - networkx
