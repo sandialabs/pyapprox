@@ -197,8 +197,8 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
 cpdef tensor_product_lagrange_interpolation_pyx(
-    double [:, :] x, double [:, :] fn_vals, double [:, :, :] basis_vals_1d,
-    Py_ssize_t [:, :] active_indices, Py_ssize_t [:] active_vars):
+    double[:, :] x, double[:, :] fn_vals, double[:, :, :] basis_vals_1d,
+    int32_t[:, :] active_indices, Py_ssize_t[:] active_vars):
 
     cdef Py_ssize_t ii, jj, dd, kk
     cdef Py_ssize_t nindices = active_indices.shape[1]
