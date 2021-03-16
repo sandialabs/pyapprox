@@ -1,7 +1,9 @@
-try:
+import numpy as np
+from pyapprox.sys_utilities import package_installed
+if package_installed('ROL'):
     from pyapprox._rol_minimize import *
     has_ROL = True
-except:
+else:
     has_ROL = False
 
 import numpy as np

@@ -3,8 +3,7 @@ from functools import partial
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from scipy.special import erf
-from scipy.special import beta as beta_fn
+from scipy.special import erf, beta as beta_fn
 from scipy.linalg import solve_triangular
 
 from numba import njit
