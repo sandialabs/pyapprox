@@ -1,4 +1,9 @@
-from pyapprox.fenics_models.advection_diffusion import *
+import sys
+
+if sys.platform == 'win32':
+    raise ImportError('Not available on Windows')
+
+from pyapprox_dev.fenics_models.advection_diffusion import *
 
 
 def dl_qoi_functional_misc(u):
@@ -264,8 +269,6 @@ class AdvectionDiffusionModel(object):
         return vals, grad
 
 
-
-
 class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
     def initialize_random_expressions(self, random_sample):
         r"""
@@ -428,7 +431,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
 
     Examples
     --------
-    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])
@@ -464,7 +467,7 @@ def setup_multi_level_advection_diffusion_benchmark(
     r"""
     Compute functionals of the transient advection-diffusion (with 1 configure variables which controls the two spatial mesh resolutions and the timestep). An integer increase in the configure variable value will raise the 3 numerical discretiation paramaters by the same integer.
 
-    See :func:`pyapprox.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.
+    See :func:`pyapprox_dev.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.
     """
     from scipy import stats
     from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
@@ -588,7 +591,7 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
 
     Examples
     --------
-    >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('advection-diffusion',nvars=2)
     >>> print(benchmark.keys())
     dict_keys(['fun', 'variable'])

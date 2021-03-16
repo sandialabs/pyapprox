@@ -1,0 +1,30 @@
+name: pyapprox-dev
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python >=3.6,<=3.8 # numba does requires <=3.8
+  - numpy
+  - matplotlib
+  - scipy
+  - numba
+  - jupyter
+  - pytest
+  - pytest-cov
+  - pip
+  - setuptools
+  - scikit-learn
+  - Cython
+  - seaborn
+  - sympy
+  - networkx
+  - sphinx
+  - pymc3       # currently only 1 of 3 additional dependencies beyond base
+  - fenics=2019 # currently only 2 of 3 additional dependencies beyond base
+  - mshr	# currently only 3 of 3 additional dependencies beyond base
+  - pip:
+    - sphinx-gallery
+    - sphinx_copybutton
+    - sphinx_rtd_theme
+    - numpydoc
+    - sphinx_automodapi

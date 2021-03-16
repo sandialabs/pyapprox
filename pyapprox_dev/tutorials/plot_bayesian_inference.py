@@ -289,9 +289,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyapprox as pya
 from scipy.stats import uniform
-from pyapprox.bayesian_inference.tests.test_markov_chain_monte_carlo import \
-    ExponentialQuarticLogLikelihoodModel
-from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
+from pyapprox_dev.bayesian_inference.tests.test_markov_chain_monte_carlo \
+    import ExponentialQuarticLogLikelihoodModel
+from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import \
     run_bayesian_inference_gaussian_error_model, PYMC3LogLikeWrapper
 np.random.seed(1)  
 

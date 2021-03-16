@@ -4,6 +4,8 @@ import numpy as np
 import theano
 import theano.tensor as tt
 from scipy.optimize import approx_fprime
+from pyapprox.variables import get_distribution_info
+
 
 class GaussianLogLike(object):
     r"""
@@ -180,7 +182,7 @@ def extract_map_sample_from_pymc3_dict(map_sample_dict,var_names):
         map_sample[ii]=map_sample_dict[var_names[ii]]
     return map_sample
 
-from pyapprox.variables import get_distribution_info
+
 def get_pymc_variables(variables,pymc_var_names=None):
     nvars = len(variables)
     if pymc_var_names is None:
@@ -219,7 +221,7 @@ def run_bayesian_inference_gaussian_error_model(
 
     Parameters
     ----------
-    loglike : pyapprox.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
+    loglike : pyapprox_dev.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
         A log-likelihood function associated with a Gaussian error model
 
     variables : pya.IndependentMultivariateRandomVariable

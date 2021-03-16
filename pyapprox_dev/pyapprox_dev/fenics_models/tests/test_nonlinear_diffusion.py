@@ -1,19 +1,28 @@
-from functools import partial
-import matplotlib.pyplot as plt
-import unittest
+import sys
 
-try:
+from functools import partial
+import unittest, pytest
+
+import sympy as sp
+import matplotlib.pyplot as plt
+
+
+if sys.platform == 'win32':
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
+    dl = None
+    skiptest = unittest.skipIf(
+        True, reason="fenics_adjoint package not available on Windows")
+else:
     import dolfin as dl
-    import sympy as sp
-    from pyapprox.fenics_models.fenics_utilities import *
-    from pyapprox.fenics_models.nonlinear_diffusion import *
-    from pyapprox.fenics_models.tests.test_advection_diffusion import \
+    from pyapprox_dev.fenics_models.fenics_utilities import *
+    from pyapprox_dev.fenics_models.nonlinear_diffusion import *
+    from pyapprox_dev.fenics_models.tests.test_advection_diffusion import \
         get_exact_solution as get_advec_exact_solution, \
         get_forcing as get_advec_forcing
+
     dl.set_log_level(40)
-    dolfin_package_missing = False
-except:
-    dolfin_package_missing = True
+    skiptest = unittest.skipIf(
+        not has_dla, reason="fenics_adjoint package missing")
 
 
 def quadratic_diffusion(u):
@@ -49,9 +58,8 @@ def get_diffusion_forcing(q, sol_func, mesh, degree):
 
 class TestNonlinearDiffusion(unittest.TestCase):
     def setUp(self):
-        if dolfin_package_missing:
-            self.skipTest('Dolfin package not installed')
-    
+        pass
+
     def test_quadratic_diffusion_dirichlet_boundary_conditions(self):
         """
         du/dt = div((1+u**2)*grad(u))+f   in the unit square.
@@ -75,7 +83,7 @@ class TestNonlinearDiffusion(unittest.TestCase):
                    'init_condition': get_quadratic_diffusion_exact_solution(
                        mesh, degree), 'nonlinear_diffusion':
                    quadratic_diffusion}
-        sol = run_model(function_space, options)
+        sol = run_model(function_space, **options)
 
         exact_sol = get_quadratic_diffusion_exact_solution(mesh, degree)
         exact_sol.t = options['final_time']
@@ -112,14 +120,13 @@ class TestNonlinearDiffusion(unittest.TestCase):
         print('Abs. Error', error)
         assert error <= 1e-4
 
-    #@skiptest
+    @skiptest
     def test_adjoint(self):
 
         np_kappa = 2
         nx, ny, degree = 11, 11, 2
         mesh = dla.RectangleMesh(dl.Point(0, 0), dl.Point(1, 1), nx, ny)
         function_space = dl.FunctionSpace(mesh, "Lagrange", degree)
-
 
         def constant_diffusion(kappa, u):
             return kappa
@@ -134,7 +141,7 @@ class TestNonlinearDiffusion(unittest.TestCase):
 
             def __call__(self, u):
                 return (self.kappa+u**2)
-        
+
         dl_kappa = dla.Constant(np_kappa)
         options = {'time_step': 0.05, 'final_time': 1.,
                    'forcing': dla.Constant(1),
@@ -142,17 +149,17 @@ class TestNonlinearDiffusion(unittest.TestCase):
                    'init_condition': get_advec_exact_solution(mesh, degree),
                    'nonlinear_diffusion': NonlinearDiffusivity(dl_kappa),
                    'second_order_timestepping': True,
-                   'nlsparam': dict()} 
+                   'nlsparam': dict()}
 
         def dl_qoi_functional(sol):
             return dla.assemble(sol*dl.dx)
-        
+
         def dl_fun(np_kappa):
             kappa = dla.Constant(np_kappa)
             options_copy = options.copy()
             options_copy['forcing'] = dla.Constant(1.0)
             # using class avoids pickling
-            options_copy['nonlinear_diffusion'] = NonlinearDiffusivity(kappa) 
+            options_copy['nonlinear_diffusion'] = NonlinearDiffusivity(kappa)
             sol = run_model(function_space, **options_copy)
             return sol, kappa
 
@@ -176,14 +183,13 @@ class TestNonlinearDiffusion(unittest.TestCase):
         from pyapprox.optimization import check_gradients
         x0 = np.atleast_2d(np_kappa)
         errors = check_gradients(fun, True, x0)
-        assert errors.min()<1e-7 and errors.max()>1e-1
+        assert errors.min() < 1e-7 and errors.max() > 1e-1
 
 
 class TestShallowIceEquation(unittest.TestCase):
     def setUp(self):
-        if dolfin_package_missing:
-            self.skipTest('Dolfin package not installed')
-    
+        pass
+
     def run_shallow_ice_halfar(self, nphys_dim):
         """
         See 'Exact time-dependent similarity solutions for isothermal shallow 
@@ -210,7 +216,7 @@ class TestShallowIceEquation(unittest.TestCase):
             mesh = dla.RectangleMesh(
                 dl.Point(-Lx, -Ly), dl.Point(Lx, Ly), nx, ny)
         function_space = dl.FunctionSpace(mesh, "Lagrange", degree)
-        
+
         bed = None
         forcing = dla.Constant(0.0)
         exact_solution = get_halfar_shallow_ice_exact_solution(
@@ -307,13 +313,16 @@ class TestShallowIceEquation(unittest.TestCase):
             dJd_gamma *= model.shallow_ice_diffusivity.Gamma
             # h = dla.Constant(1e-5) # h must be similar magnitude to Gamma
             #Jhat = dla.ReducedFunctional(J, control)
-            #conv_rate = dla.taylor_test(
+            # conv_rate = dla.taylor_test(
             #    Jhat, model.shallow_ice_diffusivity.Gamma, h)
             return np.atleast_2d(float(dJd_gamma))
-        
+
+        if not has_dla:
+            qoi_functional_grad = None
+
         secpera = 31556926  # seconds per anum
         init_time = 200*secpera
-        final_time, degree, nphys_dim = 300*secpera, 1, 1#600*secpera, 1, 1
+        final_time, degree, nphys_dim = 300*secpera, 1, 1  # 600*secpera, 1, 1
         model = HalfarShallowIceModel(
             nphys_dim, init_time, final_time, degree, qoi_functional,
             second_order_timestepping=True, nlsparams=nlsparams,
@@ -323,7 +332,7 @@ class TestShallowIceEquation(unittest.TestCase):
         # but stagnates for a while at around 1e-4 for values
         # 5, 6, 7
         random_sample = np.array([[0]]).T
-        config_sample = np.array([[4]*nphys_dim +[4]]).T
+        config_sample = np.array([[4]*nphys_dim + [4]]).T
         sample = np.vstack((random_sample, config_sample))
         sol = model.solve(sample)
 
@@ -336,8 +345,10 @@ class TestShallowIceEquation(unittest.TestCase):
             dla.assemble(exact_solution**2*dl.dx(degree=5)))
         print('Rel. Error', rel_error)
 
-        assert rel_error<1e-3
+        assert rel_error < 1e-3
 
+        if not has_dla:
+            return
         # TODO: complete test qoi grad but first add taylor_test
         val, grad = model(sample, True)
         print(val, grad)
@@ -348,15 +359,13 @@ class TestShallowIceEquation(unittest.TestCase):
             partial(model, jac=True), config_sample[:, 0])
         x0 = np.atleast_2d(model.Gamma)
         errors = check_gradients(fun, True, x0, direction=np.atleast_2d(1))
-        assert errors.min() < 3e-5 and errors.max()>1e-1
-        
+        assert errors.min() < 3e-5 and errors.max() > 1e-1
 
-
-        
 
 if __name__ == "__main__":
-    nonlinear_diffusion_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestNonlinearDiffusion)
+    nonlinear_diffusion_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestNonlinearDiffusion)
     unittest.TextTestRunner(verbosity=2).run(nonlinear_diffusion_test_suite)
 
     shallow_ice_test_suite = unittest.TestLoader().loadTestsFromTestCase(

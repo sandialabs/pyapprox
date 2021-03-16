@@ -1,8 +1,13 @@
 import unittest
-from pyapprox.bayesian_inference.markov_chain_monte_carlo import *
 from functools import partial
 from scipy.stats import norm, uniform
+
+from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
 from pyapprox.variables import IndependentMultivariateRandomVariable
+from pyapprox.utilities import get_tensor_product_quadrature_rule
+from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.bayesian_inference.laplace import \
+    laplace_posterior_approximation_for_linear_models
 
 class LinearModel(object):
     def __init__(self, Amatrix):
@@ -86,9 +91,7 @@ class TestMCMC(unittest.TestCase):
         prior_hessian = np.diag(
             [1./rv.var() for rv in variables.all_variables()])
         noise_covariance_inv = 1./noise_stdev**2*np.eye(nobs)
-        
-        from pyapprox.bayesian_inference.laplace import \
-                laplace_posterior_approximation_for_linear_models
+       
         exact_mean, exact_covariance = \
             laplace_posterior_approximation_for_linear_models(
                 Amatrix, prior_mean, prior_hessian,
@@ -137,8 +140,6 @@ class TestMCMC(unittest.TestCase):
                 vals[:,0] *= rvs[ii].pdf(x[ii,:])
             return vals
 
-        from pyapprox.utilities import get_tensor_product_quadrature_rule
-        from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
         def univariate_quadrature_rule(n):
             x,w = gauss_jacobi_pts_wts_1D(n,0,0)
             x*=2

@@ -1,14 +1,21 @@
-import os
+import os, sys
 import time
 import numpy as np
-import dolfin as dl
-from pyapprox.fenics_models.fenics_utilities import *
-try:
-    import fenics_adjoint as dla
-    has_dla = True
-except:
-    import fenics as dla
+
+
+if sys.platform != 'win32':
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.fenics_utilities import *
+
+    try:
+        import fenics_adjoint as dla
+        has_dla = True
+    except:
+        import fenics as dla
+        has_dla = False
+else:
     has_dla = False
+    raise ImportError("Not available on Windows")
 
 
 def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
@@ -276,7 +283,7 @@ def run_steady_state_model(function_space, kappa, forcing,
     # for bc in dirichlet_bcs:
     #     bc.apply(A, b)
     # dla.solve(A, u.vector(), b)
-    dla.solve(a==L, u, dirichlet_bcs)
+    dla.solve(a == L, u, dirichlet_bcs)
     return u
 
 

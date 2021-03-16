@@ -1,7 +1,7 @@
 r"""
 Multi-index Stochastic Collocation
 ==================================
-This tutorial describes how to implement and deploy multi-index collocation to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost.
+This tutorial describes how to implement and deploy multi-index collocation [JEGGIJNME2020]_, [HNTTCMAME2016]_ to construct a surrogate of the output of a high-fidelity model using a set of lower-fidelity models of lower accuracy and cost.
 
 Despite the improved efficiency of surrogate methods relative to MC sampling, building a surrogate can still be prohibitively expensive for high-fidelity simulation models. Fortunately, a selection of models of varying fidelity and computational cost are typically available for many applications. For example, aerospace models span fluid dynamics, structural and thermal response, control systems, etc. 
 
