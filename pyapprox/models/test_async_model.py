@@ -77,9 +77,10 @@ def check_fileiomodel_files(directories, link_filenames):
             r'[0-9]+', os.path.split(directory)[1] )[-1])
         assert os.path.exists(
             os.path.join(directory,'params.in.%d'%dir_num))
-        assert os.path.exists(os.path.join(directory,'results.out.%d'%dir_num))
-        for link_filename in lionk_filenames:
-            assert os.path.exists(os.path.join(directory,link_filename))
+        assert os.path.exists(os.path.join(
+            directory, 'results.out.%d' % dir_num))
+        for link_filename in link_filenames:
+            assert os.path.exists(os.path.join(directory, link_filename))
 
 def raise_exception(condition, msg):
     """
