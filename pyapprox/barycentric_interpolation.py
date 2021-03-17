@@ -88,9 +88,9 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
 def barycentric_lagrange_interpolation_precompute(
         num_act_dims, abscissa_1d, barycentric_weights_1d,
         active_abscissa_indices_1d_list):
-    num_abscissa_1d = np.empty((num_act_dims), dtype=int)
-    num_active_abscissa_1d = np.empty((num_act_dims), dtype=int)
-    shifts = np.empty((num_act_dims), dtype=int)
+    num_abscissa_1d = np.empty((num_act_dims), dtype=np.int32)
+    num_active_abscissa_1d = np.empty((num_act_dims), dtype=np.int32)
+    shifts = np.empty((num_act_dims), dtype=np.int32)
 
     shifts[0] = 1
     num_abscissa_1d[0] = abscissa_1d[0].shape[0]
@@ -108,7 +108,7 @@ def barycentric_lagrange_interpolation_precompute(
 
     max_num_active_abscissa_1d = num_active_abscissa_1d.max()
     active_abscissa_indices_1d = np.empty(
-        (num_act_dims, max_num_active_abscissa_1d), dtype=int)
+        (num_act_dims, max_num_active_abscissa_1d), dtype=np.int32)
     for dd in range(num_act_dims):
         active_abscissa_indices_1d[dd, :num_active_abscissa_1d[dd]] = \
             active_abscissa_indices_1d_list[dd]
@@ -360,7 +360,7 @@ def multivariate_barycentric_lagrange_interpolation(
 
 def clenshaw_curtis_barycentric_weights(level):
     if (level == 0):
-        return np.array([0.5], np.float)
+        return np.array([0.5], float)
     else:
         mi = 2**(level) + 1
         w = np.ones(mi, np.double)

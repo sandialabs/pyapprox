@@ -281,7 +281,7 @@ def moments_of_active_subspace(W1_trans, as_poly_indices, integrate_polynomial):
 def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
     num_active_vars, num_vars = W1_trans.shape
     num_as_moments = as_poly_indices.shape[1]
-    moments = np.zeros((num_as_moments), float)
+    moments = np.zeros((num_as_moments), np.float64)
 
     monomial_power_indices = [[]]*num_active_vars
     monomial_power_coeffs = [[]]*num_active_vars

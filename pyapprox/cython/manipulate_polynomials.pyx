@@ -1,6 +1,8 @@
-from libc.stdint cimport int32_t, int64_t
 cimport cython
 import numpy as np
+cimport numpy as np
+
+ctypedef np.int64_t int64_t
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
@@ -27,10 +29,10 @@ cpdef multiply_multivariate_polynomials_pyx(int64_t[:,:] indicesI, double[:] coe
     
     indices = np.empty((num_vars,num_indicesI*num_indicesII),
                        dtype=np.int64)
-    coeffs = np.empty((num_indicesI*num_indicesII), dtype=np.float)
+    coeffs = np.empty((num_indicesI*num_indicesII), dtype=np.float64)
 
     cdef:
-        cdef int64_t[:,:] indices_view = indices
+        int64_t[:,:] indices_view = indices
         double [:] coeffs_view = coeffs
         int64_t[:] index1 = np.empty((num_vars), dtype=np.int64)
         Py_ssize_t kk=0, ii, jj, dd
