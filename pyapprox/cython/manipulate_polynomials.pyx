@@ -1,10 +1,11 @@
+from libc.stdint cimport int32_t, int64_t
 cimport cython
 import numpy as np
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
-cpdef multiply_multivariate_polynomials_pyx(cython.integral [:,:] indicesI, double [:] coeffsI, cython.integral [:,:] indicesII, double [:] coeffsII):
+cpdef multiply_multivariate_polynomials_pyx(int64_t[:,:] indicesI, double[:] coeffsI, int64_t[:,:] indicesII, double[:] coeffsII):
     """
     Parameters
     ----------
@@ -19,27 +20,20 @@ cpdef multiply_multivariate_polynomials_pyx(cython.integral [:,:] indicesI, doub
     Returns
     -------
     """
-    cdef int num_vars = indicesI.shape[0]
-    cdef int num_indicesI = indicesI.shape[1]
-    cdef int num_indicesII = indicesII.shape[1]
-
-    if cython.integral is int:
-      int_dtype=np.int32 
-    elif cython.integral is long:
-      int_dtype=np.int64 
-    else:
-      # short
-      int_dtype=np.short
+    cdef:
+        Py_ssize_t num_vars = indicesI.shape[0]
+        Py_ssize_t num_indicesI = indicesI.shape[1]
+        Py_ssize_t num_indicesII = indicesII.shape[1]
     
     indices = np.empty((num_vars,num_indicesI*num_indicesII),
-                       dtype=int_dtype)
-    cdef cython.integral [:,:] indices_view = indices
+                       dtype=np.int64)
+    coeffs = np.empty((num_indicesI*num_indicesII), dtype=np.float)
 
-    coeffs = np.empty((num_indicesI*num_indicesII),dtype=np.float)
-    cdef double [:] coeffs_view = coeffs
-
-    cdef cython.integral [:] index1 = np.empty((num_vars),dtype=int_dtype)
-    cdef int kk=0,ii,jj,dd
+    cdef:
+        cdef int64_t[:,:] indices_view = indices
+        double [:] coeffs_view = coeffs
+        int64_t[:] index1 = np.empty((num_vars), dtype=np.int64)
+        Py_ssize_t kk=0, ii, jj, dd
 
     for ii in range(num_indicesI):
         index1 = indicesI[:,ii]
