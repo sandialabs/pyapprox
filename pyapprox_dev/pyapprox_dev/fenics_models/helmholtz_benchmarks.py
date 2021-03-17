@@ -1,12 +1,19 @@
-import numpy as np
-import dolfin as dl
+import os, sys
 import pathlib
-import os
-from pyapprox_dev.fenics_models.fenics_utilities import \
-    generate_polygonal_mesh, get_polygon_boundary_segments
-from pyapprox_dev.fenics_models.helmholtz import run_model
+
+import numpy as np
+
 from pyapprox.benchmarks.benchmarks import Benchmark
-from pyapprox_dev.fenics_models.fenics_utilities import get_vertices_of_polygon
+
+if sys.platform != 'win32':
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.fenics_utilities import \
+        generate_polygonal_mesh, get_polygon_boundary_segments
+    from pyapprox_dev.fenics_models.helmholtz import run_model
+
+    from pyapprox_dev.fenics_models.fenics_utilities import get_vertices_of_polygon
+else:
+    raise ImportError("Helmholtz module not available on Windows")
 
 
 def generate_helmholtz_bases(samples, mesh_resolution=51):
