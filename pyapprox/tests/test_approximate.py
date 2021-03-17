@@ -1,14 +1,12 @@
 import sys
 import unittest, pytest
+
 from scipy import stats
+import numpy as np
 
-
-if sys.platform == 'win32':
-    pytestmark = pytest.mark.skip("Skipping test on Windows")
-else:
-    from pyapprox.approximate import *
-    from pyapprox.benchmarks.benchmarks import setup_benchmark
-    import pyapprox as pya
+from pyapprox.approximate import *
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+import pyapprox as pya
 
 
 class TestApproximate(unittest.TestCase):
