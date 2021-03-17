@@ -115,7 +115,7 @@ def barycentric_lagrange_interpolation_precompute(
 
     # Create locality of data for increased preformance
     abscissa_and_weights = np.empty(
-        (2*max_num_abscissa_1d, num_act_dims), dtype=float)
+        (2*max_num_abscissa_1d, num_act_dims), dtype=np.float64)
     for dd in range(num_act_dims):
         for ii in range(num_abscissa_1d[dd]):
             abscissa_and_weights[2*ii, dd] = abscissa_1d[dd][ii]
@@ -421,7 +421,7 @@ def __tensor_product_lagrange_polynomial_basis(
         tensor_product_lagrange_interpolation_pyx
     approx_values = tensor_product_lagrange_interpolation_pyx(
         samples, values, basis_vals_1d, active_indices, active_vars)
-    print('a')
+
     return approx_values
 
     nvars, nsamples = samples.shape

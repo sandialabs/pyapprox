@@ -1,4 +1,3 @@
-from libc.stdint cimport int32_t, int64_t
 cimport cython
 
 cimport numpy as np
@@ -6,6 +5,8 @@ import numpy as np
 
 
 ctypedef np.double_t double_t
+ctypedef np.int32_t int32_t
+ctypedef np.int64_t int64_t
 
 
 @cython.cdivision(True)     # Deactivate division by zero checking
@@ -60,7 +61,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
         Py_ssize_t num_act_dims = active_dims.shape[0]
 
         Py_ssize_t max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
-        int32_t[:] multi_index  = np.empty((num_act_dims), dtype=np.int)
+        int32_t[:] multi_index = np.empty((num_act_dims), dtype=np.int32)
 
         Py_ssize_t num_qoi = fn_vals.shape[1]
 
@@ -70,9 +71,9 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
     # Allocate persistent memory. Each point will fill in a varying amount
     # of entries. We use a view of this memory to stop reallocation for each 
     # data point
-    cdef int32_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int)
+    cdef int32_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int32)
     cdef int32_t[:] act_dim_indices_pt_persistent = np.empty(
-        (num_act_dims),dtype=np.int)
+        (num_act_dims),dtype=np.int32)
 
     cdef:
         double[:,:] c_persistent=np.empty((num_qoi,num_act_dims),dtype=float)
@@ -198,7 +199,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
 @cython.wraparound(False)   # Deactivate negative indexing.
 cpdef tensor_product_lagrange_interpolation_pyx(
     double[:, :] x, double[:, :] fn_vals, double[:, :, :] basis_vals_1d,
-    int32_t[:, :] active_indices, Py_ssize_t[:] active_vars):
+    int32_t[:, :] active_indices, int32_t[:] active_vars):
 
     cdef Py_ssize_t ii, jj, dd, kk
     cdef Py_ssize_t nindices = active_indices.shape[1]

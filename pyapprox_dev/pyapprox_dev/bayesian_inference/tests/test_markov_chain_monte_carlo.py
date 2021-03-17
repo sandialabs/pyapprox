@@ -9,6 +9,7 @@ from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayesian_inference.laplace import \
     laplace_posterior_approximation_for_linear_models
 
+
 class LinearModel(object):
     def __init__(self, Amatrix):
         """
