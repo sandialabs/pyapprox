@@ -1,11 +1,12 @@
-from libc.stdint cimport int32_t, int64_t
-
 import numpy as np
 cimport numpy as np
 import cython
 cimport cython
 
 fused_type = cython.fused_type(cython.numeric, np.float64_t)
+
+ctypedef np.int_t int_t
+ctypedef np.int64_t int64_t
 
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
@@ -224,7 +225,7 @@ cpdef outer_product_pyx(input_sets, fused_type element):
 @cython.cdivision(True)     # Deactivate division by zero checking
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
-def halton_sequence_pyx(int64_t[:] primes, int32_t index1, int32_t index2):
+def halton_sequence_pyx(int64_t[:] primes, int_t index1, int_t index2):
     cdef:
         Py_ssize_t ii, kk
         int64_t summand

@@ -5,7 +5,7 @@ import numpy as np
 
 
 ctypedef np.double_t double_t
-ctypedef np.int32_t int32_t
+ctypedef np.int_t int_t
 ctypedef np.int64_t int64_t
 
 
@@ -43,9 +43,9 @@ cpdef compute_barycentric_weights_1d_pyx(np.ndarray[double_t] samples, double C_
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
 cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-    double[:,:] x, double[:,:] fn_vals, np.ndarray active_dims,
-    int32_t[:,:] active_abscissa_indices_1d, int32_t[:] num_abscissa_1d,
-    int32_t[:] num_active_abscissa_1d, int32_t[:] shifts,
+    double[:,:] x, double[:,:] fn_vals, np.ndarray[int64_t] active_dims,
+    int_t[:,:] active_abscissa_indices_1d, int_t[:] num_abscissa_1d,
+    int_t[:] num_active_abscissa_1d, int_t[:] shifts,
     double[:,:] abscissa_and_weights):
 
     # active_dims is type unstable! Switches from int64 to int32
@@ -61,7 +61,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
         Py_ssize_t num_act_dims = active_dims.shape[0]
 
         Py_ssize_t max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
-        int32_t[:] multi_index = np.empty((num_act_dims), dtype=np.int32)
+        int_t[:] multi_index = np.empty((num_act_dims), dtype=np.int32)
 
         Py_ssize_t num_qoi = fn_vals.shape[1]
 
@@ -71,14 +71,14 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
     # Allocate persistent memory. Each point will fill in a varying amount
     # of entries. We use a view of this memory to stop reallocation for each 
     # data point
-    cdef int32_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int32)
-    cdef int32_t[:] act_dim_indices_pt_persistent = np.empty(
+    cdef int_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int32)
+    cdef int_t[:] act_dim_indices_pt_persistent = np.empty(
         (num_act_dims),dtype=np.int32)
 
     cdef:
-        double[:,:] c_persistent=np.empty((num_qoi,num_act_dims),dtype=float)
+        double[:,:] c_persistent=np.empty((num_qoi,num_act_dims),dtype=np.float64)
         double[:,:] bases = np.empty(
-            (max_num_abscissa_1d, num_act_dims),dtype=float)
+            (max_num_abscissa_1d, num_act_dims),dtype=np.float64)
 
     for kk in range(num_pts):
         # compute the active dimension of the kth point in x and the 
@@ -199,7 +199,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
 @cython.wraparound(False)   # Deactivate negative indexing.
 cpdef tensor_product_lagrange_interpolation_pyx(
     double[:, :] x, double[:, :] fn_vals, double[:, :, :] basis_vals_1d,
-    int32_t[:, :] active_indices, int32_t[:] active_vars):
+    int_t[:, :] active_indices, int_t[:] active_vars):
 
     cdef Py_ssize_t ii, jj, dd, kk
     cdef Py_ssize_t nindices = active_indices.shape[1]
