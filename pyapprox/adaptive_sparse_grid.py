@@ -1225,7 +1225,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
         self.univariate_quad_rule = None
         self.samples_1d, self.weights_1d = [None, None]
-        self.smolyak_coefficients = np.empty((0), np.float)
+        self.smolyak_coefficients = np.empty((0), np.float64)
         self.variable_transformation = None
         self.compact_univariate_quad_rule = None
 
