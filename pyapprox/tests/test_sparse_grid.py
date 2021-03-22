@@ -1,4 +1,9 @@
 import unittest
+from functools import partial
+
+import numpy as np
+import sympy as sp
+
 from pyapprox.sparse_grid import *
 from pyapprox.adaptive_sparse_grid import *
 from pyapprox.monomial import evaluate_monomial, \
@@ -7,14 +12,13 @@ from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence, \
     evaluate_orthonormal_polynomial_1d
 from pyapprox.indexing import set_difference
 from pyapprox.univariate_quadrature import *
-from functools import partial
+
 from pyapprox.variable_transformations import \
     define_iid_random_variable_transformation
 from pyapprox.manipulate_polynomials import get_indices_double_set
 from pyapprox.variable_transformations import \
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
-import sympy as sp
 from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
 
 

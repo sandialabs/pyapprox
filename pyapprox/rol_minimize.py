@@ -1,11 +1,12 @@
 import numpy as np
-from pyapprox.utilities import package_installed
+from pyapprox.sys_utilities import package_installed
 if package_installed('ROL'):
     from pyapprox._rol_minimize import *
     has_ROL = True
 else:
     has_ROL = False
 
+import numpy as np
 from scipy.optimize import minimize as scipy_minimize
 
 

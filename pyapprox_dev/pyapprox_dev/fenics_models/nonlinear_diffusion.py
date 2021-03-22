@@ -1,6 +1,12 @@
+import sys
+
+if sys.platform == 'win32':
+    raise ImportError("Not available on Windows")
+
+import numpy as np
+
 from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
     AdvectionDiffusionModel
-import numpy as np
 from pyapprox_dev.fenics_models.fenics_utilities import *
 
 

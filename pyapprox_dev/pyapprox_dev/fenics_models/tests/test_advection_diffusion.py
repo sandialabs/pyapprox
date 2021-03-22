@@ -1,10 +1,22 @@
-import unittest
+import sys
+import unittest, pytest
+
 import sympy as sp
-import dolfin as dl
-from pyapprox_dev.fenics_models.advection_diffusion import *
-from pyapprox_dev.fenics_models.advection_diffusion_wrappers import *
-from pyapprox_dev.fenics_models.fenics_utilities import *
 import matplotlib.pyplot as plt
+
+
+if sys.platform == 'win32':
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
+    has_dla = False
+
+    # Create stub class for test
+    class dla(object):
+        UserExpression = object
+else:
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.advection_diffusion import *
+    from pyapprox_dev.fenics_models.advection_diffusion_wrappers import *
+    from pyapprox_dev.fenics_models.fenics_utilities import *
 
 skiptest = unittest.skipIf(
     not has_dla, reason="fenics_adjoint package missing")

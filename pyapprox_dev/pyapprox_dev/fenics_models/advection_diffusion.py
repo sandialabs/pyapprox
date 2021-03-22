@@ -1,14 +1,25 @@
-import os
+import os, sys
 import time
 import numpy as np
-import dolfin as dl
-from pyapprox_dev.fenics_models.fenics_utilities import *
+
+
+if sys.platform == 'win32':
+    raise ImportError("Not available on Windows")
+
 try:
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.fenics_utilities import *
     import fenics_adjoint as dla
-    has_dla = True
-except:
-    import fenics as dla
+except (ImportError, ModuleNotFoundError):
     has_dla = False
+
+    # Create stub class
+    class dla(object):
+        UserExpression = object
+
+else:
+    # If no exceptions raised
+    has_dla = True
 
 
 def run_model(function_space, kappa, forcing, init_condition, dt, final_time,

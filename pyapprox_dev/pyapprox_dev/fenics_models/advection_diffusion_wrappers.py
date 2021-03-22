@@ -1,3 +1,8 @@
+import sys
+
+if sys.platform == 'win32':
+    raise ImportError('Not available on Windows')
+
 from pyapprox_dev.fenics_models.advection_diffusion import *
 
 

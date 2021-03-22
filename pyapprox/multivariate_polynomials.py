@@ -40,7 +40,7 @@ def precompute_multivariate_orthonormal_polynomial_univariate_values(
     # axis keyword is not supported when usingnumba
     # max_level_1d = indices.max(axis=1)
     # so replace with
-    max_level_1d = np.empty((num_vars), dtype=np.int)
+    max_level_1d = np.empty((num_vars), dtype=np.int_)
     for ii in range(num_vars):
         max_level_1d[ii] = indices[ii, :].max()
 

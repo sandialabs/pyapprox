@@ -1,7 +1,13 @@
-import unittest
+import sys
+import unittest, pytest
 import numpy as np
-import dolfin as dl
-from pyapprox_dev.fenics_models.fenics_utilities import *
+
+
+if sys.platform == 'win32':
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
+else:
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.fenics_utilities import *
 
 
 class TestFenicsUtilities(unittest.TestCase):

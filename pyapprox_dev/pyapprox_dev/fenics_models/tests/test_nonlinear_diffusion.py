@@ -1,18 +1,28 @@
+import sys
+
 from functools import partial
-import matplotlib.pyplot as plt
-import unittest
+import unittest, pytest
 
-import dolfin as dl
 import sympy as sp
-from pyapprox_dev.fenics_models.fenics_utilities import *
-from pyapprox_dev.fenics_models.nonlinear_diffusion import *
-from pyapprox_dev.fenics_models.tests.test_advection_diffusion import \
-    get_exact_solution as get_advec_exact_solution, \
-    get_forcing as get_advec_forcing
-dl.set_log_level(40)
+import matplotlib.pyplot as plt
 
-skiptest = unittest.skipIf(
-    not has_dla, reason="fenics_adjoint package missing")
+
+if sys.platform == 'win32':
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
+    dl = None
+    skiptest = unittest.skipIf(
+        True, reason="fenics_adjoint package not available on Windows")
+else:
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.fenics_utilities import *
+    from pyapprox_dev.fenics_models.nonlinear_diffusion import *
+    from pyapprox_dev.fenics_models.tests.test_advection_diffusion import \
+        get_exact_solution as get_advec_exact_solution, \
+        get_forcing as get_advec_forcing
+
+    dl.set_log_level(40)
+    skiptest = unittest.skipIf(
+        not has_dla, reason="fenics_adjoint package missing")
 
 
 def quadratic_diffusion(u):

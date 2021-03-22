@@ -1,12 +1,14 @@
 import unittest
-from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
 from functools import partial
 from scipy.stats import norm, uniform
+
+from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.utilities import get_tensor_product_quadrature_rule
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayesian_inference.laplace import \
     laplace_posterior_approximation_for_linear_models
+
 
 class LinearModel(object):
     def __init__(self, Amatrix):

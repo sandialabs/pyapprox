@@ -3,7 +3,7 @@ channels:
   - defaults
 #  - conda-forge #using conda-forge delays solving environment step significanty
 dependencies:
-  - python >=3.6,<=3.8 # numba does requires <=3.8
+  - python >=3.6,<3.9 # numba does requires <=3.8
   - numpy
   - matplotlib
   - scipy
@@ -15,7 +15,7 @@ dependencies:
   - setuptools
   - scikit-learn
   - Cython
-  - pymc3
+  - pymc3 >=3.11.2
   - seaborn
   - sympy
   - networkx

@@ -159,7 +159,7 @@ class TestActiveSubspace(unittest.TestCase):
         # (ax+by+cz)^2=a^2 x^2 + 2 a b x y + 2 a c x z + b^2 y^2 + 2 b c y z + c^2 z^2
         # int (ax+by+cz)^2*1/2dx = a^2*1/3 + b^2*1/3 + c^2*1/3
         true_moments = [1, 0, 0,
-                        # notice how if W1 has colums with unit norm np.sum(W1[:,1]**2) will always be one.
+                        # notice how if W1 has columns with unit norm np.sum(W1[:,1]**2) will always be one.
                         np.sum(W1[:, 1]**2)*1./3.,
                         1./3.*(W1[0, 0]*W1[0, 1]+W1[1, 0] * \
                                W1[1, 1]+W1[2, 0]*W1[2, 1]),

@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.special import comb as nchoosek
-from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from scipy.special import factorial
 from numba import njit
+
+from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.utilities import cartesian_product
+from .sys_utilities import trace_error_with_msg
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
@@ -44,9 +46,11 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     try:
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
+        
         weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
-    except:
-        print('compute_barycentric_weights_1d extension failed')
+    except Exception as e:
+        msg = 'compute_barycentric_weights_1d extension failed'
+        trace_error_with_msg(msg, e)
 
         # X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
         # result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
@@ -70,7 +74,7 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
         # where interval [a,b] is not very useful
         # print('max_weights',result.min(),result.max())
         if normalize_weights:
-            raise Exception('I do not think I want to support this option')
+            raise NotImplementedError('I do not think I want to support this option')
             result /= np.absolute(result).max()
             # result[I]=result
 
@@ -84,9 +88,9 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
 def barycentric_lagrange_interpolation_precompute(
         num_act_dims, abscissa_1d, barycentric_weights_1d,
         active_abscissa_indices_1d_list):
-    num_abscissa_1d = np.empty((num_act_dims), dtype=int)
-    num_active_abscissa_1d = np.empty((num_act_dims), dtype=int)
-    shifts = np.empty((num_act_dims), dtype=int)
+    num_abscissa_1d = np.empty((num_act_dims), dtype=np.int32)
+    num_active_abscissa_1d = np.empty((num_act_dims), dtype=np.int32)
+    shifts = np.empty((num_act_dims), dtype=np.int32)
 
     shifts[0] = 1
     num_abscissa_1d[0] = abscissa_1d[0].shape[0]
@@ -104,14 +108,14 @@ def barycentric_lagrange_interpolation_precompute(
 
     max_num_active_abscissa_1d = num_active_abscissa_1d.max()
     active_abscissa_indices_1d = np.empty(
-        (num_act_dims, max_num_active_abscissa_1d), dtype=int)
+        (num_act_dims, max_num_active_abscissa_1d), dtype=np.int32)
     for dd in range(num_act_dims):
         active_abscissa_indices_1d[dd, :num_active_abscissa_1d[dd]] = \
             active_abscissa_indices_1d_list[dd]
 
     # Create locality of data for increased preformance
     abscissa_and_weights = np.empty(
-        (2*max_num_abscissa_1d, num_act_dims), dtype=float)
+        (2*max_num_abscissa_1d, num_act_dims), dtype=np.float64)
     for dd in range(num_act_dims):
         for ii in range(num_abscissa_1d[dd]):
             abscissa_and_weights[2*ii, dd] = abscissa_1d[dd][ii]
@@ -189,12 +193,11 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 num_abscissa_1d, num_active_abscissa_1d, shifts,
                 abscissa_and_weights)
         if np.any(np.isnan(result)):
-            raise Exception('Error values not finite')
+            raise ValueError('Error values not finite')
         return result
-    except:
-        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation '
-        msg += 'extension failed'
-        print(msg)
+    except Exception as e:
+        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
+        trace_error_with_msg(msg, e)
 
     return __multivariate_hierarchical_barycentric_lagrange_interpolation(
         x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
@@ -337,7 +340,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                 if np.any(np.isnan(result[kk, :])):
                     #print (c_persistent [:,num_act_dims_pt-1])
                     #print (denom)
-                    raise Exception('Error values not finite')
+                    raise ValueError('Error values not finite')
     return result
 
 
@@ -357,7 +360,7 @@ def multivariate_barycentric_lagrange_interpolation(
 
 def clenshaw_curtis_barycentric_weights(level):
     if (level == 0):
-        return np.array([0.5], np.float)
+        return np.array([0.5], float)
     else:
         mi = 2**(level) + 1
         w = np.ones(mi, np.double)
@@ -418,7 +421,7 @@ def __tensor_product_lagrange_polynomial_basis(
         tensor_product_lagrange_interpolation_pyx
     approx_values = tensor_product_lagrange_interpolation_pyx(
         samples, values, basis_vals_1d, active_indices, active_vars)
-    print('a')
+
     return approx_values
 
     nvars, nsamples = samples.shape

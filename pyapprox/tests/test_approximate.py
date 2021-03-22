@@ -1,5 +1,9 @@
-import unittest
+import sys
+import unittest, pytest
+
 from scipy import stats
+import numpy as np
+
 from pyapprox.approximate import *
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 import pyapprox as pya

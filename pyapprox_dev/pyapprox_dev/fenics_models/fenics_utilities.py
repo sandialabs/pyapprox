@@ -1,5 +1,10 @@
+import sys
 import math
 from pyapprox.karhunen_loeve_expansion import MeshKLE
+
+if sys.platform == 'win32':
+    raise ImportError("Not available on Windows")
+
 import dolfin as dl
 try:
     import fenics_adjoint as dla

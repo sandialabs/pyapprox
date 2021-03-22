@@ -1,8 +1,13 @@
+import sys
 import unittest
 from pyapprox.sensitivity_analysis import *
 from pyapprox.benchmarks.sensitivity_benchmarks import *
 from scipy.stats import uniform, norm
 import pyapprox as pya
+
+
+skip_windows = unittest.skipIf(sys.platform == 'win32', 
+                               reason="fenics_adjoint package not available on Windows")
 
 
 class TestSensitivityAnalysis(unittest.TestCase):

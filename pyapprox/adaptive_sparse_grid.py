@@ -959,7 +959,8 @@ class SubSpaceRefinementManager(object):
             canonical_samples)
         config_samples = self.map_config_samples_from_canonical_space(
             canonical_samples)
-        samples = np .vstack((random_samples, config_samples))
+        samples = np.vstack((random_samples, config_samples))
+
         values = self.function(samples)
 
         return values
@@ -1224,7 +1225,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
         self.univariate_quad_rule = None
         self.samples_1d, self.weights_1d = [None, None]
-        self.smolyak_coefficients = np.empty((0), np.float)
+        self.smolyak_coefficients = np.empty((0), np.float64)
         self.variable_transformation = None
         self.compact_univariate_quad_rule = None
 
