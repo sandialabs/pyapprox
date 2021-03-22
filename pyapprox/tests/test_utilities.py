@@ -8,6 +8,21 @@ class TestUtilities(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_total_degree_space_dimension(self):
+        nvars, degree = 2, 3
+        nterms = total_degree_space_dimension(nvars, degree)
+        assert nterms == 10
+
+        nvars, degree = 3, 2
+        nterms = total_degree_space_dimension(nvars, degree)
+        assert nterms == 10
+
+        for nvars in range(1,5):
+            for degree in range(1,5):
+                nterms_kk = total_degree_subspace_dimension(nvars, degree)
+                assert nterms_kk ==  total_degree_space_dimension(
+                    nvars, degree)-total_degree_space_dimension(nvars, degree-1)
+
     def test_cartesian_product(self):
         # test when num elems = 1
         s1 = np.arange( 0, 3 )

@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
-from scipy.special import erf, beta as beta_fn
+from scipy.special import erf, beta as beta_fn, gammaln
 from scipy.linalg import solve_triangular
 
 from numba import njit
@@ -416,10 +416,45 @@ def total_degree_space_dimension(dimension, degree):
     -------
     num_terms : integer
         The number of basis functions in the total degree space
+
+    Notes
+    -----
+    Note
+
+    .. math:: {n \choose k} = frac{\Gamma(n+k+1)}{\Gamma(k+1)\Gamma{n-k+1}}, \qquad \Gamma(m)=(m-1)!
+
+    So for dimension :math:`d` and degree :math:`p` number of terms in subspace is
+
+    .. math:: {d+p \choose p} = frac{\Gamma(d+p+1)}{\Gamma(p+1)\Gamma{d+p-p+1}}, \qquad \Gamma(m)=(m-1)!
+    
     """
-    #from scipy.special import gammaln
-    #subspace_dimension = lambda k: int(np.round(np.exp( gammaln(k+d+1) - gammaln(k+1) - gammaln(d+1) )))
-    return nchoosek(dimension+degree, degree)
+    # return nchoosek(dimension+degree, degree)
+    # Following more robust for large values
+    return int(np.round(np.exp(gammaln(degree+dimension+1) - gammaln(degree+1) - gammaln(dimension+1))))
+
+
+def total_degree_subspace_dimension(dimension, degree):
+    r"""
+    Return the number of basis functions in a total degree polynomial space,
+    with degree equal to degree.
+
+    Parameters
+    ----------
+    num_vars : integer
+        The number of variables of the polynomials
+
+    degree : 
+        The degree of the total-degree space
+
+    Returns
+    -------
+    num_terms : integer
+        The number of basis functions in the total degree space of a given degree
+    """
+    # subspace_dimension = nchoosek(nvars+degree-1, degree)
+    # Following more robust for large values
+    subspace_dimension = int(np.round(np.exp(gammaln(degree+dimension) - gammaln(degree+1) - gammaln(dimension) )))
+    return subspace_dimension
 
 
 def total_degree_encompassing_N(dimension, N):
