@@ -1,13 +1,20 @@
 import unittest
+
 import numpy as np
+
 from scipy.stats import binom, hypergeom
+from scipy import stats
+from scipy.special import factorial
+
+from functools import partial
 
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import *
 from pyapprox.orthonormal_polynomials_1d import *
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from scipy import stats
-from functools import partial
+from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
+    gauss_hermite_pts_wts_1D
 from pyapprox.variables import float_rv_discrete
+
+
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
     def test_krawtchouk(self):
         num_coef=6
@@ -169,10 +176,46 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
             integrand, lb, ub, quad_options['nquad_samples'],
             interval_size=interval_size, **quad_opts)
         res = np.reshape(res, (nterms, nterms), order='C')
+        print(np.absolute(res-np.eye(nterms)).max())
         assert np.absolute(res-np.eye(nterms)).max() < 5e-6
 
         
+    def test_predictor_corrector_separable_independent_variables(self):
+        """
+        Test 1: Sum of Gaussians is a Gaussian
 
+        Test 2: Product of uniforms on [0,1]
+        """
+        nvars, nterms = 2, 5
+        variables = [stats.norm(0, 1)]*nvars
+
+        nquad_samples_1d = 50
+        quad_rules = [gauss_hermite_pts_wts_1D(nquad_samples_1d)]*nvars
+        def fun(x):
+            return x.sum(axis=0)
+        
+        ab = predictor_corrector_function_of_independent_variables(nterms, quad_rules, fun)
+
+        rv = stats.norm(0, np.sqrt(nvars))
+        measures = rv.pdf
+        lb, ub = rv.interval(1)
+        interval_size = rv.interval(0.99)[1] - rv.interval(0.99)[0]
+        ab_full = predictor_corrector(nterms, rv.pdf, lb, ub, interval_size)
+        assert np.allclose(ab_full, ab)
+
+        nvars = 2
+        def measure(x):
+            return (-1)**(nvars-1)*np.log(x)**(nvars-1)/factorial(nvars-1)
+        def fun(x):
+            return x.prod(axis=0)
+
+        quad_opts = {'verbose': 0, 'atol': 1e-6, 'rtol': 1e-6}
+        ab_full = predictor_corrector(nterms, measure, 0, 1, 1, quad_opts)
+        xx, ww = gauss_jacobi_pts_wts_1D(nquad_samples_1d, 0, 0)
+        xx = (xx+1)/2
+        quad_rules = [(xx, ww)]*nvars
+        ab = predictor_corrector_function_of_independent_variables(nterms, quad_rules, fun)
+        assert np.allclose(ab_full, ab)
 
 if __name__ == "__main__":
     num_gen_orthonormal_poly_1d_test_suite = \

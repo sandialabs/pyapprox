@@ -1,9 +1,13 @@
 import numpy as np
 import numpy.linalg as nlg
+
+from functools import partial
+
 from pyapprox.utilities import \
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
 from pyapprox.orthonormal_polynomials_1d import \
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
+from pyapprox.utilities import cartesian_product, outer_product
 
 
 def stieltjes(nodes, weights, N):
@@ -340,18 +344,53 @@ def predictor_corrector_known_scipy_pdf(nterms, rv, quad_options={}):
 
 def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
                         quad_options={}):
+    """
+    Use predictor corrector method to compute the recursion coefficients
+    of a univariate orthonormal polynomial
+
+    Parameters
+    ----------
+    nterms : integer
+        The number of coefficients requested
+
+    measure : callable
+        The measure used to compute orthogonality
+
+    lb: float
+        The lower bound of the measure (can be -infinity)
+
+    ub: float
+        The upper bound of the measure (can be infinity)
+
+    interval_size : float
+        The size of the initial interval used for quadrature
+        For bounded variables this should be ub-lb. For semi- or un-bounded
+        variables the larger this value the larger nquad_samples should
+        be set
+
+    quad_options : dict
+        Options to the numerical quadrature function with attributes
+
+    nquad_samples : integer
+        The number of samples in the Gauss quadrature rule
+    """
     
     ab = np.zeros((nterms, 2))
-    # for probablity measures the following will always be one, but forall
-    # this is not true for other measures
     nquad_samples = quad_options.get('nquad_samples', 100)
     quad_opts = quad_options.copy()
     if 'nquad_samples' in quad_opts:
         del quad_opts['nquad_samples']
-    ab[0, 1] = np.sqrt(
-        integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-            measure, lb, ub, nquad_samples, **quad_opts,
-            interval_size=interval_size))
+
+    if np.isfinite(lb) and np.isfinite(ub):
+        assert interval_size == ub-lb
+
+    def integrate(integrand, nquad_samples, interval_size):
+        return integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, **quad_opts, interval_size=interval_size)
+
+    # for probablity measures the following will always be one, but 
+    # this is not true for other measures
+    ab[0, 1] = np.sqrt(integrate(measure, nquad_samples, interval_size=interval_size))
 
     for ii in range(1, nterms):
         # predict
@@ -360,36 +399,89 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
             ab[ii-1, 0] = ab[ii-2, 0]
         else:
             ab[ii-1, 0] = 0
-        def integrand(x):
-            pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
-            #from matplotlib import pyplot as plt
-            #print(ab[0, 1])
-            #plt.plot(x, pvals[:, 1])
-            #plt.plot(x, x/ab[0, 1]**2)
-            #plt.show()
-            return measure(x)*pvals[:, ii]*pvals[:, ii-1]
 
-        if ii > 1:
+        if np.isfinite(lb) and np.isfinite(ub) and ii > 1:
+            # use previous intervals size for last degree as initial guess of size needed here
             xx, __ = gauss_quadrature(ab, nterms)
             interval_size = xx.max()-xx.min()
+        print(interval_size, 'int')
 
-        # correct
-        G_ii_iim1 = \
-            integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-                integrand, lb, ub, nquad_samples+ii, **quad_opts,
-                interval_size=interval_size)
+        def integrand(measure, x):
+            pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
+            return measure(x)*pvals[:, ii]*pvals[:, ii-1]        
+        G_ii_iim1 = integrate(
+            partial(integrand, measure), nquad_samples+ii, interval_size=interval_size)
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
-
         
-        def integrand(x):
+        def integrand(measure, x):
             # Note eval orthogonal poly uses the new value for ab[ii, 0]
             # This is the desired behavior
             pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
             return measure(x)*pvals[:, ii]**2
-        G_ii_ii = \
-            integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-                integrand, lb, ub, nquad_samples+ii,
-                interval_size=interval_size, **quad_opts)
+        
+        G_ii_ii =  integrate(
+            partial(integrand, measure), nquad_samples+ii, interval_size=interval_size)
+        ab[ii, 1] *= np.sqrt(G_ii_ii)
+
+    return ab
+
+
+def predictor_corrector_function_of_independent_variables(
+        nterms, univariate_quad_rules, fun):
+    """
+    Use predictor corrector method to compute the recursion coefficients
+    of a univariate orthonormal polynomial orthogonal to the density
+    associated with a scalar function of a set of independent 1D
+    variables
+
+    Parameters
+    ----------
+    nterms : integer
+        The number of coefficients requested
+
+    univariate_quad_rules : callable
+        The univariate quadrature rules which include weights of
+        each indendent variable
+
+    fun : callable
+        The function mapping indendent variables into a scalar variable
+    """
+    
+    ab = np.zeros((nterms, 2))
+    x_1d = [rule[0] for rule in  univariate_quad_rules]
+    w_1d = [rule[1] for rule in  univariate_quad_rules]
+    quad_samples = cartesian_product(x_1d, 1)
+    quad_weights = outer_product(w_1d)
+
+    # for probablity measures the following will always be one, but 
+    # this is not true for other measures
+    ab[0, 1] = np.sqrt(quad_weights.sum())
+
+    for ii in range(1, nterms):
+        # predict
+        ab[ii, 1] = ab[ii-1, 1]
+        if ii > 1:
+            ab[ii-1, 0] = ab[ii-2, 0]
+        else:
+            ab[ii-1, 0] = 0
+
+        def integrand(x):
+            y = fun(x)
+            pvals = evaluate_orthonormal_polynomial_1d(y, ii, ab)
+            # measure not included in integral because it is assumed to
+            # be in the quadrature rules
+            return pvals[:, ii]*pvals[:, ii-1]
+            
+        G_ii_iim1 = integrand(quad_samples).dot(quad_weights)
+        ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
+        
+        def integrand(x):
+            y = fun(x)
+            pvals = evaluate_orthonormal_polynomial_1d(y, ii, ab)
+            # measure not included in integral because it is assumed to
+            # be in the quadrature rules
+            return pvals[:, ii]**2
+        G_ii_ii =  integrand(quad_samples).dot(quad_weights)
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab

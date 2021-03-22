@@ -61,7 +61,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
         Py_ssize_t num_act_dims = active_dims.shape[0]
 
         Py_ssize_t max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
-        int_t[:] multi_index = np.empty((num_act_dims), dtype=np.int32)
+        int_t[:] multi_index = np.empty((num_act_dims), dtype=np.int_)
 
         Py_ssize_t num_qoi = fn_vals.shape[1]
 
@@ -71,9 +71,9 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
     # Allocate persistent memory. Each point will fill in a varying amount
     # of entries. We use a view of this memory to stop reallocation for each 
     # data point
-    cdef int_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int32)
+    cdef int_t[:] act_dims_pt_persistent = np.empty((num_act_dims),dtype=np.int_)
     cdef int_t[:] act_dim_indices_pt_persistent = np.empty(
-        (num_act_dims),dtype=np.int32)
+        (num_act_dims),dtype=np.int_)
 
     cdef:
         double[:,:] c_persistent=np.empty((num_qoi,num_act_dims),dtype=np.float64)

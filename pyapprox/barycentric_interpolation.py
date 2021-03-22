@@ -5,7 +5,7 @@ from numba import njit
 
 from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.utilities import cartesian_product
-from .sys_utilities import trace_error_with_msg
+from .sys_utilities import trace_error_with_msg, module_exists
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
@@ -43,14 +43,14 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     C_inv = 1/scaling_factor
     num_samples = samples.shape[0]
 
-    try:
+    if module_exists("pyapprox.cython.barycentric_interpolation"):
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
         
         weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
-    except Exception as e:
+    else:
         msg = 'compute_barycentric_weights_1d extension failed'
-        trace_error_with_msg(msg, e)
+        print(msg)
 
         # X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
         # result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
@@ -184,20 +184,20 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 num_act_dims, abscissa_1d, barycentric_weights_1d,
                 active_abscissa_indices_1d)
 
-    try:
+    if module_exists("pyapprox.cython.barycentric_interpolation"):
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-                x, fn_vals, active_dims, active_abscissa_indices_1d,
-                num_abscissa_1d, num_active_abscissa_1d, shifts,
-                abscissa_and_weights)
+                x, fn_vals, active_dims, active_abscissa_indices_1d.astype(np.int_),
+                num_abscissa_1d.astype(np.int_), num_active_abscissa_1d.astype(np.int_),
+                shifts.astype(np.int_), abscissa_and_weights)
         if np.any(np.isnan(result)):
             raise ValueError('Error values not finite')
         return result
-    except Exception as e:
+    else:
         msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
-        trace_error_with_msg(msg, e)
+        print(msg)
 
     return __multivariate_hierarchical_barycentric_lagrange_interpolation(
         x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
@@ -424,17 +424,17 @@ def __tensor_product_lagrange_polynomial_basis(
 
     return approx_values
 
-    nvars, nsamples = samples.shape
-    nactive_vars = len(active_vars)
+    # nvars, nsamples = samples.shape
+    # nactive_vars = len(active_vars)
 
-    nindices = active_indices.shape[1]
-    temp1 = basis_vals_1d.reshape(
-        (nactive_vars*basis_vals_1d.shape[1], nsamples))
-    temp2 = temp1[active_indices.ravel()+np.repeat(
-        np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
-            nactive_vars, nindices, nsamples)
-    basis_matrix = np.prod(temp2, axis=0).T
-    approx_values = basis_matrix.dot(values)
+    # nindices = active_indices.shape[1]
+    # temp1 = basis_vals_1d.reshape(
+    #     (nactive_vars*basis_vals_1d.shape[1], nsamples))
+    # temp2 = temp1[active_indices.ravel()+np.repeat(
+    #     np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
+    #         nactive_vars, nindices, nsamples)
+    # basis_matrix = np.prod(temp2, axis=0).T
+    # approx_values = basis_matrix.dot(values)
     
     # prod with axis argument does not work with njit    
     # approx_values = np.zeros((nsamples, values.shape[1]), dtype=np.double)
