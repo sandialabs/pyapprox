@@ -68,10 +68,10 @@ def preconditioned_barycentric_weights():
     r1 = barysum(x, y, w, f)
     r2 = barysum(x, y, w, 1/precond_weights)
     interp_vals = r1/r2
-    import matplotlib.pyplot as plt
-    plt.plot(x, interp_vals, 'k')
-    plt.plot(samples, function(samples), 'ro')
-    plt.plot(x, function(x), 'r--')
+    # import matplotlib.pyplot as plt
+    # plt.plot(x, interp_vals, 'k')
+    # plt.plot(samples, function(samples), 'ro')
+    # plt.plot(x, function(x), 'r--')
     # plt.plot(samples,function(samples),'ro')
     # print(num_samples)
     # print(precond_weights)

@@ -270,19 +270,19 @@ class TestLeja1DSequences(unittest.TestCase):
             # degree
             discrete_leja_sequence = candidate_samples[:, pivots[:ii+1]]
 
-            if new_basis_degree == plot_degree:
-                # mulitply by LU[ii, ii]**2 to account for LU factorization
-                # dividing the column by this number
-                discrete_obj_vals = -LU[:, ii]**2*LU[ii, ii]**2
-                # account for pivoting of ith column of LU factor
-                # value of best objective can be found in the iith pivot
-                discrete_obj_vals[ii] = discrete_obj_vals[pivots[ii]]
-                discrete_obj_vals[pivots[ii]] = -LU[ii, ii]**2
-                I = np.argsort(candidate_samples[0, ii:])+ii
-                plt.plot(candidate_samples[0, I], discrete_obj_vals[I], '--')
-                plt.plot(candidate_samples[0, pivots[ii]],
-                         -LU[ii, ii]**2, 'k^')
-                plt.show()
+            # if new_basis_degree == plot_degree:
+            #     # mulitply by LU[ii, ii]**2 to account for LU factorization
+            #     # dividing the column by this number
+            #     discrete_obj_vals = -LU[:, ii]**2*LU[ii, ii]**2
+            #     # account for pivoting of ith column of LU factor
+            #     # value of best objective can be found in the iith pivot
+            #     discrete_obj_vals[ii] = discrete_obj_vals[pivots[ii]]
+            #     discrete_obj_vals[pivots[ii]] = -LU[ii, ii]**2
+            #     I = np.argsort(candidate_samples[0, ii:])+ii
+            #     plt.plot(candidate_samples[0, I], discrete_obj_vals[I], '--')
+            #     plt.plot(candidate_samples[0, pivots[ii]],
+            #              -LU[ii, ii]**2, 'k^')
+            #     plt.show()
 
             def objective_value(sequence):
                 tmp = bfun(sequence[0, :])
@@ -486,18 +486,18 @@ class TestLejaSequences(unittest.TestCase):
         assert np.allclose(fd_deriv, grad, atol=fd_eps*100)
 
         num_samples = 20
-        samples = np.linspace(-1, 1, num_samples)
-        samples = cartesian_product([samples]*num_vars)
-        objective_vals = func(samples)
-        f, ax = plt.subplots(1, 1, figsize=(8, 6))
-        X = samples[0, :].reshape(num_samples, num_samples)
-        Y = samples[1, :].reshape(num_samples, num_samples)
-        Z = objective_vals.reshape(num_samples, num_samples)
-        cset = ax.contourf(
-            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
-            cmap=None)
-        plt.colorbar(cset)
-        plt.plot(leja_sequence[0, :], leja_sequence[1, :], 'ko', ms=20)
+        # samples = np.linspace(-1, 1, num_samples)
+        # samples = cartesian_product([samples]*num_vars)
+        # objective_vals = func(samples)
+        # f, ax = plt.subplots(1, 1, figsize=(8, 6))
+        # X = samples[0, :].reshape(num_samples, num_samples)
+        # Y = samples[1, :].reshape(num_samples, num_samples)
+        # Z = objective_vals.reshape(num_samples, num_samples)
+        # cset = ax.contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 30),
+        #     cmap=None)
+        # plt.colorbar(cset)
+        # plt.plot(leja_sequence[0, :], leja_sequence[1, :], 'ko', ms=20)
         # plt.show()
 
     def test_optimize_leja_objective_1d(self):

@@ -210,8 +210,8 @@ class TestLowRankMultiFidelity(unittest.TestCase):
             print ("|hf-mf|", error_mf[j])
 
         
-        plt.semilogy(hf_runs,error_mf,label=f'$K={K}$')
-        plt.show()
+        # plt.semilogy(hf_runs,error_mf,label=f'$K={K}$')
+        # plt.show()
         
 
 if __name__== "__main__":    

@@ -192,54 +192,54 @@ class TestMultilevelGP(unittest.TestCase):
         print(gp.kernel_.length_scale[-1],true_rho)
         assert np.allclose(gp.kernel_.length_scale[-1],true_rho)
         
-        fig,axs = plt.subplots(1,1); axs=[axs]
-        gp.plot_1d(2**8+1,[lb,ub],axs[0])
-        #xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
-        xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
-        axs[0].plot(xx[0,:],f2(xx),'r')
-        #axs[0].plot(xx[0,:],f1(xx),'g--')
-        axs[0].plot(x1[0,:],f1(x1),'gs')
+        # fig,axs = plt.subplots(1,1); axs=[axs]
+        # gp.plot_1d(2**8+1,[lb,ub],axs[0])
+        # #xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
+        # xx = np.linspace(lb,ub,2**8+1)[np.newaxis,:]
+        # axs[0].plot(xx[0,:],f2(xx),'r')
+        # #axs[0].plot(xx[0,:],f1(xx),'g--')
+        # axs[0].plot(x1[0,:],f1(x1),'gs')
 
-        print('when n1=17,n2=9 Warning answer seems to be off by np.sqrt(5) on most of the domain. This changes depending on number of ')
-        emlgp_mean, emlgp_std = multilevel_predict(gps,xx)
-        axs[0].plot(xx[0,:],emlgp_mean,'b-')
-        # for ii in range(len(gps)):
-        #     m,s=gp.predict(xx.T,return_std=True)
-        #     axs[0].plot(xx[0,:],m+2*s,'y-')
-        num_stdev=2
-        gp_mean, gp_std = gp.predict(xx.T,return_std=True)
-        gp_cov = gp.predict(xx.T,return_cov=True)[1]
-        #print(gp_cov-gp_std**2)
-        #assert np.allclose(gp_cov,gp_std**2,atol=1e-4)
-        #assert np.allclose(emlgp_mean,gp_mean)
-        #print(emlgp_mean,gp_mean)
-        #print('s1',emlgp_std)
-        #print('s2',gp_std)
-        print(emlgp_std/gp_std)
-        plt.plot(xx[0,:],2*gp_std+gp_mean,'-y')
-        #assert np.allclose(emlgp_std,gp_std)
-        axs[0].fill_between(
-           xx[0,:], emlgp_mean - num_stdev*emlgp_std,
-           emlgp_mean + num_stdev*emlgp_std,alpha=0.25, color='b')
-        axs[0].plot(
-            xx[0,:], emlgp_mean + num_stdev*emlgp_std,color='b')
+        # print('when n1=17,n2=9 Warning answer seems to be off by np.sqrt(5) on most of the domain. This changes depending on number of ')
+        # emlgp_mean, emlgp_std = multilevel_predict(gps,xx)
+        # axs[0].plot(xx[0,:],emlgp_mean,'b-')
+        # # for ii in range(len(gps)):
+        # #     m,s=gp.predict(xx.T,return_std=True)
+        # #     axs[0].plot(xx[0,:],m+2*s,'y-')
+        # num_stdev=2
+        # gp_mean, gp_std = gp.predict(xx.T,return_std=True)
+        # gp_cov = gp.predict(xx.T,return_cov=True)[1]
+        # #print(gp_cov-gp_std**2)
+        # #assert np.allclose(gp_cov,gp_std**2,atol=1e-4)
+        # #assert np.allclose(emlgp_mean,gp_mean)
+        # #print(emlgp_mean,gp_mean)
+        # #print('s1',emlgp_std)
+        # #print('s2',gp_std)
+        # print(emlgp_std/gp_std)
+        # plt.plot(xx[0,:],2*gp_std+gp_mean,'-y')
+        # #assert np.allclose(emlgp_std,gp_std)
+        # axs[0].fill_between(
+        #    xx[0,:], emlgp_mean - num_stdev*emlgp_std,
+        #    emlgp_mean + num_stdev*emlgp_std,alpha=0.25, color='b')
         # axs[0].plot(
-        #     xx[0,:], emlgp_mean - num_stdev*emlgp_std,color='b')
+        #     xx[0,:], emlgp_mean + num_stdev*emlgp_std,color='b')
+        # # axs[0].plot(
+        # #     xx[0,:], emlgp_mean - num_stdev*emlgp_std,color='b')
 
-        # length_scale = [1]
-        # hfgp_kernel = RBF(
-        #     length_scale=length_scale, length_scale_bounds=(1e-1, 1e2))
-        # hfgp_kernel += WhiteKernel( # optimize gp noise
-        #     noise_level=noise_level, noise_level_bounds=noise_level_bounds)
-        # hfgp = GaussianProcessRegressor(
-        #     kernel=hfgp_kernel,n_restarts_optimizer=n_restarts_optimizer,
-        #     alpha=0.0)
-        # hfgp.fit(samples[-1].T,values[-1])
-        # print('hf',hfgp.kernel_)
-        # hfgp_mean, hfgp_std = hfgp.predict(xx.T,return_std=True)
-        # axs[0].plot(xx[0,:],hfgp_mean,'y-.')
+        # # length_scale = [1]
+        # # hfgp_kernel = RBF(
+        # #     length_scale=length_scale, length_scale_bounds=(1e-1, 1e2))
+        # # hfgp_kernel += WhiteKernel( # optimize gp noise
+        # #     noise_level=noise_level, noise_level_bounds=noise_level_bounds)
+        # # hfgp = GaussianProcessRegressor(
+        # #     kernel=hfgp_kernel,n_restarts_optimizer=n_restarts_optimizer,
+        # #     alpha=0.0)
+        # # hfgp.fit(samples[-1].T,values[-1])
+        # # print('hf',hfgp.kernel_)
+        # # hfgp_mean, hfgp_std = hfgp.predict(xx.T,return_std=True)
+        # # axs[0].plot(xx[0,:],hfgp_mean,'y-.')
         
-        plt.show()
+        # plt.show()
 
 
 if __name__== "__main__":    
