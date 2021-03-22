@@ -819,7 +819,7 @@ class FenicsMeshKLE(MeshKLE):
     def __init__(self, function_space, mean_field=0):
         self.function_space = function_space
         mesh_coords = self.function_space.tabulate_dof_coordinates().T
-        if type(mean_field) == dl.Function or dla.Function:
+        if type(mean_field) == dl.Function or type(mean_field) == dla.Function:
             super().__init__(
                 mesh_coords, mean_field.vector().get_local().copy())
         elif np.isscalar(mean_field):

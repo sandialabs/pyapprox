@@ -57,13 +57,13 @@ pce = approx_res.approx
 
 res = pya.analyze_sensitivity_polynomial_chaos(pce)
 
-# %%
-# Now lets compare the estimated values with the exact value
+#%%
+#Now lets compare the estimated values with the exact value
 print(res.main_effects[:, 0])
 print(benchmark.main_effects[:, 0])
 
-# %%
-# We can visualize the sensitivity indices using the following
+#%%
+#We can visualize the sensitivity indices using the following
 
 fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
 pya.plot_main_effects(benchmark.main_effects, axs[0])
@@ -76,17 +76,17 @@ axs[2].set_title(r'$\mathrm{Sobol\;Indices}$')
 plt.show()
 
 
-# %%
-# ..
-#  Morris One-at-a-time
-#  --------------------
-#  [MT1991]_
+#%%
+#..
+# Morris One-at-a-time
+# --------------------
+# [MT1991]_
 
 
-# %%
-# References
-# ^^^^^^^^^^
-# .. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
-# .. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
-# ..
-#  .. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_
+#%%
+#References
+#^^^^^^^^^^
+#.. [SMCS2001] `I.M. Sobol. Global sensitivity indices for nonlinear mathematical models and their Monte Carlo estimates. Mathematics and Computers in Simulation, 55(3): 271-280, 2001. <https://doi.org/10.1016/S0378-4754(00)00270-6>`_
+#.. [SRESS2008] `B. Sudret. Global sensitivity analysis using polynomial chaos expansions. Reliability Engineering & System Safety, 93(7): 964-979, 2008. <https://doi.org/10.1016/j.ress.2007.04.002>`_
+#..
+#.. [MT1991]  `M.D. Morris. Factorial Sampling Plans for Preliminary Computational Experiments, Technometrics, 33:2, 161-174, 1991 <https://doi.org/10.1080/00401706.1991.10484804>`_

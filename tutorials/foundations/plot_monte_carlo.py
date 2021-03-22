@@ -47,8 +47,8 @@ Given a fixed :math:`\alpha` the modelers only recourse to reducing the MSE is t
 where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\theta` coefficients are real. We choose to set :math:`A=\sqrt{11}`, :math:`A_1=\sqrt{7}` and :math:`A_2=\sqrt{3}` to obtain unitary variance for each model. The parameters :math:`s_1,s_2` control the bias between the models. Here we set :math:`s_1=1/10,s_2=1/5`. Similarly we can change the correlation between the models in a systematic way (by varying :math:`\theta_1`. We will levarage this later in the tutorial.
 """
 
-# %%
-# Lets setup the problem
+#%%
+#Lets setup the problem
 import sympy as sp
 import pyapprox as pya
 import numpy as np
@@ -63,16 +63,16 @@ print(variable)
 shifts = [.1, .2]
 model = TunableModelEnsemble(np.pi/2*.95, shifts=shifts)
 
-# %%
-# Now let us compute the mean of :math:`f_1` using Monte Carlo
+#%%
+#Now let us compute the mean of :math:`f_1` using Monte Carlo
 nsamples = int(1e3)
 samples = pya.generate_independent_random_samples(
     variable, nsamples)
 values = model.m1(samples)
 pya.print_statistics(samples, values)
 
-# %%
-# We can compute the exact mean using sympy and compute the MC MSE
+#%%
+#We can compute the exact mean using sympy and compute the MC MSE
 z1, z2 = sp.Symbol('z1'), sp.Symbol('z2')
 ranges = [-1, 1, -1, 1]
 integrand_f1 = model.A1*(sp.cos(model.theta1)*z1**3 +
@@ -82,10 +82,10 @@ exact_integral_f1 = float(
 
 print('MC difference squared =', (values.mean()-exact_integral_f1)**2)
 
-# %%
-# .. _estimator-histogram:
+#%%
+#.. _estimator-histogram:
 #
-# Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
+#Now let us compute the MSE for different sample sets of the same size for :math:`N=100,1000` and plot the distribution of the MC estimator :math:`Q_{\alpha,N}`
 #
 
 ntrials = 1000
@@ -110,12 +110,12 @@ ax.set_xlabel(r'$\mathbb{E}[Q_N]$')
 ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
 _ = ax.legend(loc='upper left')
 
-# %%
-# The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
+#%%
+#The numerical results match our theory. Specifically the estimator is unbiased( i.e. mean zero, and the variance of the estimator is :math:`\var{Q_{0,N}}=\var{Q_{0}}/N=1/N`.
 #
-# The variance of the estimator can be driven to zero by increasing the number of samples :math:`N`. However when the variance becomes less than the bias, i.e. :math:`\left(\mean{Q_{\alpha}-Q}\right)^2>\var{Q_{\alpha}}/N`, then the MSE will not decrease and any further samples used to reduce the variance are wasted.
+#The variance of the estimator can be driven to zero by increasing the number of samples :math:`N`. However when the variance becomes less than the bias, i.e. :math:`\left(\mean{Q_{\alpha}-Q}\right)^2>\var{Q_{\alpha}}/N`, then the MSE will not decrease and any further samples used to reduce the variance are wasted.
 #
-# Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
+#Let our true model be :math:`f_0` above. The following code compues the bias induced by using :math:`f_\alpha=f_1` and also plots the contours of :math:`f_0(\rv)-f_1(\rv)`.
 
 integrand_f0 = model.A0*(sp.cos(model.theta0)*z1**5 +
                          sp.sin(model.theta0)*z2**5)*0.25
@@ -133,11 +133,11 @@ cset = ax.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
 _ = plt.colorbar(cset, ax=ax)
 # plt.show()
 
-# %%
-# As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
+#%%
+#As :math:`N\to\infty` the MSE will only converge to the bias (:math:`s_1`). Try this by increasing :math:`\texttt{nsamples}`.
 
-# %%
-# We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
+#%%
+#We can produced unbiased estimators using the high fidelity model. However if this high-fidelity model is more expensive then this comes at the cost of the estimator having larger variance. To see this the following plots the distribution of the MC estimators using 100 samples of the :math:`f_1` and 10 samples of :math:`f_0`. The cost of constructing these estimators would be equivalent if the high-fidelity model is 10 times more expensive than the low-fidelity model.
 ntrials = 1000
 m0_means = np.empty((ntrials, 1))
 for ii in range(ntrials):
@@ -162,5 +162,5 @@ ax.set_ylabel(r'$\mathbb{P}(\mathbb{E}[Q_N])$')
 _ = ax.legend(loc='upper left')
 # plt.show()
 
-# %%
-# In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.
+#%%
+#In a series of tutorials starting with :ref:`sphx_glr_auto_tutorials_multi_fidelity_plot_control_variate_monte_carlo.py` we show how to produce an unbiased estimator with small variance using both these models.

@@ -686,8 +686,9 @@ def plot_gaussian_contours(mean,chol_factor,show=False,
 
     if ax is None:
         f,ax = plt.subplots(1,1)
-    print(ax)
     import scipy
+    if mean.ndim == 1:
+        mean = mean[:, None]
     if mean.shape[0] != 2:
         return
     alpha=[0.67,0.95,0.99,0.999]
@@ -702,7 +703,7 @@ def plot_gaussian_contours(mean,chol_factor,show=False,
         x = np.hstack((x,-x))
         samples = np.vstack((x[np.newaxis,:],y[np.newaxis,:]))
         assert samples.shape[0]==2
-        samples = np.dot( chol_factor, samples )+mean[:,np.newaxis]
+        samples = np.dot( chol_factor, samples )+mean
         if i>0:
             label=None
         ellips=ax.plot(samples[0,:],samples[1,:],ls,color=color,

@@ -340,7 +340,7 @@ def laplace_posterior_approximation_for_linear_models(
     if obs.ndim==1:
         obs = obs[:,np.newaxis]
     assert prior_mean.ndim==2 and prior_mean.shape[1]==1
-    assert obs.ndim==2
+    assert obs.ndim==2 and obs.shape[1] == 1
     misfit_hessian=dot(
         dot(linear_matrix.T,noise_covariance_inv),linear_matrix)
     posterior_covariance = np.linalg.inv(misfit_hessian + prior_hessian)

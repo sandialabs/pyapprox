@@ -87,6 +87,7 @@ def run_model(function_space, time_step, final_time, forcing,
         if ((boundary_conditions[ii][0] == 'robin') or
                 (boundary_conditions[ii][0] == 'neumann')):
             beta = boundary_conditions[ii][2]
+            print(type(theta), type(dt), type(beta), type(v))
             L -= theta*dt*beta*v*ds(ii)
             if second_order_timestepping:
                 if hasattr(beta, 't'):
