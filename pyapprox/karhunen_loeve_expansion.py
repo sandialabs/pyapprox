@@ -355,7 +355,7 @@ class MeshKLE(object):
 
 
 def multivariate_chain_rule(jac_yu, jac_ux):
-    """
+    r"""
     Given a function :math:`y(u)`
 
     .. math:: u = g(x) = (g_1(x), \ldots, g_m(x)), x \in R^n, u \in R^m
@@ -391,7 +391,7 @@ def multivariate_chain_rule(jac_yu, jac_ux):
 
 def compute_kle_gradient_from_mesh_gradient(
         mesh_gradient, kle_basis_matrix, kle_mean, use_log, sample):
-    """
+    r"""
     Compute the gradient of a function with respect to the coefficients of 
     a Karhunen Loeve expansion from a gradient of the KLE projected onto the
     discrete set of points (mesh) on which the KLE is defined.

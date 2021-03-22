@@ -8,7 +8,7 @@ class TestKLE(unittest.TestCase):
         np.random.seed(1)
 
     def test_multivariate_chain_rule(self):
-        """
+        r"""
         Test computing gradient using multivariate chain rule.
 
         .. math::  y(u_1,u_2)=u_1^2+u_2*y, u_1(x_1,x_2)=x_1\sin(x_2), u_2(x_1,x_2)=sin^2(x_2)

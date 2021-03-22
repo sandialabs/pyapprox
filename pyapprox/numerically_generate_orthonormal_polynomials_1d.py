@@ -42,8 +42,6 @@ def stieltjes(nodes, weights, N):
         sum_2 = nodes.dot(weights*p2**2)
         ab[k+1, 0] = sum_2/sum_1
         ab[k+1, 1] = sum_1/sum_0
-        print(k+1, p0, p1, p2)
-        print(ab[k+1])
         sum_0 = sum_1
     ab[:, 1] = np.sqrt(ab[:, 1])
     ab[0, 1] = 1
@@ -337,7 +335,10 @@ def modified_chebyshev(nterms, moments, input_coefs=None):
 
 def predictor_corrector_known_scipy_pdf(nterms, rv, quad_options={}):
     lb, ub = rv.interval(1)
-    interval_size = (rv.interval(0.99)[1] - rv.interval(0.99)[0])
+    if np.isfinite(lb) and np.isfinite(ub):
+        interval_size = ub-lb
+    else:
+        interval_size = (rv.interval(0.99)[1] - rv.interval(0.99)[0])
     return predictor_corrector(
         nterms, rv.pdf, lb, ub, interval_size, quad_options)
     
@@ -404,7 +405,6 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
             # use previous intervals size for last degree as initial guess of size needed here
             xx, __ = gauss_quadrature(ab, nterms)
             interval_size = xx.max()-xx.min()
-        print(interval_size, 'int')
 
         def integrand(measure, x):
             pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)

@@ -3,7 +3,7 @@ from pyapprox.risk_measures import compute_conditional_expectations
 
 
 class SSDOptProblem(FSDOptProblem):
-    """
+    r"""
     Solve disutility stochastic dominance
 
     -Y \ge -Y^\prime

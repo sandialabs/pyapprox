@@ -1527,7 +1527,7 @@ def update_cholesky_factorization_inverse(L_11_inv, L_12, L_22):
 
 def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
                                             prev_trace):
-    """
+    r"""
     Update the trace of matrix matrix product involving the inverse of a
     matrix with a cholesky factorization. 
 
@@ -1738,7 +1738,7 @@ def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
 
 def get_cross_validation_rsquared_coefficient_of_variation(
         cv_score, train_vals):
-    """
+    r"""
     cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where 
     :math:`e_n` are the cross  validation residues at each test point and 
     :math:`N` is the number of traing vals

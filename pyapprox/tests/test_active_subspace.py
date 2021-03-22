@@ -148,6 +148,7 @@ class TestActiveSubspace(unittest.TestCase):
         A = np.random.normal(0, 1, (num_vars, num_vars))
         Q, R = np.linalg.qr(A)
         W1 = Q[:, :num_active_vars]
+        W1 = np.arange(1, 7).reshape(3, 2, order='F')
 
         as_poly_indices = compute_hyperbolic_indices(
             num_active_vars, degree, 1.0)
@@ -161,8 +162,7 @@ class TestActiveSubspace(unittest.TestCase):
         true_moments = [1, 0, 0,
                         # notice how if W1 has columns with unit norm np.sum(W1[:,1]**2) will always be one.
                         np.sum(W1[:, 1]**2)*1./3.,
-                        1./3.*(W1[0, 0]*W1[0, 1]+W1[1, 0] * \
-                               W1[1, 1]+W1[2, 0]*W1[2, 1]),
+                        1/3*(W1.prod(axis=1)).sum(),
                         np.sum(W1[:, 0]**2)*1./3.]
         assert np.allclose(moments[sorted_idx], true_moments)
 
@@ -197,7 +197,7 @@ class TestActiveSubspace(unittest.TestCase):
     def test_moments_of_active_subspace_II(self):
         num_vars = 4
         num_active_vars = 2
-        degree = 12
+        degree = 4
         A = np.random.normal(0, 1, (num_vars, num_vars))
         Q, R = np.linalg.qr(A)
         W1 = Q[:, :num_active_vars]
@@ -207,7 +207,7 @@ class TestActiveSubspace(unittest.TestCase):
         moments = moments_of_active_subspace(
             W1.T, as_poly_indices, monomial_mean_uniform_variables)
 
-        x1d, w1d = np.polynomial.legendre.leggauss(10)
+        x1d, w1d = np.polynomial.legendre.leggauss(30)
         w1d /= 2
         gl_samples = cartesian_product([x1d]*num_vars)
         gl_weights = outer_product([w1d]*num_vars)

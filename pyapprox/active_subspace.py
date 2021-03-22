@@ -281,15 +281,14 @@ def moments_of_active_subspace(W1_trans, as_poly_indices, integrate_polynomial):
 def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
     num_active_vars, num_vars = W1_trans.shape
 
-    monomial_power_indices = [[]]*num_active_vars
-    monomial_power_coeffs = [[]]*num_active_vars
+    monomial_power_indices = [[] for ii in range(num_active_vars)]
+    monomial_power_coeffs = [[] for ii in range(num_active_vars)]
     for var_num in range(num_active_vars):
         for degree in range(as_poly_indices[var_num, :].max()+1):
             coeffs, indices = coeffs_of_power_of_nd_linear_monomial(
                 num_vars, degree, W1_trans[var_num, :])
-            monomial_power_coeffs[var_num].append(coeffs)
+            monomial_power_coeffs[var_num].append(coeffs[:, None].copy())
             monomial_power_indices[var_num].append(indices)
-
     indices_list = []
     coeffs_list = []
     for ii in range(as_poly_indices.shape[1]):
@@ -310,24 +309,25 @@ def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
             coeffs_dd = monomial_power_coeffs[var_num][degree]
             indices_dd = monomial_power_indices[var_num][degree]
 
-            # TODO Extension does not groud like terms,but pure python function
-            # multiply_multivariate_polynomials does.
-            # This is only a valid substitution if this function is
-            # only called by intergrate moments
-            try:
-                from pyapprox.cython.manipulate_polynomials import \
-                    multiply_multivariate_polynomials_pyx
-                indices, coeffs = multiply_multivariate_polynomials_pyx(
-                    indices, coeffs, indices_dd, coeffs_dd)
-            except (ImportError, TypeError) as e:
-                from pyapprox.sys_utilities import trace_error_with_msg
-                trace_error_with_msg('multiply_multivariate_polynomials extension failed', e)
+            # # TODO Extension does not group like terms, but pure python function
+            # # multiply_multivariate_polynomials does.
+            # # This is only a valid substitution if this function is
+            # # only called by intergrate moments
+            # try:
+            #     from pyapprox.cython.manipulate_polynomials import \
+            #         multiply_multivariate_polynomials_pyx
+            #     indices, coeffs = multiply_multivariate_polynomials_pyx(
+            #         indices, coeffs, indices_dd, coeffs_dd)
+            # except (ImportError, TypeError) as e:
+            #     from pyapprox.sys_utilities import trace_error_with_msg
+            #     trace_error_with_msg('multiply_multivariate_polynomials extension failed', e)
 
-                indices, coeffs = multiply_multivariate_polynomials(
-                    indices, coeffs, indices_dd, coeffs_dd)
+            #     print(coeffs.shape, coeffs_dd.shape)
+            indices, coeffs = multiply_multivariate_polynomials(
+                indices, coeffs, indices_dd, coeffs_dd)
 
         indices_list.append(indices)
-        coeffs_list.append(coeffs)
+        coeffs_list.append(coeffs[:, 0])
 
     return indices_list, coeffs_list
 

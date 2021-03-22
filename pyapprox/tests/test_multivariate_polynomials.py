@@ -543,7 +543,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
             poly = PolynomialChaosExpansion()
             poly_opts = define_poly_options_from_variable_transformation(
                 var_trans)
-            poly_opts['numerically_generated_poly_accuracy_tolerance'] = 1e-8
+            poly_opts['numerically_generated_poly_accuracy_tolerance'] = 1e-9
             poly.configure(poly_opts)
             poly.set_indices(np.arange(degree+1)[np.newaxis, :])
             poly.set_coefficients(np.ones((poly.indices.shape[1], 1)))
@@ -567,6 +567,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
                     verbose=0, max_steps=10000)
             res = np.reshape(
                 res, (poly.indices.shape[1],poly.indices.shape[1]), order='C')
+            print(res-np.eye(degree+1))
             assert np.allclose(res, np.eye(degree+1), atol=1e-6)
 
     def test_conditional_moments_of_polynomial_chaos_expansion(self):
