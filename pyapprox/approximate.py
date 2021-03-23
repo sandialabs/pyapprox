@@ -872,10 +872,10 @@ def expand_basis(indices):
 
 
 def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
-                            verbose=1, max_num_terms=None,
-                            solver_type='lasso',
-                            linear_solver_options={'cv': 10},
-                            restriction_tol=np.finfo(float).eps*2):
+                        verbose=1, max_num_init_terms=None, max_num_terms=None,
+                        solver_type='lasso',
+                        linear_solver_options={'cv': 10},
+                        restriction_tol=np.finfo(float).eps*2):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
     cross validation to find the best basis [JESJCP2015]_
@@ -941,7 +941,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             print(f'Approximating QoI: {ii}')
         pce_ii, score_ii, reg_param_ii = _expanding_basis_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
-            verbose, max_num_terms, solver_type, linear_solver_options,
+            verbose, max_num_init_terms, max_num_terms, solver_type, linear_solver_options,
             restriction_tol)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
@@ -966,26 +966,34 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
 
 
 def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
-                         verbose=1, max_num_terms=None,
+                         verbose=1, max_num_init_terms=None,
+                         max_num_terms=None,
                          solver_type='lasso',
                          linear_solver_options={'cv': 10},
-                         restriction_tol=np.finfo(float).eps*2):
+                         restriction_tol=np.finfo(float).eps*2,
+                         max_num_expansion_steps_iter=1,
+                         max_iters=20,
+                         max_num_step_increases=1):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
+    
+    if max_num_init_terms is None:
+        max_num_init_terms = 10*train_vals.shape[0]
     if max_num_terms is None:
-        max_num_terms = 10*train_vals.shape[1]
+        max_num_terms = 10*train_vals.shape[0]
+        
     degree = 2
     prev_num_terms = 0
     while True:
         indices = compute_hyperbolic_indices(num_vars, degree, hcross_strength)
         num_terms = indices.shape[1]
-        if (num_terms > max_num_terms):
+        if (num_terms > max_num_init_terms):
             break
         degree += 1
         prev_num_terms = num_terms
 
-    if (abs(num_terms - max_num_terms) >
-            abs(prev_num_terms - max_num_terms)):
+    if (abs(num_terms - max_num_init_terms) >
+            abs(prev_num_terms - max_num_init_terms)):
         degree -= 1
     pce.set_indices(
         compute_hyperbolic_indices(num_vars, degree, hcross_strength))
@@ -1008,25 +1016,22 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             pce.num_terms(), np.count_nonzero(pce.coefficients), best_cv_score))
 
     best_cv_score_iter = best_cv_score
-    best_num_expansion_steps = 3
     it = 0
     best_it = 0
     while True:
-        max_num_expansion_steps = 1
-        best_num_expansion_steps_iter = best_num_expansion_steps
+        current_max_num_expansion_steps_iter = 1
         while True:
             # -------------- #
             #  Expand basis  #
             # -------------- #
-            num_expansion_steps = 0
+            num_expansion_steps_iter = 0
             indices = restrict_basis(
                 pce.indices, pce.coefficients, restriction_tol)
-            while ((num_expansion_steps < max_num_expansion_steps) and
-                    (num_expansion_steps < best_num_expansion_steps)):
+            while ((num_expansion_steps_iter < current_max_num_expansion_steps_iter)):
                 new_indices = expand_basis(pce.indices)
                 pce.set_indices(np.hstack([pce.indices, new_indices]))
                 num_terms = pce.num_terms()
-                num_expansion_steps += 1
+                num_expansion_steps_iter += 1
 
             # -----------------#
             # Compute solution #
@@ -1047,27 +1052,29 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                 best_cv_score_iter = cv_score
                 best_indices_iter = pce.indices.copy()
                 best_coef_iter = pce.coefficients.copy()
-                best_num_expansion_steps_iter = num_expansion_steps
                 best_reg_param_iter = reg_param
 
             if (num_terms >= max_num_terms):
                 break
-            if (max_num_expansion_steps >= 3):
+            
+            current_max_num_expansion_steps_iter += 1
+            if (current_max_num_expansion_steps_iter >= max_num_expansion_steps_iter):
                 break
 
-            max_num_expansion_steps += 1
+        it += 1
 
         if (best_cv_score_iter < best_cv_score):
             best_cv_score = best_cv_score_iter
             best_coef = best_coef_iter.copy()
             best_indices = best_indices_iter.copy()
-            best_num_expansion_steps = best_num_expansion_steps_iter
             best_reg_param = best_reg_param_iter
             best_it = it
-        elif (it - best_it >= 2):
+            
+        elif (it - best_it >= max_num_step_increases):
             break
 
-        it += 1
+        if it >= max_iters:
+            break
 
     nindices = best_indices.shape[1]
     I = np.nonzero(best_coef[:, 0])[0]

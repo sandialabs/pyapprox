@@ -940,7 +940,7 @@ def sparsity_example_engine(num_params_1d,ranks,num_ft_parameters,decay_rate,
     return l2_errors    
 
     
-if __name__=='__main__':
-    #compare_compressible_vectors()
-    #plot_sparsity_example()
-    pass
+# if __name__=='__main__':
+#     #compare_compressible_vectors()
+#     #plot_sparsity_example()
+#     pass

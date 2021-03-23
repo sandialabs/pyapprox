@@ -177,7 +177,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
             interval_size=interval_size, **quad_opts)
         res = np.reshape(res, (nterms, nterms), order='C')
         print(np.absolute(res-np.eye(nterms)).max())
-        assert np.absolute(res-np.eye(nterms)).max() < 5e-6
+        assert np.absolute(res-np.eye(nterms)).max() < 2e-4
 
         
     def test_predictor_corrector_separable_independent_variables(self):

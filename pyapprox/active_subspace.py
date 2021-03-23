@@ -667,7 +667,8 @@ def evaluate_active_subspace_density_1d_example(density_fn, tol, test=False):
     num_rotations = 23
     angles = np.linspace(0., np.pi*2., num_rotations)
     import matplotlib.pyplot as plt
-    f, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
+    if not test:
+        f, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
     for i in range(1, angles.shape[0]):
         W = np.array([[np.cos(angles[i]), -np.sin(angles[i])],
                       [np.sin(angles[i]), np.cos(angles[i])]])

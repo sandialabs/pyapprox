@@ -66,7 +66,7 @@ class TestL1Minimization(unittest.TestCase):
 
         #print(lstsq_coef)
         #print(res.x,true_coef)
-        assert np.allclose(res.x[:,np.newaxis],true_coef,atol=1e-4)
+        assert np.allclose(res.x[:,np.newaxis],true_coef,atol=5e-4)
         
 
     def test_nonlinear_basis_pursuit_with_linear_model(self):
