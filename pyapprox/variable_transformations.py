@@ -125,7 +125,6 @@ class AffineRandomVariableTransformation(object):
             variable = IndependentMultivariateRandomVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
-        print(variable)
 
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
@@ -133,14 +132,12 @@ class AffineRandomVariableTransformation(object):
             name, scale_dict, __ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
             loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
-            print(loc, scale)
             if (is_bounded_continuous_variable(var) or
                 (type(var.dist) == float_rv_discrete and
                  var.dist.name != 'discrete_chebyshev')):
                 lb, ub = -1, 1
                 scale /= (ub-lb)
                 loc = loc-scale*lb
-            print(loc, scale)
             self.scale_parameters[ii, :] = loc, scale
 
     def map_to_canonical_space(self, user_samples):
