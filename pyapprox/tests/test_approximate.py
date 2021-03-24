@@ -103,7 +103,7 @@ class TestApproximate(unittest.TestCase):
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'verbose': 3, 'solver_type': solver_type,
                          'min_degree': 1, 'max_degree': degree+1,
-                         'linear_solver_options':solver_options}}).approx
+                         'linear_solver_options': solver_options}}).approx
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
@@ -159,7 +159,11 @@ class TestApproximate(unittest.TestCase):
 
         poly = approximate(
             train_samples, train_vals, 'polynomial_chaos',
-            {'basis_type': 'expanding_basis', 'variable': variable}).approx
+            {'basis_type': 'expanding_basis', 'variable': variable,
+             'options': {'max_num_expansion_steps_iter': 1, 'verbose': 3,
+                         'max_num_terms': 1000,
+                         'max_num_step_increases': 2,
+                         'max_num_init_terms': 33}}).approx
 
         num_validation_samples = 100
         validation_samples = pya.generate_independent_random_samples(
@@ -314,7 +318,7 @@ class TestApproximate(unittest.TestCase):
             train_samples, train_vals, options, nfolds, 'polynomial_chaos',
             random_folds='sklearn')
 
-        assert (np.all(cv_score < 3e-14) and np.all(result.scores < 3e-14))
+        assert (np.all(cv_score < 6e-14) and np.all(result.scores < 6e-14))
 
 
 if __name__ == "__main__":

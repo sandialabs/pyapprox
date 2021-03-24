@@ -875,7 +875,10 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                         verbose=1, max_num_init_terms=None, max_num_terms=None,
                         solver_type='lasso',
                         linear_solver_options={'cv': 10},
-                        restriction_tol=np.finfo(float).eps*2):
+                        restriction_tol=np.finfo(float).eps*2,
+                        max_num_expansion_steps_iter=1,
+                        max_iters=20,
+                        max_num_step_increases=1):
     r"""
     Iteratively expand and restrict the polynomial basis and use 
     cross validation to find the best basis [JESJCP2015]_
@@ -910,6 +913,23 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     restriction_tol : float
         The tolerance used to prune inactive indices
 
+    max_num_init_terms : integer
+        The number of terms used to initialize the algorithm
+
+    max_num_terms : integer
+        The maximum number of terms allowed
+
+    max_iters : integer
+        The number of expansion/restriction iterations
+
+    max_num_expansion_steps_iter : integer (1,2,3)
+        The number of times a basis can expanded after
+        the last restriction step
+
+    max_num_expansion_steps_iter : integer 
+        The number of iterations error does not decrease before 
+        terminating
+
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
@@ -942,7 +962,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         pce_ii, score_ii, reg_param_ii = _expanding_basis_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
             verbose, max_num_init_terms, max_num_terms, solver_type, linear_solver_options,
-            restriction_tol)
+            restriction_tol, max_num_expansion_steps_iter, max_iters, max_num_step_increases)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -978,7 +998,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     num_vars = pce.num_vars()
     
     if max_num_init_terms is None:
-        max_num_init_terms = 10*train_vals.shape[0]
+        max_num_init_terms = train_vals.shape[0]
     if max_num_terms is None:
         max_num_terms = 10*train_vals.shape[0]
         
@@ -1010,16 +1030,20 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     np.random.set_state(rng_state) 
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
+    best_cv_score_iter = best_cv_score
+    best_indices_iter = best_indices.copy()
+    best_coef_iter = best_coef.copy()
+    best_reg_param_iter = best_reg_param
     if verbose > 0:
         print("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
         print("{:<10} {:<10} {:<18}".format(
             pce.num_terms(), np.count_nonzero(pce.coefficients), best_cv_score))
 
-    best_cv_score_iter = best_cv_score
     it = 0
     best_it = 0
     while True:
         current_max_num_expansion_steps_iter = 1
+        best_cv_score_iter = best_cv_score
         while True:
             # -------------- #
             #  Expand basis  #
@@ -1027,11 +1051,14 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             num_expansion_steps_iter = 0
             indices = restrict_basis(
                 pce.indices, pce.coefficients, restriction_tol)
+            msg = f'Expanding {pce.indices.shape[1]} terms'
             while ((num_expansion_steps_iter < current_max_num_expansion_steps_iter)):
                 new_indices = expand_basis(pce.indices)
                 pce.set_indices(np.hstack([pce.indices, new_indices]))
                 num_terms = pce.num_terms()
                 num_expansion_steps_iter += 1
+            msg += f' New number of terms {pce.indices.shape[1]}'
+            print(msg)
 
             # -----------------#
             # Compute solution #
@@ -1055,13 +1082,21 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                 best_reg_param_iter = reg_param
 
             if (num_terms >= max_num_terms):
+                if verbose > 0:
+                    print(f'Max number of terms {max_num_terms} reached')
                 break
             
             current_max_num_expansion_steps_iter += 1
             if (current_max_num_expansion_steps_iter >= max_num_expansion_steps_iter):
+                if verbose > 0:
+                    msg = 'Max number of inner expansion steps '
+                    msg += f'({max_num_expansion_steps_iter}) reached'
+                    print(msg)
                 break
 
         it += 1
+        pce.set_indices(best_indices_iter)
+        pce.set_coefficients(best_coef_iter)
 
         if (best_cv_score_iter < best_cv_score):
             best_cv_score = best_cv_score_iter
@@ -1071,9 +1106,16 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             best_it = it
             
         elif (it - best_it >= max_num_step_increases):
+            if verbose > 0:
+                msg = 'Terminating: error did not decrease'
+                msg += f' in last {max_num_step_increases} iterations'
+                print(msg)
             break
 
         if it >= max_iters:
+            if verbose > 0:
+                msg = 'Terminating: max iterations reached'
+                print(msg)
             break
 
     nindices = best_indices.shape[1]

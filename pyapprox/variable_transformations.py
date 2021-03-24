@@ -125,6 +125,7 @@ class AffineRandomVariableTransformation(object):
             variable = IndependentMultivariateRandomVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
+        print(variable)
 
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
@@ -132,12 +133,14 @@ class AffineRandomVariableTransformation(object):
             name, scale_dict, __ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
             loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
+            print(loc, scale)
             if (is_bounded_continuous_variable(var) or
                 (type(var.dist) == float_rv_discrete and
                  var.dist.name != 'discrete_chebyshev')):
                 lb, ub = -1, 1
                 scale /= (ub-lb)
                 loc = loc-scale*lb
+            print(loc, scale)
             self.scale_parameters[ii, :] = loc, scale
 
     def map_to_canonical_space(self, user_samples):
@@ -146,7 +149,7 @@ class AffineRandomVariableTransformation(object):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
 
-            bounds = [loc-scale, loc+scale*2]
+            bounds = [loc-scale, loc+scale]
             var = self.variable.unique_variables[ii]
             if ((self.enforce_bounds is True) and
                 (is_bounded_continuous_variable(var) is True) and
@@ -159,17 +162,6 @@ class AffineRandomVariableTransformation(object):
 
             canonical_samples[indices, :] = (
                 user_samples[indices, :]-loc)/scale
-            # if ((self.enforce_bounds is True) and
-            #     (is_bounded_continuous_variable(var) is True) and
-            #     ((np.any(canonical_samples[indices, :]<-1)) or
-            #      (np.any(canonical_samples[indices, :]>1)))):
-            #     I = np.where((canonical_samples[indices, :]<-1)|
-            #                  (canonical_samples[indices, :]>1))[1]
-            #     print(user_samples[indices, I], bounds)
-            #     print(canonical_samples[indices, I])
-            #     msg = 'After mapping, canonical samples of bounded variable '
-            #     msg += 'are outside [-1,1]'
-            #     raise Exception(msg)
 
         return canonical_samples
 
