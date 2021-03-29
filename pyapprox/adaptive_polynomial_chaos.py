@@ -27,8 +27,8 @@ def get_active_poly_array_indices(adaptive_pce):
     return indices
 
 def variance_pce_refinement_indicator(
-        subspace_index,num_new_subspace_samples,adaptive_pce,
-        normalize=True,mean_only=False):
+        subspace_index, num_new_subspace_samples, adaptive_pce,
+        normalize=True, mean_only=False):
     """
     Set pce coefficients of new subspace poly indices to zero to compute
     previous mean then set them to be non-zero
@@ -37,24 +37,24 @@ def variance_pce_refinement_indicator(
     ii = adaptive_pce.active_subspace_indices_dict[key]
     I = get_subspace_active_poly_array_indices(adaptive_pce,ii)
     error = np.sum(adaptive_pce.pce.coefficients[I]**2,axis=0)
-    indicator=error.copy()
-    #print(subspace_index,error)
+    indicator = error.copy()
                 
     # relative error will not work if value at first grid point is close to zero
     if normalize:
-        assert np.all(np.absolute(adaptive_pce.values[0,:])>1e-6)
-        indicator/=np.absolute(adaptive_pce.values[0,:])**2
+        first_vals = np.absolute(adaptive_pce.values[0,:])
+        assert np.all(first_vals > 1e-6)
+        indicator /= np.absolute(first_vals)**2
 
     qoi_chosen = np.argmax(indicator)
 
-    indicator=indicator.max()
+    indicator = indicator.max()
 
     cost_per_sample = adaptive_pce.eval_cost_function(
-        subspace_index[:,np.newaxis])
+                        subspace_index[:,np.newaxis])
     cost = cost_per_sample*num_new_subspace_samples
 
     # compute marginal benefit
-    indicator/=cost
+    indicator /= cost
     #print(subspace_index,indicator,'indicator')
     return -indicator, error[qoi_chosen]
     
