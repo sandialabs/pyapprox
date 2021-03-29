@@ -34,6 +34,9 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
     WARNING: when point sources solution changes significantly when mesh is 
     varied
     """
+    if not has_dla:
+        raise RuntimeError("DLA not available")
+
     mesh = function_space.mesh()
 
     time_independent_boundaries = False
