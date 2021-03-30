@@ -840,6 +840,64 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(variance, 382**2/3+(2*305)**2 /
                            5+(2*126)**2/7+(8*27)**2/9+4/15+1/3)
 
+    def test_pce_product_of_beta_variables(self):
+        def fun(x):
+            return np.sqrt(x.prod(axis=0))[:, None]
+
+        dist_alpha1, dist_beta1 = 1, 1
+        dist_alpha2, dist_beta2 = dist_alpha1+0.5, dist_beta1
+        nvars = 2
+
+        x_1d, w_1d = [], []
+        nquad_samples_1d = 100
+        x, w = gauss_jacobi_pts_wts_1D(
+            nquad_samples_1d, dist_beta1-1, dist_alpha1-1)
+        x = (x+1)/2
+        x_1d.append(x)
+        w_1d.append(w)
+        x, w = gauss_jacobi_pts_wts_1D(
+            nquad_samples_1d, dist_beta2-1, dist_alpha2-1)
+        x = (x+1)/2
+        x_1d.append(x)
+        w_1d.append(w)
+
+        quad_samples = cartesian_product(x_1d)
+        quad_weights = outer_product(w_1d)
+
+        mean = fun(quad_samples)[:, 0].dot(quad_weights)
+        variance = (fun(quad_samples)[:, 0]**2).dot(quad_weights)-mean**2
+        assert np.allclose(mean, beta(dist_alpha1*2, dist_beta1*2).mean())
+        assert np.allclose(variance, beta(dist_alpha1*2, dist_beta1*2).var())
+        
+        degree = 10
+        poly = PolynomialChaosExpansion()
+        # the distribution and ranges of univariate variables is ignored
+        # when var_trans.set_identity_maps([0]) is used
+        univariate_variables = [uniform(0, 1)]
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+        # the following means do not map samples
+        var_trans.set_identity_maps([0])
+        quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
+        poly.configure({'poly_types':
+                        {0: {'poly_type': 'function_iid_vars',
+                             'var_nums': [0], 'fun': fun,
+                             'quad_rules': quad_rules}},
+                        'var_trans': var_trans})
+        from pyapprox.indexing import tensor_product_indices
+        poly.set_indices(tensor_product_indices([degree]))
+        
+        train_samples = (np.linspace(0, np.pi, 101)[None, :]+1)/2
+        train_vals = train_samples.T
+        coef = np.linalg.lstsq(
+            poly.basis_matrix(train_samples), train_vals, rcond=None)[0]
+        poly.set_coefficients(coef)
+        assert np.allclose(
+            poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
+        assert np.allclose(
+            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())
+        
+
 
 if __name__ == "__main__":
     multivariate_polynomials_test_suite = \

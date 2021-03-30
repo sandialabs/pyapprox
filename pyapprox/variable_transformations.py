@@ -125,6 +125,7 @@ class AffineRandomVariableTransformation(object):
             variable = IndependentMultivariateRandomVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
+        self.identity_map_indices = None
 
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
@@ -140,6 +141,19 @@ class AffineRandomVariableTransformation(object):
                 loc = loc-scale*lb
             self.scale_parameters[ii, :] = loc, scale
 
+    def set_identity_maps(self, identity_map_indices):
+        """
+        Set the dimensions we do not want to map to and from 
+        canonical space
+
+        Parameters
+        ----------
+        identity_map_indices : iterable
+            The dimensions we do not want to map to and from 
+            canonical space
+        """
+        self.identity_map_indices = identity_map_indices
+
     def map_to_canonical_space(self, user_samples):
         canonical_samples = user_samples.copy()
         for ii in range(self.variable.nunique_vars):
@@ -148,17 +162,22 @@ class AffineRandomVariableTransformation(object):
 
             bounds = [loc-scale, loc+scale]
             var = self.variable.unique_variables[ii]
+            if self.identity_map_indices is not None:
+                active_indices = np.setdiff1d(
+                    indices, self.identity_map_indices, assume_unique=True)
+            else:
+                active_indices = indices
             if ((self.enforce_bounds is True) and
                 (is_bounded_continuous_variable(var) is True) and
-                ((np.any(user_samples[indices, :] < bounds[0])) or
-                 (np.any(user_samples[indices, :] > bounds[1])))):
-                I = np.where((user_samples[indices, :] < bounds[0]) |
-                             (user_samples[indices, :] > bounds[1]))[1]
-                # print(user_samples[indices, I], bounds)
+                ((np.any(user_samples[active_indices, :] < bounds[0])) or
+                 (np.any(user_samples[active_indices, :] > bounds[1])))):
+                I = np.where((user_samples[active_indices, :] < bounds[0]) |
+                             (user_samples[active_indices, :] > bounds[1]))[1]
+                # print(user_samples[active_indices, I], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
 
-            canonical_samples[indices, :] = (
-                user_samples[indices, :]-loc)/scale
+            canonical_samples[active_indices, :] = (
+                user_samples[active_indices, :]-loc)/scale
 
         return canonical_samples
 
@@ -167,7 +186,13 @@ class AffineRandomVariableTransformation(object):
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
-            user_samples[indices, :] = canonical_samples[indices, :]*scale+loc
+            if self.identity_map_indices is not None:
+                active_indices = np.setdiff1d(
+                    indices, self.identity_map_indices, assume_unique=True)
+            else:
+                active_indices = indices
+            user_samples[active_indices, :] = \
+                canonical_samples[active_indices, :]*scale+loc
 
         return user_samples
 
@@ -175,14 +200,20 @@ class AffineRandomVariableTransformation(object):
         for jj in range(self.variable.nunique_vars):
             if ii in self.variable.unique_variable_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
-                return (samples-loc)/scale
+                if self.identity_map_indices is None:
+                    return (samples-loc)/scale
+                else:
+                    return samples
         raise Exception()
 
     def map_from_canonical_space_1d(self, canonical_samples, ii):
         for jj in range(self.variable.nunique_vars):
             if ii in self.variable.unique_variable_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
-                return canonical_samples*scale+loc
+                if self.identity_map_indices is None:
+                    return canonical_samples*scale+loc
+                else:
+                    return samples
         raise Exception()
 
     def map_derivatives_from_canonical_space(self, derivatives):

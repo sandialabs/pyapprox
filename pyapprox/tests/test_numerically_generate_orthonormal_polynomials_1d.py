@@ -194,7 +194,8 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         def fun(x):
             return x.sum(axis=0)
         
-        ab = predictor_corrector_function_of_independent_variables(nterms, quad_rules, fun)
+        ab = predictor_corrector_function_of_independent_variables(
+            nterms, quad_rules, fun)
 
         rv = stats.norm(0, np.sqrt(nvars))
         measures = rv.pdf
@@ -214,7 +215,8 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         xx, ww = gauss_jacobi_pts_wts_1D(nquad_samples_1d, 0, 0)
         xx = (xx+1)/2
         quad_rules = [(xx, ww)]*nvars
-        ab = predictor_corrector_function_of_independent_variables(nterms, quad_rules, fun)
+        ab = predictor_corrector_function_of_independent_variables(
+            nterms, quad_rules, fun)
         assert np.allclose(ab_full, ab)
 
 if __name__ == "__main__":

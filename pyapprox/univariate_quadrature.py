@@ -19,7 +19,8 @@ from pyapprox.variables import is_continuous_variable, \
     is_bounded_continuous_variable
 from pyapprox.variables import get_distribution_info
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
-    modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf
+    modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf, \
+    predictor_corrector_function_of_independent_variables
 from pyapprox.orthonormal_polynomials_1d import \
     discrete_chebyshev_recurrence
 
@@ -474,6 +475,17 @@ def get_recursion_coefficients(
         rv = predcorr_rv_dict[var_type](**opts['shapes'])
         recursion_coeffs = predictor_corrector_known_scipy_pdf(
             num_coefs, rv, quad_options)
+    elif poly_type == 'function_iid_vars':
+        fun = opts['fun']
+        quad_rules = opts['quad_rules']
+        # quad rules must be in the user domain. The polynomial generated
+        # with the recursion coefficients genereated here will not be defined
+        # on the canonical domain. When used with a variable transformation
+        # set the variable index j associated with these recursion coefficients
+        # to use the identity map via var_trans.set_identity_maps([j])
+        recursion_coeffs = \
+            predictor_corrector_function_of_independent_variables(
+                num_coefs, quad_rules, fun)
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported' % poly_type)

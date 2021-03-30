@@ -466,7 +466,7 @@ def predictor_corrector_function_of_independent_variables(
             ab[ii-1, 0] = 0
 
         def integrand(x):
-            y = fun(x)
+            y = fun(x).squeeze()
             pvals = evaluate_orthonormal_polynomial_1d(y, ii, ab)
             # measure not included in integral because it is assumed to
             # be in the quadrature rules
@@ -476,7 +476,7 @@ def predictor_corrector_function_of_independent_variables(
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
         
         def integrand(x):
-            y = fun(x)
+            y = fun(x).squeeze()
             pvals = evaluate_orthonormal_polynomial_1d(y, ii, ab)
             # measure not included in integral because it is assumed to
             # be in the quadrature rules
