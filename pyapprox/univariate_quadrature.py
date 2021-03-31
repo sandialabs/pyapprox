@@ -20,7 +20,8 @@ from pyapprox.variables import is_continuous_variable, \
 from pyapprox.variables import get_distribution_info
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
     modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf, \
-    predictor_corrector_function_of_independent_variables
+    predictor_corrector_function_of_independent_variables, \
+    predictor_corrector_product_of_functions_of_independent_variables
 from pyapprox.orthonormal_polynomials_1d import \
     discrete_chebyshev_recurrence
 
@@ -486,6 +487,12 @@ def get_recursion_coefficients(
         recursion_coeffs = \
             predictor_corrector_function_of_independent_variables(
                 num_coefs, quad_rules, fun)
+    elif poly_type == 'product_iid_vars':
+        funs = opts['funs']
+        quad_rules = opts['quad_rules']
+        recursion_coeffs = \
+            predictor_corrector_product_of_functions_of_independent_variables(
+            num_coefs, quad_rules, funs)
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported' % poly_type)

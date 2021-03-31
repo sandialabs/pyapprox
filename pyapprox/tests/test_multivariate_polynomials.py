@@ -896,6 +896,34 @@ class TestMultivariatePolynomials(unittest.TestCase):
             poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
         assert np.allclose(
             poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())
+
+        poly = PolynomialChaosExpansion()
+        # the distribution and ranges of univariate variables is ignored
+        # when var_trans.set_identity_maps([0]) is used
+        univariate_variables = [uniform(0, 1)]
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+        # the following means do not map samples
+        var_trans.set_identity_maps([0])
+        funs = [lambda x: np.sqrt(x)]*nvars
+        quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
+        poly.configure({'poly_types':
+                        {0: {'poly_type': 'product_iid_vars',
+                             'var_nums': [0], 'funs': funs,
+                             'quad_rules': quad_rules}},
+                        'var_trans': var_trans})
+        from pyapprox.indexing import tensor_product_indices
+        poly.set_indices(tensor_product_indices([degree]))
+        
+        train_samples = (np.linspace(0, np.pi, 101)[None, :]+1)/2
+        train_vals = train_samples.T
+        coef = np.linalg.lstsq(
+            poly.basis_matrix(train_samples), train_vals, rcond=None)[0]
+        poly.set_coefficients(coef)
+        assert np.allclose(
+            poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
+        assert np.allclose(
+            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())
         
 
 
