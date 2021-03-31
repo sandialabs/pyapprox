@@ -31,7 +31,7 @@ jobs:
     - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
       uses: conda-incubator/setup-miniconda@v2
       with:
-        activate-environment: pyapprox-dev
+        activate-environment: pyapprox-base
         python-version: ${{ matrix.python-version }}
         channels: defaults,conda-forge
         environment-file: environment.yml

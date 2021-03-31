@@ -476,7 +476,7 @@ def get_recursion_coefficients(
         rv = predcorr_rv_dict[var_type](**opts['shapes'])
         recursion_coeffs = predictor_corrector_known_scipy_pdf(
             num_coefs, rv, quad_options)
-    elif poly_type == 'function_iid_vars':
+    elif poly_type == 'function_indpnt_vars':
         fun = opts['fun']
         quad_rules = opts['quad_rules']
         # quad rules must be in the user domain. The polynomial generated
@@ -487,7 +487,7 @@ def get_recursion_coefficients(
         recursion_coeffs = \
             predictor_corrector_function_of_independent_variables(
                 num_coefs, quad_rules, fun)
-    elif poly_type == 'product_iid_vars':
+    elif poly_type == 'product_indpnt_vars':
         funs = opts['funs']
         quad_rules = opts['quad_rules']
         recursion_coeffs = \

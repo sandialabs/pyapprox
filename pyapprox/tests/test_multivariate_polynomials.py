@@ -880,7 +880,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         var_trans.set_identity_maps([0])
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
         poly.configure({'poly_types':
-                        {0: {'poly_type': 'function_iid_vars',
+                        {0: {'poly_type': 'function_indpnt_vars',
                              'var_nums': [0], 'fun': fun,
                              'quad_rules': quad_rules}},
                         'var_trans': var_trans})
@@ -908,7 +908,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         funs = [lambda x: np.sqrt(x)]*nvars
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
         poly.configure({'poly_types':
-                        {0: {'poly_type': 'product_iid_vars',
+                        {0: {'poly_type': 'product_indpnt_vars',
                              'var_nums': [0], 'funs': funs,
                              'quad_rules': quad_rules}},
                         'var_trans': var_trans})
