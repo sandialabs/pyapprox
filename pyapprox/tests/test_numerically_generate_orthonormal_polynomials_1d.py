@@ -180,7 +180,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         assert np.absolute(res-np.eye(nterms)).max() < 2e-4
 
         
-    def test_predictor_corrector_separable_independent_variables(self):
+    def test_predictor_corrector_function_of_independent_variables(self):
         """
         Test 1: Sum of Gaussians is a Gaussian
 
@@ -218,6 +218,29 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab = predictor_corrector_function_of_independent_variables(
             nterms, quad_rules, fun)
         assert np.allclose(ab_full, ab)
+
+    def test_predictor_corrector_product_of_functions_of_independent_variables(
+            self):
+        nvars, nterms = 3, 4
+        def measure(x):
+            return (-1)**(nvars-1)*np.log(x)**(nvars-1)/factorial(nvars-1)
+        def fun(x):
+            return x.prod(axis=0)
+
+        nquad_samples_1d = 20
+        xx, ww = gauss_jacobi_pts_wts_1D(nquad_samples_1d, 0, 0)
+        xx = (xx+1)/2
+        quad_rules = [(xx, ww)]*nvars
+        funs = [lambda x: x]*nvars
+        ab = predictor_corrector_product_of_functions_of_independent_variables(
+            nterms, quad_rules, funs)
+
+        quad_opts = {'verbose': 3, 'atol': 1e-5, 'rtol': 1e-5}
+        ab_full = predictor_corrector(nterms, measure, 0, 1, 1, quad_opts)
+
+        assert np.allclose(ab, ab_full, atol=1e-5, rtol=1e-5)
+
+        
 
 if __name__ == "__main__":
     num_gen_orthonormal_poly_1d_test_suite = \

@@ -485,3 +485,20 @@ def predictor_corrector_function_of_independent_variables(
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab
+
+
+def predictor_corrector_product_of_functions_of_independent_variables(
+        nterms, univariate_quad_rules, funs):
+    nvars = len(univariate_quad_rules)
+    assert len(funs) == nvars
+    ab = predictor_corrector_function_of_independent_variables(
+        nterms, univariate_quad_rules[:2],
+        lambda x: funs[0](x[0, :])*funs[1](x[1, :]))
+    for ii in range(2, nvars):
+        x, w = gauss_quadrature(ab, nterms)
+        ab = predictor_corrector_function_of_independent_variables(
+            nterms, [(x, w), univariate_quad_rules[ii]],
+            lambda x: x[0, :]*funs[ii](x[1,:]))
+    return ab
+        
+        
