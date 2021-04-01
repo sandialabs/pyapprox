@@ -373,10 +373,179 @@ def exponential_growth_rule(quad_rule, level):
     return quad_rule(exponential_growth(level))
 
 
+def get_jacobi_recursion_coefficients(poly_type, opts, num_coefs):
+    """
+    Get the recursion coefficients of a Jacobi polynomial.
+
+    Parameters
+    ----------
+    opts : dictionary
+       Dictionary with the following attributes
+    
+    alpha_poly : float
+        The alpha parameter of the jacobi polynomial. Only used and required
+        if poly_type is not None
+
+    beta_poly : float
+        The beta parameter of the jacobi polynomial. Only used and required
+        if poly_type is not None
+    
+    shapes : dictionary
+        Shape parameters of the Beta distribution. shapes['a'] is the 
+        a parameter of the Beta distribution and shapes['a'] is the 
+        b parameter of the Beta distribution. 
+        The parameter of the Jacobi polynomial are determined using the 
+        following relationships: alpha_poly = b-1, beta_poly = a-1.
+        This option is not required or ignored when poly_type is not None
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+    """
+    if poly_type is not None:
+        alpha_poly, beta_poly = opts['alpha_poly'], opts['beta_poly']
+    else:
+        alpha_poly, beta_poly = opts['shapes']['b'] - \
+            1, opts['shapes']['a']-1
+    return jacobi_recurrence(
+        num_coefs, alpha=alpha_poly, beta=beta_poly, probability=True)
+
+def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
+    """
+    Compute the recursion coefficients orthonormal to the random variable 
+    arising from arbitrary functions :math:`f(Z_1,\ldots, Z_D)` of 
+    independent random variables :math:`Z_d`. Tensor product quadrature
+    is used to compute the integrals necessary for orthgonalization
+    thus this function scales poorly as the number of variables increases.
+
+    Parameters
+    ----------
+    opts : dictionary
+        Dictionary with the following attributes
+
+    funs : list (nvars)
+        List of univariate functions of each variable
+
+    quad_rules : list (nvars)
+        List of univariate quadrature rule sample, weight tuples (x, w)
+        for each variable. Each quadrature rules must be in the user domain. 
+        The polynomial generated with the recursion coefficients genereated here 
+        will does not have a notion of canonical domain. Thus when used with a 
+        variable transformation set the variable index j associated with these 
+        recursion coefficients to use the identity map via 
+        var_trans.set_identity_maps([j])
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+    """
+    fun = opts['fun']
+    quad_rules = opts['quad_rules']
+    recursion_coeffs = \
+        predictor_corrector_function_of_independent_variables(
+            num_coefs, quad_rules, fun)
+    return recursion_coeffs
+
+
+def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
+    """
+    Compute the recursion coefficients orthonormal to the random variable 
+    arising from the product of univariate functions :math:`f_d(Z_d)` of 
+    independent random variables :math:`Z_d` , that is
+
+    .. math:: W = \prod_{d=1}^D f_d(Z_d)
+
+    This function first computes recursion coefficients of 
+    :math:`W_{12}=f_1(Z_1)f_2(Z_2)`. Then uses this to compute a quadrature rule
+    which is then used to contruct recursion coefficients for 
+    :math:`W_{123}=W_{12}f_3(Z_3)` and so on. The same recursion coefficients 
+    can be obtained using 
+    :func:`get_function_independent_vars_recursion_coefficients` however this
+    function being documented is faster because it
+    leverages the seperability of the product.
+
+    Parameters
+    ----------
+    opts : dictionary
+        Dictionary with the following attributes
+
+    funs : list (nvars)
+        List of univariate functions of each variable
+
+    quad_rules : list (nvars)
+        List of univariate quadrature rule sample, weight tuples (x, w)
+        for each variable. Each quadrature rules must be in the user domain. 
+        The polynomial generated with the recursion coefficients genereated here 
+        will does not have a notion of canonical domain. Thus when used with a 
+        variable transformation set the variable index j associated with these 
+        recursion coefficients to use the identity map via 
+        var_trans.set_identity_maps([j])
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+
+    Todo
+    ----
+    This function can be generalized to consider compositions of functions of 
+    independent variable groups, e.g
+
+    math:: W = g_2(g_1(f_{12}(Z_1, Z_2), f_{3,4}(Z_3, Z_4)), f_{5}(Z_5))
+    
+    """
+    funs = opts['funs']
+    quad_rules = opts['quad_rules']
+    recursion_coeffs = \
+        predictor_corrector_product_of_functions_of_independent_variables(
+            num_coefs, quad_rules, funs)
+    return recursion_coeffs
+
+
+
 def get_recursion_coefficients(
         opts,
         num_coefs,
         numerically_generated_poly_accuracy_tolerance=1e-12):
+    """
+    Parameters
+    ----------
+    num_coefs : interger
+        The number of recursion coefficients desired
+
+    numerically_generated_poly_accuracy_tolerance : float
+            Tolerance used to construct any numerically generated polynomial
+            basis functions.
+
+    opts : dictionary
+        Dictionary with the following attributes
+
+    rv_type : string
+        The type of variable associated with the polynomial. If poly_type
+        is not provided then the recursion coefficients chosen is selected
+        using the Askey scheme. E.g. uniform -> legendre, norm -> hermite
+        rv_type is assumed to be the name of the distribution of scipy.stats
+        variables, e.g. for gaussian rv_type = norm(0, 1).dist
+
+    poly_type : string
+        The type of polynomial which overides rv_type. Supported types
+        ['legendre', 'hermite', 'jacobi', 'krawtchouk', 'hahn',
+        'discrete_chebyshev', 'discrete_numeric', 'continuous_numeric',
+        'function_indpnt_vars', 'product_indpnt_vars', 'monomial']
+        Note 'monomial' does not produce an orthogonal basis
+
+    The remaining options are specific to rv_type and poly_type. See
+
+    :func:`pyapprox.univariate_quadrature.get_jacobi_recursion_coefficients`
+    :func:`pyapprox.univariate_quadrature.get_function_independent_vars_recursion_coefficients`
+    :func:`pyapprox.univariate_quadrature.get_product_independent_vars_recursion_coefficients`
+    
+    Note Legendre is just a special instance of a Jacobi polynomial with
+    alpha_poly, beta_poly = 0, 0 and alpha_stat, beta_stat = 1, 1
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+    """
 
     # variables that require numerically generated polynomials with
     # predictor corrector method
@@ -391,13 +560,8 @@ def get_recursion_coefficients(
         recursion_coeffs = jacobi_recurrence(
             num_coefs, alpha=0, beta=0, probability=True)
     elif poly_type == 'jacobi' or var_type == 'beta':
-        if poly_type is not None:
-            alpha_poly, beta_poly = opts['alpha_poly'], opts['beta_poly']
-        else:
-            alpha_poly, beta_poly = opts['shapes']['b'] - \
-                1, opts['shapes']['a']-1
-        recursion_coeffs = jacobi_recurrence(
-            num_coefs, alpha=alpha_poly, beta=beta_poly, probability=True)
+        recursion_coeffs = get_jacobi_recursion_coefficients(
+            poly_type, opts, num_coefs)
     elif poly_type == 'hermite' or var_type == 'norm':
         recursion_coeffs = hermite_recurrence(
             num_coefs, rho=0., probability=True)
@@ -477,22 +641,11 @@ def get_recursion_coefficients(
         recursion_coeffs = predictor_corrector_known_scipy_pdf(
             num_coefs, rv, quad_options)
     elif poly_type == 'function_indpnt_vars':
-        fun = opts['fun']
-        quad_rules = opts['quad_rules']
-        # quad rules must be in the user domain. The polynomial generated
-        # with the recursion coefficients genereated here will not be defined
-        # on the canonical domain. When used with a variable transformation
-        # set the variable index j associated with these recursion coefficients
-        # to use the identity map via var_trans.set_identity_maps([j])
-        recursion_coeffs = \
-            predictor_corrector_function_of_independent_variables(
-                num_coefs, quad_rules, fun)
+        recursion_coeffs = get_function_independent_vars_recursion_coefficients(
+            opts, num_coefs)
     elif poly_type == 'product_indpnt_vars':
-        funs = opts['funs']
-        quad_rules = opts['quad_rules']
-        recursion_coeffs = \
-            predictor_corrector_product_of_functions_of_independent_variables(
-            num_coefs, quad_rules, funs)
+        recursion_coeffs = get_product_independent_vars_recursion_coefficients(
+            opts, num_coefs)
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported' % poly_type)

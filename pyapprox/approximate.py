@@ -416,7 +416,7 @@ def adaptive_approximate(fun, variable, method, options=None):
 
 def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
                                  basis_type='expanding_basis',
-                                 variable=None, options=None):
+                                 variable=None, options=None, poly_opts=None):
     r"""
     Compute a Polynomial Chaos Expansion of a function from a fixed data set.
 
@@ -441,6 +441,10 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     verbosity : integer
         Controls the amount of information printed to screen
+
+    poly_opts : dictionary
+        Dictionary definining the custom configuration of the polynomial
+        chaos expansion basis.
 
     Returns
     -------
@@ -467,8 +471,9 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
         define_poly_options_from_variable_transformation
     var_trans = AffineRandomVariableTransformation(variable)
     poly = PolynomialChaosExpansion()
-    poly_opts = define_poly_options_from_variable_transformation(
-        var_trans)
+    if poly_opts is None:
+        poly_opts = define_poly_options_from_variable_transformation(
+            var_trans)
     poly.configure(poly_opts)
 
     if options is None:
@@ -579,7 +584,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
                'lasso_grad': [LassoCV, Lasso],
                'lars': [LarsCV, Lars],
                'omp': [OrthogonalMatchingPursuitCV, OrthogonalMatchingPursuit],
-               'lstsq': [LinearLeastSquaresCV,LinearLeastSquares]}
+               'lstsq': [LinearLeastSquaresCV, LinearLeastSquares]}
 
     if not solver_type in solvers:
         msg = f'Solver type {solver_type} not supported\n'
@@ -717,6 +722,7 @@ def cross_validate_pce_degree(
         - 'lars'
         - 'lasso_grad'
         - 'omp'
+        - 'lstsq'
 
     verbose : integer
         Controls the amount of information printed to screen
@@ -906,6 +912,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         - 'lars'
         - 'lasso_grad'
         - 'omp'
+        - 'lstsq'
 
     verbose : integer
         Controls the amount of information printed to screen
@@ -1154,6 +1161,7 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
         - 'lars'
         - 'lasso_grad'
         - 'omp'
+        - 'lstsq'
 
     verbose : integer
         Controls the amount of information printed to screen

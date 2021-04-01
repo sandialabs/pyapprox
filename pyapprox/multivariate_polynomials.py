@@ -334,6 +334,33 @@ class PolynomialChaosExpansion(object):
     #     raise Exception(Not implemented)
 
     def configure(self, opts):
+        """
+        Parameters
+        ----------
+        opts : dictionary
+            Options definin the configuration of the polynomial
+            chaos expansion basis with the following attributes
+
+        var_trans : :class:`pyapprox.variable_transformations.AffineRandomVariableTransformation`
+            Variable transformation mapping user samples into the canonical
+            domain of the polynomial basis
+
+        numerically_generated_poly_accuracy_tolerance : float
+            Tolerance used to construct any numerically generated polynomial
+            basis functions. Todo make this an attribute of each item in 
+            poly_opts
+
+        poly_opts : dictionary
+            Options to configure each unique univariate polynomial basis
+            with attibutes
+
+            var_nums : iterable
+                List of variables dimension which use the ith unique basis
+
+           The remaining options are specific to a given basis type. See
+           :func:`pyapprox.univariate_quadrature.get_recursion_coefficients`
+        
+        """
         self.config_opts = opts
         self.var_trans = opts.get('var_trans', None)
         if self.var_trans is None:
