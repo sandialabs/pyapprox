@@ -61,7 +61,8 @@ class TestApproximate(unittest.TestCase):
         nvars = 3
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         # we can use different univariate variables than specified by
-        # benchmark
+        # benchmark. In this case we use the same but setup them uphear
+        # to demonstrate this functionality
         univariate_variables = [stats.uniform(0, 1)]*nvars
         approx = adaptive_approximate(
             benchmark.fun, univariate_variables,
@@ -71,6 +72,33 @@ class TestApproximate(unittest.TestCase):
             approx, benchmark.fun, approx.variable_transformation.variable,
             nsamples)
         assert error < 1e-12
+
+    def test_approximate_polynomial_chaos_custom_poly_type(self):
+        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        nvars = benchmark.variable.num_vars()
+	# for this test purposefully select wrong variable to make sure
+        # poly_type overide is activated
+        univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+        # specify correct basis so it is not chosen from variable
+        poly_opts = {'poly_type': 'legendre', 'var_trans': var_trans}
+        options = {'poly_opts': poly_opts, 'variable': variable,
+                   'options': {'max_num_step_increases': 1}}
+        ntrain_samples = 400
+        train_samples = np.random.uniform(
+            -np.pi, np.pi, (nvars, ntrain_samples))
+        train_vals = benchmark.fun(train_samples)
+        approx = approximate(
+            train_samples, train_vals,
+            method='polynomial_chaos', options=options).approx
+        nsamples = 100
+        error = compute_l2_error(
+            approx, benchmark.fun, approx.var_trans.variable,
+            nsamples, rel=True)
+        print(error)
+        assert error < 1e-4
+        assert np.allclose(approx.mean(), benchmark.mean, atol=error)
 
     def help_cross_validate_pce_degree(self, solver_type, solver_options):
         print(solver_type, solver_options)

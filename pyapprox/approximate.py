@@ -1058,10 +1058,11 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             num_expansion_steps_iter = 0
             indices = restrict_basis(
                 pce.indices, pce.coefficients, restriction_tol)
-            msg = f'Expanding {pce.indices.shape[1]} terms'
+            msg = f'Expanding {indices.shape[1]} restricted from '
+            msg += f'{pce.indices.shape[1]} terms'
             while ((num_expansion_steps_iter < current_max_num_expansion_steps_iter)):
-                new_indices = expand_basis(pce.indices)
-                pce.set_indices(np.hstack([pce.indices, new_indices]))
+                new_indices = expand_basis(indices)
+                pce.set_indices(np.hstack([indices, new_indices]))
                 num_terms = pce.num_terms()
                 num_expansion_steps_iter += 1
             msg += f' New number of terms {pce.indices.shape[1]}'
