@@ -34,12 +34,71 @@ with
 .. math::      t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^T
 
 and :math:`A` is a matrix with with elements :math:`A_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`.
+
+Supervised Learning
+-------------------
+Consider the univariate Runge function
+
+.. math:: f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]
+
+Lets contruct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
 """
+import numpy as np
+import pyapprox as pya
+import matplotlib.pyplot as plt
+
+lb, ub = -1, 1
+def func(x):
+    return 1/(1+25*x[0, :]**2)[:, np.newaxis]
+
+kernel = pya.Matern(1, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
+gp = pya.GaussianProcess(kernel)
+
+validation_samples = np.linspace(lb, ub, 101)[None, :]
+validation_values = func(validation_samples)
+plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
+gp_vals, gp_std = gp(validation_samples, return_std=True)
+plt.plot(validation_samples[0, :], gp_vals[:, 0], 'b-', label='GP prior mean')
+plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
+                 gp_vals[:, 0]+2*gp_std,
+                 alpha=0.2, color='blue', label='GP prior uncertainty')
+
+#%% Now lets train the GP using a small number of evaluations and plot
+#the posterior mean and variance.
+ntrain_samples = 5
+train_samples = np.linspace(lb, ub, ntrain_samples)[None, :]
+train_values = func(train_samples)
+gp.fit(train_samples, train_values)
+gp_vals, gp_std = gp(validation_samples, return_std=True)
+plt.plot(validation_samples[0, :], validation_values[:, 0], 'r-', label='Exact')
+plt.plot(train_samples[0, :], train_values[:, 0], 'or')
+plt.plot(validation_samples[0, :], gp_vals[:, 0], '-k',
+         label='GP posterior mean')
+plt.fill_between(validation_samples[0, :], gp_vals[:, 0]-2*gp_std,
+                 gp_vals[:, 0]+2*gp_std,
+                 alpha=0.5, color='gray', label='GP posterior uncertainty')
+
+plt.legend()
+plt.show()
+
+#%% As we add more training data the posterior uncertainty will decrease and the mean will become a more accurate estimate of the true function.
+
+#%%
+#Experimental design
+#-------------------
+#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}` by solving the minimization problem
+#
+#.. math:: :math:`\mathcal{Z}^\dagger`=\argmin_{\mathcal{Z}\in\rvdom} \int_{\rvdom} C^star(\mathcal{Z})
+#
+#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples.
+
 
 #%%
 #References
 #^^^^^^^^^^
 #.. [RW2006] `C.E. Rasmussen and C. WIlliams. Gaussian Processes for Machine Learning. MIT Press (2006) <http://www.gaussianprocess.org/gpml/>`_
+#
+#.. [SWMW1989] `J. Sacks, W.J. Welch, T.J.Mitchell, H.P. Wynn Designs and analysis of computer experiments (with discussion). Statistical Science, 4:409-435 (1989) <http://www.jstor.org/stable/2245858>`_
 #
 #.. [HJZ2021] `H. Harbrecht, J.D. Jakeman, P. Zaspel. Cholesky-based experimental design for Gaussian process and kernel-based emulation and calibration . Communications in Computational Physics (2021) In press <https://edoc.unibas.ch/79042/>`_
 #

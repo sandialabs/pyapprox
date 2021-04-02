@@ -444,7 +444,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     poly_opts : dictionary
         Dictionary definining the custom configuration of the polynomial
-        chaos expansion basis.
+        chaos expansion basis. See :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.configure`
 
     Returns
     -------
@@ -469,9 +469,9 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
         define_poly_options_from_variable_transformation
-    var_trans = AffineRandomVariableTransformation(variable)
     poly = PolynomialChaosExpansion()
     if poly_opts is None:
+        var_trans = AffineRandomVariableTransformation(variable)
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
     poly.configure(poly_opts)
@@ -557,12 +557,14 @@ class LinearLeastSquaresCV(LinearModel):
         if y.ndim == 1:
             y = y[:, None]
         assert y.shape[1] == 1
-        fold_sample_indices = get_random_k_fold_sample_indices(
-            X.shape[0], self.cv, self.random_folds)
-        results = []
-        for ii in range(len(self.alphas)):
-            results.append(leave_many_out_lsq_cross_validation(
-                X, y, fold_sample_indices, self.alphas[ii]))
+        if self.cv != y.shape[0]:
+            fold_sample_indices = get_random_k_fold_sample_indices(
+                X.shape[0], self.cv, self.random_folds)
+            results = [leave_many_out_lsq_cross_validation(
+                X, y, fold_sample_indices, alpha) for alpha in self.alphas]
+        else:
+            results = [leave_one_out_lsq_cross_validation(
+                X, y, alpha) for alpha in self.alphas]
         cv_scores = [r[1] for r in results]
         ii_best_alpha = np.argmin(cv_scores)
 
@@ -1291,7 +1293,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
 
 
 from pyapprox.utilities import get_random_k_fold_sample_indices, \
-    leave_many_out_lsq_cross_validation
+    leave_many_out_lsq_cross_validation, leave_one_out_lsq_cross_validation
 def cross_validate_approximation(
         train_samples, train_vals, options, nfolds, method, random_folds=True):
     ntrain_samples = train_samples.shape[1]

@@ -67,7 +67,13 @@ class GaussianProcess(GaussianProcessRegressor):
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
         canonical_samples = self.map_to_canonical_space(samples)
-        return self.predict(canonical_samples.T, return_std, return_cov)
+        result = self.predict(canonical_samples.T, return_std, return_cov)
+        if type(result) == tuple:
+            # when returning prior stdev covariance then must reshape vals
+            if result[0].ndim == 1:
+                result = [result[0][:, None]] + [r for r in result[1:]]
+                result = tuple(result)
+        return result
 
     def predict_random_realization(self, samples, rand_noise=1,
                                    truncated_svd=None, keep_normalized=False):

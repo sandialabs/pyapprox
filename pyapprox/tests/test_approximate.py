@@ -147,9 +147,9 @@ class TestApproximate(unittest.TestCase):
 
     def test_cross_validate_pce_degree(self):
         # lasso and omp do not pass this test so recommend not using them
-        solver_type_list = ['lstsq', 'lasso']#, 'omp']#, 'lars']
+        solver_type_list = ['lstsq', 'lstsq', 'lasso']#, 'omp']#, 'lars']
         solver_options_list = [
-            {'alphas': [1e-14], 'cv':20}, {'max_iter': 20, 'cv': 21},
+            {'alphas': [1e-14], 'cv':22}, {'cv': 10},
             {'max_iter': 20, 'cv': 21}]
         for solver_type, solver_options in zip(
                 solver_type_list, solver_options_list):

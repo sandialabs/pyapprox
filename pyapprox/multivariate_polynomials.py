@@ -338,7 +338,7 @@ class PolynomialChaosExpansion(object):
         Parameters
         ----------
         opts : dictionary
-            Options definin the configuration of the polynomial
+            Options defining the configuration of the polynomial
             chaos expansion basis with the following attributes
 
         var_trans : :class:`pyapprox.variable_transformations.AffineRandomVariableTransformation`
@@ -357,8 +357,8 @@ class PolynomialChaosExpansion(object):
             var_nums : iterable
                 List of variables dimension which use the ith unique basis
 
-           The remaining options are specific to a given basis type. See
-           :func:`pyapprox.univariate_quadrature.get_recursion_coefficients`
+            The remaining options are specific to a given basis type. See
+             - :func:`pyapprox.univariate_quadrature.get_recursion_coefficients`
         
         """
         self.config_opts = opts

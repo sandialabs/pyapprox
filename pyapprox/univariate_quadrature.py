@@ -522,7 +522,7 @@ def get_recursion_coefficients(
     rv_type : string
         The type of variable associated with the polynomial. If poly_type
         is not provided then the recursion coefficients chosen is selected
-        using the Askey scheme. E.g. uniform -> legendre, norm -> hermite
+        using the Askey scheme. E.g. uniform -> legendre, norm -> hermite.
         rv_type is assumed to be the name of the distribution of scipy.stats
         variables, e.g. for gaussian rv_type = norm(0, 1).dist
 
@@ -534,13 +534,12 @@ def get_recursion_coefficients(
         Note 'monomial' does not produce an orthogonal basis
 
     The remaining options are specific to rv_type and poly_type. See
-
-    :func:`pyapprox.univariate_quadrature.get_jacobi_recursion_coefficients`
-    :func:`pyapprox.univariate_quadrature.get_function_independent_vars_recursion_coefficients`
-    :func:`pyapprox.univariate_quadrature.get_product_independent_vars_recursion_coefficients`
+     - :func:`pyapprox.univariate_quadrature.get_jacobi_recursion_coefficients`
+     - :func:`pyapprox.univariate_quadrature.get_function_independent_vars_recursion_coefficients`
+     - :func:`pyapprox.univariate_quadrature.get_product_independent_vars_recursion_coefficients`
     
-    Note Legendre is just a special instance of a Jacobi polynomial with
-    alpha_poly, beta_poly = 0, 0 and alpha_stat, beta_stat = 1, 1
+        Note Legendre is just a special instance of a Jacobi polynomial with
+        alpha_poly, beta_poly = 0, 0 and alpha_stat, beta_stat = 1, 1
 
     Returns
     -------

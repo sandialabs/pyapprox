@@ -23,7 +23,9 @@ Developer Reference Guide
 
 .. automodapi:: pyapprox.multivariate_polynomials
    :no-inheritance-diagram:
-   		
+
+.. automodapi:: pyapprox.univariate_quadrature
+   :no-inheritance-diagram:
 
 .. automodapi:: pyapprox.optimal_experimental_design
    :no-inheritance-diagram:
