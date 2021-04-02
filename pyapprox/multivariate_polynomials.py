@@ -523,12 +523,13 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
     if degrees.shape[0] == 1 and num_vars > 1:
         degrees = np.array([degrees[0]]*num_vars)
     if np.any(pce.max_degree < degrees):
-        pce.update_recursion_coefficients(degrees, pce.config_opts)
+        pce.update_recursion_coefficients(degrees+1, pce.config_opts)
     if len(pce.recursion_coeffs) == 1:
         # update_recursion_coefficients may not return coefficients
         # up to degree specified if using recursion for polynomial
         # orthogonal to a discrete variable with finite non-zero
         # probability measures
+        print(pce.recursion_coeffs[0].shape[0], degrees.max()+1)
         assert pce.recursion_coeffs[0].shape[0] >= degrees.max()+1
         univariate_quadrature_rules = [
             partial(gauss_quadrature, pce.recursion_coeffs[0])]*num_vars

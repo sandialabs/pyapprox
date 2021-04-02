@@ -3,7 +3,7 @@ import numpy as np
 
 
 def is_continuous_variable(rv):
-    from scipy.stats import _continuous_distns, _discrete_distns
+    from scipy.stats import _continuous_distns
     return bool((rv.dist.name in _continuous_distns._distn_names) or
                 rv.dist.name == 'continuous_rv_sample')
 
@@ -13,6 +13,31 @@ def is_bounded_continuous_variable(rv):
     return bool(is_continuous_variable(rv) and
                 rv.dist.name != 'continuous_rv_sample'
                 and np.isfinite(interval[0]) and np.isfinite(interval[1]))
+
+def is_bounded_discrete_variable(rv):
+    from scipy.stats import _discrete_distns
+    interval = rv.interval(1)
+    return bool((rv.dist.name in _discrete_distns._distn_names) or
+                (rv.dist.name == 'float_rv_discrete') and
+                np.isfinite(interval[0]) and np.isfinite(interval[1]))
+
+def get_probability_masses(rv):
+    assert is_bounded_discrete_variable(rv)
+    name, scales, shapes = get_distribution_info(rv)
+    if name == 'float_rv_discrete':
+        return rv.dist.xk.copy(), rv.dist.pk.copy()
+    elif name == 'hypergeom':
+        M, n, N = [shapes[key] for key in ['M', 'n', 'N']]
+        xk = np.arange(max(0, N-M+n), min(n, N)+1, dtype=float)
+        pk = rv.pmf(xk)
+        return xk, pk
+    elif name == 'binom':
+        n, p = shapes['n'], shapes['p']
+        xk = np.arange(0, n+1, dtype=float)
+        pk = rv.pmf(xk)
+        return xk, pk
+    else:
+        raise Exception(f'{rv.dist.name} not supported')
 
 
 def get_distribution_info(rv):

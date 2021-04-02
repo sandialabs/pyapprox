@@ -826,7 +826,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(criteria, heterosce
     # of numerical precision it agrees only to 1e-6 with minimax design
     # so round answer and compare. argmin returns first instance of minimum
     print(max_stat)
-    max_stat = np.round(max_stat, 6)
+    max_stat = np.round(max_stat, 5)
     assert np.argmin(max_stat) == 0
 
 

@@ -162,6 +162,8 @@ class TestGaussianProcess(unittest.TestCase):
             gp_realizations.canonical_validation_samples)))
         random_gp_vals = gp.predict_random_realization(
             samples, rand_noise[: samples.shape[1]])
+        print(interp_random_gp_vals-
+            random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
         assert np.allclose(
             interp_random_gp_vals,
             random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
