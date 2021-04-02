@@ -17,14 +17,15 @@ def is_bounded_continuous_variable(rv):
 def is_bounded_discrete_variable(rv):
     from scipy.stats import _discrete_distns
     interval = rv.interval(1)
-    return bool((rv.dist.name in _discrete_distns._distn_names) or
-                (rv.dist.name == 'float_rv_discrete') and
+    return bool(((rv.dist.name in _discrete_distns._distn_names) or
+                (rv.dist.name == 'float_rv_discrete') or
+                 (rv.dist.name == 'discrete_chebyshev')) and
                 np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
 def get_probability_masses(rv):
     assert is_bounded_discrete_variable(rv)
     name, scales, shapes = get_distribution_info(rv)
-    if name == 'float_rv_discrete':
+    if name == 'float_rv_discrete' or name == 'discrete_chebyshev':
         return rv.dist.xk.copy(), rv.dist.pk.copy()
     elif name == 'hypergeom':
         M, n, N = [shapes[key] for key in ['M', 'n', 'N']]

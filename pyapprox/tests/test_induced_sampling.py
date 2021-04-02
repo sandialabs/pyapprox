@@ -52,7 +52,7 @@ class TestInducedSampling(unittest.TestCase):
         indices = compute_hyperbolic_indices(pce.num_vars(), degree, 1.0)
         pce.set_indices(indices)
 
-        num_samples = int(1e4)
+        num_samples = int(3e4)
         np.random.seed(1)
         canonical_samples = generate_induced_samples(pce, num_samples)
         samples = var_trans.map_from_canonical_space(canonical_samples)
@@ -80,7 +80,6 @@ class TestInducedSampling(unittest.TestCase):
             else:
                 return var.pmf(x)
                 xk, pk = get_probability_masses(var)
-                print(xk, pk, x)
                 x = np.atleast_1d(x)
                 vals = np.zeros(x.shape[0])
                 for jj in range(x.shape[0]):
@@ -134,11 +133,11 @@ class TestInducedSampling(unittest.TestCase):
             christoffel_function(quad_samples, pce.basis_matrix, True).dot(
                 quad_weights), 1.0)
         true_induced_mean = quad_samples.dot(induced_density(quad_samples))
-        print(true_induced_mean)
-        print(samples.mean(axis=1))
-        print(samples1.mean(axis=1))
-        print(samples2.mean(axis=1))
-        print(samples1.mean(axis=1)-true_induced_mean, true_induced_mean*rtol)
+        # print(true_induced_mean)
+        # print(samples.mean(axis=1))
+        # print(samples1.mean(axis=1))
+        # print(samples2.mean(axis=1))
+        # print(samples1.mean(axis=1)-true_induced_mean, true_induced_mean*rtol)
         # print(samples2.mean(axis=1))
         assert np.allclose(samples.mean(axis=1), true_induced_mean, rtol=rtol)
         assert np.allclose(samples1.mean(axis=1), true_induced_mean, rtol=rtol)
@@ -159,17 +158,23 @@ class TestInducedSampling(unittest.TestCase):
         masses2 /= masses2.sum()
         var2 = float_rv_discrete(
             name='float_rv_discrete', values=(mass_locations2, masses2))()
-        #self.help_discrete_induced_sampling(var1, var2, 30)
+        self.help_discrete_induced_sampling(var1, var2, 30)
         
         num_type1, num_type2, num_trials = [10, 10, 9]
         var1 = stats.hypergeom(num_type1+num_type2, num_type1, num_trials)
         var2 = var1
-        #self.help_discrete_induced_sampling(var1, var2, 300)
+        self.help_discrete_induced_sampling(var1, var2, 300)
 
         num_type1, num_type2, num_trials = [10, 10, 9]
         var1 = stats.binom(10, 0.5)
         var2 = var1
         self.help_discrete_induced_sampling(var1, var2, 300)
+
+        N = 10
+        xk, pk = np.arange(N), np.ones(N)/N
+        var1 = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))()
+        var2 = var1
+        self.help_discrete_induced_sampling(var1, var2, 30)
 
     def test_multivariate_sampling_jacobi(self):
 

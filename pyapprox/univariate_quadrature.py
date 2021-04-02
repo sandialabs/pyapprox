@@ -565,6 +565,9 @@ def get_recursion_coefficients(
         recursion_coeffs = hermite_recurrence(
             num_coefs, rho=0., probability=True)
     elif poly_type == 'krawtchouk' or var_type == 'binom':
+        # although bounded the krwatchouk polynomials are not defined
+        # on the canonical domain [-1,1] but rather the user and
+        # canconical domain are the same
         if poly_type is None:
             opts = opts['shapes']
         n, p = opts['n'], opts['p']
@@ -572,6 +575,9 @@ def get_recursion_coefficients(
         recursion_coeffs = krawtchouk_recurrence(
             num_coefs, n, p)
     elif poly_type == 'hahn' or var_type == 'hypergeom':
+        # although bounded the hahn polynomials are not defined
+        # on the canonical domain [-1,1] but rather the user and
+        # canconical domain are the same
         if poly_type is not None:
             apoly, bpoly = opts['alpha_poly'], opts['beta_poly']
             N = opts['N']
@@ -581,6 +587,9 @@ def get_recursion_coefficients(
         num_coefs = min(num_coefs, N)
         recursion_coeffs = hahn_recurrence(num_coefs, N, apoly, bpoly)
     elif poly_type == 'discrete_chebyshev' or var_type == 'discrete_chebyshev':
+        # although bounded the discrete_chebyshev polynomials are not defined
+        # on the canonical domain [-1,1] but rather the user and
+        # canconical domain are the same
         if poly_type is not None:
             N = opts['N']
         else:
@@ -593,7 +602,7 @@ def get_recursion_coefficients(
         if poly_type is None:
             opts = opts['shapes']
         xk, pk = opts['xk'], opts['pk']
-        # shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
+        # shapes['xk'] will be in [0, 1] but canonical domain is [-1, 1]
         xk = xk*2-1
         assert xk.min() >= -1 and xk.max() <= 1
         if num_coefs > xk.shape[0]:

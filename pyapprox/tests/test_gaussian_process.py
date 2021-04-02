@@ -166,7 +166,8 @@ class TestGaussianProcess(unittest.TestCase):
             random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
         assert np.allclose(
             interp_random_gp_vals,
-            random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
+            random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]],
+            atol=5e-8)
 
     def test_gaussian_process_pointwise_variance(self):
         nvars = 1
@@ -1616,7 +1617,8 @@ class TestSamplers(unittest.TestCase):
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables,
-            greedy_method, use_gauss_quadrature=use_gauss_quadrature)
+            greedy_method, use_gauss_quadrature=use_gauss_quadrature,
+            nugget=1e-8)
         sampler.set_kernel(copy.deepcopy(kernel))
 
         def weight_function(samples):
@@ -1661,7 +1663,7 @@ class TestSamplers(unittest.TestCase):
         # if passed to objective at this point
         print(val1, val2)
         assert (val1 < val2)
-
+        
         new_samples2 = sampler(2*ntrain_samples)[0]
         assert np.allclose(
             1+sampler.greedy_sampler.best_obj_vals[ntrain_samples-1], val1)
