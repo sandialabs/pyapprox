@@ -1,16 +1,10 @@
 #!/usr/bin/env python
-import sys
-from functools import partial
-import unittest, pytest
+import unittest
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-if sys.platform == 'win32':
-    pytestmark = pytest.mark.skip("Skipping test on Windows")
-else:
-    from pyapprox.benchmarks.benchmarks import *
-    import pyapprox as pya
+import pyapprox as pya
+from pyapprox.benchmarks.benchmarks import *
 
 
 class TestBenchmarks(unittest.TestCase):
