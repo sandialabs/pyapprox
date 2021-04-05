@@ -80,6 +80,7 @@ def lanczos(nodes, weights, N):
     qii = np.zeros((nnodes+1, nnodes+1))
     qii[:, 0] = vec
     sqrt_w = np.sqrt(weights)
+    northogonalization_steps = 2
     for ii in range(N):
         z = np.hstack(
             [vec[0]+np.sum(sqrt_w*vec[1:nnodes+1]),
@@ -88,18 +89,22 @@ def lanczos(nodes, weights, N):
         if ii > 0:
             alpha[ii-1] = vec.dot(z)
 
-        z -= qii[:, :ii+1].dot(qii[:, :ii+1].T.dot(z))
-        z -= qii[:, :ii+1].dot(qii[:, :ii+1].T.dot(z))
+        for jj in range(northogonalization_steps):
+            z -= qii[:, :ii+1].dot(qii[:, :ii+1].T.dot(z))
 
         if ii < N:
             znorm = np.linalg.norm(z)
-            beta[ii] = znorm**2
+            #beta[ii] = znorm**2 assume we want probability measure so
+            # no need to square here then take sqrt later
+            beta[ii] = znorm
             vec = z / znorm
             qii[:, ii+1] = vec
 
     alpha = np.atleast_2d(alpha[:N])
+    #beta = np.sqrt(np.atleast_2d(beta[:N]))
     beta = np.atleast_2d(beta[:N])
-    return np.concatenate((alpha.T, np.sqrt(beta.T)), axis=1)
+    return np.concatenate((alpha.T, beta.T), axis=1)
+
 
 
 def lanczos_deprecated(mat, vec):

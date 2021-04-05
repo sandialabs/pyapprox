@@ -21,7 +21,8 @@ from pyapprox.variables import get_distribution_info
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
     modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf, \
     predictor_corrector_function_of_independent_variables, \
-    predictor_corrector_product_of_functions_of_independent_variables
+    predictor_corrector_product_of_functions_of_independent_variables, \
+    lanczos
 from pyapprox.orthonormal_polynomials_1d import \
     discrete_chebyshev_recurrence
 
@@ -610,7 +611,8 @@ def get_recursion_coefficients(
             msg = 'Number of coefs requested is larger than number of '
             msg += 'probability masses'
             raise Exception(msg)
-        recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
+        #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
+        recursion_coeffs = lanczos(xk, pk, num_coefs)
         p = evaluate_orthonormal_polynomial_1d(
             np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
         error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
@@ -629,7 +631,8 @@ def get_recursion_coefficients(
             msg += 'samples'
             raise Exception(msg)
         print(num_coefs)
-        recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
+        #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
+        recursion_coeffs = lanczos(xk, pk, num_coefs)
         p = evaluate_orthonormal_polynomial_1d(
             np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
         error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
