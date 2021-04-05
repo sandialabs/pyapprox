@@ -73,14 +73,14 @@ def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
         The value of each requested QoI of the model for each sample
     """
     num_args = get_num_args(function)
-    assert samples.ndim == 2
+    assert samples.ndim == 2, f"2-dimensional array expected, got {samples.ndim}"
     num_samples = samples.shape[1]
     if num_args == 2:
         values_0 = function(samples[:, 0], opts)
     else:
         values_0 = function(samples[:, 0])
     values_0 = np.atleast_1d(values_0)
-    assert values_0.ndim == 1
+    assert values_0.ndim == 1, f"1-dimensional array expected, got {samples.ndim}"
     num_qoi = values_0.shape[0]
     values = np.empty((num_samples, num_qoi), float)
     values[0, :] = values_0
