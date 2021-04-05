@@ -74,42 +74,29 @@ def lanczos(nodes, weights, N):
     nnodes = nodes.shape[0]
     assert N <= nnodes
     assert(nnodes == weights.shape[0])
-    alpha = nodes.copy().astype(float)
-    beta = np.zeros(nnodes)
-    beta[0] = weights[0]
-    for n in range(nnodes-1):
-        pi_sq, node = weights[n+1], nodes[n+1]
-        gamma_sq, sigma_sq, tau_km1 = 1., 0., 0.
-        for k in range(n+2):
-            beta_km1 = beta[k]
-            sigma_sq_km1 = sigma_sq
-            # \rho_k^2 = \beta^2_{k-1}+\pi^2_{k-1}
-            rho_sq = beta_km1 + pi_sq
-            # \bar(\beta)^2_{k-1}=\gamma^2_{k-1}\rho^2_k
-            beta[k] = gamma_sq * rho_sq
-            if rho_sq <= 0:
-                # \gamma^2_k=1, \sigma^2_k=0
-                gamma_sq, sigma_sq = 1., 0.
-            else:
-                # \gamma^2_k = \beta^2_{k-1}/rho^2_k
-                gamma_sq = beta_km1 / rho_sq
-                # \sigma^2_k = \pi^2_{k-1}/rho^2_k
-                sigma_sq = pi_sq / rho_sq
-            # \tau_k = \sigma^2_k(\alpha_k-\lambda)-\gamma^2\tau_{k-1}
-            tau_k = sigma_sq * (alpha[k] - node) - gamma_sq * tau_km1
-            # \bar{alpha}_k=\alpha_k-(\tau_k-\tau_{k-1})
-            alpha[k] = alpha[k] - (tau_k - tau_km1)
-            # if \sigma_k^2=0 : use <=0 to allow for rounding error
-            if sigma_sq <= 0:
-                # \pi^2_k = \sigma^2_{k-1}\beta^2_{k-1}
-                pi_sq = sigma_sq_km1 * beta_km1
-            else:
-                # \pi^2_k = \tau^2_{k}\sigma^2_{k}
-                pi_sq = (tau_k**2)/sigma_sq
+    alpha, beta = np.zeros(N), np.zeros(N)
+    vec = np.zeros(nnodes+1)
+    vec[0] = 1
+    qii = np.zeros((nnodes+1, nnodes+1))
+    qii[:, 0] = vec
+    sqrt_w = np.sqrt(weights)
+    for ii in range(N):
+        z = np.hstack(
+            [vec[0]+np.sum(sqrt_w*vec[1:nnodes+1]),
+             sqrt_w*vec[0]+nodes*vec[1:nnodes+1]])
 
-            tau_km1 = tau_k
+        if ii > 0:
+            alpha[ii-1] = vec.dot(z)
 
-    beta[0] = 1.0
+        z -= qii[:, :ii+1].dot(qii[:, :ii+1].T.dot(z))
+        z -= qii[:, :ii+1].dot(qii[:, :ii+1].T.dot(z))
+
+        if ii < N:
+            znorm = np.linalg.norm(z)
+            beta[ii] = znorm**2
+            vec = z / znorm
+            qii[:, ii+1] = vec
+
     alpha = np.atleast_2d(alpha[:N])
     beta = np.atleast_2d(beta[:N])
     return np.concatenate((alpha.T, np.sqrt(beta.T)), axis=1)
