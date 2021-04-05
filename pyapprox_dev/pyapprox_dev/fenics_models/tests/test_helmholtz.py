@@ -1,16 +1,17 @@
 import sys
 import unittest, pytest
+import pyapprox as pya
 
 
-if sys.platform == 'win32':
+if pya.PYA_DEV_AVAILABLE:
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.helmholtz import *
+else:
     pytestmark = pytest.mark.skip("Skipping test on Windows")
 
     # Create stub class
     class dl(object):
         UserExpression = object
-else:
-    import dolfin as dl
-    from pyapprox_dev.fenics_models.helmholtz import *
 
 try:
     import mshr
