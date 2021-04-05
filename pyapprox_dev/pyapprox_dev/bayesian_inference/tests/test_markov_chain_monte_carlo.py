@@ -1,13 +1,19 @@
+import numpy as np
 import unittest
-from functools import partial
 from scipy.stats import norm, uniform
 
-from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
+import pyapprox as pya
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.utilities import get_tensor_product_quadrature_rule
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayesian_inference.laplace import \
     laplace_posterior_approximation_for_linear_models
+
+if pya.PYA_DEV_AVAILABLE:
+    from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
+else:
+    import pytest
+    pytestmark = pytest.mark.skip("Skipping test on Windows")
 
 
 class LinearModel(object):
