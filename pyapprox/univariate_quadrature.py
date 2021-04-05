@@ -549,7 +549,7 @@ def get_recursion_coefficients(
     # variables that require numerically generated polynomials with
     # predictor corrector method
     from scipy import stats
-    predcorr_rv_dict = {'gumbel_r': stats.gumbel_r, 'lognorm': stats.lognorm}
+    from scipy.stats import _continuous_distns
 
     poly_type = opts.get('poly_type', None)
     var_type = None
@@ -586,6 +586,7 @@ def get_recursion_coefficients(
             apoly, bpoly = -(n+1), -M-1+n
         num_coefs = min(num_coefs, N)
         recursion_coeffs = hahn_recurrence(num_coefs, N, apoly, bpoly)
+        xk = np.arange(max(0, N-M+n), min(n, N)+1, dtype=float)
     elif poly_type == 'discrete_chebyshev' or var_type == 'discrete_chebyshev':
         # although bounded the discrete_chebyshev polynomials are not defined
         # on the canonical domain [-1,1] but rather the user and
@@ -639,13 +640,13 @@ def get_recursion_coefficients(
             raise Exception(msg)
     elif poly_type == 'monomial':
         recursion_coeffs = None
-    elif var_type in predcorr_rv_dict:
+    elif var_type in _continuous_distns._distn_names:
         quad_options = {
             'nquad_samples': 10,
             'atol': numerically_generated_poly_accuracy_tolerance,
             'rtol': numerically_generated_poly_accuracy_tolerance,
             'max_steps': 10000, 'verbose': 0}
-        rv = predcorr_rv_dict[var_type](**opts['shapes'])
+        rv = getattr(stats, var_type)(**opts['shapes'])
         recursion_coeffs = predictor_corrector_known_scipy_pdf(
             num_coefs, rv, quad_options)
     elif poly_type == 'function_indpnt_vars':

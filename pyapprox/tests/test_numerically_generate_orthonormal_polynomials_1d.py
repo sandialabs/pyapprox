@@ -129,8 +129,17 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab  = modified_chebyshev_orthonormal(
             degree+1,[xk_canonical,pk])
         p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
+        print(p)
         w = rv.pmf(xk)
         assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+
+        ab  = predictor_corrector(
+            degree+1, (xk_canonical, pk), xk_canonical.min(),
+            xk_canonical.max(),
+            interval_size=xk_canonical.max()-xk_canonical.min())
+        p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
+        assert np.allclose(np.dot(p.T*w,p),np.eye(degree+1))
+        
 
     def test_predictor_corrector_known_scipy_pdf(self):
         nterms = 5

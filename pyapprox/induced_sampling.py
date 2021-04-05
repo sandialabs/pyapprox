@@ -810,9 +810,9 @@ def discrete_inverse_transform_sampling_1d(probability_mesh, probability_masses,
     return samples
 
 
-def basis_matrix_generator_1d(pce, nmax, dd, samples):
+def basis_matrix_generator_1d(pce, degree, dd, samples):
     vals = evaluate_orthonormal_polynomial_1d(
-        samples, nmax, pce.recursion_coeffs[pce.basis_type_index_map[dd]])
+        samples, degree, pce.recursion_coeffs[pce.basis_type_index_map[dd]])
     return vals
 
 

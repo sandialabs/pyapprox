@@ -255,7 +255,7 @@ def modified_chebyshev_orthonormal(nterms, quadrature_rule,
     # check if the range of moments is reasonable. If to large
     # can cause numerical problems
     abs_moments = np.absolute(moments)
-    assert abs_moments.max()-abs_moments.min() < 1e16
+    #assert abs_moments.max()-abs_moments.min() < 1e16
     ab = modified_chebyshev(nterms, moments, input_coefs)
     return convert_monic_to_orthonormal_recursion_coefficients(ab, probability)
 
@@ -354,8 +354,11 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
     nterms : integer
         The number of coefficients requested
 
-    measure : callable
-        The measure used to compute orthogonality
+    measure : callable or tuple
+        The function (measure) used to compute orthogonality. 
+        If a discrete measure then measure = tuple(xk, pk) where
+        xk are the probability masses locoation and pk are the weights
+        
 
     lb: float
         The lower bound of the measure (can be -infinity)
@@ -374,7 +377,20 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
 
     nquad_samples : integer
         The number of samples in the Gauss quadrature rule
+
+    Note the entry ab[-1, :] will likely be wrong when compared to analytical
+    formula if they exist. This does not matter because eval_poly does not 
+    use this value. If you want the correct value just request num_coef+1
+    coefficients.
     """
+
+    discrete_measure = not callable(measure)
+    if discrete_measure is True:
+        xk, pk = measure
+        assert xk.shape[0] == pk.shape[0]
+        assert nterms < xk.shape[0]
+        def measure(x):
+            return np.ones_like(x)
     
     ab = np.zeros((nterms, 2))
     nquad_samples = quad_options.get('nquad_samples', 100)
@@ -385,13 +401,23 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
     if np.isfinite(lb) and np.isfinite(ub):
         assert interval_size == ub-lb
 
-    def integrate(integrand, nquad_samples, interval_size):
+    def integrate_continuous(integrand, nquad_samples, interval_size):
         return integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-            integrand, lb, ub, nquad_samples, **quad_opts, interval_size=interval_size)
+            integrand, lb, ub, nquad_samples, **quad_opts,
+            interval_size=interval_size)
+
+    def integrate_discrete(integrand, nquad_samples, interval_size):
+        return integrand(xk).dot(pk)
+
+    if discrete_measure is True:
+        integrate = integrate_discrete
+    else:
+        integrate = integrate_continuous
 
     # for probablity measures the following will always be one, but 
     # this is not true for other measures
-    ab[0, 1] = np.sqrt(integrate(measure, nquad_samples, interval_size=interval_size))
+    ab[0, 1] = np.sqrt(
+        integrate(measure, nquad_samples, interval_size=interval_size))
 
     for ii in range(1, nterms):
         # predict
@@ -402,7 +428,8 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
             ab[ii-1, 0] = 0
 
         if np.isfinite(lb) and np.isfinite(ub) and ii > 1:
-            # use previous intervals size for last degree as initial guess of size needed here
+            # use previous intervals size for last degree as initial guess
+            # of size needed here
             xx, __ = gauss_quadrature(ab, nterms)
             interval_size = xx.max()-xx.min()
 
@@ -410,7 +437,8 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
             pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
             return measure(x)*pvals[:, ii]*pvals[:, ii-1]        
         G_ii_iim1 = integrate(
-            partial(integrand, measure), nquad_samples+ii, interval_size=interval_size)
+            partial(integrand, measure), nquad_samples+ii,
+            interval_size=interval_size)
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
         
         def integrand(measure, x):
@@ -420,7 +448,8 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
             return measure(x)*pvals[:, ii]**2
         
         G_ii_ii =  integrate(
-            partial(integrand, measure), nquad_samples+ii, interval_size=interval_size)
+            partial(integrand, measure), nquad_samples+ii,
+            interval_size=interval_size)
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab
