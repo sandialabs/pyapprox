@@ -67,6 +67,9 @@ def lanczos(nodes, weights, N):
 
     \bar{\alpha} are the current estimates of the recursion coefficients alpha
     \bar{\beta}  are the current estimates of the recursion coefficients beta
+
+    Lanczos is memory intensive for large numbers of nodes, e.g. from a 
+    set of samples, memory errors can be thrown.
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way

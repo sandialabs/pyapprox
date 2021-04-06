@@ -22,7 +22,7 @@ from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
     modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf, \
     predictor_corrector_function_of_independent_variables, \
     predictor_corrector_product_of_functions_of_independent_variables, \
-    lanczos
+    lanczos, predictor_corrector
 from pyapprox.orthonormal_polynomials_1d import \
     discrete_chebyshev_recurrence
 
@@ -632,7 +632,10 @@ def get_recursion_coefficients(
             raise Exception(msg)
         #print(num_coefs)
         #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
-        recursion_coeffs = lanczos(xk, pk, num_coefs)
+        #recursion_coeffs = lanczos(xk, pk, num_coefs)
+        recursion_coeffs = predictor_corrector(
+            num_coefs, (xk, pk), xk.min(), xk.max(),
+            interval_size=xk.max()-xk.min())
         p = evaluate_orthonormal_polynomial_1d(
             np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
         error = np.absolute((p.T*pk).dot(p)-np.eye(num_coefs)).max()
@@ -817,7 +820,8 @@ def get_pdf_weight_functions(variable):
 
 def univariate_pdf_weighted_leja_quadrature_rule(
         variable, growth_rule, level, return_weights_for_all_levels=True,
-        initial_points=None):
+        initial_points=None,
+        numerically_generated_poly_accuracy_tolerance=1e-12):
     """
     Return the samples and weights of the Leja quadrature rule for any 
     continuous variable using the PDF of the random variable as the 
@@ -865,7 +869,8 @@ def univariate_pdf_weighted_leja_quadrature_rule(
     opts = {'rv_type': name, 'shapes': shapes,
             'var_nums': variable}
     max_nsamples = growth_rule(level)
-    ab = get_recursion_coefficients(opts, max_nsamples+1)
+    ab = get_recursion_coefficients(
+        opts, max_nsamples+1, numerically_generated_poly_accuracy_tolerance)
     basis_fun = partial(evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
     pdf, pdf_jac = get_pdf_weight_functions(variable)

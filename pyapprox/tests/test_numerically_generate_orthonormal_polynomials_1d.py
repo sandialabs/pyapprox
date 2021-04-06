@@ -138,7 +138,6 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab = modified_chebyshev_orthonormal(
             degree+1, [xk_canonical, pk])
         p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
-        print(p)
         w = rv.pmf(xk)
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
