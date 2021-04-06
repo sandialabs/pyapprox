@@ -148,7 +148,7 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
         The samples of the Leja sequence
 
     data_structures : tuple
-        (Q,R,p) the QR factors and pivots. This can be useful for
+        (Q, R, p) the QR factors and pivots. This can be useful for
         quickly building an interpolant from the samples
     """
     candidate_samples = generate_candidate_samples(num_candidate_samples)

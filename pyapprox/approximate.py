@@ -74,7 +74,7 @@ def adaptive_approximate_sparse_grid(
         the error.
 
     univariate_quad_rule_info : list
-        List containing two entries. The first entry is a list 
+        List containing three entries. The first entry is a list 
         (or single callable) of univariate quadrature rules for each variable
         with signature
 
@@ -94,6 +94,14 @@ def adaptive_approximate_sparse_grid(
 
         If either entry is a callable then the same quad or growth rule is 
         applied to every variable.
+
+        The third entry is a list which specifies the maximum level of each
+        quadrature rule. If None then max_level is assumed to be np.inf for
+        each quadrature rule. If a scalar then the same value is applied
+        to all quadrature rules. This entry is useful for certain quadrature
+        rules, e.g. Gauss Patterson, or Leja sequences for bounded discrete
+        variables where there is a limit on the number of levels that can be 
+        used
 
     max_nsamples : float
         If ``cost_function==None`` then this argument is the maximum number of 
@@ -158,17 +166,36 @@ def adaptive_approximate_sparse_grid(
     if config_var_trans is not None:
         nvars += config_var_trans.num_vars()
     sparse_grid = CombinationSparseGrid(nvars)
-    if univariate_quad_rule_info is None:
-        quad_rules, growth_rules, unique_quadrule_indices = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans)
-    else:
-        quad_rules, growth_rules = univariate_quad_rule_info
-        unique_quadrule_indices = None
+
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
     elif np.isscalar(max_level_1d):
         max_level_1d = [max_level_1d]*nvars
+    
+    if univariate_quad_rule_info is None:
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = \
+                get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                    var_trans)
+        # Some quadrature rules have max_level enforce this here
+        print(max_level_1d)
+        for ii in range(len(unique_quadrule_indices)):
+            for ind in unique_quadrule_indices[ii]:
+                max_level_1d[ind] = max(
+                    max_level_1d[ind], unique_max_level_1d[ii])
+                print(max_level_1d)
+    else:
+        quad_rules, growth_rules, unique_max_level_1d = \
+            univariate_quad_rule_info
+        unique_quadrule_indices = None
+        if unique_max_level_1d is None:
+            unique_max_level_1d = [np.inf]*nvars
+        elif np.isscalar(unique_max_level_1d):
+            unique_max_level_1d = [unique_max_level_1d]*nvars
+        else:
+            raise Exception()
+        max_level_1d = np.minimum(unique_max_level_1d, max_level_1d)
+        
     assert len(max_level_1d) == nvars
     admissibility_function = partial(
         max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,

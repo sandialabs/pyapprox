@@ -134,7 +134,7 @@ class TestUnivariateQuadrature(unittest.TestCase):
             name='discrete_chebyshev', values=(xk, pk))()
 
         for variable in [var_cheb, stats.binom(20, 0.5),
-                         stats.hypergeom(10+10, 10, 9)][-1:]:
+                         stats.hypergeom(10+10, 10, 9)]:
             quad_rule = get_univariate_leja_quadrature_rule(
                 variable, growth_rule)
 
@@ -147,6 +147,10 @@ class TestUnivariateQuadrature(unittest.TestCase):
             moment = (x**(x.shape[0]-1)).dot(w[-1])
             
             assert np.allclose(moment, true_moment)
+
+            x1, w1 = quad_rule(level+2)
+            # test samples are nested
+            assert np.allclose(x, x1[:x.shape[0]])
 
     def test_hermite_christoffel_leja_quadrature_rule(self):
         from scipy import stats
@@ -161,6 +165,10 @@ class TestUnivariateQuadrature(unittest.TestCase):
         assert np.allclose(samples[0], (variable.ppf(0.75)-2)/3)
         # so integral is computed with resepect to standard normal
         assert np.allclose((samples**2).dot(weights[-1]), 1)
+
+        # check samples are nested.
+        samples1, weights1 = quad_rule(level+3)
+        assert np.allclose(samples1[:samples.shape[0]], samples)
 
     def test_uniform_christoffel_leja_quadrature_rule(self):
         import warnings

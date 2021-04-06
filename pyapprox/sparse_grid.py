@@ -75,7 +75,8 @@ def update_1d_samples_weights_economical(
         if current_level <= max_level_dd:
             sig = signature(quad_rules[dd])
             keyword_args = [p.name for p in sig.parameters.values()
-                            if p.kind == p.POSITIONAL_OR_KEYWORD]
+                            if ((p.kind == p.POSITIONAL_OR_KEYWORD) or
+                                (p.kind == p.KEYWORD_ONLY))]
             if current_level > 0 and 'initial_points' in keyword_args:
                 # useful for updating Leja rules
                 x, w = quad_rules[dd](

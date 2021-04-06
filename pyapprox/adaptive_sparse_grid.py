@@ -1,4 +1,5 @@
-from pyapprox.variables import variable_shapes_equivalent
+from pyapprox.variables import variable_shapes_equivalent, \
+    is_bounded_discrete_variable, get_probability_masses
 from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
     get_univariate_leja_quadrature_rule, clenshaw_curtis_rule_growth
 from pyapprox.univariate_quadrature import leja_growth_rule, \
@@ -1194,12 +1195,20 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         raise Exception(msg)
 
     quad_rules = []
+    max_level_1d = []
     for ii in range(len(unique_quadrule_indices)):
         quad_rule = get_univariate_leja_quadrature_rule(
             unique_quadrule_variables[ii], growth_rules[ii], method)
         quad_rules.append(quad_rule)
+        if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
+            max_level_1d_ii = get_probability_masses(
+                unique_quadrule_variables[ii])[0].shape[0]
+        else:
+            max_level_1d_ii = np.inf
+            
+        max_level_1d.append(max_level_1d_ii)
 
-    return quad_rules, growth_rules, unique_quadrule_indices
+    return quad_rules, growth_rules, unique_quadrule_indices, max_level_1d
 
 
 def get_sparse_grid_univariate_leja_quadrature_rules(
@@ -1207,16 +1216,20 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
     """
     Return a list of quadrature rules for every variable
     """
-    unique_quad_rules, unique_growth_rules, unique_quadrule_indices = \
-        get_sparse_grid_univariate_leja_quadrature_rules_economical(
-            var_trans, growth_rules=None)
+    unique_quad_rules, unique_growth_rules, unique_quadrule_indices, \
+        unique_max_level_1d = \
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans, growth_rules=None)
     quad_rules = [None for ii in var_trans.num_vars()]
     growth_rules = [None for ii in var_trans.num_vars()]
-    for quad_rule, growth_rule, indices, in zip(
-            unique_quad_rules, unique_growth_rules, unique_quadrule_indices):
+    max_level_1d = [None for ii in var_trans.num_vars()]
+    for quad_rule, growth_rule, indices, max_level in zip(
+            unique_quad_rules, unique_growth_rules, unique_quadrule_indices,
+            unique_max_level_1d):
         quad_rules[indices] = quad_rule
         qrowth_rules[indices] = growth_rule
-    return quad_rules, growth_rules
+        max_level_1d[indices] = max_level
+    return quad_rules, growth_rules, max_level_1d
 
 
 class CombinationSparseGrid(SubSpaceRefinementManager):
@@ -1569,7 +1582,8 @@ class ConfigureVariableTransformation(object):
 
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
-                                              quadrule_variables):
+                                              quadrule_variables,
+                                              method='pdf'):
     num_vars = sparse_grid.num_vars
     num_random_vars = num_vars-sparse_grid.num_config_vars
     assert len(quadrule_variables) == num_random_vars
@@ -1603,7 +1617,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
         initial_points_list.append(canonical_initial_points_new)
 
         quad_rules.append(get_univariate_leja_quadrature_rule(
-            quadrule_variables[ii], growth_rule, 'christoffel',
+            quadrule_variables[ii], growth_rule, method,
             initial_points=canonical_initial_points_new))
         
     sparse_grid.set_univariate_growth_rules(

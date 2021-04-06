@@ -1436,9 +1436,10 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         num_vars = len(univariate_variables)
         max_level_1d = [max_level]*(num_vars)
 
-        quad_rules, growth_rules, unique_quadrule_indices = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans, growth_rules)
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = \
+                get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                    var_trans, growth_rules)
 
         assert len(quad_rules) == len(growth_rules)
 
@@ -1522,10 +1523,11 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         # assumes that only one type of quadrule can be specified
         selected_variables_idx = np.asarray([0, 1])
-        self.assertRaises(Exception, self.economical_quad_rules_helper,
-                          selected_variables_idx, univariate_variables, sp_variables,
-                          ranges, weight_functions, 2,
-                          [clenshaw_curtis_rule_growth, leja_growth_rule])
+        self.assertRaises(
+            Exception, self.economical_quad_rules_helper,
+            selected_variables_idx, univariate_variables, sp_variables,
+            ranges, weight_functions, 2,
+            [clenshaw_curtis_rule_growth, leja_growth_rule])
 
         selected_variables_idx = np.asarray([2, 3, 0, 1])
         unique_quadrule_indices = self.economical_quad_rules_helper(
@@ -1547,12 +1549,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             ranges, weight_functions, 2)
         assert lists_of_arrays_equal(
             unique_quadrule_indices, [[0, 1, 4], [2], [3]])
-
-    @skiptest
-    def test_economical_quad_rules(self):
-        # copy test_economical_quad_rules and make sure this test passes when
-        # configure variables are added.'
-        raise Exception
 
     def test_convert_sparse_grid_to_pce_mixed_basis(self):
 
@@ -1579,9 +1575,10 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
-        quad_rules, growth_rules, unique_quadrule_indices = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans, method=leja_method)
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = \
+                get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                    var_trans, method=leja_method)
 
         max_num_sparse_grid_samples = None
         error_tol = None
@@ -1933,11 +1930,18 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
             univariate_variables)
         var_trans = pya.AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = \
+                get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                    var_trans)
+        max_level_1d = [6]*2
+        for ii in range(len(unique_quadrule_indices)):
+            for ind in unique_quadrule_indices[ii]:
+                max_level_1d[ind] = max(
+                    max_level_1d[ind], unique_max_level_1d[ii])
         admissibility_function = partial(
-            max_level_admissibility_function, np.inf, [6]*2, 100, 0, verbose=False)
-        quad_rules, growth_rules, unique_quadrule_indices = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans)
+            max_level_admissibility_function, np.inf, [6]*2, 100, 0,
+            verbose=False)
 
         def function(samples):
             return ((samples+1)**5).sum(axis=0)[:, np.newaxis]
@@ -1954,24 +1958,24 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         assert np.allclose(validation_values, vals)
 
     def test_insitu_update_sparse_grid_quadrature_rule(self):
-        num_vars = 2
-        
         import pyapprox as pya
         from scipy.stats import beta, uniform
         def function(samples):
             return ((samples+1)**5).sum(axis=0)[:, np.newaxis]
         
-        univariate_variables = [uniform(-1, 2), uniform(0, 1)]
+        univariate_variables = [uniform(-1, 2)]#, uniform(0, 1)]
+        num_vars = len(univariate_variables)
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = pya.AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
         admissibility_function = partial(
             max_level_admissibility_function, np.inf,
-            [6]*2, 100, 0, verbose=False)
-        quad_rules, growth_rules, unique_quadrule_indices = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans)
+            [12]*num_vars, 100, 0, verbose=False)
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = \
+                get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                    var_trans)
         sparse_grid.setup(
             function, None, isotropic_refinement_indicator,
             admissibility_function, growth_rules, quad_rules,
@@ -1982,32 +1986,29 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         for ii in range(ninitial_refine_steps):
             sparse_grid.refine()
 
-        quadrule_variables = [uniform(-2,4), uniform(0,2)]
+        quadrule_variables = [uniform(-2,4)]#, uniform(0,2)]
+        var_trans_new = pya.AffineRandomVariableTransformation(
+            quadrule_variables)
+        #map initial points from canonical domain of first range
+        #to canconical domain of second range
+        initial_points = sparse_grid.samples_1d[0][-1][None, :].copy()
+        initial_points = var_trans.map_from_canonical_space(initial_points)
+        initial_points = var_trans_new.map_to_canonical_space(initial_points)
+        print(initial_points)
+        
+        quad_rule = get_univariate_leja_quadrature_rule(
+            quadrule_variables[0], growth_rules[0], method='pdf',
+            initial_points=initial_points)
+
         sparse_grid = insitu_update_sparse_grid_quadrature_rule(
             sparse_grid, quadrule_variables)
         
         for ii in range(nsubsequent_refine_steps):
             sparse_grid.refine()
 
-        sparse_grid_true = CombinationSparseGrid(num_vars)
-        sparse_grid_true.set_function(
-            function, sparse_grid.variable_transformation)
-        sparse_grid_true.set_refinement_functions(
-            isotropic_refinement_indicator, admissibility_function,
-            sparse_grid.compact_univariate_growth_rule, None, None,
-            sparse_grid.unique_quadrule_indices)
-        sparse_grid_true.set_univariate_rules(
-            sparse_grid.compact_univariate_quad_rule)
+        samples = quad_rule(sparse_grid.subspace_indices.max())[0]
 
-        for ii in range(nsubsequent_refine_steps+ninitial_refine_steps):
-            sparse_grid_true.refine()
-
-        assert np.allclose(sparse_grid.samples, sparse_grid_true.samples)
-
-        validation_samples = pya.generate_independent_random_samples(
-            sparse_grid.variable_transformation.variable, 100)
-        assert np.allclose(sparse_grid(validation_samples),
-                           sparse_grid_true(validation_samples))
+        assert np.allclose(sparse_grid.samples[0, :], samples)
 
 if __name__ == "__main__":
     # these functions need to be defined here so pickeling works
@@ -2021,10 +2022,12 @@ if __name__ == "__main__":
         TestSparseGrid)
     unittest.TextTestRunner(verbosity=2).run(sparse_grid_test_suite)
 
-    adaptive_sparse_grid_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestAdaptiveSparseGrid)
+    adaptive_sparse_grid_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestAdaptiveSparseGrid)
     unittest.TextTestRunner(verbosity=2).run(adaptive_sparse_grid_test_suite)
 
-    adaptive_multi_index_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestAdaptiveMultiIndexSparseGrid)
+    adaptive_multi_index_test_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestAdaptiveMultiIndexSparseGrid)
     unittest.TextTestRunner(verbosity=2).run(adaptive_multi_index_test_suite)

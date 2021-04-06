@@ -630,7 +630,7 @@ def get_recursion_coefficients(
             msg = 'Number of coefs requested is larger than number of '
             msg += 'samples'
             raise Exception(msg)
-        print(num_coefs)
+        #print(num_coefs)
         #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
         recursion_coeffs = lanczos(xk, pk, num_coefs)
         p = evaluate_orthonormal_polynomial_1d(
@@ -658,7 +658,6 @@ def get_recursion_coefficients(
     elif poly_type == 'product_indpnt_vars':
         recursion_coeffs = get_product_independent_vars_recursion_coefficients(
             opts, num_coefs)
-        print(recursion_coeffs)
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported' % poly_type)

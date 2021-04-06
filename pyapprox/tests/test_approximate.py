@@ -25,6 +25,28 @@ class TestApproximate(unittest.TestCase):
             nsamples)
         assert error < 1e-12
 
+    def test_approximate_sparse_grid_discrete(self):
+        def fun(samples):
+            return np.cos(samples.sum(axis=0)/20)[:, None]
+        nvars = 2
+        univariate_variables = [stats.binom(20, 0.5)]*nvars
+        approx = adaptive_approximate(
+            fun, univariate_variables, 'sparse_grid').approx
+        nsamples = 100
+        error = compute_l2_error(
+            approx, fun, approx.variable_transformation.variable,
+            nsamples)
+        assert error < 1e-12
+        # check leja samples are nested. Sparse grid uses christoffel
+        # leja sequence that does not change preconditioner everytime
+        # lu pivot is performed, but we can still enforce nestedness
+        # by specifiying initial points. This tests make sure this is done
+        # correctly
+        for ll in range(1, len(approx.samples_1d[0])):
+            n = approx.samples_1d[0][ll-1].shape[0]
+            assert np.allclose(approx.samples_1d[0][ll][:n],
+                               approx.samples_1d[0][ll-1])
+
     def test_approximate_sparse_grid_user_options(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
@@ -39,7 +61,7 @@ class TestApproximate(unittest.TestCase):
             errors.append(error)
         univariate_quad_rule_info = [
             pya.clenshaw_curtis_in_polynomial_order,
-            pya.clenshaw_curtis_rule_growth]
+            pya.clenshaw_curtis_rule_growth, None]
         # ishigami has same value at first 3 points in clenshaw curtis rule
         # and so adaptivity will not work so use different rule
         # growth_rule=partial(pya.constant_increment_growth_rule,4)
@@ -353,3 +375,4 @@ if __name__ == "__main__":
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestApproximate)
     unittest.TextTestRunner(verbosity=2).run(approximate_test_suite)
+    

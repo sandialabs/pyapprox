@@ -772,17 +772,20 @@ def get_leja_sequence_quadrature_weights(leja_sequence, growth_rule,
 
     samples : np.ndarray (nvars, nsamples)
     """
-    sqrt_weights = np.sqrt(weight_function(leja_sequence))
     # precondition matrix to produce better condition number
-    basis_matrix = (basis_matrix_generator(leja_sequence).T*sqrt_weights).T
+    basis_matrix = basis_matrix_generator(leja_sequence)
     if return_weights_for_all_levels:
         ordered_weights_1d = []
         for ll in range(level+1):
-            basis_matrix_inv = np.linalg.inv(
-                basis_matrix[:growth_rule(ll), :growth_rule(ll)])
+            # Christoffel preconditioner depends on level so compute weights
+            # here instead of before loop
+            sqrt_weights = np.sqrt(
+                weight_function(leja_sequence[:, :growth_rule(ll)]))
+            basis_mat_ll = (basis_matrix[:growth_rule(ll),
+                                         :growth_rule(ll)].T*sqrt_weights).T
+            basis_mat_ll_inv = np.linalg.inv(basis_mat_ll)
             # make sure to adjust weights to account for preconditioning
-            ordered_weights_1d.append(
-                basis_matrix_inv[0, :]*sqrt_weights[:growth_rule(ll)])
+            ordered_weights_1d.append(basis_mat_ll_inv[0, :]*sqrt_weights)
     else:
         basis_matrix_inv = np.linalg.inv(
             basis_matrix[:growth_rule(level), :growth_rule(level)])
