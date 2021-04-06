@@ -295,7 +295,7 @@ class AdaptiveGaussianProcess(GaussianProcess):
         self.sampler = sampler
 
     def refine(self, num_samples):
-        new_samples = self.sampler(num_samples)[0]
+        new_samples, chol_flag = self.sampler(num_samples)
         new_values = self.func(new_samples)
         assert new_values.shape[1] == 1  # must be scalar values QoI
         if hasattr(self, 'X_train_'):
@@ -304,6 +304,7 @@ class AdaptiveGaussianProcess(GaussianProcess):
         else:
             train_samples, train_values = new_samples, new_values
         self.fit(train_samples, train_values)
+        return chol_flag
 
 
 def is_covariance_kernel(kernel, kernel_types):

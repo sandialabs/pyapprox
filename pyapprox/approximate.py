@@ -40,7 +40,7 @@ def adaptive_approximate_sparse_grid(
     Parameters
     ----------
     fun : callable
-        The function to be minimized
+        The function to be approximated
 
         ``fun(z) -> np.ndarray``
 
@@ -335,6 +335,156 @@ def adaptive_approximate_polynomial_chaos(
     return ApproximateResult({'approx': pce})
 
 
+def adaptive_approximate_gaussian_process(
+        fun, univariate_variables, callback=None,
+        max_nsamples=100, verbose=0, ncandidate_samples=1e4,
+        checkpoints=None, nu=np.inf, n_restarts_optimizer=1, 
+        normalize_y=False, alpha=0,
+        noise_level=None, noise_level_bounds='fixed',
+        kernel_variance=None,
+        kernel_variance_bounds='fixed',
+        length_scale=1,
+        length_scale_bounds=(1e-2, 10)):
+    r"""
+    Adaptively construct a Gaussian process approximation of a function using 
+    weighted-pivoted-Cholesky sampling and the Matern kernel
+
+    .. math::
+
+       k(z_i, z_j) =  \frac{1}{\Gamma(\nu)2^{\nu-1}}\Bigg(
+       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)^\nu K_\nu\Bigg(
+       \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)
+
+    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance, 
+    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the 
+    modified Bessel function.
+
+    Starting from an initial guess, the algorithm learns the kernel length 
+    scale as more training data is collected.
+
+    Parameters
+    ----------
+    fun : callable
+        The function to be approximated
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    univariate_variables : list
+        A list of scipy.stats random variables of size (nvars)
+
+    callback : callable
+        Function called after each iteration with the signature
+
+        ``callback(approx_k)``
+
+        where approx_k is the current approximation object.
+
+    nu : string
+        The parameter :math:`\nu` of the Matern kernel. When :math:`\nu\to\inf`
+        the Matern kernel is equivalent to the squared-exponential kernel.
+
+    checkpoints : iterable
+        The set of points at which the length scale of the kernel will be 
+        recomputed and new training data obtained. If None then
+        ``checkpoints = np.linspace(10, max_nsamples, 10).astype(int)``
+
+    max_nsamples : float
+        The maximum number of evaluations of fun. If fun has configure variables.
+
+    ncandidate_samples : integer
+        The number of candidate samples used to select the training samples 
+        The final training samples will be a subset of these samples.
+
+    alpha : float
+        Nugget added to diagonal of the covariance kernel evaluated at 
+        the training data. Used to improve numerical conditionining. This
+        parameter is different to noise_level which applies to both training
+        and test data
+
+    normalize_y : bool
+        True - normalize the training values to have zero mean and unit variance
+
+    length_scale : float
+        The initial length scale used to generate the first batch of training 
+        samples
+
+    length_scale_bounds : tuple (2)
+        The lower and upper bound on length_scale used in optimization of
+        the Gaussian process hyper-parameters
+
+    noise_level : float
+        The noise_level used when training the GP
+
+    noise_level_bounds : tuple (2)
+        The lower and upper bound on noise_level used in optimization of
+        the Gaussian process hyper-parameters
+
+    kernel_variance : float
+        The kernel_variance used when training the GP
+
+    noise_level_bounds : tuple (2)
+        The lower and upper bound on kernel_variance used in optimization of
+        the Gaussian process hyper-parameters
+
+    n_restarts_optimizer : int
+        The number of local optimizeation problems solved to find the 
+        GP hyper-parameters
+
+    verbose : integer
+        Controls the amount of information printed to screen
+
+    Returns
+    -------
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx : :class:`pyapprox.gaussian_process.AdaptiveGaussianProcess`
+        The Gaussian process
+    """
+    
+    variable = IndependentMultivariateRandomVariable(
+        univariate_variables)
+    var_trans = AffineRandomVariableTransformation(variable)
+    nvars = var_trans.num_vars()
+    
+    kernel = __setup_gaussian_process_kernel(
+        nvars, length_scale, length_scale_bounds,
+        kernel_variance, kernel_variance_bounds,
+        noise_level, noise_level_bounds, nu)
+    
+    from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
+        CholeskySampler
+
+    sampler = CholeskySampler(
+        nvars, ncandidate_samples, var_trans.variable)
+    sampler_kernel = copy.deepcopy(kernel)
+    sampler.set_kernel(sampler_kernel)
+
+    gp = AdaptiveGaussianProcess(
+        kernel, n_restarts_optimizer=n_restarts_optimizer, alpha=alpha)
+    gp.setup(fun, sampler)
+
+    if checkpoints is None:
+        checkpoints = np.linspace(10, max_nsamples, 10).astype(int)
+    
+    nsteps = len(checkpoints)
+    for kk in range(nsteps):
+        chol_flag = gp.refine(checkpoints[kk])
+        gp.sampler.set_kernel(copy.deepcopy(gp.kernel_))
+        if callback is not None:
+            callback(gp)
+        if chol_flag != 0:
+            msg = 'Cannot add additional samples, Kernel is now ill conditioned'
+            msg += '. If more samples are really required increase alpha or'
+            msg += ' manually fix kernel_length to a smaller value'
+            print('Exiting: ' + msg)
+            break
+    return ApproximateResult({'approx': gp})
+
+
 def compute_l2_error(f, g, variable, nsamples, rel=False):
     r"""
     Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
@@ -423,10 +573,13 @@ def adaptive_approximate(fun, variable, method, options=None):
          - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
 
          - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+
+         - :func:`pyapprox.approximate.adaptive_approximate_gaussian_process`
     """
 
     methods = {'sparse_grid': adaptive_approximate_sparse_grid,
-               'polynomial_chaos': adaptive_approximate_polynomial_chaos}
+               'polynomial_chaos': adaptive_approximate_polynomial_chaos,
+               'gaussian_process': adaptive_approximate_gaussian_process}
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -1237,6 +1390,30 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
     return ApproximateResult({'approx': pce})
 
 
+def __setup_gaussian_process_kernel(nvars, length_scale, length_scale_bounds,
+                                   kernel_variance, kernel_variance_bounds,
+                                   noise_level, noise_level_bounds, nu):
+    from sklearn.gaussian_process.kernels import Matern, WhiteKernel, \
+        ConstantKernel
+    if np.isscalar(length_scale):
+        length_scale = np.array([length_scale]*nvars)
+    assert length_scale.shape[0] == nvars
+    kernel = Matern(length_scale, length_scale_bounds=length_scale_bounds,
+                    nu=nu)
+    # optimize variance
+    if kernel_variance is not None:
+        kernel = ConstantKernel(
+            constant_value=kernel_variance,
+            constant_value_bounds=kernel_variance_bounds)*kernel
+    # optimize gp noise
+    if noise_level is not None:
+        kernel += WhiteKernel(
+            noise_level, noise_level_bounds=noise_level_bounds)
+    # Note noise_level is different to alpha
+    # noise_kernel applies nugget to both training and test data
+    # alpha only applies it to training data
+    return kernel
+
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
                                  n_restarts_optimizer=5, verbose=0,
                                  normalize_y=False, alpha=0,
@@ -1268,9 +1445,40 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     train_vals : np.ndarray (nvars, 1)
         The values of the function at ``train_samples``
 
-    kernel_nu : string
+    nu : string
         The parameter :math:`\nu` of the Matern kernel. When :math:`\nu\to\inf`
         the Matern kernel is equivalent to the squared-exponential kernel.
+
+    alpha : float
+        Nugget added to diagonal of the covariance kernel evaluated at 
+        the training data. Used to improve numerical conditionining. This
+        parameter is different to noise_level which applies to both training
+        and test data
+
+    normalize_y : bool
+        True - normalize the training values to have zero mean and unit variance
+
+    length_scale : float
+        The initial length scale used to generate the first batch of training 
+        samples
+
+    length_scale_bounds : tuple (2)
+        The lower and upper bound on length_scale used in optimization of
+        the Gaussian process hyper-parameters
+
+    noise_level : float
+        The noise_level used when training the GP
+
+    noise_level_bounds : tuple (2)
+        The lower and upper bound on noise_level used in optimization of
+        the Gaussian process hyper-parameters
+
+    kernel_variance : float
+        The kernel_variance used when training the GP
+
+    noise_level_bounds : tuple (2)
+        The lower and upper bound on kernel_variance used in optimization of
+        the Gaussian process hyper-parameters
 
     n_restarts_optimizer : int
         The number of local optimizeation problems solved to find the 
@@ -1287,27 +1495,13 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     approx : :class:`pyapprox.gaussian_process.GaussianProcess`
         The Gaussian process
     """
-    from sklearn.gaussian_process.kernels import Matern, WhiteKernel, \
-        ConstantKernel
     from pyapprox.gaussian_process import GaussianProcess
     nvars = train_samples.shape[0]
-    if np.isscalar(length_scale):
-        length_scale = np.array([length_scale]*nvars)
-    assert length_scale.shape[0] == nvars
-    kernel = Matern(length_scale, length_scale_bounds=length_scale_bounds,
-                    nu=nu)
-    # optimize variance
-    if kernel_variance is not None:
-        kernel = ConstantKernel(
-            constant_value=kernel_variance,
-            constant_value_bounds=kernel_variance_bounds)*kernel
-    # optimize gp noise
-    if noise_level is not None:
-        kernel += WhiteKernel(
-            noise_level, noise_level_bounds=noise_level_bounds)
-    # Note noise_level is different to alpha
-    # noise_kernel applies nugget to both training and test data
-    # alpha only applies it to training data
+    kernel = __setup_gaussian_process_kernel(
+        nvars, length_scale, length_scale_bounds,
+        kernel_variance, kernel_variance_bounds,
+        noise_level, noise_level_bounds, nu)
+    
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
                          normalize_y=normalize_y, alpha=alpha)
     
