@@ -70,7 +70,7 @@ def lanczos(nodes, weights, N):
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way
-    assert abs(weights.sum()-1) < 1e-15
+    assert abs(weights.sum()-1) < 2e-15
     nnodes = nodes.shape[0]
     assert N <= nnodes
     assert(nnodes == weights.shape[0])

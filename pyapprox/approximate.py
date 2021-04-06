@@ -178,12 +178,10 @@ def adaptive_approximate_sparse_grid(
                 get_sparse_grid_univariate_leja_quadrature_rules_economical(
                     var_trans)
         # Some quadrature rules have max_level enforce this here
-        print(max_level_1d)
         for ii in range(len(unique_quadrule_indices)):
             for ind in unique_quadrule_indices[ii]:
                 max_level_1d[ind] = min(
                     max_level_1d[ind], unique_max_level_1d[ii])
-        print(max_level_1d)
     else:
         quad_rules, growth_rules, unique_max_level_1d = \
             univariate_quad_rule_info

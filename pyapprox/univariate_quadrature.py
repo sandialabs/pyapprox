@@ -904,7 +904,7 @@ def univariate_pdf_weighted_leja_quadrature_rule(
     return leja_sequence[0, :], ordered_weights_1d
 
 
-def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule, initial_points=None):
+def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule, initial_points=None, numerically_generated_poly_accuracy_tolerance=1e-12):
     from pyapprox.variables import get_probability_masses, \
         is_bounded_discrete_variable
     var_name, scales, shapes = get_distribution_info(variable)
@@ -916,7 +916,9 @@ def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule, initial_
         def generate_candidate_samples(num_samples):
             return xk[None, :]
         opts = {'rv_type': var_name, 'shapes': shapes}
-        recursion_coeffs = get_recursion_coefficients(opts, xk.shape[0])
+        recursion_coeffs = get_recursion_coefficients(
+            opts, xk.shape[0],
+            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance)
         quad_rule = partial(
             candidate_based_christoffel_leja_rule_1d, recursion_coeffs,
             generate_candidate_samples, xk.shape[0], growth_rule=growth_rule,
@@ -935,7 +937,9 @@ def get_univariate_leja_quadrature_rule(
 
     if not is_continuous_variable(variable):
         return get_discrete_univariate_leja_quadrature_rule(
-            variable, growth_rule, initial_points=initial_points)
+            variable, growth_rule,
+            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance,
+            initial_points=initial_points)
 
     if method == 'christoffel':
         return partial(
@@ -943,8 +947,11 @@ def get_univariate_leja_quadrature_rule(
             numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance, initial_points=initial_points)
 
     if method == 'pdf':
-        return partial(univariate_pdf_weighted_leja_quadrature_rule,
-                       variable, growth_rule, initial_points=initial_points)
+        return partial(
+            univariate_pdf_weighted_leja_quadrature_rule,
+            variable, growth_rule,
+            numerically_generated_poly_accuracy_tolerance=numerically_generated_poly_accuracy_tolerance,
+            initial_points=initial_points)
 
     assert method == 'deprecated'
     var_name, __, shapes = get_distribution_info(variable)

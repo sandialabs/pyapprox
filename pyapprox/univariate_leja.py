@@ -787,10 +787,14 @@ def get_leja_sequence_quadrature_weights(leja_sequence, growth_rule,
             # make sure to adjust weights to account for preconditioning
             ordered_weights_1d.append(basis_mat_ll_inv[0, :]*sqrt_weights)
     else:
-        basis_matrix_inv = np.linalg.inv(
-            basis_matrix[:growth_rule(level), :growth_rule(level)])
+        ll = level
+        sqrt_weights = np.sqrt(
+            weight_function(leja_sequence[:, :growth_rule(ll)]))
+        basis_mat_ll = (basis_matrix[:growth_rule(ll),
+                                     :growth_rule(ll)].T*sqrt_weights).T
+        basis_mat_ll_inv = np.linalg.inv(basis_mat_ll)
         # make sure to adjust weights to account for preconditioning
-        ordered_weights_1d = basis_matrix_inv[0, :]*sqrt_weights
+        ordered_weights_1d = basis_mat_ll_inv[0, :]*sqrt_weights
 
     return ordered_weights_1d
 
