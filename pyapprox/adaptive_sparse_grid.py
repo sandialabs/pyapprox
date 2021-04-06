@@ -1201,11 +1201,17 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
             unique_quadrule_variables[ii], growth_rules[ii], method)
         quad_rules.append(quad_rule)
         if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
-            max_level_1d_ii = get_probability_masses(
+            max_nsamples_ii = get_probability_masses(
                 unique_quadrule_variables[ii])[0].shape[0]
+            ll = 0 
+            while True:
+                if growth_rules[ii](ll) > max_nsamples_ii-1:
+                    max_level_1d_ii = ll-1
+                    break
+                ll += 1
         else:
             max_level_1d_ii = np.inf
-            
+
         max_level_1d.append(max_level_1d_ii)
 
     return quad_rules, growth_rules, unique_quadrule_indices, max_level_1d

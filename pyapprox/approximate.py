@@ -181,9 +181,9 @@ def adaptive_approximate_sparse_grid(
         print(max_level_1d)
         for ii in range(len(unique_quadrule_indices)):
             for ind in unique_quadrule_indices[ii]:
-                max_level_1d[ind] = max(
+                max_level_1d[ind] = min(
                     max_level_1d[ind], unique_max_level_1d[ii])
-                print(max_level_1d)
+        print(max_level_1d)
     else:
         quad_rules, growth_rules, unique_max_level_1d = \
             univariate_quad_rule_info
