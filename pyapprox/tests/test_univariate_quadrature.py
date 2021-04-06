@@ -122,26 +122,31 @@ class TestUnivariateQuadrature(unittest.TestCase):
         # print(true_moment)
         assert np.allclose(moment, true_moment)
 
-    def test_get_univariate_leja_rule_discrete_chebyshev(self):
+    def test_get_univariate_leja_rule_bounded_discrete(self):
+        from scipy import stats
+        growth_rule = partial(constant_increment_growth_rule, 2)
+        level = 3
 
         nmasses = 20
         xk = np.array(range(0, nmasses), dtype='float')
         pk = np.ones(nmasses)/nmasses
-        variable = float_rv_discrete(
+        var_cheb = float_rv_discrete(
             name='discrete_chebyshev', values=(xk, pk))()
-        growth_rule = partial(constant_increment_growth_rule, 2)
-        quad_rule = get_univariate_leja_quadrature_rule(variable, growth_rule)
-        level = 3
-        scales, shapes = get_distribution_info(variable)[1:]
 
-        x, w = quad_rule(level)
+        for variable in [var_cheb, stats.binom(20, 0.5),
+                         stats.hypergeom(10+10, 10, 9)][-1:]:
+            quad_rule = get_univariate_leja_quadrature_rule(
+                variable, growth_rule)
 
-        true_moment = (xk**(x.shape[0]-1)).dot(pk)
-        moment = (x**(x.shape[0]-1)).dot(w[-1])
+            # polys of binom, hypergeometric have no canonical domain [-1,1]
+            x, w = quad_rule(level)
 
-        # print(moment)
-        # print(true_moment)
-        assert np.allclose(moment, true_moment)
+            from pyapprox.variables import get_probability_masses
+            xk, pk  =  get_probability_masses(variable)
+            true_moment = (xk**(x.shape[0]-1)).dot(pk)
+            moment = (x**(x.shape[0]-1)).dot(w[-1])
+            
+            assert np.allclose(moment, true_moment)
 
     def test_hermite_christoffel_leja_quadrature_rule(self):
         from scipy import stats

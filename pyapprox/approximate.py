@@ -604,7 +604,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     assert train_vals.ndim == 2
     assert train_vals.shape[1] == 1
 
-    # The following co,ment and two conditional statements are only true
+    # The following comment and two conditional statements are only true
     # for lars which I have switched off.
     
     # cv interpolates each residual onto a common set of alphas

@@ -923,8 +923,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(
             poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
         assert np.allclose(
-            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())
-        
+            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())   
 
 
 if __name__ == "__main__":

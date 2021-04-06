@@ -658,6 +658,7 @@ def get_recursion_coefficients(
     elif poly_type == 'product_indpnt_vars':
         recursion_coeffs = get_product_independent_vars_recursion_coefficients(
             opts, num_coefs)
+        print(recursion_coeffs)
     else:
         if poly_type is not None:
             raise Exception('poly_type (%s) not supported' % poly_type)
@@ -680,8 +681,9 @@ def candidate_based_christoffel_leja_rule_1d(
 
     from pyapprox.polynomial_sampling import christoffel_weights
 
-    def generate_basis_matrix(x): return evaluate_orthonormal_polynomial_deriv_1d(
-        x[0, :], num_leja_samples, recursion_coeffs, deriv_order=0)
+    def generate_basis_matrix(x):
+        return evaluate_orthonormal_polynomial_deriv_1d(
+            x[0, :], num_leja_samples, recursion_coeffs, deriv_order=0)
 
     def weight_function(x): return christoffel_weights(
         generate_basis_matrix(x))
@@ -904,54 +906,24 @@ def univariate_pdf_weighted_leja_quadrature_rule(
 
 
 def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule, initial_points=None):
-    var_type, __, shapes = get_distribution_info(variable)
-    if var_type == 'binom':
+    from pyapprox.variables import get_probability_masses, \
+        is_bounded_discrete_variable
+    var_name, scales, shapes = get_distribution_info(variable)
+    if is_bounded_discrete_variable(variable):
         if initial_points is None:
-            initial_points = np.atleast_2d(
-                [binomial_rv.ppf(0.5, num_trials, prob_success)])
-        num_trials = variable_parameters['num_trials']
-        prob_success = variable_parameters['prob_success']
+            initial_points = np.atleast_2d([variable.ppf(0.5)])
 
+        xk, pk = get_probability_masses(variable)
         def generate_candidate_samples(num_samples):
-            assert num_samples == num_trials+1
-            return np.arange(0, num_trials+1)[np.newaxis, :]
-        recursion_coeffs = krawtchouk_recurrence(
-            num_trials, num_trials, probability=True)
+            return xk[None, :]
+        opts = {'rv_type': var_name, 'shapes': shapes}
+        recursion_coeffs = get_recursion_coefficients(opts, xk.shape[0])
         quad_rule = partial(
             candidate_based_christoffel_leja_rule_1d, recursion_coeffs,
-            generate_candidate_samples, num_trials+1, growth_rule=growth_rule,
+            generate_candidate_samples, xk.shape[0], growth_rule=growth_rule,
             initial_points=initial_points)
-    elif var_type == 'float_rv_discrete' or var_type == 'discrete_chebyshev':
-        nmasses = shapes['xk'].shape[0]
-        if var_type == 'discrete_chebyshev':
-            xk = shapes['xk']  # do not map discrete_chebyshev
-            assert np.allclose(shapes['xk'], np.arange(nmasses))
-            assert np.allclose(shapes['pk'], np.ones(nmasses)/nmasses)
-            num_coefs = nmasses
-            recursion_coeffs = discrete_chebyshev_recurrence(
-                num_coefs, nmasses)
-        else:
-            # shapes['xk'] will be in [0,1] but canonical domain is [-1,1]
-            xk = shapes['xk']*2-1
-            num_coefs = nmasses
-            recursion_coeffs = modified_chebyshev_orthonormal(
-                num_coefs, [xk, shapes['pk']])
-
-        def generate_candidate_samples(num_samples):
-            assert num_samples == nmasses
-            return xk[np.newaxis, :]
-
-        # do not specify init_samples in partial or a sparse grid cannot
-        # update the samples_1d so that next level has same samples_1d
-        # TODO: add test that samples_1d[ii] and samples_1d[ii+1] subset
-        # are equal
-        #init_samples = np.atleast_2d(np.sort(xk)[nmasses//2])
-        quad_rule = partial(
-            candidate_based_christoffel_leja_rule_1d, recursion_coeffs,
-            generate_candidate_samples, nmasses,
-            growth_rule=growth_rule, initial_points=initial_points)
     else:
-        raise Exception('var_type %s not implemented' % var_type)
+        raise Exception('var_name %s not implemented' % var_name)
     return quad_rule
 
 
@@ -976,20 +948,20 @@ def get_univariate_leja_quadrature_rule(
                        variable, growth_rule, initial_points=initial_points)
 
     assert method == 'deprecated'
-    var_type, __, shapes = get_distribution_info(variable)
-    if var_type == 'uniform':
+    var_name, __, shapes = get_distribution_info(variable)
+    if var_name == 'uniform':
         quad_rule = partial(
             beta_leja_quadrature_rule, 1, 1, growth_rule=growth_rule,
             samples_filename=None)
-    elif var_type == 'beta':
+    elif var_name == 'beta':
         quad_rule = partial(
             beta_leja_quadrature_rule, shapes['a'], shapes['b'],
             growth_rule=growth_rule)
-    elif var_type == 'norm':
+    elif var_name == 'norm':
         quad_rule = partial(
             gaussian_leja_quadrature_rule, growth_rule=growth_rule)
     else:
-        raise Exception('var_type %s not implemented' % var_type)
+        raise Exception('var_name %s not implemented' % var_name)
 
     return quad_rule
 
