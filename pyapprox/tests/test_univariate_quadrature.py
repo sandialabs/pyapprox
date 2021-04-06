@@ -105,7 +105,7 @@ class TestUnivariateQuadrature(unittest.TestCase):
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
             variable, growth_rule,
-            numerically_generated_poly_accuracy_tolerance=5e-12)
+            numerically_generated_poly_accuracy_tolerance=1e-11)
         level = 3
         scales, shapes = get_distribution_info(variable)[1:]
 
