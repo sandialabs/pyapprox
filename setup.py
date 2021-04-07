@@ -76,3 +76,6 @@ setuptools.setup(
     # tests_require=['pytest-cov'],
     license='MIT',
 )
+
+#TODO see https://pytest-cov.readthedocs.io/en/latest/config.html
+# to add config file for coverage tests to exclude certain files from coverage tests

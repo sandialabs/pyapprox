@@ -259,6 +259,20 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
 
         assert np.allclose(ab, ab_full, atol=1e-5, rtol=1e-5)
 
+    def test_arbitraty_polynomial_chaos(self):
+        nterms = 5
+        alpha_stat, beta_stat = 1, 1
+        
+        true_ab = jacobi_recurrence(
+            nterms, alpha=beta_stat-1, beta=alpha_stat-1,
+            probability=True)
+
+        rv = stats.uniform(-1, 2)
+        moments = [rv.moment(n) for n in range(2*nterms+1)]
+        ab = arbitrary_polynomial_chaos_recursion_coefficients(moments, nterms)
+
+        assert np.allclose(true_ab, ab)
+
 
 if __name__ == "__main__":
     num_gen_orthonormal_poly_1d_test_suite = \

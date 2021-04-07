@@ -524,5 +524,45 @@ def predictor_corrector_product_of_functions_of_independent_variables(
             nterms, [(x, w), univariate_quad_rules[ii]],
             lambda x: x[0, :]*funs[ii](x[1,:]))
     return ab
-        
-        
+
+
+def apc_normalizing_constant(moments, nterms, monic_coefs):
+    assert moments.shape[0] >= 2*nterms+1
+    moment_mat = np.zeros((nterms+1, nterms+1))
+    for ii in range(nterms+1):
+        moment_mat[ii, :] = moments[ii:ii+nterms+1]
+    normal_c = np.sqrt(monic_coefs.T.dot(moment_mat).dot(monic_coefs))
+    return normal_c
+
+
+def apc_monic_coefficients(moments, nterms):
+    assert moments.shape[0] >= 2*nterms
+    moment_mat = np.zeros((nterms+1, nterms+1))
+    moment_mat[nterms, nterms] = 1.
+    for ii in range(nterms):
+        moment_mat[ii, :] = moments[ii:ii+nterms+1]
+    rhs = np.zeros(nterms+1)
+    rhs[nterms] = 1
+    coefs = np.linalg.solve(moment_mat, rhs)
+    return coefs
+
+
+def arbitrary_polynomial_chaos_recursion_coefficients(moments, num_coef):
+    moments = np.asarray(moments)
+    monic_coefs = np.zeros((num_coef, num_coef))
+    normalizing_constants = np.zeros(num_coef)
+    for ii in range(num_coef):
+        c =apc_monic_coefficients(moments, ii)
+        normalizing_constants[ii] = apc_normalizing_constant(moments, ii, c)
+        monic_coefs[0:ii+1, ii] = apc_monic_coefficients(
+            moments, ii)/normalizing_constants[ii]
+
+    ab = np.zeros((num_coef, 2))
+    ab[0, 1] = normalizing_constants[0]
+    ab[1, 1] = monic_coefs[0, 0]/monic_coefs[1, 1]
+    ab[1, 0] = -monic_coefs[0, 1]/monic_coefs[1, 1]
+    for ii in range(2, num_coef):
+        ab[ii, 1] = monic_coefs[ii-1, ii-1]/monic_coefs[ii, ii]
+        ab[ii, 0] = (monic_coefs[ii-2, ii-1]-ab[ii, 1]*
+                     monic_coefs[ii-1, ii])/monic_coefs[ii-1, ii-1]
+    return ab
