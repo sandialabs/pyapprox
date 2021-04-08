@@ -3,7 +3,7 @@ import unittest, pytest
 import pyapprox as pya
 
 
-if pya.PYA_DEV_AVAILABLE:
+if sys.platform != 'win32':
     import dolfin as dl
     from pyapprox_dev.fenics_models.helmholtz import *
 else:
@@ -16,7 +16,7 @@ else:
 try:
     import mshr
     mshr_package_missing = False
-except:
+except (ImportError, ModuleNotFoundError):
     mshr_package_missing = True
 
 mshr_skiptest = unittest.skipIf(

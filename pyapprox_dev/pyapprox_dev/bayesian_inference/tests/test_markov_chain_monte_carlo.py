@@ -9,11 +9,7 @@ from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayesian_inference.laplace import \
     laplace_posterior_approximation_for_linear_models
 
-if pya.PYA_DEV_AVAILABLE:
-    from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
-else:
-    import pytest
-    pytestmark = pytest.mark.skip("Skipping test on Windows")
+from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
 
 
 class LinearModel(object):
