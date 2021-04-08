@@ -43,7 +43,7 @@ def variance_pce_refinement_indicator(
     if normalize:
         first_vals = np.absolute(adaptive_pce.values[0,:])
         assert np.all(first_vals > 1e-6)
-        indicator /= np.absolute(first_vals)**2
+        indicator /= first_vals**2
 
     qoi_chosen = np.argmax(indicator)
 
