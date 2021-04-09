@@ -171,7 +171,7 @@ def generate_independent_random_samples(variable, num_samples,
     assert type(variable) == IndependentMultivariateRandomVariable, \
         "`variable` must be of IndependentMultivariateRandomVariable type"
     num_vars = variable.num_vars()
-
+    num_samples = int(num_samples)
     samples = np.empty((num_vars, num_samples), dtype=float)
     for ii in range(variable.nunique_vars):
         var = variable.unique_variables[ii]

@@ -897,15 +897,18 @@ class CholeskySampler(object):
 
     def __init__(self, num_vars, num_candidate_samples, variables=None,
                  generate_random_samples=None, init_pivots=None,
-                 nugget=0, econ=True):
+                 nugget=0, econ=True, gen_candidate_samples=None):
         self.nvars = num_vars
         self.kernel_theta = None
         self.chol_flag = None
         self.variables = variables
         self.generate_random_samples = generate_random_samples
-        self.candidate_samples = generate_candidate_samples(
-            self.nvars, num_candidate_samples, self.generate_random_samples,
-            self.variables)
+        if gen_candidate_samples is None:
+            gen_candidate_samples = partial(
+                generate_candidate_samples, self.nvars,
+                generate_random_samples=self.generate_random_samples,
+                variables=self.variables)
+        self.candidate_samples = gen_candidate_samples(num_candidate_samples)
         self.set_weight_function(None)
         self.ntraining_samples = 0
         self.set_init_pivots(init_pivots)
@@ -956,9 +959,9 @@ class CholeskySampler(object):
             self.Kmatrix = self.kernel(self.candidate_samples.T)
             if self.econ is False and self.pivot_weights is not None:
                 weights = np.sqrt(self.pivot_weights)
-                assert np.allclose(np.diag(weights).dot(self.Kmatrix.dot(
-                    np.diag(weights))),
-                    weights[:, np.newaxis]*self.Kmatrix*weights)
+                #assert np.allclose(np.diag(weights).dot(self.Kmatrix.dot(
+                #    np.diag(weights))),
+                #    weights[:, np.newaxis]*self.Kmatrix*weights)
                 self.Kmatrix = weights[:, np.newaxis]*self.Kmatrix*weights
                 self.pivot_weights = None
 

@@ -173,6 +173,11 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
     p = p[:num_leja_samples]
     leja_samples = candidate_samples[:, p]
     plot = False
+    if plot and leja_samples.shape[0] == 1:
+        import matplotlib.pyplot as plt
+        plt.plot(candidate_samples[0, :], weights)
+        plt.show()
+        
     if plot and leja_samples.shape[0] == 2:
         import matplotlib.pyplot as plt
         print(('N:', basis_matrix.shape[1]))

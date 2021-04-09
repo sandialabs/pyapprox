@@ -688,8 +688,7 @@ class SubSpaceRefinementManager(object):
             self.initialize()
 
         priority, error, best_subspace_idx = self.active_subspace_queue.get()
-        best_active_subspace_index = self.subspace_indices[:,
-                                                           best_subspace_idx]
+        best_active_subspace_index = self.subspace_indices[:, best_subspace_idx]
         if self.verbose > 1:
             msg = f'refining index {best_active_subspace_index} '
             msg += f'with priority {priority}\n'
@@ -1169,6 +1168,33 @@ def get_unique_quadrule_variables(var_trans):
     return unique_quadrule_variables, unique_quadrule_indices
 
 
+def get_unique_max_level_1d(var_trans, growth_rules):
+    unique_quadrule_variables, unique_quadrule_indices = \
+        get_unique_quadrule_variables(var_trans)
+    print(len(growth_rules),unique_quadrule_indices)
+    if len(growth_rules) != len(unique_quadrule_indices):
+        msg = 'growth rules and unique_quadrule_indices'
+        msg += ' (derived from var_trans) are inconsistent'
+        raise Exception(msg)
+    
+    max_level_1d = []
+    for ii in range(len(unique_quadrule_indices)):
+        if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
+            max_nsamples_ii = get_probability_masses(
+                unique_quadrule_variables[ii])[0].shape[0]
+            ll = 0 
+            while True:
+                if growth_rules[ii](ll) > max_nsamples_ii-1:
+                    max_level_1d_ii = ll-1
+                    break
+                ll += 1
+        else:
+            max_level_1d_ii = np.inf
+
+        max_level_1d.append(max_level_1d_ii)
+    return np.asarray(max_level_1d)
+
+
 def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         var_trans, growth_rules=None, method='pdf', growth_incr=2):
     """
@@ -1195,24 +1221,12 @@ def get_sparse_grid_univariate_leja_quadrature_rules_economical(
         raise Exception(msg)
 
     quad_rules = []
-    max_level_1d = []
     for ii in range(len(unique_quadrule_indices)):
         quad_rule = get_univariate_leja_quadrature_rule(
             unique_quadrule_variables[ii], growth_rules[ii], method)
         quad_rules.append(quad_rule)
-        if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
-            max_nsamples_ii = get_probability_masses(
-                unique_quadrule_variables[ii])[0].shape[0]
-            ll = 0 
-            while True:
-                if growth_rules[ii](ll) > max_nsamples_ii-1:
-                    max_level_1d_ii = ll-1
-                    break
-                ll += 1
-        else:
-            max_level_1d_ii = np.inf
 
-        max_level_1d.append(max_level_1d_ii)
+    max_level_1d = get_unique_max_level_1d(var_trans, growth_rules)
 
     return quad_rules, growth_rules, unique_quadrule_indices, max_level_1d
 

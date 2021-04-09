@@ -174,7 +174,8 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     if noise_multiplier is not None:
         Q, R = np.linalg.qr(M1)
         u = solve_triangular(R, Q.T.dot(pred_factors.T))
@@ -188,7 +189,8 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
             if regression_type == 'lstsq':
                 gradient = 2*np.sum(Fu*Fgamma, axis=1) + np.sum(t**2, axis=1)
             elif regression_type == 'quantile':
-                gradient = 2*np.sum(Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
+                gradient = 2*np.sum(
+                    Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
                     np.sum(Fu**2, axis=1)
             gradient /= num_pred_pts
             #print('that took',time.time()-t0)

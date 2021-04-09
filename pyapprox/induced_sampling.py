@@ -979,6 +979,7 @@ def inverse_transform_sampling_1d(var, ab, ii, u_samples):
 
 
 def generate_induced_samples(pce, num_samples):
+    num_samples = int(num_samples)
     num_vars, num_basis_indices = pce.indices.shape
 
     # Selects random samples on 0, 1, 2, ..., num_indices-1

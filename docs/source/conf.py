@@ -225,6 +225,13 @@ SOFTWARE.\par
 ''',
 }
 
+# rst_prolog = r"""
+# .. only:: html
+
+#     .. math::
+#         \DeclareMathOperator{\argmin}{argmin}
+# """
+
 # used when building html version
 mathjax_config = {                  
     "TeX": {                        
@@ -232,7 +239,6 @@ mathjax_config = {
             "V": [r'{\boldsymbol{#1}}',1],
             "mean": [r'{\mathbb{E}\left[#1\right]}',1],
             "var": [r'{\mathbb{V}\left[#1\right]}',1],
-            "argmin": r'{\mathrm{argmin}}',
             "rv":r'z',
             "reals":r'\mathbb{R}',
             "pdf":r'\rho',
@@ -240,12 +246,14 @@ mathjax_config = {
             "coloneqq":r'\colon=',
             "norm":[r'{\lVert #1 \rVert}',1],
             "argmax":[r'\operatorname{argmax}'],
+            "argmin":[r'\operatorname{argmin}'],
             "covar":[r'\mathbb{C}\text{ov}\left[#1,#2\right]',2],
             "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2],
             "ai":r'\alpha',
             "bi":r'\beta',
             "dx":[r'\;\mathrm{d}#1',1],
-            }                       
+            },
+        'extensions': ["AMSmath.js","AMSsymbols.js"]
         }                           
     } 
 

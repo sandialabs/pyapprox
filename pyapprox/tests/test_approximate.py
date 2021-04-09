@@ -61,7 +61,7 @@ class TestApproximate(unittest.TestCase):
             errors.append(error)
         univariate_quad_rule_info = [
             pya.clenshaw_curtis_in_polynomial_order,
-            pya.clenshaw_curtis_rule_growth, None]
+            pya.clenshaw_curtis_rule_growth, None, None]
         # ishigami has same value at first 3 points in clenshaw curtis rule
         # and so adaptivity will not work so use different rule
         # growth_rule=partial(pya.constant_increment_growth_rule,4)

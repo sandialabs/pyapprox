@@ -15,9 +15,10 @@ from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 from pyapprox.variables import is_bounded_continuous_variable
 import numpy as np
 from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
-    CombinationSparseGrid, \
+    CombinationSparseGrid, constant_increment_growth_rule, \
     get_sparse_grid_univariate_leja_quadrature_rules_economical, \
-    max_level_admissibility_function
+    max_level_admissibility_function, get_unique_max_level_1d, \
+    get_unique_quadrule_variables
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.variable_transformations import AffineRandomVariableTransformation
 from functools import partial
@@ -74,7 +75,7 @@ def adaptive_approximate_sparse_grid(
         the error.
 
     univariate_quad_rule_info : list
-        List containing three entries. The first entry is a list 
+        List containing four entries. The first entry is a list 
         (or single callable) of univariate quadrature rules for each variable
         with signature
 
@@ -95,9 +96,12 @@ def adaptive_approximate_sparse_grid(
         If either entry is a callable then the same quad or growth rule is 
         applied to every variable.
 
-        The third entry is a list which specifies the maximum level of each
-        quadrature rule. If None then max_level is assumed to be np.inf for
-        each quadrature rule. If a scalar then the same value is applied
+        The third entry is a list of np.ndarray (or single scalar) specifying
+        the variable dimensions that each unique quadrature rule is applied to.
+
+        The forth entry is a list which specifies the maximum level of each
+        unique quadrature rule. If None then max_level is assumed to be np.inf 
+        for each quadrature rule. If a scalar then the same value is applied
         to all quadrature rules. This entry is useful for certain quadrature
         rules, e.g. Gauss Patterson, or Leja sequences for bounded discrete
         variables where there is a limit on the number of levels that can be 
@@ -176,23 +180,27 @@ def adaptive_approximate_sparse_grid(
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
                 get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans)
+                    var_trans, method='pdf')
         # Some quadrature rules have max_level enforce this here
         for ii in range(len(unique_quadrule_indices)):
             for ind in unique_quadrule_indices[ii]:
                 max_level_1d[ind] = min(
                     max_level_1d[ind], unique_max_level_1d[ii])
     else:
-        quad_rules, growth_rules, unique_max_level_1d = \
-            univariate_quad_rule_info
-        unique_quadrule_indices = None
+        quad_rules, growth_rules, unique_quadrule_indices, \
+            unique_max_level_1d = univariate_quad_rule_info
         if unique_max_level_1d is None:
-            unique_max_level_1d = [np.inf]*nvars
+            max_level_1d = np.minimum([np.inf]*nvars, max_level_1d)
         elif np.isscalar(unique_max_level_1d):
-            unique_max_level_1d = [unique_max_level_1d]*nvars
+            max_level_1d = np.minimum(
+                [unique_max_level_1d]*nvars, max_level_1d)
         else:
-            raise Exception()
-        max_level_1d = np.minimum(unique_max_level_1d, max_level_1d)
+            nunique_vars = len(quad_rules)
+            assert len(unique_max_level_1d) == nunique_vars
+            for ii in range(nunique_vars):
+                for jj in unique_quadrule_indices[ii]:
+                    max_level_1d[jj] = np.minimum(
+                        unique_max_level_1d[ii], max_level_1d[jj])
         
     assert len(max_level_1d) == nvars
     admissibility_function = partial(
@@ -212,7 +220,8 @@ def adaptive_approximate_polynomial_chaos(
         fun, univariate_variables, callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
         growth_rules=None, max_nsamples=100, tol=0, verbose=0,
-        ncandidate_samples=1e4, generate_candidate_samples=None):
+        ncandidate_samples=1e4, generate_candidate_samples=None,
+        max_level_1d=None):
     r"""
     Compute an adaptive Polynomial Chaos Expansion of a function.
 
@@ -286,6 +295,10 @@ def adaptive_approximate_polynomial_chaos(
 
         The output is a 2D np.ndarray with size(nvars,ncandidate_samples)
 
+    max_level_1d : np.ndarray (nvars)
+        The maximum level of the sparse grid in each dimension. If None
+        There is no limit
+
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
@@ -303,11 +316,14 @@ def adaptive_approximate_polynomial_chaos(
     for rv in univariate_variables:
         if not is_bounded_continuous_variable(rv):
             bounded_variables = False
-            msg = "For now leja sampling based PCE is only supported for bounded continouous random variablesfor now leja sampling based PCE is only supported for bounded continouous random variables"
+            msg = "For now leja sampling based PCE is only supported for "
+            msg += " bounded continouous random variables when"
+            msg += " generate_candidate_samples is not provided."
             if generate_candidate_samples is None:
                 raise Exception(msg)
             else:
                 break
+
     if generate_candidate_samples is None:
         # Todo implement default for non-bounded variables that uses induced
         # sampling
@@ -320,17 +336,42 @@ def adaptive_approximate_polynomial_chaos(
     else:
         candidate_samples = generate_candidate_samples(ncandidate_samples)
 
+    if max_level_1d is None:
+        max_level_1d = [np.inf]*nvars
+    elif np.isscalar(max_level_1d):
+        max_level_1d = [max_level_1d]*nvars
+
     pce = AdaptiveLejaPCE(
         nvars, candidate_samples, factorization_type='fast')
     pce.verbose = verbose
-    admissibility_function = partial(
-        max_level_admissibility_function, np.inf, [np.inf]*nvars, max_nsamples,
-        tol, verbose=verbose)
     pce.set_function(fun, var_trans)
     if growth_rules is None:
-        growth_rules = clenshaw_curtis_rule_growth
+        growth_incr = 2
+        growth_rules = partial(constant_increment_growth_rule, growth_incr)
+    assert callable(growth_rules)    
+    unique_quadrule_variables, unique_quadrule_indices = \
+        get_unique_quadrule_variables(var_trans)
+    growth_rules = [growth_rules]*len(unique_quadrule_indices)
+
+    admissibility_function = None# provide after growth_rules have been added
     pce.set_refinement_functions(
-        refinement_indicator, admissibility_function, growth_rules)
+        refinement_indicator, admissibility_function, growth_rules,
+        unique_quadrule_indices=unique_quadrule_indices)
+
+    unique_max_level_1d = get_unique_max_level_1d(
+        var_trans, pce.compact_univariate_growth_rule)
+    nunique_vars = len(unique_quadrule_indices)
+    assert len(unique_max_level_1d) == nunique_vars
+    for ii in range(nunique_vars):
+        for jj in unique_quadrule_indices[ii]:
+            max_level_1d[jj] = np.minimum(
+                unique_max_level_1d[ii], max_level_1d[jj])
+
+    admissibility_function = partial(
+        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
+        tol, verbose=verbose)
+    pce.admissibility_function = admissibility_function
+    
     pce.build(callback)
     return ApproximateResult({'approx': pce})
 
@@ -344,7 +385,9 @@ def adaptive_approximate_gaussian_process(
         kernel_variance=None,
         kernel_variance_bounds='fixed',
         length_scale=1,
-        length_scale_bounds=(1e-2, 10)):
+        length_scale_bounds=(1e-2, 10),
+        generate_candidate_samples=None,
+        weight_function=None):
     r"""
     Adaptively construct a Gaussian process approximation of a function using 
     weighted-pivoted-Cholesky sampling and the Matern kernel
@@ -436,6 +479,21 @@ def adaptive_approximate_gaussian_process(
     verbose : integer
         Controls the amount of information printed to screen
 
+    generate_candidate_samples : callable
+        A function that generates the candidate samples used to build the Leja
+        sequence with signature
+
+        ``generate_candidate_samples(ncandidate_samples) -> np.ndarray``
+
+        The output is a 2D np.ndarray with size(nvars,ncandidate_samples)
+
+    weight_function : callable
+        Function used to precondition kernel with the signature
+
+        ``weight_function(samples) -> np.ndarray (num_samples)``
+
+        where samples is a np.ndarray (num_vars,num_samples)
+
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
@@ -459,9 +517,11 @@ def adaptive_approximate_gaussian_process(
         CholeskySampler
 
     sampler = CholeskySampler(
-        nvars, ncandidate_samples, var_trans.variable)
+        nvars, ncandidate_samples, var_trans.variable,
+        gen_candidate_samples=generate_candidate_samples)
     sampler_kernel = copy.deepcopy(kernel)
     sampler.set_kernel(sampler_kernel)
+    sampler.set_weight_function(weight_function)
 
     gp = AdaptiveGaussianProcess(
         kernel, n_restarts_optimizer=n_restarts_optimizer, alpha=alpha)
@@ -469,6 +529,7 @@ def adaptive_approximate_gaussian_process(
 
     if checkpoints is None:
         checkpoints = np.linspace(10, max_nsamples, 10).astype(int)
+    assert checkpoints[-1] <= max_nsamples
     
     nsteps = len(checkpoints)
     for kk in range(nsteps):

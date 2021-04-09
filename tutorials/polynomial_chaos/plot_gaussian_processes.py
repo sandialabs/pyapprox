@@ -33,7 +33,7 @@ with
 
 .. math::      t(\rv)=[C(\rv,\rv^{(1)}),\ldots,C(\rv,\rv^{(N)})]^T
 
-and :math:`A` is a matrix with with elements :math:`A_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`.
+and :math:`A` is a matrix with with elements :math:`A_{ij}=C(\rv^{(i)},\rv^{(j)})` for :math:`i,j=1,\ldots,M`. Here we dropped the dependence on the hyper-parameters :math:`\theta` for convenience.
 
 Supervised Learning
 -------------------
@@ -86,12 +86,32 @@ plt.show()
 #%%
 #Experimental design
 #-------------------
-#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}` by solving the minimization problem
+#The nature of the training samples significantly impacts the accuracy of a Gaussian process. Noting that the variance of a GP reflects the accuracy of a Gaussian process [SWMW1989]_ developed an experimental design procedure which minimizes the average variance with respect to a specified measure. This measure is typically the probability measure :math:`\pdf(\rv)` of the random variables :math:`\rv`. Integrated variance designs, as they are often called, find a set of samples :math:`\mathcal{Z}\subset\Omega\subset\rvdom` from a set of candidate samples :math:`\Omega` by solving the minimization problem
 #
-#.. math:: :math:`\mathcal{Z}^\dagger`=\argmin_{\mathcal{Z}\in\rvdom} \int_{\rvdom} C^star(\mathcal{Z})
+#.. math:: \mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv
 #
-#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples.
-
+#where we have made explicit the posterior variance dependence on :math:`\mathcal{Z}`
+#
+#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continouous [GM2016]_ design spaces. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
+#
+#Talk a bit more how adaptive designs work e,g. start with initial set then select points one at a time.???
+#
+#Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) geedily chooses samples that minimizes the maximum variance of the Gaussian proces. That is, given M training samples the next sample is chosen via
+#
+#.. math:: \rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)
+#
+#Although more computationally efficient than ALC, empirical studies suggest thatALM tends to produce GPs with worse predictive performance [GL2009]_.
+#
+#Accurately evaluating the ALC and ALM criterion is often challenging because inverting the covariance matrix :math:`C(\mathcal{Z}_M\cup \rv)` is poorly conditioned when :math:`\rv` is 'close' to a point in :math:`\mathcal{Z}_M`. Consequently a small constant (nugget) is often added to the diagonal of :math:`C(\mathcal{Z}_M\cup \rv)` to improve numerical stability [PW2014]_.
+#
+#Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popoular RBF design strategy minimize the worst case error function (power function) of kernel based approximations [SW2006]_. The minimization of the power function is equivalent to minimizing the ALM criteria [HJZ2021]_. As with ALM and ALC, evaluation of the power function is unstable [SW2006]_. However the authors of [PS2011]_ established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization [PS2011]_. Specifically, the first $M$ pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the $M$ samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution infirmation about the inputs :math:`\rv`. In [HJZ2021]_ this information was incorporated by weighting the power function by the density :math:`\pdf(\rv)` of the input variables. This procedure attempts to greedily minimizes the :math:`\pdf`-weighted :math:`L^2` error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more compuationally efficient because of its use of pivoted Cholesky factorization.
+#
+#Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
+#
+#ACTIVE LEARNING
+# guillas jakeman, gramacy adaptive
+#
+#Compare designs with fixed hyper-parameters with those that are learnt as data is added. Show can drastically improve efficiency in anisotrioic functions
 
 #%%
 #References
@@ -103,3 +123,19 @@ plt.show()
 #.. [HJZ2021] `H. Harbrecht, J.D. Jakeman, P. Zaspel. Cholesky-based experimental design for Gaussian process and kernel-based emulation and calibration . Communications in Computational Physics (2021) In press <https://edoc.unibas.ch/79042/>`_
 #
 #.. [SGFSJ2020] `L.P. Swiler, M. Gulian, A. Frankel, C. Safta, J.D. Jakeman. A Survey of Constrained Gaussian Process Regression: Approaches and Implementation Challenges. Journal of Machine Learning for Modeling and Computing (2020) <http://www.dl.begellhouse.com/journals/558048804a15188a,2cbcbe11139f18e5,0776649265326db4.html>`_
+#
+#.. [GM2016] `A. Gorodetsky, Y. Marzouk. Mercer kernels and integrated variance experimental design. Connec- tions between Gaussian process regression and polynomial approximation. SIAM/ASA J. Uncertain. Quantif., 4(1):796–828 (2016) <https://doi.org/10.1137/15M1017119>`_
+#
+#.. [C2006] `D. Cohn Neural network exploration using optimal experiment design, Neural Netw., 9 (1996), pp. 1071–1083. <https://proceedings.neurips.cc/paper/1993/file/d840cc5d906c3e9c84374c8919d2074e-Paper.pdf>`_
+#
+#.. [KSG2008] `A. Krause, A. Singh, C. Guestrin, Near-optimal sensor placements in Gaussian processes: Theory, efficient algorithms and empirical studies, J. Mach. Learn. Res., 9 (2008), pp. 235–284. <https://doi.org/10.1002/env.769>`_
+#
+#.. [PW2014] `C.Y. Peng, J. Wu, On the choice of nugget in kriging modeling for deterministic computer experiments, J. Comput. Graph. Statist., 23 (2014), pp. 151–168. <https://doi.org/10.1080/10618600.2012.738961>`_
+#
+#.. [BG2016] `J. Beck, S. Guillas, Sequential Design with Mutual Information for Computer Experiments (MICE): Emulation of a Tsunami Model, SIAM/ASA J. UNCERTAINTY QUANTIFICATION Vol. 4, pp. 739–766 (2016) <https://doi.org/10.1137/140989613>`_
+#
+#.. [GL2009] `R.B. Gramacy, H.K.H. Lee, Adaptive design and analysis of supercomputer experiments, Technometrics, 51 (2009), pp. 130–145. <https://doi.org/10.1198/TECH.2009.0015>`_
+#
+#.. [SW2006] `R. Schaback and H. Wendland. Kernel techniques: From machine learning to meshless methods. Acta Numer., 15:543–639 (2006). <https://doi.org/10.1017/S0962492906270016>`_
+#
+#.. [PS2011] `M. Pazouki and R. Schaback. Bases for kernel-based spaces. J. Comput. Appl. Math., 236:575–588 (2011). <https://doi.org/10.1016/j.cam.2011.05.021>`_
