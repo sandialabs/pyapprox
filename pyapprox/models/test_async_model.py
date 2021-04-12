@@ -9,21 +9,6 @@ import multiprocessing
 max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
 
 
-def cleanup_work_directories(basename='work-dir'):
-    """
-    If a previous tests fails it may leave work directories that
-    will cause problems for next test so call this function at begining
-    of every test
-
-    Note it test run from wrong directory this can remove directories
-    that it should not
-    """
-    if basename is not None:
-        directories = glob.glob(basename+'*')
-        for directory in directories:
-            shutil.rmtree(directory)
-
-
 def remove_files(filenames):
     for filename in filenames:
         os.remove(filename)
@@ -240,7 +225,7 @@ class TestAsyncModel(unittest.TestCase):
         temp_directory = tempfile.TemporaryDirectory()
         temp_dirname = temp_directory.__dict__['name']
 
-        workdir_basename = self.tmp_dir.name  # 'work-dir'
+        workdir_basename = self.tmp_dir.name
         save_workdirs = 'limited'
         saved_data_basename = 'backup-data'
         saved_data_basename = os.path.join(
