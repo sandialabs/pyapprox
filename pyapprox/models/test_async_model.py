@@ -107,6 +107,11 @@ class TestAsyncModel(unittest.TestCase):
     def teardown_method(self, test_method):
         del self.tmp_dir
 
+    @classmethod 
+    def teardown_class(cls):
+        "Clean up model input/output files if necessary (e.g., due to test failure)."
+        cleanup_fileiomodel_files()
+
     def test_file_io_model(self):
         """
         Test FileIOModel using current directory to write and read files
