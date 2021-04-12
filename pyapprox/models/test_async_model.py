@@ -1,6 +1,7 @@
 import unittest
 import os
 import glob
+import tempfile
 from pyapprox.models.async_model import *
 from pyapprox.models.file_io_model import *
 
@@ -106,7 +107,6 @@ def get_file_io_model(delay=0., fault_percentage=0):
     """
     shell_command = """python -c "import numpy as np; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.models.test_async_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; import time; time.sleep(delay);" """ % (
         fault_percentage, delay+np.random.uniform(-1., 1.)*delay*0.1)
-    # print shell_command
 
     def target_function(x): return np.array(
         [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]])
@@ -115,6 +115,13 @@ def get_file_io_model(delay=0., fault_percentage=0):
 
 
 class TestAsyncModel(unittest.TestCase):
+
+    def setup_method(self, test_method):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+    
+    def teardown_method(self, test_method):
+        del self.tmp_dir
+
     def test_file_io_model(self):
         """
         Test FileIOModel using current directory to write and read files
@@ -125,9 +132,7 @@ class TestAsyncModel(unittest.TestCase):
         cleanup_fileiomodel_files()
 
     def test_async_model(self):
-        workdir_basename = 'work-dir'
-        # workdir_basename=None
-        cleanup_work_directories(workdir_basename)
+        workdir_basename = self.tmp_dir.name
 
         num_samples = 4*max_eval_concurrency
         model, target_function, num_vars = get_file_io_model(0.02)
@@ -144,9 +149,8 @@ class TestAsyncModel(unittest.TestCase):
         Test that async model continues execution when one or model evaluations
         fails and when the entirity of each work directory is preserved
         """
-        workdir_basename = 'work-dir'
+        workdir_basename = self.tmp_dir.name
         save_workdirs = 'yes'
-        cleanup_work_directories(workdir_basename)
 
         num_samples = 4*max_eval_concurrency
         verbosity = 0
@@ -166,8 +170,8 @@ class TestAsyncModel(unittest.TestCase):
             opts={'verbosity': verbosity})
         os.remove('saved-data-%d-%d.npz' % (0, num_samples))
 
-        workdirs = glob.glob(workdir_basename+'*')
-        assert len(workdirs) == num_samples
+        workdirs = glob.glob(workdir_basename+'.*')
+        assert len(workdirs) == num_samples, "Number of sample files do not match number of samples"
         for workdir in workdirs:
             function_eval_id = int(re.findall(
                 r'[0-9]+', os.path.split(workdir)[1])[-1])
@@ -186,16 +190,13 @@ class TestAsyncModel(unittest.TestCase):
             if verbosity > 0:
                 assert os.path.exists(os.path.join(workdir, 'stdout.txt'))
 
-        cleanup_work_directories(workdir_basename)
-
     def test_fault_tolerant_async_model_limited_save(self):
         """
         Test that async model continues execution when one or model evaluations
         fails and when only params and results files are saved.
         """
-        workdir_basename = 'work-dir'
+        workdir_basename = self.tmp_dir.name
         save_workdirs = 'limited'
-        cleanup_work_directories(workdir_basename)
 
         num_samples = 4*max_eval_concurrency
         verbosity = 0
@@ -211,7 +212,7 @@ class TestAsyncModel(unittest.TestCase):
             model, target_function, num_vars, num_samples, ignore_nans=True,
             opts={'verbosity': verbosity})
 
-        workdirs = glob.glob(workdir_basename+'*')
+        workdirs = glob.glob(workdir_basename+'.*')
         assert len(workdirs) == num_samples
         for workdir in workdirs:
             function_eval_id = int(re.findall(
@@ -231,24 +232,20 @@ class TestAsyncModel(unittest.TestCase):
             if verbosity > 0:
                 assert os.path.exists(os.path.join(workdir, 'stdout.txt'))
 
-        cleanup_work_directories(workdir_basename)
-
     def test_async_model_backup(self):
         """
         Test that async model saves backup of model output after every call to
         __call__
         """
-        import tempfile
         temp_directory = tempfile.TemporaryDirectory()
         temp_dirname = temp_directory.__dict__['name']
 
-        workdir_basename = 'work-dir'
+        workdir_basename = self.tmp_dir.name  # 'work-dir'
         save_workdirs = 'limited'
         saved_data_basename = 'backup-data'
         saved_data_basename = os.path.join(
             temp_dirname, saved_data_basename)
 
-        cleanup_work_directories(workdir_basename)
         filenames = glob.glob(saved_data_basename+'*.npz')
         remove_files(filenames)
 
