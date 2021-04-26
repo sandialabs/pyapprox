@@ -8,7 +8,7 @@ Constructing a GP requires specifying a prior mean :math:`m(\rv)` and covariance
 .. math::
    C(\rv, \rv^\star; \ell)=\sigma^2 \frac{2^{1-\nu}}{\mathsf{\Gamma}(\nu)}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right)^{\nu}K_{\nu}\left(\frac{\sqrt{2\nu}d(\rv,\rv^\star; \ell)}{\ell}\right).
 
-Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidian distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top` is. The variance of the kernel is determined by :mathL`\sigma^2` and we define :math:`K_{\nu}` as the modified Bessel function of the second 
+Here :math:`d(\rv,\rv^\star; \ell)` is the weighted Euclidean distance between two points parameterized by the  vector hyper-parameters :math:`\ell=[\ell_1,\ldots,\ell_d]^\top` is. The variance of the kernel is determined by :mathL`\sigma^2` and we define :math:`K_{\nu}` as the modified Bessel function of the second 
 kind of order :math:`\nu` and :math:`\mathsf{\Gamma}` as the gamma function.
 Note that the parameter :math:`\nu` dictates for the smoothness of the 
 kernel function. The analytic squared-exponential kernel can be obtained as
@@ -21,7 +21,7 @@ Given a kernel and mean function, a Gaussian process approximation assumes that 
    f(\cdot) \mid \theta \sim \mathcal{N}\left(m(\cdot),C(\cdot,\cdot;\theta)+\epsilon^2I\right)
 
 where :math:`\epsilon^2` is the variance of the mean zero white noise in the observations.
-Given a set of training samples :math:`\mathcal{Z}=\{\rv^{(m)}\}_{m=1}^M` and associated values :math:`y=[y^{(1)}, \ldots, y^{(M)}]^\top` the posterior distibution of the GP is
+Given a set of training samples :math:`\mathcal{Z}=\{\rv^{(m)}\}_{m=1}^M` and associated values :math:`y=[y^{(1)}, \ldots, y^{(M)}]^\top` the posterior distribution of the GP is
 
 .. math::  f(\cdot) \mid \theta,y \sim \mathcal{N}\left(m^\star(\cdot),C^\star(\cdot,\cdot;\theta)+\epsilon^2I\right)
 
@@ -41,7 +41,7 @@ Consider the univariate Runge function
 
 .. math:: f(\rv) = \frac{1}{1+25\rv^2}, \quad \rv\in[-1,1]
 
-Lets contruct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
+Lets construct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
 """
 import numpy as np
 import pyapprox as pya
@@ -90,21 +90,21 @@ plt.show()
 #
 #.. math:: \mathcal{Z}^\dagger=\argmin_{\mathcal{Z}\subset\Omega\subset\rvdom, \lvert\mathcal{Z}\rvert=M} \int_{\rvdom} C^\star(\rv, \rv\mid \mathcal{Z})\pdf(\rv)d\rv
 #
-#where we have made explicit the posterior variance dependence on :math:`\mathcal{Z}`
+#where we have made explicit the posterior variance dependence on :math:`\mathcal{Z}`.
 #
-#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continouous [GM2016]_ design spaces. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
+#The variance of a GP is not dependent on the values of the training data, only the sample locations, and thus the procedure can be used to generate batches of samples. The IVAR criterion - also called active learning Cohn (ALC) - can be minimized over discrete [HJZ2021]_ or continuous [GM2016]_ design spaces :math:`\Omega`. When employing a discrete design space, greedy methods [C2006]_ are used to sample one at a time from a finite set of candidate samples to minimize the learning objective.  This approach requires a representative candidate set which, we have found, can be generated with low-discrepancy sequences, e.g. Sobol sequences. The continuous optimization optimization is non-convex and thus requires a good initial guess to start the gradient based optimization. Greedy methods can be used to produce the initial guess, however we found that optimizing from this design resulted in minimal improvement.
 #
 #Talk a bit more how adaptive designs work e,g. start with initial set then select points one at a time.???
 #
-#Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) geedily chooses samples that minimizes the maximum variance of the Gaussian proces. That is, given M training samples the next sample is chosen via
+#Computing IVAR designs can be computationally expensive. An alternative cheaper algorithm called active learning Mckay (ALM) greedily chooses samples that minimizes the maximum variance of the Gaussian process. That is, given M training samples the next sample is chosen via
 #
 #.. math:: \rv^{(n+1)}=\argmax_{\mathcal{Z}\subset\Omega\subset\rvdom} C^\star(\rv, \rv\mid \mathcal{Z}_M)
 #
-#Although more computationally efficient than ALC, empirical studies suggest thatALM tends to produce GPs with worse predictive performance [GL2009]_.
+#Although more computationally efficient than ALC, empirical studies suggest that ALM tends to produce GPs with worse predictive performance [GL2009]_.
 #
 #Accurately evaluating the ALC and ALM criterion is often challenging because inverting the covariance matrix :math:`C(\mathcal{Z}_M\cup \rv)` is poorly conditioned when :math:`\rv` is 'close' to a point in :math:`\mathcal{Z}_M`. Consequently a small constant (nugget) is often added to the diagonal of :math:`C(\mathcal{Z}_M\cup \rv)` to improve numerical stability [PW2014]_.
 #
-#Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popoular RBF design strategy minimize the worst case error function (power function) of kernel based approximations [SW2006]_. The minimization of the power function is equivalent to minimizing the ALM criteria [HJZ2021]_. As with ALM and ALC, evaluation of the power function is unstable [SW2006]_. However the authors of [PS2011]_ established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization [PS2011]_. Specifically, the first $M$ pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the $M$ samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution infirmation about the inputs :math:`\rv`. In [HJZ2021]_ this information was incorporated by weighting the power function by the density :math:`\pdf(\rv)` of the input variables. This procedure attempts to greedily minimizes the :math:`\pdf`-weighted :math:`L^2` error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more compuationally efficient because of its use of pivoted Cholesky factorization.
+#Experimental design strategies similar to ALM and ALC have been developed for radial basis functions (RBFs). The strong connections between radial basis function and Gaussian process approximation mean that the RBF algorithms can often be used for constructing GPs. A popular RBF design strategy minimizes the worst case error function (power function) of kernel based approximations [SW2006]_. The minimization of the power function is equivalent to minimizing the ALM criteria [HJZ2021]_. As with ALM and ALC, evaluation of the power function is unstable [SW2006]_. However the authors of [PS2011]_ established that stability can be improved by greedily minimizing the power function using pivoted Cholesky factorization [PS2011]_. Specifically, the first :math:`M` pivots of the pivoted Cholesky factorization of a kernel (covariance matrix), evaluated a large set of candidate sample, define the :math:`M` samples which greedily minimize the power function (ALM criteria). Minimizing the power function does not take into account any available distribution information about the inputs :math:`\rv`. In [HJZ2021]_ this information was incorporated by weighting the power function by the density :math:`\pdf(\rv)` of the input variables. This procedure attempts to greedily minimizes the :math:`\pdf`-weighted :math:`L^2` error and produces GPs with predictive performance comparable to those based upon ALC designs while being much more computationally efficient because of its use of pivoted Cholesky factorization.
 #
 #Finally we remark that while ALM and ALC are the most popular experimental design strategies for GPs, alternative methods have been proposed. Of note are those methods which approximately minimize the mutual information between the Gaussian process evaluated at the training data and the Gaussian process evaluated at the remaining candidate samples [KSG2008]_, [BG2016]_. We do not consider these methods in our numerical comparisons.
 #

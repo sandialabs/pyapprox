@@ -2026,6 +2026,17 @@ class GreedyVarianceOfMeanSampler(object):
 
 
 def matern_gradient_wrt_samples(nu, query_sample, other_samples, length_scale):
+    """
+    Parameters
+    ----------
+    query_sample : np.ndarray (nvars, 1)
+
+    other_samples : np.ndarray (nvars, nquery_samples)
+
+    length_scale : np.ndarray (nvars)
+    """
+    if type(length_scale) == np.ndarray:
+        assert length_scale.shape[0] == query_sample.shape[0]
     length_scale = np.asarray(length_scale)
     dists = cdist(query_sample.T/length_scale, other_samples.T/length_scale,
                   metric='euclidean')
@@ -2513,3 +2524,4 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
         nvalidation_samples)
     fun = gp_realizations
     return fun
+

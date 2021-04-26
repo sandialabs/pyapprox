@@ -50,8 +50,11 @@ def precompute_multivariate_orthonormal_polynomial_univariate_values(
         recursion_coeffs = [recursion_coeffs]
 
     for dd in range(num_vars):
-        assert (recursion_coeffs[basis_type_index_map[dd]].shape[0] >
-                max_level_1d[dd])
+        if (recursion_coeffs[basis_type_index_map[dd]].shape[0] <=
+            max_level_1d[dd]):
+            msg = f'max_level_1d for dimension {dd} exceeds number of '
+            msg += 'precomputed recusion coefficients'
+            raise Exception(msg)
 
     basis_vals_1d = np.empty(
         (num_vars, (1+deriv_order)*(max_level_1d.max()+1), samples.shape[1]),
@@ -407,6 +410,10 @@ class PolynomialChaosExpansion(object):
             self.recursion_coeffs = [get_recursion_coefficients(
                 opts, num_coefs_per_var.max(),
                 self.numerically_generated_poly_accuracy_tolerance)]
+        if np.unique(
+            np.hstack(self.basis_type_var_indices)).shape[0] != self.num_vars():
+            msg = 'poly_opts does not specify a basis for each input variable'
+            raise Exception(msg)
 
     def set_indices(self, indices):
         # assert indices.dtype==int
@@ -529,7 +536,6 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
         # up to degree specified if using recursion for polynomial
         # orthogonal to a discrete variable with finite non-zero
         # probability measures
-        print(pce.recursion_coeffs[0].shape[0], degrees.max()+1)
         assert pce.recursion_coeffs[0].shape[0] >= degrees.max()+1
         univariate_quadrature_rules = [
             partial(gauss_quadrature, pce.recursion_coeffs[0])]*num_vars
