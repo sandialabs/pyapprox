@@ -404,16 +404,18 @@ class PolynomialChaosExpansion(object):
                 # extract variables indices for which basis is to be used
                 self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
                 ii += 1
+            if (np.unique(np.hstack(self.basis_type_var_indices)).shape[0] !=
+                self.num_vars()):
+                msg = 'poly_opts does not specify a basis for each input '
+                msgt += 'variable'
+                raise Exception(msg)
+
         else:
             # when only one type of basis is assumed then allow poly_type to
             # be elevated to top level of options dictionary.
             self.recursion_coeffs = [get_recursion_coefficients(
                 opts, num_coefs_per_var.max(),
                 self.numerically_generated_poly_accuracy_tolerance)]
-        if np.unique(
-            np.hstack(self.basis_type_var_indices)).shape[0] != self.num_vars():
-            msg = 'poly_opts does not specify a basis for each input variable'
-            raise Exception(msg)
 
     def set_indices(self, indices):
         # assert indices.dtype==int
