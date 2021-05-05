@@ -892,9 +892,7 @@ def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
 
 
 def swap_rows(matrix, ii, jj):
-    temp = matrix[ii].copy()
-    matrix[ii] = matrix[jj]
-    matrix[jj] = temp
+    matrix[ii], matrix[jj] = matrix[jj], matrix[ii]
 
 
 def pivot_rows(pivots, matrix, in_place=True):
