@@ -870,8 +870,7 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
             # inlined swap_rows()
             col_vector[jj], col_vector[kk] = col_vector[kk], col_vector[jj]
 
-        update = np.outer(col_vector, row_vector)
-        new_cols[it+1:, :] -= update
+        new_cols[next_idx:, :] -= np.outer(col_vector, new_cols[it, :])
 
         # new_cols = add_rows_to_pivoted_lu_factorization(
         #    new_cols[:it+1,:],new_cols[it+1:,:],num_pivots)
