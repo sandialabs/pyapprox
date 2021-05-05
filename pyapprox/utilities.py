@@ -845,11 +845,10 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     """
     assert LU_factor.shape[0] == new_cols.shape[0]
     assert raw_pivots.shape[0] <= new_cols.shape[0]
-    num_new_cols = new_cols.shape[1]
     num_pivots = raw_pivots.shape[0]
-    for it in range(num_pivots):
-        pivot = raw_pivots[it]
-        swap_rows(new_cols, it, pivot)
+    for it, pivot in enumerate(raw_pivots):
+        # inlined swap_rows() for performance
+        new_cols[it], new_cols[pivot] = new_cols[pivot], new_cols[it]
 
         # update U_factor
         # recover state of col vector from permuted LU factor
@@ -862,10 +861,11 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
         for ii in range(num_pivots-it-1):
             # (it+1) necessary in two lines below because only dealing
             # with compressed col vector which starts at row it in LU_factor
-            jj = raw_pivots[num_pivots-1-ii]-(it+1)
-            kk = num_pivots-ii-1-(it+1)
-            swap_rows(col_vector, jj, kk)
-        row_vector = new_cols[it, :]
+            jj = raw_pivots[num_pivots-1-ii]-next_idx
+            kk = num_pivots-ii-1-next_idx
+
+            # inlined swap_rows()
+            col_vector[jj], col_vector[kk] = col_vector[kk], col_vector[jj]
 
         update = np.outer(col_vector, row_vector)
         new_cols[it+1:, :] -= update
