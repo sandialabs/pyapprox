@@ -900,6 +900,7 @@ class SubSpaceRefinementManager(object):
         self.samples = np.hstack((self.samples, new_samples))
 
         if self.values is None:
+            assert np.any(np.isnan(new_values)) == False, "New values cannot have NaN!"
             self.values = new_values
         else:
             self.values = np.vstack((self.values, new_values))
