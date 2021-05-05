@@ -730,12 +730,14 @@ def unprecondition_LU_factor(LU_factor, precond_weights, num_pivots=None):
     assert precond_weights.shape[0] == LU_factor.shape[0]
     # left multiply L an U by inv(W), i.e. compute inv(W).dot(L)
     # and inv(W).dot(U)
-    LU_factor = LU_factor.copy()/precond_weights
+    LU_factor = np.array(LU_factor)/precond_weights
+
     # right multiply L by W, i.e. compute L.dot(W)
     # Do not overwrite columns past num_pivots. If not all pivots have been
     # performed the columns to the right of this point contain U factor
     for ii in range(num_pivots):
         LU_factor[ii+1:, ii] *= precond_weights[ii, 0]
+
     return LU_factor
 
 
@@ -815,8 +817,8 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
 
     # Use L to store both L and U during factoriation then copy out U in post
     # processing
-    LU_factor = A.copy()
-    raw_pivots = np.arange(num_rows)  # np.empty(num_rows,dtype=int)
+    LU_factor = np.array(A)
+    raw_pivots = np.arange(num_rows)
     LU_factor, raw_pivots, it = continue_pivoted_lu_factorization(
         LU_factor, raw_pivots, 0, max_iters, num_initial_rows)
 
@@ -857,7 +859,8 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
         # (0,4),(1,2),(2,4) then LU_factor[:,0] here will be col_vector
         # in LU algorithm with the second and third permutations
         # so undo these permutations in reverse order
-        col_vector = LU_factor[it+1:, it].copy()
+        next_idx = it+1
+        col_vector = np.array(LU_factor[next_idx:, it])
         for ii in range(num_pivots-it-1):
             # (it+1) necessary in two lines below because only dealing
             # with compressed col vector which starts at row it in LU_factor
@@ -879,8 +882,7 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
 
 def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
     assert LU_factor.shape[1] == new_rows.shape[1]
-    num_new_rows = new_rows.shape[0]
-    LU_factor_extra = new_rows.copy()
+    LU_factor_extra = np.array(new_rows)
     for it in range(num_pivots):
         LU_factor_extra[:, it] /= LU_factor[it, it]
         col_vector = LU_factor_extra[:, it]
