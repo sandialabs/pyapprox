@@ -331,10 +331,10 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
             self.seq_pivots, precond_weights_prev, False)
 
         new_cols = self.pce.canonical_basis_matrix(self.candidate_samples)
-        self.basis_matrix = np.hstack([self.basis_matrix, new_cols.copy()])
+        self.basis_matrix = np.hstack([self.basis_matrix, np.array(new_cols)])
         new_cols *= precond_weights_prev
         self.LU_factor = add_columns_to_pivoted_lu_factorization(
-            self.LU_factor.copy(), new_cols, self.seq_pivots[:num_samples])
+            np.array(self.LU_factor), new_cols, self.seq_pivots[:num_samples])
 
         # self.precond_weights = np.sqrt(
         #    self.basis_matrix.shape[1]*christoffel_weights(
