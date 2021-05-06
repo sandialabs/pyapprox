@@ -852,7 +852,7 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
         # inlined swap_rows() for performance
         new_cols[it], new_cols[pivot] = new_cols[pivot], new_cols[it]
 
-        # update U_factor
+        # update LU_factor
         # recover state of col vector from permuted LU factor
         # Let  (jj,kk) represent iteration and pivot pairs
         # then if lu factorization produced sequence of pairs
