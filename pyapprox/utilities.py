@@ -872,10 +872,8 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
 
         new_cols[next_idx:, :] -= np.outer(col_vector, new_cols[it, :])
 
-        # new_cols = add_rows_to_pivoted_lu_factorization(
-        #    new_cols[:it+1,:],new_cols[it+1:,:],num_pivots)
-
     LU_factor = np.hstack((LU_factor, new_cols))
+
     return LU_factor
 
 
