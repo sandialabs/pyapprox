@@ -633,8 +633,8 @@ class ActiveSetVariableModel(object):
         # necessary allows for better error checking
         self.function = function
         assert inactive_var_values.ndim == 2
-        self.inactive_var_values = inactive_var_values
-        self.active_var_indices = active_var_indices
+        self.inactive_var_values = np.asarray(inactive_var_values)
+        self.active_var_indices = np.asarray(active_var_indices)
         assert self.active_var_indices.shape[0] + \
             self.inactive_var_values.shape[0] == num_vars
         self.num_vars = num_vars

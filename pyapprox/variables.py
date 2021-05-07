@@ -251,9 +251,13 @@ class IndependentMultivariateRandomVariable(object):
                 stats[jj] = stats_jj
         return stats
 
-    def pdf(self, x):
-        marginal_vals = self.evaluate('pdf', x)
-        return np.prod(marginal_vals, axis=0)
+    def pdf(self, x, log=False):
+        assert x.shape[0] == self.num_vars()
+        if log is False:
+            marginal_vals = self.evaluate('pdf', x)
+        else:
+            marginal_vals = self.evaluate('logpdf', x)
+        return np.prod(marginal_vals, axis=0)[:, None]
 
     def __str__(self):
         variable_labels = self.variable_labels
