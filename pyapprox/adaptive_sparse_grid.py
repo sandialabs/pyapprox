@@ -1571,11 +1571,12 @@ class ConfigureVariableTransformation(object):
         in the list is a 1D np.ndarray with potentiallly different sizes
     """
 
-    def __init__(self, config_values):
+    def __init__(self, config_values, labels=None):
         self.nvars = len(config_values)
         assert (type(config_values[0]) == list or
                 type(config_values[0]) == np.ndarray)
         self.config_values = config_values
+        self.variable_labels = labels
 
     def map_from_canonical_space(self, canonical_samples):
         """
@@ -1583,7 +1584,7 @@ class ConfigureVariableTransformation(object):
         configure values
         """
         assert canonical_samples.shape[0] == self.nvars
-        samples = np.empty_like(canonical_samples)
+        samples = np.empty_like(canonical_samples, dtype=float)
         for ii in range(samples.shape[1]):
             for jj in range(self.nvars):
                 kk = canonical_samples[jj, ii]
@@ -1596,7 +1597,7 @@ class ConfigureVariableTransformation(object):
         canonical samples to find one that matches each sample provided
         """
         assert samples.shape[0] == self.nvars
-        canonical_samples = np.empty_like(samples)
+        canonical_samples = np.empty_like(samples, dtype=float)
         for ii in range(samples.shape[1]):
             for jj in range(self.nvars):
                 found = False
