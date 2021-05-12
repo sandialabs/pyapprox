@@ -1590,6 +1590,25 @@ class ConfigureVariableTransformation(object):
                 samples[jj, ii] = self.config_values[jj][int(kk)]
         return samples
 
+    def map_to_canonical_space(self, samples):
+        """
+        This is the naive slow implementation that searches through all 
+        canonical samples to find one that matches each sample provided
+        """
+        assert samples.shape[0] == self.nvars
+        canonical_samples = np.empty_like(samples)
+        for ii in range(samples.shape[1]):
+            for jj in range(self.nvars):
+                found = False
+                for kk in range(len(self.config_values[jj])):
+                    if samples[jj, ii] == self.config_values[jj][int(kk)]:
+                        found = True
+                        break
+                if not found:
+                    raise Exception("Configure value not found")
+                canonical_samples[jj, ii] = kk
+        return canonical_samples
+
     def num_vars(self):
         """Return the number of configure variables.
 

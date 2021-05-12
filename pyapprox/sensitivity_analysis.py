@@ -805,7 +805,7 @@ def sampling_based_sobol_indices(
 
     total_effect_values = np.asarray(total_effect_values)
     assert np.all(variance>=0)
-    main_effects = sobol_indices[interaction_terms.sum(axis=0)==1, :]
+    # main_effects = sobol_indices[interaction_terms.sum(axis=0)==1, :]
     # We cannot guarantee that the main_effects will be <= 1. Because
     # variance and each interaction_index are computed with different sample
     # sets. Consider function of two variables which is constant in one variable
