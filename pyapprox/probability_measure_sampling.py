@@ -169,7 +169,7 @@ def generate_independent_random_samples(variable, num_samples,
         Independent samples from the target distribution
     """
     assert type(variable) == IndependentMultivariateRandomVariable, \
-        "`variable` must be of IndependentMultivariateRandomVariable type"
+        f"`variable` must be of IndependentMultivariateRandomVariable type, got {type(variable)}"
     num_vars = variable.num_vars()
 
     samples = np.empty((num_vars, num_samples), dtype=float)

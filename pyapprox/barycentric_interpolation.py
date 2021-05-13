@@ -184,25 +184,28 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 num_act_dims, abscissa_1d, barycentric_weights_1d,
                 active_abscissa_indices_1d)
 
-    if module_exists("pyapprox.cython.barycentric_interpolation"):
+    try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
+
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-                x, fn_vals, active_dims, active_abscissa_indices_1d.astype(np.int_),
-                num_abscissa_1d.astype(np.int_), num_active_abscissa_1d.astype(np.int_),
-                shifts.astype(np.int_), abscissa_and_weights)
+                x, fn_vals, active_dims, active_abscissa_indices_1d,
+                num_abscissa_1d, num_active_abscissa_1d,
+                shifts, abscissa_and_weights)
+
         if np.any(np.isnan(result)):
             raise ValueError('Error values not finite')
+
         return result
-    else:
+    except (ImportError, ModuleNotFoundError) as e:
         msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
-        print(msg)
+        trace_error_with_msg(msg, e)
 
     return __multivariate_hierarchical_barycentric_lagrange_interpolation(
-        x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
-        num_abscissa_1d, num_active_abscissa_1d, shifts,
-        abscissa_and_weights)
+                x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
+                num_abscissa_1d, num_active_abscissa_1d, shifts,
+                abscissa_and_weights)
 
 
 @njit(cache=True)
