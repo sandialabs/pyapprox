@@ -5,7 +5,7 @@ from numba import njit
 
 from pyapprox.univariate_quadrature import clenshaw_curtis_pts_wts_1D
 from pyapprox.utilities import cartesian_product
-from .sys_utilities import trace_error_with_msg, module_exists
+from .sys_utilities import trace_error_with_msg
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,
@@ -43,18 +43,14 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     C_inv = 1/scaling_factor
     num_samples = samples.shape[0]
 
-    if module_exists("pyapprox.cython.barycentric_interpolation"):
+    try:
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
         
         weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
-    else:
+    except (ImportError, ModuleNotFoundError) as e:
         msg = 'compute_barycentric_weights_1d extension failed'
-        print(msg)
-
-        # X=np.tile(samples[:,np.newaxis],[1,samples.shape[0]])
-        # result=1./np.prod(X-X.T+np.eye(samples.shape[0]),axis=0)
-        # return result
+        trace_error_with_msg(msg, e)
 
         weights = np.empty((num_samples, num_samples), dtype=float)
         weights[0, 0] = 1.
@@ -183,10 +179,11 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
             barycentric_lagrange_interpolation_precompute(
                 num_act_dims, abscissa_1d, barycentric_weights_1d,
                 active_abscissa_indices_1d)
-
-    if module_exists("pyapprox.cython.barycentric_interpolation"):
+    
+    try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
+        
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
                 x, fn_vals, active_dims,
@@ -196,15 +193,17 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
                 shifts.astype(np.int_), abscissa_and_weights)
         if np.any(np.isnan(result)):
             raise ValueError('Error values not finite')
-        return result
-    else:
-        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
-        print(msg)
 
-    return __multivariate_hierarchical_barycentric_lagrange_interpolation(
-        x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
-        num_abscissa_1d, num_active_abscissa_1d, shifts,
-        abscissa_and_weights)
+    except (ImportError, ModuleNotFoundError) as e:
+        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
+        trace_error_with_msg(msg, e)
+
+        result = __multivariate_hierarchical_barycentric_lagrange_interpolation(
+                    x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
+                    num_abscissa_1d, num_active_abscissa_1d, shifts,
+                    abscissa_and_weights)
+
+    return result
 
 
 @njit(cache=True)

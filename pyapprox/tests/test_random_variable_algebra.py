@@ -93,7 +93,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         from matplotlib import pyplot as plt
         plt.hist(
             function(np.random.uniform(lb,ub,10001)),density=True,bins=100)
-        plt.plot(zz,z_pdf_vals); plt.show()
+        # plt.plot(zz,z_pdf_vals); plt.show()
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)

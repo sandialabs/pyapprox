@@ -1,9 +1,7 @@
-import numpy as np
-from pyapprox.sys_utilities import package_installed
-if package_installed('ROL'):
+try:
     from pyapprox._rol_minimize import *
     has_ROL = True
-else:
+except (ImportError, ModuleNotFoundError) as e:
     has_ROL = False
 
 import numpy as np
@@ -22,14 +20,14 @@ def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
 
     if 'rol' in method and has_ROL:
         if callback is not None:
-            raise Exception(f'Method {method} cannot use callbacks')
+            raise ValueError(f'Method {method} cannot use callbacks')
         if args != ():
-            raise Exception(f'Method {method} cannot use args')
+            raise ValueError(f'Method {method} cannot use args')
         rol_methods = {'rol-trust-constr': None}
         if method in rol_methods:
             rol_method = rol_methods[method]
         else:
-            raise Exception(f"Method {method} not found")
+            raise ValueError(f"Method {method} not found")
         return rol_minimize(
             fun, x0, rol_method, jac, hess, hessp, bounds, constraints, tol,
             options, x_grad)
@@ -63,7 +61,7 @@ def pyapprox_minimize(fun, x0, args=(), method='rol-trust-constr', jac=None,
             fun, x0, args, method, jac, hess, hessp, bounds, constraints, tol,
             callback, options)
 
-    raise Exception(f"Method {method} was not found")
+    raise ValueError(f"Method {method} was not found")
 
 
 if __name__ == '__main__':

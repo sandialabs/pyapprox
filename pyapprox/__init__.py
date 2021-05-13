@@ -33,3 +33,8 @@ from pyapprox.sensitivity_analysis import *
 from pyapprox.gaussian_network import *
 from pyapprox.gaussian_process import *
 
+import sys
+from pyapprox.sys_utilities import package_available
+
+
+PYA_DEV_AVAILABLE = package_available('pyapprox-dev') and sys.platform != 'win32'
