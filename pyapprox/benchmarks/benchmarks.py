@@ -10,7 +10,6 @@ import pyapprox as pya
 from pyapprox.benchmarks.sensitivity_benchmarks import *
 from pyapprox.benchmarks.surrogate_benchmarks import *
 from pyapprox.models.genz import GenzFunction
-from pyapprox.sys_utilities import package_installed
 from scipy.optimize import OptimizeResult
 
 
@@ -361,7 +360,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     return Benchmark(attributes)
 
 
-if package_installed('pyapprox-dev') and sys.platform != 'win32':
+if pya.PYA_DEV_AVAILABLE:
     from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
         setup_advection_diffusion_benchmark,\
         setup_advection_diffusion_source_inversion_benchmark,\
@@ -377,7 +376,7 @@ def setup_benchmark(name, **kwargs):
                   'rosenbrock': setup_rosenbrock_function,
                   'genz': setup_genz_function,
                   'cantilever_beam': setup_cantilever_beam_benchmark}
-    if package_installed('pyapprox-dev') and sys.platform != 'win32':
+    if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
         fenics_benchmarks = {
