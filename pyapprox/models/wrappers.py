@@ -652,6 +652,9 @@ class ActiveSetVariableModel(object):
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
         return self.function(samples)
 
+    def num_active_vars(self):
+        return len(self.inactive_var_indices)
+
 
 def combine_saved_model_data(saved_data_basename):
     filenames = glob.glob(saved_data_basename+'*.npz')

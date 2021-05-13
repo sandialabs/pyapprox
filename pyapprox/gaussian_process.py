@@ -506,7 +506,9 @@ def extract_gaussian_process_attributes_for_integration(gp):
         msg += 'Only squared exponential kernel supported'
         raise Exception(msg)
 
-    if gp._K_inv is None:
+    if not hasattr(gp._K_inv) or gp._K_inv is None:
+        # scikit-learn < 0.24.2 has _K_inv
+        # scikit-learn >= 0.24.2 does not
         L_inv = solve_triangular(gp.L_.T, np.eye(gp.L_.shape[0]), lower=False)
         K_inv = L_inv.dot(L_inv.T)
     else:
