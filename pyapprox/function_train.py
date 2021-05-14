@@ -281,7 +281,7 @@ def evaluate_function_train_grad(sample,ft_data,recursion_coeffs):
       evaluate_ft_gradient_forward_pass(sample,ft_data,recursion_coeffs)
 
     ranks, ft_params, ft_params_map, ft_cores_map = ft_data
-    gradient = evalaute_ft_gradient_backward_pass(
+    gradient = evaluate_ft_gradient_backward_pass(
         ranks,values_of_cores,derivs_of_cores,ft_params_map,ft_cores_map)
 
     return value, gradient
@@ -315,7 +315,7 @@ def evaluate_ft_gradient_forward_pass(sample,ft_data,recursion_coeffs):
     return value, values_of_cores, derivs_of_cores
 
 
-def evalaute_ft_gradient_backward_pass(ranks,values_of_cores,derivs_of_cores,
+def evaluate_ft_gradient_backward_pass(ranks,values_of_cores,derivs_of_cores,
                                        ft_params_map,ft_cores_map):
     num_vars = ranks.shape[0]-1
     num_ft_params =  derivs_of_cores.shape[0]
