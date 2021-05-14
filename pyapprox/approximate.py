@@ -71,7 +71,7 @@ def adaptive_approximate_sparse_grid(
         :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. 
         The two outputs are, respectively, the indicator used to control 
         refinement of the sparse grid and the change in error from adding the 
-        current subspace. The indicator is typically but now always dependent on 
+        current subspace. The indicator is typically but not always dependent on 
         the error.
 
     univariate_quad_rule_info : list
@@ -258,7 +258,7 @@ def adaptive_approximate_polynomial_chaos(
         :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. 
         The two outputs are, respectively, the indicator used to control 
         refinement of the sparse grid and the change in error from adding the 
-        current subspace. The indicator is typically but now always dependent on 
+        current subspace. The indicator is typically but not always dependent on 
         the error.
 
     growth_rules : list or callable
