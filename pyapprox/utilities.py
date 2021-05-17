@@ -1850,3 +1850,11 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         #print(partial_result, plb, pub)
 
     return result
+
+
+def unique_elements_from_2D_list(list_2d):
+    return list(set(flatten_2D_list(list_2d)))
+
+
+def flatten_2D_list(list_2d):
+    return [item for sub in list_2d for item in sub]

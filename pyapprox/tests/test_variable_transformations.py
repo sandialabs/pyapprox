@@ -3,8 +3,7 @@ from pyapprox.variable_transformations import *
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from scipy.linalg import lu_factor, lu as scipy_lu
 from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
-from scipy.stats import beta as beta_rv
-from scipy.stats import norm as normal_rv
+from scipy import stats
 from pyapprox.nataf_transformation import \
     gaussian_copula_compute_x_correlation_from_z_correlation,\
     generate_x_samples_using_gaussian_copula, correlation_to_covariance
@@ -110,16 +109,16 @@ class TestVariableTransformations(unittest.TestCase):
         beta_stat = 5
         bisection_opts = {'tol': 1e-10, 'max_iterations': 100}
 
-        def beta_cdf(x): return beta_rv.cdf(x, a=alpha_stat, b=beta_stat)
-        def beta_icdf(x): return beta_rv.ppf(x, a=alpha_stat, b=beta_stat)
+        def beta_cdf(x): return stats.beta.cdf(x, a=alpha_stat, b=beta_stat)
+        def beta_icdf(x): return stats.beta.ppf(x, a=alpha_stat, b=beta_stat)
         x_marginal_cdfs = [beta_cdf]*num_vars
         x_marginal_inv_cdfs = [beta_icdf]*num_vars
         x_marginal_means = np.asarray(
-            [beta_rv.mean(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.mean(a=alpha_stat, b=beta_stat)]*num_vars)
         x_marginal_stdevs = np.asarray(
-            [beta_rv.std(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.std(a=alpha_stat, b=beta_stat)]*num_vars)
 
-        def beta_pdf(x): return beta_rv.pdf(x, a=alpha_stat, b=beta_stat)
+        def beta_pdf(x): return stats.beta.pdf(x, a=alpha_stat, b=beta_stat)
         x_marginal_pdfs = [beta_pdf]*num_vars
 
         z_correlation = np.array([[1, 0.7], [0.7, 1]])
@@ -177,16 +176,16 @@ class TestVariableTransformations(unittest.TestCase):
         num_vars = 2
         alpha_stat = 5
         beta_stat = 2
-        def beta_cdf(x): return beta_rv.cdf(x, a=alpha_stat, b=beta_stat)
-        def beta_icdf(x): return beta_rv.ppf(x, a=alpha_stat, b=beta_stat)
+        def beta_cdf(x): return stats.beta.cdf(x, a=alpha_stat, b=beta_stat)
+        def beta_icdf(x): return stats.beta.ppf(x, a=alpha_stat, b=beta_stat)
         x_marginal_cdfs = [beta_cdf]*num_vars
         x_marginal_inv_cdfs = [beta_icdf]*num_vars
         x_marginal_means = np.asarray(
-            [beta_rv.mean(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.mean(a=alpha_stat, b=beta_stat)]*num_vars)
         x_marginal_stdevs = np.asarray(
-            [beta_rv.std(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.std(a=alpha_stat, b=beta_stat)]*num_vars)
 
-        def beta_pdf(x): return beta_rv.pdf(x, a=alpha_stat, b=beta_stat)
+        def beta_pdf(x): return stats.beta.pdf(x, a=alpha_stat, b=beta_stat)
         x_marginal_pdfs = [beta_pdf]*num_vars
 
         z_correlation = -0.9*np.ones((num_vars, num_vars))
@@ -205,8 +204,8 @@ class TestVariableTransformations(unittest.TestCase):
 
         # rosenblatt maps to [0,1] but polynomials of bounded variables
         # are in [-1,1] so add second transformation for this second mapping
-        def normal_cdf(x): return normal_rv.cdf(x)
-        def normal_icdf(x): return normal_rv.ppf(x)
+        def normal_cdf(x): return stats.norm.cdf(x)
+        def normal_icdf(x): return stats.norm.ppf(x)
         std_normal_marginal_cdfs = [normal_cdf]*num_vars
         std_normal_marginal_inv_cdfs = [normal_icdf]*num_vars
         var_trans_2 = UniformMarginalTransformation(
@@ -217,7 +216,7 @@ class TestVariableTransformations(unittest.TestCase):
         true_samples, true_canonical_samples = \
             generate_x_samples_using_gaussian_copula(
                 num_vars, z_correlation, x_marginal_inv_cdfs, num_samples)
-        true_canonical_samples = normal_rv.cdf(true_canonical_samples)
+        true_canonical_samples = stats.norm.cdf(true_canonical_samples)
 
         samples = var_trans.map_from_canonical_space(
             true_canonical_samples)
@@ -315,6 +314,22 @@ class TestVariableTransformations(unittest.TestCase):
 
         assert np.allclose(
             var_trans.map_from_canonical_space(canonical_samples), samples)
+
+    def test_map_derivatives(self):
+        nvars = 2
+        nsamples = 10
+        x = np.random.uniform(0, 1, (nvars, nsamples))
+        vals = np.sum(x**2, axis=0)[:, None]
+        grad = np.vstack([2*x[ii:ii+1, :] for ii in range(nvars)])
+        var_trans = AffineRandomVariableTransformation(
+            [stats.uniform(0, 1), stats.uniform(2, 2)])
+        canonical_derivs = var_trans.map_derivatives_to_canonical_space(grad)
+        for ii in range(nvars):
+            lb, ub = var_trans.variable.all_variables()[ii].interval(1)
+            assert np.allclose(canonical_derivs[ii, :], (ub-lb)*grad[ii, :]/2)
+        recovered_derivs = var_trans.map_derivatives_from_canonical_space(
+            canonical_derivs)
+        assert np.allclose(recovered_derivs, grad)
 
 
 if __name__ == "__main__":

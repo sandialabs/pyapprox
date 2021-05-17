@@ -2,6 +2,58 @@
 import numpy as np
 import networkx as nx
 
+
+def get_adjacency_matrices(system_labels, component_labels):
+    ncomponents = len(component_labels)
+    ncols = len(system_labels)
+    adj_matrices = []
+    for ii in range(ncomponents):
+        nrows = len(component_labels[ii])
+        adj_matrix = np.zeros((nrows, ncols))
+        for jj in range(nrows):
+            kk = system_labels.index(component_labels[ii][jj])
+            adj_matrix[jj, kk] = 1
+        adj_matrices.append(adj_matrix)
+    return adj_matrices
+
+
+def get_local_coupling_variables_indices_in(component_random_variable_labels,
+                                            component_coupling_labels,
+                                            local_random_var_indices=None):
+    ncomponents = len(component_random_variable_labels)
+    if local_random_var_indices is None:
+        local_random_var_indices = [
+            np.arange(len(ll)) for ll in component_random_variable_labels]
+    local_coupling_var_indices_in = []
+    for ii in range(ncomponents):
+        assert len(component_random_variable_labels[ii]) == len(
+            local_random_var_indices[ii])
+        local_coupling_var_indices_in.append(
+            np.delete(np.arange(
+                len(component_random_variable_labels[ii])+
+                len(component_coupling_labels[ii])),
+                      local_random_var_indices[ii]))
+    return local_coupling_var_indices_in
+
+
+def get_global_coupling_indices_in(component_coupling_labels,
+                                            component_output_labels):
+    ncomponents = len(component_coupling_labels)
+    global_coupling_component_indices = []
+    for ii in range(ncomponents):
+        inds = []
+        for label in component_coupling_labels[ii]:
+            for jj in range(ncomponents):
+                try:
+                    kk = component_output_labels[jj].index(label)
+                    inds += [jj, kk]
+                    break
+                except:
+                    pass
+        global_coupling_component_indices.append(inds)
+    return global_coupling_component_indices
+
+
 def evaluate_function(graph, node_id, global_samples):
     node = graph.nodes[node_id]
     global_random_var_indices = node['global_random_var_indices']
@@ -185,78 +237,35 @@ class SystemNetwork(object):
 
     def ncomponents(self):
         return len(self.graph.nodes)
+
+
+    def get_graph_attribute(self, name):
+        vals = []
+        for node in self.graph.nodes:
+            vals.append(self.graph.nodes[node][name])
+        return vals
     
 
-def get_style_defaults(labels):
-    style={}
-    style['node_label']=labels
-    style['vertex_size'] = 1
-    style['edge_width'] = 3
-    style['node_label_size']=12 #font size of the label.
-    style['layout']='fr'
-    style['canvas']=(6,6)
-    return style
-
-def plot_recursive_graph(nmodels):
-    labels=[r"$M_%d$"%ii for ii in range(nmodels)]
-    means = np.zeros(nmodels)
-    covs = np.ones_like(means)
-    scales = np.ones(nmodels-1)/(nmodels-1)
-    graph = build_recursive_graph(nmodels,{'labels':labels})
-    style = get_style_defaults(labels)
-    if nmodels<7:
-        style['layout']=dict()
-        xx = np.linspace(0,style['canvas'][0],nmodels)
-        yy = np.linspace(0,style['canvas'][1],nmodels)
-        for ii in range(nmodels):
-            style['layout'][ii]=[xx[ii],yy[ii]]
-    #import network2tikz.plot as netplot
-    #netplot(graph,'recursive-network.pdf',**style)
-
-def plot_peer_graph(nmodels):
-    labels=[r"$M_%d$"%ii for ii in range(nmodels)]
-    means = np.zeros(nmodels)
-    covs = np.ones_like(means)
-    scales = np.ones(nmodels-1)/(nmodels-1)
-    graph = build_peer_graph(nmodels,{'labels':labels})
-    style = get_style_defaults(labels)
-    positions = {nmodels-1:[style['canvas'][0]/2,style['canvas'][1]]}
-    xx = np.linspace(0,style['canvas'][0],nmodels-1)
-    for ii in range(nmodels-1):
-        positions[ii]=[xx[ii],4]
-    if nmodels<7:
-        style['layout']=positions
-    netplot(graph,'peer-network.pdf',**style)
-
-def plot_tree_graph():
-    nmodels=7
-    labels=[r"$M_%d$"%ii for ii in range(nmodels)]
-    graph = build_tree_graph_7_models(nmodels,{'labels':labels})
-    style = get_style_defaults(labels)
-    lx,ly=style['canvas']
-    positions = {nmodels-1:[lx/2,ly]}
-    positions[4]=[lx*0.25,ly/2]
-    positions[5]=[lx*0.75,ly/2]
-    for ii in range(4):
-        positions[ii]=[2*ii/6*lx,0]
-    style['layout']=positions
-    netplot(graph,'tree-network.pdf',**style)
-       
+def extract_node_data(node_id, data):
+    node_data = dict()
+    for key, item in data.items():
+        node_data[key] = item[node_id]
+    return node_data
 
 
-#if __name__ == '__main__':
-    #plot_peer_graph(6)
-    #plot_recursive_graph(6)
-    #plot_tree_graph()
+def build_chain_graph(nmodels, data=dict()):
+    """
+    0 -> 1 -> 2 -> ... -> n-2 -> n-1
+    """
+    g = nx.DiGraph()
+    for ii in range(nmodels):
+        node_data = extract_node_data(ii, data)
+        g.add_node(ii, **node_data)
 
-"""
-Note to allow style['positions'] to be specified must change
-_size = max(coord for t in layout.values() for coord in t)
-to 
-_size = max(coord for coord in self.positions)
+    edges = [[ii, ii+1]for ii in range(nmodels-1)]
+    g.add_edges_from(edges)
 
-in network2tikz/layout.py
-"""
+    return g
     
 
 

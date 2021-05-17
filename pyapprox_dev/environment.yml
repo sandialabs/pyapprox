@@ -21,7 +21,7 @@ dependencies:
   - sphinx
   - pymc3       # currently only 1 of 3 additional dependencies beyond base
   - fenics=2019 # currently only 2 of 3 additional dependencies beyond base
-  - mshr	# currently only 3 of 3 additional dependencies beyond base
+  - mshr        # currently only 3 of 3 additional dependencies beyond base
   - pip:
     - sphinx-gallery
     - sphinx_copybutton

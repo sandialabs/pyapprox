@@ -217,6 +217,18 @@ class AffineRandomVariableTransformation(object):
         raise Exception()
 
     def map_derivatives_from_canonical_space(self, derivatives):
+        """
+        derivatives : np.ndarray (nvars*nsamples, nqoi)
+            Derivatives of each qoi. The ith column consists of the derivatives
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}), 
+             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
+             ..., 
+             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
+            where M is the number of samples and D=nvars
+
+            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+            Here each sample is considered a different QoI
+        """
         assert derivatives.shape[0] % self.num_vars() == 0
         num_samples = int(derivatives.shape[0]/self.num_vars())
         mapped_derivatives = derivatives.copy()
@@ -227,6 +239,30 @@ class AffineRandomVariableTransformation(object):
             loc, scale = self.scale_parameters[ii, :]
             mapped_derivatives[idx, :] /= scale
         return mapped_derivatives
+
+    def map_derivatives_to_canonical_space(self, canonical_derivatives):
+        """
+        derivatives : np.ndarray (nvars*nsamples, nqoi)
+            Derivatives of each qoi. The ith column consists of the derivatives
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}), 
+             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
+             ..., 
+             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
+            where M is the number of samples and D=nvars
+
+            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+            Here each sample is considered a different QoI
+        """
+        assert canonical_derivatives.shape[0] % self.num_vars() == 0
+        num_samples = int(canonical_derivatives.shape[0]/self.num_vars())
+        derivatives = canonical_derivatives.copy()
+        for ii in range(self.variable.nunique_vars):
+            var_indices = self.variable.unique_variable_indices[ii]
+            idx = np.tile(var_indices*num_samples, num_samples)+np.tile(
+                np.arange(num_samples), var_indices.shape[0])
+            loc, scale = self.scale_parameters[ii, :]
+            derivatives[idx, :] *= scale
+        return derivatives
 
     def num_vars(self):
         return self.variable.num_vars()
