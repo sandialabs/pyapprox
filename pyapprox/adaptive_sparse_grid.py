@@ -794,7 +794,7 @@ class SubSpaceRefinementManager(object):
                 new_active_subspace_indices = np.hstack(
                     (new_active_subspace_indices, neighbor_index[:, np.newaxis]))
             else:
-                if self.verbose > 1:
+                if self.verbose > 2:
                     msg = f'Subspace {neighbor_index} is not admissible'
                     print(msg)
 
@@ -921,7 +921,7 @@ class SubSpaceRefinementManager(object):
             self.active_subspace_queue.put((priority, error, cnt))
             self.error = np.concatenate([self.error, [error]])
 
-            if self.verbose > 1:
+            if self.verbose > 2:
                 msg = f'adding new index {subspace_index} '
                 msg += f'with priority {priority}'
                 print(msg)

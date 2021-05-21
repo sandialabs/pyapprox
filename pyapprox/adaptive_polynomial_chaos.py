@@ -91,7 +91,7 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     return coef[:, np.newaxis]
 
 
-def chistoffel_preconditioning_function(basis_matrix, samples):
+def christoffel_preconditioning_function(basis_matrix, samples):
     weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
     return weights
 
@@ -101,7 +101,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         super(AdaptiveInducedPCE, self).__init__(num_vars)
         self.cond_tol = cond_tol
         self.fit_opts = {'omp_tol': 0}
-        self.set_preconditioning_function(chistoffel_preconditioning_function)
+        self.set_preconditioning_function(christoffel_preconditioning_function)
         self.fit_function = self._fit
         if cond_tol < 1:
             self.induced_sampling = False
@@ -111,6 +111,8 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         else:
             self.induced_sampling = True
             self.sample_ratio = None
+
+        self.moments = None
 
     def set_function(self, function, var_trans=None, pce=None):
         super(AdaptiveInducedPCE, self).set_function(function, var_trans)
@@ -232,9 +234,9 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def __init__(self, num_vars, candidate_samples, factorization_type='fast'):
         # todo remove cond_tol from __init__
         super(AdaptiveLejaPCE, self).__init__(num_vars, 1e-8)
-        #make sure correct preconditioning funciton is used. AdaptiveInducedPCE
+        #make sure correct preconditioning function is used. AdaptiveInducedPCE
         #has some internal logic that can overide default we want
-        self.set_preconditioning_function(chistoffel_preconditioning_function)
+        self.set_preconditioning_function(christoffel_preconditioning_function)
         # must be in canonical space
         # TODO: generate candidate samples at each iteration from induced
         # distribution using current self.poly_indices

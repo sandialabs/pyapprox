@@ -173,7 +173,7 @@ class AffineRandomVariableTransformation(object):
                  (np.any(user_samples[active_indices, :] > bounds[1])))):
                 I = np.where((user_samples[active_indices, :] < bounds[0]) |
                              (user_samples[active_indices, :] > bounds[1]))[1]
-                # print(user_samples[active_indices, I], bounds)
+                print(user_samples[active_indices, I], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
 
             canonical_samples[active_indices, :] = (

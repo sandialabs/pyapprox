@@ -502,6 +502,7 @@ def adaptive_approximate_gaussian_process(
     approx : :class:`pyapprox.gaussian_process.AdaptiveGaussianProcess`
         The Gaussian process
     """
+    assert max_nsamples <= ncandidate_samples
     
     variable = IndependentMultivariateRandomVariable(
         univariate_variables)
