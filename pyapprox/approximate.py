@@ -1111,12 +1111,12 @@ def expand_basis(indices):
     new_indices = []
     for ii in range(nindices):
         index = indices[:, ii]
-        active_vars = np.nonzero(index)
         for dd in range(nvars):
             forward_index = get_forward_neighbor(index, dd)
             key = hash_array(forward_index)
             if key not in indices_set:
                 admissible = True
+                active_vars = np.nonzero(forward_index)
                 for kk in active_vars:
                     backward_index = get_backward_neighbor(forward_index, kk)
                     if hash_array(backward_index) not in indices_set:
@@ -1249,7 +1249,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                          solver_type='lasso',
                          linear_solver_options={'cv': 10},
                          restriction_tol=np.finfo(float).eps*2,
-                         max_num_expansion_steps_iter=1,
+                         max_num_expansion_steps_iter=3,
                          max_iters=20,
                          max_num_step_increases=1):
     assert train_vals.shape[1] == 1
@@ -1302,20 +1302,25 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     while True:
         current_max_num_expansion_steps_iter = 1
         best_cv_score_iter = best_cv_score
+        indices_iter = pce.indices.copy()
+        coef_iter = pce.coefficients.copy()
         while True:
             # -------------- #
             #  Expand basis  #
             # -------------- #
             num_expansion_steps_iter = 0
             indices = restrict_basis(
-                pce.indices, pce.coefficients, restriction_tol)
+                #pce.indices, pce.coefficients, restriction_tol)
+                indices_iter, coef_iter, restriction_tol)
             msg = f'Expanding {indices.shape[1]} restricted from '
             msg += f'{pce.indices.shape[1]} terms'
-            while ((num_expansion_steps_iter < current_max_num_expansion_steps_iter)):
+            while (num_expansion_steps_iter <
+                   current_max_num_expansion_steps_iter):
                 new_indices = expand_basis(indices)
-                pce.set_indices(np.hstack([indices, new_indices]))
-                num_terms = pce.num_terms()
+                indices = np.hstack([indices, new_indices])
                 num_expansion_steps_iter += 1
+            pce.set_indices(indices)
+            num_terms = pce.num_terms()
             msg += f' New number of terms {pce.indices.shape[1]}'
             print(msg)
 
@@ -1345,13 +1350,14 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                     print(f'Max number of terms {max_num_terms} reached')
                 break
             
-            current_max_num_expansion_steps_iter += 1
-            if (current_max_num_expansion_steps_iter >= max_num_expansion_steps_iter):
+            if (current_max_num_expansion_steps_iter >=
+                max_num_expansion_steps_iter):
                 if verbose > 0:
                     msg = 'Max number of inner expansion steps '
                     msg += f'({max_num_expansion_steps_iter}) reached'
                     print(msg)
                 break
+            current_max_num_expansion_steps_iter += 1
 
         it += 1
         pce.set_indices(best_indices_iter)
@@ -1368,6 +1374,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             if verbose > 0:
                 msg = 'Terminating: error did not decrease'
                 msg += f' in last {max_num_step_increases} iterations'
+                msg += f'best error: {best_cv_score}'
                 print(msg)
             break
 
@@ -1385,6 +1392,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         msg = f'Final basis has {pce.num_terms()} terms selected from '
         msg += f'{nindices} using {train_samples.shape[1]} samples'
         print(msg)
+
     return pce, best_cv_score, best_reg_param
 
 
