@@ -7,6 +7,7 @@ from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
+from pyapprox.polynomial_sampling import christoffel_weights
 from pyapprox import compute_hyperbolic_indices
 from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
     OrthogonalMatchingPursuitCV, Lasso, LassoLars, Lars, \
@@ -879,6 +880,14 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
         solver_idx = 1
     else:
         solver_idx = 0
+
+    if kwargs.get('precondition', False):
+        weights = np.sqrt(christoffel_weights(basis_matrix))[:, None]
+        basis_matrix = basis_matrix.copy()*weights
+        train_vals = train_vals.copy()*weights
+        
+    if 'precondition' in kwargs:
+        del kwargs['precondition']
 
     fit = solvers[solver_type][solver_idx](**kwargs).fit
     res = fit(basis_matrix, train_vals[:, 0])

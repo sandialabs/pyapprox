@@ -8,7 +8,9 @@ from scipy.linalg import solve_triangular
 from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver
 from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
     compute_hyperbolic_level_indices
-def christoffel_function(samples,basis_matrix_generator,normalize=False):
+
+
+def christoffel_function(samples, basis_matrix_generator, normalize=False):
     r"""
     Evaluate the christoffel function K(x) at a set of samples x. 
 
@@ -23,24 +25,26 @@ def christoffel_function(samples,basis_matrix_generator,normalize=False):
                 if x are Gauss quadrature points
     """
     basis_matrix = basis_matrix_generator(samples)
-    vals =  1./christoffel_weights(basis_matrix)
+    vals = 1./christoffel_weights(basis_matrix)
     if normalize:
         vals /= basis_matrix.shape[1]
     return vals
+
 
 def christoffel_weights(basis_matrix):
     r"""
     Evaluate the 1/K(x),from a basis matrix, where K(x) is the 
     Christoffel function.
     """
-    return 1./np.sum(basis_matrix**2,axis=1)
+    return 1./np.sum(basis_matrix**2, axis=1)
 
-def christoffel_preconditioner(basis_matrix,samples):
+
+def christoffel_preconditioner(basis_matrix, samples):
     return christoffel_weights(basis_matrix)
 
 
-def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
-                       num_candidate_samples,preconditioning_function=None,
+def get_fekete_samples(generate_basis_matrix, generate_candidate_samples,
+                       num_candidate_samples, preconditioning_function=None,
                        precond_opts=dict()):
     r"""
     Generate Fekete samples using QR factorization. 
@@ -92,14 +96,14 @@ def get_fekete_samples(generate_basis_matrix,generate_candidate_samples,
     basis_matrix = generate_basis_matrix(candidate_samples)
     if preconditioning_function is not None:
         weights = np.sqrt(
-            preconditioning_function(basis_matrix,candidate_samples))
-        basis_matrix = np.dot(np.diag(weights),basis_matrix)
+            preconditioning_function(basis_matrix, candidate_samples))
+        basis_matrix = np.dot(np.diag(weights), basis_matrix)
     else:
         weights = None
-    Q,R,p = qr_factorization(basis_matrix.T,pivoting=True)
+    Q, R, p = qr_factorization(basis_matrix.T, pivoting=True)
     p = p[:basis_matrix.shape[1]]
-    fekete_samples = candidate_samples[:,p]
-    data_structures=(Q,R[:,:basis_matrix.shape[1]],p,weights[p])
+    fekete_samples = candidate_samples[:, p]
+    data_structures = (Q, R[:, :basis_matrix.shape[1]], p, weights[p])
     return fekete_samples, data_structures
 
 
@@ -157,8 +161,8 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
         candidate_samples = np.hstack((initial_samples, candidate_samples))
         num_initial_rows = initial_samples.shape[1]
     else:
-        num_initial_rows=0
-        
+        num_initial_rows = 0
+
     basis_matrix = generate_basis_matrix(candidate_samples)
     assert num_leja_samples <= basis_matrix.shape[1]
     if preconditioning_function is not None:
@@ -177,7 +181,7 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
         import matplotlib.pyplot as plt
         plt.plot(candidate_samples[0, :], weights)
         plt.show()
-        
+
     if plot and leja_samples.shape[0] == 2:
         import matplotlib.pyplot as plt
         print(('N:', basis_matrix.shape[1]))
@@ -194,7 +198,7 @@ def get_lu_leja_samples(generate_basis_matrix, generate_candidate_samples,
     # incomplete LU factorization
     L = L[:, :num_leja_samples]
     U = U[:num_leja_samples, :num_leja_samples]
-    data_structures=[L, U, p, weights[p]]
+    data_structures = [L, U, p, weights[p]]
     return leja_samples, data_structures
 
 
@@ -256,18 +260,18 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
     oli_solver = LeastInterpolationSolver()
     oli_solver.configure(oli_opts)
     oli_solver.set_pce(pce)
-    
+
     if preconditioning_function is not None:
         oli_solver.set_preconditioning_function(preconditioning_function)
-        
+
     oli_solver.set_basis_generator(basis_generator)
 
     num_vars = pce.num_vars()
-    max_degree = get_total_degree(num_vars,num_leja_samples)
+    max_degree = get_total_degree(num_vars, num_leja_samples)
     indices = compute_hyperbolic_indices(num_vars, max_degree, 1.)
     # warning this assumes basis generator is always compute_hyperbolic_indices
     # with p=1
-    assert indices.shape[1]>=num_leja_samples
+    assert indices.shape[1] >= num_leja_samples
     pce.set_indices(indices)
 
     assert num_leja_samples <= num_candidate_samples
@@ -280,21 +284,22 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
     leja_samples = oli_solver.get_current_points()
 
     data_structures = (oli_solver,)
-    
+
     return leja_samples, data_structures
 
-def interpolate_fekete_samples(fekete_samples,values,data_structures):
+
+def interpolate_fekete_samples(fekete_samples, values, data_structures):
     r"""
     Assumes ordering of values and rows of L and U are consistent.
     Typically this is done by computing leja samples then evaluating function
     at these samples.
     """
-    Q,R = data_structures[0],data_structures[1]
+    Q, R = data_structures[0], data_structures[1]
     precond_weights = data_structures[3]
     # QR is a decomposition of V.T, V=basis_matrix(samples)
     # and we want to solve V*coeff = values
-    temp = solve_triangular(R.T,(values.T*precond_weights).T,lower=True) 
-    coef = np.dot(Q,temp)
+    temp = solve_triangular(R.T, (values.T*precond_weights).T, lower=True)
+    coef = np.dot(Q, temp)
     return coef
 
 
@@ -312,7 +317,7 @@ def interpolate_lu_leja_samples(leja_samples, values, data_structures):
 
 
 def get_quadrature_weights_from_fekete_samples(fekete_samples, data_structures):
-    Q,R = data_structures[0], data_structures[1]
+    Q, R = data_structures[0], data_structures[1]
     precond_weights = data_structures[3]
     # QR is a decomposition of V.T, V=basis_matrix(samples)
     # and we want to compute inverse of V=(QR).T
@@ -337,7 +342,3 @@ def get_quadrature_weights_from_lu_leja_samples(leja_samples, data_structures):
         # so do not do it again here
         quad_weights *= precond_weights
     return quad_weights
-    
-
-    
-    
