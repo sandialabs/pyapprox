@@ -647,11 +647,14 @@ def get_recursion_coefficients(
     elif poly_type == 'monomial':
         recursion_coeffs = None
     elif var_type in _continuous_distns._distn_names:
-        quad_options = {
-            'nquad_samples': 10,
-            'atol': numerically_generated_poly_accuracy_tolerance,
-            'rtol': numerically_generated_poly_accuracy_tolerance,
-            'max_steps': 10000, 'verbose': 0}
+        if "quad_options" not in opts:
+            quad_options = {
+                'nquad_samples': 10,
+                'atol': numerically_generated_poly_accuracy_tolerance,
+                'rtol': numerically_generated_poly_accuracy_tolerance,
+                'max_steps': 10000, 'verbose': 0}
+        else:
+            quad_options = opts["quad_options"]
         rv = getattr(stats, var_type)(**opts['shapes'])
         recursion_coeffs = predictor_corrector_known_scipy_pdf(
             num_coefs, rv, quad_options)

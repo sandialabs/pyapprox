@@ -401,6 +401,26 @@ class PolynomialChaosExpansion(object):
                         self.recursion_coeffs.append(recursion_coeffs_ii)
                     else:
                         self.recursion_coeffs[ii] = recursion_coeffs_ii
+
+                    from scipy.stats import _continuous_distns
+                    if ((poly_opts.get('poly_type', None) is None) and
+                        (poly_opts['rv_type'] in
+                         _continuous_distns._distn_names)):
+                        # numerically defined polynomials are not defined
+                        # on a canonical domain so make sure that mapping is not
+                        # invoked
+                        if self.var_trans.identity_map_indices is None:
+                            self.var_trans.identity_map_indices = [ii]
+                        elif ii not in self.var_trans.identity_map_indices:
+                            self.var_trans.identity_map_indices += [ii]
+                        # msg = "Must add variable associated with a numerically "
+                        # msg += " generated bais to identity_map_indices"
+                        # if self.var_trans.identity_map_indices is None:
+                        #     raise ValueError(msg)
+                        # for kk in self.basis_type_var_indices[ii]:
+                        #     if kk not in self.var_trans.identity_map_indices:
+                        #         raise ValueError(msg)
+                            
                 # extract variables indices for which basis is to be used
                 self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
                 ii += 1

@@ -430,7 +430,7 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
 
         def integrand(measure, x):
             pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
-            return measure(x)*pvals[:, ii]*pvals[:, ii-1]        
+            return measure(x)*pvals[:, ii]*pvals[:, ii-1]
         G_ii_iim1 = integrate(
             partial(integrand, measure), nquad_samples+ii,
             interval_size=interval_size)

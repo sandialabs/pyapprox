@@ -330,7 +330,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
         pool_given = True
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
-    if pool_given is False:
+    if pool_given == False:
         pool.close()
 
     # result  = [model(samples[:, ii:ii+1]) for ii in range(samples.shape[1])]

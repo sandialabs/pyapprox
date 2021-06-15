@@ -1758,7 +1758,7 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
         integrand, lb, ub, nquad_samples, rtol=1e-8, atol=1e-8,
         verbose=0, adaptive=True):
     # Adaptive
-    nquad_samples = 10
+    # nquad_samples = 10
     prev_res = np.inf
     it = 0
     while True:
