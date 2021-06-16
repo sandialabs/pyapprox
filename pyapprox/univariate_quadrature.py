@@ -19,7 +19,7 @@ from pyapprox.variables import is_continuous_variable, \
     is_bounded_continuous_variable
 from pyapprox.variables import get_distribution_info
 from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
-    modified_chebyshev_orthonormal, predictor_corrector_known_scipy_pdf, \
+    predictor_corrector_known_scipy_pdf, \
     predictor_corrector_function_of_independent_variables, \
     predictor_corrector_product_of_functions_of_independent_variables, \
     lanczos, predictor_corrector
@@ -51,13 +51,13 @@ def clenshaw_curtis_rule_growth(level):
 def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
     """
     Convert a 1D hierarchical index (ll,ii) to a nodal index for lookup in a
-    Clenshaw-Curtis quadrature rule. 
+    Clenshaw-Curtis quadrature rule.
 
     Given a quadrature rule of the specified max level (level)
     with indices [0,1,...,num_indices] this function can be used
-    to convert a hierarchical index, e.g. of the constant function 
-    (poly_index=0), to the quadrature index, e.g for poly_index=0, 
-    index=num_indices/2). This allows one to take advantage of nestedness of 
+    to convert a hierarchical index, e.g. of the constant function
+    (poly_index=0), to the quadrature index, e.g for poly_index=0,
+    index=num_indices/2). This allows one to take advantage of nestedness of
     quadrature rule and only store quadrature rule for max level.
 
     Parameters
@@ -65,7 +65,7 @@ def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
     level : integer
         The maximum level of the quadrature rule
 
-    ll : integer 
+    ll : integer
         The level of the polynomial index
 
     ii : integer
@@ -93,8 +93,8 @@ def clenshaw_curtis_hierarchical_to_nodal_index(level, ll, ii):
 def clenshaw_curtis_poly_indices_to_quad_rule_indices(level):
     """
     Convert all 1D polynomial indices of up to and including a given level
-    to their equivalent nodal index for lookup in a Clenshaw-Curtis 
-    quadrature rule. 
+    to their equivalent nodal index for lookup in a Clenshaw-Curtis
+    quadrature rule.
 
     Parameters
     ----------
@@ -382,7 +382,7 @@ def get_jacobi_recursion_coefficients(poly_type, opts, num_coefs):
     ----------
     opts : dictionary
        Dictionary with the following attributes
-    
+
     alpha_poly : float
         The alpha parameter of the jacobi polynomial. Only used and required
         if poly_type is not None
@@ -390,7 +390,7 @@ def get_jacobi_recursion_coefficients(poly_type, opts, num_coefs):
     beta_poly : float
         The beta parameter of the jacobi polynomial. Only used and required
         if poly_type is not None
-    
+
     shapes : dictionary
         Shape parameters of the Beta distribution. shapes['a'] is the 
         a parameter of the Beta distribution and shapes['a'] is the 
@@ -410,6 +410,7 @@ def get_jacobi_recursion_coefficients(poly_type, opts, num_coefs):
             1, opts['shapes']['a']-1
     return jacobi_recurrence(
         num_coefs, alpha=alpha_poly, beta=beta_poly, probability=True)
+
 
 def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
     """
@@ -449,18 +450,18 @@ def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
 
 
 def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
-    """
-    Compute the recursion coefficients orthonormal to the random variable 
-    arising from the product of univariate functions :math:`f_d(Z_d)` of 
+    r"""
+    Compute the recursion coefficients orthonormal to the random variable
+    arising from the product of univariate functions :math:`f_d(Z_d)` of
     independent random variables :math:`Z_d` , that is
 
     .. math:: W = \prod_{d=1}^D f_d(Z_d)
 
-    This function first computes recursion coefficients of 
-    :math:`W_{12}=f_1(Z_1)f_2(Z_2)`. Then uses this to compute a quadrature rule
-    which is then used to contruct recursion coefficients for 
-    :math:`W_{123}=W_{12}f_3(Z_3)` and so on. The same recursion coefficients 
-    can be obtained using 
+    This function first computes recursion coefficients of
+    :math:`W_{12}=f_1(Z_1)f_2(Z_2)`. Then uses this to compute a quadrature
+    rule which is then used to contruct recursion coefficients for
+    :math:`W_{123}=W_{12}f_3(Z_3)` and so on. The same recursion coefficients
+    can be obtained using
     :func:`get_function_independent_vars_recursion_coefficients` however this
     function being documented is faster because it
     leverages the seperability of the product.
@@ -475,11 +476,11 @@ def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
 
     quad_rules : list (nvars)
         List of univariate quadrature rule sample, weight tuples (x, w)
-        for each variable. Each quadrature rules must be in the user domain. 
-        The polynomial generated with the recursion coefficients genereated here 
-        will does not have a notion of canonical domain. Thus when used with a 
-        variable transformation set the variable index j associated with these 
-        recursion coefficients to use the identity map via 
+        for each variable. Each quadrature rules must be in the user domain.
+        The polynomial generated with the recursion coefficients genereated
+        here will does not have a notion of canonical domain. Thus when used
+        with a variable transformation set the variable index j associated with
+        these recursion coefficients to use the identity map via
         var_trans.set_identity_maps([j])
 
     Returns
@@ -488,11 +489,11 @@ def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
 
     Todo
     ----
-    This function can be generalized to consider compositions of functions of 
+    This function can be generalized to consider compositions of functions of
     independent variable groups, e.g
 
     math:: W = g_2(g_1(f_{12}(Z_1, Z_2), f_{3,4}(Z_3, Z_4)), f_{5}(Z_5))
-    
+
     """
     funs = opts['funs']
     quad_rules = opts['quad_rules']
@@ -500,7 +501,6 @@ def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
         predictor_corrector_product_of_functions_of_independent_variables(
             num_coefs, quad_rules, funs)
     return recursion_coeffs
-
 
 
 def get_recursion_coefficients(
@@ -538,7 +538,7 @@ def get_recursion_coefficients(
      - :func:`pyapprox.univariate_quadrature.get_jacobi_recursion_coefficients`
      - :func:`pyapprox.univariate_quadrature.get_function_independent_vars_recursion_coefficients`
      - :func:`pyapprox.univariate_quadrature.get_product_independent_vars_recursion_coefficients`
-    
+
         Note Legendre is just a special instance of a Jacobi polynomial with
         alpha_poly, beta_poly = 0, 0 and alpha_stat, beta_stat = 1, 1
 
@@ -611,7 +611,6 @@ def get_recursion_coefficients(
             msg = 'Number of coefs requested is larger than number of '
             msg += 'probability masses'
             raise Exception(msg)
-        #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
         recursion_coeffs = lanczos(xk, pk, num_coefs)
         p = evaluate_orthonormal_polynomial_1d(
             np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
@@ -630,9 +629,6 @@ def get_recursion_coefficients(
             msg = 'Number of coefs requested is larger than number of '
             msg += 'samples'
             raise Exception(msg)
-        #print(num_coefs)
-        #recursion_coeffs = modified_chebyshev_orthonormal(num_coefs, [xk, pk])
-        #recursion_coeffs = lanczos(xk, pk, num_coefs)
         recursion_coeffs = predictor_corrector(
             num_coefs, (xk, pk), xk.min(), xk.max(),
             interval_size=xk.max()-xk.min())
@@ -921,6 +917,7 @@ def get_discrete_univariate_leja_quadrature_rule(variable, growth_rule, initial_
             initial_points = np.atleast_2d([variable.ppf(0.5)])
 
         xk, pk = get_probability_masses(variable)
+
         def generate_candidate_samples(num_samples):
             return xk[None, :]
         opts = {'rv_type': var_name, 'shapes': shapes}

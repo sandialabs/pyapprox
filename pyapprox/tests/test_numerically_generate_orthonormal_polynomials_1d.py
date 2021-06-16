@@ -254,9 +254,9 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab = predictor_corrector_product_of_functions_of_independent_variables(
             nterms, quad_rules, funs)
 
-        quad_opts = {'verbose': 3, 'atol': 1e-5, 'rtol': 1e-5}
+        quad_opts = {'verbose': 3, 'atol': 1e-6, 'rtol': 1e-6}
         ab_full = predictor_corrector(nterms, measure, 0, 1, 1, quad_opts)
-
+        print(ab-ab_full)
         assert np.allclose(ab, ab_full, atol=1e-5, rtol=1e-5)
 
     def test_arbitraty_polynomial_chaos(self):

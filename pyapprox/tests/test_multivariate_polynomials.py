@@ -245,6 +245,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         basis_matrix = poly.basis_matrix(samples, {'deriv_order': 1})
         vals_basis_matrix = basis_matrix[:samples.shape[1], :]
         inner_products = (vals_basis_matrix.T*weights).dot(vals_basis_matrix)
+        print(inner_products)
         assert np.allclose(inner_products, np.eye(basis_matrix.shape[1]))
 
         exact_basis_vals_1d = []
@@ -567,7 +568,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
                     verbose=0, max_steps=10000)
             res = np.reshape(
                 res, (poly.indices.shape[1],poly.indices.shape[1]), order='C')
-            print(res-np.eye(degree+1))
+            print('r',res-np.eye(degree+1))
             assert np.allclose(res, np.eye(degree+1), atol=1e-6)
 
     def test_conditional_moments_of_polynomial_chaos_expansion(self):

@@ -336,7 +336,7 @@ def predictor_corrector_known_scipy_pdf(nterms, rv, quad_options={}):
         interval_size = (rv.interval(0.99)[1] - rv.interval(0.99)[0])
     return predictor_corrector(
         nterms, rv.pdf, lb, ub, interval_size, quad_options)
-    
+  
 
 def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
                         quad_options={}):
