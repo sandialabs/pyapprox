@@ -1,14 +1,26 @@
 import numpy as np
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
-from pyapprox.adaptive_sparse_grid import SubSpaceRefinementManager
-from pyapprox.induced_sampling import increment_induced_samples_migliorati, \
-    generate_induced_samples_migliorati_tolerance, christoffel_weights
 from scipy.linalg import solve_triangular
-from pyapprox.utilities import add_columns_to_pivoted_lu_factorization, \
-    continue_pivoted_lu_factorization, get_final_pivots_from_sequential_pivots,\
-    split_lu_factorization_matrix, pivot_rows, hash_array, \
+from sklearn.linear_model import OrthogonalMatchingPursuit
+
+from pyapprox.multivariate_polynomials import (
+    PolynomialChaosExpansion,
+    define_poly_options_from_variable_transformation
+)
+from pyapprox.induced_sampling import (
+    increment_induced_samples_migliorati,
+    generate_induced_samples_migliorati_tolerance,
+    christoffel_weights
+)
+from pyapprox.utilities import (
+    add_columns_to_pivoted_lu_factorization,
+    continue_pivoted_lu_factorization,
+    get_final_pivots_from_sequential_pivots,
+    split_lu_factorization_matrix,
+    pivot_rows,
+    hash_array,
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
+)
+from pyapprox.adaptive_sparse_grid import SubSpaceRefinementManager
 from pyapprox.probability_measure_sampling import generate_independent_random_samples
 
 
@@ -54,7 +66,6 @@ def variance_pce_refinement_indicator(
         indicator /= np.absolute(adaptive_pce.values[0, :])**2
 
     qoi_chosen = np.argmax(indicator)
-
     indicator = indicator.max()
 
     cost_per_sample = adaptive_pce.eval_cost_function(
@@ -63,18 +74,17 @@ def variance_pce_refinement_indicator(
 
     # compute marginal benefit
     indicator /= cost
-    # print(subspace_index,indicator,'indicator')
+
     return -indicator, error[qoi_chosen]
 
 
 def solve_preconditioned_least_squares(basis_matrix_func, samples, values,
                                        precond_func):
     basis_matrix = basis_matrix_func(samples)
-    #weights = np.sqrt(basis_matrix.shape[1]*christoffel_weights(basis_matrix))
     weights = precond_func(basis_matrix, samples)
     basis_matrix = basis_matrix*weights[:, np.newaxis]
     rhs = values*weights[:, np.newaxis]
-    # print(np.linalg.cond(basis_matrix))
+
     coef = np.linalg.lstsq(basis_matrix, rhs, rcond=None)[0]
     return coef
 
@@ -83,7 +93,6 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
                                                      samples, values,
                                                      precond_func,
                                                      tol=1e-8):
-    from sklearn.linear_model import OrthogonalMatchingPursuit
     basis_matrix = basis_matrix_func(samples)
     weights = precond_func(basis_matrix, samples)
     basis_matrix = basis_matrix*weights[:, np.newaxis]
@@ -91,7 +100,7 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     omp = OrthogonalMatchingPursuit(tol=tol, fit_intercept=False)
     omp.fit(basis_matrix, rhs)
     coef = omp.coef_
-    print('nnz_terms', np.count_nonzero(coef))
+
     return coef[:, np.newaxis]
 
 
@@ -167,7 +176,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             unique_poly_indices = np.hstack(
                 [unique_poly_indices, self.poly_indices[:, I]])
 
-        # current_poly_indices will include active indices not added
+        # Current_poly_indices will include active indices not added
         # during this call, i.e. in new_subspace_indices.
         # thus cannot use
         # I = get_active_poly_array_indices(self)
@@ -206,8 +215,6 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             **self.fit_opts)
 
     def add_new_subspaces(self, new_subspace_indices):
-        num_new_subspaces = new_subspace_indices.shape[1]
-        num_current_subspaces = self.subspace_indices.shape[1]
         num_new_subspace_samples = super(
             AdaptiveInducedPCE, self).add_new_subspaces(new_subspace_indices)
 
@@ -236,12 +243,14 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def __init__(self, num_vars, candidate_samples, factorization_type='fast'):
-        # todo remove cond_tol from __init__
+        # TODO: remove cond_tol from __init__
         super(AdaptiveLejaPCE, self).__init__(num_vars, 1e-8)
-        #make sure correct preconditioning function is used. AdaptiveInducedPCE
-        #has some internal logic that can overide default we want
+
+        # Make sure correct preconditioning function is used. AdaptiveInducedPCE
+        # has some internal logic that can overide default we want
         self.set_preconditioning_function(christoffel_preconditioning_function)
-        # must be in canonical space
+
+        # Must be in canonical space
         # TODO: generate candidate samples at each iteration from induced
         # distribution using current self.poly_indices
         self.candidate_samples = candidate_samples
@@ -249,17 +258,16 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
     def precond_canonical_basis_matrix(self, samples):
         basis_matrix = self.pce.canonical_basis_matrix(samples)
-        # precond_weights=np.sqrt(basis_matrix.shape[1])/np.linalg.norm(
-        #    basis_matrix,axis=1)
         precond_weights = self.precond_func(basis_matrix, samples)
         precond_basis_matrix = basis_matrix*precond_weights[:, np.newaxis]
+
         return precond_basis_matrix, precond_weights
 
     def get_num_new_subspace_samples(self, new_subspace_indices,
                                      num_current_subspaces):
         num_current_subspaces = self.subspace_indices.shape[1]
         num_vars, num_new_subspaces = new_subspace_indices.shape
-        unique_poly_indices = np.zeros((num_vars, 0), dtype=int)
+
         num_new_subspace_samples = np.empty((num_new_subspaces), dtype=int)
         for ii in range(num_new_subspaces):
             I = get_subspace_active_poly_array_indices(
@@ -277,6 +285,7 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
     def update_leja_sequence_slow(self, new_subspace_indices):
         num_samples = self.samples.shape[1]
+
         # There will be two copies of self.samples in candidate_samples
         # but pivoting will only choose these samples once when number of
         # desired samples is smaller than
@@ -299,6 +308,7 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         self.pivots = np.concatenate(
             [self.pivots, np.arange(num_initial_rows, pivots.shape[0])])
         self.precond_weights = precond_weights[pivots, np.newaxis]
+
         return candidate_samples[:, pivots[num_samples:]]
 
     def update_leja_sequence_fast(self, new_subspace_indices,
@@ -307,7 +317,8 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         if num_samples == 0:
             self.pce.set_indices(self.poly_indices)
             max_iters = self.poly_indices.shape[1]
-            # keep unconditioned
+
+            # Keep unconditioned
             self.basis_matrix = self.precond_canonical_basis_matrix(
                 self.candidate_samples)[0]
             self.LU_factor, self.seq_pivots = \
@@ -315,11 +326,9 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
                     self.basis_matrix, max_iters, truncate_L_factor=False)
             self.pivots = get_final_pivots_from_sequential_pivots(
                 self.seq_pivots.copy())[:max_iters]
-            # self.precond_weights = np.sqrt(
-            #    self.basis_matrix.shape[1]*christoffel_weights(
-            #        self.basis_matrix))[:,np.newaxis]
             self.precond_weights = self.precond_func(
                 self.basis_matrix, self.candidate_samples)[:, np.newaxis]
+
             return self.candidate_samples[
                 :, self.pivots[num_samples:self.poly_indices.shape[1]]]
 
@@ -342,36 +351,24 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         self.LU_factor = add_columns_to_pivoted_lu_factorization(
             self.LU_factor.copy(), new_cols, self.seq_pivots[:num_samples])
 
-        # self.precond_weights = np.sqrt(
-        #    self.basis_matrix.shape[1]*christoffel_weights(
-        #        self.basis_matrix))[:,np.newaxis]
         self.precond_weights = self.precond_func(
             self.basis_matrix, self.candidate_samples)[:, np.newaxis]
         pivoted_precond_weights = pivot_rows(
             self.seq_pivots, self.precond_weights, False)
-        
-        # I = np.where(self.candidate_samples[1, :]==17)[0]
-        # tmp, J =  np.unique(self.candidate_samples[0, I], return_index=True)
-        # print(self.candidate_samples[0, I][J], pivoted_precond_weights[I][J])
-        # import matplotlib.pyplot as plt
-        # plt.plot(self.candidate_samples[0, I][J],
-        #          pivoted_precond_weights[I][J])
-        # plt.show()
-        
+
         self.LU_factor = unprecondition_LU_factor(
             self.LU_factor,
             pivoted_precond_weights_prev/pivoted_precond_weights,
             num_samples)
 
-        it = self.poly_indices.shape[1]
         max_iters = self.poly_indices.shape[1]
-        self.LU_factor, self.seq_pivots, it = continue_pivoted_lu_factorization(
+        self.LU_factor, self.seq_pivots, _ = continue_pivoted_lu_factorization(
             self.LU_factor.copy(), self.seq_pivots, self.samples.shape[1],
             max_iters, num_initial_rows=0)
         self.pivots = get_final_pivots_from_sequential_pivots(
             self.seq_pivots.copy())[:max_iters]
-
         self.pce.set_indices(self.poly_indices)
+
         return self.candidate_samples[
             :, self.pivots[num_samples:self.poly_indices.shape[1]]]
 
@@ -388,11 +385,10 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
         num_new_subspace_samples = self.get_num_new_subspace_samples(
             new_subspace_indices, num_current_subspaces)
+
         return unique_subspace_samples, num_new_subspace_samples
 
     def add_new_subspaces(self, new_subspace_indices):
-        num_new_subspaces = new_subspace_indices.shape[1]
-        num_current_subspaces = self.subspace_indices.shape[1]
         num_new_subspace_samples = super(
             AdaptiveInducedPCE, self).add_new_subspaces(new_subspace_indices)
 
@@ -402,15 +398,15 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
                 self.LU_factor[:it, :it],
                 self.values*self.precond_weights[self.pivots],
                 lower=True, unit_diagonal=True)
-            coef = solve_triangular(
-                self.LU_factor[:it, :it], temp, lower=False)
-
+            a_f = self.LU_factor[:it, :it]
         else:
             temp = solve_triangular(
                 self.L_factor,
                 self.values[self.pivots]*self.precond_weights,
                 lower=True)
-            coef = solve_triangular(self.U_factor, temp, lower=False)
+            a_f = self.U_factor
+
+        coef = solve_triangular(a_f, temp, lower=False)
         self.pce.set_coefficients(coef)
 
         return num_new_subspace_samples

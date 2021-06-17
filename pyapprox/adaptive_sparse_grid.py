@@ -54,8 +54,8 @@ def extract_items_from_priority_queue(pqueue):
     of items in queue
 
     Priority queue is thread safe so does not support shallow or deep copy
-    One can copy this queue by pushing and popping by original queue will 
-    be destroyed. Return a copy of the original queue that can be used to 
+    One can copy this queue by pushing and popping by original queue will
+    be destroyed. Return a copy of the original queue that can be used to
     replace the destroyed queue
     """
 
@@ -968,14 +968,14 @@ class SubSpaceRefinementManager(object):
     def set_univariate_growth_rules(self, univariate_growth_rule,
                                     unique_quadrule_indices):
         """
-        self.config_variable_idx must be set if univariate_growth_rule is 
-        a callable function and not a lisf of callable functions. Otherwise 
+        self.config_variable_idx must be set if univariate_growth_rule is
+        a callable function and not a lisf of callable functions. Otherwise
         errors such as assert len(growth_rule_1d)==config_variables_idx will
         be thrown
 
         TODO: eventually retire self.univariate_growth rule and just pass
-        around compact_growth_rule. When doing this change from storing 
-        samples_1d for each dimension to only storing for unique quadrature 
+        around compact_growth_rule. When doing this change from storing
+        samples_1d for each dimension to only storing for unique quadrature
         rules
         """
         self.unique_quadrule_indices = unique_quadrule_indices
@@ -1026,16 +1026,16 @@ class SubSpaceRefinementManager(object):
             are consecutive integers 0,1,... using self.config_var_trans
 
         work_qoi_index : integer (default None)
-            If provided self.function is assumed to return the work (typically 
+            If provided self.function is assumed to return the work (typically
             measured in wall time) taken to evaluate each sample. The work
-            for each sample return as a QoI in the column indexed by 
+            for each sample return as a QoI in the column indexed by
             work_qoi_index. The work QoI is ignored by the sparse grid
             eval_function() member function. If work_qoi_index is provided
-            cost_function() must be a class with a member function 
-            update(config_samples,costs). config_samples is a 2d array whose 
-            columns are unique identifiers of the model being evaluated and 
-            costs is the work needed to evaluate that model. If building single 
-            fidelity sparse grid then config vars is set to be (0,...,0) for 
+            cost_function() must be a class with a member function
+            update(config_samples,costs). config_samples is a 2d array whose
+            columns are unique identifiers of the model being evaluated and
+            costs is the work needed to evaluate that model. If building single
+            fidelity sparse grid then config vars is set to be (0,...,0) for
             each sample
         """
         self.refinement_indicator = refinement_indicator
@@ -1046,12 +1046,8 @@ class SubSpaceRefinementManager(object):
             cost_function = default_combination_sparse_grid_cost_function
         self.cost_function = cost_function
         if work_qoi_index is not None:
-            raise Exception('this option is deprecated and wil  be removed')
-        # self.work_qoi_index=work_qoi_index
-        # if self.work_qoi_index is not None:
-        #    if not hasattr(self.cost_function,'update'):
-        #        msg = 'cost_function must have update() member function'
-        #        raise Exception(msg)
+            raise Exception('This option is deprecated and will be removed')
+
 
     def set_config_variable_index(self, idx, config_var_trans=None):
         if self.function is None:
@@ -1144,7 +1140,7 @@ class SubSpaceRefinementManager(object):
 
 def get_unique_quadrule_variables(var_trans):
     """
-    This function will create a quad rule for each variable type with different 
+    This function will create a quad rule for each variable type with different
     scaling. This can cause redundant computation of quad rules which
     may be significant when using leja sequences
     """
@@ -1176,13 +1172,13 @@ def get_unique_max_level_1d(var_trans, growth_rules):
         msg = 'growth rules and unique_quadrule_indices'
         msg += ' (derived from var_trans) are inconsistent'
         raise Exception(msg)
-    
+
     max_level_1d = []
     for ii in range(len(unique_quadrule_indices)):
         if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
             max_nsamples_ii = get_probability_masses(
                 unique_quadrule_variables[ii])[0].shape[0]
-            ll = 0 
+            ll = 0
             while True:
                 if growth_rules[ii](ll) > max_nsamples_ii-1:
                     max_level_1d_ii = ll-1
@@ -1361,7 +1357,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
     def __call__(self, samples):
         """
-        config values are ignored. The sparse grid just returns its best 
+        config values are ignored. The sparse grid just returns its best
         approximation of the highest fidelity model. TODO: consider enforcing
         that samples do not have configure variables
         """
@@ -1401,7 +1397,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         """
         Set samples which are used to evaluate a sparse grid repeatedly.
         If provided each time a subspace is added the subspace is evaluated
-        at these points so that when self.evaluate_at_interrogation_samples 
+        at these points so that when self.evaluate_at_interrogation_samples
         is called no major computations are required.
         Note the reduced time complexity requires more storage
 
@@ -1580,7 +1576,7 @@ class ConfigureVariableTransformation(object):
 
     def map_from_canonical_space(self, canonical_samples):
         """
-        Map a configure multi-dimensional index to the corresponding 
+        Map a configure multi-dimensional index to the corresponding
         configure values
         """
         assert canonical_samples.shape[0] == self.nvars
@@ -1659,7 +1655,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
         quad_rules.append(get_univariate_leja_quadrature_rule(
             quadrule_variables[ii], growth_rule, method,
             initial_points=canonical_initial_points_new))
-        
+
     sparse_grid.set_univariate_growth_rules(
         growth_rules, unique_quadrule_indices)
     max_level = sparse_grid.subspace_indices.max()
