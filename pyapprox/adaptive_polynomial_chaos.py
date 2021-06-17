@@ -42,11 +42,15 @@ def variance_pce_refinement_indicator(
     I = get_subspace_active_poly_array_indices(adaptive_pce, ii)
     error = np.sum(adaptive_pce.pce.coefficients[I]**2, axis=0)
     indicator = error.copy()
-    # print(subspace_index,error)
 
-    # relative error will not work if value at first grid point is close to zero
     if normalize:
-        assert np.all(np.absolute(adaptive_pce.values[0, :]) > 1e-6)
+        msg = """Attempted normalization of variance with values at first grid point close to 0.
+        Possible options are:
+        - Use a different sample or sampling sequence
+          (if random sampling, try a different seed value)
+        - Set the `normalize` option to False (see docs for: `variance_pce_refinement_indicator()`)
+        """
+        assert np.all(np.absolute(adaptive_pce.values[0, :]) > 1e-6), msg
         indicator /= np.absolute(adaptive_pce.values[0, :])**2
 
     qoi_chosen = np.argmax(indicator)
