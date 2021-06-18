@@ -141,7 +141,7 @@ class TestRecursionFactory(unittest.TestCase):
         unsupported_continuous_var_names = ["levy_stable", "vonmises"]
         # The following are too difficult without better integration algorithm
         unsupported_continuous_var_names += [
-            "f", "levy", "levy_l", "loglaplace", "ncf"]
+            "f", "levy", "levy_l", "loglaplace", "ncf", "crystalball"]
 
         # The following variables have fat tails and cause
         # scipy.integrate.quad to fail. Use custom integrator for these

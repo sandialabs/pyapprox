@@ -561,17 +561,12 @@ def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
     opts : dictionary
         Dictionary with the following attributes
 
-    funs : list (nvars)
-        List of univariate functions of each variable
+    fun : callable
+        Function that maps the variables to a scalar value
 
     quad_rules : list (nvars)
         List of univariate quadrature rule sample, weight tuples (x, w)
         for each variable. Each quadrature rules must be in the user domain.
-        The polynomial generated with the recursion coefficients genereated
-        here will does not have a notion of canonical domain. Thus when used
-        with a variable transformation set the variable index j associated with
-        these recursion coefficients to use the identity map via
-        var_trans.set_identity_maps([j])
 
     Returns
     -------

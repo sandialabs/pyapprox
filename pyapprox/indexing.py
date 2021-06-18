@@ -1,5 +1,3 @@
-#from scipy.special import comb as scipy_comb
-from scipy.special.cython_special import binom
 import numpy as np
 from pyapprox.utilities import cartesian_product, hash_array
 from numba import njit
@@ -72,7 +70,8 @@ def pnorm(array, p):
 
 
 @njit(cache=True)
-def compute_hyperbolic_level_subdim_indices(num_vars, level, num_active_vars, p):
+def compute_hyperbolic_level_subdim_indices(
+        num_vars, level, num_active_vars, p):
     assert p <= 1.0 and p > 0.0
     eps = 100 * np.finfo(np.double).eps
 
@@ -88,7 +87,6 @@ def compute_hyperbolic_level_subdim_indices(num_vars, level, num_active_vars, p)
                 if ((p_norm > level-1+eps) and (p_norm < level+eps)):
                     # resize memory if needed
                     if (num_indices >= indices.shape[1]):
-                        #np.resize(indices, (num_active_vars, num_indices+1000))
                         indices = np.hstack(
                             (indices,
                              np.empty((num_active_vars, num_indices+1000),
@@ -100,8 +98,8 @@ def compute_hyperbolic_level_subdim_indices(num_vars, level, num_active_vars, p)
             break
 
     # Remove unwanted memory
-
     return indices[:, :num_indices]
+
 
 @njit(cache=True)
 def compute_hyperbolic_level_indices(num_vars, level, p):
@@ -134,7 +132,7 @@ def compute_hyperbolic_level_indices(num_vars, level, p):
         # Chop off unused memory;
         var_indices = var_indices[:, :num_var_indices]
         # following does not work it has uninitialized values in answer
-        #var_indices.resize((num_vars, num_var_indices))
+        # var_indices.resize((num_vars, num_var_indices))
 
         new_indices = np.zeros((
             num_vars, var_indices.shape[1]*level_indices.shape[1]),
@@ -142,7 +140,7 @@ def compute_hyperbolic_level_indices(num_vars, level, p):
         num_new_indices = 0
         for ii in range(var_indices.shape[1]):
             var_index = var_indices[:, ii]
-            I = np.nonzero(var_index)[0]
+            II = np.nonzero(var_index)[0]
             # for each permutation of the nonzero entries of the
             # index at this level put in each of the possible
             # permutatinons of the level. E.g in 3D level =3
@@ -151,11 +149,12 @@ def compute_hyperbolic_level_indices(num_vars, level, p):
             # be [[2,1,0],[2,0,1],[0,2,1],[1,2,0],[1,0,2],[0,1,2]]
             for jj in range(level_indices.shape[1]):
                 index = new_indices[:, num_new_indices]
-                for kk in range(I.shape[0]):
-                    index[I[kk]] = level_indices[kk, jj]
+                for kk in range(II.shape[0]):
+                    index[II[kk]] = level_indices[kk, jj]
                 num_new_indices += 1
         indices = np.hstack((indices, new_indices))
     return indices
+
 
 @njit(cache=True)
 def nchoosek(nn, kk):
@@ -178,10 +177,10 @@ def compute_hyperbolic_indices(num_vars, level, p=1):
 def compute_tensor_product_level_indices(num_vars, degree, max_norm=True):
     indices = cartesian_product([np.arange(degree+1)]*num_vars, 1)
     if max_norm:
-        I = np.where(np.linalg.norm(indices, axis=0, ord=np.inf) == degree)[0]
+        II = np.where(np.linalg.norm(indices, axis=0, ord=np.inf) == degree)[0]
     else:
-        I = np.where(indices.sum(axis=0) == degree)[0]
-    return indices[:, I]
+        II = np.where(indices.sum(axis=0) == degree)[0]
+    return indices[:, II]
 
 
 def tensor_product_indices(degrees):
@@ -231,7 +230,7 @@ def argsort_indices_leixographically(indices):
 
     Parameters
     ----------
-    indices: np.ndarray (num_vars,num_indices) 
+    indices: np.ndarray (num_vars,num_indices)
          multivariate indices
     Return
     ------
@@ -250,15 +249,15 @@ def argsort_indices_leixographically(indices):
 
 def argsort_indices_lexiographically_by_row(indices):
     r"""
-    Argort a set of indices lexiographically.  Sort by sum of columns by 
-    value of first row. Break ties by value of first row then use the next 
+    Argort a set of indices lexiographically.  Sort by sum of columns by
+    value of first row. Break ties by value of first row then use the next
     row to break tie and so on
 
     E.g. multiindices [(1,1),(2,0),(1,2),(0,2)] -> [(0,2),(1,1),(1,2),(2,0)]
 
     Parameters
     ----------
-    indices: np.ndarray (num_vars,num_indices) 
+    indices: np.ndarray (num_vars,num_indices)
          multivariate indices
     Return
     ------
@@ -276,7 +275,7 @@ def argsort_indices_lexiographically_by_row(indices):
 
 
 def sort_indices_lexiographically(indices):
-    r""" 
+    r"""
     Sort by level then lexiographically
     The last key in the sequence is used for the primary sort order,
     the second-to-last key for the secondary sort order, and so on
@@ -285,8 +284,8 @@ def sort_indices_lexiographically(indices):
     for ii in range(1, indices.shape[0]):
         index_tuple = index_tuple+(indices[ii, :],)
     index_tuple = index_tuple+(indices.sum(axis=0),)
-    I = np.lexsort(index_tuple)
-    return indices[:, I]
+    II = np.lexsort(index_tuple)
+    return indices[:, II]
 
 
 def get_maximal_indices(indices, indices_dict=None):
@@ -386,20 +385,20 @@ def compute_anisotropic_indices(num_vars, level, anisotropic_weights):
 
 def get_upper_triangular_matrix_scalar_index(ii, jj, nn):
     r"""
-    Get the scalar index kk of the (ii,jj) etnry of an upper triangular matrix 
+    Get the scalar index kk of the (ii,jj) etnry of an upper triangular matrix
     (excluding diagonal) stored in a 1D array
 
     For example
-    .. math:: 
+    .. math::
 
-       \begin{bmatrix} 
+       \begin{bmatrix}
        0 & a_0 & a_1 & a_2\\
        0 & 0   & a_3 & a_4\\
        0 & 0   & 0   & a_5\\
        0 & 0   & 0   & 0
        \end{bmatrix}
 
-    is stored as 
+    is stored as
 
     .. math::  \begin{bmatrix} [a_0,a_1,a_2,a_3,a_4,a_5]\end{bmatrix}
     """
@@ -410,20 +409,20 @@ def get_upper_triangular_matrix_scalar_index(ii, jj, nn):
 
 def get_upper_triangular_matrix_indices(kk, nn):
     r"""
-    Get the index tuple (ii,jj) entry kk of an upper triangular matrix 
+    Get the index tuple (ii,jj) entry kk of an upper triangular matrix
     (excluding diagonal) stored in a 1D array
 
     For example
-    .. math:: 
+    .. math::
 
-       \begin{bmatrix} 
+       \begin{bmatrix}
        0 & a_0 & a_1 & a_2\\
        0 & 0   & a_3 & a_4\\
        0 & 0   & 0   & a_5\\
        0 & 0   & 0   & 0
        \end{bmatrix}
 
-    is stored as 
+    is stored as
 
     .. math::  \begin{bmatrix} [a_0,a_1,a_2,a_3,a_4,a_5]\end{bmatrix}
     """

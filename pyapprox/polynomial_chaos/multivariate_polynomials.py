@@ -4,14 +4,16 @@ from pyapprox.variable_transformations import \
 from pyapprox.variables import get_distribution_info, \
     IndependentMultivariateRandomVariable
 from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.univariate_quadrature import get_recursion_coefficients
-from pyapprox.orthonormal_polynomials_1d import gauss_quadrature
+from pyapprox.univariate_polynomials.recursion_factory import \
+    get_recursion_coefficients_from_variable
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    gauss_quadrature
 from functools import partial
 import numpy as np
-from pyapprox.indexing import compute_hyperbolic_indices
 from pyapprox.utilities import cartesian_product, outer_product
-from pyapprox.orthonormal_polynomials_1d import \
-    evaluate_orthonormal_polynomial_deriv_1d, evaluate_orthonormal_polynomial_1d
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    evaluate_orthonormal_polynomial_deriv_1d, \
+    evaluate_orthonormal_polynomial_1d
 from pyapprox.monomial import monomial_basis_matrix
 from pyapprox.utilities import \
     flattened_rectangular_lower_triangular_matrix_index
@@ -51,7 +53,7 @@ def precompute_multivariate_orthonormal_polynomial_univariate_values(
 
     for dd in range(num_vars):
         if (recursion_coeffs[basis_type_index_map[dd]].shape[0] <=
-            max_level_1d[dd]):
+                max_level_1d[dd]):
             msg = f'max_level_1d for dimension {dd} exceeds number of '
             msg += 'precomputed recusion coefficients'
             raise Exception(msg)
@@ -116,60 +118,6 @@ def evaluate_multivariate_orthonormal_polynomial_derivs(
     return derivs
 
 
-def precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated(
-        samples, indices, recursion_coeffs, deriv_order, basis_type_index_map):
-    num_vars = indices.shape[0]
-    max_level_1d = indices.max(axis=1)
-
-    if basis_type_index_map is None:
-        basis_type_index_map = np.zeros(num_vars, dtype=int)
-        recursion_coeffs = [recursion_coeffs]
-
-    for dd in range(num_vars):
-        assert (recursion_coeffs[basis_type_index_map[dd]].shape[0] >
-                max_level_1d[dd])
-
-    basis_vals_1d = []
-    for dd in range(num_vars):
-        basis_vals_1d_dd = evaluate_orthonormal_polynomial_deriv_1d(
-            samples[dd, :], max_level_1d[dd],
-            recursion_coeffs[basis_type_index_map[dd]], deriv_order)
-        basis_vals_1d.append(basis_vals_1d_dd)
-    return basis_vals_1d
-
-
-def evaluate_multivariate_orthonormal_polynomial_values_deprecated(
-        indices, basis_vals_1d, num_samples):
-    num_vars, num_indices = indices.shape
-    values = np.empty((num_samples, num_indices))
-    for ii in range(num_indices):
-        index = indices[:, ii]
-        values[:num_samples, ii] = basis_vals_1d[0][:, index[0]]
-        for dd in range(1, num_vars):
-            values[:num_samples, ii] *= basis_vals_1d[dd][:, index[dd]]
-    return values
-
-
-def evaluate_multivariate_orthonormal_polynomial_derivs_deprecated(
-        indices, max_level_1d, basis_vals_1d, num_samples, deriv_order):
-
-    num_vars, num_indices = indices.shape
-    values = np.zeros(((deriv_order*num_vars)*num_samples, num_indices))
-    for ii in range(num_indices):
-        index = indices[:, ii]
-        for jj in range(num_vars):
-            # derivative in jj direction
-            basis_vals =\
-                basis_vals_1d[jj][:, (max_level_1d[jj]+1)+index[jj]].copy()
-            # basis values in other directions
-            for dd in range(num_vars):
-                if dd != jj:
-                    basis_vals *= basis_vals_1d[dd][:, index[dd]]
-
-            values[(jj)*num_samples:(jj+1)*num_samples, ii] = basis_vals
-    return values
-
-
 def evaluate_multivariate_orthonormal_polynomial(
         samples, indices, recursion_coeffs, deriv_order=0,
         basis_type_index_map=None):
@@ -226,10 +174,6 @@ def evaluate_multivariate_orthonormal_polynomial(
     compute_values = evaluate_multivariate_orthonormal_polynomial_values
     compute_derivs = evaluate_multivariate_orthonormal_polynomial_derivs
 
-    # precompute_values = precompute_multivariate_orthonormal_polynomial_univariate_values_deprecated
-    # compute_values =  evaluate_multivariate_orthonormal_polynomial_values_deprecated
-    # compute_derivs = evaluate_multivariate_orthonormal_polynomial_derivs_deprecated
-
     basis_vals_1d = precompute_values(
         samples, indices, recursion_coeffs, deriv_order, basis_type_index_map)
 
@@ -254,7 +198,8 @@ class PolynomialChaosExpansion(object):
     from pyapprox.variable_transformations import AffineRandomVariableTransformation
     Otherwise the following error will be thrown
 
-    AttributeError: 'AffineRandomVariableTransformation' object has no attribute 'enforce_bounds'
+    AttributeError: 'AffineRandomVariableTransformation' object has no
+    attribute 'enforce_bounds'
     """
     def __init__(self):
         self.coefficients = None
@@ -262,7 +207,6 @@ class PolynomialChaosExpansion(object):
         self.recursion_coeffs = []
         self.basis_type_index_map = None
         self.basis_type_var_indices = []
-        self.numerically_generated_poly_accuracy_tolerance = None
 
     def __mul__(self, other):
         if self.indices.shape[1] > other.indices.shape[1]:
@@ -340,98 +284,63 @@ class PolynomialChaosExpansion(object):
         """
         Parameters
         ----------
-        opts : dictionary
-            Options defining the configuration of the polynomial
-            chaos expansion basis with the following attributes
-
         var_trans : :class:`pyapprox.variable_transformations.AffineRandomVariableTransformation`
             Variable transformation mapping user samples into the canonical
             domain of the polynomial basis
 
-        numerically_generated_poly_accuracy_tolerance : float
-            Tolerance used to construct any numerically generated polynomial
-            basis functions. Todo make this an attribute of each item in 
-            poly_opts
+        opts : dictionary
+            Options defining the configuration of the polynomial
+            chaos expansion basis with the following attributes
 
         poly_opts : dictionary
             Options to configure each unique univariate polynomial basis
             with attibutes
 
-            var_nums : iterable
-                List of variables dimension which use the ith unique basis
+        var_nums : iterable
+            List of variables dimension which use the ith unique basis
 
-            The remaining options are specific to a given basis type. See
-             - :func:`pyapprox.univariate_quadrature.get_recursion_coefficients`
-        
+        The remaining options are specific to a given basis type. See
+             - :func:`pyapprox.univariate_quadrature.get_recursion_coefficients_from_variable`
         """
+        self.var_trans = opts["var_trans"]
         self.config_opts = opts
-        self.var_trans = opts.get('var_trans', None)
-        if self.var_trans is None:
-            raise Exception('must set var_trans')
         self.max_degree = -np.ones(self.num_vars(), dtype=int)
-        self.numerically_generated_poly_accuracy_tolerance = opts.get(
-            'numerically_generated_poly_accuracy_tolerance', 1e-12)
 
-    def update_recursion_coefficients(self, num_coefs_per_var, opts):
+    def update_recursion_coefficients(self, num_coefs_per_var):
         num_coefs_per_var = np.atleast_1d(num_coefs_per_var)
         initializing = False
         if self.basis_type_index_map is None:
             initializing = True
             self.basis_type_index_map = np.zeros((self.num_vars()), dtype=int)
-        if 'poly_types' in opts:
-            ii = 0
-            for key, poly_opts in opts['poly_types'].items():
-                if (initializing or (
-                    np.any(num_coefs_per_var[self.basis_type_var_indices[ii]] >
-                           self.max_degree[self.basis_type_var_indices[ii]]+1))):
-                    if initializing:
-                        self.basis_type_var_indices.append(
-                            poly_opts['var_nums'])
-                    num_coefs = num_coefs_per_var[
-                        self.basis_type_var_indices[ii]].max()
-                    recursion_coeffs_ii = get_recursion_coefficients(
-                        poly_opts, num_coefs,
-                        self.numerically_generated_poly_accuracy_tolerance)
-                    if recursion_coeffs_ii is None:
-                        # recursion coefficients will be None is returned if
-                        # monomial basis is specified. Only allow monomials to
-                        # be used if all variables use monomial basis
-                        assert len(opts['poly_types']) == 1
-                    if initializing:
-                        self.recursion_coeffs.append(recursion_coeffs_ii)
-                    else:
-                        self.recursion_coeffs[ii] = recursion_coeffs_ii
+        ii = 0
+        for key, poly_opts in self.config_opts['poly_types'].items():
+            if (initializing or (
+                np.any(num_coefs_per_var[self.basis_type_var_indices[ii]] >
+                       self.max_degree[self.basis_type_var_indices[ii]]+1))):
+                if initializing:
+                    self.basis_type_var_indices.append(poly_opts['var_nums'])
+                num_coefs = num_coefs_per_var[
+                    self.basis_type_var_indices[ii]].max()
+                recursion_coeffs_ii = get_recursion_coefficients_from_variable(
+                    poly_opts["var"], num_coefs, poly_opts)
+                if recursion_coeffs_ii is None:
+                    # recursion coefficients will be None is returned if
+                    # monomial basis is specified. Only allow monomials to
+                    # be used if all variables use monomial basis
+                    assert len(self.config_opts['poly_types']) == 1
+                if initializing:
+                    self.recursion_coeffs.append(recursion_coeffs_ii)
+                else:
+                    self.recursion_coeffs[ii] = recursion_coeffs_ii
 
-                    from scipy.stats import _continuous_distns
-                    if ((poly_opts.get('poly_type', None) is None) and
-                        (poly_opts['rv_type'] in
-                         _continuous_distns._distn_names) and
-                        (poly_opts['rv_type'] not in ["uniform", "norm", "beta"])):
-                        # numerically defined polynomials are not defined
-                        # on a canonical domain so make sure that mapping is not
-                        # invoked
-                        if self.var_trans.identity_map_indices is None:
-                            self.var_trans.identity_map_indices = [ii]
-                        elif ii not in self.var_trans.identity_map_indices:
-                            self.var_trans.identity_map_indices += [ii]
-                        #todo only do this for unbounded variable and apply predictor
-                        # corrector on [-1,1] for bounded variables
-                            
-                # extract variables indices for which basis is to be used
-                self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
-                ii += 1
-            if (np.unique(np.hstack(self.basis_type_var_indices)).shape[0] !=
+            # extract variables indices for which basis is to be used
+            self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
+            ii += 1
+        if (np.unique(np.hstack(self.basis_type_var_indices)).shape[0] !=
                 self.num_vars()):
-                msg = 'poly_opts does not specify a basis for each input '
-                msgt += 'variable'
-                raise Exception(msg)
-
-        else:
-            # when only one type of basis is assumed then allow poly_type to
-            # be elevated to top level of options dictionary.
-            self.recursion_coeffs = [get_recursion_coefficients(
-                opts, num_coefs_per_var.max(),
-                self.numerically_generated_poly_accuracy_tolerance)]
+            msg = 'poly_opts does not specify a basis for each input '
+            msg += 'variable'
+            raise ValueError(msg)
 
     def set_indices(self, indices):
         # assert indices.dtype==int
@@ -442,7 +351,7 @@ class PolynomialChaosExpansion(object):
         assert indices.shape[0] == self.num_vars()
         max_degree = indices.max(axis=1)
         if np.any(self.max_degree < max_degree):
-            self.update_recursion_coefficients(max_degree+1, self.config_opts)
+            self.update_recursion_coefficients(max_degree+1)
             self.max_degree = max_degree
 
     def basis_matrix(self, samples, opts=dict()):
@@ -548,7 +457,7 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
     if degrees.shape[0] == 1 and num_vars > 1:
         degrees = np.array([degrees[0]]*num_vars)
     if np.any(pce.max_degree < degrees):
-        pce.update_recursion_coefficients(degrees+1, pce.config_opts)
+        pce.update_recursion_coefficients(degrees+1)
     if len(pce.recursion_coeffs) == 1:
         # update_recursion_coefficients may not return coefficients
         # up to degree specified if using recursion for polynomial
@@ -603,7 +512,7 @@ def define_poly_options_from_variable(variable):
     for ii in range(len(variable.unique_variables)):
         var = variable.unique_variables[ii]
         name, scales, shapes = get_distribution_info(var)
-        opts = {'rv_type': name, 'shapes': shapes,
+        opts = {'var': var, 'shapes': shapes,
                 'var_nums': variable.unique_variable_indices[ii]}
         basis_opts['basis%d' % ii] = opts
     return basis_opts
@@ -616,7 +525,8 @@ def define_poly_options_from_variable_transformation(var_trans):
     return pce_opts
 
 
-def conditional_moments_of_polynomial_chaos_expansion(poly, samples, inactive_idx, return_variance=False):
+def conditional_moments_of_polynomial_chaos_expansion(
+        poly, samples, inactive_idx, return_variance=False):
     """
     Return mean and variance of polynomial chaos expansion with some variables
     fixed at specified values.
@@ -695,20 +605,18 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
         [all_variables[ii] for ii in active_idx])
     opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
 
-    if opts['poly_types'] is not None:
-        marginalized_var_nums = -np.ones(poly.num_vars())
-        marginalized_var_nums[active_idx] = np.arange(active_idx.shape[0])
-        keys_to_delete = []
-        for key, poly_opts in opts['poly_types'].items():
-            var_nums = poly_opts['var_nums']
-            poly_opts['var_nums'] = np.array(
-                [marginalized_var_nums[v] for v in var_nums
-                 if v in active_idx], dtype=int)
-            if poly_opts['var_nums'].shape[0] == 0:
-                keys_to_delete.append(key)
-        for key in keys_to_delete:
-            del opts['poly_types'][key]
-    # else # no need to do anything same basis is used for all variables
+    marginalized_var_nums = -np.ones(poly.num_vars())
+    marginalized_var_nums[active_idx] = np.arange(active_idx.shape[0])
+    keys_to_delete = []
+    for key, poly_opts in opts['poly_types'].items():
+        var_nums = poly_opts['var_nums']
+        poly_opts['var_nums'] = np.array(
+            [marginalized_var_nums[v] for v in var_nums
+             if v in active_idx], dtype=int)
+        if poly_opts['var_nums'].shape[0] == 0:
+            keys_to_delete.append(key)
+    for key in keys_to_delete:
+        del opts['poly_types'][key]
 
     marginalized_pce.configure(opts)
     if poly.indices is not None:
@@ -716,7 +624,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
         for ii, index in enumerate(poly.indices.T):
             if ((index.sum() == 0 and center is False) or
                 np.any(index[active_idx]) and
-                (not np.any(index[inactive_idx] > 0))):
+                    (not np.any(index[inactive_idx] > 0))):
                 marginalized_array_indices.append(ii)
         marginalized_pce.set_indices(
             poly.indices[
@@ -774,7 +682,7 @@ def compute_product_coeffs_1d_for_each_variable(
     num_vars = poly.num_vars()
 
     def get_recursion_coefficients(N, dd):
-        poly.update_recursion_coefficients([N]*num_vars, poly.config_opts)
+        poly.update_recursion_coefficients([N]*num_vars)
         return poly.recursion_coeffs[poly.basis_type_index_map[dd]].copy()
 
     # change this to only compute this for unique 1d polys

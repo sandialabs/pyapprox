@@ -1,4 +1,3 @@
-from pyapprox.manipulate_polynomials import shift_momomial_expansion
 from numba import jit, njit
 from numba.extending import get_cython_function_address
 import ctypes
@@ -289,6 +288,17 @@ def evaluate_three_term_recurrence_polynomial_1d(abc, nmax, x):
         p[:, jj] = (abc[jj, 0]*x-abc[jj, 1])*p[:, jj-1]-abc[jj, 2]*p[:, jj-2]
 
     return p
+
+
+def shift_momomial_expansion(coef, shift, scale):
+    assert coef.ndim == 1
+    shifted_coef = np.zeros_like(coef)
+    shifted_coef[0] = coef[0]
+    nterms = coef.shape[0]
+    for ii in range(1, nterms):
+        temp = np.polynomial.polynomial.polypow([1, -shift], ii)
+        shifted_coef[:ii+1] += coef[ii]*temp[::-1]/scale**ii
+    return shifted_coef
 
 
 def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef, ab,

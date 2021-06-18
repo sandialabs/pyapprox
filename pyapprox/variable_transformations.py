@@ -6,8 +6,7 @@ from pyapprox.variables import define_iid_random_variables, \
 from pyapprox.rosenblatt_transformation import rosenblatt_transformation,\
     inverse_rosenblatt_transformation
 from pyapprox.nataf_transformation import covariance_to_correlation, \
-    trans_x_to_u, trans_u_to_x, transform_correlations
-from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
+    trans_x_to_u, trans_u_to_x, transform_correlations, gauss_hermite_pts_wts_1D
 
 
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
@@ -212,16 +211,16 @@ class AffineRandomVariableTransformation(object):
                 if self.identity_map_indices is None:
                     return canonical_samples*scale+loc
                 else:
-                    return samples
+                    return canonical_samples
         raise Exception()
 
     def map_derivatives_from_canonical_space(self, derivatives):
         """
         derivatives : np.ndarray (nvars*nsamples, nqoi)
             Derivatives of each qoi. The ith column consists of the derivatives
-            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}), 
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),
              d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
-             ..., 
+             ...,
              d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
             where M is the number of samples and D=nvars
 
@@ -243,9 +242,9 @@ class AffineRandomVariableTransformation(object):
         """
         derivatives : np.ndarray (nvars*nsamples, nqoi)
             Derivatives of each qoi. The ith column consists of the derivatives
-            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}), 
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),
              d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
-             ..., 
+             ...,
              d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
             where M is the number of samples and D=nvars
 
@@ -288,7 +287,7 @@ class AffineRandomVariableTransformation(object):
             ranges[2*indices], ranges[2*indices+1] = lb, ub
         return ranges
 
- 
+
 def define_iid_random_variable_transformation(variable_1d, num_vars):
     variable = define_iid_random_variables(variable_1d, num_vars)
     var_trans = AffineRandomVariableTransformation(variable)
@@ -376,8 +375,9 @@ class NatafTransformation(object):
 
         quad_rule = gauss_hermite_pts_wts_1D(11)
         self.z_correlation = transform_correlations(
-            self.x_correlation, self.x_marginal_inv_cdfs, self.x_marginal_means,
-            self.x_marginal_stdevs, quad_rule, bisection_opts)
+            self.x_correlation, self.x_marginal_inv_cdfs,
+            self.x_marginal_means, self.x_marginal_stdevs, quad_rule,
+            bisection_opts)
 
         self.z_correlation_cholesky_factor = np.linalg.cholesky(
             self.z_correlation)
@@ -402,8 +402,8 @@ class TransformationComposition(object):
         Parameters
         ----------
         transformations : list of transformation objects
-            The transformations are applied first to last for 
-            map_to_canonical_space and in reverse order for 
+            The transformations are applied first to last for
+            map_to_canonical_space and in reverse order for
             map_from_canonical_space
         """
         self.transformations = transformations

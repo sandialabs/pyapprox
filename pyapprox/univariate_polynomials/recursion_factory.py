@@ -119,6 +119,17 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
     Generate polynomial recursion coefficients by inspecting a random variable.
     """
     var_name, _, shapes = get_distribution_info(var)
+    if var_name == "continuous_monomial":
+        return None
+
+    if var_name == "rv_function_indpndt_vars":
+        return get_function_independent_vars_recursion_coefficients(
+            shapes, num_coefs)
+
+    if var_name == "rv_product_indpndt_vars":
+        return get_product_independent_vars_recursion_coefficients(
+            shapes, num_coefs)
+
     if (var_name in askey_variable_names and
             opts.get("numeric", False) is False):
         return get_askey_recursion_coefficients_from_variable(var, num_coefs)
