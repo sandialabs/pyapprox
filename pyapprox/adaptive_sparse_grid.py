@@ -1,24 +1,18 @@
+import pickle
+from functools import partial
+import heapq
+import numpy as np
+
 from pyapprox.variables import variable_shapes_equivalent, \
     is_bounded_discrete_variable, get_probability_masses
-from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    get_univariate_leja_quadrature_rule, clenshaw_curtis_rule_growth
-from pyapprox.univariate_quadrature import leja_growth_rule, \
-    constant_increment_growth_rule
 from pyapprox.sparse_grid import *
-from pyapprox.models.wrappers import WorkTracker
-import copy
 from pyapprox.utilities import lists_of_lists_of_arrays_equal, \
     lists_of_arrays_equal, partial_functions_equal
-import pickle
 from pyapprox.indexing import get_forward_neighbor, get_backward_neighbor
-from functools import partial
-# try:
-#     # Python version < 3
-#     import Queue as queue
-# except:
-#     import queue
-
-import heapq
+from pyapprox.univariate_polynomials.quadrature import \
+    clenshaw_curtis_rule_growth, constant_increment_growth_rule
+from pyapprox.univariate_polynomials.leja_quadrature import \
+    get_univariate_leja_quadrature_rule
 
 
 class mypriorityqueue():
@@ -54,12 +48,11 @@ def extract_items_from_priority_queue(pqueue):
     of items in queue
 
     Priority queue is thread safe so does not support shallow or deep copy
-    One can copy this queue by pushing and popping by original queue will 
-    be destroyed. Return a copy of the original queue that can be used to 
+    One can copy this queue by pushing and popping by original queue will
+    be destroyed. Return a copy of the original queue that can be used to
     replace the destroyed queue
     """
 
-    #pqueue1 = queue.PriorityQueue()
     pqueue1 = mypriorityqueue()
     items = []
     while not pqueue.empty():
@@ -572,7 +565,7 @@ def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
         assert pce.num_vars() == sparse_grid.num_vars
 
     def get_recursion_coefficients(N, dd):
-        pce.update_recursion_coefficients([N]*pce.num_vars(), pce.config_opts)
+        pce.update_recursion_coefficients([N]*pce.num_vars())
         return pce.recursion_coeffs[pce.basis_type_index_map[dd]].copy()
 
     coeffs_1d = [
@@ -641,6 +634,7 @@ def extract_sparse_grid_quadrature_rule(asg):
                     weights[asg.poly_indices_dict[key]] += subspace_weights[jj]
                 else:
                     raise Exception('index not found')
+    samples = var_trans.map_from_canonical_space(samples)
     return samples, weights
 
 

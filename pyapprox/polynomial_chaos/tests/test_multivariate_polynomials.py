@@ -896,6 +896,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         # the distribution and ranges of univariate variables is ignored
         # when var_trans.set_identity_maps([0]) is used
         initial_variables = [stats.uniform(0, 1)]
+        # TODO get quad rules from initial variables
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
         univariate_variables = [
             rv_function_indpndt_vars(fun, initial_variables, quad_rules)]
@@ -947,3 +948,7 @@ if __name__ == "__main__":
             TestMultivariatePolynomials)
     unittest.TextTestRunner(verbosity=2).run(
         multivariate_polynomials_test_suite)
+
+
+    # TODO check that PCE built with any scipy variable returns the correct mean and variance of that distribution
+    # when least squares is applied to a simple function

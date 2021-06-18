@@ -1,19 +1,18 @@
 from pyapprox.polynomial_sampling import christoffel_weights
-from scipy.stats import _continuous_distns, _discrete_distns
 from pyapprox.random_variable_algebra import invert_monotone_function
 from scipy import integrate
-from pyapprox.indexing import sort_indices_lexiographically
 from pyapprox.orthonormal_polynomials_1d import \
     evaluate_orthonormal_polynomial_1d
 from pyapprox.variables import get_distribution_info, \
     is_bounded_discrete_variable, get_probability_masses, float_rv_discrete
 import numpy as np
 import os
-from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence,\
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     gauss_quadrature
 from scipy.special import betaln
 from scipy.special import beta as betafn
-#from scipy.optimize import fsolve
 from scipy.optimize import brenth
 from functools import partial
 from pyapprox.utilities import discrete_sampling

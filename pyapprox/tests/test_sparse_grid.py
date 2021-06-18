@@ -1,28 +1,60 @@
 import unittest
 from functools import partial
-
 import numpy as np
 import sympy as sp
+from scipy import stats
+import pickle
+import os
 
-from pyapprox.sparse_grid import *
-from pyapprox.adaptive_sparse_grid import *
+from pyapprox.sparse_grid import update_1d_samples_weights_economical, \
+    get_1d_samples_weights, get_hierarchical_sample_indices, \
+    get_subspace_polynomial_indices, get_sparse_grid_samples_and_weights, \
+    get_subspace_samples, evaluate_sparse_grid, get_smolyak_coefficients, \
+    get_num_model_evaluations_from_samples, get_equivalent_cost, \
+    get_num_sparse_grid_samples, integrate_sparse_grid, \
+    convert_univariate_lagrange_basis_to_orthonormal_polynomials, \
+    convert_multivariate_lagrange_polys_to_orthonormal_polys
+from pyapprox.adaptive_sparse_grid import CombinationSparseGrid, \
+    max_level_admissibility_function, mypriorityqueue, \
+    get_sparse_grid_univariate_leja_quadrature_rules_economical, \
+    variance_refinement_indicator, isotropic_refinement_indicator, \
+    update_smolyak_coefficients, surplus_refinement_indicator, \
+    insitu_update_sparse_grid_quadrature_rule, \
+    convert_sparse_grid_to_polynomial_chaos_expansion, \
+    get_active_subspace_indices, extract_items_from_priority_queue, \
+    compute_hierarchical_surpluses_direct, \
+    extract_sparse_grid_quadrature_rule, compute_surpluses
+from pyapprox.barycentric_interpolation import \
+    compute_barycentric_weights_1d, \
+    multivariate_barycentric_lagrange_interpolation
 from pyapprox.monomial import evaluate_monomial, \
     monomial_mean_uniform_variables, monomial_variance_uniform_variables
-from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence, \
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence, krawtchouk_recurrence
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
-from pyapprox.indexing import set_difference
-from pyapprox.univariate_quadrature import *
-
+from pyapprox.indexing import set_difference, sort_indices_lexiographically, \
+    compute_hyperbolic_indices
+from pyapprox.univariate_polynomials.quadrature import leja_growth_rule, \
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth, \
+    clenshaw_curtis_pts_wts_1D, gauss_quadrature
+from pyapprox.univariate_polynomials.leja_quadrature import \
+    get_univariate_leja_quadrature_rule, \
+    candidate_based_christoffel_leja_rule_1d
+from pyapprox.utilities import beta_pdf_on_ab, cartesian_product, hash_array, \
+    lists_of_arrays_equal, outer_product,  allclose_unsorted_matrix_rows, \
+    gaussian_pdf
 from pyapprox.variable_transformations import \
     define_iid_random_variable_transformation
 from pyapprox.manipulate_polynomials import get_indices_double_set
 from pyapprox.variable_transformations import \
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
-
-
-skiptest = unittest.skip("test not completely implemented")
+from pyapprox.polynomial_chaos.multivariate_polynomials import \
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+from pyapprox.models.wrappers import WorkTrackingModel
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
 
 
 class MultilevelPolynomialModel():
@@ -65,9 +97,9 @@ class TestSparseGrid(unittest.TestCase):
         level = 2
 
         alpha_stat, beta_stat = 5, 2
-        beta_quad_rule = partial(
-            beta_leja_quadrature_rule, alpha_stat, beta_stat,
-            growth_rule=leja_growth_rule)
+        variable = stats.beta(alpha_stat, beta_stat)
+        beta_quad_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
 
         quad_rules_econ = [
             clenshaw_curtis_in_polynomial_order, beta_quad_rule]
@@ -94,9 +126,10 @@ class TestSparseGrid(unittest.TestCase):
                 assert np.allclose(weights_1d[ii][jj], weights_1d_econ[ii][jj])
 
         levels = [level+2]*num_vars
-        samples_1d_econ, weights_1d_econ = update_1d_samples_weights_economical(
-            quad_rules_econ, growth_rules_econ,
-            levels, samples_1d, weights_1d, None, unique_rule_indices)
+        samples_1d_econ, weights_1d_econ = \
+            update_1d_samples_weights_economical(
+                quad_rules_econ, growth_rules_econ,
+                levels, samples_1d, weights_1d, None, unique_rule_indices)
 
         samples_1d, weights_1d = get_1d_samples_weights(
             quad_rules, growth_rules, levels, None)
@@ -212,7 +245,6 @@ class TestSparseGrid(unittest.TestCase):
             subspace_index, subspace_poly_indices,
             samples_1d, config_variables_idx)
 
-        num_indices = 1
         indices = np.zeros(1)
         # for some reason np.array([0])==np.array([]) in python so check length
         assert hier_indices.shape[0] == 1
@@ -226,9 +258,7 @@ class TestSparseGrid(unittest.TestCase):
         hier_indices = get_hierarchical_sample_indices(
             subspace_index, subspace_poly_indices,
             samples_1d, config_variables_idx)
-        #print (hier_indices)
 
-        num_indices = 1
         indices = np.arange(1, 3)
         assert np.allclose(indices, hier_indices)
 
@@ -274,9 +304,10 @@ class TestSparseGrid(unittest.TestCase):
         num_vars = 4
         level = 3
 
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, clenshaw_curtis_in_polynomial_order,
-            clenshaw_curtis_rule_growth)
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, clenshaw_curtis_in_polynomial_order,
+                clenshaw_curtis_rule_growth)
 
         poly_indices = data_structures[1]
 
@@ -285,8 +316,6 @@ class TestSparseGrid(unittest.TestCase):
 
         J = np.arange(poly_indices.shape[1])
         coeffs = np.random.normal(0.0, 1.0, (J.shape[0], 1))
-
-        #print ('num samples:', poly_indices.shape[1])
 
         values = evaluate_monomial(poly_indices[:, J], coeffs, samples)
         assert np.allclose(np.dot(values[:, 0], weights),
@@ -298,13 +327,15 @@ class TestSparseGrid(unittest.TestCase):
         level = 3
 
         alpha_stat, beta_stat = 5, 2
-        beta_quad_rule = partial(
-            beta_leja_quadrature_rule, alpha_stat, beta_stat,
-            growth_rule=leja_growth_rule, samples_filename=None)
+        variable = stats.beta(alpha_stat, beta_stat)
+        beta_quad_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
+
         quad_rules = [clenshaw_curtis_in_polynomial_order, beta_quad_rule]
         growth_rules = [clenshaw_curtis_rule_growth, leja_growth_rule]
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, quad_rules, growth_rules)
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, quad_rules, growth_rules)
 
         poly_indices = data_structures[1]
 
@@ -321,7 +352,6 @@ class TestSparseGrid(unittest.TestCase):
                 coeffs[ii]*x**poly_indices[0, ii]*y**poly_indices[1, ii]
 
         weight_function_x = 0.5
-        from pyapprox.utilities import beta_pdf_on_ab
         weight_function_y = beta_pdf_on_ab(alpha_stat, beta_stat, -1, 1, y)
         weight_function = weight_function_x*weight_function_y
         ranges = [-1, 1, -1, 1]
@@ -329,26 +359,14 @@ class TestSparseGrid(unittest.TestCase):
             monomial_expansion*weight_function,
             (x, ranges[0], ranges[1]), (y, ranges[2], ranges[3])))
 
-        #print ('num samples:', poly_indices.shape[1])
-        #num_mc_samples = int(1e6)
-        # mc_samples = np.vstack((
-        #    np.random.uniform(-1,1,(1,num_mc_samples)),
-        #    np.random.beta(alpha_stat,beta_stat,(1,num_mc_samples))*2-1))
-        #mc_mean = evaluate_monomial(poly_indices[:,J],coeffs,mc_samples).mean()
         values = evaluate_monomial(poly_indices[:, J], coeffs, samples)
         sparse_grid_mean = np.dot(values[:, 0], weights)
-        # print(mc_mean)
-        # print(exact_mean)
-        # print(sparse_grid_mean)
         assert np.allclose(sparse_grid_mean, exact_mean)
 
     def test_sparse_grid_integration_arbitary_subspace_indices(self):
         num_vars = 3
         level = 4
 
-        from pyapprox.indexing import compute_hyperbolic_indices, \
-            sort_indices_lexiographically
-        from pyapprox.utilities import allclose_unsorted_matrix_rows
         indices = compute_hyperbolic_indices(num_vars, level, 1.0)
         samples_1, weights_1, data_structures_1 =\
             get_sparse_grid_samples_and_weights(
@@ -378,22 +396,13 @@ class TestSparseGrid(unittest.TestCase):
         num_vars = 2
         level = 11
 
-        import tempfile
-        temp_directory = tempfile.TemporaryDirectory()
-        temp_dirname = temp_directory.__dict__['name']
-        # samples_filename = os.path.join(
-        #     temp_dirname, 'uniform-leja-sequence-1d-ll-%d.npz' % (level))
-        samples_filename = None
+        variable = stats.uniform()
+        quadrature_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
 
-        # precompute leja sequence
-        quadrature_rule = partial(
-            uniform_leja_quadrature_rule, samples_filename=samples_filename,
-            return_weights_for_all_levels=True)
-
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, quadrature_rule, leja_growth_rule)
-
-        temp_directory.cleanup()
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, quadrature_rule, leja_growth_rule)
 
         poly_indices = data_structures[1]
 
@@ -409,25 +418,15 @@ class TestSparseGrid(unittest.TestCase):
         num_vars = 2
         level = 4
 
-        import tempfile
-        temp_directory = tempfile.TemporaryDirectory()
-        temp_dirname = temp_directory.__dict__['name']
-        # samples_filename = os.path.join(
-        #     temp_dirname, 'gaussian-leja-sequence-1d-ll-%d.npz' % (level))
-        samples_filename = None
+        variable = stats.norm()
+        quadrature_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
 
-        # precompute leja sequence
-        quadrature_rule = partial(
-            gaussian_leja_quadrature_rule, growth_rule=leja_growth_rule,
-            samples_filename=samples_filename,
-            return_weights_for_all_levels=True)
-
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, quadrature_rule, leja_growth_rule)
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, quadrature_rule, leja_growth_rule)
 
         poly_indices = data_structures[1]
-        # plot_sparse_grid(samples,weights,poly_indices)
-        # plt.show()
 
         J = np.arange(poly_indices.shape[1])
         coeffs = np.random.normal(0.0, 1.0, (J.shape[0]))
@@ -454,8 +453,6 @@ class TestSparseGrid(unittest.TestCase):
         level = 5
 
         # precompute leja sequence
-        from pyapprox.orthonormal_polynomials_1d import krawtchouk_recurrence
-        from scipy.stats import binom as binomial_rv
         num_trials, prob_success = [level+5, 0.5]
         assert num_trials >= leja_growth_rule(level)
         recursion_coeffs = krawtchouk_recurrence(
@@ -476,7 +473,7 @@ class TestSparseGrid(unittest.TestCase):
                 generate_candidate_samples,
                 num_trials+1,
                 initial_points=np.atleast_2d(
-                    [binomial_rv.ppf(0.5, num_trials, prob_success)]),
+                    [stats.binom.ppf(0.5, num_trials, prob_success)]),
                 samples_filename=samples_filename,
                 return_weights_for_all_levels=True)
 
@@ -501,7 +498,7 @@ class TestSparseGrid(unittest.TestCase):
         validation_values = evaluate_monomial(
             poly_indices[:, J], coeffs, validation_samples/num_trials)
         validation_weights = outer_product(
-            [binomial_rv.pmf(np.arange(num_trials+1),
+            [stats.binom.pmf(np.arange(num_trials+1),
                              num_trials, prob_success)]*num_vars)
 
         assert np.allclose(values[:, 0].dot(weights),
@@ -510,12 +507,12 @@ class TestSparseGrid(unittest.TestCase):
     def test_evaluate_sparse_grid_clenshaw_curtis(self):
         num_vars = 3
         level = 5
-        #num_vars = 2; level = 1
 
         quad_rules = [clenshaw_curtis_in_polynomial_order]*num_vars
         growth_rules = [clenshaw_curtis_rule_growth]*num_vars
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, quad_rules, growth_rules)
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, quad_rules, growth_rules)
 
         poly_indices_dict, poly_indices, subspace_indices,\
             smolyak_coefficients, subspace_poly_indices, samples_1d, \
@@ -526,7 +523,6 @@ class TestSparseGrid(unittest.TestCase):
         monomial_coeffs = np.random.normal(
             0.0, 1.0, (monomial_indices.shape[1], 1))
 
-        #print ('num samples:', poly_indices.shape[1])
         values = evaluate_monomial(monomial_indices, monomial_coeffs, samples)
 
         num_validation_samples = 100
@@ -549,7 +545,6 @@ class TestSparseGrid(unittest.TestCase):
             samples_1d, subspace_values_indices)
         assert np.allclose(approx_values, validation_values)
 
-        config_variables_idx = None
         moments = integrate_sparse_grid(values, poly_indices_dict,
                                         subspace_indices,
                                         subspace_poly_indices,
@@ -560,7 +555,7 @@ class TestSparseGrid(unittest.TestCase):
             moments[0, :], monomial_mean_uniform_variables(
                 monomial_indices, monomial_coeffs))
 
-    def test_convert_univariate_lagrange_basis_to_orthonormal_polynomials(self):
+    def test_convert_univariate_lagrange_basis_to_ortho_polynomials(self):
         level = 2
         quad_rules = [clenshaw_curtis_in_polynomial_order]
         growth_rules = [clenshaw_curtis_rule_growth]
@@ -569,8 +564,9 @@ class TestSparseGrid(unittest.TestCase):
 
         get_recursion_coefficients = partial(
             jacobi_recurrence, alpha=0., beta=0., probability=True)
-        coeffs_1d = convert_univariate_lagrange_basis_to_orthonormal_polynomials(
-            samples_1d[0], get_recursion_coefficients)
+        coeffs_1d = \
+            convert_univariate_lagrange_basis_to_orthonormal_polynomials(
+                samples_1d[0], get_recursion_coefficients)
 
         test_samples = np.linspace(-1, 1, 100)
 
@@ -604,8 +600,9 @@ class TestSparseGrid(unittest.TestCase):
             quad_rules, growth_rules, [level]*num_vars)
         get_recursion_coefficients = [partial(
             jacobi_recurrence, alpha=0., beta=0., probability=True)]*num_vars
-        coeffs_1d = [convert_univariate_lagrange_basis_to_orthonormal_polynomials(
-            samples_1d[dd], get_recursion_coefficients[dd])
+        coeffs_1d = [
+            convert_univariate_lagrange_basis_to_orthonormal_polynomials(
+                samples_1d[dd], get_recursion_coefficients[dd])
             for dd in range(num_vars)]
 
         def function(x): return (np.sum(x**2, axis=0) +
@@ -632,11 +629,11 @@ class TestSparseGrid(unittest.TestCase):
                 config_variables_idx)
 
             poly = PolynomialChaosExpansion()
-            from scipy.stats import uniform
             var_trans = define_iid_random_variable_transformation(
-                uniform(-1, 2), num_vars)
-            poly.configure({'poly_type': 'jacobi', 'alpha_poly': 0., 'beta_poly': 0.,
-                            'var_trans': var_trans})
+                stats.uniform(-1, 2), num_vars)
+            poly_opts = define_poly_options_from_variable_transformation(
+                var_trans)
+            poly.configure(poly_opts)
             poly.set_indices(poly_indices)
             poly.set_coefficients(coeffs)
 
@@ -648,9 +645,9 @@ class TestSparseGrid(unittest.TestCase):
             self):
         level, num_vars = 2, 2
         alpha_stat, beta_stat = 5, 2
-        beta_quad_rule = partial(
-            beta_leja_quadrature_rule, alpha_stat, beta_stat,
-            growth_rule=leja_growth_rule, samples_filename=None)
+        variable = stats.beta(alpha_stat, beta_stat)
+        beta_quad_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
         quad_rules = [clenshaw_curtis_in_polynomial_order, beta_quad_rule]
         growth_rules = [clenshaw_curtis_rule_growth, leja_growth_rule]
 
@@ -660,30 +657,23 @@ class TestSparseGrid(unittest.TestCase):
             jacobi_recurrence, alpha=0., beta=0., probability=True), partial(
             jacobi_recurrence, alpha=beta_stat-1, beta=alpha_stat-1,
                 probability=True)]
-        coeffs_1d = [convert_univariate_lagrange_basis_to_orthonormal_polynomials(
-            samples_1d[dd], get_recursion_coefficients[dd])
+        coeffs_1d = [
+            convert_univariate_lagrange_basis_to_orthonormal_polynomials(
+                samples_1d[dd], get_recursion_coefficients[dd])
             for dd in range(num_vars)]
 
         def function(x): return (np.sum(x**2, axis=0) +
                                  np.prod(x, axis=0))[:, np.newaxis]
 
-        from pyapprox.variables import IndependentMultivariateRandomVariable
-        from pyapprox.variable_transformations import \
-            AffineRandomVariableTransformation
-        from scipy.stats import beta, uniform
         poly = PolynomialChaosExpansion()
         univariate_variables = [
-            uniform(-1, 2), beta(alpha_stat, beta_stat, -1, 2)]
+            stats.uniform(-1, 2), stats.beta(alpha_stat, beta_stat, -1, 2)]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
-        poly_types_opts = {
-            'type1': {'poly_type': 'jacobi', 'alpha_poly': 0., 'beta_poly': 0.,
-                      'var_nums': [0]},
-            'type2': {'poly_type': 'jacobi', 'alpha_poly': beta_stat-1,
-                      'beta_poly': alpha_stat-1, 'var_nums': [1]},
-        }
-        poly.configure({'poly_types': poly_types_opts, 'var_trans': var_trans})
+        poly_opts = define_poly_options_from_variable_transformation(
+                var_trans)
+        poly.configure(poly_opts)
 
         subspace_indices = np.array([[1, 1], [0, 1], [2, 1]]).T
         for ii in range(subspace_indices.shape[1]):
@@ -725,9 +715,10 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
     def test_get_smolyak_coefficients(self):
         num_vars = 2
         level = 2
-        samples, weights, data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, level, clenshaw_curtis_in_polynomial_order,
-            clenshaw_curtis_rule_growth)
+        samples, weights, data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, level, clenshaw_curtis_in_polynomial_order,
+                clenshaw_curtis_rule_growth)
 
         subspace_indices = data_structures[2]
         smolyak_coeffs = get_smolyak_coefficients(subspace_indices)
@@ -766,7 +757,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         num_vars = 2
         level = 5
-        #num_vars = 2; level=2
+
         __, __, data_structures = get_sparse_grid_samples_and_weights(
             num_vars, level, clenshaw_curtis_in_polynomial_order,
             clenshaw_curtis_rule_growth)
@@ -793,8 +784,8 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
     def test_update_smolyak_coefficients_iteratively(self):
         """
-        Test that when we update an isotropic sparse grid iteratively starting 
-        at one level we get the coefficients of the isotropic grid at the 
+        Test that when we update an isotropic sparse grid iteratively starting
+        at one level we get the coefficients of the isotropic grid at the
         next level
         """
         num_vars = 3
@@ -842,20 +833,19 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         # The order of iteratively built index set may be different to that
         # of isotropic sparse grid so sort indices and compare ignoring
         # subspace that have smolyak coefficients that are zero.
-        I = np.where(smolyak_coeffs > 0)[0]
-        J = np.where(smolyak_coeffs_lp1 > 0)[0]
-        assert smolyak_coeffs[I].shape[0] == smolyak_coeffs_lp1[J].shape[0]
+        II = np.where(smolyak_coeffs > 0)[0]
+        JJ = np.where(smolyak_coeffs_lp1 > 0)[0]
+        assert smolyak_coeffs[II].shape[0] == smolyak_coeffs_lp1[JJ].shape[0]
 
         assert set_difference(
-            subspace_indices_lp1[:, J], subspace_indices[:, I]).shape[1] == 0
+            subspace_indices_lp1[:, JJ], subspace_indices[:, II]).shape[1] == 0
 
         assert set_difference(
-            smolyak_coeffs_lp1[J], smolyak_coeffs[I]).shape[0] == 0
+            smolyak_coeffs_lp1[JJ], smolyak_coeffs[II]).shape[0] == 0
 
     def test_hierarchical_surplus_equivalence(self):
         num_vars = 2
         max_level = 4
-        #num_config_vars = 1; num_model_levels=2
 
         refinement_indicator = isotropic_refinement_indicator
 
@@ -906,7 +896,8 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         x, y = sp.Symbol('x'), sp.Symbol('y')
         exact_mean = float(sp.integrate(
-            (x**3+x*y+y**2)*w, (x, ranges[0], ranges[1]), (y, ranges[2], ranges[3])))
+            (x**3+x*y+y**2)*w, (x, ranges[0], ranges[1]),
+            (y, ranges[2], ranges[3])))
         exact_variance = float(sp.integrate(
             (x**3+x*y+y**2)**2*w, (x, ranges[0], ranges[1]),
             (y, ranges[2], ranges[3]))-exact_mean**2)
@@ -994,7 +985,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
                     # based upon total error, however we can check
                     # the hierarchical surpluses of these subspaces is zero
                     # error = 0. <==> priority=inf
-                    #assert priority==np.inf
+                    # assert priority==np.inf
                     pass
                 elif active_subspace_index.max() == 2:
                     new_samples = sparse_grid.samples_1d[0][2][3:5]
@@ -1016,7 +1007,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         # plot_adaptive_sparse_grid_2d(sparse_grid,plot_grid=True)
         # plt.show()
-        
+
     def test_variance_refinement_indicator(self):
         num_vars = 2
         max_level = 4
@@ -1058,7 +1049,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
                     # based upon total error, however we can check
                     # the hierarchical surpluses of these subspaces is zero
                     # error = 0. <==> priority=inf
-                    #assert priority==np.inf
+                    # assert priority==np.inf
                     pass
                 # print active_subspace_index,priority
             sparse_grid.refine()
@@ -1072,12 +1063,13 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         num_vars = 2
         max_level = 5
 
-        __, __, isotropic_data_structures = get_sparse_grid_samples_and_weights(
-            num_vars, max_level, clenshaw_curtis_in_polynomial_order,
-            clenshaw_curtis_rule_growth)
+        __, __, isotropic_data_structures = \
+            get_sparse_grid_samples_and_weights(
+                num_vars, max_level, clenshaw_curtis_in_polynomial_order,
+                clenshaw_curtis_rule_growth)
 
         poly_indices = isotropic_data_structures[1]
-        #monomial_idx = np.arange(poly_indices.shape[1])
+        # monomial_idx = np.arange(poly_indices.shape[1])
         # for variance computation to be exact form a polynomial whose
         # indices form the half set of the sparse grid polynomial indices
         monomial_idx = []
@@ -1086,10 +1078,12 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
                 monomial_idx.append(ii)
         monomial_idx = np.asarray(monomial_idx)
         monomial_indices = poly_indices[:, monomial_idx]
-        monomial_coeffs = np.random.normal(0.0, 1.0, (monomial_idx.shape[0], 1))
+        monomial_coeffs = np.random.normal(
+            0.0, 1.0, (monomial_idx.shape[0], 1))
+
         def function(x): return evaluate_monomial(
             monomial_indices, monomial_coeffs, x)
-        #function = lambda x: np.sum(x**8,axis=0)[:,np.newaxis]
+        # function = lambda x: np.sum(x**8,axis=0)[:,np.newaxis]
 
         num_validation_samples = 1000
         validation_samples = np.random.uniform(
@@ -1123,13 +1117,13 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         for key in isotropic_data_structures[0]:
             assert key in sparse_grid.poly_indices_dict
 
-        I = np.where(sparse_grid.smolyak_coefficients > 0)[0]
-        J = np.where(isotropic_data_structures[3] > 0)[0]
-        assert (isotropic_data_structures[2][:, J].shape ==
-                sparse_grid.subspace_indices[:, I].shape)
+        II = np.where(sparse_grid.smolyak_coefficients > 0)[0]
+        JJ = np.where(isotropic_data_structures[3] > 0)[0]
+        assert (isotropic_data_structures[2][:, JJ].shape ==
+                sparse_grid.subspace_indices[:, II].shape)
         assert set_difference(
-            isotropic_data_structures[2][:, J],
-            sparse_grid.subspace_indices[:, I]).shape[1] == 0
+            isotropic_data_structures[2][:, JJ],
+            sparse_grid.subspace_indices[:, II]).shape[1] == 0
 
         # check sparse grid interpolates exactly sparse grid samples
         approx_values = sparse_grid(sparse_grid.samples)
@@ -1167,7 +1161,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
                 clenshaw_curtis_rule_growth)
 
         poly_indices = isotropic_data_structures[1]
-        #monomial_idx = np.arange(poly_indices.shape[1])
+        # monomial_idx = np.arange(poly_indices.shape[1])
         # for variance computation to be exact form a polynomial whose
         # indices form the half set of the sparse grid polynomial indices
         monomial_idx = []
@@ -1189,8 +1183,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             weights_1d, subspace_values_indices = isotropic_data_structures
 
         sparse_grid_values = function(sparse_grid_samples)
-
-        validation_values = function(validation_samples)
 
         sparse_grid_validation_values = evaluate_sparse_grid(
             validation_samples, sparse_grid_values,
@@ -1242,7 +1234,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
     def test_extract_items_from_priority_queue(self):
         pairs = [(0., 0), (10., 1), (2, 2)]
-        #pqueue = queue.PriorityQueue()
         pqueue = mypriorityqueue()
         for ii in range(len(pairs)):
             pqueue.put(pairs[ii])
@@ -1284,7 +1275,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         num_refinement_steps = 10
         priority_dict = dict()
-        active_subspace_indices, I = get_active_subspace_indices(
+        active_subspace_indices, II = get_active_subspace_indices(
             sparse_grid.active_subspace_indices_dict,
             sparse_grid.subspace_indices)
         for ii in range(active_subspace_indices.shape[1]):
@@ -1300,7 +1291,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         for jj in range(num_refinement_steps):
             sparse_grid.refine()
-            active_subspace_indices, I = get_active_subspace_indices(
+            active_subspace_indices, II = get_active_subspace_indices(
                 sparse_grid.active_subspace_indices_dict,
                 sparse_grid.subspace_indices)
             for ii in range(active_subspace_indices.shape[1]):
@@ -1315,8 +1306,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
                     priority_dict[key] = priority
 
     def test_polynomial_quadrature_order_accuracy(self):
-        from pyapprox.orthonormal_polynomials_1d import \
-            evaluate_orthonormal_polynomial_1d
         level = 2
         alpha = 0
         beta = 0
@@ -1325,8 +1314,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         degree = 9
         ab = jacobi_recurrence(
             degree+1, alpha=alpha, beta=beta, probability=True)
-
-        #cc_x,cc_w = gauss_quadrature(ab,cc_x.shape[0])
 
         def function(x):
             p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
@@ -1340,7 +1327,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             cc_x, cc_x.shape[0]-1, ab)
         values = function(cc_x)
         coeff = np.linalg.lstsq(vandermonde, values, rcond=None)[0]
-        # print coeff.shape
 
         # integrate interpolant using Gauss-Jacobi quadrature
         vandermonde = evaluate_orthonormal_polynomial_1d(
@@ -1351,7 +1337,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         gauss_variance = np.dot(interp_values**2, gauss_w)-gauss_mean**2
 
         cc_mean = np.dot(values, cc_w)
-        cc_variance = np.dot(values**2, cc_w)-cc_mean**2
 
         pce_mean = coeff[0]
         pce_variance = np.sum(coeff[1:]**2)
@@ -1359,9 +1344,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         assert np.allclose(gauss_mean, cc_mean)
         assert np.allclose(gauss_mean, pce_mean)
         assert np.allclose(gauss_variance, pce_variance)
-
-        exact_variance = degree  # is the sum of the coefficients which are all 1
-        # print gauss_variance,exact_variance,cc_variance, pce_variance
 
     def test_convert_sparse_grid_to_pce(self):
         num_vars = 2
@@ -1385,11 +1367,9 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
               sparse_grid.subspace_indices.shape[1] == 0):
             sparse_grid.refine()
 
-        from scipy.stats import uniform
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), num_vars)
-        pce_opts = {'poly_type': 'jacobi', 'alpha_poly': 0., 'beta_poly': 0.,
-                    'var_trans': var_trans}
+            stats.uniform(-1, 2), num_vars)
+        pce_opts = define_poly_options_from_variable_transformation(var_trans)
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
             sparse_grid, pce_opts)
 
@@ -1409,10 +1389,12 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         assert sparse_grid_from_file == sparse_grid
         os.remove(filename)
 
-    def economical_quad_rules_helper(self, selected_variables_idx,
-                                     all_univariate_variables, all_sp_variables,
-                                     all_ranges, all_weight_functions,
-                                     max_level, growth_rules=None):
+    def economical_quad_rules_helper(
+            self, selected_variables_idx,
+            all_univariate_variables, all_sp_variables,
+            all_ranges, all_weight_functions,
+            max_level, growth_rules=None):
+
         def function(x):
             vals = np.hstack((
                 np.sum((x+1)**2, axis=0)[:, np.newaxis],
@@ -1438,8 +1420,8 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
 
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
-                get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans, growth_rules)
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans, growth_rules)
 
         assert len(quad_rules) == len(growth_rules)
 
@@ -1465,14 +1447,17 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         # plt.show()
         # multivariate integration takes to long so break up into 1d integrals
         # weight_function =  weight_function_w*weight_function_x*\
-        #    weight_function_y*weight_function_z
+            #    weight_function_y*weight_function_z
         exact_mean = np.zeros(2)
         for ii in range(len(variables)):
             exact_mean[0] += float(
                 sp.integrate(weight_functions[ii]*(variables[ii]+1)**2,
                              (variables[ii], ranges[2*ii], ranges[2*ii+1])))
-            assert np.allclose(1., float(sp.integrate(weight_functions[ii],
-                                                      (variables[ii], ranges[2*ii], ranges[2*ii+1]))))
+            assert np.allclose(
+                1.,
+                float(sp.integrate(
+                    weight_functions[ii],
+                    (variables[ii], ranges[2*ii], ranges[2*ii+1]))))
             exact_mean[1] += float(
                 sp.integrate(weight_functions[ii]*(variables[ii]-2)**2,
                              (variables[ii], ranges[2*ii], ranges[2*ii+1])))
@@ -1493,17 +1478,15 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         gaussian_var = {'var_type': 'gaussian', 'mean': 0., 'variance': 1.}
         univariate_variables = [beta_var0, beta_var1, beta_var2,
                                 gaussian_var, beta_var1]
-        from scipy.stats import beta, norm
         univariate_variables = [
-            beta(alpha_stat1, beta_stat1), beta(
+            stats.beta(alpha_stat1, beta_stat1), stats.beta(
                 alpha_stat1, beta_stat1, -1, 2),
-            beta(alpha_stat2, beta_stat2, -1, 2), norm(),
-            beta(alpha_stat1, beta_stat1, -1, 2)]
+            stats.beta(alpha_stat2, beta_stat2, -1, 2), stats.norm(),
+            stats.beta(alpha_stat1, beta_stat1, -1, 2)]
 
         v, w, x, y = sp.Symbol('v'), sp.Symbol(
             'w'), sp.Symbol('x'), sp.Symbol('y')
         z = sp.Symbol('z')
-        from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
         weight_function_v = beta_pdf_on_ab(alpha_stat1, beta_stat1, 0, 1, v)
         weight_function_w = beta_pdf_on_ab(alpha_stat1, beta_stat1, -1, 1, w)
         weight_function_x = beta_pdf_on_ab(alpha_stat2, beta_stat2, -1, 1, x)
@@ -1551,9 +1534,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             unique_quadrule_indices, [[0, 1, 4], [2], [3]])
 
     def test_convert_sparse_grid_to_pce_mixed_basis(self):
-
         self.help_convert_sparse_grid_to_pce_mixed_basis("pdf")
-        self.help_convert_sparse_grid_to_pce_mixed_basis("deprecated")
         self.help_convert_sparse_grid_to_pce_mixed_basis("christoffel")
 
     def help_convert_sparse_grid_to_pce_mixed_basis(self, leja_method):
@@ -1567,18 +1548,14 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         max_level_1d = [max_level]*(num_vars)
 
         alpha_stat, beta_stat = 2, 2
-        from scipy.stats import beta, norm
-        beta_var = {'var_type': 'beta', 'range': [-1, 1],
-                    'alpha_stat': alpha_stat, 'beta_stat': beta_stat}
-        gaussian_var = {'var_type': 'gaussian', 'mean': 0., 'variance': 1.}
-        univariate_variables = [beta(alpha_stat, beta_stat, -1, 2), norm()]
+        univariate_variables = [stats.beta(alpha_stat, beta_stat, -1, 2), stats.norm()]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
-                get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans, method=leja_method)
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans, method=leja_method)
 
         max_num_sparse_grid_samples = None
         error_tol = None
@@ -1598,12 +1575,8 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
               sparse_grid.subspace_indices.shape[1] == 0):
             sparse_grid.refine()
 
-        poly_types_opts = {
-            'type1': {'poly_type': 'jacobi', 'alpha_poly': beta_stat-1,
-                      'beta_poly': alpha_stat-1, 'var_nums': [0]},
-            'type2': {'poly_type': 'hermite', 'var_nums': [1]},
-        }
-        pce_opts = {'var_trans': var_trans, 'poly_types': poly_types_opts}
+        pce_opts = define_poly_options_from_variable_transformation(
+            var_trans)
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
             sparse_grid, pce_opts)
 
@@ -1623,7 +1596,6 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         # print (validation_values.mean(axis=0))
 
         x, y = sp.Symbol('x'), sp.Symbol('y')
-        from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
         weight_function_x = beta_pdf_on_ab(alpha_stat, beta_stat, -1, 1, x)
         weight_function_y = gaussian_pdf(0, 1, y, package=sp)
         weight_function = weight_function_x*weight_function_y
@@ -1639,23 +1611,19 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         assert np.allclose(exact_mean, pce.mean())
 
     def test_error_based_stopping_criteria(self):
-        alpha_stat, beta_stat = [1, 2]
+        alpha_stat, beta_stat = 1, 2
         num_vars = 2
         level = 2
-        from pyapprox.indexing import compute_hyperbolic_indices
         indices = compute_hyperbolic_indices(num_vars, level, .5)
 
-        univariate_quadrature_rule = partial(
-            beta_leja_quadrature_rule, alpha_stat, beta_stat,
-            growth_rule=leja_growth_rule, samples_filename=None)
+        variable = stats.beta(alpha_stat, beta_stat)
+        univariate_quadrature_rule = get_univariate_leja_quadrature_rule(
+            variable, leja_growth_rule)
 
         poly = PolynomialChaosExpansion()
-        from scipy.stats import uniform
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), num_vars)
-        # range_tol=0)
-        poly_opts = {'poly_type': 'jacobi', 'alpha_poly': beta_stat-1,
-                     'beta_poly': alpha_stat-1, 'var_trans': var_trans}
+            variable, num_vars)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
 
         # to generate quadrature rule that integrates all inner products, i,e,
@@ -1690,10 +1658,11 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         poly.set_indices(indices)
         basis_matrix = poly.basis_matrix(samples)
         inner_products = (basis_matrix.T*weights).dot(basis_matrix)
-        I = np.where(abs(inner_products) > 1e-8)
+        II = np.where(abs(inner_products) > 1e-8)
+        print(inner_products)
         # check only non-zero inner-products are along diagonal, i.e.
         # for integrals of indices multiplied by themselves
-        assert np.allclose(I, np.tile(np.arange(indices.shape[1]), (2, 1)))
+        assert np.allclose(II, np.tile(np.arange(indices.shape[1]), (2, 1)))
 
         # from pyapprox.visualization import plot_2d_indices, plot_3d_indices
         # plot_2d_indices(
@@ -1792,8 +1761,6 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         num_model_levels = 3
         base_model = MultilevelPolynomialModel(
             num_model_levels, return_work=True)
-        from pyapprox.models.wrappers import TimerModelWrapper, \
-            WorkTrackingModel
         # TimerModelWrapper is hard to test because cost is constantly
         # changing because of variable wall time. So for testing instead use
         # function of polynomial model that just fixes cost for each level of
@@ -1903,11 +1870,9 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
             sparse_grid.refine()
 
         # the pce will have no knowledge of configure variables.
-        from scipy.stats import uniform
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), num_vars)
-        pce_opts = {'poly_type': 'jacobi', 'alpha_poly': 0., 'beta_poly': 0.,
-                    'var_trans': var_trans}
+            stats.uniform(-1, 2), num_vars)
+        pce_opts = define_poly_options_from_variable_transformation(var_trans)
         pce = convert_sparse_grid_to_polynomial_chaos_expansion(
             sparse_grid, pce_opts)
 
@@ -1923,17 +1888,15 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         assert np.allclose(pce_values, validation_values)
 
     def test_combination_sparse_grid_setup(self):
-        import pyapprox as pya
-        from scipy.stats import beta, uniform
-        univariate_variables = [uniform(-1, 2)]*2
-        variable = pya.IndependentMultivariateRandomVariable(
+        univariate_variables = [stats.uniform(-1, 2)]*2
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
-                get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans)
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans)
         max_level_1d = [6]*2
         for ii in range(len(unique_quadrule_indices)):
             for ind in unique_quadrule_indices[ii]:
@@ -1951,31 +1914,29 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
                           unique_quadrule_indices=unique_quadrule_indices)
         sparse_grid.build()
 
-        validation_samples = pya.generate_independent_random_samples(
+        validation_samples = generate_independent_random_samples(
             var_trans.variable, 10)
         vals = sparse_grid(validation_samples)
         validation_values = function(validation_samples)
         assert np.allclose(validation_values, vals)
 
     def test_insitu_update_sparse_grid_quadrature_rule(self):
-        import pyapprox as pya
-        from scipy.stats import beta, uniform
         def function(samples):
             return ((samples+1)**5).sum(axis=0)[:, np.newaxis]
-        
-        univariate_variables = [uniform(-1, 2)]#, uniform(0, 1)]
+
+        univariate_variables = [stats.uniform(-1, 2)]
         num_vars = len(univariate_variables)
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
         admissibility_function = partial(
             max_level_admissibility_function, np.inf,
             [12]*num_vars, 100, 0, verbose=False)
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
-                get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans)
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans)
         sparse_grid.setup(
             function, None, isotropic_refinement_indicator,
             admissibility_function, growth_rules, quad_rules,
@@ -1986,29 +1947,30 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         for ii in range(ninitial_refine_steps):
             sparse_grid.refine()
 
-        quadrule_variables = [uniform(-2,4)]#, uniform(0,2)]
-        var_trans_new = pya.AffineRandomVariableTransformation(
+        quadrule_variables = [stats.uniform(-2, 4)]
+        var_trans_new = AffineRandomVariableTransformation(
             quadrule_variables)
-        #map initial points from canonical domain of first range
-        #to canconical domain of second range
+        # map initial points from canonical domain of first range
+        # to canconical domain of second range
         initial_points = sparse_grid.samples_1d[0][-1][None, :].copy()
         initial_points = var_trans.map_from_canonical_space(initial_points)
         initial_points = var_trans_new.map_to_canonical_space(initial_points)
-        print(initial_points)
-        
+        # print(initial_points)
+
         quad_rule = get_univariate_leja_quadrature_rule(
             quadrule_variables[0], growth_rules[0], method='pdf',
             initial_points=initial_points)
 
         sparse_grid = insitu_update_sparse_grid_quadrature_rule(
             sparse_grid, quadrule_variables)
-        
+
         for ii in range(nsubsequent_refine_steps):
             sparse_grid.refine()
 
         samples = quad_rule(sparse_grid.subspace_indices.max())[0]
 
         assert np.allclose(sparse_grid.samples[0, :], samples)
+
 
 if __name__ == "__main__":
     # these functions need to be defined here so pickeling works
