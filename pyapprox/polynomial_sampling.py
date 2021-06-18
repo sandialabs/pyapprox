@@ -12,9 +12,9 @@ from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
 
 def christoffel_function(samples, basis_matrix_generator, normalize=False):
     r"""
-    Evaluate the christoffel function K(x) at a set of samples x. 
+    Evaluate the christoffel function K(x) at a set of samples x.
 
-    Useful for preconditioning linear systems generated using 
+    Useful for preconditioning linear systems generated using
     orthonormal polynomials
 
     Parameters
@@ -33,7 +33,7 @@ def christoffel_function(samples, basis_matrix_generator, normalize=False):
 
 def christoffel_weights(basis_matrix):
     r"""
-    Evaluate the 1/K(x),from a basis matrix, where K(x) is the 
+    Evaluate the 1/K(x),from a basis matrix, where K(x) is the
     Christoffel function.
     """
     return 1./np.sum(basis_matrix**2, axis=1)

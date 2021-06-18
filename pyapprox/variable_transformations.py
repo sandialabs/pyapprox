@@ -1,5 +1,5 @@
 from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    get_distribution_info, float_rv_discrete
+    transform_scale_parameters
 import numpy as np
 from pyapprox.variables import define_iid_random_variables, \
     is_bounded_continuous_variable
@@ -8,7 +8,6 @@ from pyapprox.rosenblatt_transformation import rosenblatt_transformation,\
 from pyapprox.nataf_transformation import covariance_to_correlation, \
     trans_x_to_u, trans_u_to_x, transform_correlations
 from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
-from scipy.linalg import solve_triangular
 
 
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
@@ -32,12 +31,12 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
 
     active_vars : np.ndarray (num_active_vars)
         The active vars to which the variable transformation should be applied
-        The inactive vars have the identity applied, i.e. they remain 
+        The inactive vars have the identity applied, i.e. they remain
         unchanged.
 
     tol : float
         Some functions such as optimizers will create points very close
-         but outside current bounds. In this case allow small error 
+         but outside current bounds. In this case allow small error
          and move these points to boundary
 
     Returns
@@ -58,15 +57,15 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
     for dd in active_vars:
         lb = current_ranges[2*dd]
         ub = current_ranges[2*dd+1]
-        #print (lb,current_samples[dd,:].min())
-        #print (ub,current_samples[dd,:].max(),tol)
+        # print (lb,current_samples[dd,:].min())
+        # print (ub,current_samples[dd,:].max(),tol)
         assert current_samples[dd, :].min() >= lb-tol
         assert current_samples[dd, :].max() <= ub+tol
         if tol > 0:
-            I = np.where(current_samples[dd, :] < lb)[0]
-            if I.shape[0] > 0:
-                print(('c', current_samples[dd, I]))
-            current_samples[dd, I] = lb
+            II = np.where(current_samples[dd, :] < lb)[0]
+            if II.shape[0] > 0:
+                print('c', current_samples[dd, II])
+            current_samples[dd, II] = lb
             J = np.where(current_samples[dd, :] > ub)[0]
             current_samples[dd, J] = ub
         assert ub-lb > np.finfo(float).eps*2
@@ -130,26 +129,26 @@ class AffineRandomVariableTransformation(object):
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
-            name, scale_dict, __ = get_distribution_info(var)
+            # name, scale_dict, __ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
-            loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
-            if (is_bounded_continuous_variable(var) or
-                (type(var.dist) == float_rv_discrete and
-                 var.dist.name != 'discrete_chebyshev')):
-                lb, ub = -1, 1
-                scale /= (ub-lb)
-                loc = loc-scale*lb
-            self.scale_parameters[ii, :] = loc, scale
+            # loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
+            # if (is_bounded_continuous_variable(var) or
+            #     (type(var.dist) == float_rv_discrete and
+            #      var.dist.name != 'discrete_chebyshev')):
+            #     lb, ub = -1, 1
+            #     scale /= (ub-lb)
+            #     loc = loc-scale*lb
+            self.scale_parameters[ii, :] = transform_scale_parameters(var)
 
     def set_identity_maps(self, identity_map_indices):
         """
-        Set the dimensions we do not want to map to and from 
+        Set the dimensions we do not want to map to and from
         canonical space
 
         Parameters
         ----------
         identity_map_indices : iterable
-            The dimensions we do not want to map to and from 
+            The dimensions we do not want to map to and from
             canonical space
         """
         self.identity_map_indices = identity_map_indices
@@ -171,9 +170,9 @@ class AffineRandomVariableTransformation(object):
                 (is_bounded_continuous_variable(var) is True) and
                 ((np.any(user_samples[active_indices, :] < bounds[0])) or
                  (np.any(user_samples[active_indices, :] > bounds[1])))):
-                I = np.where((user_samples[active_indices, :] < bounds[0]) |
-                             (user_samples[active_indices, :] > bounds[1]))[1]
-                print(user_samples[active_indices, I], bounds)
+                II = np.where((user_samples[active_indices, :] < bounds[0]) |
+                              (user_samples[active_indices, :] > bounds[1]))[1]
+                print(user_samples[active_indices, II], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
 
             canonical_samples[active_indices, :] = (

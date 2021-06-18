@@ -2,27 +2,40 @@ import unittest
 
 import numpy as np
 
-from scipy.stats import binom, hypergeom
 from scipy import stats
 from scipy.special import factorial
 
 from functools import partial
 
-from pyapprox.numerically_generate_orthonormal_polynomials_1d import *
-from pyapprox.orthonormal_polynomials_1d import *
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
-    gauss_hermite_pts_wts_1D
-from pyapprox.variables import float_rv_discrete
+from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
+    lanczos, stieltjes, modified_chebyshev_orthonormal, predictor_corrector,\
+    predictor_corrector_function_of_independent_variables, \
+    arbitrary_polynomial_chaos_recursion_coefficients, \
+    predictor_corrector_product_of_functions_of_independent_variables, \
+    ortho_polynomial_grammian_bounded_continuous_variable
+from pyapprox.univariate_polynomials.recursion_factory import \
+    predictor_corrector_known_pdf
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    krawtchouk_recurrence, jacobi_recurrence, discrete_chebyshev_recurrence,\
+    hermite_recurrence
+from pyapprox.univariate_polynomials.quadrature import \
+    gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D
+from pyapprox.variables import float_rv_discrete, transform_scale_parameters
 
 
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+
     def test_krawtchouk(self):
         num_coef = 6
         ntrials = 10
         p = 0.5
 
         xk = np.array(range(ntrials+1), dtype='float')
-        pk = binom.pmf(xk, ntrials, p)
+        pk = stats.binom.pmf(xk, ntrials, p)
 
         ab_lanczos = lanczos(xk, pk, num_coef)
         ab_stieltjes = stieltjes(xk, pk, num_coef)
@@ -32,11 +45,10 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         # ab_lanczos[-1, 0] is a dummy entry so set to exact so
         # comparison will pass if all other entries are correct
         ab_lanczos[-1, 0] = ab_exact[-1, 0]
-        
+
         assert np.allclose(ab_lanczos, ab_exact)
         assert np.allclose(ab_stieltjes, ab_exact)
 
-        from pyapprox.univariate_quadrature import gauss_quadrature
         x, w = gauss_quadrature(ab_lanczos, num_coef)
         moments = np.array([(x**ii).dot(w) for ii in range(num_coef)])
         true_moments = np.array([(xk**ii).dot(pk)for ii in range(num_coef)])
@@ -61,11 +73,10 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         # ab_lanczos[-1, 0] is a dummy entry so set to exact so
         # comparison will pass if all other entries are correct
         ab_lanczos[-1, 0] = ab_exact[-1, 0]
-        
+
         assert np.allclose(ab_lanczos, ab_exact)
         assert np.allclose(ab_stieltjes, ab_exact)
 
-        from pyapprox.univariate_quadrature import gauss_quadrature
         x, w = gauss_quadrature(ab_lanczos, num_coef)
         moments = np.array([(x**ii).dot(w) for ii in range(num_coef)])
         true_moments = np.array([(xk**ii).dot(pk)for ii in range(num_coef)])
@@ -78,19 +89,18 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
     def test_float_rv_discrete(self):
         num_coef, nmasses = 5, 10
         # works for both lanczos and chebyshev algorithms
-        #xk   = np.geomspace(1,512,num=nmasses)
-        #pk   = np.ones(nmasses)/nmasses
+        # xk   = np.geomspace(1,512,num=nmasses)
+        # pk   = np.ones(nmasses)/nmasses
 
         # works only for chebyshev algorithms
         pk = np.geomspace(1, 512, num=nmasses)
         pk /= pk.sum()
         xk = np.arange(0, nmasses)
 
-        #ab  = lanczos(xk,pk,num_coef)
+        # ab  = lanczos(xk,pk,num_coef)
         ab = modified_chebyshev_orthonormal(
             num_coef, [xk, pk], probability=True)
 
-        from pyapprox.univariate_quadrature import gauss_quadrature
         x, w = gauss_quadrature(ab, num_coef)
         moments = np.array([(x**ii).dot(w) for ii in range(num_coef)])
         true_moments = np.array([(xk**ii).dot(pk)for ii in range(num_coef)])
@@ -125,11 +135,25 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
             probability=True)
         assert np.allclose(true_ab, ab)
 
+    def test_continuous_rv_sample(self):
+        N, degree = int(1e6), 5
+        xk, pk = np.random.normal(0, 1, N), np.ones(N)/N
+        ab = modified_chebyshev_orthonormal(degree+1, [xk, pk])
+        hermite_ab = hermite_recurrence(
+            degree+1, 0, True)
+        x, w = gauss_quadrature(hermite_ab, degree+1)
+        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+        gaussian_moments = np.zeros(degree+1)
+        gaussian_moments[0] = 1
+        assert np.allclose(p.T.dot(w), gaussian_moments, atol=1e-2)
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=7e-2)
+
     def test_rv_discrete_large_moments(self):
         """
-        When Modified_chebyshev_orthonormal is used when the moments of discrete
-        variable are very large it will fail. To avoid this rescale the 
-        variables to [-1,1] like is done for continuous random variables
+        When Modified_chebyshev_orthonormal is used when the moments of
+        discrete variable are very large it will fail. To avoid this
+        rescale the variables to [-1,1] like is done for continuous
+        random variables
         """
         N, degree = 100, 5
         xk, pk = np.arange(N), np.ones(N)/N
@@ -143,56 +167,47 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
 
         ab = predictor_corrector(
             degree+1, (xk_canonical, pk), xk_canonical.min(),
-            xk_canonical.max(),
-            interval_size=xk_canonical.max()-xk_canonical.min())
+            xk_canonical.max())
         p = evaluate_orthonormal_polynomial_1d(xk_canonical, degree, ab)
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
-    def test_predictor_corrector_known_scipy_pdf(self):
+    def test_predictor_corrector_known_pdf(self):
         nterms = 5
-        quad_options = {'nquad_samples': 10, 'atol': 1e-8, 'rtol': 1e-8,
-                        'max_steps': 10000, 'verbose': 1}
+        quad_options = {'epsrel': 1e-12, 'epsabs': 1e-12, "limlst": 10,
+                        "limit": 100}
 
         rv = stats.beta(1, 1, -1, 2)
-        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
+        ab = predictor_corrector_known_pdf(
+            nterms, -1, 1, rv.pdf, quad_options)
         true_ab = jacobi_recurrence(nterms, 0, 0)
         assert np.allclose(ab, true_ab)
 
-        rv = stats.norm()
-        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
+        rv = stats.beta(3, 3, -1, 2)
+        ab = predictor_corrector_known_pdf(
+            nterms, -1, 1, rv.pdf, quad_options)
+        true_ab = jacobi_recurrence(nterms, 2, 2)
+
+        rv = stats.norm(0, 2)
+        loc, scale = transform_scale_parameters(rv)
+        ab = predictor_corrector_known_pdf(
+            nterms, -np.inf, np.inf,
+            lambda x: rv.pdf(x*scale+loc)*scale, quad_options)
         true_ab = hermite_recurrence(nterms)
         assert np.allclose(ab, true_ab)
 
         # lognormal is a very hard test
         rv = stats.lognorm(1)
-
         # mean, std = 1e4, 7.5e3
         # beta = std*np.sqrt(6)/np.pi
         # mu = mean - beta*np.euler_gamma
         # rv = stats.gumbel_r(loc=mu, scale=beta)
-
-        ab = predictor_corrector_known_scipy_pdf(nterms, rv, quad_options)
-
-        def integrand(x):
-            p = evaluate_orthonormal_polynomial_1d(x, nterms-1, ab)
-            G = np.empty((x.shape[0], nterms**2))
-            kk = 0
-            for ii in range(nterms):
-                for jj in range(nterms):
-                    G[:, kk] = p[:, ii]*p[:, jj]
-                    kk += 1
-            return G*rv.pdf(x)[:, None]
-        lb, ub = rv.interval(1)
-        xx, __ = gauss_quadrature(ab, nterms)
-        interval_size = xx.max()-xx.min()
-        quad_opts = quad_options.copy()
-        del quad_opts['nquad_samples']
-        res = integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-            integrand, lb, ub, quad_options['nquad_samples'],
-            interval_size=interval_size, **quad_opts)
-        res = np.reshape(res, (nterms, nterms), order='C')
-        print(np.absolute(res-np.eye(nterms)).max())
-        assert np.absolute(res-np.eye(nterms)).max() < 2e-4
+        loc, scale = transform_scale_parameters(rv)
+        ab = predictor_corrector_known_pdf(
+            nterms, 0, np.inf, lambda x: rv.pdf(x*scale+loc)*scale,
+            {"quad_options": quad_options})
+        gram_mat = ortho_polynomial_grammian_bounded_continuous_variable(
+            rv, ab, nterms-1, tol=1e-8)
+        assert np.absolute(gram_mat-np.eye(nterms)).max() < 2e-4
 
     def test_predictor_corrector_function_of_independent_variables(self):
         """
@@ -201,7 +216,6 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         Test 2: Product of uniforms on [0,1]
         """
         nvars, nterms = 2, 5
-        variables = [stats.norm(0, 1)]*nvars
 
         nquad_samples_1d = 50
         quad_rules = [gauss_hermite_pts_wts_1D(nquad_samples_1d)]*nvars
@@ -213,10 +227,8 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
             nterms, quad_rules, fun)
 
         rv = stats.norm(0, np.sqrt(nvars))
-        measures = rv.pdf
         lb, ub = rv.interval(1)
-        interval_size = rv.interval(0.99)[1] - rv.interval(0.99)[0]
-        ab_full = predictor_corrector(nterms, rv.pdf, lb, ub, interval_size)
+        ab_full = predictor_corrector(nterms, rv.pdf, lb, ub)
         assert np.allclose(ab_full, ab)
 
         nvars = 2
@@ -227,8 +239,8 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         def fun(x):
             return x.prod(axis=0)
 
-        quad_opts = {'verbose': 0, 'atol': 1e-6, 'rtol': 1e-6}
-        ab_full = predictor_corrector(nterms, measure, 0, 1, 1, quad_opts)
+        quad_opts = {}
+        ab_full = predictor_corrector(nterms, measure, 0, 1, quad_opts)
         xx, ww = gauss_jacobi_pts_wts_1D(nquad_samples_1d, 0, 0)
         xx = (xx+1)/2
         quad_rules = [(xx, ww)]*nvars
@@ -254,15 +266,15 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         ab = predictor_corrector_product_of_functions_of_independent_variables(
             nterms, quad_rules, funs)
 
-        quad_opts = {'verbose': 3, 'atol': 1e-6, 'rtol': 1e-6}
-        ab_full = predictor_corrector(nterms, measure, 0, 1, 1, quad_opts)
-        print(ab-ab_full)
+        quad_opts = {}
+        ab_full = predictor_corrector(nterms, measure, 0, 1, quad_opts)
+        # print(ab-ab_full)
         assert np.allclose(ab, ab_full, atol=1e-5, rtol=1e-5)
 
     def test_arbitraty_polynomial_chaos(self):
         nterms = 5
         alpha_stat, beta_stat = 1, 1
-        
+
         true_ab = jacobi_recurrence(
             nterms, alpha=beta_stat-1, beta=alpha_stat-1,
             probability=True)
@@ -280,20 +292,3 @@ if __name__ == "__main__":
             TestNumericallyGenerateOrthonormalPolynomials1D)
     unittest.TextTestRunner(verbosity=2).run(
         num_gen_orthonormal_poly_1d_test_suite)
-
-"""
-print("----------------------------")
-print("Lanczos test (deprecated)")
-print("----------------------------")
-A       = np.zeros((ntrials+2,ntrials+2));
-A[0,0]  = 1;
-A[0,1:] = np.sqrt(pmfVals);
-A[1:,0] = np.sqrt(pmfVals);
-for i in range(1,ntrials+2):
-    A[i,i] = x[i-1]
-
-e1 = np.zeros(ntrials+2); e1[0] = 1;
-abAN = lanczos_deprecated(A,e1)[:N]
-
-print(np.allclose(abWG,abAN))
-"""

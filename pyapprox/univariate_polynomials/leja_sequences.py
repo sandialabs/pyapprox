@@ -1,29 +1,37 @@
-#!/usr/bin/env python
-import numpy as np
-import matplotlib.pyplot as plt
-
-
 # The functions begining with __ are useful when reusing information during
 # optimiaztion. For example computing the leja objective Hessian requires
 # data also used when computing the value and Jacobian
 
+import numpy as np
+import os
+from scipy.optimize import Bounds
+from functools import partial
+
+from pyapprox.rol_minimize import pyapprox_minimize
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+        evaluate_orthonormal_polynomial_1d
+
+# ideally no files in this directory should rely on more complicated
+# algorithms in lower directories
+from pyapprox.polynomial_sampling import get_lu_leja_samples
+
 
 def sqrt_christoffel_function_inv_1d(basis_fun, samples, normalize=False):
     r"""
-    Evaluate the inverse of the square-root of the Christoffel function 
+    Evaluate the inverse of the square-root of the Christoffel function
     at a set of samples. That is compute
-    
+
     .. math:: \frac{1}{K(x)^{1/2}}
 
     where
-    
+
     .. math::
 
        K(x) = \sum_{n=1}^N \phi_i^2(x)
 
     for a set of orthonormal basis function :math:`\phi_i, i=1, \ldots, N`
 
-    Thsi function is useful for preconditioning linear systems generated using 
+    Thsi function is useful for preconditioning linear systems generated using
     orthonormal polynomials
 
     Parameters
@@ -31,7 +39,7 @@ def sqrt_christoffel_function_inv_1d(basis_fun, samples, normalize=False):
     basis_fun : callable
         Evaluate the basis at a set of points.
         Function with signature
-    
+
         `basis_fun(samples) -> np.ndarray(nsamples, nterms)`
 
     samples : np.ndarray (nvars, nsamples)
@@ -54,26 +62,26 @@ def __sqrt_christoffel_function_inv_1d(basis_mat, normalize):
     #     return np.zeros(basis_mat.shape[0])
     vals = 1./np.linalg.norm(basis_mat, axis=1)
     if normalize is True:
-        vals *= np.sqrt(basis_matrix.shape[1])
+        vals *= np.sqrt(basis_mat.shape[1])
     return vals
 
 
 def christoffel_function_inv_1d(basis_fun, samples, normalize=False):
     r"""
-    Evaluate the inverse of the Christoffel function 
+    Evaluate the inverse of the Christoffel function
     at a set of samples. That is compute
-    
+
     .. math:: \frac{1}{K(x)}
 
     where
-    
+
     .. math::
 
        K(x) = \sum_{n=1}^N \phi_i^2(x)
 
     for a set of orthonormal basis function :math:`\phi_i, i=1, \ldots, N`
 
-    Thsi function is useful for preconditioning linear systems generated using 
+    This function is useful for preconditioning linear systems generated using
     orthonormal polynomials
 
     Parameters
@@ -81,7 +89,7 @@ def christoffel_function_inv_1d(basis_fun, samples, normalize=False):
     basis_fun : callable
         Evaluate the basis at a set of points.
         Function with signature
-    
+
         `basis_fun(samples) -> np.ndarray(nsamples, nterms)`
 
     samples : np.ndarray (nvars, nsamples)
@@ -104,39 +112,38 @@ def __christoffel_function_inv_1d(basis_mat, normalize):
     #     # will cause all values to zero if overflow occurs
     #     return np.zeros(basis_mat.shape[0])
     denom_sqrt = np.linalg.norm(basis_mat, axis=1)
-    #if np.any(denom_sqrt > 1e8):
-    #    return np.zeros(basis_mat.shape[0])
+    # if np.any(denom_sqrt > 1e8):
+    #     return np.zeros(basis_mat.shape[0])
     vals = 1/denom_sqrt**2
     if normalize is True:
-        vals *= basis_matrix.shape[1]
+        vals *= basis_mat.shape[1]
     return vals
 
 
 def sqrt_christoffel_function_inv_jac_1d(basis_fun_and_jac, samples,
                                          normalize=False):
     r"""
-    Return the first_derivative wrt x of the sqrt of the inverse of the 
+    Return the first_derivative wrt x of the sqrt of the inverse of the
     Christoffel function at a set of samples. That is compute
 
-    .. math:: 
+    .. math::
 
-       \frac{\partial}{\partial x}\frac{1}{K(x)^{1/2}} = 
+       \frac{\partial}{\partial x}\frac{1}{K(x)^{1/2}} =
        -\frac{K^\prime(x)}{2K(x)^{3/2}}
 
-    with 
+    with
 
-    .. math:: 
+    .. math::
 
-       K^\prime(x) = \frac{\partial K(x)}{\partial x} = 
+       K^\prime(x) = \frac{\partial K(x)}{\partial x} =
        2\sum_{n=1}^N \frac{\partial \phi_i(x)}{\partial x}\phi_i(x)
-      
 
     Parameters
     ----------
     basis_fun : callable
         Evaluate the basis and its derivatives at a set of points.
         Function with signature
-    
+
         `basis_fun_and_jac(samples) -> np.ndarray(nsamples, 2*nterms)`
 
         The first nterms columns are the values the second the derivatives.
@@ -146,12 +153,12 @@ def sqrt_christoffel_function_inv_jac_1d(basis_fun_and_jac, samples,
         The samples at which to evaluate the basis
 
     normalize : boolean
-        True - return sqrt{nterms/K(x)} where nterms is the number of basis 
+        True - return sqrt{nterms/K(x)} where nterms is the number of basis
                terms
         False - return \sqrt{1/K(x)}
     """
     basis_vals_and_derivs = basis_fun_and_jac(samples[0, :])
-    assert basis_vals_and_derivs.shape[1]%2 == 0
+    assert basis_vals_and_derivs.shape[1] % 2 == 0
     nterms = basis_vals_and_derivs.shape[1]//2
     basis_mat = basis_vals_and_derivs[:, :nterms]
     basis_jac = basis_vals_and_derivs[:, nterms:]
@@ -163,35 +170,34 @@ def __sqrt_christoffel_function_inv_jac_1d(basis_mat, basis_jac, normalize):
     vals = -2*(basis_mat*basis_jac).sum(axis=1)
     vals /= (2*np.sum(basis_mat**2, axis=1)**(1.5))
     if normalize is True:
-        vals *= np.sqrt(nterms)
+        vals *= np.sqrt(basis_mat.shape[1])
     return vals
 
 
 def christoffel_function_inv_jac_1d(basis_fun_and_jac, samples,
-                                         normalize=False):
+                                    normalize=False):
     r"""
-    Return the first_derivative wrt x of the inverse of the 
+    Return the first_derivative wrt x of the inverse of the
     Christoffel function at a set of samples. That is compute
 
-    .. math:: 
+    .. math::
 
-       \frac{\partial}{\partial x}\frac{1}{K(x)} = 
+       \frac{\partial}{\partial x}\frac{1}{K(x)} =
        -\frac{K^\prime(x)}{K(x)^2}
 
-    with 
+    with
 
-    .. math:: 
+    .. math::
 
-       K^\prime(x) = \frac{\partial K(x)}{\partial x} = 
+       K^\prime(x) = \frac{\partial K(x)}{\partial x} =
        2\sum_{n=1}^N \frac{\partial \phi_i(x)}{\partial x}\phi_i(x)
-      
 
     Parameters
     ----------
     basis_fun : callable
         Evaluate the basis and its derivatives at a set of points.
         Function with signature
-    
+
         `basis_fun_and_jac(samples) -> np.ndarray(nsamples, 2*nterms)`
 
         The first nterms columns are the values the second the derivatives.
@@ -201,12 +207,12 @@ def christoffel_function_inv_jac_1d(basis_fun_and_jac, samples,
         The samples at which to evaluate the basis
 
     normalize : boolean
-        True - return nterms/K(x) where nterms is the number of basis 
+        True - return nterms/K(x) where nterms is the number of basis
                terms
         False - return 1/K(x)
     """
     basis_vals_and_derivs = basis_fun_and_jac(samples[0, :])
-    assert basis_vals_and_derivs.shape[1]%2 == 0
+    assert basis_vals_and_derivs.shape[1] % 2 == 0
     nterms = basis_vals_and_derivs.shape[1]//2
     basis_mat = basis_vals_and_derivs[:, :nterms]
     basis_jac = basis_vals_and_derivs[:, nterms:]
@@ -227,26 +233,26 @@ def __christoffel_function_inv_jac_1d(basis_mat, basis_jac, normalize):
     vals = -2*(basis_mat*basis_jac).sum(axis=1)
     vals /= denom_sqrt**2
     if normalize is True:
-        vals *= nterms
+        vals *= basis_mat.shape[1]
     return vals
 
 
 def sqrt_christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
                                           normalize=False):
     r"""
-    Return the second derivative wrt x of the inverse of the square-root of the 
+    Return the second derivative wrt x of the inverse of the square-root of the
     Christoffel function at a set of samples. That is compute
 
-    .. math:: 
+    .. math::
 
-       \frac{\partial^2}{\partial x^2}\frac{1}{K(x)^{1/2}} = 
+       \frac{\partial^2}{\partial x^2}\frac{1}{K(x)^{1/2}} =
        \frac{K^\prime(x)^2-2K(x)K^{\prime\prime}(x)}{4K(x)^{5/2}}
 
-    with 
+    with
 
-    .. math:: 
+    .. math::
 
-       K^{\prime\prime}(x) = \frac{\partial^2 K(x)}{\partial x^2} = 
+       K^{\prime\prime}(x) = \frac{\partial^2 K(x)}{\partial x^2} =
        2\sum_{n=1}^N \frac{\partial^2 \phi_i(x)}{\partial x^2}\phi_i(x)+
        (\frac{\partial \phi_i(x)}{\partial x})^2
 
@@ -255,7 +261,7 @@ def sqrt_christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
     basis_fun : callable
         Evaluate the basis and its derivatives at a set of points.
         Function with signature
-    
+
         `basis_fun_and_jac(samples) -> np.ndarray(nsamples, 2*nterms)`
 
         The first nterms columns are the values the second the derivatives.
@@ -265,12 +271,12 @@ def sqrt_christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
         The samples at which to evaluate the basis
 
         normalize : boolean
-        True - return sqrt{nterms/K(x)} where nterms is the number of basis 
+        True - return sqrt{nterms/K(x)} where nterms is the number of basis
                terms
         False - return \sqrt{1/K(x)}
     """
     tmp = basis_fun_jac_hess(samples[0, :])
-    assert tmp.shape[1]%3 == 0
+    assert tmp.shape[1] % 3 == 0
     nterms = tmp.shape[1]//3
     basis_mat = tmp[:, :nterms]
     basis_jac = tmp[:, nterms:2*nterms]
@@ -278,7 +284,7 @@ def sqrt_christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
     return __sqrt_christoffel_function_inv_hess_1d(
         basis_mat, basis_jac, basis_hess, normalize)
 
-    
+
 def __sqrt_christoffel_function_inv_hess_1d(basis_mat, basis_jac, basis_hess,
                                             normalize):
     k = (basis_mat**2).sum(axis=1)
@@ -286,26 +292,26 @@ def __sqrt_christoffel_function_inv_hess_1d(basis_mat, basis_jac, basis_hess,
     kdx2 = 2*(basis_mat*basis_hess+basis_jac**2).sum(axis=1)
     vals = (3*kdx1**2 - 2*k*kdx2)/(4*k**(2.5))
     if normalize is True:
-        vals *= np.sqrt(nterms)
+        vals *= np.sqrt(basis_mat.shape[1])
     return vals
 
 
 def christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
-                                          normalize=False):
+                                     normalize=False):
     r"""
-    Return the second derivative wrt x of the inverse of the  
+    Return the second derivative wrt x of the inverse of the
     Christoffel function at a set of samples. That is compute
 
-    .. math:: 
+    .. math::
 
-       \frac{\partial^2}{\partial x^2}\frac{1}{K(x)} = 
+       \frac{\partial^2}{\partial x^2}\frac{1}{K(x)} =
        \frac{2K^\prime(x)^2-K(x)K^{\prime\prime}(x)}{K(x)^{3}}
 
-    with 
+    with
 
-    .. math:: 
+    .. math::
 
-       K^{\prime\prime}(x) = \frac{\partial^2 K(x)}{\partial x^2} = 
+       K^{\prime\prime}(x) = \frac{\partial^2 K(x)}{\partial x^2} =
        2\sum_{n=1}^N \frac{\partial^2 \phi_i(x)}{\partial x^2}\phi_i(x)+
        (\frac{\partial \phi_i(x)}{\partial x})^2
 
@@ -314,7 +320,7 @@ def christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
     basis_fun : callable
         Evaluate the basis and its derivatives at a set of points.
         Function with signature
-    
+
         `basis_fun_and_jac(samples) -> np.ndarray(nsamples, 2*nterms)`
 
         The first nterms columns are the values the second the derivatives.
@@ -324,12 +330,12 @@ def christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
         The samples at which to evaluate the basis
 
         normalize : boolean
-        True - return sqrt{nterms/K(x)} where nterms is the number of basis 
+        True - return sqrt{nterms/K(x)} where nterms is the number of basis
                terms
         False - return \sqrt{1/K(x)}
     """
     tmp = basis_fun_jac_hess(samples[0, :])
-    assert tmp.shape[1]%3 == 0
+    assert tmp.shape[1] % 3 == 0
     nterms = tmp.shape[1]//3
     basis_mat = tmp[:, :nterms]
     basis_jac = tmp[:, nterms:2*nterms]
@@ -337,15 +343,15 @@ def christoffel_function_inv_hess_1d(basis_fun_jac_hess, samples,
     return __christoffel_function_inv_hess_1d(
         basis_mat, basis_jac, basis_hess, normalize)
 
-    
+
 def __christoffel_function_inv_hess_1d(basis_mat, basis_jac, basis_hess,
-                                            normalize):
+                                       normalize):
     k = (basis_mat**2).sum(axis=1)
     kdx1 = 2*(basis_mat*basis_jac).sum(axis=1)
     kdx2 = 2*(basis_mat*basis_hess+basis_jac**2).sum(axis=1)
     vals = (2*kdx1**2 - k*kdx2)/(k**3)
     if normalize is True:
-        vals *= nterms
+        vals *= basis_mat.shape[1]
     return vals
 
 
@@ -378,7 +384,7 @@ def christoffel_leja_objective_fun_1d(basis_fun, coef, samples):
 
     basis_fun : callable
         Return the values of all basis functions up to degree k+1 where
-        k is the degree of the polynomial interpolating the current Leja 
+        k is the degree of the polynomial interpolating the current Leja
         sequence.
         Function with signature
 
@@ -388,7 +394,7 @@ def christoffel_leja_objective_fun_1d(basis_fun, coef, samples):
 
     coef : np.ndarray (nterms, 1)
         Coefficients of polynomial which interpolates the new_basis at the
-        samples already in the leja sequence 
+        samples already in the leja sequence
     """
     assert samples.ndim == 2 and samples.shape[0] == 1
     basis_vals = basis_fun(samples[0, :])
@@ -398,17 +404,17 @@ def christoffel_leja_objective_fun_1d(basis_fun, coef, samples):
     return __leja_objective_fun_1d(
         weights, basis_mat, new_basis, coef)
 
-    
+
 def __leja_objective_fun_1d(weights, basis_mat, new_basis, coef):
     """
     Parameters
     ----------
     weights : np.ndarray (nsamples, 1)
-        Values of the weight function at new samples x not already in the Leja 
+        Values of the weight function at new samples x not already in the Leja
         sequence
 
     basis_mat : np.array (nsamples, nterms)
-        Values of the basis of degree k at new samplse x not already in the 
+        Values of the basis of degree k at new samplse x not already in the
         Leja sequence. Note nterms=k+1
 
     new_basis : np.ndarray (nsamples, 1)
@@ -416,15 +422,15 @@ def __leja_objective_fun_1d(weights, basis_mat, new_basis, coef):
 
     coef : np.ndarray (nterms, 1)
         Coefficients of polynomial which interpolates the new_basis at the
-        samples already in the leja sequence 
+        samples already in the leja sequence
     """
     assert basis_mat.ndim == 2
     assert new_basis.ndim == 2 and new_basis.shape[1] == 1
     assert coef.ndim == 2 and coef.shape[1] == 1
     pvals = basis_mat.dot(coef)
     residual = (new_basis - pvals)
-    #if np.absolute(residual).max() > 1e8:
-    #    return np.inf*np.ones(residual.shape[0])
+    # if np.absolute(residual).max() > 1e8:
+    #     return np.inf*np.ones(residual.shape[0])
     return weights*np.sum(residual**2, axis=1)
 
 
@@ -434,7 +440,7 @@ def pdf_weighted_leja_objective_fun_1d(pdf, basis_fun, coef, samples):
     ----------
     pdf : callable
         Weight function with signature
-       
+
         `pdf(x) -> np.ndarray (nsamples)`
 
     where x is a 1D np.ndarray (nsamples)
@@ -444,7 +450,7 @@ def pdf_weighted_leja_objective_fun_1d(pdf, basis_fun, coef, samples):
 
     basis_fun : callable
         Return the values of all basis functions up to degree k+1 where
-        k is the degree of the polynomial interpolating the current Leja 
+        k is the degree of the polynomial interpolating the current Leja
         sequence.
         Function with signature
 
@@ -454,7 +460,7 @@ def pdf_weighted_leja_objective_fun_1d(pdf, basis_fun, coef, samples):
 
     coef : np.ndarray (nterms, 1)
         Coefficients of polynomial which interpolates the new_basis at the
-        samples already in the leja sequence 
+        samples already in the leja sequence
     """
     assert samples.ndim == 2 and samples.shape[0] == 1
     basis_vals = basis_fun(samples[0, :])
@@ -466,7 +472,7 @@ def pdf_weighted_leja_objective_fun_1d(pdf, basis_fun, coef, samples):
 def christoffel_leja_objective_jac_1d(basis_fun_jac, coef, samples):
     assert samples.ndim == 2 and samples.shape[0] == 1
     tmp = basis_fun_jac(samples[0, :])
-    assert tmp.shape[1]%2 == 0
+    assert tmp.shape[1] % 2 == 0
     nterms = tmp.shape[1]//2
     basis_mat = tmp[:, :nterms]
     basis_jac = tmp[:, nterms:]
@@ -495,7 +501,7 @@ def pdf_weighted_leja_objective_jac_1d(pdf, pdf_jac, basis_fun_jac, coef,
                                        samples):
     assert samples.ndim == 2 and samples.shape[0] == 1
     tmp = basis_fun_jac(samples[0, :])
-    assert tmp.shape[1]%2 == 0
+    assert tmp.shape[1] % 2 == 0
     nterms = tmp.shape[1]//2
     basis_mat = tmp[:, :nterms]
     basis_jac = tmp[:, nterms:]
@@ -507,7 +513,7 @@ def pdf_weighted_leja_objective_jac_1d(pdf, pdf_jac, basis_fun_jac, coef,
 def christoffel_leja_objective_hess_1d(basis_fun_jac_hess, coef, samples):
     assert samples.ndim == 2 and samples.shape[0] == 1
     tmp = basis_fun_jac_hess(samples[0, :])
-    assert tmp.shape[1]%3 == 0
+    assert tmp.shape[1] % 3 == 0
     nterms = tmp.shape[1]//3
     basis_mat = tmp[:, :nterms]
     basis_jac = tmp[:, nterms:2*nterms]
@@ -534,33 +540,33 @@ def __leja_objective_hess_1d(w, wdx1, wdx2, basis_mat, basis_jac, basis_hess,
     residual = (bvals - pvals)
     residual_jac = bderivs - pderivs
     residual_hess = bhess - phess
-    hess = (residual**2*wdx2 + 2*w*(residual*residual_hess+residual_jac**2)+
+    hess = (residual**2*wdx2 + 2*w*(residual*residual_hess+residual_jac**2) +
             4*wdx1*residual*residual_jac).sum(axis=1)
     return np.atleast_2d(hess)
 
 
-def pdf_weighted_leja_objective_hess_1d(
-        pdf, pdf_jac, pdf_hess, basis_fun_jac_hess, coef, samples):
-    assert samples.ndim == 2 and samples.shape[0] == 1
-    tmp = basis_fun_jac_hess(samples[0, :])
-    assert tmp.shape[1]%3 == 0
-    nterms = tmp.shape[1]//3
-    basis_mat = tmp[:, :nterms]
-    basis_jac = tmp[:, nterms:2*nterms]
-    basis_hess = tmp[:, 2*nterms:3*nterms]
-    w = pdf(samples[0, :])
-    wdx1 = pdf_jac(samples[0, :])
-    wdx2 = pdf_hess(samples[0, :])
-    return __christoffel_leja_objective_hess_1d(
-        w, wdx1, wdx2, basis_mat, basis_jac, basis_hess, coef)
+# def pdf_weighted_leja_objective_hess_1d(
+#         pdf, pdf_jac, pdf_hess, basis_fun_jac_hess, coef, samples):
+#     assert samples.ndim == 2 and samples.shape[0] == 1
+#     tmp = basis_fun_jac_hess(samples[0, :])
+#     assert tmp.shape[1] % 3 == 0
+#     nterms = tmp.shape[1]//3
+#     basis_mat = tmp[:, :nterms]
+#     basis_jac = tmp[:, nterms:2*nterms]
+#     basis_hess = tmp[:, 2*nterms:3*nterms]
+#     w = pdf(samples[0, :])
+#     wdx1 = pdf_jac(samples[0, :])
+#     wdx2 = pdf_hess(samples[0, :])
+#     return __christoffel_leja_objective_hess_1d(
+#         w, wdx1, wdx2, basis_mat, basis_jac, basis_hess, coef)
 
 
 def get_initial_guesses_1d(leja_sequence, ranges):
-    eps = 1e-6 # must be larger than optimization tolerance
+    eps = 1e-6  # must be larger than optimization tolerance
     intervals = np.sort(leja_sequence)
-    if np.isfinite(ranges[0]) and (leja_sequence.min()>ranges[0]+eps):
+    if np.isfinite(ranges[0]) and (leja_sequence.min() > ranges[0]+eps):
         intervals = np.hstack(([[ranges[0]]], intervals))
-    if np.isfinite(ranges[1]) and (leja_sequence.max()<ranges[1]-eps):
+    if np.isfinite(ranges[1]) and (leja_sequence.max() < ranges[1]-eps):
         intervals = np.hstack((intervals, [[ranges[1]]]))
 
     if not np.isfinite(ranges[0]):
@@ -570,7 +576,6 @@ def get_initial_guesses_1d(leja_sequence, ranges):
         intervals = np.hstack((
             intervals, [[max(1.1*leja_sequence.max(), 0.1)]]))
 
-    diff = np.diff(intervals)
     initial_guesses = intervals[:, :-1]+np.diff(intervals)/2.0
 
     # put intervals in form useful for bounding 1d optimization problems
@@ -579,21 +584,18 @@ def get_initial_guesses_1d(leja_sequence, ranges):
         intervals[0] = -np.inf
     if not np.isfinite(ranges[1]):
         intervals[-1] = np.inf
-        
+
     return initial_guesses, intervals
 
 
-from scipy.optimize import Bounds
-from pyapprox.rol_minimize import pyapprox_minimize
-from functools import partial
 def get_christoffel_leja_sequence_1d(
         max_num_leja_samples, initial_points, ranges,
         basis_fun, options, callback=None):
     leja_sequence = initial_points.copy()
     nsamples = leja_sequence.shape[1]
     degree = nsamples - 2
-    #row_format = "{:<12} {:<25} {:<25}"
-    #print(row_format.format('# Samples', 'interp degree', 'sample'))
+    # row_format = "{:<12} {:<25} {:<25}"
+    # print(row_format.format('# Samples', 'interp degree', 'sample'))
     while nsamples < max_num_leja_samples:
         degree += 1
         tmp = basis_fun(leja_sequence[0, :], nmax=degree+1,  deriv_order=0)
@@ -606,16 +608,19 @@ def get_christoffel_leja_sequence_1d(
             leja_sequence, ranges)
         new_samples = np.empty((1, initial_guesses.shape[1]))
         obj_vals = np.empty((initial_guesses.shape[1]))
+
         def fun(x):
             # optimization passes in np.ndarray with ndim == 1
             # need to make it 2D array
             return -christoffel_leja_objective_fun_1d(
                 partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
                 x[:, None])
+
         def jac(x):
             return -christoffel_leja_objective_jac_1d(
                 partial(basis_fun, nmax=degree+1, deriv_order=1), coef,
                 x[:, None])
+
         # def hess(x):
         #    return -christoffel_leja_objective_hess_1d(
         #        partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
@@ -630,21 +635,21 @@ def get_christoffel_leja_sequence_1d(
             # stop x getting to big. This could effect any variable
             # that is not normalized appropriately
             bounds = Bounds([lb], [ub])
-            #print(jj, bounds)
+            # print(jj, bounds)
             res = pyapprox_minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=options, method='slsqp')
             new_samples[0, jj] = res.x
             obj_vals[jj] = res.fun
         obj_vals[~np.isfinite(obj_vals)] = np.inf
-        I = np.argmin(obj_vals)
-        new_sample = new_samples[:, I]
-        #print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
+        best_idx = np.argmin(obj_vals)
+        new_sample = new_samples[:, best_idx]
+        # print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
 
         if callback is not None:
             callback(
                 leja_sequence, coef, new_samples, obj_vals, initial_guesses)
-            
+
         leja_sequence = np.hstack([leja_sequence, new_sample[:, None]])
         nsamples += 1
     return leja_sequence
@@ -659,7 +664,7 @@ def get_christoffel_leja_quadrature_weights_1d(leja_sequence, growth_rule,
     basis_fun : callable
         Evaluate the basis at a set of points.
         Function with signature
-    
+
         `basis_fun(samples) -> np.ndarray(nsamples, nterms)`
 
     samples : np.ndarray (nsamples)
@@ -668,8 +673,10 @@ def get_christoffel_leja_quadrature_weights_1d(leja_sequence, growth_rule,
         sqrt_christoffel_function_inv_1d, basis_fun)
     # need to wrap basis_fun to allow it to be used with generic multivariate
     # function get_leja_sequence_quadrature_weights
+
     def __basis_fun(x):
         return basis_fun(x[0, :])
+
     return get_leja_sequence_quadrature_weights(
         leja_sequence, growth_rule, __basis_fun, weight_function,
         level, return_weights_for_all_levels)
@@ -681,8 +688,8 @@ def get_pdf_weighted_leja_sequence_1d(
     leja_sequence = initial_points.copy()
     nsamples = leja_sequence.shape[1]
     degree = nsamples - 2
-    #row_format = "{:<12} {:<25} {:<25}"
-    #print(row_format.format('# Samples', 'interp degree', 'sample'))
+    # row_format = "{:<12} {:<25} {:<25}"
+    # print(row_format.format('# Samples', 'interp degree', 'sample'))
     while nsamples < max_num_leja_samples:
         degree += 1
         tmp = basis_fun(leja_sequence[0, :], nmax=degree+1,  deriv_order=0)
@@ -696,20 +703,24 @@ def get_pdf_weighted_leja_sequence_1d(
             leja_sequence, ranges)
         new_samples = np.empty((1, initial_guesses.shape[1]))
         obj_vals = np.empty((initial_guesses.shape[1]))
+
         def fun(x):
             # optimization passes in np.ndarray with ndim == 1
             # need to make it 2D array
             return -pdf_weighted_leja_objective_fun_1d(
                 pdf, partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
                 x[:, None])
+
         def jac(x):
             return -pdf_weighted_leja_objective_jac_1d(
-                pdf, pdf_jac,partial(basis_fun, nmax=degree+1, deriv_order=1),
+                pdf, pdf_jac, partial(basis_fun, nmax=degree+1, deriv_order=1),
                 coef, x[:, None])
-        #def hess(x):
-        #    return -pdf_weighted_leja_objective_hess_1d(
-        #        partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
-        #        x[:, None])
+
+        # def hess(x):
+        #     return -pdf_weighted_leja_objective_hess_1d(
+        #         partial(basis_fun, nmax=degree+1, deriv_order=2), coef,
+        #         x[:, None])
+
         hess = None
         for jj in range(initial_guesses.shape[1]):
             initial_guess = initial_guesses[:, jj]
@@ -719,14 +730,14 @@ def get_pdf_weighted_leja_sequence_1d(
                 options=options, method='slsqp')
             new_samples[0, jj] = res.x
             obj_vals[jj] = res.fun
-        I = np.argmin(obj_vals)
-        new_sample = new_samples[:, I]
-        #print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
+        best_idx = np.argmin(obj_vals)
+        new_sample = new_samples[:, best_idx]
+        # print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
 
         if callback is not None:
             callback(
                 leja_sequence, coef, new_samples, obj_vals, initial_guesses)
-            
+
         leja_sequence = np.hstack([leja_sequence, new_sample[:, None]])
         nsamples += 1
     return leja_sequence
@@ -741,7 +752,7 @@ def get_pdf_weighted_leja_quadrature_weights_1d(leja_sequence, growth_rule,
     basis_fun : callable
         Evaluate the basis at a set of points.
         Function with signature
-    
+
         `basis_fun(samples) -> np.ndarray(nsamples, nterms)`
 
     samples : np.ndarray (nsamples)
@@ -750,8 +761,10 @@ def get_pdf_weighted_leja_quadrature_weights_1d(leja_sequence, growth_rule,
         return pdf(x[0, :])
     # need to wrap basis_fun to allow it to be used with generic multivariate
     # function get_leja_sequence_quadrature_weights
+
     def __basis_fun(x):
         return basis_fun(x[0, :])
+
     return get_leja_sequence_quadrature_weights(
         leja_sequence, growth_rule, __basis_fun, weight_function,
         level, return_weights_for_all_levels)
@@ -767,7 +780,7 @@ def get_leja_sequence_quadrature_weights(leja_sequence, growth_rule,
     basis_matrix_generator : callable
         Evaluate the basis at a set of points.
         Function with signature
-    
+
         `basis_matrix_generator(samples) -> np.ndarray(nsamples, nterms)`
 
     samples : np.ndarray (nvars, nsamples)
@@ -810,29 +823,30 @@ def get_candidate_based_christoffel_leja_sequence_1d(
         num_candidate_samples, weight_function, initial_points,
         samples_filename)
 
+
 def get_candidate_based_pdf_weighted_leja_sequence_1d(
         num_leja_samples, recursion_coeffs, generate_candidate_samples,
         num_candidate_samples, pdf, initial_points=None,
         samples_filename=None):
-    
+
     def weight_function(basis_matrix, samples):
         return pdf(samples[0, :])
-    
+
     return get_candidate_based_leja_sequence_1d(
         num_leja_samples, recursion_coeffs, generate_candidate_samples,
         num_candidate_samples, weight_function, initial_points,
         samples_filename)
 
+
 def get_candidate_based_leja_sequence_1d(
         num_leja_samples, recursion_coeffs, generate_candidate_samples,
         num_candidate_samples, weight_function, initial_points=None,
         samples_filename=None):
-    
-    from pyapprox.orthonormal_polynomials_1d import \
-        evaluate_orthonormal_polynomial_1d
-    from pyapprox.polynomial_sampling import get_lu_leja_samples
-    generate_basis_matrix = lambda x: evaluate_orthonormal_polynomial_1d(
-        x[0, :], num_leja_samples, recursion_coeffs)
+
+    def generate_basis_matrix(x):
+        return evaluate_orthonormal_polynomial_1d(
+            x[0, :], num_leja_samples, recursion_coeffs)
+
     if samples_filename is None or not os.path.exists(samples_filename):
         leja_sequence, __ = get_lu_leja_samples(
             generate_basis_matrix, generate_candidate_samples,
@@ -845,5 +859,5 @@ def get_candidate_based_leja_sequence_1d(
         leja_sequence = np.load(samples_filename)['samples']
         assert leja_sequence.shape[1] >= num_leja_samples
         leja_sequence = leja_sequence[:, :num_leja_samples]
-        
+
     return leja_sequence

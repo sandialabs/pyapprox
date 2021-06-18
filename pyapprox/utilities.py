@@ -237,7 +237,7 @@ def outer_product(input_sets):
             return outer_product_pyx(input_sets, 1.)
         else:
             return outer_product_pyx(input_sets, input_sets[0][0])
-    except:
+    except ImportError:
         print('outer_product extension failed')
 
     num_elems = 1
@@ -1789,12 +1789,15 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
     over a sub interval drops below tolerance it will not increase again if
     we keep moving in same direction.
     """
+    if interval_size <= 0:
+        raise ValueError("Interval size must be positive")
+
     if np.isfinite(lb) and np.isfinite(ub):
         partial_lb, partial_ub = lb, ub
     elif np.isfinite(lb) and not np.isfinite(ub):
         partial_lb, partial_ub = lb, lb+interval_size
     elif not np.isfinite(lb) and np.isfinite(ub):
-        partial_lb, partial_ub = ub+interval_size, ub
+        partial_lb, partial_ub = ub-interval_size, ub
     else:
         partial_lb, partial_ub = -interval_size/2, interval_size/2
 

@@ -1,9 +1,20 @@
 import unittest
-from pyapprox.orthonormal_polynomials_1d import *
-from pyapprox.numerically_generate_orthonormal_polynomials_1d import \
-    modified_chebyshev_orthonormal
-from pyapprox.monomial import univariate_monomial_basis_matrix
+import numpy as np
 from scipy.stats import binom, hypergeom, poisson
+import scipy.special as sp
+
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature, \
+    evaluate_orthonormal_polynomial_deriv_1d, \
+    evaluate_three_term_recurrence_polynomial_1d, \
+    convert_orthonormal_polynomials_to_monomials_1d, \
+    convert_orthonormal_expansion_to_monomial_expansion_1d
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
+    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    convert_orthonormal_recurence_to_three_term_recurence
+from pyapprox.monomial import univariate_monomial_basis_matrix
 from pyapprox.variables import float_rv_discrete
 
 
@@ -80,15 +91,6 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
             assert np.allclose(
                 pd[:, ii*(degree+1):(ii+1)*(degree+1)], pd_exact[ii])
 
-        # from pyapprox.optimization import check_gradients
-        # from functools import partial
-        # fun = lambda x: evaluate_orthonormal_polynomial_deriv_1d(
-        #     x, nmax=degree, ab=ab, deriv_order=0)[0, :]
-        # jac = lambda x: evaluate_orthonormal_polynomial_deriv_1d(
-        #     x, nmax=degree, ab=ab, deriv_order=1)[:, degree+1:].T
-        # x0 = np.atleast_2d(x[0])
-        # check_gradients(fun, jac, x0)
-
     def test_orthonormality_physicists_hermite_polynomial(self):
         rho = 0.
         degree = 2
@@ -107,8 +109,8 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
 
         # test orthogonality
         exact_moments = np.zeros((degree+1))
-        # basis is orthonormal so integration of constant basis will be non-zero
-        # but will not integrate to 1.0
+        # basis is orthonormal so integration of constant basis will be
+        # non-zero but will not integrate to 1.0
         exact_moments[0] = np.pi**0.25
         assert np.allclose(np.dot(p.T, w), exact_moments)
         # test orthonormality
@@ -122,7 +124,8 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
             degree+1, rho, probability=probability_measure)
 
         x, w = np.polynomial.hermite.hermgauss(degree+1)
-        # transform rule to probablity weight function w=1/sqrt(2*PI)exp(-x^2/2)
+        # transform rule to probablity weight
+        # function w=1/sqrt(2*PI)exp(-x^2/2)
         x *= np.sqrt(2.0)
         w /= np.sqrt(np.pi)
         p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
@@ -170,7 +173,6 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
 
         degree = 4
         rho = 0.
-        probability_measure = True
         ab = hermite_recurrence(
             degree+1, rho, probability=True)
         x, w = gauss_quadrature(ab, degree+1)
@@ -189,6 +191,12 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         probability_masses = binom.pmf(
             probability_mesh, num_trials, prob_success)
 
+        basis_mat = evaluate_orthonormal_polynomial_1d(
+            probability_mesh, degree, ab)
+        assert np.allclose(
+            (basis_mat*probability_masses[:, None]).T.dot(basis_mat),
+            np.eye(basis_mat.shape[1]))
+
         coef = np.random.uniform(-1, 1, (degree+1))
         basis_matrix_at_pm = univariate_monomial_basis_matrix(
             degree, probability_mesh)
@@ -198,13 +206,13 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
 
         true_mean = vals_at_pm.dot(probability_masses)
         quadrature_mean = vals_at_gauss.dot(w)
-        #print (true_mean,quadrature_mean)
+        # print (true_mean, quadrature_mean)
         assert np.allclose(true_mean, quadrature_mean)
 
     def test_hahn_hypergeometric(self):
         """
         Given 20 animals, of which 7 are dogs. Then hypergeometric PDF gives
-        the probability of finding a given number of dogs if we choose at 
+        the probability of finding a given number of dogs if we choose at
         random 12 of the 20 animals.
         """
         degree = 4
@@ -248,20 +256,6 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         # print(np.absolute(np.dot(p.T*w,p)-np.eye(degree+1)).max())
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=1e-7)
 
-    def test_continuous_rv_sample(self):
-        N, degree = int(1e6), 5
-        xk, pk = np.random.normal(0, 1, N), np.ones(N)/N
-        rv = float_rv_discrete(name='continuous_rv_sample', values=(xk, pk))
-        ab = modified_chebyshev_orthonormal(degree+1, [xk, pk])
-        hermite_ab = hermite_recurrence(
-            degree+1, 0, True)
-        x, w = gauss_quadrature(hermite_ab, degree+1)
-        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
-        gaussian_moments = np.zeros(degree+1)
-        gaussian_moments[0] = 1
-        assert np.allclose(p.T.dot(w), gaussian_moments, atol=1e-2)
-        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=7e-2)
-
     def test_convert_orthonormal_recurence_to_three_term_recurence(self):
         rho = 0.
         degree = 2
@@ -281,9 +275,9 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         deg  monomial coeffs
         0    [1,0,0]
         1    [0,1,0]         1/1*((x-0)*1-1*0)=x
-        2    [1/c,0,1/c]     1/c*((x-0)*x-1*1)=(x**2-1)/c,             c=sqrt(2)
+        2    [1/c,0,1/c]     1/c*((x-0)*x-1*1)=(x**2-1)/c,            c=sqrt(2)
         3    [0,-3/d,0,1/d]  1/d*((x-0)*(x**2-1)/c-c*x)=
-                             1/(c*d)*(x**3-x-c**2*x)=(x**3-3*x)/(c*d), d=sqrt(3)
+                             1/(c*d)*(x**3-x-c**2*x)=(x**3-3*x)/(c*d),d=sqrt(3)
         """
         rho = 0.
         degree = 10
@@ -324,9 +318,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         probability_measure = True
         ab = hermite_recurrence(
             degree+1, rho, probability=probability_measure)
-        #ab = jacobi_recurrence(
-        #    degree+1, alpha=0, beta=0, probability=probability_measure)
-        
+
         basis_mono_coefs = convert_orthonormal_polynomials_to_monomials_1d(
             ab, degree)
 
@@ -344,7 +336,7 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         f1 = lambda x: ((x-mu)/sigma)**3 using hermite polynomials tailored for
         normal random variable with mean mu and variance sigma**2
 
-        The function defined on canonical domain of the hermite polynomials, 
+        The function defined on canonical domain of the hermite polynomials,
         i.e. normal with mean zero and unit variance, is
         f2 = lambda x: x.T**3
         """
