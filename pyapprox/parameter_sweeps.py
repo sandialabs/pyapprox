@@ -1,12 +1,9 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+
 from pyapprox.variable_transformations import map_hypercube_samples
 from pyapprox.density import map_from_canonical_gaussian
-from scipy.stats import norm as normal_rv
 
 
 def get_parameter_sweeps_samples_using_rotation(
@@ -14,7 +11,7 @@ def get_parameter_sweeps_samples_using_rotation(
         random_samples=False):
     """
     Get the samples of parameter sweeps through  directions
-    d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]. Directions are 
+    d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]. Directions are
     specified by the rows of rotation matrix
 
     Parameters
@@ -36,16 +33,16 @@ def get_parameter_sweeps_samples_using_rotation(
     Returns
     -------
     samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)
-        The samples in the d-dimensional space. Each sweep is listed 
+        The samples in the d-dimensional space. Each sweep is listed
         consecutivelty. That is num_samples_per_sweep for first sweep
-        are the first rows, then the second sweep are the next set of 
+        are the first rows, then the second sweep are the next set of
         num_samples_per_sweep rows, and so on.
 
     active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)
         The univariate samples of the parameter sweeps. These samples are
         for normalized hypercubes [-1,1]^d.
     """
-    #num_sweeps, num_vars = rotation_matrix.shape
+    # num_sweeps, num_vars = rotation_matrix.shape
     num_vars, num_sweeps = rotation_matrix.shape
 
     samples = np.empty((num_vars, num_samples_per_sweep*num_sweeps))
@@ -74,7 +71,7 @@ def get_parameter_sweeps_samples(
         num_vars, get_sweep_bounds, num_samples_per_sweep=50, num_sweeps=1,
         random_samples=False, sweep_rotation_matrix=None):
     """
-    Get the samples of parameter sweeps through random directions of a  
+    Get the samples of parameter sweeps through random directions of a
     d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]
 
     Parameters
@@ -102,9 +99,9 @@ def get_parameter_sweeps_samples(
     Returns
     -------
     samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)
-        The samples in the d-dimensional space. Each sweep is listed 
+        The samples in the d-dimensional space. Each sweep is listed
         consecutivelty. That is num_samples_per_sweep for first sweep
-        are the first rows, then the second sweep are the next set of 
+        are the first rows, then the second sweep are the next set of
         num_samples_per_sweep rows, and so on.
 
     active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)
@@ -115,9 +112,10 @@ def get_parameter_sweeps_samples(
         Each row contains the rotation vector of each sweep.
     """
     if sweep_rotation_matrix is None:
-        assert num_sweeps <= num_vars  # otherwise have to use additional Q matrices
+        # otherwise have to use additional Q matrices
+        assert num_sweeps <= num_vars
         A = np.random.normal(0, 1, (num_vars, num_sweeps))
-        #A = np.eye(num_vars)[:,:num_sweeps]
+        # A = np.eye(num_vars)[:,:num_sweeps]
         Q, R = np.linalg.qr(A)
         sweep_rotation_matrix = Q[:, :num_sweeps]
     else:
@@ -138,16 +136,17 @@ def get_hypercube_sweep_bounds(W):
     maxdist = np.sqrt(num_vars*4)
     y = np.asarray([np.linspace(-maxdist/2., maxdist/2., 1000)])
     x = np.dot(W, y)
-    I = np.where(np.all(x >= -1, axis=0) & np.all(x <= 1, axis=0))[0]
-    y_lb = y[0, I[0]]
-    y_ub = y[0, I[-1]]
+    II = np.where(np.all(x >= -1, axis=0) & np.all(x <= 1, axis=0))[0]
+    y_lb = y[0, II[0]]
+    y_ub = y[0, II[-1]]
     return y_lb, y_ub
 
 
 def get_hypercube_parameter_sweeps_samples(
-        ranges, num_samples_per_sweep=50, num_sweeps=1, sweep_rotation_matrix=None):
+        ranges, num_samples_per_sweep=50, num_sweeps=1,
+        sweep_rotation_matrix=None):
     """
-    Get the samples of parameter sweeps through random directions of a  
+    Get the samples of parameter sweeps through random directions of a
     d-dimensional hypercube on [a_0,b_0] x ... x [a_d,b_d]
 
     Parameters
@@ -165,9 +164,9 @@ def get_hypercube_parameter_sweeps_samples(
     Returns
     -------
     samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)
-        The samples in the d-dimensional space. Each sweep is listed 
+        The samples in the d-dimensional space. Each sweep is listed
         consecutivelty. That is num_samples_per_sweep for first sweep
-        are the first rows, then the second sweep are the next set of 
+        are the first rows, then the second sweep are the next set of
         num_samples_per_sweep rows, and so on.
 
     active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)
@@ -194,10 +193,10 @@ def get_gaussian_parameter_sweeps_samples(
         sweep_radius=1, num_samples_per_sweep=50, num_sweeps=1,
         sweep_rotation_matrix=None):
     """
-    Get the samples of parameter sweeps through random directions of a  
+    Get the samples of parameter sweeps through random directions of a
     zero-mean multivariate Gaussian
 
-    One and only one of covariance and covariance_sqrt must be 
+    One and only one of covariance and covariance_sqrt must be
     not None.
 
     Parameters
@@ -210,11 +209,11 @@ def get_gaussian_parameter_sweeps_samples(
 
     covariance_sqrt : callable
         correlated_samples = covariance_sqrt(stdnormal_samples)
-        An operator that applies the sqrt of the Gaussian covariance to a set 
+        An operator that applies the sqrt of the Gaussian covariance to a set
         of vectors. Useful for large scale applications.
 
     sweep_radius : float
-        The radius of the parameter sweep as a multiple of 
+        The radius of the parameter sweep as a multiple of
         one standard deviation of the standard normal
 
     num_samples_per_sweep : integer
@@ -226,9 +225,9 @@ def get_gaussian_parameter_sweeps_samples(
     Returns
     -------
     samples : np.ndarray (num_vars, num_samples_per_sweep*num_sweeps)
-        The samples in the d-dimensional space. Each sweep is listed 
+        The samples in the d-dimensional space. Each sweep is listed
         consecutivelty. That is num_samples_per_sweep for first sweep
-        are the first rows, then the second sweep are the next set of 
+        are the first rows, then the second sweep are the next set of
         num_samples_per_sweep rows, and so on.
 
     active_samples : np.ndarray (num_sweeps, num_samples_per_sweep)
@@ -260,7 +259,8 @@ def get_gaussian_parameter_sweeps_samples(
 
 def plot_parameter_sweep_single_qoi(active_samples, vals, num_sweeps,
                                     num_samples_per_sweep, label_opts=dict(),
-                                    axs=plt, markers='o', colors=None, alpha=1):
+                                    axs=plt, markers='o', colors=None,
+                                    alpha=1):
     if type(markers) == str:
         markers = [markers]*num_sweeps
     assert len(markers) == num_sweeps
@@ -268,7 +268,7 @@ def plot_parameter_sweep_single_qoi(active_samples, vals, num_sweeps,
     if type(colors) == str or colors is None:
         colors = [colors]*num_sweeps
     assert len(colors) == num_sweeps
-    
+   
     for i in range(num_sweeps):
         # scale y to [-1,1]
         lb = active_samples[i, :].min()
@@ -331,13 +331,6 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
         plt.show()
 
 
-def run_parameter_sweeps(model, ranges, num_samples_per_sweep=50,
-                         num_sweeps=1):
-
-    vals = model(samples)
-    return samples, vals, active_samples
-
-
 def generate_parameter_sweeps_and_plot(
         model, opts, filename, sweep_type, num_samples_per_sweep=50,
         num_sweeps=2, qoi_indices=None, show=False, samples_only=False,
@@ -350,9 +343,11 @@ def generate_parameter_sweeps_and_plot(
     if filename is None or not os.path.exists(filename):
         if sweep_type == 'hypercube':
             ranges = opts['ranges']
-            samples, active_samples, W = get_hypercube_parameter_sweeps_samples(
-                ranges, num_samples_per_sweep, num_sweeps, sweep_rotation_matrix)
-            print(samples.T)
+            samples, active_samples, W = \
+                get_hypercube_parameter_sweeps_samples(
+                    ranges, num_samples_per_sweep, num_sweeps,
+                    sweep_rotation_matrix)
+            # print(samples.T)
         elif sweep_type == 'gaussian':
             mean = opts['mean']
             covariance = opts.get('covariance', None)

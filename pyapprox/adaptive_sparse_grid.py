@@ -1167,18 +1167,18 @@ def get_unique_quadrule_variables(var_trans):
 def get_unique_max_level_1d(var_trans, growth_rules):
     unique_quadrule_variables, unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)
-    print(len(growth_rules),unique_quadrule_indices)
+    # print(len(growth_rules), unique_quadrule_indices)
     if len(growth_rules) != len(unique_quadrule_indices):
         msg = 'growth rules and unique_quadrule_indices'
         msg += ' (derived from var_trans) are inconsistent'
         raise Exception(msg)
-    
+
     max_level_1d = []
     for ii in range(len(unique_quadrule_indices)):
         if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
             max_nsamples_ii = get_probability_masses(
                 unique_quadrule_variables[ii])[0].shape[0]
-            ll = 0 
+            ll = 0
             while True:
                 if growth_rules[ii](ll) > max_nsamples_ii-1:
                     max_level_1d_ii = ll-1

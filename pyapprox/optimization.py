@@ -67,7 +67,7 @@ def eval_mc_based_jacobian_at_multiple_design_samples(grad, stat_func,
     """
     Alternatively I could use
     jacobian = [np.mean([constraint_grad_single(z,x) for z in zz.T],axis=0) for x in xx.T]
-    But I think this implementation will allow better use of concurent evaluations in the 
+    But I think this implementation will allow better use of concurent evaluations in the
     future. For example eval_function_at_multiple_design_and_random_samples could
     utilize an asynchronous call over all the sample combinations
 

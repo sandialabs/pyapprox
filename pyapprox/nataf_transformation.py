@@ -9,7 +9,7 @@ from scipy.special import roots_hermitenorm
 
 
 def gauss_hermite_pts_wts_1D(nn):
-    x, w = roots_hermitenorm
+    x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2*np.pi)
     return x, w
 

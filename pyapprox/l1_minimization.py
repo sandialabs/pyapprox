@@ -1,8 +1,10 @@
 import numpy as np
 import scipy.sparse as sp
 from functools import partial
-from scipy.optimize import minimize, LinearConstraint, NonlinearConstraint, BFGS, \
-    linprog, OptimizeResult, Bounds
+from scipy.optimize import minimize, LinearConstraint, NonlinearConstraint, \
+    BFGS, linprog, OptimizeResult, Bounds
+from scipy.optimize._constraints import new_constraint_to_old
+from warnings import warn
 
 try:
     from ipopt import minimize_ipopt
@@ -16,6 +18,7 @@ def get_method(options):
     method = options.get('method', 'slsqp')
     if method == 'ipopt' and not has_ipopt:
         msg = 'ipopt not avaiable using default slsqp'
+        warn(msg, UserWarning)
         method = 'slsqp'
     return method
 
@@ -27,9 +30,9 @@ def basis_pursuit(Amat, bvec, options):
     c = np.zeros(nunknowns+nslack_variables)
     c[nunknowns:] = 1.0
 
-    I = sp.identity(nunknowns)
+    II = sp.identity(nunknowns)
     tmp = np.array([[1, -1], [-1, -1]])
-    A_ub = sp.kron(tmp, I)
+    A_ub = sp.kron(tmp, II)
     b_ub = np.zeros(nunknowns+nslack_variables)
 
     A_eq = sp.lil_matrix((Amat.shape[0], c.shape[0]), dtype=float)
@@ -45,7 +48,8 @@ def basis_pursuit(Amat, bvec, options):
     return res.x[:nunknowns]
 
 
-def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options, eps=0, return_full=False):
+def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options,
+                            eps=0, return_full=False):
     nunknowns = init_guess.shape[0]
     nslack_variables = nunknowns
 
@@ -59,9 +63,9 @@ def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options, eps=
         matvec = np.zeros(x.shape[0])
         return matvec
 
-    I = sp.identity(nunknowns)
+    II = sp.identity(nunknowns)
     tmp = np.array([[1, -1], [-1, -1]])
-    A_con = sp.kron(tmp, I)
+    A_con = sp.kron(tmp, II)
     # A_con = A_con.A#dense
     lb_con = -np.inf*np.ones(nunknowns+nslack_variables)
     ub_con = np.zeros(nunknowns+nslack_variables)
@@ -113,7 +117,7 @@ def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options, eps=
     bounds = Bounds(lbs, ubs)
     x0 = np.concatenate([init_guess, np.absolute(init_guess)])
     method = get_method(options)
-    #method = options.get('method','slsqp')
+    # method = options.get('method','slsqp')
     if 'method' in options:
         del options['method']
     if method != 'ipopt':
@@ -121,8 +125,6 @@ def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options, eps=
             obj, x0, method=method, jac=True, hessp=hessp, options=options,
             bounds=bounds, constraints=constraints)
     else:
-        from ipopt import minimize_ipopt
-        from scipy.optimize._constraints import new_constraint_to_old
         con = new_constraint_to_old(constraints[0], x0)
         ipopt_bounds = []
         for ii in range(len(bounds.lb)):
@@ -140,10 +142,10 @@ def nonlinear_basis_pursuit(func, func_jac, func_hess, init_guess, options, eps=
 def kouri_smooth_absolute_value(t, r, x):
     vals = np.zeros(x.shape[0])
     z = r*x+t
-    I = np.where(z < -1)[0]
-    vals[I] = -1/r*(z[I] + 0.5 + 0.5 * t[I]**2)
-    J = np.where((-1 <= z) & (z <= 1))[0]
-    vals[J] = t[J] * x[J] + 0.5*r * x[J]**2
+    II = np.where(z < -1)[0]
+    vals[II] = -1/r*(z[II] + 0.5 + 0.5 * t[II]**2)
+    JJ = np.where((-1 <= z) & (z <= 1))[0]
+    vals[JJ] = t[JJ] * x[JJ] + 0.5*r * x[JJ]**2
     K = np.where(1 < z)[0]
     vals[K] = 1/r * (z[K] - 0.5 - 0.5 * t[K]**2)
     return vals
@@ -158,8 +160,8 @@ def kouri_smooth_absolute_value_gradient(t, r, x):
 def kouri_smooth_absolute_value_hessian(t, r, x):
     hess = np.zeros(x.shape[0])
     z = r*x+t
-    J = np.where(np.absolute(z) <= 1)[0]
-    hess[J] = r
+    JJ = np.where(np.absolute(z) <= 1)[0]
+    hess[JJ] = r
     return hess
 
 
@@ -255,14 +257,15 @@ def basis_pursuit_denoising(func, func_jac, func_hess, init_guess, eps, options)
     while True:
         obj = partial(kouri_smooth_l1_norm, t, r)
         jac = partial(kouri_smooth_l1_norm_gradient, t, r)
-        #hessp = partial(kouri_smooth_l1_norm_hessp,t,r)
+        # hessp = partial(kouri_smooth_l1_norm_hessp,t,r)
         hessp = None
 
         if method == 'slsqp':
             options0 = {'ftol': gtol0, 'verbose': max(0, verbose-2),
                         'maxiter': maxiter_inner, 'disp': (verbose > 2)}
         elif method == 'trust-constr':
-            options0 = {'gtol': gtol0, 'tol': gtol0, 'verbose': max(0, verbose-2),
+            options0 = {'gtol': gtol0, 'tol': gtol0,
+                        'verbose': max(0, verbose-2),
                         'barrier_tol': ctol, 'maxiter': maxiter_inner,
                         'disp': (verbose > 2)}
         elif method == 'cobyla':
@@ -286,7 +289,7 @@ def basis_pursuit_denoising(func, func_jac, func_hess, init_guess, eps, options)
             res = minimize_ipopt(
                 obj, init_guess, method=method, jac=jac, hessp=hessp,
                 options=options0, constraints=con)
-            #assert res.success, res
+            # assert res.success, res
 
         if method == 'trust-constr':
             assert res.status == 1 or res.status == 2
@@ -369,9 +372,9 @@ def lasso(func, func_jac, func_hess, init_guess, lamda, options):
     if func_hess is None:
         hess = None
 
-    I = sp.identity(nunknowns)
+    II = sp.identity(nunknowns)
     tmp = np.array([[1, -1], [-1, -1]])
-    A_con = sp.kron(tmp, I)
+    A_con = sp.kron(tmp, II)
     lb_con = -np.inf*np.ones(nunknowns+nslack_variables)
     ub_con = np.zeros(nunknowns+nslack_variables)
     linear_constraint = LinearConstraint(
@@ -385,23 +388,22 @@ def lasso(func, func_jac, func_hess, init_guess, lamda, options):
     bounds = Bounds(lbs, ubs)
     x0 = np.concatenate([init_guess, np.absolute(init_guess)])
     method = get_method(options)
-    #method = options.get('method','slsqp')
+    # method = options.get('method','slsqp')
     if 'method' in options:
         del options['method']
     if method != 'ipopt':
         res = minimize(
-            partial(obj, lamda), x0, method=method, jac=True, hess=hess, options=options,
-            bounds=bounds, constraints=constraints)
+            partial(obj, lamda), x0, method=method, jac=True, hess=hess,
+            options=options, bounds=bounds, constraints=constraints)
     else:
-        #jac_structure_old = lambda : np.nonzero(np.tile(np.eye(nunknowns), (2, 2)))
         def jac_structure():
             rows = np.repeat(np.arange(2*nunknowns), 2)
             cols = np.empty_like(rows)
             cols[::2] = np.hstack([np.arange(nunknowns)]*2)
             cols[1::2] = np.hstack([np.arange(nunknowns, 2*nunknowns)]*2)
             return rows, cols
-        #assert np.allclose(jac_structure()[0],jac_structure_old()[0])
-        #assert np.allclose(jac_structure()[1],jac_structure_old()[1])
+        # assert np.allclose(jac_structure()[0],jac_structure_old()[0])
+        # assert np.allclose(jac_structure()[1],jac_structure_old()[1])
 
         # jac_structure=None
         def hess_structure():
@@ -417,6 +419,7 @@ def lasso(func, func_jac, func_hess, init_guess, lamda, options):
         con = new_constraint_to_old(constraints[0], x0)
         res = minimize_ipopt(
             partial(obj, lamda), x0, method=method, jac=True, options=options,
-            constraints=con, jac_structure=jac_structure, hess_structure=hess_structure, hess=hess)
+            constraints=con, jac_structure=jac_structure,
+            hess_structure=hess_structure, hess=hess)
 
     return res.x[:nunknowns], res

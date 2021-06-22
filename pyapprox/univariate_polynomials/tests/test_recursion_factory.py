@@ -45,7 +45,7 @@ class TestRecursionFactory(unittest.TestCase):
         #    bernoulli which only has two masses
         #    zipf unusual distribution and difficult to compute basis
         #    crystallball is discontinuous and requires special integrator
-                # this can be developed if needed
+        #        this can be developed if needed
         unsupported_discrete_var_names = ["bernoulli", "yulesimon", "zipf"]
         for name in unsupported_discrete_var_names:
             ii = discrete_var_names.index(name)
@@ -53,11 +53,15 @@ class TestRecursionFactory(unittest.TestCase):
             del discrete_var_shapes[ii]
 
         for name, shapes in zip(discrete_var_names, discrete_var_shapes):
+            # print(name)
             var = getattr(stats, name)(**shapes)
             xk, pk = get_probability_masses(var, 1e-15)
+            loc, scale = transform_scale_parameters(var)
+            xk = (xk-loc)/scale
             ab = get_recursion_coefficients_from_variable(
-                var, degree+1, {"orthonormality_tol": 1e-14,
-                                "truncated_probability_tol": 1e-15})
+                var, degree+1, {"orthonormality_tol": 3e-14,
+                                "truncated_probability_tol": 1e-15,
+                                "numeric": False})
             basis_mat = evaluate_orthonormal_polynomial_1d(xk, degree, ab)
             gram_mat = (basis_mat*pk[:, None]).T.dot(basis_mat)
             assert np.allclose(gram_mat, np.eye(basis_mat.shape[1]), atol=2e-8)
@@ -70,6 +74,8 @@ class TestRecursionFactory(unittest.TestCase):
             float_rv_discrete(name="float_rv_discrete", values=(xk2, pk2))()]
         for var in custom_vars:
             xk, pk = get_probability_masses(var, 1e-15)
+            loc, scale = transform_scale_parameters(var)
+            xk = (xk-loc)/scale
             ab = get_recursion_coefficients_from_variable(
                 var, degree+1, {"orthonormality_tol": 1e-14,
                                 "truncated_probability_tol": 1e-15})

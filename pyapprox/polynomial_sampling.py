@@ -1,10 +1,8 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-
 import numpy as np
-from pyapprox.utilities import truncated_pivoted_lu_factorization
 from scipy.linalg import qr as qr_factorization
 from scipy.linalg import solve_triangular
+
+from pyapprox.utilities import truncated_pivoted_lu_factorization
 from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver, \
     pre_multiply_block_diagonal_matrix
 from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
@@ -48,7 +46,7 @@ def get_fekete_samples(generate_basis_matrix, generate_candidate_samples,
                        num_candidate_samples, preconditioning_function=None,
                        precond_opts=dict()):
     r"""
-    Generate Fekete samples using QR factorization. 
+    Generate Fekete samples using QR factorization.
 
     The number of samples is determined by the number of basis functions.
 

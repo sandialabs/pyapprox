@@ -1,12 +1,9 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-import matplotlib.pyplot as plt
-import matplotlib.tri as tri
-from pyapprox.utilities import adjust_sign_eig
 from scipy.linalg import eigh
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
+
+from pyapprox.utilities import adjust_sign_eig
 
 
 def exponential_kle_eigenvalues(sigma2, corr_len, omega):
@@ -20,7 +17,7 @@ def exponential_kle_basis(x, corr_len, sigma2, omega):
     Parameters
     ----------
     x : np.ndarray (num_spatial_locations)
-        The spatial coordinates of the nodes defining the random field in [0,1] 
+        The spatial coordinates of the nodes defining the random field in [0,1]
 
     corr_len : double
         correlation length l of the covariance kernel

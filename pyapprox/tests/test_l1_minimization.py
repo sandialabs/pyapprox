@@ -1,7 +1,13 @@
 import unittest
 import numpy as np
-from pyapprox.l1_minimization import *
+from functools import partial
+import scipy.sparse as sp
+
+from pyapprox.l1_minimization import basis_pursuit, kouri_smooth_l1_norm, \
+    nonlinear_basis_pursuit, kouri_smooth_l1_norm_gradient, \
+    kouri_smooth_l1_norm_hessian, basis_pursuit_denoising, lasso
 from pyapprox.optimization import check_gradients, approx_jacobian
+from scipy.optimize import minimize
 
 
 class TestL1Minimization(unittest.TestCase):
@@ -43,10 +49,10 @@ class TestL1Minimization(unittest.TestCase):
         def hessian(x):
             return basis_matrix.T.dot(basis_matrix)
 
-        lstsq_coef = np.linalg.lstsq(basis_matrix, vals, rcond=0)[0]
+        # lstsq_coef = np.linalg.lstsq(basis_matrix, vals, rcond=0)[0]
 
         init_guess = np.random.normal(0, 0.1, (true_coef.shape[0], 1))
-        #init_guess = lstsq_coef+np.random.normal(0,1e-3,(true_coef.shape[0]))
+        # init_guess = lstsq_coef+np.random.normal(0,1e-3,(true_coef.shape[0]))
 
         errors = check_gradients(objective, True, init_guess, disp=True)
         print(errors.min())
@@ -97,10 +103,9 @@ class TestL1Minimization(unittest.TestCase):
         # options = {'tol':tol,'maxiter':1000,'print_level':3,
         #           'method':'ipopt'}
         init_guess = true_coef+np.random.normal(0, 1, true_coef.shape[0])
-        #fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
-        #exact_jac = func(init_guess)[1]
+        # fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
+        # exact_jac = func(init_guess)[1]
         l1_coef = nonlinear_basis_pursuit(func, jac, hess, init_guess, options)
-        print(np.linalg.norm(l1_coef-true_coef))
         assert np.allclose(l1_coef, true_coef, atol=1e-5)
 
     def test_nonlinear_basis_pursuit_denoising_with_linear_model(self):
@@ -113,7 +118,7 @@ class TestL1Minimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.
         vals = basis_matrix.dot(true_coef)
 
-        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+        # basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
 
         eps = 1e-3
 
@@ -130,16 +135,18 @@ class TestL1Minimization(unittest.TestCase):
         tol = 1e-6
         # options = {'gtol':tol,'verbose':2,'disp':True,'xtol':tol,'maxiter':1000,
         #           'method':'trust-constr'}
-        # options = {'ftol':tol,'disp':True,'maxiter':1000,'iprint':3,
-        #           'method':'slsqp'}
-        options = {'tol': tol, 'maxiter': 1000, 'print_level': 3,
-                   'method': 'ipopt'}
+        options = {'ftol':tol,'disp':True,'maxiter':1000,'iprint':3,
+                   'method':'slsqp'}
+        # options = {'tol': tol, 'maxiter': 1000, 'print_level': 3,
+        #            'method': 'ipopt'}
         init_guess = np.random.normal(0, 1, true_coef.shape[0])
-        #fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
-        #exact_jac = func(init_guess)[1]
+        # fd_jac = approx_jacobian(lambda x: func(x)[0],init_guess,epsilon=1e-7)
+        # exact_jac = func(init_guess)[1]
         l1_coef = nonlinear_basis_pursuit(
             func, jac, hess, init_guess, options, eps**2)
         print(np.linalg.norm(l1_coef-true_coef))
+        print(l1_coef-true_coef)
+        print(l1_coef, true_coef)
         assert np.allclose(l1_coef, true_coef, atol=6e-3)
 
     def test_nonlinear_basis_pursuit(self):
@@ -183,9 +190,9 @@ class TestL1Minimization(unittest.TestCase):
         assert np.allclose(l1_coef, true_coef, atol=2e-6)
 
     def test_smooth_l1_norm_gradients(self):
-        #x = np.linspace(-1,1,101)
-        #t = np.ones_like(x)
-        #r = 1e1
+        # x = np.linspace(-1,1,101)
+        # t = np.ones_like(x)
+        # r = 1e1
         # plt.plot(x,kouri_smooth_absolute_value(t,r,x))
         # plt.show()
         from pyapprox.optimization import \
@@ -220,7 +227,7 @@ class TestL1Minimization(unittest.TestCase):
 
     def test_basis_pursuit_smooth_l1_norm(self):
         np.random.seed(1)
-        #nsamples, degree, sparsity = 6, 7, 2
+        # nsamples, degree, sparsity = 6, 7, 2
         nsamples, degree, sparsity = 15, 20, 3
         samples = np.random.uniform(0, 1, (1, nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis, :]
@@ -229,7 +236,7 @@ class TestL1Minimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.
         vals = basis_matrix.dot(true_coef)
 
-        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+        # basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
 
         def func(x):
             return basis_matrix.dot(x)-vals, basis_matrix
@@ -242,7 +249,7 @@ class TestL1Minimization(unittest.TestCase):
         eps = 0
         init_guess = np.random.normal(0, 1, (true_coef.shape[0]))*0
         method = 'slsqp'
-        #init_guess = true_coef
+        # init_guess = true_coef
         options = {'gtol': tol, 'verbose': 2, 'disp': True, 'xtol': 1e-10,
                    'maxiter': 20, 'method': method, 'ftol': 1e-10}
         res = basis_pursuit_denoising(
@@ -256,7 +263,7 @@ class TestL1Minimization(unittest.TestCase):
     def test_basis_pursuit_denoising_smooth_l1_norm(self):
         np.random.seed(1)
         nsamples, degree, sparsity = 20, 7, 2
-        #nsamples, degree, sparsity = 15, 20, 3
+        # nsamples, degree, sparsity = 15, 20, 3
         samples = np.random.uniform(0, 1, (1, nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis, :]
 
@@ -264,7 +271,7 @@ class TestL1Minimization(unittest.TestCase):
         true_coef[np.random.permutation(true_coef.shape[0])[:sparsity]] = 1.
         vals = basis_matrix.dot(true_coef)
 
-        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+        # basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
 
         def func(x, return_grad=True):
             residual = basis_matrix.dot(x)-vals
@@ -279,17 +286,19 @@ class TestL1Minimization(unittest.TestCase):
         jac = True
 
         init_guess = np.random.normal(0, 1, (true_coef.shape[0]))
-        assert np.allclose(func(init_guess)[0],
-                           np.linalg.norm(basis_matrix.dot(init_guess)-vals)**2)
+        assert np.allclose(
+            func(init_guess)[0],
+            np.linalg.norm(basis_matrix.dot(init_guess)-vals)**2)
 
         print(true_coef)
         eps = 1e-3
         method = 'slsqp'
-        #method = 'ipopt'
+        # method = 'ipopt'
         init_guess = np.random.normal(0, 1, (true_coef.shape[0]))*0
-        #init_guess = true_coef
+        # init_guess = true_coef
         options = {'gtol': 1e-8, 'verbose': 2, 'disp': True, 'dualtol': 1e-6,
-                   'maxiter_inner': 3e3, 'r0': 1e4, 'maxiter': 1e2, 'ftol': 1e-10,
+                   'maxiter_inner': 3e3, 'r0': 1e4, 'maxiter': 1e2,
+                   'ftol': 1e-10,
                    'method': method}
         res = basis_pursuit_denoising(
             func, jac, hess, init_guess, eps, options)
@@ -302,7 +311,7 @@ class TestL1Minimization(unittest.TestCase):
     def test_lasso(self):
         np.random.seed(1)
         nsamples, degree, sparsity = 20, 7, 2
-        #nsamples, degree, sparsity = 15, 20, 3
+        # nsamples, degree, sparsity = 15, 20, 3
         samples = np.random.uniform(0, 1, (1, nsamples))
         basis_matrix = samples.T**np.arange(degree+1)[np.newaxis, :]
 
@@ -311,8 +320,8 @@ class TestL1Minimization(unittest.TestCase):
         vals = basis_matrix.dot(true_coef)
         lamdas = np.logspace(-6, 1, 10)
 
-        #basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
-        #lamdas = np.logspace(0, 2, 20)
+        # basis_matrix,true_coef,vals = self.SPARCO_problem_7(1024//4,256//4,32//4)
+        # lamdas = np.logspace(0, 2, 20)
 
         def func(x, return_grad=True):
             residual = basis_matrix.dot(x)-vals
@@ -333,14 +342,17 @@ class TestL1Minimization(unittest.TestCase):
         #init_guess = true_coef
         for i, lamda in enumerate(lamdas):
             # options = {'gtol':1e-12,'disp':True,
-            #           'maxiter':1e3, 'method':'trust-constr','sparse_jacobian':True,
+            #           'maxiter':1e3, 'method':'trust-constr',
+            #           'sparse_jacobian':True,
             #           'barrier_tol':1e-12}
             # options = {'ftol':1e-12,'disp':False,
             #           'maxiter':1e3, 'method':'slsqp'};hess=None
             options = {'tol': 1e-8, 'maxiter': int(1e4), 'print_level': 0,
-                       'method': 'ipopt', 'mu_strategy': 'adaptive', 'jac_d_constant': 'yes', 'hessian_constant': 'yes', 'obj_scaling_factor': float(1/lamda)}
+                       'method': 'ipopt', 'mu_strategy': 'adaptive',
+                       'jac_d_constant': 'yes', 'hessian_constant': 'yes',
+                       'obj_scaling_factor': float(1/lamda)}
             coef, res = lasso(func, jac, hess, init_guess, lamda, options)
-            initial_guess = coef
+            # initial_guess = coef
             print(lamda, np.absolute(coef).sum(), func(
                 coef, False), np.linalg.norm(true_coef-coef))
             assert res.success == True

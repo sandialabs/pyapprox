@@ -251,9 +251,7 @@ def get_discrete_univariate_leja_quadrature_rule(
     if is_bounded_discrete_variable(variable):
         xk, pk = get_probability_masses(variable)
         loc, scale = transform_scale_parameters(variable)
-        print(xk)
         xk = (xk-loc)/scale
-        print(xk, 't', loc, scale)
 
         if initial_points is None:
             initial_points = (np.atleast_2d([variable.ppf(0.5)])-loc)/scale

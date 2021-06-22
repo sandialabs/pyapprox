@@ -1,17 +1,41 @@
 import unittest
-from pyapprox.gaussian_process import *
-from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
-from pyapprox.indexing import compute_hyperbolic_indices
-import pyapprox as pya
+import numpy as np
 from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
 import copy
 import time
+from functools import partial
+
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, \
+    ConstantKernel
+
+from pyapprox.gaussian_process import GaussianProcess, \
+    RandomGaussianProcessRealizations, gaussian_process_pointwise_variance, \
+    integrate_gaussian_process, extract_covariance_kernel, gaussian_tau, \
+    gaussian_u, compute_varpi, compute_varsigma_sq, variance_of_mean, \
+    gaussian_P, compute_v_sq, compute_zeta, mean_of_variance, gaussian_nu, \
+    gaussian_Pi, compute_psi, compute_chi, compute_phi, gaussian_lamda, \
+    compute_varrho, compute_xi, gaussian_xi_1, compute_varphi, \
+    marginalize_gaussian_process, compute_expected_sobol_indices, \
+    IVARSampler, CholeskySampler, GreedyVarianceOfMeanSampler, \
+    GreedyIntegratedVarianceSampler, \
+    RBF_integrated_posterior_variance_gradient_wrt_samples, integrate_tau_P, \
+    RBF_gradient_wrt_samples,  gaussian_grad_P_offdiag_term1,  \
+    gaussian_grad_P_offdiag_term2, gaussian_grad_P_diag_term1, \
+    gaussian_grad_P_diag_term2, integrate_grad_P, \
+    RBF_posterior_variance_jacobian_wrt_samples, matern_gradient_wrt_samples, \
+    AdaptiveGaussianProcess, AdaptiveCholeskyGaussianProcessFixedKernel, \
+    generate_gp_realizations
+from pyapprox.low_discrepancy_sequences import sobol_sequence
+from pyapprox.variable_transformations import \
+    AffineRandomVariableTransformation
+from pyapprox.indexing import compute_hyperbolic_indices
+import pyapprox as pya
 from pyapprox.approximate import approximate
 from pyapprox.sensitivity_analysis import get_sobol_indices, \
     get_main_and_total_effect_indices_from_pce
+from pyapprox.utilities import cartesian_product
 
 
 def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
@@ -143,7 +167,8 @@ class TestGaussianProcess(unittest.TestCase):
         ngp_realizations, ninterpolation_samples = 2, 17
         nvalidation_samples = 20
         rand_noise = np.random.normal(
-            0, 1, (ninterpolation_samples+nvalidation_samples, ngp_realizations))
+            0, 1, (ninterpolation_samples+nvalidation_samples,
+                   ngp_realizations))
         candidate_samples = np.random.uniform(lb, ub, (nvars, 1000))
         gp_realizations = RandomGaussianProcessRealizations(gp, alpha=1e-14)
         gp_realizations.fit(
@@ -162,8 +187,8 @@ class TestGaussianProcess(unittest.TestCase):
             gp_realizations.canonical_validation_samples)))
         random_gp_vals = gp.predict_random_realization(
             samples, rand_noise[: samples.shape[1]])
-        print(interp_random_gp_vals-
-            random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
+        print(interp_random_gp_vals -
+              random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]])
         assert np.allclose(
             interp_random_gp_vals,
             random_gp_vals[:gp_realizations.selected_canonical_samples.shape[1]],
@@ -249,8 +274,8 @@ class TestGaussianProcess(unittest.TestCase):
         # t0 = time.time()
         expected_random_mean, variance_random_mean, expected_random_var,\
             variance_random_var, intermediate_quantities =\
-                integrate_gaussian_process(gp, variable, return_full=True,
-                                           nquad_samples=100)
+            integrate_gaussian_process(gp, variable, return_full=True,
+                                       nquad_samples=100)
         # print('time', time.time()-t0)
 
         # mu and sigma should match variable
@@ -352,7 +377,6 @@ class TestGaussianProcess(unittest.TestCase):
 
         nsamples = int(1e6)
         random_means, random_variances = [], []
-        random_I2sq, random_I4, random_I2Isq = [], [], []
         xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
         quad_points = pya.cartesian_product([xx]*nvars)
@@ -365,9 +389,9 @@ class TestGaussianProcess(unittest.TestCase):
         I, I2 = vals.T.dot(quad_weights), (vals.T**2).dot(quad_weights)
         random_means = I
         random_variances = I2-I**2
-        random_I2sq = I2**2
-        random_I2Isq = I2*I**2
-        random_I4 = I**4
+        # random_I2sq = I2**2
+        # random_I2Isq = I2*I**2
+        # random_I4 = I**4
 
         # print('MC expected random mean', np.mean(random_means))
         # print('MC variance random mean', np.var(random_means))
@@ -383,7 +407,8 @@ class TestGaussianProcess(unittest.TestCase):
             np.var(random_means), variance_random_mean, rtol=5e-3)
         assert np.allclose(
             expected_random_var, np.mean(random_variances), rtol=1e-3)
-        # print(variance_random_var-np.var(random_variances), np.var(random_variances))
+        # print(variance_random_var-np.var(random_variances),
+        #     np.var(random_variances))
         assert np.allclose(
             variance_random_var, np.var(random_variances), rtol=5e-3)
 
@@ -425,7 +450,7 @@ class TestGaussianProcess(unittest.TestCase):
         # yy = gp.predict_random_realization(xx[None, :], rand_noise)
         # plt.plot(xx, yy)
         # plt.show()
-        
+
         gp.set_variable_transformation(var_trans)
         gp.fit(train_samples, train_vals)
         # avoid training data when checking variance
@@ -498,8 +523,8 @@ class TestGaussianProcess(unittest.TestCase):
 
         ntrain_samples = 25
         train_samples = np.cos(
-            np.random.uniform(0, np.pi, (nvars,ntrain_samples)))
-        train_samples[1, :]  = (train_samples[1, :]+1)/2
+            np.random.uniform(0, np.pi, (nvars, ntrain_samples)))
+        train_samples[1, :] = (train_samples[1, :]+1)/2
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
@@ -553,12 +578,12 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 2
         a = np.array([1, 0.25])
         # a = np.array([1, 1])
+
         def func(x):
             return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 30
-        #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
-        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         train_samples = sobol_sequence(nvars, ntrain_samples)
         train_vals = func(train_samples)
 
@@ -580,17 +605,17 @@ class TestGaussianProcess(unittest.TestCase):
 
         validation_samples = np.random.uniform(0, 1, (nvars, 100))
         validation_vals = func(validation_samples)
-        error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
+        error = np.linalg.norm(validation_vals-gp(validation_samples)) / \
             np.linalg.norm(validation_vals)
         print(error)
         # only satisfied with more training data. But more training data
         # makes it hard to test computation of marginal gp mean and variances
         # assert error < 1e-3
 
-        true_mean = 1/3*a.sum()
+        # true_mean = 1/3*a.sum()
         expected_random_mean, variance_random_mean, expected_random_var, \
             variance_random_var, intermediate_quantities = \
-                integrate_gaussian_process(gp, variable, return_full=True)
+            integrate_gaussian_process(gp, variable, return_full=True)
         # only satisfied with more training data. But more training data
         # makes it hard to test computation of marginal gp mean and variances
         # print(expected_random_mean - true_mean)
@@ -602,11 +627,11 @@ class TestGaussianProcess(unittest.TestCase):
 
         expected_random_mean = integrate_gaussian_process(gp, variable)[0]
         for ii in range(nvars):
-            gp_ii =  marginalized_gps[ii]
+            gp_ii = marginalized_gps[ii]
             if center is True:
                 assert np.allclose(gp_ii.mean, expected_random_mean)
-            variable_ii = pya.IndependentMultivariateRandomVariable(
-                [univariate_variables[ii]])
+            # variable_ii = pya.IndependentMultivariateRandomVariable(
+            #     [univariate_variables[ii]])
 
             # kernel must be evaluated in canonical space
             # gp must be evaluated in user space
@@ -618,8 +643,8 @@ class TestGaussianProcess(unittest.TestCase):
             variance_ii = kernel_var*gp_ii.kernel_.k2.u-np.diag(
                 K_pred.dot(A_inv).dot(K_pred.T))
             # print(variance_ii)
-            assert variance_ii.min()>-1e-7
-            stdev_ii = np.sqrt(np.maximum(0, variance_ii))
+            assert variance_ii.min() > -1e-7
+            # stdev_ii = np.sqrt(np.maximum(0, variance_ii))
             vals_ii, std_ii = gp_ii(xx[np.newaxis, :], return_std=True)
             vals_ii += gp_ii.mean
             # print(stdev_ii-std_ii)
@@ -628,7 +653,7 @@ class TestGaussianProcess(unittest.TestCase):
             xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
             xx_quad = (xx_quad+1)/2
 
-            gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)+gp_ii.mean
+            # gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)+gp_ii.mean
 
             xx_2d = cartesian_product([xx_quad, xx])
             if ii == 0:
@@ -672,7 +697,7 @@ class TestGaussianProcess(unittest.TestCase):
             train_samples, train_vals, 'polynomial_chaos',
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'max_degree': 4}}).approx
-        print(pce.coefficients[0,0])
+        print(pce.coefficients[0, 0])
         marginalized_pces = []
         for ii in range(nvars):
             inactive_idx = np.hstack((np.arange(ii), np.arange(ii+1, nvars)))
@@ -691,11 +716,12 @@ class TestGaussianProcess(unittest.TestCase):
         nvars = 2
         a = np.array([1, 0.25])
         # a = np.array([1, 1])
+
         def func(x):
             return np.sum(a[:, None]*(2*x-1)**2, axis=0)[:, np.newaxis]
 
         ntrain_samples = 100
-        #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
+        # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         from pyapprox.low_discrepancy_sequences import sobol_sequence
         train_samples = sobol_sequence(nvars, ntrain_samples)
         train_vals = func(train_samples)
@@ -703,7 +729,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        # var_trans = AffineRandomVariableTransformation(variable)
 
         nu = np.inf
         kernel_var = 1.
@@ -717,7 +743,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         validation_vals = func(validation_samples)
-        error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
+        error = np.linalg.norm(validation_vals - gp(validation_samples)) / \
             np.linalg.norm(validation_vals)
         print(error)
 
@@ -738,8 +764,8 @@ class TestGaussianProcess(unittest.TestCase):
 
         order = 2
         interaction_terms = compute_hyperbolic_indices(nvars, order)
-        interaction_terms = interaction_terms[:, 
-            np.where(interaction_terms.max(axis=0)==1)[0]]
+        interaction_terms = interaction_terms[:, np.where(
+            interaction_terms.max(axis=0) == 1)[0]]
 
         nquad_samples = 100
         sobol_indices, total_effects, mean, variance = \
@@ -748,28 +774,28 @@ class TestGaussianProcess(unittest.TestCase):
         true_unnormalized_sobol_indices = np.vstack((
             true_unnormalized_main_effects, [[0]]))
         true_sobol_indices = true_unnormalized_sobol_indices/true_var
-        # print(np.absolute(sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
+        # print(np.absolute(
+        #    sobol_indices-true_sobol_indices) - 3e-5-1e-5*true_sobol_indices)
         assert np.allclose(
             sobol_indices, true_sobol_indices, rtol=1e-5, atol=3e-5)
 
     def test_compute_sobol_indices_gaussian_process_uniform_3d(self):
         nvars = 3
         coef = np.array([1, 0.25, 0.25])
-        
+
         def func(x):
-            return (np.prod(x[:2],axis=0)+np.sum(
+            return (np.prod(x[:2], axis=0)+np.sum(
                 coef[:, None]*(2*x-1)**2, axis=0))[:, np.newaxis]
 
         ntrain_samples = 300
-        #train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
-        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         train_samples = sobol_sequence(nvars, ntrain_samples)
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        # var_trans = AffineRandomVariableTransformation(variable)
 
         nu = np.inf
         kernel_var = 1.
@@ -784,7 +810,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         validation_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
         validation_vals = func(validation_samples)
-        error = np.linalg.norm(validation_vals - gp(validation_samples))/ \
+        error = np.linalg.norm(validation_vals - gp(validation_samples)) / \
             np.linalg.norm(validation_vals)
         print(error)
 
@@ -792,7 +818,7 @@ class TestGaussianProcess(unittest.TestCase):
             train_samples, train_vals, 'polynomial_chaos',
             {'basis_type': 'hyperbolic_cross', 'variable': variable,
              'options': {'max_degree': 4}}).approx
-        assert np.linalg.norm(validation_vals - pce(validation_samples))/ \
+        assert np.linalg.norm(validation_vals - pce(validation_samples)) / \
             np.linalg.norm(validation_vals) < 1e-15
 
         pce_interaction_terms, pce_sobol_indices = get_sobol_indices(
@@ -805,7 +831,6 @@ class TestGaussianProcess(unittest.TestCase):
             (nvars, len(pce_interaction_terms)), dtype=int)
         for ii, idx in enumerate(pce_interaction_terms.T):
             interaction_terms[idx, ii] = 1
-        
 
         nquad_samples = 100
         sobol_indices, total_effects, mean, variance = \
@@ -837,9 +862,9 @@ class TestGaussianProcess(unittest.TestCase):
         # variable =  pya.IndependentMultivariateRandomVariable(
         #     [stats.uniform(lb, ub-lb)])#, stats.uniform(1e4, 1e5-1e4)])
         # length_scale = (ub-lb)/10
-        
+
         nvars = variable.num_vars()
-        
+
         fkernel = Matern(length_scale, length_scale_bounds='fixed', nu=np.inf)
         fkernel = ConstantKernel(
             constant_value=1e5, constant_value_bounds='fixed')*fkernel
@@ -847,15 +872,15 @@ class TestGaussianProcess(unittest.TestCase):
         coef = np.random.normal(0, 1, (1000, 1))
         kernel_samples = pya.generate_independent_random_samples(
             variable, coef.shape[0])
+
         def fun(samples):
             return fkernel(samples.T, kernel_samples.T).dot(coef)
-        
-        from pyapprox.low_discrepancy_sequences import sobol_sequence
+
         if nvars == 1:
             ntrain_samples = 5
         else:
             ntrain_samples = 106
-            
+
         # train_samples = sobol_sequence(
         #     nvars, ntrain_samples, variable=variable)
         marginal_icdfs = [v.ppf for v in variable.all_variables()]
@@ -865,7 +890,7 @@ class TestGaussianProcess(unittest.TestCase):
         # RandomGaussianProcessRealizations
         train_samples = transformed_halton_sequence(
             marginal_icdfs, nvars, ntrain_samples, start_index)
-        
+
         train_vals = fun(train_samples)
         normalize_y, constant_value = True, 1
         # normalize_y, constant_value = False, fkernel.k1.constant_value
@@ -875,7 +900,8 @@ class TestGaussianProcess(unittest.TestCase):
         kernel = Matern(
             np.ones(nvars), length_scale_bounds=(1e-1, 1e1), nu=np.inf)
         kernel = ConstantKernel(
-            constant_value=constant_value, constant_value_bounds='fixed')*kernel
+            constant_value=constant_value,
+            constant_value_bounds='fixed')*kernel
         gp = GaussianProcess(kernel, alpha=alpha, normalize_y=normalize_y)
         gp.set_variable_transformation(var_trans=var_trans)
         gp.fit(train_samples, train_vals)
@@ -888,30 +914,31 @@ class TestGaussianProcess(unittest.TestCase):
         # plt.show()
 
         ngp_realizations = 100000
-        nvalidation_samples = 400
-        ncandidate_samples = 1000
-        ninterpolation_samples = 500
-        gp_realizations = generate_gp_realizations(
-            gp, ngp_realizations, ninterpolation_samples, 
-            nvalidation_samples, ncandidate_samples,
-            variable, use_cholesky=False, alpha=alpha)
+        # nvalidation_samples = 400
+        # ncandidate_samples = 1000
+        # ninterpolation_samples = 500
+        # gp_realizations = generate_gp_realizations(
+        #     gp, ngp_realizations, ninterpolation_samples,
+        #     nvalidation_samples, ncandidate_samples,
+        #     variable, use_cholesky=False, alpha=alpha)
 
         if nvars == 1:
+            lb, ub = variable.interval(1)
             validation_samples = np.linspace(lb, ub, 101)[None, :]
         else:
             validation_samples = pya.generate_independent_random_samples(
                 variable, 10)
-            
+
         mean_vals, std = gp(validation_samples, return_std=True)
 
-        print('error', np.linalg.norm(mean_vals-fun(validation_samples))/
+        print('error', np.linalg.norm(mean_vals-fun(validation_samples)) /
               np.linalg.norm(fun(validation_samples)))
-        
-        #realization_vals = gp_realizations(validation_samples)
+
+        # realization_vals = gp_realizations(validation_samples)
         realization_vals = gp.predict_random_realization(
             validation_samples, ngp_realizations)
         print('cond num', np.linalg.cond(gp._K_inv))
-        #realization_vals = gp.sample_y(
+        # realization_vals = gp.sample_y(
         #    validation_samples.T, ngp_realizations)[:, 0, :]
 
         std_error = np.linalg.norm(
@@ -922,18 +949,20 @@ class TestGaussianProcess(unittest.TestCase):
                 mean_vals[:, 0])
         print('std of realizations error', std_error)
         print('mean of realizations error', mean_error)
-        assert std_error<3e-3
-        assert mean_error<1e-3
+        assert std_error < 3e-3
+        assert mean_error < 1e-3
 
-        #plt.plot(validation_samples[0, :], realization_vals, '-k', lw=0.5)
+        # plt.plot(validation_samples[0, :], realization_vals, '-k', lw=0.5)
         # plt.plot(validation_samples[0, :], mean_vals, '-r')
-        # plt.plot(validation_samples[0, :], realization_vals.mean(axis=1), '--b')
+        # plt.plot(validation_samples[0, :], realization_vals.mean(axis=1),
+        #          '--b')
         # plt.plot(train_samples[0, :], train_vals[:, 0], 'or')
         # plt.plot(validation_samples[0, :], fun(validation_samples), 'g')
         # plt.plot(validation_samples[0, :], mean_vals[:, 0]+std, 'k-')
-        # plt.plot(validation_samples[0, :], realization_vals.mean(axis=1)+realization_vals.std(axis=1), 'y--')
+        # plt.plot(validation_samples[0, :],
+        #     realization_vals.mean(axis=1)+realization_vals.std(axis=1),
+        #     'y--')
         # plt.show()
-        
 
 
 
@@ -1013,8 +1042,8 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
-        variables = pya.IndependentMultivariateRandomVariable(
-            [stats.uniform(-1, 2)]*nvars)
+        # variables = pya.IndependentMultivariateRandomVariable(
+        #    [stats.uniform(-1, 2)]*nvars)
 
         def func(samples): return np.array(
             [np.sum(samples**2, axis=0), np.sum(samples**3, axis=0)]).T
@@ -1133,7 +1162,7 @@ class TestSamplers(unittest.TestCase):
         callback = Callback(validation_samples, validation_values)
         gp = pya.AdaptiveCholeskyGaussianProcessFixedKernel(sampler, func)
 
-        #checkpoints = [5, 10, 100, 500]
+        # checkpoints = [5, 10, 100, 500]
         checkpoints = [5, 10, 20, 50, 100, 200, 300, 500, 1000]
         nsteps = len(checkpoints)
         for ii in range(nsteps):
@@ -1142,7 +1171,7 @@ class TestSamplers(unittest.TestCase):
 
         # print(np.median(callback.errors,axis=1))
         assert np.median(callback.errors, axis=1)[-1] < 1e-3
-        #plt.loglog(checkpoints, np.median(callback.errors ,axis=1))
+        # plt.loglog(checkpoints, np.median(callback.errors ,axis=1))
         # plt.show()
 
     def test_RBF_posterior_variance_gradient_wrt_samples(self):
@@ -1209,7 +1238,7 @@ class TestSamplers(unittest.TestCase):
         x0 = train_samples[:, :1]
         grad = matern_gradient_wrt_samples(
             nu, x0, pred_samples, length_scale)
-        K = kernel(x0.T, pred_samples.T)
+        # K = kernel(x0.T, pred_samples.T)
 
         fd_grad = pya.approx_jacobian(
             lambda x: kernel(x, pred_samples.T)[0, :], x0[:, 0])
@@ -1234,7 +1263,7 @@ class TestSamplers(unittest.TestCase):
 
         train_samples = pya.cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
+        # train_vals = func(train_samples)
 
         new_samples_index = train_samples.shape[1]-10
 
@@ -1256,13 +1285,13 @@ class TestSamplers(unittest.TestCase):
         fd_jac = pya.approx_jacobian(func, x0)[:, new_samples_index*nvars:]
 
         # print(jac, '\n\n',f d_jac)
-        #print('\n', np.absolute(jac-fd_jac).max())
+        # print('\n', np.absolute(jac-fd_jac).max())
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
     def test_integrate_grad_P(self):
         nvars = 2
-        univariate_variables = [stats.norm()]*nvars
-        #lb, ub = univariate_variables[0].interval(0.99999)
+        # univariate_variables = [stats.norm()]*nvars
+        # lb, ub = univariate_variables[0].interval(0.99999)
         lb, ub = -2, 2
 
         ntrain_samples_1d = 2
@@ -1297,7 +1326,8 @@ class TestSamplers(unittest.TestCase):
             ((xx_1d-a)/length_scale[0]**2*np.exp(
                 -(xx_1d-a)**2/(2*length_scale[0]**2))**2).dot(ww_1d))
         assert np.allclose(
-            term2, (np.exp(-(xx_1d-b)**2/(2*length_scale[1]**2))**2).dot(ww_1d))
+            term2,
+            (np.exp(-(xx_1d-b)**2/(2*length_scale[1]**2))**2).dot(ww_1d))
 
         pred_samples = pya.cartesian_product([xx_1d]*nvars)
         weights = pya.outer_product([ww_1d]*nvars)
@@ -1322,13 +1352,13 @@ class TestSamplers(unittest.TestCase):
                         grad_P_exact *= 2
                     assert np.allclose(grad_P_quad, grad_P_exact)
                     assert np.allclose(grad_P_quad, grad_P[nvars*ii+kk, jj])
-                    #assert False
-                    #assert np.allclose(grad_P_mc, grad_P[kk,ii,jj])
+                    # assert False
+                    # assert np.allclose(grad_P_mc, grad_P[kk,ii,jj])
 
     def test_integrate_grad_P_II(self):
         nvars = 2
-        univariate_variables = [stats.norm()]*nvars
-        #lb, ub = univariate_variables[0].interval(0.99999)
+        # univariate_variables = [stats.norm()]*nvars
+        # lb, ub = univariate_variables[0].interval(0.99999)
         lb, ub = -2, 2
 
         ntrain_samples_1d = 4
@@ -1353,7 +1383,7 @@ class TestSamplers(unittest.TestCase):
                     xx_1d, ww_1d, xtr[kk:kk+1, :], length_scale[kk])[1]
 
             vals = P.flatten(order='F')
-            # vals = [P[0,0], P[1,0], ..., P[N-1,0], P[0,1], P[1,1], ... P[N-1,1]
+            # vals=[P[0,0], P[1,0], ..., P[N-1,0], P[0,1], P[1,1], ... P[N-1,1]
             #         ...]
             return vals
 
@@ -1366,7 +1396,8 @@ class TestSamplers(unittest.TestCase):
             (ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
         from sklearn.gaussian_process.kernels import _approx_fprime
         assert np.allclose(_approx_fprime(x0, lambda x: func1(x).reshape(
-            ntrain_samples, ntrain_samples, order='F'), np.sqrt(np.finfo(float).eps)), P_fd_jac_res)
+            ntrain_samples, ntrain_samples, order='F'),
+                           np.sqrt(np.finfo(float).eps)), P_fd_jac_res)
 
         # Consider 3 training samples with
         # P = P00 P01 P02
@@ -1405,7 +1436,8 @@ class TestSamplers(unittest.TestCase):
         A_fd_jac = pya.approx_jacobian(func2, x0).reshape((
             ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
         assert np.allclose(_approx_fprime(x0, lambda x: func2(x).reshape(
-            ntrain_samples, ntrain_samples, order='F'), np.sqrt(np.finfo(float).eps)), A_fd_jac)
+            ntrain_samples, ntrain_samples, order='F'),
+                          np.sqrt(np.finfo(float).eps)), A_fd_jac)
 
         A_inv = np.linalg.inv(kernel(train_samples.T))
         assert np.allclose(func3(x0), -np.sum(A_inv*P))
@@ -1433,8 +1465,8 @@ class TestSamplers(unittest.TestCase):
             # =2*(a*D01 b*D11 + c*D21)-b*D11
             #
             # Trace [RCRP] = Trace[RPRC] for symmetric matrices
-            tmp3 = -2*np.sum(K_train_grad_all_train_points_kk.T*AinvPAinv[:, kk],
-                             axis=1)
+            tmp3 = -2*np.sum(
+                K_train_grad_all_train_points_kk.T*AinvPAinv[:, kk], axis=1)
             tmp3 -= -K_train_grad_all_train_points_kk[kk, :]*AinvPAinv[kk, kk]
             jac1[kk*nvars:(kk+1)*nvars] = -tmp3
             tmp4 = 2*np.sum(grad_P[kk*nvars:(kk+1)*nvars]*A_inv[:, kk], axis=1)
@@ -1466,11 +1498,11 @@ class TestSamplers(unittest.TestCase):
         nvars = 2
         lb, ub = -1, 1
         ntrain_samples_1d = 10
-        def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
+        def func1(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
         train_samples = pya.cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
-        train_vals = func(train_samples)
+        # train_vals = func1(train_samples)
 
         new_samples_index = train_samples.shape[1]-10
 
@@ -1503,7 +1535,7 @@ class TestSamplers(unittest.TestCase):
         print(time.time()-t0)
 
         print(jac, '\n\n', fd_jac)
-        #print('\n', np.absolute(jac-fd_jac).max())
+        # print('\n', np.absolute(jac-fd_jac).max())
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
@@ -1513,10 +1545,10 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        # correlation length affects ability to check gradient. As kerenl matrix
-        # gets more ill conditioned then gradients get worse
+        # correlation length affects ability to check gradient.
+        # As kernel matrix gets more ill conditioned then gradients get worse
         greedy_method = 'ivar'
-        #greedy_method = 'chol'
+        # greedy_method = 'chol'
         use_gauss_quadrature = False
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
@@ -1542,11 +1574,11 @@ class TestSamplers(unittest.TestCase):
         if not use_gauss_quadrature:
             # gradients not currently implemented when using quadrature
             errors = pya.check_gradients(
-                sampler.objective, sampler.objective_gradient, x0[:, np.newaxis],
-                disp=False)
+                sampler.objective, sampler.objective_gradient,
+                x0[:, np.newaxis], disp=False)
             assert errors.min() < 4e-6
 
-        gsampler = sampler.greedy_sampler
+        # gsampler = sampler.greedy_sampler
         # print(np.linalg.norm(gsampler.candidate_samples))
         # print(np.linalg.norm(sampler.pred_samples))
 
@@ -1564,10 +1596,10 @@ class TestSamplers(unittest.TestCase):
         # will evaluate objective with training samples repeated twice.
         # Similarly init guess will be concatenated with self.training_samples
         # if passed to objective at this point
-        print(val1, val2)
+        # print(val1, val2)
         assert (val1 < val2)
 
-        new_samples2 = sampler(2*ntrain_samples)[0]
+        sampler(2*ntrain_samples)[0]
         # currently the following check will fail because a different set
         # of prediction samples will be generated by greedy sampler
         # assert np.allclose(
@@ -1586,8 +1618,9 @@ class TestSamplers(unittest.TestCase):
             sampler.training_samples).mean()
         # initial guess used by optimizer does not contain
         # fixed training points already selected so add here
-        greedy_samples = np.hstack([sampler.training_samples[:, :ntrain_samples],
-                                    sampler.init_guess])
+        greedy_samples = np.hstack(
+            [sampler.training_samples[:, :ntrain_samples],
+             sampler.init_guess])
         val2 = gaussian_process_pointwise_variance(
             sampler.greedy_sampler.kernel, sampler.pred_samples,
             greedy_samples).mean()
@@ -1609,10 +1642,10 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        # correlation length affects ability to check gradient. As kerenl matrix
-        # gets more ill conditioned then gradients get worse
+        # correlation length affects ability to check gradient.
+        # As kerenl matrix gets more ill conditioned then gradients get worse
         greedy_method = 'ivar'
-        #greedy_method = 'chol'
+        # greedy_method = 'chol'
         use_gauss_quadrature = True
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
@@ -1638,11 +1671,11 @@ class TestSamplers(unittest.TestCase):
         if not use_gauss_quadrature:
             # gradients not currently implemented when using quadrature
             errors = pya.check_gradients(
-                sampler.objective, sampler.objective_gradient, x0[:, np.newaxis],
-                disp=False)
+                sampler.objective, sampler.objective_gradient,
+                x0[:, np.newaxis], disp=False)
             assert errors.min() < 4e-6
 
-        gsampler = sampler.greedy_sampler
+        # gsampler = sampler.greedy_sampler
         # print(np.linalg.norm(gsampler.candidate_samples))
         # print(np.linalg.norm(sampler.pred_samples))
 
@@ -1663,8 +1696,8 @@ class TestSamplers(unittest.TestCase):
         # if passed to objective at this point
         print(val1, val2)
         assert (val1 < val2)
-        
-        new_samples2 = sampler(2*ntrain_samples)[0]
+
+        sampler(2*ntrain_samples)[0]
         assert np.allclose(
             1+sampler.greedy_sampler.best_obj_vals[ntrain_samples-1], val1)
 
@@ -1682,8 +1715,9 @@ class TestSamplers(unittest.TestCase):
 
         # init guess used by optimizer does not contain
         # fixed trainign points already selected so add here
-        greedy_samples = np.hstack([sampler.training_samples[:, :ntrain_samples],
-                                    sampler.init_guess])
+        greedy_samples = np.hstack(
+            [sampler.training_samples[:, :ntrain_samples],
+             sampler.init_guess])
         A_inv = np.linalg.inv(kernel(greedy_samples.T))
         P = sampler.compute_P(greedy_samples)
         val2 = 1-np.trace(A_inv.dot(P))
@@ -1744,13 +1778,13 @@ class TestSamplers(unittest.TestCase):
             obj_vals1 = sampler1.objective_vals_econ()
             obj_vals2 = sampler2.objective_vals()
             obj_vals3 = sampler1.vectorized_objective_vals_econ()
-            #print(obj_vals1, obj_vals2)
-            #print(obj_vals1, obj_vals3)
+            # print(obj_vals1, obj_vals2)
+            # print(obj_vals1, obj_vals3)
             assert np.allclose(obj_vals1, obj_vals2)
             assert np.allclose(obj_vals1, obj_vals3)
             pivot1 = sampler1.refine_econ()
             pivot2 = sampler2.refine_naive()
-            #print(pivot1, pivot2)
+            # print(pivot1, pivot2)
             assert np.allclose(pivot1, pivot2)
 
     def check_greedy_monte_carlo_ivar_sampler(
@@ -1893,8 +1927,8 @@ class TestSamplers(unittest.TestCase):
         generate_random_samples = partial(
             pya.generate_independent_random_samples, variables)
 
-        # correlation length affects ability to check gradient. As kerenl matrix
-        # gets more ill conditioned then gradients get worse
+        # correlation length affects ability to check gradient.
+        # As kerenl matrix gets more ill conditioned then gradients get worse
         kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables, 'ivar')
@@ -1903,7 +1937,7 @@ class TestSamplers(unittest.TestCase):
         ntrain_samples = 10
         new_samples1 = sampler(ntrain_samples)[0]
 
-        new_samples2 = sampler(2*ntrain_samples)[0]
+        # new_samples2 = sampler(2*ntrain_samples)[0]
 
         assert np.allclose(
             sampler.training_samples[:, :ntrain_samples], new_samples1,

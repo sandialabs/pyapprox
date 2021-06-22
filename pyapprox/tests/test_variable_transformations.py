@@ -1,13 +1,17 @@
 import unittest
-from pyapprox.variable_transformations import *
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from scipy.linalg import lu_factor, lu as scipy_lu
-from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
 from scipy import stats
+import numpy as np
+
+from pyapprox.variable_transformations import map_hypercube_samples, \
+    AffineRandomVariableTransformation, RosenblattTransformation, \
+    NatafTransformation, define_iid_random_variable_transformation, \
+    TransformationComposition, UniformMarginalTransformation
+from pyapprox.variables import IndependentMultivariateRandomVariable, \
+    float_rv_discrete
+from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
 from pyapprox.nataf_transformation import \
     gaussian_copula_compute_x_correlation_from_z_correlation,\
     generate_x_samples_using_gaussian_copula, correlation_to_covariance
-from scipy.stats import norm, beta, gamma, binom, uniform
 
 
 class TestVariableTransformations(unittest.TestCase):
@@ -30,12 +34,13 @@ class TestVariableTransformations(unittest.TestCase):
     def test_define_mixed_tensor_product_random_variable(self):
         """
         Construct a multivariate random variable from the tensor-product of
-        different one-dimensional variables assuming that a given variable 
+        different one-dimensional variables assuming that a given variable
         type the distribution parameters ARE NOT the same
         """
         univariate_variables = [
-            uniform(-1, 2), beta(1, 1, -1, 2), norm(-1, np.sqrt(4)), uniform(),
-            uniform(-1, 2), beta(2, 1, -2, 3)]
+            stats.uniform(-1, 2), stats.beta(1, 1, -1, 2),
+            stats.norm(-1, np.sqrt(4)), stats.uniform(),
+            stats.uniform(-1, 2), stats.beta(2, 1, -2, 3)]
         var_trans = AffineRandomVariableTransformation(univariate_variables)
 
         # first sample is on left boundary of all bounded variables
@@ -56,32 +61,34 @@ class TestVariableTransformations(unittest.TestCase):
     def test_define_mixed_tensor_product_random_variable_contin_discrete(self):
         """
         Construct a multivariate random variable from the tensor-product of
-        different one-dimensional variables assuming that a given variable 
+        different one-dimensional variables assuming that a given variable
         type the distribution parameters ARE NOT the same
         """
         # parameters of binomial distribution
         num_trials = 10
         prob_success = 0.5
         univariate_variables = [
-            uniform(), norm(-1, np.sqrt(4)), norm(-1, np.sqrt(4)),
-            binom(num_trials, prob_success), norm(-1,
-                                                  np.sqrt(4)), uniform(0, 1),
-            uniform(0, 1), binom(num_trials, prob_success)]
+            stats.uniform(), stats.norm(-1, np.sqrt(4)),
+            stats.norm(-1, np.sqrt(4)),
+            stats.binom(num_trials, prob_success),
+            stats.norm(-1, np.sqrt(4)), stats.uniform(0, 1),
+            stats.uniform(0, 1), stats.binom(num_trials, prob_success)]
         var_trans = AffineRandomVariableTransformation(univariate_variables)
 
         # first sample is on left boundary of all bounded variables
-        # and onr standard deviation to left of mean for gaussian variables
+        # and one standard deviation to left of mean for gaussian variables
         # second sample is on right boundary of all bounded variables
         # and one standard deviation to right of mean for gaussian variable
         true_user_samples = np.asarray(
-            [[0, -3, -3, 0, -3, 0, 0, 0], [1, 1, 1, num_trials, 1, 1, 1, 5]]).T
+            [[0, -3, -3, 0, -3, 0, 0, 0],
+             [1, 1, 1, num_trials, 1, 1, 1, 10]]).T
 
         canonical_samples = var_trans.map_to_canonical_space(true_user_samples)
         true_canonical_samples = np.ones_like(true_user_samples)
         true_canonical_samples[:, 0] = -1
         true_canonical_samples[5, 0] = -1
-        true_canonical_samples[3, :] = [0, num_trials]
-        true_canonical_samples[7, :] = [0, 5]
+        true_canonical_samples[3, :] = [-1, 1]
+        true_canonical_samples[7, :] = [-1, 1]
         assert np.allclose(true_canonical_samples, canonical_samples)
 
         user_samples = var_trans.map_from_canonical_space(canonical_samples)
@@ -132,8 +139,8 @@ class TestVariableTransformations(unittest.TestCase):
             x_correlation, x_marginal_stdevs)
 
         var_trans = NatafTransformation(
-            x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs, x_covariance,
-            x_marginal_means, bisection_opts)
+            x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs,
+            x_covariance, x_marginal_means, bisection_opts)
 
         assert np.allclose(var_trans.z_correlation, z_correlation)
 
@@ -162,7 +169,7 @@ class TestVariableTransformations(unittest.TestCase):
         opts = {'limits': limits, 'num_quad_samples_1d': 100}
         var_trans_1 = RosenblattTransformation(joint_density, num_vars, opts)
         var_trans_2 = define_iid_random_variable_transformation(
-            uniform(0, 1), num_vars)
+            stats.uniform(0, 1), num_vars)
         var_trans = TransformationComposition([var_trans_1, var_trans_2])
 
         samples = var_trans.map_from_canonical_space(
@@ -192,15 +199,16 @@ class TestVariableTransformations(unittest.TestCase):
         for ii in range(num_vars):
             z_correlation[ii, ii] = 1.
 
-        x_correlation = gaussian_copula_compute_x_correlation_from_z_correlation(
-            x_marginal_inv_cdfs, x_marginal_means, x_marginal_stdevs,
-            z_correlation)
+        x_correlation = \
+            gaussian_copula_compute_x_correlation_from_z_correlation(
+                x_marginal_inv_cdfs, x_marginal_means, x_marginal_stdevs,
+                z_correlation)
         x_covariance = correlation_to_covariance(
             x_correlation, x_marginal_stdevs)
 
         var_trans_1 = NatafTransformation(
-            x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs, x_covariance,
-            x_marginal_means)
+            x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs,
+            x_covariance, x_marginal_means)
 
         # rosenblatt maps to [0,1] but polynomials of bounded variables
         # are in [-1,1] so add second transformation for this second mapping
@@ -240,7 +248,7 @@ class TestVariableTransformations(unittest.TestCase):
             pickle.dump(var_trans, f)
 
         with open(filename, 'rb') as f:
-            file_var_trans = pickle.load(f)
+            pickle.load(f)
 
         os.remove(filename)
 
@@ -252,14 +260,14 @@ class TestVariableTransformations(unittest.TestCase):
         alpha_stat = 2
         beta_stat = 10
         var_trans = define_iid_random_variable_transformation(
-            beta(alpha_stat, beta_stat, 0, 1), num_vars)
+            stats.beta(alpha_stat, beta_stat, 0, 1), num_vars)
 
         filename = 'rv_trans.pkl'
         with open(filename, 'wb') as f:
             pickle.dump(var_trans, f)
 
         with open(filename, 'rb') as f:
-            file_var_trans = pickle.load(f)
+            pickle.load(f)
 
         os.remove(filename)
 
@@ -290,7 +298,7 @@ class TestVariableTransformations(unittest.TestCase):
     def test_identity_map_subset(self):
         num_vars = 3
         var_trans = define_iid_random_variable_transformation(
-            uniform(0, 1), num_vars)
+            stats.uniform(0, 1), num_vars)
         var_trans.set_identity_maps([1])
 
         samples = np.random.uniform(0, 1, (num_vars, 4))
@@ -301,8 +309,9 @@ class TestVariableTransformations(unittest.TestCase):
             var_trans.map_from_canonical_space(canonical_samples), samples)
 
         univariate_variables = [
-            uniform(-1, 2), beta(1, 1, -1, 2), norm(-1, np.sqrt(4)), uniform(),
-            uniform(-1, 2), beta(2, 1, -2, 3)]
+            stats.uniform(-1, 2), stats.beta(1, 1, -1, 2),
+            stats.norm(-1, np.sqrt(4)), stats.uniform(),
+            stats.uniform(-1, 2), stats.beta(2, 1, -2, 3)]
         var_trans = AffineRandomVariableTransformation(univariate_variables)
         var_trans.set_identity_maps([4, 2])
 
@@ -319,7 +328,7 @@ class TestVariableTransformations(unittest.TestCase):
         nvars = 2
         nsamples = 10
         x = np.random.uniform(0, 1, (nvars, nsamples))
-        vals = np.sum(x**2, axis=0)[:, None]
+        # vals = np.sum(x**2, axis=0)[:, None]
         grad = np.vstack([2*x[ii:ii+1, :] for ii in range(nvars)])
         var_trans = AffineRandomVariableTransformation(
             [stats.uniform(0, 1), stats.uniform(2, 2)])
@@ -334,6 +343,7 @@ class TestVariableTransformations(unittest.TestCase):
 
 if __name__ == "__main__":
     variable_transformations_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestVariableTransformations)
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestVariableTransformations)
     unittest.TextTestRunner(verbosity=2).run(
         variable_transformations_test_suite)

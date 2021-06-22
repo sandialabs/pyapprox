@@ -124,6 +124,14 @@ def transform_scale_parameters(var):
         scale = b-loc
         return loc, scale
 
+    if is_bounded_discrete_variable(var):
+        # var.interval(1) can return incorrect bounds
+        xk, pk = get_probability_masses(var)
+        a, b = xk.min(), xk.max()
+        loc = (a+b)/2
+        scale = b-loc
+        return loc, scale
+
     scale_dict = get_distribution_info(var)[1]
     # copy is essential here because code below modifies scale
     loc, scale = scale_dict["loc"].copy(), scale_dict["scale"].copy()

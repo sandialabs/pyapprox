@@ -1,5 +1,5 @@
 import numpy as np
-import scipy
+from warnings import warn
 
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
@@ -12,14 +12,16 @@ from pyapprox.univariate_polynomials.orthonormal_polynomials import \
 from pyapprox.variables import get_distribution_info, is_continuous_variable, \
     transform_scale_parameters, is_bounded_continuous_variable, \
     is_bounded_discrete_variable, get_probability_masses
-from pyapprox.utilities import cartesian_product
 
 
 # There is a one-to-one correspondence in these two lists
-askey_poly_names = ["legendre", "hermite", "jacobi", "krawtchouk", "hahn",
-                    "charlier"]
-askey_variable_names = ["uniform", "norm", "beta", "binom", "hypergeom",
-                        "poisson"]
+askey_poly_names = ["legendre", "hermite", "jacobi", "charlier",
+                    "krawtchouk", "hahn"][:-2]
+askey_variable_names = ["uniform", "norm", "beta", "poisson",
+                        "binom", "hypergeom"][:-2]
+# The Krawtchouk and Hahn polynomials are not defined
+# on the canonical domain [-1,1]. Must use numeric recursion
+# to generate polynomials on [-1,1] for consistency, so remove from Askey list
 
 
 def get_askey_recursion_coefficients(poly_name, opts, num_coefs):
@@ -38,13 +40,18 @@ def get_askey_recursion_coefficients(poly_name, opts, num_coefs):
         return hermite_recurrence(num_coefs, rho=0., probability=True)
 
     if poly_name == "krawtchouk":
+        msg = "Although bounded the Hahn polynomials are not defined "
+        msg += "on the canonical domain [-1,1]. Must use numeric recursion "
+        msg += "to generate polynomials on [-1,1] for consistency"
+        warn(msg, UserWarning)
         num_coefs = min(num_coefs, opts["n"])
         return krawtchouk_recurrence(num_coefs, opts["n"], opts["p"])
 
     if poly_name == "hahn":
-        # although bounded the hahn polynomials are not defined
-        # on the canonical domain [-1,1] but rather the user and
-        # canconical domain are the same
+        msg = "Although bounded the Hahn polynomials are not defined "
+        msg += "on the canonical domain [-1,1]. Must use numeric recursion "
+        msg += "to generate polynomials on [-1,1] for consistency"
+        warn(msg, UserWarning)
         num_coefs = min(num_coefs, opts["N"])
         return hahn_recurrence(
             num_coefs, opts["N"], opts["alpha_poly"], opts["beta_poly"])
@@ -144,7 +151,6 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
             xk, pk = get_probability_masses(
                 var, truncated_probability_tol)
         xk = (xk-loc)/scale
-        pk /= scale
 
         return get_numerically_generated_recursion_coefficients_from_samples(
             xk, pk, num_coefs, orthonormality_tol)

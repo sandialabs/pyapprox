@@ -1,29 +1,37 @@
+import copy
+import numpy as np
+from functools import partial
+from scipy.optimize import OptimizeResult
 from scipy.linalg import LinAlgWarning
+
+from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
+    OrthogonalMatchingPursuitCV, Lasso, LassoLars, Lars, \
+    OrthogonalMatchingPursuit
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils._testing import ignore_warnings
+from sklearn.linear_model._base import LinearModel
+
 from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
-import copy
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator
 from pyapprox.polynomial_sampling import christoffel_weights
 from pyapprox import compute_hyperbolic_indices
-from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
-    OrthogonalMatchingPursuitCV, Lasso, LassoLars, Lars, \
-    OrthogonalMatchingPursuit
-from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 from pyapprox.variables import is_bounded_continuous_variable
-import numpy as np
 from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
     CombinationSparseGrid, constant_increment_growth_rule, \
     get_sparse_grid_univariate_leja_quadrature_rules_economical, \
     max_level_admissibility_function, get_unique_max_level_1d, \
     get_unique_quadrule_variables
 from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
-from functools import partial
-from scipy.optimize import OptimizeResult
+from pyapprox.variable_transformations import \
+    AffineRandomVariableTransformation
+from pyapprox.low_discrepancy_sequences import halton_sequence
+from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
+    CholeskySampler, GaussianProcess
+from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+    define_poly_options_from_variable_transformation
 
 
 class ApproximateResult(OptimizeResult):
@@ -60,30 +68,30 @@ def adaptive_approximate_sparse_grid(
         where approx_k is the current approximation object.
 
     refinement_indicator : callable
-        A function that retuns an estimate of the error of a sparse grid 
+        A function that retuns an estimate of the error of a sparse grid
         subspace with signature
 
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
-        where ``subspace_index`` is 1D np.ndarray of size (nvars), 
+        where ``subspace_index`` is 1D np.ndarray of size (nvars),
         ``nnew_subspace_samples`` is an integer specifying the number
-        of new samples that will be added to the sparse grid by adding the 
-        subspace specified by subspace_index and ``sparse_grid`` is the current 
-        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. 
-        The two outputs are, respectively, the indicator used to control 
-        refinement of the sparse grid and the change in error from adding the 
-        current subspace. The indicator is typically but now always dependent on 
-        the error.
+        of new samples that will be added to the sparse grid by adding the
+        subspace specified by subspace_index and ``sparse_grid`` is the current
+        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object.
+        The two outputs are, respectively, the indicator used to control
+        refinement of the sparse grid and the change in error from adding the
+        current subspace. The indicator is typically but now always dependent
+        on the error.
 
     univariate_quad_rule_info : list
-        List containing four entries. The first entry is a list 
+        List containing four entries. The first entry is a list
         (or single callable) of univariate quadrature rules for each variable
         with signature
 
         ``quad_rule(l)->np.ndarray,np.ndarray``
 
-        where the integer ``l`` specifies the level of the quadrature rule and 
-        ``x`` and ``w`` are 1D np.ndarray of size (nsamples) containing the 
+        where the integer ``l`` specifies the level of the quadrature rule and
+        ``x`` and ``w`` are 1D np.ndarray of size (nsamples) containing the
         quadrature rule points and weights, respectively.
 
         The second entry is a list (or single callable) of growth rules
@@ -91,28 +99,28 @@ def adaptive_approximate_sparse_grid(
 
         ``growth_rule(l)->integer``
 
-        where the output ``nsamples`` specifies the number of samples in the 
+        where the output ``nsamples`` specifies the number of samples in the
         quadrature rule of level ``l``.
 
-        If either entry is a callable then the same quad or growth rule is 
+        If either entry is a callable then the same quad or growth rule is
         applied to every variable.
 
         The third entry is a list of np.ndarray (or single scalar) specifying
         the variable dimensions that each unique quadrature rule is applied to.
 
         The forth entry is a list which specifies the maximum level of each
-        unique quadrature rule. If None then max_level is assumed to be np.inf 
+        unique quadrature rule. If None then max_level is assumed to be np.inf
         for each quadrature rule. If a scalar then the same value is applied
         to all quadrature rules. This entry is useful for certain quadrature
         rules, e.g. Gauss Patterson, or Leja sequences for bounded discrete
-        variables where there is a limit on the number of levels that can be 
+        variables where there is a limit on the number of levels that can be
         used
 
     max_nsamples : float
-        If ``cost_function==None`` then this argument is the maximum number of 
+        If ``cost_function==None`` then this argument is the maximum number of
         evaluations of fun. If fun has configure variables
 
-        If ``cost_function!=None`` Then max_nsamples is the maximum cost of 
+        If ``cost_function!=None`` Then max_nsamples is the maximum cost of
         constructing the sparse grid, i.e. the sum of the cost of evaluating
         each point in the sparse grid.
 
@@ -128,8 +136,8 @@ def adaptive_approximate_sparse_grid(
         even though the number of samples is the sparse grid is 20.
 
     tol : float
-        Tolerance for termination. The construction of the sparse grid is 
-        terminated when the estimate error in the sparse grid (determined by 
+        Tolerance for termination. The construction of the sparse grid is
+        terminated when the estimate error in the sparse grid (determined by
         ``refinement_indicator`` is below tol.
 
     verbose : integer
@@ -139,18 +147,19 @@ def adaptive_approximate_sparse_grid(
         The position in a sample array that the configure variables start
 
     config_var_trans : pyapprox.adaptive_sparse_grid.ConfigureVariableTransformation
-        An object that takes configure indices in [0,1,2,3...] 
+        An object that takes configure indices in [0,1,2,3...]
         and maps them to the configure values accepted by ``fun``
 
-    cost_function : callable 
+    cost_function : callable
         A function with signature
 
         ``cost_function(config_sample) -> float``
 
         where config_sample is a np.ndarray of shape (nconfig_vars). The output
-        is the cost of evaluating ``fun`` at ``config_sample``. The units can be
-        anything but the units must be consistent with the units of max_nsamples
-        which specifies the maximum cost of constructing the sparse grid.
+        is the cost of evaluating ``fun`` at ``config_sample``. The units can
+        be anything but the units must be consistent with the units of
+        max_nsamples which specifies the maximum cost of constructing the
+        sparse grid.
 
     max_level_1d : np.ndarray (nvars)
         The maximum level of the sparse grid in each dimension. If None
@@ -176,12 +185,12 @@ def adaptive_approximate_sparse_grid(
         max_level_1d = [np.inf]*nvars
     elif np.isscalar(max_level_1d):
         max_level_1d = [max_level_1d]*nvars
-    
+
     if univariate_quad_rule_info is None:
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
-                get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                    var_trans, method='pdf')
+            get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                var_trans, method='pdf')
         # Some quadrature rules have max_level enforce this here
         for ii in range(len(unique_quadrule_indices)):
             for ind in unique_quadrule_indices[ii]:
@@ -202,7 +211,7 @@ def adaptive_approximate_sparse_grid(
                 for jj in unique_quadrule_indices[ii]:
                     max_level_1d[jj] = np.minimum(
                         unique_max_level_1d[ii], max_level_1d[jj])
-        
+
     assert len(max_level_1d) == nvars
     admissibility_function = partial(
         max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
@@ -252,33 +261,33 @@ def adaptive_approximate_polynomial_chaos(
 
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
-        where ``subspace_index`` is 1D np.ndarray of size (nvars), 
+        where ``subspace_index`` is 1D np.ndarray of size (nvars),
         ``nnew_subspace_samples`` is an integer specifying the number
-        of new samples that will be added to the sparse grid by adding the 
-        subspace specified by subspace_index and ``sparse_grid`` is the current 
-        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object. 
-        The two outputs are, respectively, the indicator used to control 
-        refinement of the sparse grid and the change in error from adding the 
-        current subspace. The indicator is typically but now always dependent on 
-        the error.
+        of new samples that will be added to the sparse grid by adding the
+        subspace specified by subspace_index and ``sparse_grid`` is the current
+        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object.
+        The two outputs are, respectively, the indicator used to control
+        refinement of the sparse grid and the change in error from adding the
+        current subspace. The indicator is typically but now always dependent
+        on the error.
 
     growth_rules : list or callable
         a list (or single callable) of growth rules with signature
 
         ``growth_rule(l)->integer``
 
-        where the output ``nsamples`` specifies the number of indices of the 
+        where the output ``nsamples`` specifies the number of indices of the
         univariate basis of level ``l``.
 
-        If the entry is a callable then the same growth rule is 
+        If the entry is a callable then the same growth rule is
         applied to every variable.
 
     max_nsamples : integer
         The maximum number of evaluations of fun.
 
     tol : float
-        Tolerance for termination. The construction of the sparse grid is 
-        terminated when the estimate error in the sparse grid (determined by 
+        Tolerance for termination. The construction of the sparse grid is
+        terminated when the estimate error in the sparse grid (determined by
         ``refinement_indicator`` is below tol.
 
     verbose : integer
@@ -305,18 +314,17 @@ def adaptive_approximate_polynomial_chaos(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
     """
+
     variable = IndependentMultivariateRandomVariable(
         univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
     nvars = var_trans.num_vars()
 
-    bounded_variables = True
     for rv in univariate_variables:
         if not is_bounded_continuous_variable(rv):
-            bounded_variables = False
             msg = "For now leja sampling based PCE is only supported for "
             msg += " bounded continouous random variables when"
             msg += " generate_candidate_samples is not provided."
@@ -329,7 +337,6 @@ def adaptive_approximate_polynomial_chaos(
         # Todo implement default for non-bounded variables that uses induced
         # sampling
         # candidate samples must be in canonical domain
-        from pyapprox.low_discrepancy_sequences import halton_sequence
         candidate_samples = -np.cos(
             np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
         # candidate_samples = -np.cos(
@@ -349,12 +356,12 @@ def adaptive_approximate_polynomial_chaos(
     if growth_rules is None:
         growth_incr = 2
         growth_rules = partial(constant_increment_growth_rule, growth_incr)
-    assert callable(growth_rules)    
+    assert callable(growth_rules)
     unique_quadrule_variables, unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)
     growth_rules = [growth_rules]*len(unique_quadrule_indices)
 
-    admissibility_function = None# provide after growth_rules have been added
+    admissibility_function = None  # provide after growth_rules have been added
     pce.set_refinement_functions(
         refinement_indicator, admissibility_function, growth_rules,
         unique_quadrule_indices=unique_quadrule_indices)
@@ -372,7 +379,7 @@ def adaptive_approximate_polynomial_chaos(
         max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
         tol, verbose=verbose)
     pce.admissibility_function = admissibility_function
-    
+
     pce.build(callback)
     return ApproximateResult({'approx': pce})
 
@@ -380,7 +387,7 @@ def adaptive_approximate_polynomial_chaos(
 def adaptive_approximate_gaussian_process(
         fun, univariate_variables, callback=None,
         max_nsamples=100, verbose=0, ncandidate_samples=1e4,
-        checkpoints=None, nu=np.inf, n_restarts_optimizer=1, 
+        checkpoints=None, nu=np.inf, n_restarts_optimizer=1,
         normalize_y=False, alpha=0,
         noise_level=None, noise_level_bounds='fixed',
         kernel_variance=None,
@@ -390,7 +397,7 @@ def adaptive_approximate_gaussian_process(
         generate_candidate_samples=None,
         weight_function=None):
     r"""
-    Adaptively construct a Gaussian process approximation of a function using 
+    Adaptively construct a Gaussian process approximation of a function using
     weighted-pivoted-Cholesky sampling and the Matern kernel
 
     .. math::
@@ -399,11 +406,11 @@ def adaptive_approximate_gaussian_process(
        \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)^\nu K_\nu\Bigg(
        \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)
 
-    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance, 
-    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the 
+    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance,
+    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the
     modified Bessel function.
 
-    Starting from an initial guess, the algorithm learns the kernel length 
+    Starting from an initial guess, the algorithm learns the kernel length
     scale as more training data is collected.
 
     Parameters
@@ -431,28 +438,30 @@ def adaptive_approximate_gaussian_process(
         the Matern kernel is equivalent to the squared-exponential kernel.
 
     checkpoints : iterable
-        The set of points at which the length scale of the kernel will be 
+        The set of points at which the length scale of the kernel will be
         recomputed and new training data obtained. If None then
         ``checkpoints = np.linspace(10, max_nsamples, 10).astype(int)``
 
     max_nsamples : float
-        The maximum number of evaluations of fun. If fun has configure variables.
+        The maximum number of evaluations of fun. If fun has configure
+        variables.
 
     ncandidate_samples : integer
-        The number of candidate samples used to select the training samples 
+        The number of candidate samples used to select the training samples
         The final training samples will be a subset of these samples.
 
     alpha : float
-        Nugget added to diagonal of the covariance kernel evaluated at 
+        Nugget added to diagonal of the covariance kernel evaluated at
         the training data. Used to improve numerical conditionining. This
         parameter is different to noise_level which applies to both training
         and test data
 
     normalize_y : bool
-        True - normalize the training values to have zero mean and unit variance
+        True - normalize the training values to have zero mean and unit
+               variance
 
     length_scale : float
-        The initial length scale used to generate the first batch of training 
+        The initial length scale used to generate the first batch of training
         samples
 
     length_scale_bounds : tuple (2)
@@ -474,7 +483,7 @@ def adaptive_approximate_gaussian_process(
         the Gaussian process hyper-parameters
 
     n_restarts_optimizer : int
-        The number of local optimizeation problems solved to find the 
+        The number of local optimizeation problems solved to find the
         GP hyper-parameters
 
     verbose : integer
@@ -504,19 +513,16 @@ def adaptive_approximate_gaussian_process(
         The Gaussian process
     """
     assert max_nsamples <= ncandidate_samples
-    
+
     variable = IndependentMultivariateRandomVariable(
         univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
     nvars = var_trans.num_vars()
-    
+
     kernel = __setup_gaussian_process_kernel(
         nvars, length_scale, length_scale_bounds,
         kernel_variance, kernel_variance_bounds,
         noise_level, noise_level_bounds, nu)
-    
-    from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
-        CholeskySampler
 
     sampler = CholeskySampler(
         nvars, ncandidate_samples, var_trans.variable,
@@ -532,7 +538,7 @@ def adaptive_approximate_gaussian_process(
     if checkpoints is None:
         checkpoints = np.linspace(10, max_nsamples, 10).astype(int)
     assert checkpoints[-1] <= max_nsamples
-    
+
     nsteps = len(checkpoints)
     for kk in range(nsteps):
         chol_flag = gp.refine(checkpoints[kk])
@@ -540,8 +546,9 @@ def adaptive_approximate_gaussian_process(
         if callback is not None:
             callback(gp)
         if chol_flag != 0:
-            msg = 'Cannot add additional samples, Kernel is now ill conditioned'
-            msg += '. If more samples are really required increase alpha or'
+            msg = "Cannot add additional samples. "
+            msg += "Kernel is now ill conditioned. "
+            msg += 'If more samples are really required increase alpha or'
             msg += ' manually fix kernel_length to a smaller value'
             print('Exiting: ' + msg)
             break
@@ -550,11 +557,12 @@ def adaptive_approximate_gaussian_process(
 
 def compute_l2_error(f, g, variable, nsamples, rel=False):
     r"""
-    Compute the :math:`\ell^2` error of the output of two functions f and g, i.e.
+    Compute the :math:`\ell^2` error of the output of two functions f and g,
+    i.e.
 
     .. math:: \lVert f(z)-g(z)\rVert\approx \sum_{m=1}^M f(z^{(m)})
 
-    from a set of random draws :math:`\mathcal{Z}=\{z^{(m)}\}_{m=1}^M` 
+    from a set of random draws :math:`\mathcal{Z}=\{z^{(m)}\}_{m=1}^M`
     from the PDF of :math:`z`.
 
     Parameters
@@ -606,8 +614,8 @@ def compute_l2_error(f, g, variable, nsamples, rel=False):
 
 def adaptive_approximate(fun, variable, method, options=None):
     r"""
-    Adaptive approximation of a scalar or vector-valued function of one or 
-    more variables. These methods choose the samples to at which to 
+    Adaptive approximation of a scalar or vector-valued function of one or
+    more variables. These methods choose the samples to at which to
     evaluate the function being approximated.
 
 
@@ -631,9 +639,9 @@ def adaptive_approximate(fun, variable, method, options=None):
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
-         Result object. For more details see 
+         Result object. For more details see
 
-         - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
+         - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
 
          - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
 
@@ -672,7 +680,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     basis_type : string
         Type of approximation. Should be one of
 
-        - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree` 
+        - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree`
         - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_pce`
         - 'fixed' see :func:`pyapprox.approximate.approximate_fixed_pce`
 
@@ -690,9 +698,9 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     Returns
     -------
     result : :class:`pyapprox.approximate.ApproximateResult`
-         Result object. For more details see 
+         Result object. For more details see
 
-         - :func:`pyapprox.approximate.cross_validate_pce_degree` 
+         - :func:`pyapprox.approximate.cross_validate_pce_degree`
 
          - :func:`pyapprox.approximate.expanding_basis_pce`
     """
@@ -708,8 +716,6 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
             msg += f"\t{key}\n"
         raise Exception(msg)
 
-    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-        define_poly_options_from_variable_transformation
     poly = PolynomialChaosExpansion()
     if poly_opts is None:
         var_trans = AffineRandomVariableTransformation(variable)
@@ -726,7 +732,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
 def approximate(train_samples, train_vals, method, options=None):
     r"""
-    Approximate a scalar or vector-valued function of one or 
+    Approximate a scalar or vector-valued function of one or
     more variables from a set of points provided by the user
 
     Parameters
@@ -763,7 +769,6 @@ def approximate(train_samples, train_vals, method, options=None):
     return methods[method](train_samples, train_vals, **options)
 
 
-from sklearn.linear_model._base import LinearModel
 class LinearLeastSquares(LinearModel):
     def __init__(self, alpha=0.):
         self.alpha = alpha
@@ -829,7 +834,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
                'omp': [OrthogonalMatchingPursuitCV, OrthogonalMatchingPursuit],
                'lstsq': [LinearLeastSquaresCV, LinearLeastSquares]}
 
-    if not solver_type in solvers:
+    if solver_type not in solvers:
         msg = f'Solver type {solver_type} not supported\n'
         msg += 'Supported solvers are:\n'
         for key in solvers.keys():
@@ -841,13 +846,13 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
         msg += 'this causes problems with cross validation. The lasso variant '
         msg += 'lars does work because this exit condition is implemented'
         raise Exception(msg)
-    
+
     assert train_vals.ndim == 2
     assert train_vals.shape[1] == 1
 
     # The following comment and two conditional statements are only true
     # for lars which I have switched off.
-    
+
     # cv interpolates each residual onto a common set of alphas
     # This is problematic if the alpha path is not monotonically decreasing
     # For some problems alpha will increase for last few sample sizes. This
@@ -860,7 +865,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
     # alphas increase.
     # if solver_type != 'lstsq' and 'max_iter' not in kwargs:
     #    kwargs['max_iter'] = basis_matrix.shape[0]//2
-        
+
     # if 'max_iter' in kwargs and kwargs['max_iter'] > basis_matrix.shape[0]//2:
     #     msg = "Warning: max_iter is set large this can effect not just "
     #     msg += "Computational cost but also final accuracy"
@@ -885,7 +890,7 @@ def fit_linear_model(basis_matrix, train_vals, solver_type, **kwargs):
         weights = np.sqrt(christoffel_weights(basis_matrix))[:, None]
         basis_matrix = basis_matrix.copy()*weights
         train_vals = train_vals.copy()*weights
-        
+
     if 'precondition' in kwargs:
         del kwargs['precondition']
 
@@ -915,8 +920,8 @@ def extract_best_regularization_parameters(res):
         return res.alpha_
     elif type(res) == LarsCV:
         assert len(res.n_iter_) == 1
-        # The Lars (not LarsCV) model takes max_iters as regularization parameter
-        # so return it here as well as the alpha. Sklearn
+        # The Lars (not LarsCV) model takes max_iters as regularization
+        # parameter so return it here as well as the alpha. Sklearn
         # has an inconsistency alpha is used to choose best cv score but Lars
         # uses max_iters to stop algorithm early.
         return (res.alpha_, res.n_iter_[0])
@@ -924,6 +929,7 @@ def extract_best_regularization_parameters(res):
         return res.n_nonzero_coefs_
     else:
         raise Exception()
+
 
 def extract_cross_validation_score(linear_model):
     if hasattr(linear_model, 'cv_score_'):
@@ -939,7 +945,8 @@ def cross_validate_pce_degree(
         hcross_strength=1, solver_type='lasso', verbose=0,
         linear_solver_options={'cv': 10}):
     r"""
-    Use cross validation to find the polynomial degree which best fits the data.
+    Use cross validation to find the polynomial degree which best fits the
+    data.
     A polynomial is constructed for each degree and the degree with the highest
     cross validation score is returned.
 
@@ -955,15 +962,15 @@ def cross_validate_pce_degree(
         The minimum degree to consider
 
     max_degree : integer
-        The maximum degree to consider. 
+        The maximum degree to consider.
         All degrees in ``range(min_degree,max_deree+1)`` are considered
 
     hcross_strength : float
-       The strength of the hyperbolic cross index set. hcross_strength must be 
+       The strength of the hyperbolic cross index set. hcross_strength must be
        in (0,1]. A value of 1 produces total degree polynomials
 
     cv : integer
-        The number of cross validation folds used to compute the cross 
+        The number of cross validation folds used to compute the cross
         validation error
 
     solver_type : string
@@ -983,7 +990,7 @@ def cross_validate_pce_degree(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
 
     scores : np.ndarray (nqoi)
@@ -993,7 +1000,7 @@ def cross_validate_pce_degree(
         The best degree for each QoI
 
     reg_params : np.ndarray (nqoi)
-        The best regularization parameters for each QoI chosen by cross 
+        The best regularization parameters for each QoI chosen by cross
         validation.
     """
     coefs = []
@@ -1040,7 +1047,6 @@ def _cross_validate_pce_degree(
         hcross_strength=1, linear_solver_options={'cv': 10},
         solver_type='lasso', verbose=0):
     assert train_vals.shape[1] == 1
-    num_samples = train_samples.shape[1]
     if min_degree is None:
         min_degree = 2
     if max_degree is None:
@@ -1059,7 +1065,7 @@ def _cross_validate_pce_degree(
             pce.num_vars(), degree, hcross_strength)
         pce.set_indices(indices)
         if ((pce.num_terms() > 100000) and
-            (100000-prev_num_terms < pce.num_terms()-100000)):
+                (100000-prev_num_terms < pce.num_terms()-100000)):
             break
 
         basis_matrix = pce.basis_matrix(train_samples)
@@ -1091,14 +1097,15 @@ def _cross_validate_pce_degree(
 
 
 def restrict_basis(indices, coefficients, tol):
-    I = np.where(np.absolute(coefficients) > tol)[0]
-    restricted_indices = indices[:, I]
+    II = np.where(np.absolute(coefficients) > tol)[0]
+    restricted_indices = indices[:, II]
     degrees = indices.sum(axis=0)
-    J = np.where(degrees == 0)[0]
-    assert J.shape[0] == 1
-    if J not in I:
+    JJ = np.where(degrees == 0)[0]
+    assert JJ.shape[0] == 1
+    if JJ not in II:
         # always include zero degree polynomial in restricted_indices
-        restricted_indices = np.concatenate([indices[:J], restrict_indices])
+        restricted_indices = np.concatenate(
+            [indices[:JJ], restricted_indices])
     return restricted_indices
 
 
@@ -1137,7 +1144,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                         max_iters=20,
                         max_num_step_increases=1):
     r"""
-    Iteratively expand and restrict the polynomial basis and use 
+    Iteratively expand and restrict the polynomial basis and use
     cross validation to find the best basis [JESJCP2015]_
 
     Parameters
@@ -1149,11 +1156,11 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         The values of the function at ``train_samples``
 
     hcross_strength : float
-       The strength of the hyperbolic cross index set. hcross_strength must be 
+       The strength of the hyperbolic cross index set. hcross_strength must be
        in (0,1]. A value of 1 produces total degree polynomials
 
     cv : integer
-        The number of cross validation folds used to compute the cross 
+        The number of cross validation folds used to compute the cross
         validation error
 
     solver_type : string
@@ -1184,8 +1191,8 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         The number of times a basis can expanded after
         the last restriction step
 
-    max_num_expansion_steps_iter : integer 
-        The number of iterations error does not decrease before 
+    max_num_expansion_steps_iter : integer
+        The number of iterations error does not decrease before
         terminating
 
     Returns
@@ -1193,14 +1200,14 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
 
     scores : np.ndarray (nqoi)
         The best cross validation score for each QoI
 
     reg_params : np.ndarray (nqoi)
-        The best regularization parameters for each QoI chosen by cross 
+        The best regularization parameters for each QoI chosen by cross
         validation.
 
     References
@@ -1219,8 +1226,9 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             print(f'Approximating QoI: {ii}')
         pce_ii, score_ii, reg_param_ii = _expanding_basis_pce(
             pce, train_samples, train_vals[:, ii:ii+1], hcross_strength,
-            verbose, max_num_init_terms, max_num_terms, solver_type, linear_solver_options,
-            restriction_tol, max_num_expansion_steps_iter, max_iters, max_num_step_increases)
+            verbose, max_num_init_terms, max_num_terms, solver_type,
+            linear_solver_options, restriction_tol,
+            max_num_expansion_steps_iter, max_iters, max_num_step_increases)
         coefs.append(pce_ii.get_coefficients())
         scores.append(score_ii)
         indices.append(pce_ii.get_indices())
@@ -1254,12 +1262,12 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                          max_num_step_increases=1):
     assert train_vals.shape[1] == 1
     num_vars = pce.num_vars()
-    
+
     if max_num_init_terms is None:
         max_num_init_terms = train_vals.shape[0]
     if max_num_terms is None:
         max_num_terms = 10*train_vals.shape[0]
-        
+
     degree = 2
     prev_num_terms = 0
     while True:
@@ -1280,12 +1288,12 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
         msg = f'Initializing basis with hyperbolic cross of degree {degree} '
         msg += f'and strength {hcross_strength} with {pce.num_terms()} terms'
         print(msg)
-        
+
     rng_state = np.random.get_state()
     basis_matrix = pce.basis_matrix(train_samples)
     best_coef, best_cv_score, best_reg_param = fit_linear_model(
         basis_matrix, train_vals, solver_type, **linear_solver_options)
-    np.random.set_state(rng_state) 
+    np.random.set_state(rng_state)
     pce.set_coefficients(best_coef)
     best_indices = pce.get_indices()
     best_cv_score_iter = best_cv_score
@@ -1295,7 +1303,8 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     if verbose > 0:
         print("{:<10} {:<10} {:<18}".format('nterms', 'nnz terms', 'cv score'))
         print("{:<10} {:<10} {:<18}".format(
-            pce.num_terms(), np.count_nonzero(pce.coefficients), best_cv_score))
+            pce.num_terms(), np.count_nonzero(pce.coefficients),
+            best_cv_score))
 
     it = 0
     best_it = 0
@@ -1310,7 +1319,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             # -------------- #
             num_expansion_steps_iter = 0
             indices = restrict_basis(
-                #pce.indices, pce.coefficients, restriction_tol)
+                # pce.indices, pce.coefficients, restriction_tol)
                 indices_iter, coef_iter, restriction_tol)
             msg = f'Expanding {indices.shape[1]} restricted from '
             msg += f'{pce.indices.shape[1]} terms'
@@ -1328,10 +1337,10 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             # Compute solution #
             # -----------------#
             basis_matrix = pce.basis_matrix(train_samples)
-            np.random.set_state(rng_state) 
+            np.random.set_state(rng_state)
             coef, cv_score, reg_param = fit_linear_model(
                 basis_matrix, train_vals, solver_type, **linear_solver_options)
-            np.random.set_state(rng_state) 
+            np.random.set_state(rng_state)
             pce.set_coefficients(coef)
 
             if verbose > 0:
@@ -1349,9 +1358,9 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                 if verbose > 0:
                     print(f'Max number of terms {max_num_terms} reached')
                 break
-            
+
             if (current_max_num_expansion_steps_iter >=
-                max_num_expansion_steps_iter):
+                    max_num_expansion_steps_iter):
                 if verbose > 0:
                     msg = 'Max number of inner expansion steps '
                     msg += f'({max_num_expansion_steps_iter}) reached'
@@ -1369,7 +1378,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             best_indices = best_indices_iter.copy()
             best_reg_param = best_reg_param_iter
             best_it = it
-            
+
         elif (it - best_it >= max_num_step_increases):
             if verbose > 0:
                 msg = 'Terminating: error did not decrease'
@@ -1385,9 +1394,9 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
             break
 
     nindices = best_indices.shape[1]
-    I = np.nonzero(best_coef[:, 0])[0]
-    pce.set_indices(best_indices[:, I])
-    pce.set_coefficients(best_coef[I])
+    II = np.nonzero(best_coef[:, 0])[0]
+    pce.set_indices(best_indices[:, II])
+    pce.set_coefficients(best_coef[II])
     if verbose > 0:
         msg = f'Final basis has {pce.num_terms()} terms selected from '
         msg += f'{nindices} using {train_samples.shape[1]} samples'
@@ -1431,7 +1440,7 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
 
     reg_params : np.ndarray (nqoi)
@@ -1470,8 +1479,8 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
 
 
 def __setup_gaussian_process_kernel(nvars, length_scale, length_scale_bounds,
-                                   kernel_variance, kernel_variance_bounds,
-                                   noise_level, noise_level_bounds, nu):
+                                    kernel_variance, kernel_variance_bounds,
+                                    noise_level, noise_level_bounds, nu):
     from sklearn.gaussian_process.kernels import Matern, WhiteKernel, \
         ConstantKernel
     if np.isscalar(length_scale):
@@ -1493,6 +1502,7 @@ def __setup_gaussian_process_kernel(nvars, length_scale, length_scale_bounds,
     # alpha only applies it to training data
     return kernel
 
+
 def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
                                  n_restarts_optimizer=5, verbose=0,
                                  normalize_y=False, alpha=0,
@@ -1503,7 +1513,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
                                  length_scale=1,
                                  length_scale_bounds=(1e-2, 10)):
     r"""
-    Compute a Gaussian process approximation of a function from a fixed data 
+    Compute a Gaussian process approximation of a function from a fixed data
     set using the Matern kernel
 
     .. math::
@@ -1512,8 +1522,8 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
        \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)^\nu K_\nu\Bigg(
        \frac{\sqrt{2\nu}}{l} \lVert z_i - z_j \rVert_2\Bigg)
 
-    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance, 
-    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the 
+    where :math:`\lVert \cdot \rVert_2` is the Euclidean distance,
+    :math:`\Gamma(\cdot)` is the gamma function, :math:`K_\nu(\cdot)` is the
     modified Bessel function.
 
     Parameters
@@ -1529,16 +1539,17 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         the Matern kernel is equivalent to the squared-exponential kernel.
 
     alpha : float
-        Nugget added to diagonal of the covariance kernel evaluated at 
+        Nugget added to diagonal of the covariance kernel evaluated at
         the training data. Used to improve numerical conditionining. This
         parameter is different to noise_level which applies to both training
         and test data
 
     normalize_y : bool
-        True - normalize the training values to have zero mean and unit variance
+        True - normalize the training values to have zero mean and unit
+        variance
 
     length_scale : float
-        The initial length scale used to generate the first batch of training 
+        The initial length scale used to generate the first batch of training
         samples
 
     length_scale_bounds : tuple (2)
@@ -1560,7 +1571,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
         the Gaussian process hyper-parameters
 
     n_restarts_optimizer : int
-        The number of local optimizeation problems solved to find the 
+        The number of local optimizeation problems solved to find the
         GP hyper-parameters
 
     verbose : integer
@@ -1574,16 +1585,15 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     approx : :class:`pyapprox.gaussian_process.GaussianProcess`
         The Gaussian process
     """
-    from pyapprox.gaussian_process import GaussianProcess
     nvars = train_samples.shape[0]
     kernel = __setup_gaussian_process_kernel(
         nvars, length_scale, length_scale_bounds,
         kernel_variance, kernel_variance_bounds,
         noise_level, noise_level_bounds, nu)
-    
+
     gp = GaussianProcess(kernel, n_restarts_optimizer=n_restarts_optimizer,
                          normalize_y=normalize_y, alpha=alpha)
-    
+
     if var_trans is not None:
         gp.set_variable_transformation(var_trans)
     gp.fit(train_samples, train_vals)
@@ -1601,7 +1611,7 @@ def cross_validate_approximation(
     else:
         from sklearn.model_selection._split import KFold
         sklearn_cv = KFold(nfolds)
-        indices = np.arange(train_samples.shape[1])
+        # indices = np.arange(train_samples.shape[1])
         fold_sample_indices = [
             te for tr, te in sklearn_cv.split(train_vals, train_vals)]
 

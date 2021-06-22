@@ -76,7 +76,7 @@ def lanczos(nodes, weights, N):
     # can be applied to non-probability measures but I do not use this way
     if abs(weights.sum()-1) > 2e-15:
         msg = f"weights sum is {weights.sum()} and so does not define "
-        msg += "probability measure"
+        msg += "a probability measure"
         raise ValueError(msg)
     nnodes = nodes.shape[0]
     assert N <= nnodes

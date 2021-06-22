@@ -1,10 +1,19 @@
-#!/usr/bin/env python
 import unittest
-from pyapprox.random_variable_algebra import *
 from functools import partial
 from scipy import stats
-from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D,\
-    gauss_jacobi_pts_wts_1D
+from scipy.special import factorial
+import numpy as np
+
+from pyapprox.random_variable_algebra import \
+    sum_of_independent_random_variables_pdf, get_inverse_derivatives, \
+    scalar_multiple_of_random_variable, power_of_random_variable_pdf, \
+    get_global_maxima_and_minima_of_monomial_expansion, \
+    get_pdf_from_monomial_expansion, get_cdf_from_monomial_expansion, \
+    get_all_local_extrema_of_monomial_expansion_1d, \
+    sum_two_uniform_variables, \
+    product_of_independent_random_variables_pdf
+
+from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 
 
 class TestRandomVariableAlgebra(unittest.TestCase):
@@ -32,8 +41,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         coef = [1, -3, 3, -1]
         poly = np.poly1d(coef[::-1])
         zz = np.linspace(0, 1, 100)
-        inverse_vals, inverse_derivs, defined_indices = get_inverse_derivatives(
-            poly, [lb, ub], zz)
+        inverse_vals, inverse_derivs, defined_indices = \
+            get_inverse_derivatives(
+                poly, [lb, ub], zz)
         assert np.allclose(inverse_vals, 1-zz**(1/3))
         # ignore derivative at 0 which is infinity
         assert np.allclose(inverse_derivs[1:], -1/3*zz[1:]**(-2/3))
@@ -42,12 +52,13 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         lb, ub = 0, 1
         def function(xx): return (1-xx)**3
         def x_pdf(xx): return (3*(1-xx)**2).squeeze()
-        #xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
-        #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));plt.show()
+        # xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
+        # xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));plt.show()
         coef = [1, -3, 3, -1]
         poly = np.poly1d(coef[::-1])
-        poly_min, poly_max = get_global_maxima_and_minima_of_monomial_expansion(
-            poly, lb, ub)
+        poly_min, poly_max = \
+            get_global_maxima_and_minima_of_monomial_expansion(
+                poly, lb, ub)
         # zz_bounds = [poly_min,poly_max]
         # due to singularities at 0 and 1 zz is only defined on 0<zz<1
         # so do not evaluate close to these bounds
@@ -65,21 +76,23 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.legend();plt.show()
         assert np.allclose(z_cdf_vals, stats.uniform(0, 1).cdf(zz), atol=1e-8)
 
-    def test_variable_transformation_uniform_cosine_taylor_series_expansion(self):
+    def test_variable_transformation_uniform_cosine_taylor_series_expansion(
+            self):
         lb, ub = np.pi/4, np.pi*2.25
         N = 10
         # approximate x*cos(x)
-        from scipy.special import factorial
+
         def function(
-            xx): return xx*(1+np.sum([(-1)**n * (xx)**(2*n)/factorial(2*n) for n in range(1, N+1)], axis=0))
+            xx): return xx*(1+np.sum([(-1)**n * (xx)**(2*n)/factorial(2*n)
+                                      for n in range(1, N+1)], axis=0))
         nonzero_coef = [1]+[(-1)**n * (1)**(2*n)/factorial(2*n)
                             for n in range(1, N+1)]
         coef = np.zeros(2*N+2)
         coef[1::2] = nonzero_coef
         poly = np.poly1d(coef[::-1])
         x_pdf = stats.uniform(lb, ub-lb).pdf
-        #xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
-        #xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));
+        # xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
+        # xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));
         # plt.plot(xx,xx*np.cos(xx));plt.plot(xx,poly(xx),'--');plt.show()
         # poly_min,poly_max = \
         #     get_global_maxima_and_minima_of_monomial_expansion(
@@ -92,7 +105,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         z_pdf_vals = get_pdf_from_monomial_expansion(coef, lb, ub, x_pdf, zz)
         from matplotlib import pyplot as plt
         plt.hist(
-            function(np.random.uniform(lb,ub,10001)),density=True,bins=100)
+            function(np.random.uniform(lb, ub, 10001)), density=True, bins=100)
         # plt.plot(zz,z_pdf_vals); plt.show()
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
@@ -105,14 +118,14 @@ class TestRandomVariableAlgebra(unittest.TestCase):
             poly, lb, ub)
         # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));
         # axs[0].plot(critical_points,poly(critical_points),'o')
-        #zz_rand = np.sort(function(np.random.uniform(lb,ub,10001)))
-        #ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
+        # zz_rand = np.sort(function(np.random.uniform(lb,ub,10001)))
+        # ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
         # axs[1].plot(zz_rand,ecdf,label='ECDF')
         # axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
         # axs[1].legend();plt.show()
-        #plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,
+        # plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,
         #    label='PDF approx')
-        #plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
+        # plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
         # print(np.linalg.norm(
         #    (z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps)))
         assert np.allclose(
@@ -142,7 +155,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # axs[0].plot(critical_points,poly(critical_points),'o')
 
         # axs[1].plot(zz_rand,ecdf,label='ECDF')
-        #axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
+        # axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
         # plt.legend();plt.show()
 
     def test_get_inverse_derivatives_x_squared(self):
@@ -152,8 +165,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         coef = [0, 0, 1]
         poly = np.poly1d(coef[::-1])
         zz = np.linspace(0, 1, 30)
-        inverse_vals, inverse_derivs, defined_indices = get_inverse_derivatives(
-            poly, [lb, ub], zz)
+        inverse_vals, inverse_derivs, defined_indices = \
+            get_inverse_derivatives(
+                poly, [lb, ub], zz)
         assert np.allclose(inverse_vals, zz**(1/2))
         # ignore derivative at 0 which is infinity
         assert np.allclose(inverse_derivs[1:], 1/2*zz[1:]**(-1/2))
@@ -199,21 +213,22 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # using gauss hermite quadrature does not work because it is
         # using polynomial quadrature to integrate a discontinous function
         # i.e. uniform PDF
-        #x,w = gauss_hermite_pts_wts_1D(100)
+        # x,w = gauss_hermite_pts_wts_1D(100)
         # x = x*sigma+mu #scale from standard normal
         # conv_pdf = sum_of_independent_random_variables_pdf(
         #    pdf1,[[x,w]],zz)
 
-        # but since normal PDF is smooth integration in reverse order works well
+        # but since normal PDF is smooth integration in reverse order works
+        # well
         x, w = gauss_jacobi_pts_wts_1D(100, 0, 0)
         x = x+2  # scale from [-1,1] to [1,3]
         conv_pdf = sum_of_independent_random_variables_pdf(
             pdf2, [[x, w]], zz)
 
-        #plt.plot(zz, pdf1(zz), label='Uniform')
-        #plt.plot(zz, pdf2(zz), label='Gaussian')
-        #plt.plot(zz,conv_pdf, label='Sum')
-        #plt.legend(loc='best'), plt.suptitle('PDFs')
+        # plt.plot(zz, pdf1(zz), label='Uniform')
+        # plt.plot(zz, pdf2(zz), label='Gaussian')
+        # plt.plot(zz,conv_pdf, label='Sum')
+        # plt.legend(loc='best'), plt.suptitle('PDFs')
         # plt.show()
 
     def test_sum_of_independent_gaussian_variables(self):
@@ -301,7 +316,6 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         assert np.linalg.norm(true_pdf-product_pdf, ord=np.inf) < 0.03
 
     def test_sum_of_independent_uniform_variables(self):
-        nvars = 2
         lb1, ub1 = [0, 2]
         lb2, ub2 = [10, 13]
         pdfs = [stats.uniform(lb1, ub1-lb1).pdf]
@@ -315,10 +329,10 @@ class TestRandomVariableAlgebra(unittest.TestCase):
             pdfs[0], quad_rules, zz)
 
         true_pdf = partial(sum_two_uniform_variables, [lb1, ub1, lb2, ub2])
-        #plt.plot(zz,true_pdf(zz), label='True PDF')
-        #plt.plot(zz,product_pdf, '--', label='Approx PDF')
-        # nsamples=10000
-        #vals = np.random.uniform(lb1,ub1,nsamples)+np.random.uniform(
+        # plt.plot(zz,true_pdf(zz), label='True PDF')
+        # plt.plot(zz,product_pdf, '--', label='Approx PDF')
+        #     nsamples=10000
+        # vals = np.random.uniform(lb1,ub1,nsamples)+np.random.uniform(
         #    lb2,ub2,nsamples)
         # plt.hist(vals,bins=100,density=True)
         # plt.legend();plt.show()
@@ -331,5 +345,3 @@ if __name__ == "__main__":
         unittest.TestLoader().loadTestsFromTestCase(TestRandomVariableAlgebra)
     unittest.TextTestRunner(verbosity=2).run(
         random_variable_algebra_test_suite)
-
-# nosetests --nocapture --nologcapture ~/software/pyapprox/pyapprox/tests/test_random_variable_algebra.py:TestRandomVariableAlgebra.test_sum_of_independent_uniform_and_gaussian_variables
