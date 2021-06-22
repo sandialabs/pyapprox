@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from pyapprox.polynomial_chaos.indexing import compute_hyperbolic_indices, \
+from pyapprox.indexing import compute_hyperbolic_indices, \
     nchoosek, get_upper_triangular_matrix_indices, set_difference, \
     argsort_indices_leixographically, compute_downward_closed_indices, \
     get_upper_triangular_matrix_scalar_index, sort_indices_lexiographically, \
