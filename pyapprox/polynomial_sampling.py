@@ -5,7 +5,8 @@ import numpy as np
 from pyapprox.utilities import truncated_pivoted_lu_factorization
 from scipy.linalg import qr as qr_factorization
 from scipy.linalg import solve_triangular
-from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver
+from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver, \
+    pre_multiply_block_diagonal_matrix
 from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
     compute_hyperbolic_level_indices
 
@@ -210,12 +211,14 @@ def total_degree_basis_generator(num_vars, degree):
     return (degree+1, compute_hyperbolic_level_indices(num_vars, degree, 1.0))
 
 
-def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
+def get_oli_leja_samples(pce, generate_candidate_samples,
+                         num_candidate_samples,
                          num_leja_samples, preconditioning_function=None,
                          basis_generator=total_degree_basis_generator,
-                         initial_samples=None):
+                         initial_samples=None,
+                         verbosity=0):
     r"""
-    Generate Leja samples using orthogonal least interpolation. 
+    Generate Leja samples using orthogonal least interpolation.
 
     The number of samples is determined by the number of basis functions.
 
@@ -229,7 +232,8 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
     generate_candidate_samples : callable
         candidate_samples = generate_candidate_samples(num_candidate_samples)
         Function to generate candidate samples. This can siginficantly effect
-        the fekete samples generated
+        the fekete samples generated. Unlike other lu_leja this function
+        requires samples in user space not canonical space
 
     num_candidate_samples : integer
         The number of candidate_samples
@@ -247,16 +251,16 @@ def get_oli_leja_samples(pce, generate_candidate_samples, num_candidate_samples,
         The samples of the Leja sequence
 
     data_structures : tuple
-        (oli_solver,) the final state of the othogonal least interpolation 
+        (oli_solver,) the final state of the othogonal least interpolation
         solver. This is useful for quickly building an interpolant
 
     Notes
     -----
-    Should use basis_generator=canonical_basis_matrix here. Thus 
+    Should use basis_generator=canonical_basis_matrix here. Thus
     generate_candidate_samples must generate samples in the canonical domain
     and leja samples are returned in the canonical domain
     """
-    oli_opts = dict()
+    oli_opts = {"verbosity": verbosity}
     oli_solver = LeastInterpolationSolver()
     oli_solver.configure(oli_opts)
     oli_solver.set_pce(pce)
@@ -341,4 +345,23 @@ def get_quadrature_weights_from_lu_leja_samples(leja_samples, data_structures):
         # the right weights. Sqrt of weights has already been applied
         # so do not do it again here
         quad_weights *= precond_weights
+    return quad_weights
+
+
+def get_quadrature_weights_from_oli_leja_samples(
+        leja_samples, data_structures):
+    msg = "tests not passing. See commented section of "
+    msg += "test_polynomial_sampling.test_oli_interpolation"
+    raise NotImplementedError(msg)
+    oli_solver = data_structures[0]
+    precond_weights = oli_solver.precond_weights
+    lu_row = oli_solver.lu_row
+    LU_inv = np.linalg.inv(
+        np.dot(oli_solver.L_factor[:lu_row, :lu_row],
+               oli_solver.U_factor[:lu_row, :lu_row]))
+    V_inv = pre_multiply_block_diagonal_matrix(
+        LU_inv, oli_solver.H_factor_blocks, True)
+    quad_weights = V_inv[0, :]
+    if precond_weights is not None:
+        quad_weights *= precond_weights[:lu_row]
     return quad_weights

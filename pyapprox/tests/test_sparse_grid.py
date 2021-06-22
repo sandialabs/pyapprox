@@ -1654,6 +1654,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         sparse_grid.build()
 
         samples, weights = extract_sparse_grid_quadrature_rule(sparse_grid)
+        samples = var_trans.map_from_canonical_space(samples)
 
         poly.set_indices(indices)
         basis_matrix = poly.basis_matrix(samples)

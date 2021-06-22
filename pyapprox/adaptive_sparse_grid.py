@@ -615,6 +615,9 @@ def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
 
 
 def extract_sparse_grid_quadrature_rule(asg):
+    """
+    Returns samples in canonical space
+    """
     num_sparse_grid_points = (
         asg.poly_indices.shape[1])
     # must initialize to zero
@@ -634,7 +637,6 @@ def extract_sparse_grid_quadrature_rule(asg):
                     weights[asg.poly_indices_dict[key]] += subspace_weights[jj]
                 else:
                     raise Exception('index not found')
-    samples = var_trans.map_from_canonical_space(samples)
     return samples, weights
 
 
