@@ -4,15 +4,14 @@ from scipy import stats
 from functools import partial
 
 from pyapprox.variables import get_probability_masses, float_rv_discrete,\
-    is_bounded_continuous_variable, transform_scale_parameters
+    transform_scale_parameters
 from pyapprox.univariate_polynomials.recursion_factory import \
     get_recursion_coefficients_from_variable
 from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
-    ortho_polynomial_grammian_bounded_continuous_variable
+    ortho_polynomial_grammian_bounded_continuous_variable, \
+    native_recursion_integrate_fun
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
-from pyapprox.utilities import \
-    integrate_using_univariate_gauss_legendre_quadrature_unbounded
 
 
 class TestRecursionFactory(unittest.TestCase):
@@ -130,16 +129,6 @@ class TestRecursionFactory(unittest.TestCase):
         for name in scipy_continuous_var_names:
             assert name in continuous_var_names
 
-        def custom_integrate_fun(interval_size, lb, ub, integrand):
-            # this funciton works well for smooth unbounded variables
-            # but scipy.integrate.quad works well for non smooth
-            # variables
-            val = \
-                integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-                    integrand, lb, ub, 50, interval_size=interval_size,
-                    verbose=0)
-            return val
-
         # do not support :
         #    levy_stable as there is a bug when interval is called
         #       from a frozen variable
@@ -184,7 +173,8 @@ class TestRecursionFactory(unittest.TestCase):
                 integrate_fun = None
             else:
                 interval_size = abs(np.diff(var.interval(0.99)))
-                integrate_fun = partial(custom_integrate_fun, interval_size)
+                integrate_fun = partial(
+                    native_recursion_integrate_fun, interval_size)
                 quad_opts = {"integrate_fun": integrate_fun}
             opts = {"numeric": True, "quad_options": quad_opts}
             ab = get_recursion_coefficients_from_variable(var, degree+1, opts)

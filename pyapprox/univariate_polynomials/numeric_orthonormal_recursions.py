@@ -6,7 +6,8 @@ from functools import partial
 
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
-from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.utilities import cartesian_product, outer_product, \
+    integrate_using_univariate_gauss_legendre_quadrature_unbounded
 from pyapprox.variables import transform_scale_parameters, \
     is_bounded_continuous_variable
 
@@ -381,9 +382,25 @@ def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
     def integrate_discrete(integrand):
         return integrand(xk).dot(pk)
 
+    import inspect
+    sig = inspect.signature(scipy.integrate.quad)
+    params = sig.parameters.values()
+    for param in params:
+        if param.name == "epsabs":
+            default_epsabs = param.default
+        if param.name == "epsrel":
+            default_epsrel = param.default
+            break
+
     def integrate_continuous(integrand):
         res = scipy.integrate.quad(
             integrand, lb, ub, **quad_options)
+        atol = quad_options.get("epsabs", default_epsabs)
+        rtol = quad_options.get("epsrel", default_epsrel)
+        if res[1] > 2*max(atol, res[0]*rtol):
+            msg = f"Desired accuracy {atol} was not reached {res[1]}. "
+            msg += "Use custom integrator or change quad_options"
+            raise RuntimeError(msg)
         return res[0]
 
     if discrete_measure is True:
@@ -654,8 +671,9 @@ def ortho_polynomial_grammian_bounded_continuous_variable(
         can_ub = (ub-loc)/scale
 
     def default_integrate(integrand):
-        return scipy.integrate.quad(
-            integrand, can_lb, can_ub, epsabs=tol, epsrel=tol)[0]
+        result = scipy.integrate.quad(
+            integrand, can_lb, can_ub, epsabs=tol, epsrel=tol)
+        return result[0]
 
     if integrate_fun is None:
         integrate = default_integrate
@@ -679,3 +697,16 @@ def ortho_polynomial_grammian_bounded_continuous_variable(
         (np.arange(degree+1), np.arange(degree+1)))
     gram_mat = vec_fun(indices[0, :], indices[1, :])
     return gram_mat.reshape((degree+1, degree+1))
+
+
+def native_recursion_integrate_fun(
+        interval_size, lb, ub, integrand, verbose=0, nquad_samples=50,
+        max_steps=1000):
+    # this funciton works well for smooth unbounded variables
+    # but scipy.integrate.quad works well for non smooth
+    # variables
+    val = \
+        integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=interval_size,
+            verbose=verbose, max_steps=max_steps)
+    return val

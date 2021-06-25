@@ -917,8 +917,6 @@ class TestMultivariatePolynomials(unittest.TestCase):
             poly.variance(), stats.beta(dist_alpha1*2, dist_beta1*2).var())
 
         poly = PolynomialChaosExpansion()
-        # the distribution and ranges of univariate variables is ignored
-        # when var_trans.set_identity_maps([0]) is used
         initial_variables = [stats.uniform(0, 1)]
         funs = [lambda x: np.sqrt(x)]*nvars
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]

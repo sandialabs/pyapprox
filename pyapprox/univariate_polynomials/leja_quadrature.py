@@ -81,7 +81,8 @@ def transform_initial_samples(variable, initial_points):
 def univariate_christoffel_leja_quadrature_rule(
         variable, growth_rule, level, return_weights_for_all_levels=True,
         initial_points=None,
-        orthonormality_tol=1e-12):
+        orthonormality_tol=1e-12,
+        recursion_opts=None):
     """
     Return the samples and weights of the Leja quadrature rule for any
     continuous variable using the inverse Christoffel weight function
@@ -126,10 +127,10 @@ def univariate_christoffel_leja_quadrature_rule(
 
     name, scales, shapes = get_distribution_info(variable)
     max_nsamples = growth_rule(level)
-    opts = {"orthonormality_tol":
-            orthonormality_tol}
+    if recursion_opts is None:
+        recursion_opts = {"orthonormality_tol": orthonormality_tol}
     ab = get_recursion_coefficients_from_variable(
-        variable, max_nsamples+1, opts)
+        variable, max_nsamples+1, recursion_opts)
     basis_fun = partial(
         evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
@@ -141,6 +142,7 @@ def univariate_christoffel_leja_quadrature_rule(
         {'gtol': 1e-8, 'verbose': False}, callback=None)
 
     __basis_fun = partial(basis_fun, nmax=max_nsamples-1, deriv_order=0)
+
     ordered_weights_1d = get_christoffel_leja_quadrature_weights_1d(
         leja_sequence, growth_rule, __basis_fun, level, True)
     if return_weights_for_all_levels:
@@ -173,7 +175,7 @@ def get_pdf_weight_functions(variable):
 def univariate_pdf_weighted_leja_quadrature_rule(
         variable, growth_rule, level, return_weights_for_all_levels=True,
         initial_points=None,
-        orthonormality_tol=1e-12):
+        orthonormality_tol=1e-12, recursion_opts=None):
     """
     Return the samples and weights of the Leja quadrature rule for any
     continuous variable using the PDF of the random variable as the
@@ -219,9 +221,10 @@ def univariate_pdf_weighted_leja_quadrature_rule(
 
     name, scales, shapes = get_distribution_info(variable)
     max_nsamples = growth_rule(level)
-    opts = {"orthonormality_tol": orthonormality_tol}
+    if recursion_opts is None:
+        recursion_opts = {"orthonormality_tol": orthonormality_tol}
     ab = get_recursion_coefficients_from_variable(
-        variable, max_nsamples+1, opts)
+        variable, max_nsamples+1, recursion_opts)
     basis_fun = partial(evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
     pdf, pdf_jac = get_pdf_weight_functions(variable)
@@ -244,7 +247,8 @@ def univariate_pdf_weighted_leja_quadrature_rule(
 
 def get_discrete_univariate_leja_quadrature_rule(
         variable, growth_rule, initial_points=None,
-        orthonormality_tol=1e-12, return_weights_for_all_levels=True):
+        orthonormality_tol=1e-12, return_weights_for_all_levels=True,
+        recursion_opts=None):
     from pyapprox.variables import get_probability_masses, \
         is_bounded_discrete_variable
     var_name = get_distribution_info(variable)[0]
@@ -262,17 +266,18 @@ def get_discrete_univariate_leja_quadrature_rule(
         def generate_candidate_samples(num_samples):
             return xk[None, :]
 
-        opts = {"orthonormality_tol": orthonormality_tol}
+        if recursion_opts is None:
+            recursion_opts = {"orthonormality_tol": orthonormality_tol}
         ab = get_recursion_coefficients_from_variable(
-            variable, xk.shape[0], opts)
+            variable, xk.shape[0], recursion_opts)
         quad_rule = partial(
             candidate_based_christoffel_leja_rule_1d, ab,
             generate_candidate_samples, xk.shape[0], growth_rule=growth_rule,
             initial_points=initial_points,
             return_weights_for_all_levels=return_weights_for_all_levels)
-    else:
-        raise ValueError('var_name %s not implemented' % var_name)
-    return quad_rule
+        return quad_rule
+
+    raise ValueError('var_name %s not implemented' % var_name)
 
 
 def get_univariate_leja_quadrature_rule(
@@ -281,21 +286,23 @@ def get_univariate_leja_quadrature_rule(
         method='pdf',
         orthonormality_tol=1e-11,
         initial_points=None,
-        return_weights_for_all_levels=True):
+        return_weights_for_all_levels=True, recursion_opts=None):
 
     if not is_continuous_variable(variable):
         return get_discrete_univariate_leja_quadrature_rule(
             variable, growth_rule,
             orthonormality_tol=orthonormality_tol,
             initial_points=initial_points,
-            return_weights_for_all_levels=return_weights_for_all_levels)
+            return_weights_for_all_levels=return_weights_for_all_levels,
+            recursion_opts=recursion_opts)
 
     if method == 'christoffel':
         return partial(
             univariate_christoffel_leja_quadrature_rule, variable, growth_rule,
             orthonormality_tol=orthonormality_tol,
             initial_points=initial_points,
-            return_weights_for_all_levels=return_weights_for_all_levels)
+            return_weights_for_all_levels=return_weights_for_all_levels,
+            recursion_opts=recursion_opts)
 
     if method == 'pdf':
         return partial(
@@ -303,6 +310,7 @@ def get_univariate_leja_quadrature_rule(
             variable, growth_rule,
             orthonormality_tol=orthonormality_tol,
             initial_points=initial_points,
-            return_weights_for_all_levels=return_weights_for_all_levels)
+            return_weights_for_all_levels=return_weights_for_all_levels,
+            recursion_opts=recursion_opts)
 
     raise ValueError(f"Method {method} not supported")

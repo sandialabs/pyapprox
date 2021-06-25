@@ -1,5 +1,7 @@
 from functools import partial
 
+from warnings import warn
+
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
@@ -41,7 +43,7 @@ def sub2ind(sizes, multi_index):
 
     Parameters
     ----------
-    sizes : integer 
+    sizes : integer
         The number of elems in each dimension. For a 2D index
         sizes = [numRows, numCols]
 
@@ -50,7 +52,7 @@ def sub2ind(sizes, multi_index):
 
     Returns
     -------
-    scalar_index : integer 
+    scalar_index : integer
         The scalar index
 
     See Also
@@ -1782,7 +1784,8 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
 
 def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         integrand, lb, ub, nquad_samples, atol=1e-8, rtol=1e-8,
-        interval_size=2, max_steps=1000, verbose=0, adaptive=True):
+        interval_size=2, max_steps=1000, verbose=0, adaptive=True,
+        soft_error=False):
     """
     Compute unbounded integrals by moving left and right from origin.
     Assume that integral decays towards +/- infinity. And that once integral
@@ -1819,10 +1822,15 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         plb -= interval_size
         step += 1
         if verbose > 1:
-            print('Left', step, result, partial_result, plb, pub, interval_size)
+            print('Left', step, result, partial_result, plb, pub,
+                  interval_size)
         if verbose > 0:
             if step >= max_steps:
-                print('Early termination when computing left integral')
+                msg = 'Early termination when computing left integral'
+                if soft_error is True:
+                    warn(msg, UserWarning)
+                else:
+                    raise RuntimeError(msg)
             if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
                 msg = f'Tolerance {atol} {rtol} for left integral reached in '
                 msg += f'{step} iterations'
@@ -1842,15 +1850,20 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         pub += interval_size
         step += 1
         if verbose > 1:
-            print('Right', step, result, partial_result, plb, pub, interval_size)
+            print('Right', step, result, partial_result, plb, pub,
+                  interval_size)
         if verbose > 0:
             if step >= max_steps:
-                print('Early termination when computing right integral')
+                msg = 'Early termination when computing right integral'
+                if soft_error is True:
+                    warn(msg, UserWarning)
+                else:
+                    raise RuntimeError(msg)
             if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
                 msg = f'Tolerance {atol} {rtol} for right integral reached in '
                 msg += f'{step} iterations'
                 print(msg)
-        #print(partial_result, plb, pub)
+        # print(partial_result, plb, pub)
 
     return result
 

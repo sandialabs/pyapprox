@@ -12,7 +12,7 @@ from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
     predictor_corrector_function_of_independent_variables, \
     arbitrary_polynomial_chaos_recursion_coefficients, \
     predictor_corrector_product_of_functions_of_independent_variables, \
-    ortho_polynomial_grammian_bounded_continuous_variable
+    ortho_polynomial_grammian_bounded_continuous_variable, native_recursion_integrate_fun
 from pyapprox.univariate_polynomials.recursion_factory import \
     predictor_corrector_known_pdf
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
@@ -23,6 +23,8 @@ from pyapprox.univariate_polynomials.orthonormal_recursions import \
 from pyapprox.univariate_polynomials.quadrature import \
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D
 from pyapprox.variables import float_rv_discrete, transform_scale_parameters
+from pyapprox.utilities import \
+    integrate_using_univariate_gauss_legendre_quadrature_unbounded
 
 
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
@@ -172,9 +174,10 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_predictor_corrector_known_pdf(self):
-        nterms = 5
-        quad_options = {'epsrel': 1e-12, 'epsabs': 1e-12, "limlst": 10,
-                        "limit": 100}
+        nterms = 12
+        tol = 1e-12
+        quad_options = {'epsrel': tol, 'epsabs': tol, "limlst": 10,
+                        "limit": 1000}
 
         rv = stats.beta(1, 1, -1, 2)
         ab = predictor_corrector_known_pdf(
@@ -201,13 +204,23 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         # beta = std*np.sqrt(6)/np.pi
         # mu = mean - beta*np.euler_gamma
         # rv = stats.gumbel_r(loc=mu, scale=beta)
+        custom_integrate_fun = native_recursion_integrate_fun
+        interval_size = abs(np.diff(rv.interval(0.99)))
+        integrate_fun = partial(custom_integrate_fun, interval_size)
+        quad_opts = {"integrate_fun": integrate_fun}
+        # quad_opts = {}
+        opts = {"numeric": True, "quad_options": quad_opts}
+
         loc, scale = transform_scale_parameters(rv)
         ab = predictor_corrector_known_pdf(
-            nterms, 0, np.inf, lambda x: rv.pdf(x*scale+loc)*scale,
-            {"quad_options": quad_options})
+            nterms, 0, np.inf, lambda x: rv.pdf(x*scale+loc)*scale, opts)
+        for ii in range(1, nterms):
+            assert np.all(gauss_quadrature(ab, ii)[0] > 0)
         gram_mat = ortho_polynomial_grammian_bounded_continuous_variable(
-            rv, ab, nterms-1, tol=1e-8)
-        assert np.absolute(gram_mat-np.eye(nterms)).max() < 2e-4
+            rv, ab, nterms-1, tol=tol, integrate_fun=integrate_fun)
+        # print(gram_mat-np.eye(gram_mat.shape[0]))
+        # print(np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max())
+        assert np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max() < 5e-10
 
     def test_predictor_corrector_function_of_independent_variables(self):
         """

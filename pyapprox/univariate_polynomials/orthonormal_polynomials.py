@@ -6,6 +6,9 @@ import numpy as np
 
 
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
+    if nmax > ab.shape[0]:
+        raise ValueError("Too many terms requested")
+
     try:
         # necessary when discrete variables are define on integers
         x = np.asarray(x, dtype=float)
@@ -20,6 +23,9 @@ def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
 
 
 def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
+    if nmax > ab.shape[0]:
+        raise ValueError("Too many terms requested")
+
     # filter out cython warnings.
     import warnings
     warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
@@ -199,19 +205,21 @@ def gauss_quadrature(recursion_coeffs, N):
     w : np.ndarray (N)
        The quadrature weights
     """
-    assert N > 0
-    assert N <= recursion_coeffs.shape[0]
-    assert recursion_coeffs.shape[1] == 2
+    if N > recursion_coeffs.shape[0]:
+        raise ValueError("Too many terms requested")
 
     a = recursion_coeffs[:, 0]
     b = recursion_coeffs[:, 1]
 
     # Form Jacobi matrix
     J = np.diag(a[:N], 0)+np.diag(b[1:N], 1)+np.diag(b[1:N], -1)
-    x, __ = np.linalg.eigh(J)
+    x, eigvecs = np.linalg.eigh(J)
 
-    w = evaluate_orthonormal_polynomial_1d(x, N-1, recursion_coeffs)
-    w = 1./np.sum(w**2, axis=1)
+    w = b[0]*eigvecs[0, :]**2
+
+    # w = evaluate_orthonormal_polynomial_1d(x, N-1, recursion_coeffs)
+    # w = 1./np.sum(w**2, axis=1)
+
     w[~np.isfinite(w)] = 0.
     return x, w
 

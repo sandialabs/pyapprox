@@ -635,7 +635,7 @@ def get_christoffel_leja_sequence_1d(
             # stop x getting to big. This could effect any variable
             # that is not normalized appropriately
             bounds = Bounds([lb], [ub])
-            # print(jj, bounds)
+             #print(jj, bounds)
             res = pyapprox_minimize(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=options, method='slsqp')

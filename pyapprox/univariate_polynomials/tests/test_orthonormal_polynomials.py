@@ -159,6 +159,10 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
             else:
                 assert np.allclose(np.dot(x**ii, w), 0.)
 
+        x_np, w_np = np.polynomial.legendre.leggauss(degree+1)
+        assert np.allclose(x_np, x)
+        assert np.allclose(w_np/2, w)
+
         degree = 4
         alpha = 4.
         beta = 1.
@@ -178,6 +182,11 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         x, w = gauss_quadrature(ab, degree+1)
         from scipy.special import factorial2
         assert np.allclose(np.dot(x**degree, w), factorial2(degree-1))
+
+        x_sp, w_sp = sp.roots_hermitenorm(degree+1)
+        w_sp /= np.sqrt(2*np.pi)
+        assert np.allclose(x_sp, x)
+        assert np.allclose(w_sp, w)
 
     def test_krawtchouk_binomial(self):
         degree = 4

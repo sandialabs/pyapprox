@@ -8,7 +8,8 @@ def is_continuous_variable(rv):
     return bool((rv.dist.name in _continuous_distns._distn_names) or
                 rv.dist.name == "continuous_rv_sample" or
                 rv.dist.name == "continuous_monomial" or
-                rv.dist.name == "rv_function_indpndt_vars")
+                rv.dist.name == "rv_function_indpndt_vars" or
+                rv.dist.name == "rv_product_indpndt_vars")
 
 
 def is_bounded_continuous_variable(rv):
