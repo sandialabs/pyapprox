@@ -798,8 +798,21 @@ def get_variable_plot_interval(var):
     return var.interval(.99)
 
 
+def plot_1d_cross_section(fun, var, var_idx, nominal_sample, nsamples_1d,
+                          ax, qoi, plt_kwargs):
+    lb, ub = get_variable_plot_interval(var)
+    samples = np.tile(nominal_sample, (1, nsamples_1d))
+    samples[var_idx, :] = np.linspace(lb, ub, nsamples_1d)
+    values = fun(samples)
+    ax.plot(samples[var_idx, :], values[:, qoi], **plt_kwargs)
+
+
 def plot_1d_cross_sections(fun, variable, nominal_sample=None,
                            nsamples_1d=100, subplot_tuple=None, qoi=0):
+    """
+    nreps = 1 for deterministic function nreps > 1 only for stochastic
+    functions
+    """
     if nominal_sample is None:
         nominal_sample = variable.get_statistics("mean")
 
@@ -816,18 +829,16 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
     axs = axs.flatten()
     all_variables = variable.all_variables()
     for ii, var in enumerate(all_variables):
-        lb, ub = get_variable_plot_interval(var)
-        samples = np.tile(nominal_sample, (1, nsamples_1d))
-        samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
-        values = fun(samples)
-        axs[ii].plot(samples[ii, :], values[:, qoi])
+        axs[ii].set_title(r"$Z_{%d}$" % (ii+1))
+        plot_1d_cross_section(
+            fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi)
+
     return fig, axs
 
 
 def plot_2d_cross_sections(fun, variable, nominal_sample=None,
                            nsamples_1d=100, variable_pairs=None,
                            subplot_tuple=None, qoi=0, num_contour_levels=20):
-    from pyapprox.indexing import compute_anova_level_indices
 
     if nominal_sample is None:
         nominal_sample = variable.get_statistics("mean")
@@ -864,7 +875,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
 
     for ii, pair in enumerate(variable_pairs):
         var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
-        print(pair)
+        # print(pair)
         axs[pair[1], pair[0]].axis("off")
         lb1, ub1 = get_variable_plot_interval(var1)
         lb2, ub2 = get_variable_plot_interval(var2)
