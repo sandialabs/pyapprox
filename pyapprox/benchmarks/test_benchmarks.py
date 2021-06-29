@@ -4,7 +4,9 @@ import unittest
 import numpy as np
 
 import pyapprox as pya
-from pyapprox.benchmarks.benchmarks import *
+from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.benchmarks.surrogate_benchmarks import \
+    wing_weight_function, wing_weight_gradient, get_wing_weight_variables
 
 
 class TestBenchmarks(unittest.TestCase):
@@ -38,9 +40,6 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_incorrect_benchmark_name(self):
         self.assertRaises(Exception, setup_benchmark, "missing", a=7, b=0.1)
-        benchmark = Benchmark(
-            {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
-             'hessp': rosenbrock_function_hessian_prod})
 
     def test_cantilever_beam_gradients(self):
         benchmark = setup_benchmark('cantilever_beam')
@@ -91,6 +90,15 @@ class TestBenchmarks(unittest.TestCase):
             lambda x: constraint_fun(x).flatten(order='F'), constraint_jac,
             init_guess, disp=True)
         assert errors.min() < 4e-7
+
+    def test_wing_weight_gradient(self):
+        variable = get_wing_weight_variables()
+        fun = wing_weight_function
+        grad = wing_weight_gradient
+        sample = pya.generate_independent_random_samples(variable, 1)
+        errors = pya.check_gradients(fun, grad, sample)
+        errors = errors[np.isfinite(errors)]
+        assert errors.max() > 0.1 and errors.min() <= 6e-7
 
 
 if __name__ == "__main__":

@@ -1,14 +1,20 @@
-#!/usr/bin/env python
-import sys
-
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import stats
 from functools import partial
 
 import pyapprox as pya
-from pyapprox.benchmarks.sensitivity_benchmarks import *
-from pyapprox.benchmarks.surrogate_benchmarks import *
+from pyapprox.benchmarks.sensitivity_benchmarks import \
+    get_sobol_g_function_statistics, get_ishigami_funciton_statistics, \
+    oakley_function, oakley_function_statistics, sobol_g_function, \
+    ishigami_function, ishigami_function_jacobian, ishigami_function_hessian
+from pyapprox.benchmarks.surrogate_benchmarks import rosenbrock_function, \
+    rosenbrock_function_jacobian, rosenbrock_function_hessian_prod, \
+    rosenbrock_function_mean, cantilever_beam_constraints_jacobian, \
+    cantilever_beam_constraints, cantilever_beam_objective, \
+    cantilever_beam_objective_grad, define_beam_random_variables, \
+    define_piston_random_variables, piston_function, \
+    define_wing_weight_random_variables, wing_weight_function, \
+    wing_weight_gradient
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
 
@@ -35,7 +41,7 @@ class Benchmark(OptimizeResult):
         The Hessian of fun. (optional)
 
     hessp : callable
-        Function implementing the hessian of fun multiplied by a vector. 
+        Function implementing the hessian of fun multiplied by a vector.
         (optional)
 
     mean: np.ndarray (nvars)
@@ -55,7 +61,7 @@ class Benchmark(OptimizeResult):
 
     Notes
     -----
-    Use the `keys()` method to see a list of the available 
+    Use the `keys()` method to see a list of the available
     attributes for a specific benchmark
     """
     pass
@@ -63,11 +69,11 @@ class Benchmark(OptimizeResult):
 
 def setup_sobol_g_function(nvars):
     r"""
-    Setup the Sobol-G function benchmark 
+    Setup the Sobol-G function benchmark
 
     .. math:: f(z) = \prod_{i=1}^d\frac{\lvert 4z_i-2\rvert+a_i}{1+a_i}, \quad a_i=\frac{i-2}{2}
 
-    using 
+    using
 
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('sobol_g',nvars=2)
@@ -102,11 +108,11 @@ def setup_sobol_g_function(nvars):
 
 def setup_ishigami_function(a, b):
     r"""
-    Setup the Ishigami function benchmark 
+    Setup the Ishigami function benchmark
 
     .. math:: f(z) = \sin(z_1)+a\sin^2(z_2) + bz_3^4\sin(z_0)
 
-    using 
+    using
 
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
     >>> benchmark=setup_benchmark('ishigami',a=7,b=0.1)
@@ -146,7 +152,7 @@ def setup_ishigami_function(a, b):
 
 def setup_oakley_function():
     r"""
-    Setup the Oakely function benchmark 
+    Setup the Oakely function benchmark
 
     .. math:: f(z) = a_1^Tz + a_2^T\sin(z) + a_3^T\cos(z) + z^TMz
 
@@ -177,11 +183,11 @@ def setup_oakley_function():
 
 def setup_rosenbrock_function(nvars):
     r"""
-    Setup the Rosenbrock function benchmark 
+    Setup the Rosenbrock function benchmark
 
     .. math:: f(z) = \sum_{i=1}^{d/2}\left[100(z_{2i-1}^{2}-z_{2i})^{2}+(z_{2i-1}-1)^{2}\right]
 
-    This benchmark can also be used to test Bayesian inference methods. 
+    This benchmark can also be used to test Bayesian inference methods.
     Specifically this benchmarks returns the log likelihood
 
     .. math:: l(z) = -f(z)
@@ -190,8 +196,8 @@ def setup_rosenbrock_function(nvars):
 
     .. math:: \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
-    where the prior is the tensor product of :math:`d` independent and 
-    identically distributed uniform variables on :math:`[-2,2]`, i.e. 
+    where the prior is the tensor product of :math:`d` independent and
+    identically distributed uniform variables on :math:`[-2,2]`, i.e.
     :math:`\pi(\rv)=\frac{1}{4^d}`, and the likelihood is given by
 
     .. math:: \pi(\V{y}|\rv)=\exp\left(l(\rv)\right)
@@ -208,7 +214,7 @@ def setup_rosenbrock_function(nvars):
 
     fun : callable
 
-        The rosenbrock with signature
+        The rosenbrock function with signature
 
         ``fun(z) -> np.ndarray``
 
@@ -228,21 +234,22 @@ def setup_rosenbrock_function(nvars):
 
         ``hessp(z, p) ->  ndarray shape (nvars,1)``
 
-        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an 
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an
         arbitraty vector with shape (nvars,1)
 
     variable : pya.IndependentMultivariateRandomVariable
         Object containing information of the joint density of the inputs z
-        which is the tensor product of independent and identically distributed 
+        which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-2,2]`.
 
     mean : float
-        The mean of the rosenbrock function with respect to the pdf of variable.
+        The mean of the rosenbrock function with respect to the pdf of
+        variable.
 
     loglike : callable
         The log likelihood of the Bayesian inference problem for inferring z
-        given the uniform prior specified by variable and the negative 
-        log likelihood given by the Rosenbrock function. loglike has the 
+        given the uniform prior specified by variable and the negative
+        log likelihood given by the Rosenbrock function. loglike has the
         signature
 
         ``loglike(z) -> np.ndarray``
@@ -285,7 +292,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     r"""
     Setup the Genz Benchmarks.
 
-    For example, the two-dimensional oscillatory Genz problem can be defined 
+    For example, the two-dimensional oscillatory Genz problem can be defined
     using
 
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
@@ -305,8 +312,8 @@ def setup_genz_function(nvars, test_name, coefficients=None):
 
     coefficients : tuple (ndarray (nvars), ndarray (nvars))
         The coefficients :math:`c_i` and :math:`w_i`
-        If None (default) then 
-        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where 
+        If None (default) then
+        :math:`c_j = \hat{c}_j\left(\sum_{i=1}^d \hat{c}_i\right)^{-1}` where
         :math:`\hat{c}_i=(10^{-15\left(\frac{i}{d}\right)^2)})`
 
     Returns
@@ -327,7 +334,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
 
     Oscillatory ('oscillatory')
 
-    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right) 
+    .. math:: f(z) = \cos\left(2\pi w_1 + \sum_{i=1}^d c_iz_i\right)
 
     Gaussian Peak ('gaussian-peak')
 
@@ -356,7 +363,6 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     attributes = {'fun': genz, 'mean': genz.integrate(), 'variable': variable}
     if test_name == 'corner-peak':
         attributes['variance'] = genz.variance()
-        from scipy.optimize import OptimizeResult
     return Benchmark(attributes)
 
 
@@ -375,7 +381,9 @@ def setup_benchmark(name, **kwargs):
                   'oakley': setup_oakley_function,
                   'rosenbrock': setup_rosenbrock_function,
                   'genz': setup_genz_function,
-                  'cantilever_beam': setup_cantilever_beam_benchmark}
+                  'cantilever_beam': setup_cantilever_beam_benchmark,
+                  'wing_weight': setup_wing_weight_benchmark,
+                  'piston': setup_piston_benchmark}
     if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -407,4 +415,82 @@ def setup_cantilever_beam_benchmark():
                   'variable': variable,
                   'design_variable': design_variable,
                   'design_var_indices': np.array([4, 5])}
+    return Benchmark(attributes)
+
+
+def setup_piston_benchmark():
+    r"""
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The piston model with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables`.
+
+    References
+    ----------
+    .. [Moon2012] `Moon, H., Dean, A. M., & Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387. <https://doi.org/10.1080/00401706.2012.725994>`_
+    """
+    variable = define_piston_random_variables()
+    attributes = {'fun': piston_function,
+                  'variable': variable}
+    return Benchmark(attributes)
+
+
+def setup_wing_weight_benchmark():
+    r"""
+    Setup the wing weight model benchmark.
+
+    The model is given by
+
+
+    ::math f(x) = 0.036\; S_w^{0.758}W_{fw}^{0.0035}\left(\frac{A}{\cos^2(\Lambda)}\right)^{0.6}q^{0.006}\lambda^{0.04}\left(\frac{100t_c}{\cos(\Lambda)}\right)^{-0.3}(N_zW_{dg})^{0.49}+S_wW_p,
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The wing weight model with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
+
+    jac : callable
+        The jacobian of ``fun`` with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nvars,1)
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables`.
+
+    References
+    ----------
+    .. [Moon2012] `Moon, H., Dean, A. M., & Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387. <https://doi.org/10.1080/00401706.2012.725994>`_
+    """
+    variable = define_wing_weight_random_variables()
+    attributes = {'fun': wing_weight_function,
+                  'variable': variable,
+                  'jac':  wing_weight_gradient}
     return Benchmark(attributes)

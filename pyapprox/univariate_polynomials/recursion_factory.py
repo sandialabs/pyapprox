@@ -11,7 +11,7 @@ from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
 from pyapprox.variables import get_distribution_info, is_continuous_variable, \
     transform_scale_parameters, is_bounded_continuous_variable, \
-    is_bounded_discrete_variable, get_probability_masses
+    is_bounded_discrete_variable, get_probability_masses, get_pdf
 
 
 # There is a one-to-one correspondence in these two lists
@@ -129,11 +129,17 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
     if var_name == "continuous_monomial":
         return None
 
+    loc, scale = transform_scale_parameters(var)
+
     if var_name == "rv_function_indpndt_vars":
+        shapes["loc"] = loc
+        shapes["scale"] = scale
         return get_function_independent_vars_recursion_coefficients(
             shapes, num_coefs)
 
     if var_name == "rv_product_indpndt_vars":
+        shapes["loc"] = loc
+        shapes["scale"] = scale
         return get_product_independent_vars_recursion_coefficients(
             shapes, num_coefs)
 
@@ -141,7 +147,6 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
             opts.get("numeric", False) is False):
         return get_askey_recursion_coefficients_from_variable(var, num_coefs)
 
-    loc, scale = transform_scale_parameters(var)
     orthonormality_tol = opts.get("orthonormality_tol", 1e-8)
     truncated_probability_tol = opts.get("truncated_probability_tol", 0)
     if (not is_continuous_variable(var)):
@@ -159,11 +164,15 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
     # domain of pdf
     lb, ub = var.interval(1)
 
+    # Get version var.pdf without error checking which runs much faster
+    pdf = get_pdf(var)
+
     def canonical_pdf(x):
         # print(x, lb, ub, x*scale+loc)
         # print(var.pdf(x*scale+loc)*scale)
-        assert np.all(x*scale+loc >= lb) and np.all(x*scale+loc <= ub)
-        return var.pdf(x*scale+loc)*scale
+        # assert np.all(x*scale+loc >= lb) and np.all(x*scale+loc <= ub)
+        return pdf(x*scale+loc)*scale
+        # return var.pdf(x*scale+loc)*scale
 
     if (is_bounded_continuous_variable(var) or
             is_bounded_discrete_variable(var)):

@@ -1,6 +1,7 @@
 import numpy as np
 from pyapprox.utilities import cartesian_product, hash_array
 from numba import njit
+from itertools import combinations, combinations_with_replacement
 
 
 def get_total_degree(num_dims, num_pts):
@@ -429,3 +430,44 @@ def get_upper_triangular_matrix_indices(kk, nn):
     ii = nn - 2 - np.floor(np.sqrt(-8*kk + 4*nn*(nn-1)-7)/2.0 - 0.5)
     jj = kk + ii + 1 - nn*(nn-1)/2 + (nn-ii)*((nn-ii)-1)/2
     return int(ii), int(jj)
+
+
+def compute_anova_level_indices(num_vars, degree):
+    if degree > num_vars:
+        raise ValueError(f"degree {degree }is larger than num_vars {num_vars}")
+    return list(combinations(np.arange(num_vars), degree))
+
+
+def compute_anova_indices(num_vars, degree):
+    indices = []
+    for dd in range(degree+1):
+        indices += compute_anova_level_indices(num_vars, dd)
+    return indices
+
+
+def unique_values_per_row(a):
+    N = a.max()+1
+    a_offs = a + np.arange(a.shape[0])[:, None]*N
+    return np.bincount(a_offs.ravel(), minlength=a.shape[0]*N).reshape(-1, N)
+
+
+def compute_hyperbolic_level_indices_itertools(num_vars, degree, p):
+    eps = 100 * np.finfo(np.double).eps
+    if degree == 0:
+        return np.zeros((num_vars, 1))
+    tmp = np.array(
+        list(combinations_with_replacement(np.arange(num_vars), degree)))
+    # count number of times each element appears in tmp1
+    indices = unique_values_per_row(tmp).T
+    p_norms = np.sum(indices**p, axis=0)**(1.0/p)
+    II = np.where(p_norms <= degree+eps)[0]
+    return indices[:, II]
+
+
+def compute_hyperbolic_indices_itertools(num_vars, degree, p):
+    indices = np.empty((num_vars, 0), dtype=int)
+    for dd in range(degree+1):
+        new_indices = compute_hyperbolic_level_indices_itertools(
+            num_vars, dd, p)
+        indices = np.hstack((indices, new_indices))
+    return indices

@@ -182,21 +182,21 @@ class TestLeja1DSequences(unittest.TestCase):
         basis_fun = partial(
             evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
-        def callback(leja_sequence, coef, new_samples, obj_vals,
-                     initial_guesses):
-            degree = coef.shape[0]-1
+        # def callback(leja_sequence, coef, new_samples, obj_vals,
+        #              initial_guesses):
+        #     degree = coef.shape[0]-1
 
-            def plot_fun(x):
-                return -christoffel_leja_objective_fun_1d(
-                    partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
-                    x[None, :])
-            # xx = np.linspace(-1, 1, 101)
-            # plt.plot(xx, plot_fun(xx))
-            # plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
-            # plt.plot(new_samples[0, :], obj_vals, 's')
-            # plt.plot(
-            #     initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
-            # plt.show()
+        #     def plot_fun(x):
+        #         return -christoffel_leja_objective_fun_1d(
+        #             partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+        #             x[None, :])
+        #     xx = np.linspace(-1, 1, 101)
+        #     plt.plot(xx, plot_fun(xx))
+        #     plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
+        #     plt.plot(new_samples[0, :], obj_vals, 's')
+        #     plt.plot(
+        #         initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
+        #     plt.show()
 
         leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-1, 1], basis_fun,
@@ -222,34 +222,34 @@ class TestLeja1DSequences(unittest.TestCase):
         basis_fun = partial(
             evaluate_orthonormal_polynomial_deriv_1d, ab=ab)
 
-        plot_degree = np.inf  # max_nsamples-1
+        # plot_degree = np.inf  # max_nsamples-1
         # assert plot_degree < max_nsamples
 
-        def callback(leja_sequence, coef, new_samples, obj_vals,
-                     initial_guesses):
-            degree = coef.shape[0]-1
-            new_basis_degree = degree+1
-            if new_basis_degree != plot_degree:
-                return
-            # plt.clf()
+        # def callback(leja_sequence, coef, new_samples, obj_vals,
+        #              initial_guesses):
+        #     degree = coef.shape[0]-1
+        #     new_basis_degree = degree+1
+        #     if new_basis_degree != plot_degree:
+        #         return
+        #     plt.clf()
 
-            # def plot_fun(x):
-            #     return -christoffel_leja_objective_fun_1d(
-            #         partial(basis_fun, nmax=new_basis_degree, deriv_order=0),
-            #         coef, x[None, :])
-            # xx = np.linspace(-20, 20, 1001)
-            # plt.plot(xx, plot_fun(xx))
-            # plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
-            # I = np.argmin(obj_vals)
-            # plt.plot(new_samples[0, I], obj_vals[I], 's')
-            # plt.plot(
-            #     initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
-            # #plt.xlim(-10, 10)
-            # print('s', new_samples[0], obj_vals)
+        #     def plot_fun(x):
+        #         return -christoffel_leja_objective_fun_1d(
+        #             partial(basis_fun, nmax=new_basis_degree, deriv_order=0),
+        #             coef, x[None, :])
+        #     xx = np.linspace(-20, 20, 1001)
+        #     plt.plot(xx, plot_fun(xx))
+        #     plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
+        #     I = np.argmin(obj_vals)
+        #     plt.plot(new_samples[0, I], obj_vals[I], 's')
+        #     plt.plot(
+        #         initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
+        #     #plt.xlim(-10, 10)
+        #     print('s', new_samples[0], obj_vals)
 
         leja_sequence = get_christoffel_leja_sequence_1d(
             max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,
-            {'gtol': 1e-8, 'verbose': False, 'iprint': 2}, callback)
+            {'gtol': 1e-8, 'verbose': False, 'iprint': 2}, callback=None)
 
         # compare to lu based leja samples
         # given the same set of initial samples the next sample chosen
@@ -326,22 +326,22 @@ class TestLeja1DSequences(unittest.TestCase):
         pdf = partial(gaussian_pdf, 0, 1)
         pdf_jac = partial(gaussian_pdf_derivative, 0, 1)
 
-        def callback(leja_sequence, coef, new_samples, obj_vals,
-                     initial_guesses):
-            degree = coef.shape[0]-1
+        # def callback(leja_sequence, coef, new_samples, obj_vals,
+        #              initial_guesses):
+        #     degree = coef.shape[0]-1
 
-            def plot_fun(x):
-                return -pdf_weighted_leja_objective_fun_1d(
-                    pdf, partial(basis_fun, nmax=degree +
-                                 1, deriv_order=0), coef,
-                    x[None, :])
-            # xx = np.linspace(-10, 10, 101)
-            # plt.plot(xx, plot_fun(xx))
-            # plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
-            # plt.plot(new_samples[0, :], obj_vals, 's')
-            # plt.plot(
-            #     initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
-            # plt.show()
+        #     def plot_fun(x):
+        #         return -pdf_weighted_leja_objective_fun_1d(
+        #             pdf, partial(basis_fun, nmax=degree +
+        #                          1, deriv_order=0), coef,
+        #             x[None, :])
+        #     xx = np.linspace(-10, 10, 101)
+        #     plt.plot(xx, plot_fun(xx))
+        #     plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o')
+        #     plt.plot(new_samples[0, :], obj_vals, 's')
+        #     plt.plot(
+        #         initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*')
+        #     plt.show()
 
         leja_sequence = get_pdf_weighted_leja_sequence_1d(
             max_nsamples, initial_points, [-np.inf, np.inf], basis_fun,

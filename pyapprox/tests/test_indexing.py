@@ -5,7 +5,8 @@ from pyapprox.indexing import compute_hyperbolic_indices, \
     argsort_indices_leixographically, compute_downward_closed_indices, \
     get_upper_triangular_matrix_scalar_index, sort_indices_lexiographically, \
     total_degree_admissibility_criteria, pnorm_admissibility_criteria, \
-    anisotropic_admissibility_criteria, compute_anisotropic_indices
+    anisotropic_admissibility_criteria, compute_anisotropic_indices, \
+    compute_hyperbolic_indices_itertools
 from functools import partial
 from scipy.special import binom
 
@@ -25,6 +26,18 @@ class TestIndexing(unittest.TestCase):
         level = 3
         p = 0.5
         indices = compute_hyperbolic_indices(num_vars, level, p)
+        assert np.all(np.sum(indices**p, axis=0)**(1.0/float(p)) <= level)
+
+        num_vars = 3
+        level = 3
+        p = 1.0
+        indices = compute_hyperbolic_indices_itertools(num_vars, level, p)
+        assert indices.shape[1] == nchoosek(num_vars+level, num_vars)
+
+        num_vars = 4
+        level = 3
+        p = 0.5
+        indices = compute_hyperbolic_indices_itertools(num_vars, level, p)
         assert np.all(np.sum(indices**p, axis=0)**(1.0/float(p)) <= level)
 
     def test_set_difference_1d_array(self):

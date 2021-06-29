@@ -509,17 +509,21 @@ def predictor_corrector_function_of_independent_variables(
 
 
 def predictor_corrector_product_of_functions_of_independent_variables(
-        nterms, univariate_quad_rules, funs):
+        nterms, univariate_quad_rules, funs, loc=0, scale=1):
     nvars = len(univariate_quad_rules)
     assert len(funs) == nvars
     ab = predictor_corrector_function_of_independent_variables(
         nterms, univariate_quad_rules[:2],
         lambda x: funs[0](x[0, :])*funs[1](x[1, :]))
+
+    ll, ss = 0, 1
     for ii in range(2, nvars):
         x, w = gauss_quadrature(ab, nterms)
+        if ii == nvars-1:
+            ll, ss = loc, scale
         ab = predictor_corrector_function_of_independent_variables(
             nterms, [(x, w), univariate_quad_rules[ii]],
-            lambda x: x[0, :]*funs[ii](x[1, :]))
+            lambda x: (x[0, :]*funs[ii](x[1, :])-ll)/ss)
     return ab
 
 
@@ -591,9 +595,14 @@ def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
     """
     fun = opts['fun']
     quad_rules = opts['quad_rules']
+    loc, scale = opts.get("loc", 0), opts.get("scale", 1)
+
+    def scaled_fun(x):
+        return (fun(x)-loc)/scale
+
     recursion_coeffs = \
         predictor_corrector_function_of_independent_variables(
-            num_coefs, quad_rules, fun)
+            num_coefs, quad_rules, scaled_fun)
     return recursion_coeffs
 
 
@@ -645,9 +654,10 @@ def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
     """
     funs = opts['funs']
     quad_rules = opts['quad_rules']
+    loc, scale = opts.get("loc", 0), opts.get("scale", 1)
     recursion_coeffs = \
         predictor_corrector_product_of_functions_of_independent_variables(
-            num_coefs, quad_rules, funs)
+            num_coefs, quad_rules, funs, loc=loc, scale=scale)
     return recursion_coeffs
 
 
@@ -701,12 +711,13 @@ def ortho_polynomial_grammian_bounded_continuous_variable(
 
 def native_recursion_integrate_fun(
         interval_size, lb, ub, integrand, verbose=0, nquad_samples=50,
-        max_steps=1000):
+        max_steps=1000, tabulated_quad_rules=None, atol=1e-8, rtol=1e-8):
     # this funciton works well for smooth unbounded variables
     # but scipy.integrate.quad works well for non smooth
     # variables
     val = \
         integrate_using_univariate_gauss_legendre_quadrature_unbounded(
             integrand, lb, ub, nquad_samples, interval_size=interval_size,
-            verbose=verbose, max_steps=max_steps)
+            verbose=verbose, max_steps=max_steps, atol=atol, rtol=rtol, 
+            tabulated_quad_rules=tabulated_quad_rules)
     return val

@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 from scipy import stats
 from functools import partial
+from numpy.polynomial.legendre import leggauss
 
 from pyapprox.variables import get_probability_masses, float_rv_discrete,\
     transform_scale_parameters
@@ -172,9 +173,14 @@ class TestRecursionFactory(unittest.TestCase):
                 quad_opts = {"epsrel": tol, "epsabs": tol, "limit": 100}
                 integrate_fun = None
             else:
+                tabulated_quad_rules = {}
+                for nquad_samples in [100, 200, 400]:
+                    tabulated_quad_rules[nquad_samples] = leggauss(
+                        nquad_samples)
                 interval_size = abs(np.diff(var.interval(0.99)))
                 integrate_fun = partial(
-                    native_recursion_integrate_fun, interval_size)
+                    native_recursion_integrate_fun, interval_size,
+                    tabulated_quad_rules=tabulated_quad_rules)
                 quad_opts = {"integrate_fun": integrate_fun}
             opts = {"numeric": True, "quad_options": quad_opts}
             ab = get_recursion_coefficients_from_variable(var, degree+1, opts)
@@ -189,6 +195,7 @@ class TestRecursionFactory(unittest.TestCase):
             # import matplotlib.pyplot as plt
             # plt.semilogy(xx, var.pdf(xx))
             # plt.show()
+
 
 if __name__ == "__main__":
     recursion_factory_test_suite = \

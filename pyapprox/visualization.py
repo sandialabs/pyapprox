@@ -2,13 +2,13 @@ import numpy as np
 import subprocess
 from scipy.spatial import ConvexHull
 import os
-from mpl_toolkits.mplot3d import Axes3D
-from pyapprox.indexing import hash_array, compute_hyperbolic_level_indices
-import shutil
+from pyapprox.indexing import hash_array, compute_hyperbolic_level_indices, \
+    compute_anova_level_indices
 from pyapprox.configure_plots import *
 
 
-def convert_plot_to_tikz(tikz_file, tikz_dir, show=False, remove_all_files=True):
+def convert_plot_to_tikz(tikz_file, tikz_dir, show=False,
+                         remove_all_files=True):
     import sys
     import matplotlib2tikz as pylab2tikz
 
@@ -786,3 +786,101 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
             texts.append(text)
 
     return texts
+
+
+def get_variable_plot_interval(var):
+    from pyapprox import is_bounded_continuous_variable, \
+        is_bounded_discrete_variable
+    if (is_bounded_continuous_variable(var) or
+            is_bounded_discrete_variable(var)):
+        return var.interval(1)
+
+    return var.interval(.99)
+
+
+def plot_1d_cross_sections(fun, variable, nominal_sample=None,
+                           nsamples_1d=100, subplot_tuple=None, qoi=0):
+    if nominal_sample is None:
+        nominal_sample = variable.get_statistics("mean")
+
+    if subplot_tuple is None:
+        nfig_rows, nfig_cols = 1, variable.num_vars()
+    else:
+        nfig_rows, nfig_cols = subplot_tuple
+
+    if nfig_rows*nfig_cols < variable.num_vars():
+        raise ValueError("Number of subplots is insufficient")
+
+    fig, axs = plt.subplots(
+        nfig_rows, nfig_cols, figsize=(nfig_rows*8, nfig_cols*6))
+    axs = axs.flatten()
+    all_variables = variable.all_variables()
+    for ii, var in enumerate(all_variables):
+        lb, ub = get_variable_plot_interval(var)
+        samples = np.tile(nominal_sample, (1, nsamples_1d))
+        samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
+        values = fun(samples)
+        axs[ii].plot(samples[ii, :], values[:, qoi])
+    return fig, axs
+
+
+def plot_2d_cross_sections(fun, variable, nominal_sample=None,
+                           nsamples_1d=100, variable_pairs=None,
+                           subplot_tuple=None, qoi=0, num_contour_levels=20):
+    from pyapprox.indexing import compute_anova_level_indices
+
+    if nominal_sample is None:
+        nominal_sample = variable.get_statistics("mean")
+
+    if variable_pairs is None:
+        variable_pairs = np.array(
+            compute_anova_level_indices(variable.num_vars(), 2))
+        # make first column values vary fastest so we plot lower triangular
+        # matrix of subplots
+        variable_pairs[:, 0], variable_pairs[:, 1] = \
+            variable_pairs[:, 1].copy(), variable_pairs[:, 0].copy()
+
+    if variable_pairs.shape[1] != 2:
+        raise ValueError("Variable pairs has the wrong shape")
+
+    if subplot_tuple is None:
+        nfig_rows, nfig_cols = variable.num_vars(), variable.num_vars()
+    else:
+        nfig_rows, nfig_cols = subplot_tuple
+
+    if nfig_rows*nfig_cols < len(variable_pairs):
+        raise ValueError("Number of subplots is insufficient")
+
+    fig, axs = plt.subplots(
+        nfig_rows, nfig_cols, figsize=(nfig_rows*8, nfig_cols*6))
+    all_variables = variable.all_variables()
+
+    for ii, var in enumerate(all_variables):
+        lb, ub = get_variable_plot_interval(var)
+        samples = np.tile(nominal_sample, (1, nsamples_1d))
+        samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
+        values = fun(samples)
+        axs[ii][ii].plot(samples[ii, :], values[:, qoi])
+
+    for ii, pair in enumerate(variable_pairs):
+        var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
+        print(pair)
+        axs[pair[1], pair[0]].axis("off")
+        lb1, ub1 = get_variable_plot_interval(var1)
+        lb2, ub2 = get_variable_plot_interval(var2)
+        X, Y, samples_2d = get_meshgrid_samples(
+            [lb1, ub1, lb2, ub2], nsamples_1d)
+        samples = np.tile(nominal_sample, (1, samples_2d.shape[1]))
+        samples[[pair[0], pair[1]], :] = samples_2d
+        values = fun(samples)
+        Z = np.reshape(values, (X.shape[0], X.shape[1]))
+        ax = axs[pair[0]][pair[1]]
+        # place a text box in upper left in axes coords
+        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+        ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[0], pair[1]),
+                transform=ax.transAxes, fontsize=14,
+                verticalalignment='top', bbox=props)
+        ax.contourf(
+            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
+            cmap='jet')
+    return fig, axs

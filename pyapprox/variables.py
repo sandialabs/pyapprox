@@ -2,6 +2,7 @@ from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
 from scipy.stats import _continuous_distns
 from scipy.stats import _discrete_distns
 import numpy as np
+from functools import partial
 
 
 def is_continuous_variable(rv):
@@ -112,6 +113,25 @@ def get_distribution_info(rv):
         shapes = {"xk": xk, "pk": rv.dist.pk}
 
     return name, scales, shapes
+
+
+def scipy_raw_pdf(pdf, loc, scale, shapes, x):
+    return pdf((x - loc)/scale, **shapes)/scale
+
+
+def get_pdf(rv):
+    """
+    Return a version of rv.pdf that does not use all the error checking.
+    Use with caution. Does speed up calculation significantly though
+    """
+    name, scales, shapes = get_distribution_info(rv)
+
+    if name == "ncf":
+        raise ValueError("scipy implementation prevents generic wraping")
+
+    pdf = partial(
+        scipy_raw_pdf, rv.dist._pdf, scales['loc'], scales['scale'], shapes)
+    return pdf
 
 
 def transform_scale_parameters(var):
