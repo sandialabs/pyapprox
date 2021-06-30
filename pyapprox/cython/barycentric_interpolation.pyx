@@ -6,12 +6,13 @@ import numpy as np
 
 ctypedef np.double_t double_t
 ctypedef fused int_t:
-    cython.int
-    np.int_t
-    np.int32_t
-    np.int64_t
+    cython.integral
+    int
     long
     long long
+    np.int64_t
+    np.int32_t
+    np.int_t
 
 
 @cython.cdivision(True)     # Deactivate division by zero checking
@@ -65,7 +66,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
         Py_ssize_t num_act_dims = active_dims.shape[0]
 
         Py_ssize_t max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
-        int_t[:] multi_index = np.empty((num_act_dims), dtype=np.int_)
+        np.ndarray[np.int64_t] multi_index = np.empty((num_act_dims), dtype=np.int64)
 
         Py_ssize_t num_qoi = fn_vals.shape[1]
 
@@ -75,9 +76,8 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
     # Allocate persistent memory. Each point will fill in a varying amount
     # of entries. We use a view of this memory to stop reallocation for each
     # data point
-    cdef int_t[:] act_dims_pt_persistent = np.empty((num_act_dims), dtype=np.int_)
-    cdef int_t[:] act_dim_indices_pt_persistent = np.empty(
-        (num_act_dims),dtype=np.int_)
+    cdef np.ndarray[np.int64_t] act_dims_pt_persistent = np.empty((num_act_dims), dtype=np.int64)
+    cdef np.ndarray[np.int64_t] act_dim_indices_pt_persistent = np.empty((num_act_dims), dtype=np.int64)
 
     cdef:
         double[:,:] c_persistent=np.empty((num_qoi,num_act_dims),dtype=np.float64)
@@ -163,7 +163,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
                     for ii in range(num_active_abscissa_1d[act_dim_idx]):
                         fn_val_index+=shifts[act_dim_idx]*(ii-multi_index[act_dim_idx])
                         multi_index[act_dim_idx] = ii
-                        basis=bases[active_abscissa_indices_1d[act_dim_idx][ii],0]
+                        basis=bases[active_abscissa_indices_1d[act_dim_idx][ii], 0]
                         for mm in range(num_qoi):
                             c_persistent[mm,0] += basis * fn_vals[fn_val_index,mm]
 
@@ -177,7 +177,7 @@ cpdef multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
 
                         if (multi_index[act_dim_idx]<num_active_abscissa_1d[act_dim_idx]-1):
                             fn_val_index += shifts[act_dim_idx]
-                            multi_index[act_dim_idx] += 1
+                            multi_index[act_dim_idx] = multi_index[act_dim_idx] + 1
                             break
                         elif ( dd < num_act_dims_pt - 1 ):
                             fn_val_index-=shifts[act_dim_idx]*multi_index[act_dim_idx]
