@@ -534,16 +534,19 @@ def evaluate_sparse_grid_subspace(samples, subspace_index, subspace_values,
     barycentric_weights_1d = []
     for dd in range(num_active_sample_vars):
         active_idx = active_sample_vars[dd]
-        abscissa_1d.append(samples_1d[active_idx][subspace_index[active_idx]])
+        abscissa_1d.append(samples_1d[active_idx][subspace_index[active_idx]]) 
+        abscissa_dd = abscissa_1d[dd]
         interval_length = 2
-        if abscissa_1d[dd].shape[0] > 1:
-            interval_length = abscissa_1d[dd].max()-abscissa_1d[dd].min()
+        if abscissa_dd.shape[0] > 1:
+            interval_length = abscissa_dd.max() - abscissa_dd.min()
+
         barycentric_weights_1d.append(
             compute_barycentric_weights_1d(
-                abscissa_1d[dd], interval_length=interval_length))
+                abscissa_dd, interval_length=interval_length))
 
     if num_active_sample_vars == 0:
         return np.tile(subspace_values, (samples.shape[1], 1))
+
     poly_vals = multivariate_barycentric_lagrange_interpolation(
         samples, abscissa_1d, barycentric_weights_1d, subspace_values,
         active_sample_vars)
