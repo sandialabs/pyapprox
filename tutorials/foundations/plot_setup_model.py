@@ -115,7 +115,7 @@ print(worktracking_fun.work_tracker(fun_id))
 from pyapprox.examples.setup_model_functions import pyapprox_fun_2
 
 #%%
-#Now using :class:`pyapprox.control_variate_monte_carlo.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evalaute the second model at the remaining samples
+#Now using :class:`pyapprox.control_variate_monte_carlo.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples
 model_ensemble = ModelEnsemble([pyapprox_fun_1, pyapprox_fun_2])
 timer_fun_ensemble = TimerModelWrapper(model_ensemble)
 worktracking_fun_ensemble = WorkTrackingModel(
