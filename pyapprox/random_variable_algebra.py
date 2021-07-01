@@ -112,7 +112,10 @@ def invert_monotone_function(poly, bounds, zz, method='newton', tol=1e-12):
     fprime = None
     fprime2 = None
     for ii in range(zz.shape[0]):
-        def func(x): return poly(x)-zz[ii]
+
+        def func(x):
+            return poly(x)-zz[ii]
+
         flag1 = (np.isfinite(lb) and np.isfinite(ub) and
                  np.sign(func(lb)) == np.sign(func(ub)))
         flag2 = (np.isfinite(lb) and not np.isfinite(ub) and
