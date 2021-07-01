@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from scipy import stats
+from warnings import warn
 
 from pyapprox.variables import get_distribution_info, \
     define_iid_random_variables, IndependentMultivariateRandomVariable, \
@@ -164,7 +165,8 @@ class TestVariables(unittest.TestCase):
             {"beta": 2}, {"beta": 2, "m": 2}, {"chi": 1}]
 
         for name in scipy_continuous_var_names:
-            assert name in continuous_var_names
+            if name not in continuous_var_names:
+                warn(f"variable {name} is not tested", UserWarning)
 
         unsupported_continuous_var_names = ["ncf"]
         for name in unsupported_continuous_var_names:
