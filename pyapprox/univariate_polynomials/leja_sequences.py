@@ -593,30 +593,30 @@ def get_christoffel_leja_sequence_1d(
         max_num_leja_samples, initial_points, ranges,
         basis_fun, options, callback=None):
 
-    def callback(leja_sequence, coef, new_samples, obj_vals,
-                 initial_guesses):
-        import matplotlib.pyplot as plt
-        degree = coef.shape[0]-1
+    # def callback(leja_sequence, coef, new_samples, obj_vals,
+    #              initial_guesses):
+    #     import matplotlib.pyplot as plt
+    #     degree = coef.shape[0]-1
 
-        def plot_fun(x):
-            return -christoffel_leja_objective_fun_1d(
-                partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
-                x[None, :])
+    #     def plot_fun(x):
+    #         return -christoffel_leja_objective_fun_1d(
+    #             partial(basis_fun, nmax=degree+1, deriv_order=0), coef,
+    #             x[None, :])
 
-        lb = min(leja_sequence.min(), new_samples.min())
-        ub = max(leja_sequence.max(), new_samples.max())
-        lb = lb-0.2*abs(lb)
-        ub = ub+0.2*abs(ub)
-        xx = np.linspace(lb, ub, 1001)
-        plt.plot(xx, plot_fun(xx))
-        plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o',
-                 label="Current samples")
-        plt.plot(new_samples[0, :], obj_vals, 's', label="New samples")
-        plt.plot(
-            initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*',
-            label="Initial guess")
-        plt.legend()
-        plt.show()
+    #     lb = min(leja_sequence.min(), new_samples.min())
+    #     ub = max(leja_sequence.max(), new_samples.max())
+    #     lb = lb-0.2*abs(lb)
+    #     ub = ub+0.2*abs(ub)
+    #     xx = np.linspace(lb, ub, 1001)
+    #     plt.plot(xx, plot_fun(xx))
+    #     plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o',
+    #              label="Current samples")
+    #     plt.plot(new_samples[0, :], obj_vals, 's', label="New samples")
+    #     plt.plot(
+    #         initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*',
+    #         label="Initial guess")
+    #     plt.legend()
+    #     plt.show()
 
     leja_sequence = initial_points.copy()
     nsamples = leja_sequence.shape[1]
@@ -660,7 +660,7 @@ def get_christoffel_leja_sequence_1d(
             artificial_bounds = options["artificial_bounds"]
             del opts["artificial_bounds"]
         else:
-            artificial_bounds = (1e3, 1e3)
+            artificial_bounds = (-1e3, 1e3)
 
         for jj in range(initial_guesses.shape[1]):
             initial_guess = initial_guesses[:, jj]
