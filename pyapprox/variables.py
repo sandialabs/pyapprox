@@ -1,44 +1,67 @@
-from scipy.stats._distn_infrastructure import rv_sample
+from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
+from scipy.stats import _continuous_distns
+from scipy.stats import _discrete_distns
 import numpy as np
+from functools import partial
 
 
 def is_continuous_variable(rv):
-    from scipy.stats import _continuous_distns
     return bool((rv.dist.name in _continuous_distns._distn_names) or
-                rv.dist.name == 'continuous_rv_sample')
+                rv.dist.name == "continuous_rv_sample" or
+                rv.dist.name == "continuous_monomial" or
+                rv.dist.name == "rv_function_indpndt_vars" or
+                rv.dist.name == "rv_product_indpndt_vars")
 
 
 def is_bounded_continuous_variable(rv):
     interval = rv.interval(1)
     return bool(is_continuous_variable(rv) and
-                rv.dist.name != 'continuous_rv_sample'
+                rv.dist.name != "continuous_rv_sample"
                 and np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
+
 def is_bounded_discrete_variable(rv):
-    from scipy.stats import _discrete_distns
     interval = rv.interval(1)
     return bool(((rv.dist.name in _discrete_distns._distn_names) or
-                (rv.dist.name == 'float_rv_discrete') or
-                 (rv.dist.name == 'discrete_chebyshev')) and
+                (rv.dist.name == "float_rv_discrete") or
+                 (rv.dist.name == "discrete_chebyshev")) and
                 np.isfinite(interval[0]) and np.isfinite(interval[1]))
 
-def get_probability_masses(rv):
-    assert is_bounded_discrete_variable(rv)
+
+def get_probability_masses(rv, tol=0):
+    # assert is_bounded_discrete_variable(rv)
     name, scales, shapes = get_distribution_info(rv)
-    if name == 'float_rv_discrete' or name == 'discrete_chebyshev':
+    if name == "float_rv_discrete" or name == "discrete_chebyshev":
         return rv.dist.xk.copy(), rv.dist.pk.copy()
-    elif name == 'hypergeom':
-        M, n, N = [shapes[key] for key in ['M', 'n', 'N']]
+    elif name == "hypergeom":
+        M, n, N = [shapes[key] for key in ["M", "n", "N"]]
         xk = np.arange(max(0, N-M+n), min(n, N)+1, dtype=float)
         pk = rv.pmf(xk)
         return xk, pk
-    elif name == 'binom':
-        n, p = shapes['n'], shapes['p']
+    elif name == "binom":
+        n = shapes["n"]
         xk = np.arange(0, n+1, dtype=float)
         pk = rv.pmf(xk)
         return xk, pk
+    elif (name == "nbinom" or name == "geom" or name == "logser" or
+          name == "poisson" or name == "planck" or name == "zipf" or
+          name == "dlaplace" or name == "skellam"):
+        if tol <= 0:
+            raise ValueError("interval is unbounded so specify probability<1")
+        lb, ub = rv.interval(1-tol)
+        xk = np.arange(int(lb), int(ub), dtype=float)
+        pk = rv.pmf(xk)
+        return xk, pk
+    elif name == "boltzmann":
+        xk = np.arange(shapes["N"], dtype=float)
+        pk = rv.pmf(xk)
+        return xk, pk
+    elif name == "randint":
+        xk = np.arange(shapes["low"], shapes["high"], dtype=float)
+        pk = rv.pmf(xk)
+        return xk, pk
     else:
-        raise Exception(f'{rv.dist.name} not supported')
+        raise ValueError(f"Variable {rv.dist.name} not supported")
 
 
 def get_distribution_info(rv):
@@ -47,7 +70,6 @@ def get_distribution_info(rv):
     user initializes frozen object.
     """
     name = rv.dist.name
-    args = rv.args
     shape_names = rv.dist.shapes
     if shape_names is not None:
         shape_names = [name.strip() for name in shape_names.split(",")]
@@ -63,32 +85,78 @@ def get_distribution_info(rv):
     scale_values = [rv.args[ii] for ii in range(len(shapes), len(rv.args))]
     scale_values += [rv.kwds[key] for key in rv.kwds if key not in shapes]
     if len(scale_values) == 0:
-        if (type(rv.dist) == float_rv_discrete and
-            rv.dist.name != 'discrete_chebyshev' and
-                rv.dist.name != 'continuous_rv_sample'):
-            lb, ub = rv.dist.xk.min(), rv.dist.xk.max()
-            scale_values = [lb, ub-lb]
-        else:
-            scale_values = [0, 1]
+        # if is_bounded_discrete_variable(rv):
+        #     lb, ub = rv.interval(1)
+        #     if rv.pmf(lb) == 0:
+        #         # scipy has precision issues which cause interval to return
+        #         # wrong value
+        #         lb = rv.ppf(1e-15)
+        #     if rv.pmf(ub) == 0:
+        #         # scipy has precision issues which cause interval to return
+        #         # wrong value
+        #         ub = rv.ppf(1-1e-15)
+        #     scale_values = [lb, ub-lb]
+        #     print(scale_values)
+        # else:
+        scale_values = [0, 1]
     elif len(scale_values) == 1 and len(rv.args) > len(shapes):
         scale_values += [1.]
-    elif len(scale_values) == 1 and 'scale' not in rv.kwds:
+    elif len(scale_values) == 1 and "scale" not in rv.kwds:
         scale_values += [1.]
-    elif len(scale_values) == 1 and 'loc' not in rv.kwds:
+    elif len(scale_values) == 1 and "loc" not in rv.kwds:
         scale_values = [0]+scale_values
-    scale_names = ['loc', 'scale']
+    scale_names = ["loc", "scale"]
     scales = dict(zip(scale_names, np.atleast_1d(scale_values)))
 
     if type(rv.dist) == float_rv_discrete:
-        # shapes={'xk':rv.dist.xk,'pk':rv.dist.pk}
         xk = rv.dist.xk.copy()
-        if (rv.dist.name != 'discrete_chebyshev' and
-                rv.dist.name != 'continuous_rv_sample'):
-            lb, ub = xk.min(), xk.max()
-            xk = (xk-lb)/(ub-lb)
-        shapes = {'xk': xk, 'pk': rv.dist.pk}
+        shapes = {"xk": xk, "pk": rv.dist.pk}
 
     return name, scales, shapes
+
+
+def scipy_raw_pdf(pdf, loc, scale, shapes, x):
+    return pdf((x - loc)/scale, **shapes)/scale
+
+
+def get_pdf(rv):
+    """
+    Return a version of rv.pdf that does not use all the error checking.
+    Use with caution. Does speed up calculation significantly though
+    """
+    name, scales, shapes = get_distribution_info(rv)
+
+    if name == "ncf":
+        raise ValueError("scipy implementation prevents generic wraping")
+
+    pdf = partial(
+        scipy_raw_pdf, rv.dist._pdf, scales['loc'], scales['scale'], shapes)
+    return pdf
+
+
+def transform_scale_parameters(var):
+    """
+    Transform scale parameters so that when any bounded variable is transformed
+    to the canonical domain [-1, 1]
+    """
+    if (is_bounded_continuous_variable(var)):
+        a, b = var.interval(1)
+        loc = (a+b)/2
+        scale = b-loc
+        return loc, scale
+
+    if is_bounded_discrete_variable(var):
+        # var.interval(1) can return incorrect bounds
+        xk, pk = get_probability_masses(var)
+        a, b = xk.min(), xk.max()
+        loc = (a+b)/2
+        scale = b-loc
+        return loc, scale
+
+    scale_dict = get_distribution_info(var)[1]
+    # copy is essential here because code below modifies scale
+    loc, scale = scale_dict["loc"].copy(), scale_dict["scale"].copy()
+    return loc, scale
 
 
 def define_iid_random_variables(rv, num_vars):
@@ -102,7 +170,7 @@ def variables_equivalent(rv1, rv2):
     """
     Determine if 2 scipy variables are equivalent
 
-    Let 
+    Let
     a = beta(1,1,-1,2)
     b = beta(a=1,b=1,loc=-1,scale=2)
 
@@ -140,10 +208,11 @@ def variable_shapes_equivalent(rv1, rv2):
     name2, __, shapes2 = get_distribution_info(rv2)
     if name1 != name2:
         return False
-    if name1 == 'float_rv_discrete' or name1 == 'discrete_chebyshev':
+    # if name1 == "float_rv_discrete" or name1 == "discrete_chebyshev":
+    if "xk" in shapes1:
         # xk and pk shapes are list so != comparison will not work
-        not_equiv = np.any(shapes1['xk'] != shapes2['xk']) or np.any(
-            shapes1['pk'] != shapes2['pk'])
+        not_equiv = np.any(shapes1["xk"] != shapes2["xk"]) or np.any(
+            shapes1["pk"] != shapes2["pk"])
         return not not_equiv
     else:
         return shapes1 == shapes2
@@ -204,14 +273,15 @@ class IndependentMultivariateRandomVariable(object):
         Parameters
         ----------
         function_name : string
-            The function name of the scipy random variable statistic of interest
+            The function name of the scipy random variable statistic of
+            interest
 
         kwargs : kwargs
             The arguments to the scipy statistic function
 
         Returns
         -------
-        stat : 
+        stat : np.ndarray
             The output of the stat function
 
         Examples
@@ -219,11 +289,11 @@ class IndependentMultivariateRandomVariable(object):
         >>> import pyapprox as pya
         >>> from scipy.stats import uniform
         >>> num_vars = 2
-        >>> variable = pya.IndependentMultivariateRandomVariable([uniform(-2,3)],[np.arange(num_vars)])
-        >>> variable.get_statistics('interval',alpha=1)
+        >>> variable = pya.IndependentMultivariateRandomVariable([uniform(-2, 3)], [np.arange(num_vars)])
+        >>> variable.get_statistics("interval", alpha=1)
         array([[-2.,  1.],
                [-2.,  1.]])
-        >>> variable.get_statistics('pdf',x=np.linspace(-2,1,3))
+        >>> variable.get_statistics("pdf",x=np.linspace(-2, 1, 3))
         array([[0.33333333, 0.33333333, 0.33333333],
                [0.33333333, 0.33333333, 0.33333333]])
 
@@ -251,35 +321,39 @@ class IndependentMultivariateRandomVariable(object):
                 stats[jj] = stats_jj
         return stats
 
-    def pdf(self, x):
-        marginal_vals = self.evaluate('pdf', x)
-        return np.prod(marginal_vals, axis=0)
+    def pdf(self, x, log=False):
+        assert x.shape[0] == self.num_vars()
+        if log is False:
+            marginal_vals = self.evaluate("pdf", x)
+        else:
+            marginal_vals = self.evaluate("logpdf", x)
+        return np.prod(marginal_vals, axis=0)[:, None]
 
     def __str__(self):
         variable_labels = self.variable_labels
         if variable_labels is None:
-            variable_labels = ['z%d' % ii for ii in range(self.num_vars())]
-        string = 'I.I.D. Variable\n'
-        string += f'Number of variables: {self.num_vars()}\n'
-        string += 'Unique variables and global id:\n'
+            variable_labels = ["z%d" % ii for ii in range(self.num_vars())]
+        string = "I.I.D. Variable\n"
+        string += f"Number of variables: {self.num_vars()}\n"
+        string += "Unique variables and global id:\n"
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
             indices = self.unique_variable_indices[ii]
             name, scales, shapes = get_distribution_info(var)
-            shape_string = ','.join(
-                [f'{name}={val}' for name, val in shapes.items()])
-            scales_string = ','.join(
-                [f'{name}={val}' for name, val in scales.items()])
-            string += '    '+var.dist.name + '('
+            shape_string = ",".join(
+                [f"{name}={val}" for name, val in shapes.items()])
+            scales_string = ",".join(
+                [f"{name}={val}" for name, val in scales.items()])
+            string += "    "+var.dist.name + "("
             if len(shapes) > 0:
-                string += ','.join([shape_string, scales_string])
+                string += ",".join([shape_string, scales_string])
             else:
                 string += scales_string
-            string += '): '
-            string += ', '.join(
+            string += "): "
+            string += ", ".join(
                 [variable_labels[idx] for idx in indices])
             if ii < self.nunique_vars-1:
-                string += '\n'
+                string += "\n"
         return string
 
 
@@ -288,16 +362,16 @@ class float_rv_discrete(rv_sample):
 
     rv_discrete in scipy only allows for integer locations.
 
-    Currently we only guarantee that overloaded functions and cdf, ppf and moment
-    work and are tested
+    Currently we only guarantee that overloaded functions and cdf, ppf and
+    moment work and are tested
     """
 
     def __init__(self, a=0, b=np.inf, name=None, badvalue=None,
                  moment_tol=1e-8, values=None, inc=1, longname=None,
                  shapes=None, extradoc=None, seed=None):
         super(float_rv_discrete, self).__init__(
-            a, b, name, badvalue, moment_tol, values, inc, longname, shapes, extradoc,
-            seed)
+            a, b, name, badvalue, moment_tol, values, inc, longname, shapes,
+            extradoc, seed)
         self.xk = self.xk.astype(dtype=float)
 
     def __new__(cls, *args, **kwds):
@@ -322,7 +396,7 @@ class float_rv_discrete(rv_sample):
             Scale parameter (default=1).
         size : int or tuple of ints, optional
             Defining number of random variates (default is 1).
-        random_state : None or int or ``np.random.RandomState`` instance, 
+        random_state : None or int or ``np.random.RandomState`` instance,
             optional
             If int or RandomState, use it for drawing the random variates.
             If None, rely on ``self.random_state``.
@@ -334,19 +408,19 @@ class float_rv_discrete(rv_sample):
             Random variates of given `size`.
 
         """
-        discrete = kwds.pop('discrete', None)
-        rndm = kwds.pop('random_state', None)
+        rndm = kwds.pop("random_state", None)
         args, loc, scale, size = self._parse_args_rvs(*args, **kwds)
         cond = np.logical_and(self._argcheck(*args), (scale >= 0))
         if not np.all(cond):
             raise ValueError("Domain error in arguments.")
 
         if np.all(scale == 0):
-            return loc*ones(size, 'd')
+            return loc*np.ones(size, "d")
 
         # extra gymnastics needed for a custom random_state
         if rndm is not None:
             random_state_saved = self._random_state
+            from scipy._lib._util import check_random_state
             self._random_state = check_random_state(rndm)
 
         # `size` should just be an argument to _rvs(), but for, um,
@@ -389,3 +463,29 @@ class DesignVariable(object):
 
     def num_vars(self):
         return len(self.bounds.lb)
+
+
+class rv_function_indpndt_vars_gen(rv_continuous):
+    def _argcheck(self, fun, init_variables, quad_rules):
+        return True
+
+    def _pdf(self, x, fun, init_variables, quad_rules):
+        raise NotImplementedError("Expression for PDF not known")
+
+
+rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
+    shapes="fun, initial_variables, quad_rules",
+    name="rv_function_indpndt_vars")
+
+
+class rv_product_indpndt_vars_gen(rv_continuous):
+    def _argcheck(self, funs, init_variables, quad_rules):
+        return True
+
+    def _pdf(self, x, funs, init_variables, quad_rules):
+        raise NotImplementedError("Expression for PDF not known")
+
+
+rv_product_indpndt_vars = rv_product_indpndt_vars_gen(
+    shapes="funs, initial_variables, quad_rules",
+    name="rv_product_indpndt_vars")

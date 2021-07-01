@@ -1,6 +1,7 @@
 import numpy as np
-from pyapprox.indexing import hash_array
 from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    univariate_monomial_basis_matrix
 
 
 def monomial_mean_uniform_variables(indices, coeffs):
@@ -66,20 +67,6 @@ def evaluate_monomial(indices, coeffs, samples):
     basis_matrix = monomial_basis_matrix(indices, samples)
     values = np.dot(basis_matrix, coeffs)
     return values
-
-
-def univariate_monomial_basis_matrix(max_level, samples):
-    assert samples.ndim == 1
-    num_samples = samples.shape[0]
-
-    #basis_matrix = np.ones((num_samples,max_level+1),dtype=float)
-    # for ii in range(1,max_level+1):
-    #    # use horners rule to compute monomial.
-    #    # This speeds up this function dramatically
-    #    basis_matrix[:,ii] = basis_matrix[:,ii-1]*samples
-    basis_matrix = samples[:,
-                           np.newaxis]**np.arange(max_level+1)[np.newaxis, :]
-    return basis_matrix
 
 
 def monomial_basis_matrix(indices, samples, deriv_order=0):

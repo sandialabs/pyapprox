@@ -1,16 +1,20 @@
+import numpy as np
 from scipy.optimize import OptimizeResult
 from scipy.spatial.distance import cdist
 from itertools import combinations
-import numpy as np
-from pyapprox.indexing import compute_hyperbolic_indices, hash_array
+
+from pyapprox.indexing import hash_array, argsort_indices_leixographically
 from pyapprox.utilities import nchoosek
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
-from functools import partial
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.gaussian_process import RandomGaussianProcessRealizations,\
+from pyapprox.gaussian_process import \
     _compute_expected_sobol_indices, generate_gp_realizations, \
     extract_gaussian_process_attributes_for_integration
+from pyapprox.multivariate_polynomials import \
+    define_poly_options_from_variable_transformation
+from pyapprox.adaptive_sparse_grid import \
+    convert_sparse_grid_to_polynomial_chaos_expansion
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):
@@ -25,7 +29,7 @@ def get_main_and_total_effect_indices_from_pce(coefficients, indices):
         Contribution to variance of each variable acting alone
 
     total_effects : np.ndarray(num_vars)
-        Contribution to variance of each variable acting alone or with 
+        Contribution to variance of each variable acting alone or with
         other variables
 
     """
@@ -114,7 +118,7 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
         Axes that will be used for plotting
 
     truncation_pct : float
-        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        The proportion :math:`0<p\le 1` of the sensitivity indices
         effects to plot
 
     max_slices : integer
@@ -132,14 +136,14 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
     main_effects_sum = main_effects.sum()
 
     # sort main_effects in descending order
-    I = np.argsort(main_effects)[::-1]
-    main_effects = main_effects[I]
+    II = np.argsort(main_effects)[::-1]
+    main_effects = main_effects[II]
 
     labels = []
     partial_sum = 0.
-    for i in range(I.shape[0]):
+    for i in range(II.shape[0]):
         if partial_sum/main_effects_sum < truncation_pct and i < max_slices:
-            labels.append('$%s_{%d}$' % (rv, I[i]+1))
+            labels.append('$%s_{%d}$' % (rv, II[i]+1))
             partial_sum += main_effects[i]
         else:
             break
@@ -162,7 +166,6 @@ def plot_main_effects(main_effects, ax, truncation_pct=0.95,
 def plot_sensitivity_indices_with_confidence_intervals(
         labels, ax, sa_indices_median, sa_indices_q1, sa_indices_q3,
         sa_indices_min, sa_indices_max, reference_values=None, fliers=None):
-    import matplotlib.cbook as cbook
     nindices = len(sa_indices_median)
     assert len(sa_indices_median) == nindices
     assert len(labels) == nindices
@@ -192,10 +195,10 @@ def plot_sensitivity_indices_with_confidence_intervals(
         showfliers = True
     else:
         showfliers = False
-        
+
     bp = ax.bxp(stats, showfliers=showfliers, showmeans=showmeans,
                 patch_artist=True,
-                meanprops=dict(marker='o',markerfacecolor='blue',
+                meanprops=dict(marker='o', markerfacecolor='blue',
                                markeredgecolor='blue', markersize=12),
                 medianprops=dict(color='red'))
 
@@ -220,7 +223,7 @@ def plot_total_effects(total_effects, ax, truncation_pct=0.95,
         Axes that will be used for plotting
 
     truncation_pct : float
-        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        The proportion :math:`0<p\le 1` of the sensitivity indices
         effects to plot
 
     rv : string
@@ -252,14 +255,14 @@ def plot_interaction_values(interaction_values, interaction_terms, ax,
         The variance based Sobol indices
 
     interaction_terms : nlist (nchoosek(nvars+max_order,nvars))
-        Indices np.ndarrays of varying size specifying the variables in each 
+        Indices np.ndarrays of varying size specifying the variables in each
         interaction in ``interaction_indices``
 
     ax : :class:`matplotlib.pyplot.axes.Axes`
         Axes that will be used for plotting
 
     truncation_pct : float
-        The proportion :math:`0<p\le 1` of the sensitivity indices 
+        The proportion :math:`0<p\le 1` of the sensitivity indices
         effects to plot
 
     max_slices : integer
@@ -276,19 +279,19 @@ def plot_interaction_values(interaction_values, interaction_terms, ax,
     assert interaction_values.shape[0] == len(interaction_terms)
     interaction_values = interaction_values[:, qoi]
 
-    I = np.argsort(interaction_values)[::-1]
-    interaction_values = interaction_values[I]
-    interaction_terms = [interaction_terms[ii] for ii in I]
+    II = np.argsort(interaction_values)[::-1]
+    interaction_values = interaction_values[II]
+    interaction_terms = [interaction_terms[ii] for ii in II]
 
     labels = []
     partial_sum = 0.
     for i in range(interaction_values.shape[0]):
         if partial_sum < truncation_pct and i < max_slices:
-            l = '($'
+            label = '($'
             for j in range(len(interaction_terms[i])-1):
-                l += '%s_{%d},' % (rv, interaction_terms[i][j]+1)
-            l += '%s_{%d}$)' % (rv, interaction_terms[i][-1]+1)
-            labels.append(l)
+                label += '%s_{%d},' % (rv, interaction_terms[i][j]+1)
+            label += '%s_{%d}$)' % (rv, interaction_terms[i][-1]+1)
+            labels.append(label)
             partial_sum += interaction_values[i]
         else:
             break
@@ -319,7 +322,7 @@ def get_morris_trajectory(nvars, nlevels, eps=0):
     nlevels : integer
         The number of levels used for to define the morris grid.
 
-    eps : float 
+    eps : float
         Set grid used defining the morris trajectory to [eps,1-eps].
         This is needed when mapping the morris trajectories using inverse
         CDFs of unbounded variables
@@ -340,7 +343,7 @@ def get_morris_trajectory(nvars, nlevels, eps=0):
     for ii in range(nvars):
         trajectory[:, ii+1] = trajectory[:, ii].copy()
         if (trajectory[ii, ii]-delta) >= 0 and (trajectory[ii, ii]+delta) <= 1:
-            trajectory[ii, ii+1] += shift[ii]
+            trajectory[ii, ii+1] += shifts[ii]
         elif (trajectory[ii, ii]-delta) >= 0:
             trajectory[ii, ii+1] -= delta
         elif (trajectory[ii, ii]+delta) <= 1:
@@ -358,8 +361,8 @@ def get_morris_samples(nvars, nlevels, ntrajectories, eps=0, icdfs=None):
     -----
     The choice of nlevels must be linked to the choice of ntrajectories.
     For example, if a large number of possible levels is used ntrajectories
-    must also be high, otherwise if ntrajectories is small effort will be  
-    wasted because many levels will not be explored. nlevels=4 and 
+    must also be high, otherwise if ntrajectories is small effort will be
+    wasted because many levels will not be explored. nlevels=4 and
     ntrajectories=10 is often considered reasonable.
 
     Parameters
@@ -373,7 +376,7 @@ def get_morris_samples(nvars, nlevels, ntrajectories, eps=0, icdfs=None):
     ntrajectories : integer
         The number of Morris trajectories requested
 
-    eps : float 
+    eps : float
         Set grid used defining the Morris trajectory to [eps,1-eps].
         This is needed when mapping the morris trajectories using inverse
         CDFs of unbounded variables
@@ -407,7 +410,7 @@ def get_morris_elementary_effects(samples, values):
         The morris trajectories
 
     values : np.ndarray (ntrajectories*(nvars+1),nqoi)
-        The values of the vecto-valued target function with nqoi quantities 
+        The values of the vecto-valued target function with nqoi quantities
         of interest (QoI)
 
     Returns
@@ -433,7 +436,7 @@ def get_morris_elementary_effects(samples, values):
 
 def get_morris_sensitivity_indices(elem_effects):
     r"""
-    Compute the Morris sensitivity indices mu and sigma from the elementary 
+    Compute the Morris sensitivity indices mu and sigma from the elementary
     effects computed for a set of trajectories.
 
     Mu is the mu^\star from Campolongo et al.
@@ -441,20 +444,20 @@ def get_morris_sensitivity_indices(elem_effects):
     Parameters
     ----------
     elem_effects : np.ndarray(nvars,ntrajectories,nqoi)
-        The elementary effects of each variable for each trajectory and quantity
-        of interest (QoI)
+        The elementary effects of each variable for each trajectory and
+        quantity of interest (QoI)
 
     Returns
     -------
-    mu : np.ndarray(nvars,nqoi) 
-        The sensitivity of each output to each input. Larger mu corresponds to 
+    mu : np.ndarray (nvars, nqoi)
+        The sensitivity of each output to each input. Larger mu corresponds to
         higher sensitivity
 
-    sigma: np.ndarray(nvars,nqoi) 
+    sigma: np.ndarray(nvars, nqoi)
         A measure of the non-linearity and/or interaction effects of each input
         for each output. Low values suggest a linear realationship between
-        the input and output. Larger values suggest a that the output is 
-        nonlinearly dependent on the input and/or the input interacts with 
+        the input and output. Larger values suggest a that the output is
+        nonlinearly dependent on the input and/or the input interacts with
         other inputs
     """
     mu = np.absolute(elem_effects).mean(axis=1)
@@ -464,7 +467,7 @@ def get_morris_sensitivity_indices(elem_effects):
 
 
 def print_morris_sensitivity_indices(mu, sigma, qoi=0):
-    string = "Morris sensitivity indices\n"
+    # string = "Morris sensitivity indices\n"
     from pandas import DataFrame
     df = DataFrame({"mu*": mu[:, qoi], "sigma": sigma[:, qoi]})
     df.index = [f'Z_{ii+1}' for ii in range(mu.shape[0])]
@@ -475,7 +478,7 @@ def downselect_morris_trajectories(samples, ntrajectories):
     nvars = samples.shape[0]
     assert samples.shape[1] % (nvars+1) == 0
     ncandidate_trajectories = samples.shape[1]//(nvars+1)
-    #assert 10*ntrajectories<=ncandidate_trajectories
+    # assert 10*ntrajectories<=ncandidate_trajectories
 
     trajectories = np.reshape(
         samples, (nvars, nvars+1, ncandidate_trajectories), order='F')
@@ -491,7 +494,7 @@ def downselect_morris_trajectories(samples, ntrajectories):
         np.arange(ncandidate_trajectories), ntrajectories)
     ncombinations = nchoosek(ncandidate_trajectories, ntrajectories)
     print('ncombinations', ncombinations)
-    values = np.empty(ncombinations)
+    # values = np.empty(ncombinations)
     best_index = None
     best_value = -np.inf
     for ii, index in enumerate(get_combinations):
@@ -510,7 +513,8 @@ class SensitivityResult(OptimizeResult):
     pass
 
 
-def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories, nlevels=4):
+def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories,
+                               nlevels=4):
     r"""
     Compute sensitivity indices by constructing an adaptive polynomial chaos
     expansion.
@@ -537,15 +541,15 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories, nlevels
     result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
-    mu : np.ndarray (nvars,nqoi) 
-        The sensitivity of each output to each input. Larger mu corresponds to 
+    mu : np.ndarray (nvars,nqoi)
+        The sensitivity of each output to each input. Larger mu corresponds to
         higher sensitivity
 
-    sigma: np.ndarray (nvars,nqoi) 
+    sigma: np.ndarray (nvars,nqoi)
         A measure of the non-linearity and/or interaction effects of each input
         for each output. Low values suggest a linear realationship between
-        the input and output. Larger values suggest a that the output is 
-        nonlinearly dependent on the input and/or the input interacts with 
+        the input and output. Larger values suggest a that the output is
+        nonlinearly dependent on the input and/or the input interacts with
         other inputs
 
     samples : np.ndarray(nvars,ntrajectories*(nvars+1))
@@ -557,13 +561,13 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories, nlevels
 
     nvars = len(univariate_variables)
     samples = get_morris_samples(nvars, nlevels, ntrajectories)
-    values = function(samples)
+    values = fun(samples)
     elem_effects = get_morris_elementary_effects(samples, values)
     mu, sigma = get_morris_sensitivity_indices(elem_effects)
 
     return SensitivityResult(
-        {'morris_mu': pce_main_effects,
-         'morris_sigma': pce_total_effects,
+        {'morris_mu': mu,
+         'morris_sigma': sigma,
          'samples': samples, 'values': values})
 
 
@@ -579,12 +583,11 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
 
     max_order : integer
         The maximum interaction order of Sobol indices to compute. A value
-        of 2 will compute all pairwise interactions, a value of 3 will 
+        of 2 will compute all pairwise interactions, a value of 3 will
         compute indices for all interactions involving 3 variables. The number
-        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
-        when nvars is high the number of indices will increase rapidly with 
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning
+        when nvars is high the number of indices will increase rapidly with
         max_order.
-
 
     Returns
     -------
@@ -601,16 +604,12 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
         The variance based Sobol sensitivity indices
 
     sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
-        Indices specifying the variables in each interaction in 
+        Indices specifying the variables in each interaction in
         ``sobol_indices``
 
     pce : :class:`multivariate_polynomials.PolynomialChaosExpansion`
        The pce respresentation of the sparse grid ``approx``
     """
-    from pyapprox.multivariate_polynomials import \
-        define_poly_options_from_variable_transformation
-    from pyapprox.adaptive_sparse_grid import \
-        convert_sparse_grid_to_polynomial_chaos_expansion
     pce_opts = define_poly_options_from_variable_transformation(
         sparse_grid.variable_transformation)
     pce = convert_sparse_grid_to_polynomial_chaos_expansion(
@@ -632,7 +631,8 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
 
 def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
     r"""
-    Compute variance based sensitivity metrics from a polynomial chaos expansion
+    Compute variance based sensitivity metrics from a polynomial chaos
+    expansion
 
     Parameters
     ----------
@@ -641,10 +641,10 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
 
     max_order : integer
         The maximum interaction order of Sobol indices to compute. A value
-        of 2 will compute all pairwise interactions, a value of 3 will 
+        of 2 will compute all pairwise interactions, a value of 3 will
         compute indices for all interactions involving 3 variables. The number
-        of indices returned will be nchoosek(nvars+max_order,nvars). Warning 
-        when nvars is high the number of indices will increase rapidly with 
+        of indices returned will be nchoosek(nvars+max_order,nvars). Warning
+        when nvars is high the number of indices will increase rapidly with
         max_order.
 
     Returns
@@ -662,7 +662,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
         The variance based Sobol sensitivity indices
 
     sobol_interaction_indices : np.ndarray(nvars,nchoosek(nvars+max_order,nvars))
-        Indices specifying the variables in each interaction in 
+        Indices specifying the variables in each interaction in
         ``sobol_indices``
     """
     pce_main_effects, pce_total_effects =\
@@ -682,23 +682,23 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
 
 def generate_sobol_index_sample_sets(samplesA, samplesB, index):
     """
-    Given two sample sets A and B generate the sets :math:`A_B^{I}` from 
+    Given two sample sets A and B generate the sets :math:`A_B^{I}` from
 
     The rows of A_B^I are all from A except for the rows with non zero entries
     in the index I. When A and B are QMC samples it is best to change as few
     rows as possible
 
-    See 
+    See
 
-    Variance based sensitivity analysis of model output. Design and estimator 
+    Variance based sensitivity analysis of model output. Design and estimator
     for the total sensitivity index
     """
     nvars = samplesA.shape[0]
-    I = np.arange(nvars)
+    II = np.arange(nvars)
     mask = np.asarray(index, dtype=bool)
     samples = np.vstack([samplesA[~mask], samplesB[mask]])
-    J = np.hstack([I[~mask], I[mask]])
-    samples = samples[np.argsort(J), :]
+    JJ = np.hstack([II[~mask], II[mask]])
+    samples = samples[np.argsort(JJ), :]
     return samples
 
 
@@ -718,17 +718,18 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
         samplesB = qmc_samples[nvars:, :]
         for ii, rv in enumerate(variables.all_variables()):
             lb, ub = rv.interval(1)
-            # transformation is undefined at [0,1] for unbouned random variables
+            # transformation is undefined at [0,1] for unbouned
+            # random variables
             # create bounds for unbounded interval that exclude 1e-8
             # of the total probability
             t1, t2 = rv.interval(1-1e-8)
             nlb, nub = rv.cdf([t1, t2])
             if not np.isfinite(lb):
-                samplesA[ii, samplesA[ii, :]==0] = nlb
-                samplesB[ii, samplesB[ii, :]==0] = nlb
+                samplesA[ii, samplesA[ii, :] == 0] = nlb
+                samplesB[ii, samplesB[ii, :] == 0] = nlb
             if not np.isfinite(ub):
-                samplesA[ii, samplesA[ii, :]==1] = nub
-                samplesB[ii, samplesB[ii, :]==1] = nub
+                samplesA[ii, samplesA[ii, :] == 1] = nub
+                samplesB[ii, samplesB[ii, :] == 1] = nub
             samplesA[ii, :] = rv.ppf(samplesA[ii, :])
             samplesB[ii, :] = rv.ppf(samplesB[ii, :])
     else:
@@ -742,9 +743,9 @@ def sampling_based_sobol_indices(
     """
     See I.M. Sobol. Mathematics and Computers in Simulation 55 (2001) 271–280
 
-    and  
+    and
 
-    Saltelli, Annoni et. al, Variance based sensitivity analysis of model 
+    Saltelli, Annoni et. al, Variance based sensitivity analysis of model
     output. Design and estimator for the total sensitivity index. 2010.
     https://doi.org/10.1016/j.cpc.2009.09.018
 
@@ -753,7 +754,8 @@ def sampling_based_sobol_indices(
     interaction_terms : np.ndarray (nvars, nterms)
         Index defining the active terms in each interaction. If the
         ith  variable is active interaction_terms[i] == 1 and zero otherwise
-        This index must be downward closed due to way sobol indices are computed
+        This index must be downward closed due to way sobol indices are
+        computed
     """
     nvars = interaction_terms.shape[0]
     nterms = interaction_terms.shape[1]
@@ -776,40 +778,40 @@ def sampling_based_sobol_indices(
         # entry b in Table 2 of Saltelli, Annoni et. al
         interaction_values[ii, :] = \
             (valuesB*(valuesAB-valuesA)).mean(axis=0)/variance
-        interaction_values_dict[tuple(np.where(index>0)[0])] = ii
+        interaction_values_dict[tuple(np.where(index > 0)[0])] = ii
         if index.sum() == 1:
-            dd = np.where(index==1)[0][0]
+            dd = np.where(index == 1)[0][0]
             # entry f in Table 2 of Saltelli, Annoni et. al
             total_effect_values[dd] = 0.5 * \
-                np.mean((valuesA-valuesAB)**2, axis=0)/variance 
+                np.mean((valuesA-valuesAB)**2, axis=0)/variance
 
     # must substract of contributions from lower-dimensional terms from
     # each interaction value For example, let R_ij be interaction_values
     # the sobol index S_ij satisfies R_ij = S_i + S_j + S_ij
-    from pyapprox.indexing import argsort_indices_leixographically
-    I = argsort_indices_leixographically(interaction_terms)
-    from itertools import combinations
+    II = argsort_indices_leixographically(interaction_terms)
     sobol_indices = interaction_values.copy()
     sobol_indices_dict = dict()
-    for ii in range(I.shape[0]):
-        index = interaction_terms[:, I[ii]]
-        active_vars = np.where(index>0)[0]
+    for ii in range(II.shape[0]):
+        index = interaction_terms[:, II[ii]]
+        active_vars = np.where(index > 0)[0]
         nactive_vars = index.sum()
-        sobol_indices_dict[tuple(active_vars)] = I[ii]
+        sobol_indices_dict[tuple(active_vars)] = II[ii]
         if nactive_vars > 1:
             for jj in range(nactive_vars-1):
                 indices = combinations(active_vars, jj+1)
                 for key in indices:
-                    sobol_indices[I[ii]] -= \
+                    sobol_indices[II[ii]] -= \
                         sobol_indices[sobol_indices_dict[key]]
 
     total_effect_values = np.asarray(total_effect_values)
-    assert np.all(variance>=0)
-    main_effects = sobol_indices[interaction_terms.sum(axis=0)==1, :]
+    assert np.all(variance >= 0)
+    # main_effects = sobol_indices[interaction_terms.sum(axis=0)==1, :]
     # We cannot guarantee that the main_effects will be <= 1. Because
     # variance and each interaction_index are computed with different sample
-    # sets. Consider function of two variables which is constant in one variable
-    # then interaction_index[0] should equal variance. But with different sample
+    # sets. Consider function of two variables which is constant in one
+    # variable
+    # then interaction_index[0] should equal variance. But with different
+    # sample
     # sets interaction_index could be smaller or larger than the variance.
     # assert np.all(main_effects<=1)
     # Similarly we cannot even guarantee main effects will be non-negative
@@ -826,9 +828,9 @@ def repeat_sampling_based_sobol_indices(fun, variables, interaction_terms,
     """
     Compute sobol indices for different sample sets. This allows estimation
     of error due to finite sample sizes. This function requires evaluting
-    the function at nsobol_realizations * N, where N is the 
+    the function at nsobol_realizations * N, where N is the
     number of samples required by sampling_based_sobol_indices. Thus
-    This function is useful when applid to a random 
+    This function is useful when applid to a random
     realization of a Gaussian process requires the Cholesky decomposition
     of a nsamples x nsamples matrix which becomes to costly for nsamples >1000
     """
@@ -865,22 +867,29 @@ def analytic_sobol_indices_from_gaussian_process(
             ncandidate_samples, variable, use_cholesky, alpha)
 
         # Check how accurate realizations
-        validation_samples = generate_independent_random_samples(variable, 1000)
+        validation_samples = generate_independent_random_samples(
+            variable, 1000)
         mean_vals, std = gp(validation_samples, return_std=True)
         realization_vals = gp_realizations(validation_samples)
         print(mean_vals[:, 0].mean())
         # print(std,realization_vals.std(axis=1))
-        print('std of realizations error', np.linalg.norm(std-realization_vals.std(axis=1))/np.linalg.norm(std))
-        print('var of realizations error', np.linalg.norm(std**2-realization_vals.var(axis=1))/np.linalg.norm(std**2))
+        print('std of realizations error',
+              np.linalg.norm(std-realization_vals.std(axis=1))/np.linalg.norm(
+                  std))
+        print('var of realizations error',
+              np.linalg.norm(std**2-realization_vals.var(axis=1)) /
+              np.linalg.norm(std**2))
 
-        print('mean interpolation error', np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1]))/np.linalg.norm(mean_vals[:, 0]))
+        print('mean interpolation error',
+              np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
+              np.linalg.norm(mean_vals[:, 0]))
 
-        #print(K_inv.shape, np.linalg.norm(K_inv))
-        #print(np.linalg.norm(x_train))
+        # print(K_inv.shape, np.linalg.norm(K_inv))
+        # print(np.linalg.norm(x_train))
         # print(np.linalg.norm(y_train))
         # print(np.linalg.norm(gp_realizations.train_vals[:, -1]))
         # print(np.linalg.norm(gp.y_train_))
-    
+
         x_train = gp_realizations.selected_canonical_samples
         # gp_realizations.train_vals is normalized so unnormalize
         y_train = gp._y_train_std*gp_realizations.train_vals
@@ -934,17 +943,17 @@ def sampling_based_sobol_indices_from_gaussian_process(
         ninterpolation_samples=500, nvalidation_samples=100,
         ncandidate_samples=1000, use_cholesky=True, alpha=0):
     """
-    Compute sobol indices from Gaussian process using sampling. 
-    This function returns the mean and variance of these values with 
+    Compute sobol indices from Gaussian process using sampling.
+    This function returns the mean and variance of these values with
     respect to the variability in the GP (i.e. its function error)
 
     Following Kennedy and O'hagan we evaluate random realizations of each
-    GP at a discrete set of points. To predict at larger sample sizes we 
-    interpolate these points and use the resulting approximation to make any 
-    subsequent predictions. This introduces an error but the error can be 
+    GP at a discrete set of points. To predict at larger sample sizes we
+    interpolate these points and use the resulting approximation to make any
+    subsequent predictions. This introduces an error but the error can be
     made arbitrarily small by setting ninterpolation_samples large enough.
     The geometry of the interpolation samples can effect accuracy of the
-    interpolants. Consequently we use Pivoted cholesky algorithm in 
+    interpolants. Consequently we use Pivoted cholesky algorithm in
     Harbrecht et al for choosing the interpolation samples.
 
     Parameters
@@ -955,20 +964,20 @@ def sampling_based_sobol_indices_from_gaussian_process(
         only be computed using the mean of the GP.
 
     nsobol_realizations : integer
-        The number of random realizations of the random samples used to 
-        compute the sobol indices. This number should be similar to 
-        ngp_realizations, as mean and stdev are taken over both these 
+        The number of random realizations of the random samples used to
+        compute the sobol indices. This number should be similar to
+        ngp_realizations, as mean and stdev are taken over both these
         random values.
 
     stat_functions : list
         List of callable functions with signature fun(np.ndarray)
         E.g. np.mean. If fun has arguments then we must wrap then with partial
         and set a meaniningful __name__, e.g. fun = partial(np.quantile, q=0.5)
-        fun.__name__ == 'quantile-0.25'. 
+        fun.__name__ == 'quantile-0.25'.
         Note: np.min and np.min names are amin, amax
 
     ninterpolation_samples : integer
-        The number of samples used to interpolate the discrete random 
+        The number of samples used to interpolate the discrete random
         realizations of a Gaussian Process
 
     nvalidation_samples : integer
@@ -976,9 +985,9 @@ def sampling_based_sobol_indices_from_gaussian_process(
         of the random realizations
 
     ncandidate_samples : integer
-        The number of candidate samples selected from when building the 
+        The number of candidate samples selected from when building the
         interpolants of the random realizations
-        
+
     Returns
     -------
     result : dictionary
@@ -986,12 +995,12 @@ def sampling_based_sobol_indices_from_gaussian_process(
         to the mean, variance, sobol_indices and total_effects of the Gaussian
         process. To access the data associated with a fun in stat_function
         use the key fun.__name__, For example  if the stat_function is np.mean
-        the mean sobol indices are accessed via result['sobol_indices']['mean'].
-        The raw values of each iteration are stored in 
+        the mean sobol indices are accessed via result['sobol_indices']['mean']
+        The raw values of each iteration are stored in
         result['sobol_indices]['values']
     """
     assert nsobol_realizations > 0
-    
+
     if ngp_realizations > 0:
         assert ncandidate_samples > ninterpolation_samples
         gp_realizations = generate_gp_realizations(
@@ -1000,7 +1009,7 @@ def sampling_based_sobol_indices_from_gaussian_process(
         fun = gp_realizations
     else:
         fun = gp
-        
+
     sobol_values, total_values, variances, means = \
         repeat_sampling_based_sobol_indices(
             fun, variables, interaction_terms, nsamples,

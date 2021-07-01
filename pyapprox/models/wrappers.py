@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 from pyapprox.utilities import get_all_sample_combinations
 from pyapprox.utilities import hash_array
 import time
@@ -332,7 +330,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
         pool_given = True
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
-    if pool_given is False:
+    if pool_given == False:
         pool.close()
 
     # result  = [model(samples[:, ii:ii+1]) for ii in range(samples.shape[1])]
@@ -626,6 +624,20 @@ class PoolModel(object):
         return vals
 
 
+def get_active_set_model_from_variable(function, variable, active_var_indices,
+                                       nominal_values):
+    from pyapprox import IndependentMultivariateRandomVariable
+    active_variable = IndependentMultivariateRandomVariable(
+        [variable.all_variables()[ii] for ii in active_var_indices])
+    mask = np.ones(variable.num_vars(), dtype=bool)
+    mask[active_var_indices] = False
+    inactive_var_values = nominal_values[mask]
+    model = ActiveSetVariableModel(
+        function, variable.num_vars(), inactive_var_values, active_var_indices)
+    return model, active_variable
+
+
+
 class ActiveSetVariableModel(object):
     def __init__(self, function, num_vars, inactive_var_values,
                  active_var_indices):
@@ -633,8 +645,8 @@ class ActiveSetVariableModel(object):
         # necessary allows for better error checking
         self.function = function
         assert inactive_var_values.ndim == 2
-        self.inactive_var_values = inactive_var_values
-        self.active_var_indices = active_var_indices
+        self.inactive_var_values = np.asarray(inactive_var_values)
+        self.active_var_indices = np.asarray(active_var_indices)
         assert self.active_var_indices.shape[0] + \
             self.inactive_var_values.shape[0] == num_vars
         self.num_vars = num_vars
@@ -651,6 +663,9 @@ class ActiveSetVariableModel(object):
         samples[self.active_var_indices,
                 :] = raw_samples[self.inactive_var_indices.shape[0]:]
         return self.function(samples)
+
+    def num_active_vars(self):
+        return len(self.inactive_var_indices)
 
 
 def combine_saved_model_data(saved_data_basename):

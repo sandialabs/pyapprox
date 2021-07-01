@@ -41,10 +41,11 @@ def hash_array(array, decimals=None):
     return hash(array.tobytes())
 
 
-def package_installed(name):
-    installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
-    return name in installed_pkgs
-
-
-def module_exists(name):
-    return importlib.util.find_spec(name) is not None
+def package_available(name):
+    pkg_available = True
+    try:
+        mod = importlib.import_module(name)
+    except (ModuleNotFoundError, ImportError):
+        pkg_available = False
+    
+    return pkg_available

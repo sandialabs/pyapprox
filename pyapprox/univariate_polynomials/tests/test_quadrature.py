@@ -1,12 +1,21 @@
 import unittest
-from pyapprox.univariate_quadrature import *
-from scipy.special import gamma as gamma_fn
-from scipy.special import beta as beta_fn
+import numpy as np
+from functools import partial
+from scipy import stats
+import sympy as sp
+
+from pyapprox.univariate_polynomials.quadrature import \
+    gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D, \
+    clenshaw_curtis_pts_wts_1D, leja_growth_rule, \
+    constant_increment_growth_rule
 from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
-from pyapprox.variables import float_rv_discrete, get_distribution_info
+from pyapprox.variables import float_rv_discrete, get_probability_masses
+from pyapprox.univariate_polynomials.leja_quadrature import \
+    get_univariate_leja_quadrature_rule
+from pyapprox.variables import transform_scale_parameters
 
 
-class TestUnivariateQuadrature(unittest.TestCase):
+class TestQuadrature(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
@@ -57,24 +66,27 @@ class TestUnivariateQuadrature(unittest.TestCase):
 
     def test_gaussian_leja_quadrature(self):
         level = 20
-        x_quad, w_quad = gaussian_leja_quadrature_rule(
-            level, return_weights_for_all_levels=False)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            stats.norm(0, 1), leja_growth_rule,
+            return_weights_for_all_levels=False)
+        x_quad, w_quad = quad_rule(level)
 
-        import sympy as sp
         x = sp.Symbol('x')
         weight_function = gaussian_pdf(0, 1, x, sp)
         ranges = [-sp.oo, sp.oo]
         exact_integral = float(
             sp.integrate(weight_function*x**3, (x, ranges[0], ranges[1])))
+        # print(exact_integral, x_quad, w_quad)
         assert np.allclose(exact_integral, np.dot(x_quad**3, w_quad))
 
     def test_beta_leja_quadrature(self):
         level = 12
         alpha_stat, beta_stat = 2, 10
-        x_quad, w_quad = beta_leja_quadrature_rule(
-            alpha_stat, beta_stat, level, return_weights_for_all_levels=False)
+        quad_rule = get_univariate_leja_quadrature_rule(
+            stats.beta(alpha_stat, beta_stat), leja_growth_rule,
+            return_weights_for_all_levels=False)
+        x_quad, w_quad = quad_rule(level)
 
-        import sympy as sp
         x = sp.Symbol('x')
         weight_function = beta_pdf_on_ab(alpha_stat, beta_stat, -1, 1, x)
         ranges = [-1, 1]
@@ -84,11 +96,9 @@ class TestUnivariateQuadrature(unittest.TestCase):
 
         level = 12
         alpha_stat, beta_stat = 2, 10
-        x_quad, w_quad = beta_leja_quadrature_rule(
-            alpha_stat, beta_stat, level, return_weights_for_all_levels=False)
+        x_quad, w_quad = quad_rule(level)
         x_quad = (x_quad+1)/2
 
-        import sympy as sp
         x = sp.Symbol('x')
         weight_function = beta_pdf_on_ab(alpha_stat, beta_stat, 0, 1, x)
         ranges = [0, 1]
@@ -102,29 +112,26 @@ class TestUnivariateQuadrature(unittest.TestCase):
         pk = np.ones(nmasses)/nmasses
         variable = float_rv_discrete(
             name='float_rv_discrete', values=(xk, pk))()
+
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
             variable, growth_rule,
-            numerically_generated_poly_accuracy_tolerance=1e-11)
+            orthonormality_tol=1e-10,
+            return_weights_for_all_levels=False)
         level = 3
-        scales, shapes = get_distribution_info(variable)[1:]
 
         x, w = quad_rule(level)
-        # x in [-1,1], scales for x in [0,1]
-        loc, scale = scales['loc'], scales['scale']
-        scale /= 2
-        loc = loc+scale
+        loc, scale = transform_scale_parameters(variable)
         x = x*scale+loc
 
-        true_moment = (xk**(x.shape[0]-1)).dot(pk)
-        moment = (x**(x.shape[0]-1)).dot(w[-1])
+        degree = x.shape[0]-1
+        true_moment = (xk**degree).dot(pk)
+        moment = (x**degree).dot(w)
 
-        # print(moment)
-        # print(true_moment)
+        # print(moment, true_moment)
         assert np.allclose(moment, true_moment)
 
     def test_get_univariate_leja_rule_bounded_discrete(self):
-        from scipy import stats
         growth_rule = partial(constant_increment_growth_rule, 2)
         level = 3
 
@@ -134,19 +141,23 @@ class TestUnivariateQuadrature(unittest.TestCase):
         var_cheb = float_rv_discrete(
             name='discrete_chebyshev', values=(xk, pk))()
 
-        for variable in [var_cheb, stats.binom(20, 0.5),
+        for variable in [var_cheb, stats.binom(17, 0.5),
                          stats.hypergeom(10+10, 10, 9)]:
             quad_rule = get_univariate_leja_quadrature_rule(
                 variable, growth_rule)
 
-            # polys of binom, hypergeometric have no canonical domain [-1,1]
             x, w = quad_rule(level)
+            loc, scale = transform_scale_parameters(variable)
+            x = x*scale+loc
 
-            from pyapprox.variables import get_probability_masses
-            xk, pk  =  get_probability_masses(variable)
-            true_moment = (xk**(x.shape[0]-1)).dot(pk)
-            moment = (x**(x.shape[0]-1)).dot(w[-1])
-            
+            xk, pk = get_probability_masses(variable)
+            print(x, xk, loc, scale)
+
+            degree = (x.shape[0]-1)
+            true_moment = (xk**degree).dot(pk)
+            moment = (x**degree).dot(w[-1])
+
+            print(moment, true_moment, variable.dist.name)
             assert np.allclose(moment, true_moment)
 
             # Note:
@@ -154,7 +165,6 @@ class TestUnivariateQuadrature(unittest.TestCase):
             # does not produce nested sequences without using initial_points
 
     def test_hermite_christoffel_leja_quadrature_rule(self):
-        from scipy import stats
         variable = stats.norm(2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
@@ -174,7 +184,6 @@ class TestUnivariateQuadrature(unittest.TestCase):
     def test_uniform_christoffel_leja_quadrature_rule(self):
         import warnings
         warnings.filterwarnings('error')
-        from scipy import stats
         variable = stats.uniform(-2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
@@ -188,18 +197,16 @@ class TestUnivariateQuadrature(unittest.TestCase):
         assert np.allclose((samples**2).dot(weights[-1]), 1/3)
 
     def test_hermite_pdf_weighted_leja_quadrature_rule(self):
-        from scipy import stats
         variable = stats.norm(2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
             variable, growth_rule, method='pdf')
         level = 5
         samples, weights = quad_rule(level)
-        assert np.allclose(samples[0], (variable.ppf(0.5)-2)/3)
+        assert np.allclose(samples[0], (variable.ppf(0.75)-2)/3)
         assert np.allclose((samples**2).dot(weights[-1]), 1)
 
-    def test_hermite_pdf_weighted_leja_quadrature_rule(self):
-        from scipy import stats
+    def test_legendre_pdf_weighted_leja_quadrature_rule(self):
         variable = stats.uniform(-2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
@@ -218,21 +225,18 @@ class TestUnivariateQuadrature(unittest.TestCase):
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
             variable, growth_rule, method='christoffel',
-            numerically_generated_poly_accuracy_tolerance=1e-8)
+            orthonormality_tol=1e-8)
         level = 5
         quad_samples, weights = quad_rule(level)
         # print(quad_samples)
-        # print((quad_samples**2).dot(weights[-1]))
-        # print((samples**2).mean())
+        print((quad_samples**2).dot(weights[-1]))
+        print((samples**2).mean())
 
         assert np.allclose(
             (quad_samples**2).dot(weights[-1]), (samples**2).mean())
 
 
 if __name__ == "__main__":
-    #import warnings
-    #warnings.filterwarnings('error')
     univariate_quadrature_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(
-            TestUnivariateQuadrature)
+        unittest.TestLoader().loadTestsFromTestCase(TestQuadrature)
     unittest.TextTestRunner(verbosity=2).run(univariate_quadrature_test_suite)

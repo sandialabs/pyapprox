@@ -59,7 +59,7 @@ setuptools.setup(
         'numba',
         'scikit-learn',
         'pytest-cov',
-        'pytest',
+        'pytest>=4.6',
         'networkx',
     ],
     extras_require={

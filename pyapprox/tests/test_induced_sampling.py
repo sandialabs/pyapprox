@@ -1,19 +1,31 @@
 import unittest
-from pyapprox.induced_sampling import *
+import numpy as np
+from scipy import stats
+from functools import partial
+
+from pyapprox.induced_sampling import continuous_induced_measure_cdf, \
+    continuous_induced_measure_ppf, generate_induced_samples, \
+    discrete_induced_sampling, basis_matrix_generator_1d, \
+    random_induced_measure_sampling, idistinv_jacobi, \
+    inverse_transform_sampling_1d, \
+    generate_induced_samples_migliorati_tolerance, \
+    compute_preconditioned_basis_matrix_condition_number, \
+    increment_induced_samples_migliorati, christoffel_function
 from pyapprox.indexing import compute_hyperbolic_indices, \
     compute_hyperbolic_level_indices
 from pyapprox.variables import float_rv_discrete, \
-    IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
+    IndependentMultivariateRandomVariable, get_probability_masses
+from pyapprox.variable_transformations import \
+    AffineRandomVariableTransformation
 from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
-from scipy import stats
-from pyapprox.configure_plots import *
 from pyapprox.variable_transformations import \
     define_iid_random_variable_transformation
 from pyapprox.density import tensor_product_pdf
 from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence
 
 
 class TestInducedSampling(unittest.TestCase):
@@ -58,7 +70,7 @@ class TestInducedSampling(unittest.TestCase):
         samples = var_trans.map_from_canonical_space(canonical_samples)
 
         np.random.seed(1)
-        #canonical_xk = [2*get_distribution_info(var1)[2]['xk']-1,
+        # canonical_xk = [2*get_distribution_info(var1)[2]['xk']-1,
         #                2*get_distribution_info(var2)[2]['xk']-1]
         xk = np.array(
             [get_probability_masses(var)[0]
@@ -91,7 +103,7 @@ class TestInducedSampling(unittest.TestCase):
 
         def density(x):
             # some issue with native scipy.pmf
-            #assert np.allclose(var1.pdf(x[0, :]),var1.pmf(x[0, :]))
+            # assert np.allclose(var1.pdf(x[0, :]),var1.pmf(x[0, :]))
             return univariate_pdf(var1, x[0, :])*univariate_pdf(var2, x[1, :])
 
         def generate_proposal_samples(n):
@@ -137,7 +149,8 @@ class TestInducedSampling(unittest.TestCase):
         # print(samples.mean(axis=1))
         # print(samples1.mean(axis=1))
         # print(samples2.mean(axis=1))
-        # print(samples1.mean(axis=1)-true_induced_mean, true_induced_mean*rtol)
+        # print(samples1.mean(axis=1)-true_induced_mean,
+        #       true_induced_mean*rtol)
         # print(samples2.mean(axis=1))
         assert np.allclose(samples.mean(axis=1), true_induced_mean, rtol=rtol)
         assert np.allclose(samples1.mean(axis=1), true_induced_mean, rtol=rtol)
@@ -146,7 +159,7 @@ class TestInducedSampling(unittest.TestCase):
     def test_discrete_induced_sampling(self):
         nmasses1 = 10
         mass_locations1 = np.geomspace(1.0, 512.0, num=nmasses1)
-        #mass_locations1 = np.arange(0,nmasses1)
+        # mass_locations1 = np.arange(0,nmasses1)
         masses1 = np.ones(nmasses1, dtype=float)/nmasses1
         var1 = float_rv_discrete(
             name='float_rv_discrete', values=(mass_locations1, masses1))()
@@ -154,12 +167,12 @@ class TestInducedSampling(unittest.TestCase):
         mass_locations2 = np.arange(0, nmasses2)
         # if increase from 16 unmodififed becomes ill conditioned
         masses2 = np.geomspace(1.0, 16.0, num=nmasses2)
-        #masses2  = np.ones(nmasses2,dtype=float)/nmasses2
+        # masses2  = np.ones(nmasses2,dtype=float)/nmasses2
         masses2 /= masses2.sum()
         var2 = float_rv_discrete(
             name='float_rv_discrete', values=(mass_locations2, masses2))()
         self.help_discrete_induced_sampling(var1, var2, 30)
-        
+
         num_type1, num_type2, num_trials = [10, 10, 9]
         var1 = stats.hypergeom(num_type1+num_type2, num_type1, num_trials)
         var2 = var1
@@ -187,11 +200,13 @@ class TestInducedSampling(unittest.TestCase):
         indices = np.ones((2, num_samples), dtype=int)*degree
         indices[1, :] = degree-1
         xx = np.tile(
-            np.linspace(0.01, 0.99, (num_samples))[np.newaxis, :], (num_vars, 1))
+            np.linspace(0.01, 0.99, (num_samples))[np.newaxis, :],
+            (num_vars, 1))
         samples = univ_inv(xx, indices)
-        
+
         var_trans = AffineRandomVariableTransformation(
-            [stats.beta(bet+1, alph+1, -1, 2), stats.beta(bet+1, alph+1, -1, 2)])
+            [stats.beta(bet+1, alph+1, -1, 2),
+             stats.beta(bet+1, alph+1, -1, 2)])
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 
         pce = PolynomialChaosExpansion()
@@ -199,19 +214,19 @@ class TestInducedSampling(unittest.TestCase):
         pce.set_indices(indices)
 
         reference_samples = inverse_transform_sampling_1d(
-            pce.var_trans.variable.unique_variables[0], pce.recursion_coeffs[0],
-            degree, xx[0, :])
+            pce.var_trans.variable.unique_variables[0],
+            pce.recursion_coeffs[0], degree, xx[0, :])
         # differences are just caused by different tolerances in optimizes
         # used to find roots of CDF
         assert np.allclose(reference_samples, samples[0, :], atol=1e-7)
         reference_samples = inverse_transform_sampling_1d(
-            pce.var_trans.variable.unique_variables[0], pce.recursion_coeffs[0],
-            degree-1, xx[0, :])
+            pce.var_trans.variable.unique_variables[0],
+            pce.recursion_coeffs[0], degree-1, xx[0, :])
         assert np.allclose(reference_samples, samples[1, :], atol=1e-7)
 
-        #num_samples = 30
-        #samples = generate_induced_samples(pce,num_samples)
-        #plt.plot(samples[0,:],samples[1,:],'o'); plt.show()
+        # num_samples = 30
+        # samples = generate_induced_samples(pce,num_samples)
+        # plt.plot(samples[0,:],samples[1,:],'o'); plt.show()
 
     def test_multivariate_migliorati_sampling_jacobi(self):
 
@@ -235,7 +250,7 @@ class TestInducedSampling(unittest.TestCase):
         cond = compute_preconditioned_basis_matrix_condition_number(
             pce.canonical_basis_matrix, samples)
         assert cond < cond_tol
-        #plt.plot(samples[0,:],samples[1,:],'o'); plt.show()
+        # plt.plot(samples[0,:],samples[1,:],'o'); plt.show()
 
     def test_adaptive_multivariate_sampling_jacobi(self):
 
@@ -257,16 +272,16 @@ class TestInducedSampling(unittest.TestCase):
         samples = generate_induced_samples_migliorati_tolerance(pce, cond_tol)
 
         for dd in range(2, degree):
-            num_prev_samples = samples.shape[1]
+            # num_prev_samples = samples.shape[1]
             new_indices = compute_hyperbolic_level_indices(num_vars, dd, 1.)
             samples = increment_induced_samples_migliorati(
                 pce, cond_tol, samples, indices, new_indices)
             indices = np.hstack((indices, new_indices))
             pce.set_indices(indices)
-            new_samples = samples[:, num_prev_samples:]
-            prev_samples = samples[:, :num_prev_samples]
-            #fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-            #from pyapprox.visualization import plot_2d_indices
+            # new_samples = samples[:, num_prev_samples:]
+            # prev_samples = samples[:, :num_prev_samples]
+            # fig,axs = plt.subplots(1,2,figsize=(2*8,6))
+            # from pyapprox.visualization import plot_2d_indices
             # axs[0].plot(prev_samples[0,:],prev_samples[1,:],'ko');
             # axs[0].plot(new_samples[0,:],new_samples[1,:],'ro');
             # plot_2d_indices(indices,other_indices=new_indices,ax=axs[1]);

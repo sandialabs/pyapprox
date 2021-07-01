@@ -1,21 +1,22 @@
 import sys
 import unittest, pytest
+import pyapprox as pya
 
 
-if sys.platform == 'win32':
+if sys.platform != 'win32':
+    import dolfin as dl
+    from pyapprox_dev.fenics_models.helmholtz import *
+else:
     pytestmark = pytest.mark.skip("Skipping test on Windows")
 
     # Create stub class
     class dl(object):
         UserExpression = object
-else:
-    import dolfin as dl
-    from pyapprox_dev.fenics_models.helmholtz import *
 
 try:
     import mshr
     mshr_package_missing = False
-except:
+except (ImportError, ModuleNotFoundError):
     mshr_package_missing = True
 
 mshr_skiptest = unittest.skipIf(
