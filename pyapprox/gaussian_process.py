@@ -192,7 +192,7 @@ class RandomGaussianProcessRealizations:
     def fit(self, candidate_samples, rand_noise=None,
             ninterpolation_samples=500, nvalidation_samples=100):
         """
-        Construct interpolants of random realizations evalauted at the
+        Construct interpolants of random realizations evaluated at the 
         training data and at a new set of additional points
         """
         assert (ninterpolation_samples <=
