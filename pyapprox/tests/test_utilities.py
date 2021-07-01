@@ -1034,7 +1034,7 @@ class TestUtilities(unittest.TestCase):
             coef_kk = np.linalg.lstsq(gram_mat_kk, values_kk, rcond=None)[0]
             true_cv_errors[kk] = basis_mat[fold_sample_indices[kk], :].dot(
                 coef_kk)-values[fold_sample_indices[kk]]
-        print(cv_errors, true_cv_errors)
+        # print(cv_errors, true_cv_errors)
         assert np.allclose(cv_errors, true_cv_errors)
         true_cv_score = np.sqrt((true_cv_errors**2).sum(axis=(0, 1))/nsamples)
         assert np.allclose(true_cv_score, cv_score)

@@ -861,7 +861,7 @@ def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     num_pivots = raw_pivots.shape[0]
     for it, pivot in enumerate(raw_pivots):
         # inlined swap_rows() for performance
-        new_cols[it], new_cols[pivot] = new_cols[pivot], new_cols[it]
+        new_cols[[it, pivot]] = new_cols[[pivot, it]]
 
         # update LU_factor
         # recover state of col vector from permuted LU factor
@@ -904,7 +904,7 @@ def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
 
 
 def swap_rows(matrix, ii, jj):
-    matrix[ii], matrix[jj] = matrix[jj], matrix[ii]
+    matrix[[ii, jj]] = matrix[[jj, ii]]
 
 
 def pivot_rows(pivots, matrix, in_place=True):
