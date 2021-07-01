@@ -183,14 +183,14 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
     try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
-        
+
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-                x, fn_vals, active_dims,
-                active_abscissa_indices_1d.astype(np.int_),
-                num_abscissa_1d.astype(np.int_),
-                num_active_abscissa_1d.astype(np.int_),
-                shifts.astype(np.int_), abscissa_and_weights)
+                x, fn_vals, active_dims.astype(np.int64),
+                active_abscissa_indices_1d.astype(np.int64),
+                num_abscissa_1d.astype(np.int64),
+                num_active_abscissa_1d.astype(np.int64),
+                shifts.astype(np.int64), abscissa_and_weights)
         if np.any(np.isnan(result)):
             raise ValueError('Error values not finite')
 
