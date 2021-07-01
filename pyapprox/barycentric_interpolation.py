@@ -294,7 +294,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
 
             if (num_act_dims_pt == 0):
                 # if point is an abscissa return the fn value at that point
-                #fn_val_index = 0
+                # fn_val_index = 0
                 # for act_dim_idx in range(num_act_dims):
                 #    fn_val_index+=multi_index[act_dim_idx]*shifts[act_dim_idx]
                 fn_val_index = np.sum(multi_index*shifts)
@@ -305,7 +305,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                 done = True
                 if (num_act_dims_pt > 1):
                     done = False
-                #fn_val_index = 0
+                # fn_val_index = 0
                 # for act_dim_idx in range(num_act_dims):
                 #    fn_val_index += \
                 #        multi_index[act_dim_idx]*shifts[act_dim_idx]
@@ -339,8 +339,8 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                         break
                 result[kk, :] = c_persistent[:, num_act_dims_pt-1] / denom
                 if np.any(np.isnan(result[kk, :])):
-                    #print (c_persistent [:,num_act_dims_pt-1])
-                    #print (denom)
+                    # print (c_persistent [:,num_act_dims_pt-1])
+                    # print (denom)
                     raise ValueError('Error values not finite')
     return result
 
@@ -417,33 +417,11 @@ def precompute_tensor_product_lagrange_polynomial_basis(
 def __tensor_product_lagrange_polynomial_basis(
         samples, basis_vals_1d, active_vars, values, active_indices):
 
-    #try:
     from pyapprox.cython.barycentric_interpolation import \
         tensor_product_lagrange_interpolation_pyx
     approx_values = tensor_product_lagrange_interpolation_pyx(
         samples, values, basis_vals_1d, active_indices, active_vars)
 
-    return approx_values
-
-    # nvars, nsamples = samples.shape
-    # nactive_vars = len(active_vars)
-
-    # nindices = active_indices.shape[1]
-    # temp1 = basis_vals_1d.reshape(
-    #     (nactive_vars*basis_vals_1d.shape[1], nsamples))
-    # temp2 = temp1[active_indices.ravel()+np.repeat(
-    #     np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
-    #         nactive_vars, nindices, nsamples)
-    # basis_matrix = np.prod(temp2, axis=0).T
-    # approx_values = basis_matrix.dot(values)
-    
-    # prod with axis argument does not work with njit    
-    # approx_values = np.zeros((nsamples, values.shape[1]), dtype=np.double)
-    # for jj in range(nindices):
-    #     basis_vals = 1
-    #     for dd in range(nactive_vars):
-    #         basis_vals *= basis_vals_1d[dd, active_indices[dd, jj], :]
-    #     approx_values += basis_vals[:, None]*values[jj, :]
     return approx_values
 
 
