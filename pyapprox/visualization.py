@@ -833,6 +833,9 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
         plot_1d_cross_section(
             fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi)
 
+    for ii in range(variable.num_vars(), nfig_rows*nfig_cols):
+        axs[ii].axis("off")
+
     return fig, axs
 
 

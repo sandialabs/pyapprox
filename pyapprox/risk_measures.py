@@ -96,7 +96,7 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     # if n_plus==0:
     #     CVaR=VaR
     # else:
-    #     # evalaute CDF at VaR
+    #     # evaluate CDF at VaR
     #     cdf_at_var = (index+1)/num_samples
     #     lamda = (cdf_at_var-alpha)/(1-alpha)
     #     # Compute E[X|X>VaR(beta)]
@@ -144,7 +144,7 @@ def cvar_importance_sampling_biasing_density(pdf, function, beta, VaR, tau, x):
         density will just be density of X p(x).
 
     x : np.ndarray (nsamples)
-        The samples used to evalaute the biasing density.
+        The samples used to evaluate the biasing density.
 
     Returns
     =======

@@ -263,6 +263,7 @@ def adaptive_approximate_polynomial_chaos(
 
         where ``subspace_index`` is 1D np.ndarray of size (nvars),
         ``nnew_subspace_samples`` is an integer specifying the number
+
         of new samples that will be added to the sparse grid by adding the
         subspace specified by subspace_index and ``sparse_grid`` is the current
         :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object.

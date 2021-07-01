@@ -263,7 +263,7 @@ class MeshKLE(object):
     Parameters
     ----------
     mesh_coords : np.ndarray (nphys_vars, ncoords)
-        The coordinates to evalaute the KLE basis
+        The coordinates to evaluate the KLE basis
 
     mean_field : np.ndarray (ncoords)
         The mean field of the KLE
