@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import unittest
 
 import numpy as np
@@ -6,7 +5,8 @@ import numpy as np
 import pyapprox as pya
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.benchmarks.surrogate_benchmarks import \
-    wing_weight_function, wing_weight_gradient, get_wing_weight_variables
+    wing_weight_function, wing_weight_gradient, \
+    define_wing_weight_random_variables
 
 
 class TestBenchmarks(unittest.TestCase):
@@ -92,7 +92,7 @@ class TestBenchmarks(unittest.TestCase):
         assert errors.min() < 4e-7
 
     def test_wing_weight_gradient(self):
-        variable = get_wing_weight_variables()
+        variable = define_wing_weight_random_variables()
         fun = wing_weight_function
         grad = wing_weight_gradient
         sample = pya.generate_independent_random_samples(variable, 1)
