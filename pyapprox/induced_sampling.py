@@ -1,23 +1,23 @@
-from pyapprox.polynomial_sampling import christoffel_weights
-from scipy.stats import _continuous_distns, _discrete_distns
-from pyapprox.random_variable_algebra import invert_monotone_function
 from scipy import integrate
-from pyapprox.indexing import sort_indices_lexiographically
-from pyapprox.orthonormal_polynomials_1d import \
-    evaluate_orthonormal_polynomial_1d
-from pyapprox.variables import get_distribution_info, \
-    is_bounded_discrete_variable, get_probability_masses, float_rv_discrete
-import numpy as np
-import os
-from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence,\
-    gauss_quadrature
 from scipy.special import betaln
 from scipy.special import beta as betafn
-#from scipy.optimize import fsolve
 from scipy.optimize import brenth
 from functools import partial
+import numpy as np
+import os
+
+from pyapprox.polynomial_sampling import christoffel_weights
+from pyapprox.random_variable_algebra import invert_monotone_function
+from pyapprox.orthonormal_polynomials_1d import \
+    evaluate_orthonormal_polynomial_1d
+from pyapprox.variables import get_distribution_info, is_continuous_variable, \
+    is_bounded_discrete_variable, get_probability_masses, \
+    is_bounded_continuous_variable, transform_scale_parameters
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    gauss_quadrature
 from pyapprox.utilities import discrete_sampling
-from pyapprox.variables import is_bounded_continuous_variable
 from pyapprox.probability_measure_sampling import rejection_sampling
 from pyapprox.polynomial_sampling import christoffel_function
 
@@ -872,26 +872,26 @@ def mixed_continuous_discrete_induced_sampling(
     assert len(probability_mesh_list) == num_discrete_vars
 
     mask = np.ones((num_vars), dtype=bool)
-    mask[discrete_vars] = False
+    mask[discrete_var_indices] = False
     continuous_vars = np.arange(num_vars)[mask]
-    assert discrete_vars.shape[0]+continous_vars.shape[0] == num_vars
+    assert discrete_var_indices.shape[0]+continuous_vars.shape[0] == num_vars
 
     discrete_samples = discrete_induced_sampling(
-        partial(basis_matrix_generator_1d_vars_wrapper,
-                basis_matrix_generator_1d, discrete_vars),
+        partial(basis_matrix_generator_1d_active_vars_wrapper,
+                basis_matrix_generator_1d, discrete_var_indices),
         basis_indices,
         probability_mesh_list,
         probability_masses_list, num_samples)
 
     # TODO remove hard coding which only supports jacobi polynomials
     # not even varying jacobi polynomials are supported
-    univ_inv = partial(idistinv_jacobi, alph=alph, bet=bet)
+    univ_inv = partial(idistinv_jacobi, alph=alpha, bet=beta)
     continuous_samples = idist_mixture_sampling_parallel(
         basis_indices, univ_inv, num_samples=num_samples,
         weights=None, max_eval_concurrency=10)
 
     samples = np.empty((num_vars, num_samples))
-    samples[discrete_vars, :] = discrete_samples
+    samples[discrete_var_indices, :] = discrete_samples
     samples[continuous_vars, :] = continuous_samples
     return samples
 
@@ -917,7 +917,7 @@ def continuous_induced_measure_cdf(pdf, ab, ii, lb, ub, tol, x):
         np.atleast_1d(xx), ii, ab)[:, -1]**2*pdf(xx)
     # from pyapprox.cython.orthonormal_polynomials_1d import\
     #    induced_measure_pyx
-    #integrand = lambda x: induced_measure_pyx(x,ii,ab,pdf)
+    # integrand = lambda x: induced_measure_pyx(x,ii,ab,pdf)
     vals = np.empty_like(x, dtype=float)
     for jj in range(x.shape[0]):
         integral, err = integrate.quad(
@@ -942,14 +942,15 @@ def continuous_induced_measure_ppf(var, ab, ii, u_samples,
     shapes = get_distribution_info(var)[2]
 
     # need to map x from canonical polynomial domain to canonical domain of pdf
-    def pdf(x): return var.dist._pdf((x-loc)/scale, **shapes)/scale
+    # def pdf(x): return var.dist._pdf((x-loc)/scale, **shapes)/scale
 
     def pdf(x):
         vals = var.dist._pdf((x-loc)/scale, **shapes)/scale
         # print('x',x,(x-loc)/scale,vals)
         return vals
-    #pdf = var.pdf
-    #func = partial(continuous_induced_measure_cdf,pdf,ab,ii,lb,ub,quad_tol)
+
+    # pdf = var.pdf
+    # func = partial(continuous_induced_measure_cdf,pdf,ab,ii,lb,ub,quad_tol)
     from pyapprox.cython.orthonormal_polynomials_1d import\
         continuous_induced_measure_cdf_pyx
     func = partial(continuous_induced_measure_cdf_pyx,
@@ -965,17 +966,15 @@ def inverse_transform_sampling_1d(var, ab, ii, u_samples):
     name = var.dist.name
     if is_bounded_discrete_variable(var):
         xk, pk = get_probability_masses(var)
-        if type(var.dist) == float_rv_discrete and name != 'discrete_chebyshev':
-            lb, ub = xk.min(), xk.max()
-            xk = (xk-lb)/(ub-lb)*2-1
+        loc, scale = transform_scale_parameters(var)
+        xk = (xk-loc)/scale
         return float_rv_discrete_inverse_transform_sampling_1d(
             xk, pk, ab, ii, u_samples)
-    elif name in _continuous_distns._distn_names:
+    elif is_continuous_variable(var):
         return continuous_induced_measure_ppf(var, ab, ii, u_samples)
-    else:
-        msg = 'induced sampling not yet implemented for var type %s' % name
-        raise Exception(msg)
-    return samples
+
+    msg = 'induced sampling not yet implemented for var type %s' % name
+    raise Exception(msg)
 
 
 def generate_induced_samples(pce, num_samples):
@@ -1019,7 +1018,8 @@ def generate_induced_samples_migliorati(pce, num_samples_per_index):
                 u_samples = np.random.uniform(0., 1., (num_samples_per_index))
                 if kk > 0:
                     samples[dd, idx1:idx2] = inverse_transform_sampling_1d(
-                        var, pce.recursion_coeffs[pce.basis_type_index_map[dd]],
+                        var,
+                        pce.recursion_coeffs[pce.basis_type_index_map[dd]],
                         kk, u_samples)
                 else:
                     samples[dd, idx1:idx2] = var.rvs(
@@ -1116,14 +1116,14 @@ def random_induced_measure_sampling(num_samples, num_vars,
     Returns
     -------
     samples : np.ndarray (num_vars,num_samples)
-        Samples from the induced measure. 
+        Samples from the induced measure.
 
     Notes
     -----
-    Unlike fekete sampling, leja sampling, discrete_induced_sampling, and 
+    Unlike fekete sampling, leja sampling, discrete_induced_sampling, and
     generate_induced_sampling this function should use
-    basis_matrix_generator=pce.basis_matrix here. If use 
-    pce.canonical_basis_matrix then densities must be mapped to this 
+    basis_matrix_generator=pce.basis_matrix here. If use
+    pce.canonical_basis_matrix then densities must be mapped to this
     space also which can be difficult.
     """
 

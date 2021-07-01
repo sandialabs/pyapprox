@@ -1,14 +1,12 @@
 from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    get_distribution_info, float_rv_discrete
+    transform_scale_parameters
 import numpy as np
 from pyapprox.variables import define_iid_random_variables, \
     is_bounded_continuous_variable
 from pyapprox.rosenblatt_transformation import rosenblatt_transformation,\
     inverse_rosenblatt_transformation
 from pyapprox.nataf_transformation import covariance_to_correlation, \
-    trans_x_to_u, trans_u_to_x, transform_correlations
-from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
-from scipy.linalg import solve_triangular
+    trans_x_to_u, trans_u_to_x, transform_correlations, gauss_hermite_pts_wts_1D
 
 
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
@@ -32,12 +30,12 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
 
     active_vars : np.ndarray (num_active_vars)
         The active vars to which the variable transformation should be applied
-        The inactive vars have the identity applied, i.e. they remain 
+        The inactive vars have the identity applied, i.e. they remain
         unchanged.
 
     tol : float
         Some functions such as optimizers will create points very close
-         but outside current bounds. In this case allow small error 
+         but outside current bounds. In this case allow small error
          and move these points to boundary
 
     Returns
@@ -58,15 +56,15 @@ def map_hypercube_samples(current_samples, current_ranges, new_ranges,
     for dd in active_vars:
         lb = current_ranges[2*dd]
         ub = current_ranges[2*dd+1]
-        #print (lb,current_samples[dd,:].min())
-        #print (ub,current_samples[dd,:].max(),tol)
+        # print (lb,current_samples[dd,:].min())
+        # print (ub,current_samples[dd,:].max(),tol)
         assert current_samples[dd, :].min() >= lb-tol
         assert current_samples[dd, :].max() <= ub+tol
         if tol > 0:
-            I = np.where(current_samples[dd, :] < lb)[0]
-            if I.shape[0] > 0:
-                print(('c', current_samples[dd, I]))
-            current_samples[dd, I] = lb
+            II = np.where(current_samples[dd, :] < lb)[0]
+            if II.shape[0] > 0:
+                print('c', current_samples[dd, II])
+            current_samples[dd, II] = lb
             J = np.where(current_samples[dd, :] > ub)[0]
             current_samples[dd, J] = ub
         assert ub-lb > np.finfo(float).eps*2
@@ -130,26 +128,26 @@ class AffineRandomVariableTransformation(object):
         self.scale_parameters = np.empty((self.variable.nunique_vars, 2))
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
-            name, scale_dict, __ = get_distribution_info(var)
+            # name, scale_dict, __ = get_distribution_info(var)
             # copy is essential here because code below modifies scale
-            loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
-            if (is_bounded_continuous_variable(var) or
-                (type(var.dist) == float_rv_discrete and
-                 var.dist.name != 'discrete_chebyshev')):
-                lb, ub = -1, 1
-                scale /= (ub-lb)
-                loc = loc-scale*lb
-            self.scale_parameters[ii, :] = loc, scale
+            # loc, scale = scale_dict['loc'].copy(), scale_dict['scale'].copy()
+            # if (is_bounded_continuous_variable(var) or
+            #     (type(var.dist) == float_rv_discrete and
+            #      var.dist.name != 'discrete_chebyshev')):
+            #     lb, ub = -1, 1
+            #     scale /= (ub-lb)
+            #     loc = loc-scale*lb
+            self.scale_parameters[ii, :] = transform_scale_parameters(var)
 
     def set_identity_maps(self, identity_map_indices):
         """
-        Set the dimensions we do not want to map to and from 
+        Set the dimensions we do not want to map to and from
         canonical space
 
         Parameters
         ----------
         identity_map_indices : iterable
-            The dimensions we do not want to map to and from 
+            The dimensions we do not want to map to and from
             canonical space
         """
         self.identity_map_indices = identity_map_indices
@@ -171,9 +169,9 @@ class AffineRandomVariableTransformation(object):
                 (is_bounded_continuous_variable(var) is True) and
                 ((np.any(user_samples[active_indices, :] < bounds[0])) or
                  (np.any(user_samples[active_indices, :] > bounds[1])))):
-                I = np.where((user_samples[active_indices, :] < bounds[0]) |
-                             (user_samples[active_indices, :] > bounds[1]))[1]
-                # print(user_samples[active_indices, I], bounds)
+                II = np.where((user_samples[active_indices, :] < bounds[0]) |
+                              (user_samples[active_indices, :] > bounds[1]))[1]
+                print(user_samples[active_indices, II], bounds)
                 raise Exception(f'Sample outside the bounds {bounds}')
 
             canonical_samples[active_indices, :] = (
@@ -213,10 +211,22 @@ class AffineRandomVariableTransformation(object):
                 if self.identity_map_indices is None:
                     return canonical_samples*scale+loc
                 else:
-                    return samples
+                    return canonical_samples
         raise Exception()
 
     def map_derivatives_from_canonical_space(self, derivatives):
+        """
+        derivatives : np.ndarray (nvars*nsamples, nqoi)
+            Derivatives of each qoi. The ith column consists of the derivatives
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),
+             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
+             ...,
+             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
+            where M is the number of samples and D=nvars
+
+            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+            Here each sample is considered a different QoI
+        """
         assert derivatives.shape[0] % self.num_vars() == 0
         num_samples = int(derivatives.shape[0]/self.num_vars())
         mapped_derivatives = derivatives.copy()
@@ -227,6 +237,30 @@ class AffineRandomVariableTransformation(object):
             loc, scale = self.scale_parameters[ii, :]
             mapped_derivatives[idx, :] /= scale
         return mapped_derivatives
+
+    def map_derivatives_to_canonical_space(self, canonical_derivatives):
+        """
+        derivatives : np.ndarray (nvars*nsamples, nqoi)
+            Derivatives of each qoi. The ith column consists of the derivatives
+            [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),
+             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
+             ...,
+             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
+            where M is the number of samples and D=nvars
+
+            Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
+            Here each sample is considered a different QoI
+        """
+        assert canonical_derivatives.shape[0] % self.num_vars() == 0
+        num_samples = int(canonical_derivatives.shape[0]/self.num_vars())
+        derivatives = canonical_derivatives.copy()
+        for ii in range(self.variable.nunique_vars):
+            var_indices = self.variable.unique_variable_indices[ii]
+            idx = np.tile(var_indices*num_samples, num_samples)+np.tile(
+                np.arange(num_samples), var_indices.shape[0])
+            loc, scale = self.scale_parameters[ii, :]
+            derivatives[idx, :] *= scale
+        return derivatives
 
     def num_vars(self):
         return self.variable.num_vars()
@@ -253,7 +287,7 @@ class AffineRandomVariableTransformation(object):
             ranges[2*indices], ranges[2*indices+1] = lb, ub
         return ranges
 
- 
+
 def define_iid_random_variable_transformation(variable_1d, num_vars):
     variable = define_iid_random_variables(variable_1d, num_vars)
     var_trans = AffineRandomVariableTransformation(variable)
@@ -341,8 +375,9 @@ class NatafTransformation(object):
 
         quad_rule = gauss_hermite_pts_wts_1D(11)
         self.z_correlation = transform_correlations(
-            self.x_correlation, self.x_marginal_inv_cdfs, self.x_marginal_means,
-            self.x_marginal_stdevs, quad_rule, bisection_opts)
+            self.x_correlation, self.x_marginal_inv_cdfs,
+            self.x_marginal_means, self.x_marginal_stdevs, quad_rule,
+            bisection_opts)
 
         self.z_correlation_cholesky_factor = np.linalg.cholesky(
             self.z_correlation)
@@ -367,8 +402,8 @@ class TransformationComposition(object):
         Parameters
         ----------
         transformations : list of transformation objects
-            The transformations are applied first to last for 
-            map_to_canonical_space and in reverse order for 
+            The transformations are applied first to last for
+            map_to_canonical_space and in reverse order for
             map_from_canonical_space
         """
         self.transformations = transformations

@@ -1,13 +1,15 @@
 import numpy as np
 import numpy.linalg as nlg
+import scipy
 
 from functools import partial
 
-from pyapprox.utilities import \
-    integrate_using_univariate_gauss_legendre_quadrature_unbounded
-from pyapprox.orthonormal_polynomials_1d import \
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
-from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.utilities import cartesian_product, outer_product, \
+    integrate_using_univariate_gauss_legendre_quadrature_unbounded
+from pyapprox.variables import transform_scale_parameters, \
+    is_bounded_continuous_variable
 
 
 def stieltjes(nodes, weights, N):
@@ -61,19 +63,22 @@ def lanczos(nodes, weights, N):
     N : integer
         The desired number of recursion coefficients
 
-    This algorithm was proposed in ``The numerically stable reconstruction of 
+    This algorithm was proposed in ``The numerically stable reconstruction of
     Jacobi matrices from spectral data'',  Numer. Math. 44 (1984), 317-335.
     See Algorithm RPKW on page 328.
 
     \bar{\alpha} are the current estimates of the recursion coefficients alpha
     \bar{\beta}  are the current estimates of the recursion coefficients beta
 
-    Lanczos is memory intensive for large numbers of nodes, e.g. from a 
+    Lanczos is memory intensive for large numbers of nodes, e.g. from a
     set of samples, memory errors can be thrown.
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way
-    assert abs(weights.sum()-1) < 2e-15
+    if abs(weights.sum()-1) > 2e-15:
+        msg = f"weights sum is {weights.sum()} and so does not define "
+        msg += "a probability measure"
+        raise ValueError(msg)
     nnodes = nodes.shape[0]
     assert N <= nnodes
     assert(nnodes == weights.shape[0])
@@ -97,17 +102,16 @@ def lanczos(nodes, weights, N):
 
         if ii < N:
             znorm = np.linalg.norm(z)
-            #beta[ii] = znorm**2 assume we want probability measure so
+            # beta[ii] = znorm**2 assume we want probability measure so
             # no need to square here then take sqrt later
             beta[ii] = znorm
             vec = z / znorm
             qii[:, ii+1] = vec
 
     alpha = np.atleast_2d(alpha[:N])
-    #beta = np.sqrt(np.atleast_2d(beta[:N]))
+    # beta = np.sqrt(np.atleast_2d(beta[:N]))
     beta = np.atleast_2d(beta[:N])
     return np.concatenate((alpha.T, beta.T), axis=1)
-
 
 
 def lanczos_deprecated(mat, vec):
@@ -157,7 +161,7 @@ def convert_monic_to_orthonormal_recursion_coefficients(ab_monic, probability):
 def evaluate_monic_polynomial_1d(x, nmax, ab):
     r"""
     Evaluate univariate monic polynomials using their
-    three-term recurrence coefficients. A monic polynomial is a polynomial 
+    three-term recurrence coefficients. A monic polynomial is a polynomial
     in which the coefficient of the highest degree term is 1.
 
     Parameters
@@ -193,7 +197,7 @@ def modified_chebyshev_orthonormal(nterms, quadrature_rule,
                                    get_input_coefs=None, probability=True):
     """
     Use the modified Chebyshev algorithm to compute the recursion coefficients
-    of the orthonormal polynomials p_i(x) orthogonal to a target measure w(x) 
+    of the orthonormal polynomials p_i(x) orthogonal to a target measure w(x)
     with the modified moments
 
     int q_i(x)w(x)dx
@@ -209,19 +213,19 @@ def modified_chebyshev_orthonormal(nterms, quadrature_rule,
     quadrature_rule : list [x,w]
         The quadrature points and weights used to compute the
         modified moments of the target measure. The recursion coefficients (ab)
-        returned by the modified_chebyshev_orthonormal function 
+        returned by the modified_chebyshev_orthonormal function
         will be orthonormal to this measure.
 
     get_input_coefs : callable
-        Function that returns the recursion coefficients of the polynomials 
+        Function that returns the recursion coefficients of the polynomials
         which are orthogonal to a measure close to the target measure.
         If None then the moments of monomials will be computed.
-        Call signature get_input_coefs(n,probability=False). 
-        Functions in this package return orthogonal polynomials which are 
+        Call signature get_input_coefs(n,probability=False).
+        Functions in this package return orthogonal polynomials which are
         othonormal if probability=True. The modified Chebyshev algorithm
-        requires monic polynomials so we must set probability=False then 
+        requires monic polynomials so we must set probability=False then
         compute the orthogonal polynomials to monic polynomials. Coefficients
-        of orthonormal polynomials cannot be converted to the coefficients 
+        of orthonormal polynomials cannot be converted to the coefficients
         of monic polynomials.
 
     probability : boolean
@@ -231,7 +235,7 @@ def modified_chebyshev_orthonormal(nterms, quadrature_rule,
     Returns
     -------
     ab : np.ndarray (nterms)
-        The recursion coefficients of the orthonormal polynomials orthogonal 
+        The recursion coefficients of the orthonormal polynomials orthogonal
         to the target measure
     """
     quad_x, quad_w = quadrature_rule
@@ -249,19 +253,19 @@ def modified_chebyshev_orthonormal(nterms, quadrature_rule,
 
     # check if the range of moments is reasonable. If to large
     # can cause numerical problems
-    abs_moments = np.absolute(moments)
-    #assert abs_moments.max()-abs_moments.min() < 1e16
+    # abs_moments = np.absolute(moments)
+    # assert abs_moments.max()-abs_moments.min() < 1e16
     ab = modified_chebyshev(nterms, moments, input_coefs)
     return convert_monic_to_orthonormal_recursion_coefficients(ab, probability)
 
 
 def modified_chebyshev(nterms, moments, input_coefs=None):
-    """
+    r"""
     Use the modified Chebyshev algorithm to compute the recursion coefficients
-    of the monic polynomials p_i(x) orthogonal to a target measure w(x) 
+    of the monic polynomials p_i(x) orthogonal to a target measure w(x)
     with the modified moments
 
-    int q_i(x)w(x)dx
+    math:: \int q_i(x)w(x)dx
 
     where q_i are monic polynomials with recursion coefficients given
     by input_coefs.
@@ -272,11 +276,11 @@ def modified_chebyshev(nterms, moments, input_coefs=None):
         The number of desired recursion coefficients
 
     moments : np.ndarray (nmoments)
-        Modified moments of the target measure. The recursion coefficients 
+        Modified moments of the target measure. The recursion coefficients
         returned by this function will be orthonormal to this measure.
 
     input_coefs : np.ndarray (nmoments,2)
-        The recursion coefficients of the monic polynomials which are 
+        The recursion coefficients of the monic polynomials which are
         orthogonal to a measure close to the target measure.
         Ensure nmoments>=2*nterms-1. If None then use monomials with
         input_coeff = np.zeros((nmoments,2))
@@ -328,18 +332,7 @@ def modified_chebyshev(nterms, moments, input_coefs=None):
     return ab
 
 
-def predictor_corrector_known_scipy_pdf(nterms, rv, quad_options={}):
-    lb, ub = rv.interval(1)
-    if np.isfinite(lb) and np.isfinite(ub):
-        interval_size = ub-lb
-    else:
-        interval_size = (rv.interval(0.99)[1] - rv.interval(0.99)[0])
-    return predictor_corrector(
-        nterms, rv.pdf, lb, ub, interval_size, quad_options)
-    
-
-def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
-                        quad_options={}):
+def predictor_corrector(nterms, measure, lb, ub, quad_options={}):
     """
     Use predictor corrector method to compute the recursion coefficients
     of a univariate orthonormal polynomial
@@ -350,10 +343,10 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
         The number of coefficients requested
 
     measure : callable or tuple
-        The function (measure) used to compute orthogonality. 
+        The function (measure) used to compute orthogonality.
         If a discrete measure then measure = tuple(xk, pk) where
         xk are the probability masses locoation and pk are the weights
-        
+
 
     lb: float
         The lower bound of the measure (can be -infinity)
@@ -361,20 +354,18 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
     ub: float
         The upper bound of the measure (can be infinity)
 
-    interval_size : float
-        The size of the initial interval used for quadrature
-        For bounded variables this should be ub-lb. For semi- or un-bounded
-        variables the larger this value the larger nquad_samples should
-        be set
-
     quad_options : dict
         Options to the numerical quadrature function with attributes
 
-    nquad_samples : integer
-        The number of samples in the Gauss quadrature rule
+    integrate_fun : callable (optional)
+        Function used to compute integrals with signature
+
+        `integrate_fun(lb, ub integrand)`
+
+        If not provided scipy.integrate.quad is used
 
     Note the entry ab[-1, :] will likely be wrong when compared to analytical
-    formula if they exist. This does not matter because eval_poly does not 
+    formula if they exist. This does not matter because eval_poly does not
     use this value. If you want the correct value just request num_coef+1
     coefficients.
     """
@@ -384,35 +375,47 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
         xk, pk = measure
         assert xk.shape[0] == pk.shape[0]
         assert nterms < xk.shape[0]
+
         def measure(x):
             return np.ones_like(x)
-    
-    ab = np.zeros((nterms, 2))
-    nquad_samples = quad_options.get('nquad_samples', 100)
-    quad_opts = quad_options.copy()
-    if 'nquad_samples' in quad_opts:
-        del quad_opts['nquad_samples']
 
-    if np.isfinite(lb) and np.isfinite(ub):
-        assert interval_size == ub-lb
-
-    def integrate_continuous(integrand, nquad_samples, interval_size):
-        return integrate_using_univariate_gauss_legendre_quadrature_unbounded(
-            integrand, lb, ub, nquad_samples, **quad_opts,
-            interval_size=interval_size)
-
-    def integrate_discrete(integrand, nquad_samples, interval_size):
+    def integrate_discrete(integrand):
         return integrand(xk).dot(pk)
+
+    import inspect
+    sig = inspect.signature(scipy.integrate.quad)
+    params = sig.parameters.values()
+    for param in params:
+        if param.name == "epsabs":
+            default_epsabs = param.default
+        if param.name == "epsrel":
+            default_epsrel = param.default
+            break
+
+    def integrate_continuous(integrand):
+        res = scipy.integrate.quad(
+            integrand, lb, ub, **quad_options)
+        atol = quad_options.get("epsabs", default_epsabs)
+        rtol = quad_options.get("epsrel", default_epsrel)
+        if res[1] > 2*max(atol, res[0]*rtol):
+            msg = f"Desired accuracy {atol} was not reached {res[1]}. "
+            msg += "Use custom integrator or change quad_options"
+            raise RuntimeError(msg)
+        return res[0]
 
     if discrete_measure is True:
         integrate = integrate_discrete
     else:
-        integrate = integrate_continuous
+        if "integrate_fun" in quad_options:
+            integrate = partial(quad_options["integrate_fun"], lb, ub)
+        else:
+            integrate = integrate_continuous
 
-    # for probablity measures the following will always be one, but 
+    ab = np.zeros((nterms, 2))
+
+    # for probablity measures the following will always be one, but
     # this is not true for other measures
-    ab[0, 1] = np.sqrt(
-        integrate(measure, nquad_samples, interval_size=interval_size))
+    ab[0, 1] = np.sqrt(integrate(measure))
 
     for ii in range(1, nterms):
         # predict
@@ -422,29 +425,22 @@ def predictor_corrector(nterms, measure, lb, ub, interval_size=1,
         else:
             ab[ii-1, 0] = 0
 
-        if np.isfinite(lb) and np.isfinite(ub) and ii > 1:
-            # use previous intervals size for last degree as initial guess
-            # of size needed here
-            xx, __ = gauss_quadrature(ab, nterms)
-            interval_size = xx.max()-xx.min()
-
         def integrand(measure, x):
-            pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
-            return measure(x)*pvals[:, ii]*pvals[:, ii-1]        
-        G_ii_iim1 = integrate(
-            partial(integrand, measure), nquad_samples+ii,
-            interval_size=interval_size)
+            pvals = evaluate_orthonormal_polynomial_1d(
+                np.atleast_1d(x), ii, ab)
+            return measure(x)*pvals[:, ii]*pvals[:, ii-1]
+
+        G_ii_iim1 = integrate(partial(integrand, measure))
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
-        
+
         def integrand(measure, x):
             # Note eval orthogonal poly uses the new value for ab[ii, 0]
             # This is the desired behavior
-            pvals = evaluate_orthonormal_polynomial_1d(x, ii, ab)
+            pvals = evaluate_orthonormal_polynomial_1d(
+                np.atleast_1d(x), ii, ab)
             return measure(x)*pvals[:, ii]**2
-        
-        G_ii_ii =  integrate(
-            partial(integrand, measure), nquad_samples+ii,
-            interval_size=interval_size)
+
+        G_ii_ii = integrate(partial(integrand, measure))
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab
@@ -470,14 +466,14 @@ def predictor_corrector_function_of_independent_variables(
     fun : callable
         The function mapping indendent variables into a scalar variable
     """
-    
+
     ab = np.zeros((nterms, 2))
-    x_1d = [rule[0] for rule in  univariate_quad_rules]
-    w_1d = [rule[1] for rule in  univariate_quad_rules]
+    x_1d = [rule[0] for rule in univariate_quad_rules]
+    w_1d = [rule[1] for rule in univariate_quad_rules]
     quad_samples = cartesian_product(x_1d, 1)
     quad_weights = outer_product(w_1d)
 
-    # for probablity measures the following will always be one, but 
+    # for probablity measures the following will always be one, but
     # this is not true for other measures
     ab[0, 1] = np.sqrt(quad_weights.sum())
 
@@ -495,34 +491,39 @@ def predictor_corrector_function_of_independent_variables(
             # measure not included in integral because it is assumed to
             # be in the quadrature rules
             return pvals[:, ii]*pvals[:, ii-1]
-            
+
         G_ii_iim1 = integrand(quad_samples).dot(quad_weights)
         ab[ii-1, 0] += ab[ii-1, 1] * G_ii_iim1
-        
+
         def integrand(x):
             y = fun(x).squeeze()
             pvals = evaluate_orthonormal_polynomial_1d(y, ii, ab)
             # measure not included in integral because it is assumed to
             # be in the quadrature rules
             return pvals[:, ii]**2
-        G_ii_ii =  integrand(quad_samples).dot(quad_weights)
+
+        G_ii_ii = integrand(quad_samples).dot(quad_weights)
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
     return ab
 
 
 def predictor_corrector_product_of_functions_of_independent_variables(
-        nterms, univariate_quad_rules, funs):
+        nterms, univariate_quad_rules, funs, loc=0, scale=1):
     nvars = len(univariate_quad_rules)
     assert len(funs) == nvars
     ab = predictor_corrector_function_of_independent_variables(
         nterms, univariate_quad_rules[:2],
         lambda x: funs[0](x[0, :])*funs[1](x[1, :]))
+
+    ll, ss = 0, 1
     for ii in range(2, nvars):
         x, w = gauss_quadrature(ab, nterms)
+        if ii == nvars-1:
+            ll, ss = loc, scale
         ab = predictor_corrector_function_of_independent_variables(
             nterms, [(x, w), univariate_quad_rules[ii]],
-            lambda x: x[0, :]*funs[ii](x[1,:]))
+            lambda x: (x[0, :]*funs[ii](x[1, :])-ll)/ss)
     return ab
 
 
@@ -552,7 +553,7 @@ def arbitrary_polynomial_chaos_recursion_coefficients(moments, num_coef):
     monic_coefs = np.zeros((num_coef, num_coef))
     normalizing_constants = np.zeros(num_coef)
     for ii in range(num_coef):
-        c =apc_monic_coefficients(moments, ii)
+        c = apc_monic_coefficients(moments, ii)
         normalizing_constants[ii] = apc_normalizing_constant(moments, ii, c)
         monic_coefs[0:ii+1, ii] = apc_monic_coefficients(
             moments, ii)/normalizing_constants[ii]
@@ -563,6 +564,160 @@ def arbitrary_polynomial_chaos_recursion_coefficients(moments, num_coef):
     ab[1, 0] = -monic_coefs[0, 1]/monic_coefs[1, 1]
     for ii in range(2, num_coef):
         ab[ii, 1] = monic_coefs[ii-1, ii-1]/monic_coefs[ii, ii]
-        ab[ii, 0] = (monic_coefs[ii-2, ii-1]-ab[ii, 1]*
+        ab[ii, 0] = (monic_coefs[ii-2, ii-1]-ab[ii, 1] *
                      monic_coefs[ii-1, ii])/monic_coefs[ii-1, ii-1]
     return ab
+
+
+def get_function_independent_vars_recursion_coefficients(opts, num_coefs):
+    r"""
+    Compute the recursion coefficients orthonormal to the random variable
+    arising from arbitrary functions :math:`f(Z_1,\ldots, Z_D)` of
+    independent random variables :math:`Z_d`. Tensor product quadrature
+    is used to compute the integrals necessary for orthgonalization
+    thus this function scales poorly as the number of variables increases.
+
+    Parameters
+    ----------
+    opts : dictionary
+        Dictionary with the following attributes
+
+    fun : callable
+        Function that maps the variables to a scalar value
+
+    quad_rules : list (nvars)
+        List of univariate quadrature rule sample, weight tuples (x, w)
+        for each variable. Each quadrature rules must be in the user domain.
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+    """
+    fun = opts['fun']
+    quad_rules = opts['quad_rules']
+    loc, scale = opts.get("loc", 0), opts.get("scale", 1)
+
+    def scaled_fun(x):
+        return (fun(x)-loc)/scale
+
+    recursion_coeffs = \
+        predictor_corrector_function_of_independent_variables(
+            num_coefs, quad_rules, scaled_fun)
+    return recursion_coeffs
+
+
+def get_product_independent_vars_recursion_coefficients(opts, num_coefs):
+    r"""
+    Compute the recursion coefficients orthonormal to the random variable
+    arising from the product of univariate functions :math:`f_d(Z_d)` of
+    independent random variables :math:`Z_d` , that is
+
+    .. math:: W = \prod_{d=1}^D f_d(Z_d)
+
+    This function first computes recursion coefficients of
+    :math:`W_{12}=f_1(Z_1)f_2(Z_2)`. Then uses this to compute a quadrature
+    rule which is then used to contruct recursion coefficients for
+    :math:`W_{123}=W_{12}f_3(Z_3)` and so on. The same recursion coefficients
+    can be obtained using
+    :func:`get_function_independent_vars_recursion_coefficients` however this
+    function being documented is faster because it
+    leverages the seperability of the product.
+
+    Parameters
+    ----------
+    opts : dictionary
+        Dictionary with the following attributes
+
+    funs : list (nvars)
+        List of univariate functions of each variable
+
+    quad_rules : list (nvars)
+        List of univariate quadrature rule sample, weight tuples (x, w)
+        for each variable. Each quadrature rules must be in the user domain.
+        The polynomial generated with the recursion coefficients genereated
+        here will does not have a notion of canonical domain. Thus when used
+        with a variable transformation set the variable index j associated with
+        these recursion coefficients to use the identity map via
+        var_trans.set_identity_maps([j])
+
+    Returns
+    -------
+    recursion_coeffs : np.ndarray (num_coefs, 2)
+
+    Todo
+    ----
+    This function can be generalized to consider compositions of functions of
+    independent variable groups, e.g
+
+    math:: W = g_2(g_1(f_{12}(Z_1, Z_2), f_{3,4}(Z_3, Z_4)), f_{5}(Z_5))
+
+    """
+    funs = opts['funs']
+    quad_rules = opts['quad_rules']
+    loc, scale = opts.get("loc", 0), opts.get("scale", 1)
+    recursion_coeffs = \
+        predictor_corrector_product_of_functions_of_independent_variables(
+            num_coefs, quad_rules, funs, loc=loc, scale=scale)
+    return recursion_coeffs
+
+
+def ortho_polynomial_grammian_bounded_continuous_variable(
+        var, ab, degree, tol, integrate_fun=None):
+    """
+    Compute the inner product of all polynomials up to and including
+    degree. Useful for testing that the polynomials are orthonormal.
+    The grammian should always be the identity (modulo errors due to
+    quadrature)
+    """
+    if ab.shape[0] < degree+1:
+        raise ValueError("Not enough recursion coefficients")
+
+    loc, scale = transform_scale_parameters(var)
+    if is_bounded_continuous_variable(var):
+        can_lb, can_ub = -1, 1
+    else:
+        lb, ub = var.interval(1)
+        can_lb = (lb-loc)/scale
+        can_ub = (ub-loc)/scale
+
+    def default_integrate(integrand):
+        result = scipy.integrate.quad(
+            integrand, can_lb, can_ub, epsabs=tol, epsrel=tol)
+        return result[0]
+
+    if integrate_fun is None:
+        integrate = default_integrate
+    else:
+        integrate = partial(integrate_fun, can_lb, can_ub)
+
+    def fun(order1, order2):
+        order = max(order1, order2)
+
+        def integrand(x):
+            x = np.atleast_1d(x)
+            basis_mat = evaluate_orthonormal_polynomial_1d(
+                x, order, ab)
+            return var.pdf(x*scale+loc)*scale*(
+                basis_mat[:, order1]*basis_mat[:, order2])
+
+        return integrate(integrand)
+
+    vec_fun = np.vectorize(fun)
+    indices = cartesian_product(
+        (np.arange(degree+1), np.arange(degree+1)))
+    gram_mat = vec_fun(indices[0, :], indices[1, :])
+    return gram_mat.reshape((degree+1, degree+1))
+
+
+def native_recursion_integrate_fun(
+        interval_size, lb, ub, integrand, verbose=0, nquad_samples=50,
+        max_steps=1000, tabulated_quad_rules=None, atol=1e-8, rtol=1e-8):
+    # this funciton works well for smooth unbounded variables
+    # but scipy.integrate.quad works well for non smooth
+    # variables
+    val = \
+        integrate_using_univariate_gauss_legendre_quadrature_unbounded(
+            integrand, lb, ub, nquad_samples, interval_size=interval_size,
+            verbose=verbose, max_steps=max_steps, atol=atol, rtol=rtol, 
+            tabulated_quad_rules=tabulated_quad_rules)
+    return val

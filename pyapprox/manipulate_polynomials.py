@@ -571,17 +571,6 @@ def get_indices_double_set(indices):
     return double_set_indices
 
 
-def shift_momomial_expansion(coef, shift, scale):
-    assert coef.ndim == 1
-    shifted_coef = np.zeros_like(coef)
-    shifted_coef[0] = coef[0]
-    nterms = coef.shape[0]
-    for ii in range(1, nterms):
-        temp = np.polynomial.polynomial.polypow([1, -shift], ii)
-        shifted_coef[:ii+1] += coef[ii]*temp[::-1]/scale**ii
-    return shifted_coef
-
-
 def compress_and_sort_polynomial(coef, indices, tol=1e-12):
     I = np.where(np.absolute(coef) > tol)[0]
     indices = indices[:, I]

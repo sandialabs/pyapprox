@@ -64,6 +64,7 @@ example_filenames_in_order = [
     'plot_bayesian_networks.py',
     'plot_adaptive_leja_interpolation.py',
     'plot_gaussian_processes.py',
+    'plot_integrated_surrogates.py',
     'plot_control_variate_monte_carlo.py',
     'plot_approximate_control_variate_monte_carlo.py',
     'plot_multi_level_monte_carlo.py',

@@ -1,17 +1,18 @@
 import unittest
 import numpy as np
-from pyapprox.adaptive_polynomial_chaos import *
+from functools import partial
+
+from pyapprox.adaptive_polynomial_chaos import \
+    variance_pce_refinement_indicator, AdaptiveLejaPCE, \
+    AdaptiveInducedPCE
 from pyapprox.variable_transformations import \
-    AffineBoundedVariableTransformation, AffineRandomVariableTransformation
+    AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from scipy.stats import beta
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.adaptive_sparse_grid import max_level_admissibility_function, \
-    isotropic_refinement_indicator
-from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth, \
-    leja_growth_rule
-from functools import partial
+from pyapprox.adaptive_sparse_grid import max_level_admissibility_function
+from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
 
 
 class TestAdaptivePCE(unittest.TestCase):
@@ -45,11 +46,11 @@ class TestAdaptivePCE(unittest.TestCase):
         """
         If function is isotropic small changes in priority can cause
         different subspace to be refined when using slow vs fast method. This
-        will lead to different leja sequence due to the fact that LU 
+        will lead to different leja sequence due to the fact that LU
         factorization is dependent on order of the columns, i.e. the order
-        in which basis functions are added. The numerical difference is 
+        in which basis functions are added. The numerical difference is
         caused by applying preconditioning directly to basis matrix using slow
-        approach and re-weighting LU_factor matrix with ratio of 
+        approach and re-weighting LU_factor matrix with ratio of
         precond_weights/precond_weights_prev using fast approach.
         """
         num_vars = 2
@@ -82,9 +83,9 @@ class TestAdaptivePCE(unittest.TestCase):
 
     def test_adaptive_leja_sampling_II(self):
         """
-        Using variance refinement indicator on additive function can 
+        Using variance refinement indicator on additive function can
         lead to some polynomial terms with more than one active variable.
-        This is because errors on these terms will be small but not 
+        This is because errors on these terms will be small but not
         necessarily near machine precision. Consequently test that index
         set is additive except for terms corresponding to subspace [1,1]
         with only moderate accuracy 1e-6
@@ -138,7 +139,7 @@ class TestAdaptivePCE(unittest.TestCase):
             vals = [np.cos(np.pi*x[ii, :]) for ii in range(x.shape[0])]
             vals = np.array(vals).sum(axis=0)[:, np.newaxis]
             return vals
-        #function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
+        # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(
@@ -160,7 +161,7 @@ class TestAdaptivePCE(unittest.TestCase):
             vals = [np.cos(np.pi*x[ii, :]) for ii in range(x.shape[0])]
             vals = np.array(vals).sum(axis=0)[:, np.newaxis]
             return vals
-        #function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
+        # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(

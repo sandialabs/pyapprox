@@ -323,6 +323,20 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
         msg += 'high-fidelity model'
         raise Exception(msg)
 
+    # for ii in range(nmodels-2):
+    #     corr_ratio = (corr[0, ii]**2 - corr[0, ii+1]**2)/(
+    #         corr[0, ii+1]**2 - corr[0, ii+2]**2)
+    #     cost_ratio = costs[ii] / costs[ii+1]
+    #     #print(ii, cost_ratio, corr_ratio, corr[0, ii:ii+3]**2,
+    #     #corr[0, ii:ii+2], costs[ii:ii+2])
+    #     assert cost_ratio > corr_ratio, (cost_ratio, corr_ratio)
+        
+    # ii = nmodels-2
+    # corr_ratio = (corr[0, ii]**2 - corr[0, ii+1]**2)/(corr[0, ii+1]**2)
+    # cost_ratio = costs[ii] / costs[ii+1]
+    # # print(cost_ratio, corr_ratio)
+    # assert cost_ratio > corr_ratio, (cost_ratio, corr_ratio)
+
     r = []
     for ii in range(nmodels-1):
         # Step 3 in Algorithm 2 in Peherstorfer et al 2016

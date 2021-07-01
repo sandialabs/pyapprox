@@ -1,23 +1,39 @@
 import unittest
 from scipy import special as sp
 import numpy as np
-from pyapprox.multivariate_polynomials import *
-from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D, \
-    gauss_jacobi_pts_wts_1D
+from functools import partial
+from scipy import stats
+from scipy.stats._continuous_distns import rv_continuous
+
+from pyapprox.optimization import approx_jacobian
+from pyapprox.polynomial_chaos.multivariate_polynomials import \
+    PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial, \
+    define_poly_options_from_variable_transformation, \
+    get_polynomial_from_variable, \
+    compute_product_coeffs_1d_for_each_variable, \
+    multiply_multivariate_orthonormal_polynomial_expansions, \
+    compute_multivariate_orthonormal_basis_product, \
+    compute_univariate_orthonormal_basis_products, \
+    conditional_moments_of_polynomial_chaos_expansion
+from pyapprox.indexing import compute_hyperbolic_indices, \
+    tensor_product_indices, sort_indices_lexiographically
+from pyapprox.univariate_polynomials.quadrature import \
+    gauss_hermite_pts_wts_1D, gauss_jacobi_pts_wts_1D
 from pyapprox.utilities import get_tensor_product_quadrature_rule, \
-    approx_fprime
+    approx_fprime, cartesian_product, outer_product, \
+    get_all_sample_combinations, \
+    integrate_using_univariate_gauss_legendre_quadrature_unbounded
 from pyapprox.variable_transformations import \
-    define_iid_random_variable_transformation, IdentityTransformation,\
+    define_iid_random_variable_transformation, \
     AffineRandomVariableTransformation
 from pyapprox.variables import IndependentMultivariateRandomVariable,\
-    float_rv_discrete
-from functools import partial
-from pyapprox.indexing import sort_indices_lexiographically
-from scipy.stats import uniform, beta, norm, hypergeom, binom, gumbel_r, \
-    lognorm
+    float_rv_discrete, rv_function_indpndt_vars, rv_product_indpndt_vars
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.orthonormal_polynomials_1d import jacobi_recurrence
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    jacobi_recurrence
+from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+    evaluate_orthonormal_polynomial_1d
 
 
 class TestMultivariatePolynomials(unittest.TestCase):
@@ -37,13 +53,12 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
         x, w = np.polynomial.legendre.leggauss(degree)
         samples = cartesian_product([x]*num_vars, 1)
-        weights = outer_product([w]*num_vars)
 
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         # sort lexographically to make testing easier
-        I = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
-        indices = indices[:, I]
+        II = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
+        indices = indices[:, II]
 
         basis_matrix = evaluate_multivariate_orthonormal_polynomial(
             samples, indices, ab, deriv_order)
@@ -91,16 +106,13 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_evaluate_multivariate_jacobi_pce(self):
         num_vars = 2
-        alpha = 0.
-        beta = 0.
         degree = 2
-        deriv_order = 1
-        probability_measure = True
 
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), num_vars)
-        poly.configure({'poly_type': 'legendre', 'var_trans': var_trans})
+            stats.uniform(-1, 2), num_vars)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
 
         samples, weights = get_tensor_product_quadrature_rule(
             degree-1, num_vars, np.polynomial.legendre.leggauss)
@@ -108,8 +120,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         # sort lexographically to make testing easier
-        I = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
-        indices = indices[:, I]
+        II = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
+        indices = indices[:, II]
         # remove [0,2] index so max_level is not the same for every dimension
         # also remove [1,0] and [1,1] to make sure can handle index sets that
         # have missing univariate degrees not at the ends
@@ -155,13 +167,12 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_evaluate_multivariate_hermite_pce(self):
         num_vars = 2
         degree = 2
-        deriv_order = 1
-        probability_measure = True
 
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            norm(0, 1), num_vars)
-        poly.configure({'poly_type': 'hermite', 'var_trans': var_trans})
+            stats.norm(0, 1), num_vars)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
 
         samples, weights = get_tensor_product_quadrature_rule(
             degree+1, num_vars, gauss_hermite_pts_wts_1D)
@@ -169,8 +180,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         # sort lexographically to make testing easier
-        I = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
-        indices = indices[:, I]
+        II = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
+        indices = indices[:, II]
         poly.set_indices(indices)
 
         basis_matrix = poly.basis_matrix(samples, {'deriv_order': 1})
@@ -214,12 +225,11 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_evaluate_multivariate_mixed_basis_pce(self):
         degree = 2
-        deriv_order = 1
-        probability_measure = True
 
         gauss_mean, gauss_var = -1, 4
         univariate_variables = [
-            uniform(-1, 2), norm(gauss_mean, np.sqrt(gauss_var)), uniform(0, 3)]
+            stats.uniform(-1, 2), stats.norm(gauss_mean, np.sqrt(gauss_var)),
+            stats.uniform(0, 3)]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
@@ -340,7 +350,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
             basis_matrix_derivs_fd[ii::samples.shape[1], :] = approx_fprime(
                 samples[:, ii:ii+1], func)
 
-        # print(np.linalg.norm(
+        # print(np.linalg.stats.norm(
         #    exact_basis_matrix_derivs-basis_matrix_derivs_fd,
         #    ord=np.inf))
         assert np.allclose(
@@ -350,15 +360,13 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_evaluate_multivariate_monomial_pce(self):
         num_vars = 2
-        alpha = 0.
-        beta = 0.
         degree = 2
-        deriv_order = 1
-        probability_measure = True
 
         poly = PolynomialChaosExpansion()
-        var_trans = IdentityTransformation(num_vars)
-        poly.configure({'poly_type': 'monomial', 'var_trans': var_trans})
+        var_trans = define_iid_random_variable_transformation(
+            rv_continuous(name="continuous_monomial")(), num_vars)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
 
         def univariate_quadrature_rule(nn):
             x, w = gauss_jacobi_pts_wts_1D(nn, 0, 0)
@@ -371,8 +379,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         # sort lexographically to make testing easier
-        I = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
-        indices = indices[:, I]
+        II = np.lexsort((indices[0, :], indices[1, :], indices.sum(axis=0)))
+        indices = indices[:, II]
         poly.set_indices(indices)
 
         basis_matrix = poly.basis_matrix(samples, {'deriv_order': 1})
@@ -410,7 +418,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         degree = 2
 
         alpha_stat, beta_stat = 2, 3
-        univariate_variables = [beta(alpha_stat, beta_stat, 0, 1), norm(-1, 2)]
+        univariate_variables = [
+            stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
@@ -448,7 +457,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         degree = 2
 
         alpha_stat, beta_stat = 2, 3
-        univariate_variables = [beta(alpha_stat, beta_stat, 0, 1), norm(-1, 2)]
+        univariate_variables = [
+            stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
@@ -467,7 +477,6 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly.set_coefficients(coef)
 
         jac = poly.jacobian(sample)
-        from pyapprox.optimization import approx_jacobian
         fd_jac = approx_jacobian(
             lambda x: poly(x[:, np.newaxis])[0, :], sample[:, 0])
         assert np.allclose(jac, fd_jac)
@@ -475,7 +484,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_hahn_hypergeometric(self):
         degree = 4
         M, n, N = 20, 7, 12
-        rv = hypergeom(M, n, N)
+        rv = stats.hypergeom(M, n, N)
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -489,7 +498,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_krawtchouk_binomial(self):
         degree = 4
         n, p = 10, 0.5
-        rv = binom(n, p)
+        rv = stats.binom(n, p)
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -511,7 +520,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly.set_indices(np.arange(degree+1)[np.newaxis, :])
         p = poly.basis_matrix(xk[np.newaxis, :])
         w = pk
-        # print((np.dot(p.T*w,p),np.eye(degree+1)))
+        # print((np.dot(p.T*w, p), np.eye(degree+1)))
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_float_rv_discrete_chebyshev(self):
@@ -533,12 +542,10 @@ class TestMultivariatePolynomials(unittest.TestCase):
         mean, std = 1e4, 7.5e3
         beta = std*np.sqrt(6)/np.pi
         mu = mean - beta*np.euler_gamma
-        rv1 = gumbel_r(loc=mu, scale=beta)
+        rv1 = stats.gumbel_r(loc=mu, scale=beta)
         assert np.allclose(rv1.mean(), mean) and np.allclose(rv1.std(), std)
-        rv2 = lognorm(1)
+        rv2 = stats.lognorm(1)
         for rv in [rv2, rv1]:
-            print(rv.dist.name)
-            ncoef = degree+1
             var_trans = AffineRandomVariableTransformation([rv])
             poly = PolynomialChaosExpansion()
             poly_opts = define_poly_options_from_variable_transformation(
@@ -547,6 +554,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
             poly.configure(poly_opts)
             poly.set_indices(np.arange(degree+1)[np.newaxis, :])
             poly.set_coefficients(np.ones((poly.indices.shape[1], 1)))
+
             def integrand(x):
                 p = poly.basis_matrix(x[np.newaxis, :])
                 G = np.empty((x.shape[0], p.shape[1]**2))
@@ -556,18 +564,17 @@ class TestMultivariatePolynomials(unittest.TestCase):
                         G[:, kk] = p[:, ii]*p[:, jj]
                         kk += 1
                 return G*rv.pdf(x)[:, None]
+
             lb, ub = rv.interval(1)
             interval_size = rv.interval(0.99)[1]-rv.interval(0.99)[0]
             interval_size *= 10
-            from pyapprox.utilities import \
-                integrate_using_univariate_gauss_legendre_quadrature_unbounded
             res = \
                 integrate_using_univariate_gauss_legendre_quadrature_unbounded(
                     integrand, lb, ub, 10, interval_size=interval_size,
                     verbose=0, max_steps=10000)
             res = np.reshape(
-                res, (poly.indices.shape[1],poly.indices.shape[1]), order='C')
-            print(res-np.eye(degree+1))
+                res, (poly.indices.shape[1], poly.indices.shape[1]), order='C')
+            # print('r', res-np.eye(degree+1))
             assert np.allclose(res, np.eye(degree+1), atol=1e-6)
 
     def test_conditional_moments_of_polynomial_chaos_expansion(self):
@@ -577,7 +584,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         np.random.seed(1)
         # keep variables on canonical domain to make constructing
         # tensor product quadrature rule, used for testing, easier
-        var = [uniform(-1, 2), beta(2, 2, -1, 2), norm(0, 1)]
+        var = [stats.uniform(-1, 2), stats.beta(2, 2, -1, 2), stats.norm(0, 1)]
         quad_rules = [
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0),
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=1, beta_poly=1),
@@ -595,9 +602,6 @@ class TestMultivariatePolynomials(unittest.TestCase):
         mean, variance = conditional_moments_of_polynomial_chaos_expansion(
             poly, fixed_samples, inactive_idx, True)
 
-        from pyapprox.utilities import get_all_sample_combinations
-        from pyapprox.probability_measure_sampling import \
-            generate_independent_random_samples
         active_idx = np.setdiff1d(np.arange(num_vars), inactive_idx)
         random_samples, weights = get_tensor_product_quadrature_rule(
             [2*degree]*len(active_idx), len(active_idx),
@@ -638,16 +642,17 @@ class TestMultivariatePolynomials(unittest.TestCase):
         kk = 0
         for d1 in range(max_degree1+1):
             for d2 in range(min(d1+1, max_degree2+1)):
-                exact_product = ortho_basis_matrix[:,
-                                                   d1]*ortho_basis_matrix[:, d2]
+                exact_product = \
+                    ortho_basis_matrix[:, d1]*ortho_basis_matrix[:, d2]
 
-                product = ortho_basis_matrix[:, :product_coefs[kk].shape[0]].dot(
+                product = np.dot(
+                    ortho_basis_matrix[:, :product_coefs[kk].shape[0]],
                     product_coefs[kk]).sum(axis=1)
                 assert np.allclose(product, exact_product)
                 kk += 1
 
     def test_compute_multivariate_orthonormal_basis_product(self):
-        univariate_variables = [norm(), uniform()]
+        univariate_variables = [stats.norm(), stats.uniform()]
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
@@ -683,7 +688,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
                                poly1(samples)*poly2(samples))
 
     def test_multiply_multivariate_orthonormal_polynomial_expansions(self):
-        univariate_variables = [norm(), uniform()]
+        univariate_variables = [stats.norm(), stats.uniform()]
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
@@ -704,9 +709,11 @@ class TestMultivariatePolynomials(unittest.TestCase):
         product_coefs_1d = compute_product_coeffs_1d_for_each_variable(
             poly1, max_degrees1, max_degrees2)
 
-        indices, coefs = multiply_multivariate_orthonormal_polynomial_expansions(
-            product_coefs_1d, poly1.get_indices(), poly1.get_coefficients(),
-            poly2.get_indices(), poly2.get_coefficients())
+        indices, coefs = \
+            multiply_multivariate_orthonormal_polynomial_expansions(
+                product_coefs_1d, poly1.get_indices(),
+                poly1.get_coefficients(), poly2.get_indices(),
+                poly2.get_coefficients())
 
         poly3 = get_polynomial_from_variable(variable)
         poly3.set_indices(indices)
@@ -719,7 +726,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
     def test_multiply_pce(self):
         np.random.seed(1)
         np.set_printoptions(precision=16)
-        univariate_variables = [norm(), uniform()]
+        univariate_variables = [stats.norm(), stats.uniform()]
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         degree1, degree2 = 1, 2
@@ -730,8 +737,8 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly2.set_indices(compute_hyperbolic_indices(
             variable.num_vars(), degree2))
 
-        #coef1 = np.random.normal(0,1,(poly1.indices.shape[1],1))
-        #coef2 = np.random.normal(0,1,(poly2.indices.shape[1],1))
+        # coef1 = np.random.normal(0,1,(poly1.indices.shape[1],1))
+        # coef2 = np.random.normal(0,1,(poly2.indices.shape[1],1))
         coef1 = np.arange(poly1.indices.shape[1])[:, np.newaxis]
         coef2 = np.arange(poly2.indices.shape[1])[:, np.newaxis]
         poly1.set_coefficients(coef1)
@@ -746,7 +753,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
             assert np.allclose(poly(samples), poly1(samples)**order)
 
     def test_add_pce(self):
-        univariate_variables = [norm(), uniform()]
+        univariate_variables = [stats.norm(), stats.uniform()]
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         degree1, degree2 = 2, 3
@@ -797,14 +804,15 @@ class TestMultivariatePolynomials(unittest.TestCase):
         indices = compute_hyperbolic_indices(nvars, 4, 1)
         poly = PolynomialChaosExpansion()
         var_trans = define_iid_random_variable_transformation(
-            uniform(-1, 2), nvars)
-        poly.configure({'poly_type': 'legendre', 'var_trans': var_trans})
+            stats.uniform(-1, 2), nvars)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
         poly.set_indices(indices)
         basis_mat = poly.basis_matrix(samples)
         coef = np.linalg.lstsq(basis_mat, values, rcond=None)[0]
         mean = coef[0]
         variance = np.sum(coef[1:]**2)
-        #print(mean, variance, 2595584/15-mean**2, 2059769/15)
+        # print(mean, variance, 2595584/15-mean**2, 2059769/15)
         assert np.allclose(mean, 189)
         assert np.allclose(variance,  2595584/15-mean**2)
 
@@ -817,15 +825,27 @@ class TestMultivariatePolynomials(unittest.TestCase):
             basis_mat.dot(coef), -35+4*x+3*x**2*y+105*x**2+630*x**3+945*x**4)
         assert np.allclose(2/np.sqrt(5)*basis_mat[:, 3:4], (3*x**2-1))
         assert np.allclose(
-            basis_mat.dot(coef), 4*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+630*x**3+945*x**4)
+            basis_mat.dot(coef),
+            4*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+630*x**3+945*x**4)
         assert np.allclose(
-            basis_mat.dot(coef), 382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+945*x**4)
+            basis_mat.dot(coef),
+            382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4] +
+            2/np.sqrt(7)*126*basis_mat[:, 6:7]+945*x**4)
         assert np.allclose(
-            basis_mat.dot(coef), 382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+810*x**2-81)
+            basis_mat.dot(coef),
+            382*x+3*x**2*y+2/np.sqrt(5)*35*basis_mat[:, 3:4] +
+            2/np.sqrt(7)*126*basis_mat[:, 6:7] +
+            8/np.sqrt(9)*27*basis_mat[:, 10:11]+810*x**2-81)
         assert np.allclose(
-            basis_mat.dot(coef), -81+270+382*x+3*x**2*y+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11])
+            basis_mat.dot(coef),
+            -81+270+382*x+3*x**2*y+2/np.sqrt(5)*305*basis_mat[:, 3:4] +
+            2/np.sqrt(7)*126*basis_mat[:, 6:7] +
+            8/np.sqrt(9)*27*basis_mat[:, 10:11])
         assert np.allclose(
-            basis_mat.dot(coef), 189+382*x+2/np.sqrt(5)*305*basis_mat[:, 3:4]+2/np.sqrt(7)*126*basis_mat[:, 6:7]+8/np.sqrt(9)*27*basis_mat[:, 10:11]+2/np.sqrt(15)*basis_mat[:, 8:9]+y)
+            basis_mat.dot(coef), 189+382*x+2/np.sqrt(5)*305*basis_mat[:, 3:4] +
+            2/np.sqrt(7)*126*basis_mat[:, 6:7] +
+            8/np.sqrt(9)*27*basis_mat[:, 10:11] +
+            2/np.sqrt(15)*basis_mat[:, 8:9]+y)
 
         assert np.allclose(
             basis_mat.dot(coef),
@@ -866,68 +886,67 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
         mean = fun(quad_samples)[:, 0].dot(quad_weights)
         variance = (fun(quad_samples)[:, 0]**2).dot(quad_weights)-mean**2
-        assert np.allclose(mean, beta(dist_alpha1*2, dist_beta1*2).mean())
-        assert np.allclose(variance, beta(dist_alpha1*2, dist_beta1*2).var())
-        
+        assert np.allclose(
+            mean, stats.beta(dist_alpha1*2, dist_beta1*2).mean())
+        assert np.allclose(
+            variance, stats.beta(dist_alpha1*2, dist_beta1*2).var())
+
         degree = 10
         poly = PolynomialChaosExpansion()
         # the distribution and ranges of univariate variables is ignored
         # when var_trans.set_identity_maps([0]) is used
-        univariate_variables = [uniform(0, 1)]
+        initial_variables = [stats.uniform(0, 1)]
+        # TODO get quad rules from initial variables
+        quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
+        univariate_variables = [
+            rv_function_indpndt_vars(fun, initial_variables, quad_rules)]
         variable = IndependentMultivariateRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
-        # the following means do not map samples
-        var_trans.set_identity_maps([0])
-        quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
-        poly.configure({'poly_types':
-                        {0: {'poly_type': 'function_indpnt_vars',
-                             'var_nums': [0], 'fun': fun,
-                             'quad_rules': quad_rules}},
-                        'var_trans': var_trans})
-        from pyapprox.indexing import tensor_product_indices
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
         poly.set_indices(tensor_product_indices([degree]))
-        
+
         train_samples = (np.linspace(0, np.pi, 101)[None, :]+1)/2
         train_vals = train_samples.T
         coef = np.linalg.lstsq(
             poly.basis_matrix(train_samples), train_vals, rcond=None)[0]
         poly.set_coefficients(coef)
         assert np.allclose(
-            poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
+            poly.mean(), stats.beta(dist_alpha1*2, dist_beta1*2).mean())
         assert np.allclose(
-            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())
+            poly.variance(), stats.beta(dist_alpha1*2, dist_beta1*2).var())
 
         poly = PolynomialChaosExpansion()
-        # the distribution and ranges of univariate variables is ignored
-        # when var_trans.set_identity_maps([0]) is used
-        univariate_variables = [uniform(0, 1)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
-        # the following means do not map samples
-        var_trans.set_identity_maps([0])
+        initial_variables = [stats.uniform(0, 1)]
         funs = [lambda x: np.sqrt(x)]*nvars
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
-        poly.configure({'poly_types':
-                        {0: {'poly_type': 'product_indpnt_vars',
-                             'var_nums': [0], 'funs': funs,
-                             'quad_rules': quad_rules}},
-                        'var_trans': var_trans})
-        from pyapprox.indexing import tensor_product_indices
+        # TODO get quad rules from initial variables
+        univariate_variables = [
+            rv_product_indpndt_vars(funs, initial_variables, quad_rules)]
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly_opts = define_poly_options_from_variable_transformation(var_trans)
+        poly.configure(poly_opts)
         poly.set_indices(tensor_product_indices([degree]))
-        
+
         train_samples = (np.linspace(0, np.pi, 101)[None, :]+1)/2
         train_vals = train_samples.T
         coef = np.linalg.lstsq(
             poly.basis_matrix(train_samples), train_vals, rcond=None)[0]
         poly.set_coefficients(coef)
         assert np.allclose(
-            poly.mean(), beta(dist_alpha1*2, dist_beta1*2).mean())
+            poly.mean(), stats.beta(dist_alpha1*2, dist_beta1*2).mean())
         assert np.allclose(
-            poly.variance(), beta(dist_alpha1*2, dist_beta1*2).var())   
+            poly.variance(), stats.beta(dist_alpha1*2, dist_beta1*2).var())
 
 
 if __name__ == "__main__":
     multivariate_polynomials_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(TestMultivariatePolynomials)
+        unittest.TestLoader().loadTestsFromTestCase(
+            TestMultivariatePolynomials)
     unittest.TextTestRunner(verbosity=2).run(
         multivariate_polynomials_test_suite)
+
+
+    # TODO check that PCE built with any scipy variable returns the correct mean and variance of that distribution
+    # when least squares is applied to a simple function

@@ -1,5 +1,7 @@
 from functools import partial
 
+from warnings import warn
+
 import numpy as np
 from numpy.polynomial.legendre import leggauss
 
@@ -41,7 +43,7 @@ def sub2ind(sizes, multi_index):
 
     Parameters
     ----------
-    sizes : integer 
+    sizes : integer
         The number of elems in each dimension. For a 2D index
         sizes = [numRows, numCols]
 
@@ -50,7 +52,7 @@ def sub2ind(sizes, multi_index):
 
     Returns
     -------
-    scalar_index : integer 
+    scalar_index : integer
         The scalar index
 
     See Also
@@ -95,11 +97,11 @@ def ind2sub(sizes, scalar_index, num_elems):
 
     Parameters
     ----------
-    sizes : integer 
+    sizes : integer
         The number of elems in each dimension. For a 2D index
         sizes = [numRows, numCols]
 
-    scalar_index : integer 
+    scalar_index : integer
         The scalar index
 
     num_elems : integer
@@ -128,17 +130,17 @@ def cartesian_product(input_sets, elem_size=1):
     r"""
     Compute the cartesian product of an arbitray number of sets.
 
-    The sets can consist of numbers or themselves be lists or vectors. All 
+    The sets can consist of numbers or themselves be lists or vectors. All
     the lists or vectors of a given set must have the same number of entries
-    (elem_size). However each set can have a different number of scalars, lists,
-    or vectors.
+    (elem_size). However each set can have a different number of scalars, 
+    lists, or vectors.
 
     Parameters
     ----------
-    input_sets 
+    input_sets
         The sets to be used in the cartesian product.
 
-    elem_size : integer 
+    elem_size : integer
         The size of the vectors within each set.
 
     Returns
@@ -215,7 +217,7 @@ def outer_product(input_sets):
 
     Parameters
     ----------
-    input_sets  
+    input_sets
         The sets to be used in the outer product
 
     Returns
@@ -237,7 +239,7 @@ def outer_product(input_sets):
             return outer_product_pyx(input_sets, 1.)
         else:
             return outer_product_pyx(input_sets, input_sets[0][0])
-    except:
+    except ImportError:
         print('outer_product extension failed')
 
     num_elems = 1
@@ -351,7 +353,7 @@ def get_2d_cartesian_grid(num_pts_1d, ranges):
         [x1,x2,...x1,x2...]
         [y1,y1,...y2,y2...]
     """
-    #from math_tools_cpp import cartesian_product_double as cartesian_product
+    # from math_tools_cpp import cartesian_product_double as cartesian_product
     from PyDakota.math_tools import cartesian_product
     x1 = np.linspace(ranges[0], ranges[1], num_pts_1d)
     x2 = np.linspace(ranges[2], ranges[3], num_pts_1d)
@@ -409,7 +411,7 @@ def total_degree_space_dimension(dimension, degree):
     num_vars : integer
         The number of variables of the polynomials
 
-    degree : 
+    degree :
         The degree of the total-degree space
 
     Returns
@@ -423,14 +425,17 @@ def total_degree_space_dimension(dimension, degree):
 
     .. math:: {n \choose k} = frac{\Gamma(n+k+1)}{\Gamma(k+1)\Gamma{n-k+1}}, \qquad \Gamma(m)=(m-1)!
 
-    So for dimension :math:`d` and degree :math:`p` number of terms in subspace is
+    So for dimension :math:`d` and degree :math:`p` number of terms in
+    subspace is
 
     .. math:: {d+p \choose p} = frac{\Gamma(d+p+1)}{\Gamma(p+1)\Gamma{d+p-p+1}}, \qquad \Gamma(m)=(m-1)!
-    
+
     """
     # return nchoosek(dimension+degree, degree)
     # Following more robust for large values
-    return int(np.round(np.exp(gammaln(degree+dimension+1) - gammaln(degree+1) - gammaln(dimension+1))))
+    return int(np.round(
+        np.exp(gammaln(degree+dimension+1) - gammaln(degree+1) - gammaln(
+            dimension+1))))
 
 
 def total_degree_subspace_dimension(dimension, degree):
@@ -443,17 +448,20 @@ def total_degree_subspace_dimension(dimension, degree):
     num_vars : integer
         The number of variables of the polynomials
 
-    degree : 
+    degree :
         The degree of the total-degree space
 
     Returns
     -------
     num_terms : integer
-        The number of basis functions in the total degree space of a given degree
+        The number of basis functions in the total degree space of a given 
+        degree
     """
     # subspace_dimension = nchoosek(nvars+degree-1, degree)
     # Following more robust for large values
-    subspace_dimension = int(np.round(np.exp(gammaln(degree+dimension) - gammaln(degree+1) - gammaln(dimension) )))
+    subspace_dimension = int(
+        np.round(np.exp(gammaln(degree+dimension) - gammaln(degree+1) -
+                        gammaln(dimension))))
     return subspace_dimension
 
 
@@ -607,7 +615,7 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
         right singular vectors consistent with sign adjustment applied to U.
     """
     if U.shape[1] != V.shape[0]:
-        raise Exception(
+        raise ValueError(
             'U.shape[1] must equal V.shape[0]. If using np.linalg.svd set full_matrices=False')
 
     if adjust_based_upon_U:
@@ -730,12 +738,16 @@ def unprecondition_LU_factor(LU_factor, precond_weights, num_pivots=None):
     assert precond_weights.shape[0] == LU_factor.shape[0]
     # left multiply L an U by inv(W), i.e. compute inv(W).dot(L)
     # and inv(W).dot(U)
-    LU_factor = LU_factor.copy()/precond_weights
+
+    # `np.array` creates a new copy of LU_factor, faster than `.copy()`
+    LU_factor = np.array(LU_factor)/precond_weights
+
     # right multiply L by W, i.e. compute L.dot(W)
     # Do not overwrite columns past num_pivots. If not all pivots have been
     # performed the columns to the right of this point contain U factor
     for ii in range(num_pivots):
         LU_factor[ii+1:, ii] *= precond_weights[ii, 0]
+
     return LU_factor
 
 
@@ -777,7 +789,7 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
         The matrix to be factored
 
     max_iters : integer
-        The maximum number of pivots to perform. Internally max)iters will be 
+        The maximum number of pivots to perform. Internally max)iters will be
         set such that max_iters = min(max_iters,K), K=min(num_rows,num_cols)
 
     num_initial_rows: integer or np.ndarray()
@@ -790,15 +802,15 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
     Returns
     -------
     L_factor : np.ndarray (max_iters,K)
-        The lower triangular factor with a unit diagonal. 
+        The lower triangular factor with a unit diagonal.
         K=min(num_rows,num_cols)
 
     U_factor : np.ndarray (K,num_cols)
         The upper triangular factor
 
     raw_pivots : np.ndarray (num_rows)
-        The sequential pivots used to during algorithm to swap rows of A. 
-        pivots can be obtained from raw_pivots using 
+        The sequential pivots used to during algorithm to swap rows of A.
+        pivots can be obtained from raw_pivots using
         get_final_pivots_from_sequential_pivots(raw_pivots)
 
     pivots : np.ndarray (max_iters)
@@ -815,8 +827,9 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
 
     # Use L to store both L and U during factoriation then copy out U in post
     # processing
-    LU_factor = A.copy()
-    raw_pivots = np.arange(num_rows)  # np.empty(num_rows,dtype=int)
+    # `np.array` creates a new copy of A (faster than `.copy()`)
+    LU_factor = np.array(A)
+    raw_pivots = np.arange(num_rows)
     LU_factor, raw_pivots, it = continue_pivoted_lu_factorization(
         LU_factor, raw_pivots, 0, max_iters, num_initial_rows)
 
@@ -833,54 +846,53 @@ def truncated_pivoted_lu_factorization(A, max_iters, num_initial_rows=0,
 
 def add_columns_to_pivoted_lu_factorization(LU_factor, new_cols, raw_pivots):
     r"""
-    Given factorization PA=LU add new columns to A in unpermuted order and 
+    Given factorization PA=LU add new columns to A in unpermuted order and
     update LU factorization
 
     Parameters
     ----------
     raw_pivots : np.ndarray (num_pivots)
         The pivots applied at each iteration of pivoted LU factorization.
-        If desired one can use get_final_pivots_from_sequential_pivots to 
+        If desired one can use get_final_pivots_from_sequential_pivots to
         compute final position of rows after all pivots have been applied.
     """
     assert LU_factor.shape[0] == new_cols.shape[0]
     assert raw_pivots.shape[0] <= new_cols.shape[0]
-    num_new_cols = new_cols.shape[1]
     num_pivots = raw_pivots.shape[0]
-    for it in range(num_pivots):
-        pivot = raw_pivots[it]
-        swap_rows(new_cols, it, pivot)
+    for it, pivot in enumerate(raw_pivots):
+        # inlined swap_rows() for performance
+        new_cols[it], new_cols[pivot] = new_cols[pivot], new_cols[it]
 
-        # update U_factor
+        # update LU_factor
         # recover state of col vector from permuted LU factor
         # Let  (jj,kk) represent iteration and pivot pairs
         # then if lu factorization produced sequence of pairs
         # (0,4),(1,2),(2,4) then LU_factor[:,0] here will be col_vector
         # in LU algorithm with the second and third permutations
         # so undo these permutations in reverse order
-        col_vector = LU_factor[it+1:, it].copy()
+        next_idx = it+1
+
+        # `col_vector` is a copy of the LU_factor subset
+        col_vector = np.array(LU_factor[next_idx:, it])
         for ii in range(num_pivots-it-1):
             # (it+1) necessary in two lines below because only dealing
             # with compressed col vector which starts at row it in LU_factor
-            jj = raw_pivots[num_pivots-1-ii]-(it+1)
-            kk = num_pivots-ii-1-(it+1)
-            swap_rows(col_vector, jj, kk)
-        row_vector = new_cols[it, :]
+            jj = raw_pivots[num_pivots-1-ii]-next_idx
+            kk = num_pivots-ii-1-next_idx
 
-        update = np.outer(col_vector, row_vector)
-        new_cols[it+1:, :] -= update
+            # inlined swap_rows()
+            col_vector[jj], col_vector[kk] = col_vector[kk], col_vector[jj]
 
-        # new_cols = add_rows_to_pivoted_lu_factorization(
-        #    new_cols[:it+1,:],new_cols[it+1:,:],num_pivots)
+        new_cols[next_idx:, :] -= np.outer(col_vector, new_cols[it, :])
 
     LU_factor = np.hstack((LU_factor, new_cols))
+
     return LU_factor
 
 
 def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
     assert LU_factor.shape[1] == new_rows.shape[1]
-    num_new_rows = new_rows.shape[0]
-    LU_factor_extra = new_rows.copy()
+    LU_factor_extra = np.array(new_rows)  # take copy of `new_rows`
     for it in range(num_pivots):
         LU_factor_extra[:, it] /= LU_factor[it, it]
         col_vector = LU_factor_extra[:, it]
@@ -892,9 +904,7 @@ def add_rows_to_pivoted_lu_factorization(LU_factor, new_rows, num_pivots):
 
 
 def swap_rows(matrix, ii, jj):
-    temp = matrix[ii].copy()
-    matrix[ii] = matrix[jj]
-    matrix[jj] = temp
+    matrix[ii], matrix[jj] = matrix[jj], matrix[ii]
 
 
 def pivot_rows(pivots, matrix, in_place=True):
@@ -919,8 +929,8 @@ def get_tensor_product_quadrature_rule(
         degrees, num_vars, univariate_quadrature_rules, transform_samples=None,
         density_function=None):
     r"""
-    if get error about outer product failing it may be because 
-    univariate_quadrature rule is returning a weights array for every level, 
+    if get error about outer product failing it may be because
+    univariate_quadrature rule is returning a weights array for every level,
     i.e. l=0,...level
     """
     degrees = np.atleast_1d(degrees)
@@ -956,8 +966,8 @@ def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
         x = (samples-xl)/(xr-xl)
         interval_vals = canonical_piecewise_quadratic_interpolation(
             x, mesh_vals[ii:ii+3])
-        # to avoid double counting we set left boundary of each interval to zero
-        # except for first interval
+        # to avoid double counting we set left boundary of each interval to
+        # zero except for first interval
         if ii == 0:
             interval_vals[(x < 0) | (x > 1)] = 0.
         else:
@@ -995,7 +1005,7 @@ def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):
 def canonical_piecewise_quadratic_interpolation(x, nodal_vals):
     r"""
     Piecewise quadratic interpolation of nodes at [0,0.5,1]
-    Assumes all values are in [0,1]. 
+    Assumes all values are in [0,1].
     """
     assert x.ndim == 1
     assert nodal_vals.shape[0] == 3
@@ -1011,7 +1021,7 @@ def discrete_sampling(N, probs, states=None):
     x = discrete_sampling(N, prob, states)
 
     Generates N iid samples from a random variable X whose probability mass
-    function is 
+    function is
 
     prob(X = states[j]) = prob[j],    1 <= j <= length(prob).
 
@@ -1035,7 +1045,6 @@ def discrete_sampling(N, probs, states=None):
 def lists_of_arrays_equal(list1, list2):
     if len(list1) != len(list2):
         return False
-    equal = True
     for ll in range(len(list1)):
         if not np.allclose(list1[ll], list2[ll]):
             return False
@@ -1045,7 +1054,6 @@ def lists_of_arrays_equal(list1, list2):
 def lists_of_lists_of_arrays_equal(list1, list2):
     if len(list1) != len(list2):
         return False
-    equal = True
     for ll in range(len(list1)):
         for kk in range(len(list1[ll])):
             if not np.allclose(list1[ll][kk], list2[ll][kk]):
@@ -1064,8 +1072,8 @@ def pdf_under_affine_map(pdf, loc, scale, y):
 
 
 def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
-    #const = 1./beta_fn(alpha_stat,beta_stat)
-    #const /= (b-a)**(alpha_stat+beta_stat-1)
+    # const = 1./beta_fn(alpha_stat,beta_stat)
+    # const /= (b-a)**(alpha_stat+beta_stat-1)
     # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
     from functools import partial
     pdf = partial(beta_pdf, alpha_stat, beta_stat)
@@ -1154,7 +1162,8 @@ def cholesky_decomposition(Amat):
             raise Exception('matrix is not positive definite')
         L[ii, ii] = np.sqrt(temp)
         L[ii+1:, ii] =\
-            (Amat[ii+1:, ii]-np.sum(L[ii+1:, :ii]*L[ii, :ii], axis=1))/L[ii, ii]
+            (Amat[ii+1:, ii]-np.sum(
+                L[ii+1:, :ii]*L[ii, :ii], axis=1))/L[ii, ii]
 
     return L
 
@@ -1175,19 +1184,19 @@ def pivoted_cholesky_decomposition(A, npivots, init_pivots=None, tol=0.,
 
     Then P.T.dot(A).P == L.dot(L.T)
 
-    where P is the standard pivot matrix which can be obtained from the 
-    pivot vector using the function 
+    where P is the standard pivot matrix which can be obtained from the
+    pivot vector using the function
     """
     Amat = A.copy()
     nrows = Amat.shape[0]
     assert Amat.shape[1] == nrows
     assert npivots <= nrows
 
-    #L = np.zeros(((nrows,npivots)))
+    # L = np.zeros(((nrows,npivots)))
     L = np.zeros(((nrows, nrows)))
     # diag1 = np.diag(Amat).copy() # returns a copy of diag
     diag = Amat.ravel()[::Amat.shape[0]+1]  # returns a view of diag
-    #assert np.allclose(diag,diag1)
+    # assert np.allclose(diag,diag1)
     pivots = np.arange(nrows)
     init_error = np.absolute(diag).sum()
     L, pivots, diag, chol_flag, ncompleted_pivots, error = \
@@ -1248,8 +1257,9 @@ def continue_pivoted_cholesky_decomposition(Amat, L, npivots, init_pivots, tol,
 
         L[pivots[ii], ii] = np.sqrt(diag[pivots[ii]])
 
-        L[pivots[ii+1:], ii] = (Amat[pivots[ii+1:], pivots[ii]] -
-                                L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
+        L[pivots[ii+1:], ii] = (
+            Amat[pivots[ii+1:], pivots[ii]] -
+            L[pivots[ii+1:], :ii].dot(L[pivots[ii], :ii]))/L[pivots[ii], ii]
         diag[pivots[ii+1:]] -= L[pivots[ii+1:], ii]**2
 
         # for jj in range(ii+1,nrows):
@@ -1338,7 +1348,7 @@ def partial_functions_equal(func1, func2):
 def get_all_sample_combinations(samples1, samples2):
     r"""
     For two sample sets of different random variables
-    loop over all combinations 
+    loop over all combinations
 
     samples1 vary slowest and samples2 vary fastest
 
@@ -1411,10 +1421,10 @@ def compute_f_divergence(density1, density2, quad_rule, div_type,
         w : np.ndarray (num_samples)
 
     div_type : string
-        The type of f divergence (KL,TV,hellinger). 
+        The type of f divergence (KL,TV,hellinger).
         KL - Kullback-Leibler :math:`f(t)=t\log t`
         TV - total variation  :math:`f(t)=\frac{1}{2}\lvert t-1\rvert`
-        hellinger - squared Hellinger :math:`f(t)=(\sqrt(t)-1)^2` 
+        hellinger - squared Hellinger :math:`f(t)=(\sqrt(t)-1)^2`
     """
     x, w = quad_rule
     assert w.ndim == 1
@@ -1454,11 +1464,11 @@ def compute_f_divergence(density1, density2, quad_rule, div_type,
         raise Exception(f'Divergence type {div_type} not supported')
 
     d1_vals, d2_vals = d1(x), d2(x)
-    I = np.where(d2_vals > 1e-15)[0]
+    II = np.where(d2_vals > 1e-15)[0]
     ratios = np.zeros_like(d2_vals)+1e-15
-    ratios[I] = d1_vals[I]/d2_vals[I]
+    ratios[II] = d1_vals[II]/d2_vals[II]
     if not np.all(np.isfinite(ratios)):
-        print(d1_vals[I], d2_vals[I])
+        print(d1_vals[II], d2_vals[II])
         msg = 'Densities are not absolutely continuous. '
         msg += 'Ensure that density2(z)=0 implies density1(z)=0'
         raise Exception(msg)
@@ -1481,7 +1491,7 @@ def cholesky_solve_linear_system(L, rhs):
 
 def update_cholesky_factorization(L_11, A_12, A_22):
     r"""
-    Update a Cholesky factorization. 
+    Update a Cholesky factorization.
 
     Specifically compute the Cholesky factorization of
 
@@ -1490,7 +1500,7 @@ def update_cholesky_factorization(L_11, A_12, A_22):
     where :math:`L_{11}` is the Cholesky factorization of :math:`A_{11}`.
     Noting that
 
-    .. math:: 
+    .. math::
 
       \begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T & A_{22}\end{bmatrix} =
       \begin{bmatrix} L_{11} & 0\\ L_{12}^T & L_{22}\end{bmatrix}
@@ -1498,9 +1508,9 @@ def update_cholesky_factorization(L_11, A_12, A_22):
 
     we can equate terms to find
 
-    .. math:: 
+    .. math::
 
-        L_{12} = L_{11}^{-1}A_{12}, \quad 
+        L_{12} = L_{11}^{-1}A_{12}, \quad
         L_{22}L_{22}^T = A_{22}-L_{12}^TL_{12}
     """
     if L_11.shape[0] == 0:
@@ -1529,7 +1539,7 @@ def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
                                             prev_trace):
     r"""
     Update the trace of matrix matrix product involving the inverse of a
-    matrix with a cholesky factorization. 
+    matrix with a cholesky factorization.
 
     That is compute
 
@@ -1543,7 +1553,7 @@ def update_trace_involving_cholesky_inverse(L_11_inv, L_12, L_22_inv, B,
     B_12 = B[:nrows, nrows:]
     B_21 = B[nrows:, :nrows]
     B_22 = B[nrows:, nrows:]
-    #assert np.allclose(B, np.block([[B_11, B_12],[B_21, B_22]]))
+    # assert np.allclose(B, np.block([[B_11, B_12],[B_21, B_22]]))
 
     C = -np.dot(L_22_inv.dot(L_12.T), L_11_inv)
     C_T_L_22_inv = C.T.dot(L_22_inv)
@@ -1586,7 +1596,8 @@ def num_entries_rectangular_triangular_matrix(M, N, upper=True):
 
 def flattened_rectangular_lower_triangular_matrix_index(ii, jj, M, N):
     r"""
-    Get flattened index kk from row and column indices (ii,jj) of a lower triangular part of MxN matrix
+    Get flattened index kk from row and column indices (ii,jj) of a
+    lower triangular part of MxN matrix
     """
     assert M >= N
     assert ii >= jj
@@ -1649,18 +1660,18 @@ def split_dataset(samples, values, ndata1):
     """
     assert ndata1 <= samples.shape[1]
     assert values.shape[0] == samples.shape[1]
-    I = np.random.permutation(samples.shape[1])
-    samples1 = samples[:, I[:ndata1]]
-    samples2 = samples[:, I[ndata1:]]
-    values1 = values[I[:ndata1], :]
-    values2 = values[I[ndata1:], :]
+    II = np.random.permutation(samples.shape[1])
+    samples1 = samples[:, II[:ndata1]]
+    samples2 = samples[:, II[ndata1:]]
+    values1 = values[II[:ndata1], :]
+    values2 = values[II[ndata1:], :]
     return samples1, samples2, values1, values2
 
 
 def leave_one_out_lsq_cross_validation(basis_mat, values, alpha=0, coef=None):
     """
-    let :math:`x_i` be the ith row of :math:`X` and let 
-    :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals 
+    let :math:`x_i` be the ith row of :math:`X` and let
+    :math:`\beta=(X^\top X)^{-1}X^\top y` such that the residuals
     at the training samples satisfy
 
     .. math:: r_i = X\beta-y
@@ -1739,11 +1750,11 @@ def get_random_k_fold_sample_indices(nsamples, nfolds, random=True):
 def get_cross_validation_rsquared_coefficient_of_variation(
         cv_score, train_vals):
     r"""
-    cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where 
-    :math:`e_n` are the cross  validation residues at each test point and 
+    cv_score = :math:`N^{-1/2}\left(\sum_{n=1}^N e_n\right^{1/2}` where
+    :math:`e_n` are the cross  validation residues at each test point and
     :math:`N` is the number of traing vals
 
-    We define r_sq as 
+    We define r_sq as
 
     .. math:: 1-\frac{N^{-1}\left(\sum_{n=1}^N e_n\right)}/mathbb{V}\left[Y\right] where Y is the vector of training vals
     """
@@ -1756,13 +1767,25 @@ def get_cross_validation_rsquared_coefficient_of_variation(
 
 def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
         integrand, lb, ub, nquad_samples, rtol=1e-8, atol=1e-8,
-        verbose=0, adaptive=True):
+        verbose=0, adaptive=True, tabulated_quad_rules=None):
+    """
+    tabulated_quad_rules : dictionary
+        each entry is a tuple (x,w) of gauss legendre with weight
+        function p(x)=1 defined on [-1,1]. The number of points in x is
+        defined by the key.
+        User must ensure that the dictionary contains any nquad_samples
+        that may be requested
+    """
     # Adaptive
-    nquad_samples = 10
+    # nquad_samples = 10
     prev_res = np.inf
     it = 0
     while True:
-        xx_canonical, ww_canonical = leggauss(nquad_samples)
+        if (tabulated_quad_rules is None or
+                nquad_samples not in tabulated_quad_rules):
+            xx_canonical, ww_canonical = leggauss(nquad_samples)
+        else:
+            xx_canonical, ww_canonical = tabulated_quad_rules[nquad_samples]
         xx = (xx_canonical+1)/2*(ub-lb)+lb
         ww = ww_canonical*(ub-lb)/2
         res = integrand(xx).T.dot(ww).T
@@ -1782,25 +1805,29 @@ def __integrate_using_univariate_gauss_legendre_quadrature_bounded(
 
 def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         integrand, lb, ub, nquad_samples, atol=1e-8, rtol=1e-8,
-        interval_size=2, max_steps=1000, verbose=0, adaptive=True):
+        interval_size=2, max_steps=1000, verbose=0, adaptive=True,
+        soft_error=False, tabulated_quad_rules=None):
     """
     Compute unbounded integrals by moving left and right from origin.
     Assume that integral decays towards +/- infinity. And that once integral
     over a sub interval drops below tolerance it will not increase again if
     we keep moving in same direction.
     """
+    if interval_size <= 0:
+        raise ValueError("Interval size must be positive")
+
     if np.isfinite(lb) and np.isfinite(ub):
         partial_lb, partial_ub = lb, ub
     elif np.isfinite(lb) and not np.isfinite(ub):
         partial_lb, partial_ub = lb, lb+interval_size
     elif not np.isfinite(lb) and np.isfinite(ub):
-        partial_lb, partial_ub = ub+interval_size, ub
+        partial_lb, partial_ub = ub-interval_size, ub
     else:
         partial_lb, partial_ub = -interval_size/2, interval_size/2
 
     result = __integrate_using_univariate_gauss_legendre_quadrature_bounded(
         integrand, partial_lb, partial_ub, nquad_samples, rtol,
-        atol, verbose-1, adaptive)
+        atol, verbose-1, adaptive, tabulated_quad_rules)
 
     step = 0
     partial_result = np.inf
@@ -1810,16 +1837,22 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         partial_result = \
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
                 integrand, plb, pub, nquad_samples, rtol, atol,
-                verbose-1, adaptive)
+                verbose-1, adaptive, tabulated_quad_rules)
         result += partial_result
         pub = plb
         plb -= interval_size
         step += 1
         if verbose > 1:
-            print('Left', step, result, partial_result, plb, pub, interval_size)
+            print('Left', step, result, partial_result, plb, pub,
+                  interval_size)
         if verbose > 0:
             if step >= max_steps:
-                print('Early termination when computing left integral')
+                msg = "Early termination when computing left integral"
+                msg += f"max_steps {max_steps} reached"
+                if soft_error is True:
+                    warn(msg, UserWarning)
+                else:
+                    raise RuntimeError(msg)
             if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
                 msg = f'Tolerance {atol} {rtol} for left integral reached in '
                 msg += f'{step} iterations'
@@ -1833,20 +1866,34 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
         partial_result = \
             __integrate_using_univariate_gauss_legendre_quadrature_bounded(
                 integrand, plb, pub, nquad_samples, rtol, atol,
-                verbose-1, adaptive)
+                verbose-1, adaptive, tabulated_quad_rules)
         result += partial_result
         plb = pub
         pub += interval_size
         step += 1
         if verbose > 1:
-            print('Right', step, result, partial_result, plb, pub, interval_size)
+            print('Right', step, result, partial_result, plb, pub,
+                  interval_size)
         if verbose > 0:
             if step >= max_steps:
-                print('Early termination when computing right integral')
+                msg = "Early termination when computing right integral. "
+                msg += f"max_steps {max_steps} reached"
+                if soft_error is True:
+                    warn(msg, UserWarning)
+                else:
+                    raise RuntimeError(msg)
             if np.all(np.abs(partial_result) < rtol*np.absolute(result)+atol):
                 msg = f'Tolerance {atol} {rtol} for right integral reached in '
                 msg += f'{step} iterations'
                 print(msg)
-        #print(partial_result, plb, pub)
+        # print(partial_result, plb, pub)
 
     return result
+
+
+def unique_elements_from_2D_list(list_2d):
+    return list(set(flatten_2D_list(list_2d)))
+
+
+def flatten_2D_list(list_2d):
+    return [item for sub in list_2d for item in sub]

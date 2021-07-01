@@ -1,23 +1,32 @@
 import unittest
-from pyapprox.barycentric_interpolation import *
+import copy
+import numpy as np
+from functools import partial
+from scipy.special import factorial
+
+from pyapprox.variables import float_rv_discrete, \
+    IndependentMultivariateRandomVariable
+from pyapprox.variable_transformations import \
+    AffineRandomVariableTransformation
+from pyapprox.barycentric_interpolation import \
+    compute_barycentric_weights_1d, equidistant_barycentric_weights, \
+    multivariate_barycentric_lagrange_interpolation, \
+    clenshaw_curtis_barycentric_weights, \
+    multivariate_hierarchical_barycentric_lagrange_interpolation, \
+    tensor_product_lagrange_interpolation
 from pyapprox.utilities import cartesian_product
 from pyapprox.univariate_quadrature import clenshaw_curtis_in_polynomial_order
-import copy
-
-from pyapprox.multivariate_polynomials import *
-from pyapprox.variable_transformations import *
-from scipy.stats import norm
-from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
-from pyapprox.univariate_quadrature import clenshaw_curtis_in_polynomial_order
-from pyapprox.univariate_quadrature import constant_increment_growth_rule,\
+from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+    define_poly_options_from_variable_transformation
+from pyapprox.univariate_polynomials.quadrature import \
+    gauss_hermite_pts_wts_1D, constant_increment_growth_rule, \
+    clenshaw_curtis_pts_wts_1D
+from pyapprox.univariate_polynomials.leja_quadrature import \
     get_univariate_leja_quadrature_rule
-from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule
+from pyapprox.utilities import nchoosek
 
 
 def preconditioned_barycentric_weights():
-    #num_samples = 2**8+1
-    #samples = gauss_hermite_pts_wts_1D(num_samples)[0]
-    #var_trans = define_iid_random_variable_transformation(norm(),1)
     nmasses = 20
     xk = np.array(range(nmasses), dtype='float')
     pk = np.ones(nmasses)/nmasses
@@ -54,16 +63,16 @@ def preconditioned_barycentric_weights():
     y = samples
     print(samples)
     w = precond_weights*bary_weights
-    #x = np.linspace(-3,3,301)
+    # x = np.linspace(-3,3,301)
     x = np.linspace(-1, 1, 301)
     f = function(y)/precond_weights
 
     # cannot interpolate on data
-    I = []
+    II = []
     for ii, xx in enumerate(x):
         if xx in samples:
-            I.append(ii)
-    x = np.delete(x, I)
+            II.append(ii)
+    x = np.delete(x, II)
 
     r1 = barysum(x, y, w, f)
     r2 = barysum(x, y, w, 1/precond_weights)
@@ -120,7 +129,7 @@ class TestBarycentricInterpolation(unittest.TestCase):
         # order of points. Eventually ordering can effect numerical stability
         # but not until very high level
         abscissa, tmp = clenshaw_curtis_in_polynomial_order(level)
-        I = np.argsort(abscissa)
+        II = np.argsort(abscissa)
         n = abscissa.shape[0]
         weights = compute_barycentric_weights_1d(
             abscissa, normalize_weights=False,
@@ -128,8 +137,8 @@ class TestBarycentricInterpolation(unittest.TestCase):
         true_weights = np.empty((n), np.double)
         true_weights[0] = true_weights[n-1] = 0.5
         true_weights[1:n-1] = [(-1)**ii for ii in range(1, n-1)]
-        factor = true_weights[1]/weights[I][1]
-        assert np.allclose(true_weights/factor, weights[I], eps)
+        factor = true_weights[1]/weights[II][1]
+        assert np.allclose(true_weights/factor, weights[II], eps)
 
         num_samples = 65
         abscissa, tmp = gauss_hermite_pts_wts_1D(num_samples)
@@ -146,8 +155,8 @@ class TestBarycentricInterpolation(unittest.TestCase):
 
         # test 1d barycentric lagrange interpolation
         level = 5
-        #abscissa, __ = clenshaw_curtis_pts_wts_1D( level )
-        #barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level)]
+        # abscissa, __ = clenshaw_curtis_pts_wts_1D( level )
+        # barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level)]
         abscissa, __ = clenshaw_curtis_in_polynomial_order(level, False)
         abscissa_1d = [abscissa]
         barycentric_weights_1d = [
@@ -158,7 +167,7 @@ class TestBarycentricInterpolation(unittest.TestCase):
         poly_vals = multivariate_barycentric_lagrange_interpolation(
             pts, abscissa_1d, barycentric_weights_1d, fn_vals, np.array([0]))
 
-        #import pylab
+        # import pylab
         # print poly_vals.squeeze().shape
         # pylab.plot(pts[0,:],poly_vals.squeeze())
         # pylab.plot(abscissa_1d[0],fn_vals.squeeze(),'ro')
@@ -204,8 +213,9 @@ class TestBarycentricInterpolation(unittest.TestCase):
         nodes_0, tmp = clenshaw_curtis_pts_wts_1D(level[0])
         nodes_1, tmp = clenshaw_curtis_pts_wts_1D(level[1])
         abscissa_1d = [nodes_0, nodes_1]
-        barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level[0]),
-                                  clenshaw_curtis_barycentric_weights(level[1])]
+        barycentric_weights_1d = [
+            clenshaw_curtis_barycentric_weights(level[0]),
+            clenshaw_curtis_barycentric_weights(level[1])]
         abscissa = cartesian_product(abscissa_1d, 1)
         fn_vals = f(abscissa)
 
@@ -227,10 +237,10 @@ class TestBarycentricInterpolation(unittest.TestCase):
         nodes_1, tmp = clenshaw_curtis_pts_wts_1D(level[1])
         nodes_2, tmp = clenshaw_curtis_pts_wts_1D(level[2])
         abscissa_1d = [nodes_0, nodes_1, nodes_2]
-        barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level[0]),
-                                  clenshaw_curtis_barycentric_weights(
-                                      level[1]),
-                                  clenshaw_curtis_barycentric_weights(level[2])]
+        barycentric_weights_1d = [
+            clenshaw_curtis_barycentric_weights(level[0]),
+            clenshaw_curtis_barycentric_weights(level[1]),
+            clenshaw_curtis_barycentric_weights(level[2])]
         abscissa = cartesian_product(abscissa_1d, 1)
         fn_vals = f(abscissa)
 
@@ -260,8 +270,9 @@ class TestBarycentricInterpolation(unittest.TestCase):
         abscissa = cartesian_product(abscissa_1d, 1)
         abscissa_1d = [nodes_0,
                        nodes_2]
-        barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level[0]),
-                                  clenshaw_curtis_barycentric_weights(level[2])]
+        barycentric_weights_1d = [
+            clenshaw_curtis_barycentric_weights(level[0]),
+            clenshaw_curtis_barycentric_weights(level[2])]
         fn_vals = f(abscissa)
 
         poly_vals = multivariate_barycentric_lagrange_interpolation(
@@ -291,8 +302,9 @@ class TestBarycentricInterpolation(unittest.TestCase):
         abscissa = cartesian_product(abscissa_1d, 1)
         abscissa_1d = [nodes_0,
                        nodes_1]
-        barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level[0]),
-                                  clenshaw_curtis_barycentric_weights(level[1])]
+        barycentric_weights_1d = [
+            clenshaw_curtis_barycentric_weights(level[0]),
+            clenshaw_curtis_barycentric_weights(level[1])]
         fn_vals = f(abscissa)
 
         poly_vals = multivariate_barycentric_lagrange_interpolation(
@@ -328,8 +340,9 @@ class TestBarycentricInterpolation(unittest.TestCase):
         abscissa = cartesian_product(abscissa_1d, 1)
         abscissa_1d = [nodes_1,
                        nodes_2]
-        barycentric_weights_1d = [clenshaw_curtis_barycentric_weights(level[1]),
-                                  clenshaw_curtis_barycentric_weights(level[2])]
+        barycentric_weights_1d = [
+            clenshaw_curtis_barycentric_weights(level[1]),
+            clenshaw_curtis_barycentric_weights(level[2])]
         fn_vals = f(abscissa)
 
         poly_vals = multivariate_barycentric_lagrange_interpolation(
@@ -347,7 +360,7 @@ class TestBarycentricInterpolation(unittest.TestCase):
         # nodes
         a = -1.0
         b = 1.0
-        #x = np.linspace( a, b, 21 )
+        # x = np.linspace( a, b, 21 )
         x = np.linspace(a, b, 5)
         [X, Y] = np.meshgrid(x, x)
         pts = np.vstack((X.reshape((1, X.shape[0]*X.shape[1])),
@@ -402,11 +415,11 @@ class TestBarycentricInterpolation(unittest.TestCase):
         def f(x): return np.exp(-np.sum(x**2, axis=0))
 
         level = 30
-        abscissa_leja, __ = gaussian_leja_quadrature_rule(
-            level, return_weights_for_all_levels=False)
+        # abscissa_leja, __ = gaussian_leja_quadrature_rule(
+        #    level, return_weights_for_all_levels=False)
+        # abscissa = abscissa_leja
         abscissa_gauss = gauss_hermite_pts_wts_1D(level+1)[0]
-        abscissa = abscissa_leja
-        #abscissa = abscissa_gauss
+        abscissa = abscissa_gauss
         # print(abscissa_leja.shape,abscissa_gauss.shape)
 
         abscissa_1d = [abscissa]
@@ -444,12 +457,13 @@ class TestBarycentricInterpolation(unittest.TestCase):
         nvars = 5
         level = 10
         x = gauss_hermite_pts_wts_1D(level+1)[0]
-        #active_vars = np.arange(nvars)
+        # active_vars = np.arange(nvars)
         active_vars = np.hstack([np.arange(2), np.arange(3, nvars)])
         nactive_vars = active_vars.shape[0]
         abscissa_1d = [x]*nactive_vars
 
         power = x.shape[0]-2
+        
         def fun(samples):
             return np.sum(samples[active_vars, :]**power, axis=0)[:, None]
 

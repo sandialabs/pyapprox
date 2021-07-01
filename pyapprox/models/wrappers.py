@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 from pyapprox.utilities import get_all_sample_combinations
 from pyapprox.utilities import hash_array
 import time
@@ -332,7 +330,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
         pool_given = True
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
-    if pool_given is False:
+    if pool_given == False:
         pool.close()
 
     # result  = [model(samples[:, ii:ii+1]) for ii in range(samples.shape[1])]
@@ -624,6 +622,20 @@ class PoolModel(object):
             self.pool_function, self.max_eval_concurrency, samples,
             pool=None, assert_omp=self.assert_omp)
         return vals
+
+
+def get_active_set_model_from_variable(function, variable, active_var_indices,
+                                       nominal_values):
+    from pyapprox import IndependentMultivariateRandomVariable
+    active_variable = IndependentMultivariateRandomVariable(
+        [variable.all_variables()[ii] for ii in active_var_indices])
+    mask = np.ones(variable.num_vars(), dtype=bool)
+    mask[active_var_indices] = False
+    inactive_var_values = nominal_values[mask]
+    model = ActiveSetVariableModel(
+        function, variable.num_vars(), inactive_var_values, active_var_indices)
+    return model, active_variable
+
 
 
 class ActiveSetVariableModel(object):

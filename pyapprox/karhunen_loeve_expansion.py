@@ -1,12 +1,9 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
-import matplotlib.pyplot as plt
-import matplotlib.tri as tri
-from pyapprox.utilities import adjust_sign_eig
 from scipy.linalg import eigh
 from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
+
+from pyapprox.utilities import adjust_sign_eig
 
 
 def exponential_kle_eigenvalues(sigma2, corr_len, omega):
@@ -20,7 +17,7 @@ def exponential_kle_basis(x, corr_len, sigma2, omega):
     Parameters
     ----------
     x : np.ndarray (num_spatial_locations)
-        The spatial coordinates of the nodes defining the random field in [0,1] 
+        The spatial coordinates of the nodes defining the random field in [0,1]
 
     corr_len : double
         correlation length l of the covariance kernel
@@ -276,7 +273,8 @@ class MeshKLE(object):
         False - return k(x)
     """
 
-    def __init__(self, mesh_coords, mean_field=0, use_log=False, matern_nu=np.inf):
+    def __init__(self, mesh_coords, mean_field=0, use_log=False,
+                 matern_nu=np.inf):
         assert mesh_coords.shape[0] <= 2
         self.mesh_coords = mesh_coords
         self.use_log = use_log
@@ -289,7 +287,8 @@ class MeshKLE(object):
 
     def compute_kernel_matrix(self, length_scale):
         if self.matern_nu == np.inf:
-            dists = pdist(self.mesh_coords.T / length_scale, metric='sqeuclidean')
+            dists = pdist(self.mesh_coords.T / length_scale,
+                          metric='sqeuclidean')
             K = squareform(np.exp(-.5 * dists))
             np.fill_diagonal(K, 1)
             return K
@@ -327,7 +326,7 @@ class MeshKLE(object):
 
         K = self.compute_kernel_matrix(length_scale)
         eig_vals, eig_vecs = eigh(
-            K, turbo=True, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
+            K, turbo=False, eigvals=(K.shape[0]-nterms, K.shape[0]-1))
         eig_vecs = adjust_sign_eig(eig_vecs)
         I = np.argsort(eig_vals)[::-1][:self.nterms]
         assert np.all(eig_vals[I] > 0)

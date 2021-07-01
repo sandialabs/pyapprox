@@ -1,24 +1,18 @@
+import pickle
+from functools import partial
+import heapq
+import numpy as np
+
 from pyapprox.variables import variable_shapes_equivalent, \
     is_bounded_discrete_variable, get_probability_masses
-from pyapprox.univariate_quadrature import gaussian_leja_quadrature_rule,\
-    get_univariate_leja_quadrature_rule, clenshaw_curtis_rule_growth
-from pyapprox.univariate_quadrature import leja_growth_rule, \
-    constant_increment_growth_rule
 from pyapprox.sparse_grid import *
-from pyapprox.models.wrappers import WorkTracker
-import copy
 from pyapprox.utilities import lists_of_lists_of_arrays_equal, \
     lists_of_arrays_equal, partial_functions_equal
-import pickle
 from pyapprox.indexing import get_forward_neighbor, get_backward_neighbor
-from functools import partial
-# try:
-#     # Python version < 3
-#     import Queue as queue
-# except:
-#     import queue
-
-import heapq
+from pyapprox.univariate_polynomials.quadrature import \
+    clenshaw_curtis_rule_growth, constant_increment_growth_rule
+from pyapprox.univariate_polynomials.leja_quadrature import \
+    get_univariate_leja_quadrature_rule
 
 
 class mypriorityqueue():
@@ -54,12 +48,11 @@ def extract_items_from_priority_queue(pqueue):
     of items in queue
 
     Priority queue is thread safe so does not support shallow or deep copy
-    One can copy this queue by pushing and popping by original queue will 
-    be destroyed. Return a copy of the original queue that can be used to 
+    One can copy this queue by pushing and popping by original queue will
+    be destroyed. Return a copy of the original queue that can be used to
     replace the destroyed queue
     """
 
-    #pqueue1 = queue.PriorityQueue()
     pqueue1 = mypriorityqueue()
     items = []
     while not pqueue.empty():
@@ -572,7 +565,7 @@ def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
         assert pce.num_vars() == sparse_grid.num_vars
 
     def get_recursion_coefficients(N, dd):
-        pce.update_recursion_coefficients([N]*pce.num_vars(), pce.config_opts)
+        pce.update_recursion_coefficients([N]*pce.num_vars())
         return pce.recursion_coeffs[pce.basis_type_index_map[dd]].copy()
 
     coeffs_1d = [
@@ -622,6 +615,9 @@ def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
 
 
 def extract_sparse_grid_quadrature_rule(asg):
+    """
+    Returns samples in canonical space
+    """
     num_sparse_grid_points = (
         asg.poly_indices.shape[1])
     # must initialize to zero
@@ -794,7 +790,7 @@ class SubSpaceRefinementManager(object):
                 new_active_subspace_indices = np.hstack(
                     (new_active_subspace_indices, neighbor_index[:, np.newaxis]))
             else:
-                if self.verbose > 1:
+                if self.verbose > 2:
                     msg = f'Subspace {neighbor_index} is not admissible'
                     print(msg)
 
@@ -900,6 +896,7 @@ class SubSpaceRefinementManager(object):
         self.samples = np.hstack((self.samples, new_samples))
 
         if self.values is None:
+            assert np.any(np.isnan(new_values)) == False, "New values cannot have NaN!"
             self.values = new_values
         else:
             self.values = np.vstack((self.values, new_values))
@@ -921,7 +918,7 @@ class SubSpaceRefinementManager(object):
             self.active_subspace_queue.put((priority, error, cnt))
             self.error = np.concatenate([self.error, [error]])
 
-            if self.verbose > 1:
+            if self.verbose > 2:
                 msg = f'adding new index {subspace_index} '
                 msg += f'with priority {priority}'
                 print(msg)
@@ -1171,18 +1168,18 @@ def get_unique_quadrule_variables(var_trans):
 def get_unique_max_level_1d(var_trans, growth_rules):
     unique_quadrule_variables, unique_quadrule_indices = \
         get_unique_quadrule_variables(var_trans)
-    print(len(growth_rules),unique_quadrule_indices)
+    # print(len(growth_rules), unique_quadrule_indices)
     if len(growth_rules) != len(unique_quadrule_indices):
         msg = 'growth rules and unique_quadrule_indices'
         msg += ' (derived from var_trans) are inconsistent'
         raise Exception(msg)
-    
+
     max_level_1d = []
     for ii in range(len(unique_quadrule_indices)):
         if is_bounded_discrete_variable(unique_quadrule_variables[ii]):
             max_nsamples_ii = get_probability_masses(
                 unique_quadrule_variables[ii])[0].shape[0]
-            ll = 0 
+            ll = 0
             while True:
                 if growth_rules[ii](ll) > max_nsamples_ii-1:
                     max_level_1d_ii = ll-1

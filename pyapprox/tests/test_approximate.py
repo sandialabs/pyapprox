@@ -1,10 +1,12 @@
-import sys
-import unittest, pytest
-
+import unittest
 from scipy import stats
 import numpy as np
+import copy
+from functools import partial
 
-from pyapprox.approximate import *
+from pyapprox.approximate import approximate, adaptive_approximate, \
+    cross_validate_pce_degree, compute_l2_error, \
+    cross_validate_approximation, LinearLeastSquaresCV
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 import pyapprox as pya
 
@@ -48,7 +50,6 @@ class TestApproximate(unittest.TestCase):
                                approx.samples_1d[0][ll-1])
 
     def test_approximate_sparse_grid_user_options(self):
-        nvars = 3
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         univariate_variables = benchmark['variable'].all_variables()
         errors = []
@@ -69,12 +70,12 @@ class TestApproximate(unittest.TestCase):
         #    pya.get_univariate_leja_quadrature_rule(
         #        univariate_variables[0],growth_rule),growth_rule]
         refinement_indicator = partial(
-            variance_refinement_indicator, convex_param=0.5)
+            pya.variance_refinement_indicator, convex_param=0.5)
         options = {'univariate_quad_rule_info': univariate_quad_rule_info,
                    'max_nsamples': 300, 'tol': 0,
                    'callback': callback, 'verbose': 0,
                    'refinement_indicator': refinement_indicator}
-        approx = adaptive_approximate(
+        adaptive_approximate(
             benchmark.fun, univariate_variables, 'sparse_grid', options).approx
         # print(np.min(errors))
         assert np.min(errors) < 1e-3
@@ -98,13 +99,18 @@ class TestApproximate(unittest.TestCase):
     def test_approximate_polynomial_chaos_custom_poly_type(self):
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
-	# for this test purposefully select wrong variable to make sure
+        # this test purposefully select wrong variable to make sure
         # poly_type overide is activated
         univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
-        # specify correct basis so it is not chosen from variable
-        poly_opts = {'poly_type': 'legendre', 'var_trans': var_trans}
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        # specify correct basis so it is not chosen from var_trans.variable
+        poly_opts = {'var_trans': var_trans}
+        # but rather from another variable which will invoke Legendre polys
+        basis_opts = pya.define_poly_options_from_variable(
+            pya.IndependentMultivariateRandomVariable([stats.uniform()]*nvars))
+        poly_opts['poly_types'] = basis_opts
         options = {'poly_opts': poly_opts, 'variable': variable,
                    'options': {'max_num_step_increases': 1}}
         ntrain_samples = 400
@@ -118,7 +124,7 @@ class TestApproximate(unittest.TestCase):
         error = compute_l2_error(
             approx, benchmark.fun, approx.var_trans.variable,
             nsamples, rel=True)
-        print(error)
+        # print(error)
         assert error < 1e-4
         assert np.allclose(approx.mean(), benchmark.mean, atol=error)
 
@@ -137,7 +143,7 @@ class TestApproximate(unittest.TestCase):
         degree = 3
         poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree, 1.0))
         # factor of 2 does not pass test but 2.2 does
-        num_samples = int(poly.num_terms()*2.2) 
+        num_samples = int(poly.num_terms()*2.2)
         coef = np.random.normal(0, 1, (poly.indices.shape[1], 2))
         coef[pya.nchoosek(num_vars+2, 2):, 0] = 0
         # for first qoi make degree 2 the best degree
@@ -169,7 +175,7 @@ class TestApproximate(unittest.TestCase):
 
     def test_cross_validate_pce_degree(self):
         # lasso and omp do not pass this test so recommend not using them
-        solver_type_list = ['lstsq', 'lstsq', 'lasso']#, 'omp']#, 'lars']
+        solver_type_list = ['lstsq', 'lstsq', 'lasso']  # , 'omp']#, 'lars']
         solver_options_list = [
             {'alphas': [1e-14], 'cv':22}, {'cv': 10},
             {'max_iter': 20, 'cv': 21}]
@@ -197,10 +203,10 @@ class TestApproximate(unittest.TestCase):
             0, 1, (poly.indices.shape[1], 2))/(degrees[:, np.newaxis]+1)**2
         # set some coefficients to zero to make sure that different qoi
         # are treated correctly.
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 0] = 0
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 1] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 0] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 1] = 0
         poly.set_coefficients(coef)
         train_samples = pya.generate_independent_random_samples(
             variable, num_samples)
@@ -246,8 +252,8 @@ class TestApproximate(unittest.TestCase):
             train_samples, train_vals, 'gaussian_process',
             {'nu': nu, 'noise_level': 1e-8}).approx
 
-        error = np.linalg.norm(gp(X)[:, 0]-kernel(X.T, X.T).dot(alpha))/np.sqrt(
-            X.shape[1])
+        error = np.linalg.norm(gp(X)[:, 0]-kernel(X.T, X.T).dot(alpha)) /\
+            np.sqrt(X.shape[1])
         assert error < 1e-5
 
         # import matplotlib.pyplot as plt
@@ -269,13 +275,15 @@ class TestApproximate(unittest.TestCase):
         kernel = Matern(0.1, nu=nu)
         X = np.linspace(-1, 1, 1000)[np.newaxis, :]
         alpha = np.random.normal(0, 1, X.shape[1])
+
         def fun(x):
             return kernel(x.T, X.T).dot(alpha)[:, np.newaxis]
-            #return np.cos(2*np.pi*x.sum(axis=0)/num_vars)[:, np.newaxis]
+            # return np.cos(2*np.pi*x.sum(axis=0)/num_vars)[:, np.newaxis]
 
         errors = []
         validation_samples = np.random.uniform(-1, 1, (num_vars, 100))
         validation_values = fun(validation_samples)
+
         def callback(gp):
             gp_vals = gp(validation_samples)
             assert gp_vals.shape == validation_values.shape
@@ -283,10 +291,11 @@ class TestApproximate(unittest.TestCase):
                 validation_values)
             print(error, gp.y_train_.shape[0])
             errors.append(error)
-            
-        gp = adaptive_approximate(
+
+        adaptive_approximate(
             fun, univariate_variables, 'gaussian_process',
-            {'nu': nu, 'noise_level': None, 'normalize_y': True, 'alpha': 1e-10,
+            {'nu': nu, 'noise_level': None, 'normalize_y': True,
+             'alpha': 1e-10,
              'ncandidate_samples': 1e3, 'callback': callback}).approx
         assert errors[-1] < 1e-8
 
@@ -310,24 +319,25 @@ class TestApproximate(unittest.TestCase):
             0, 1, (poly.indices.shape[1], 2))/(degrees[:, np.newaxis]+1)**2
         # set some coefficients to zero to make sure that different qoi
         # are treated correctly.
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 0] = 0
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 1] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 0] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 1] = 0
         poly.set_coefficients(coef)
         train_samples = pya.generate_independent_random_samples(
             variable, num_samples)
         train_vals = poly(train_samples)
 
-        indices = compute_hyperbolic_indices(num_vars, 1, 1)
+        indices = pya.compute_hyperbolic_indices(num_vars, 1, 1)
         nfolds = 10
         method = 'polynomial_chaos'
         options = {'basis_type': 'fixed', 'variable': variable,
                    'options': {'linear_solver_options': {},
-                               'indices': indices,'solver_type': 'lstsq'}}
-        approx_list, residues_list, cv_score = cross_validate_approximation(
-            train_samples, train_vals, options, nfolds, method,
-            random_folds=False)
+                               'indices': indices, 'solver_type': 'lstsq'}}
+        approx_list, residues_list, cv_score = \
+            cross_validate_approximation(
+                train_samples, train_vals, options, nfolds, method,
+                random_folds=False)
 
         solver = LinearLeastSquaresCV(cv=nfolds, random_folds=False)
         poly.set_indices(indices)
@@ -343,10 +353,10 @@ class TestApproximate(unittest.TestCase):
         This test is useful as it shows how to use cross_validate_approximation
         to produce a list of approximations on each cross validation fold
         once regularization parameters have been chosen.
-        These can be used to show variance in predictions of values, sensitivity
-        indices, etc.
+        These can be used to show variance in predictions of values,
+        sensitivity indices, etc.
 
-        Ideally this could be avoided if sklearn stored the coefficients 
+        Ideally this could be avoided if sklearn stored the coefficients
         and alphas for each fold and then we can just find the coefficients
         that correspond to the first time the path drops below the best_alpha
         """
@@ -369,15 +379,15 @@ class TestApproximate(unittest.TestCase):
             0, 1, (poly.indices.shape[1], 2))/(degrees[:, np.newaxis]+1)**2
         # set some coefficients to zero to make sure that different qoi
         # are treated correctly.
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 0] = 0
-        I = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
-        coef[I, 1] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 0] = 0
+        II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
+        coef[II, 1] = 0
         poly.set_coefficients(coef)
         train_samples = pya.generate_independent_random_samples(
             variable, num_samples)
         train_vals = poly(train_samples)
-        true_poly = poly
+        # true_poly = poly
 
         result = approximate(
             train_samples, train_vals, 'polynomial_chaos',
@@ -389,15 +399,16 @@ class TestApproximate(unittest.TestCase):
         # residuals to compute cross validation scores
         nfolds = 10
         linear_solver_options = [
-            {'alpha':result.reg_params[0]}, {'alpha':result.reg_params[1]}]
-        indices = [result.approx.indices[:, np.where(np.absolute(c)>0)[0]]
+            {'alpha': result.reg_params[0]}, {'alpha': result.reg_params[1]}]
+        indices = [result.approx.indices[:, np.where(np.absolute(c) > 0)[0]]
                    for c in result.approx.coefficients.T]
         options = {'basis_type': 'fixed', 'variable': variable,
                    'options': {'linear_solver_options': linear_solver_options,
                                'indices': indices}}
-        approx_list, residues_list, cv_score = cross_validate_approximation(
-            train_samples, train_vals, options, nfolds, 'polynomial_chaos',
-            random_folds='sklearn')
+        approx_list, residues_list, cv_score = \
+            cross_validate_approximation(
+                train_samples, train_vals, options, nfolds, 'polynomial_chaos',
+                random_folds='sklearn')
 
         assert (np.all(cv_score < 6e-14) and np.all(result.scores < 2e-13))
 
@@ -406,4 +417,3 @@ if __name__ == "__main__":
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestApproximate)
     unittest.TextTestRunner(verbosity=2).run(approximate_test_suite)
-    
