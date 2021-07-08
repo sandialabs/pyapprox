@@ -441,7 +441,7 @@ def setup_piston_benchmark():
 
     References
     ----------
-    .. [Moon2012] `Moon, H., Dean, A. M., & Santner, T. J. (2012). Two-stage sensitivity-based group screening in computer experiments. Technometrics, 54(4), 376-387. <https://doi.org/10.1080/00401706.2012.725994>`_
+    .. [Moon2010] `Design and Analysis of Computer Experiments for Screening Input Variables (Doctoral dissertation, Ohio State University) <http://rave.ohiolink.edu/etdc/view?acc_num=osu1275422248>`_
     """
     variable = define_piston_random_variables()
     attributes = {'fun': piston_function,
