@@ -12,7 +12,7 @@ from pyapprox.orthonormal_polynomials_1d import \
     evaluate_orthonormal_polynomial_1d
 from pyapprox.variables import get_distribution_info, is_continuous_variable, \
     is_bounded_discrete_variable, get_probability_masses, \
-    is_bounded_continuous_variable, transform_scale_parameters
+    is_bounded_continuous_variable, transform_scale_parameters, get_pdf
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
@@ -915,6 +915,10 @@ def continuous_induced_measure_cdf(pdf, ab, ii, lb, ub, tol, x):
 
     def integrand(xx): return evaluate_orthonormal_polynomial_1d(
         np.atleast_1d(xx), ii, ab)[:, -1]**2*pdf(xx)
+    # import matplotlib.pyplot as plt
+    # plt.plot(x, integrand(x))
+    # plt.show()
+
     # from pyapprox.cython.orthonormal_polynomials_1d import\
     #    induced_measure_pyx
     # integrand = lambda x: induced_measure_pyx(x,ii,ab,pdf)
@@ -931,22 +935,20 @@ def continuous_induced_measure_cdf(pdf, ab, ii, lb, ub, tol, x):
 
 def continuous_induced_measure_ppf(var, ab, ii, u_samples,
                                    quad_tol=1e-8, opt_tol=1e-6):
-    if is_bounded_continuous_variable(var):
-        # canonical domain of bounded variables does not coincide with scipy
-        # variable canonical pdf domain with loc,scale=0,1
-        lb, ub = -1, 1
-        loc, scale = -1, 2
-    else:
+    loc, scale = transform_scale_parameters(var)
+    if (is_bounded_continuous_variable(var) or
+            is_bounded_discrete_variable(var)):
+        can_lb, can_ub = -1, 1
+    elif is_continuous_variable(var):
         lb, ub = var.support()
-        loc, scale = 0, 1
-    shapes = get_distribution_info(var)[2]
+        can_lb = (lb-loc)/scale
+        can_ub = (ub-loc)/scale
 
-    # need to map x from canonical polynomial domain to canonical domain of pdf
-    # def pdf(x): return var.dist._pdf((x-loc)/scale, **shapes)/scale
+    # need to map x from canonical polynomial domain to domain of pdf
+    raw_pdf = get_pdf(var)
 
-    def pdf(x):
-        vals = var.dist._pdf((x-loc)/scale, **shapes)/scale
-        # print('x',x,(x-loc)/scale,vals)
+    def canonical_pdf(x):
+        vals = raw_pdf(x*scale+loc)*scale
         return vals
 
     # pdf = var.pdf
@@ -954,10 +956,12 @@ def continuous_induced_measure_ppf(var, ab, ii, u_samples,
     from pyapprox.cython.orthonormal_polynomials_1d import\
         continuous_induced_measure_cdf_pyx
     func = partial(continuous_induced_measure_cdf_pyx,
-                   pdf, ab, ii, lb, quad_tol)
+                   canonical_pdf, ab, ii, can_lb, quad_tol)
     method = 'bisect'
+
     samples = invert_monotone_function(
-        func, [lb, ub], u_samples, method, opt_tol)
+        func, [can_lb, can_ub], u_samples, method, opt_tol)
+
     assert np.all(np.isfinite(samples))
     return samples
 

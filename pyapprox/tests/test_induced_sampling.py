@@ -26,9 +26,13 @@ from pyapprox.utilities import get_tensor_product_quadrature_rule
 from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence
+from pyapprox.univariate_polynomials.recursion_factory import \
+    get_recursion_coefficients_from_variable
 
 
 class TestInducedSampling(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_continous_induced_measure_ppf(self):
         degree = 2
@@ -37,21 +41,46 @@ class TestInducedSampling(unittest.TestCase):
             degree+1, alpha=beta_stat-1, beta=alpha_stat-1, probability=True)
 
         tol = 1e-15
-        var = stats.beta(alpha_stat, beta_stat, -1, 2)
+        var = stats.beta(alpha_stat, beta_stat, -5, 10)
+        can_lb, can_ub = -1, 1
         lb, ub = var.support()
-        x = np.linspace(lb, ub, 101)
-        def pdf(xx): return var.dist._pdf(
-            (xx+1)/2, a=alpha_stat, b=beta_stat)/2
+        print(lb, ub)
+        cx = np.linspace(can_lb, can_ub, 51)
+
+        def can_pdf(xx):
+            loc, scale = lb+(ub-lb)/2, (ub-lb)/2
+            return var.pdf(xx*scale+loc)*scale
+
         cdf_vals = continuous_induced_measure_cdf(
-            pdf, ab, degree, lb, ub, tol, x)
+            can_pdf, ab, degree, can_lb, can_ub, tol, cx)
         assert np.all(cdf_vals <= 1.0)
         ppf_vals = continuous_induced_measure_ppf(
             var, ab, degree, cdf_vals, 1e-10, 1e-8)
+        assert np.allclose(cx, ppf_vals)
+
+        try:
+            var = stats.loguniform(1.e-5, 1.e-3)
+        except:
+            var = stats.reciprocal(1.e-5, 1.e-3)
+        ab = get_recursion_coefficients_from_variable(var, degree+5, {})
+        can_lb, can_ub = -1, 1
+        cx = np.linspace(can_lb, can_ub, 51)
+        lb, ub = var.support()
+
+        def can_pdf(xx):
+            loc, scale = lb+(ub-lb)/2, (ub-lb)/2
+            return var.pdf(xx*scale+loc)*scale
+        cdf_vals = continuous_induced_measure_cdf(
+            can_pdf, ab, degree, can_lb, can_ub, tol, cx)
         # differences caused by root finding optimization tolerance
-        assert np.allclose(x, ppf_vals)
-        # plt.plot(x,cdf_vals)
-        # plt.plot(ppf_vals,cdf_vals,'r*',ms=2)
+        assert np.all(cdf_vals <= 1.0)
+        ppf_vals = continuous_induced_measure_ppf(
+            var, ab, degree, cdf_vals, 1e-10, 1e-8)
+        # import matplotlib.pyplot as plt
+        # plt.plot(cx, cdf_vals)
+        # plt.plot(ppf_vals, cdf_vals, 'r*', ms=2)
         # plt.show()
+        assert np.allclose(cx, ppf_vals)
 
     def help_discrete_induced_sampling(self, var1, var2, envelope_factor):
         degree = 3

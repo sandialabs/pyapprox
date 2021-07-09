@@ -808,7 +808,8 @@ def plot_1d_cross_section(fun, var, var_idx, nominal_sample, nsamples_1d,
 
 
 def plot_1d_cross_sections(fun, variable, nominal_sample=None,
-                           nsamples_1d=100, subplot_tuple=None, qoi=0):
+                           nsamples_1d=100, subplot_tuple=None, qoi=0,
+                           plt_kwargs={}):
     """
     nreps = 1 for deterministic function nreps > 1 only for stochastic
     functions
@@ -825,13 +826,13 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
         raise ValueError("Number of subplots is insufficient")
 
     fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_rows*8, nfig_cols*6))
+        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
     axs = axs.flatten()
     all_variables = variable.all_variables()
     for ii, var in enumerate(all_variables):
         axs[ii].set_title(r"$Z_{%d}$" % (ii+1))
         plot_1d_cross_section(
-            fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi)
+            fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi, plt_kwargs)
 
     for ii in range(variable.num_vars(), nfig_rows*nfig_cols):
         axs[ii].axis("off")
@@ -866,7 +867,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         raise ValueError("Number of subplots is insufficient")
 
     fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_rows*8, nfig_cols*6))
+        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
     all_variables = variable.all_variables()
 
     for ii, var in enumerate(all_variables):
@@ -887,7 +888,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         samples = np.tile(nominal_sample, (1, samples_2d.shape[1]))
         samples[[pair[0], pair[1]], :] = samples_2d
         values = fun(samples)
-        Z = np.reshape(values, (X.shape[0], X.shape[1]))
+        Z = np.reshape(values[:, qoi], (X.shape[0], X.shape[1]))
         ax = axs[pair[0]][pair[1]]
         # place a text box in upper left in axes coords
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
