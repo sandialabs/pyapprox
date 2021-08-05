@@ -837,7 +837,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
         variance_random_var, intermeadiate_quantities
 
 
-def generate_candidate_samples(nvars, num_candidate_samples,
+def generate_gp_candidate_samples(nvars, num_candidate_samples,
                                generate_random_samples, variables):
     if generate_random_samples is not None:
         num_halton_candidates = num_candidate_samples//2
@@ -926,7 +926,7 @@ class CholeskySampler(object):
         self.generate_random_samples = generate_random_samples
         if gen_candidate_samples is None:
             gen_candidate_samples = partial(
-                generate_candidate_samples, self.nvars,
+                generate_gp_candidate_samples, self.nvars,
                 generate_random_samples=self.generate_random_samples,
                 variables=self.variables)
         self.var_trans = var_trans
@@ -1756,7 +1756,7 @@ class GreedyVarianceOfMeanSampler(object):
         self.use_gauss_quadrature = use_gauss_quadrature
         self.econ = econ
 
-        self.candidate_samples = generate_candidate_samples(
+        self.candidate_samples = generate_gp_candidate_samples(
             self.nvars, ncandidate_samples, generate_random_samples,
             self.variables)
         self.nsamples_requested = []
@@ -2560,8 +2560,8 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
             generate_independent_random_samples, variable)
     else:
         generate_random_samples = None
-    from pyapprox.gaussian_process import generate_candidate_samples
-    candidate_samples = generate_candidate_samples(
+    from pyapprox.gaussian_process import generate_gp_candidate_samples
+    candidate_samples = generate_gp_candidate_samples(
         variable.num_vars(), ncandidate_samples, generate_random_samples,
         variable)
     gp_realizations.fit(

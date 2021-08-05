@@ -1101,7 +1101,6 @@ def increment_induced_samples_migliorati(pce, cond_tol, samples, indices,
     # is satisfied
     new_samples = generate_induced_samples_migliorati_tolerance(
         pce, cond_tol, new_samples, verbosity)
-    assert np.allclose(pce_indices, np.hstack((indices, new_indices)))
     pce.set_indices(pce_indices)
 
     if verbosity > 0:

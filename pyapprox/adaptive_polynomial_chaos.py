@@ -117,8 +117,9 @@ def christoffel_preconditioning_function(basis_matrix, samples):
     return weights
 
 
-def generate_probability_samples_tolerance(pce, nindices, cond_tol, samples=None,
-                                           verbosity=0):
+def generate_probability_samples_tolerance(
+        pce, nindices, cond_tol, samples=None,
+        verbosity=0):
     r"""
     Add samples in integer increments of nindices.
     E.g. if try nsamples = nindices, 2*nindices, 3*nindices
@@ -166,7 +167,7 @@ def generate_probability_samples_tolerance(pce, nindices, cond_tol, samples=None
 
 
 def increment_probability_samples(pce, cond_tol, samples, indices,
-                                  new_indices, verbosity=3):
+                                  new_indices, verbosity=0):
     r"""
     Parameters
     ----------

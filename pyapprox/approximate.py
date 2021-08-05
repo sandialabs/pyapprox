@@ -256,11 +256,11 @@ def __initialize_leja_pce(
             else:
                 break
 
+    nvars = len(univariate_variables)
     if generate_candidate_samples is None:
         # Todo implement default for non-bounded variables that uses induced
         # sampling
         # candidate samples must be in canonical domain
-        nvars = len(univariate_variables)
         candidate_samples = -np.cos(
             np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
         # candidate_samples = -np.cos(
