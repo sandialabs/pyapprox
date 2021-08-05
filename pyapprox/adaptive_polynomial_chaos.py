@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.linalg import solve_triangular
-from sklearn.linear_model import OrthogonalMatchingPursuit
+from sklearn.linear_model import (
+    OrthogonalMatchingPursuit,
+    OrthogonalMatchingPursuitCV
+)
 
 from pyapprox.multivariate_polynomials import (
     PolynomialChaosExpansion,
@@ -99,9 +102,13 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     weights = precond_func(basis_matrix, samples)
     basis_matrix = basis_matrix*weights[:, np.newaxis]
     rhs = values*weights[:, np.newaxis]
-    omp = OrthogonalMatchingPursuit(tol=tol, fit_intercept=False)
-    omp.fit(basis_matrix, rhs)
+    if basis_matrix.shape[1] == 1 or tol > 0:
+        omp = OrthogonalMatchingPursuit(tol=tol)
+    else:
+        omp = OrthogonalMatchingPursuitCV(cv=min(samples.shape[1], 10))
+    res = omp.fit(basis_matrix, rhs)
     coef = omp.coef_
+    coef[0] += res.intercept_
     return coef[:, np.newaxis]
 
 
@@ -137,9 +144,10 @@ def generate_probability_samples_tolerance(pce, nindices, cond_tol, samples=None
     cond = compute_preconditioned_canonical_basis_matrix_condition_number(
         pce, new_samples)
     if verbosity > 0:
-        print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+        print('\tCond No.', cond, 'No. samples', new_samples.shape[1],
+              'cond tol', cond_tol)
     cnt = 1
-    max_nsamples = 100*pce.indices.shape[1]
+    max_nsamples = 1000*pce.indices.shape[1]
     while cond > cond_tol:
         tmp = generate_independent_random_samples(variable, cnt*nindices)
         tmp = pce.var_trans.map_to_canonical_space(tmp)
@@ -147,7 +155,8 @@ def generate_probability_samples_tolerance(pce, nindices, cond_tol, samples=None
         cond = compute_preconditioned_canonical_basis_matrix_condition_number(
             pce, new_samples)
         if verbosity > 0:
-            print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+            print('\tCond No.', cond, 'No. samples', new_samples.shape[1],
+                  'cond tol', cond_tol)
         # double number of samples added so loop does not take to long
         cnt *= 2
         if new_samples.shape[1] > max_nsamples:
@@ -188,10 +197,11 @@ def increment_probability_samples(pce, cond_tol, samples, indices,
 
 
 class AdaptiveInducedPCE(SubSpaceRefinementManager):
-    def __init__(self, num_vars, cond_tol=1e2, induced_sampling=True):
+    def __init__(self, num_vars, cond_tol=1e2, induced_sampling=True,
+                 fit_opts={'omp_tol': 0}):
         super(AdaptiveInducedPCE, self).__init__(num_vars)
         self.cond_tol = cond_tol
-        self.fit_opts = {'omp_tol': 0}
+        self.fit_opts = fit_opts
         self.set_preconditioning_function(christoffel_preconditioning_function)
         self.fit_function = self._fit
         self.induced_sampling = induced_sampling
@@ -345,7 +355,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def __init__(self, num_vars, candidate_samples, factorization_type='fast'):
         # TODO: remove cond_tol from __init__
-        super(AdaptiveLejaPCE, self).__init__(num_vars, 1e-8)
+        super(AdaptiveLejaPCE, self).__init__(num_vars, 1e6)
 
         # Make sure correct preconditioning function is used.
         # AdaptiveInducedPCE has some internal logic that can overide default

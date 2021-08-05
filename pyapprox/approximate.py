@@ -317,7 +317,8 @@ def adaptive_approximate_polynomial_chaos_induced(
         callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
         growth_rules=None, max_nsamples=100, tol=0, verbose=0,
-        max_level_1d=None, induced_sampling=True, cond_tol=1e6):
+        max_level_1d=None, induced_sampling=True, cond_tol=1e6,
+        fit_opts={'omp_tol': 0}):
     r"""
     Compute an adaptive Polynomial Chaos Expansion of a function based upon
     random induced or probability measure sampling.
@@ -393,7 +394,7 @@ def adaptive_approximate_polynomial_chaos_induced(
         The maximum allowable condition number of the regression problem.
         If induced_sampling is False and cond_tol < 0 then we do not sample
         until cond number is below cond_tol but rather simply add
-        nnew_indices*abs(cond_tol) samples. That is we specify an 
+        nnew_indices*abs(cond_tol) samples. That is we specify an
         over sampling factor
 
 
@@ -411,7 +412,7 @@ def adaptive_approximate_polynomial_chaos_induced(
 
     pce = AdaptiveInducedPCE(
         var_trans.num_vars(), induced_sampling=induced_sampling,
-        cond_tol=cond_tol)
+        cond_tol=cond_tol, fit_opts=fit_opts)
 
     __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
                          refinement_indicator, tol, max_nsamples, callback,
@@ -522,7 +523,6 @@ def adaptive_approximate_polynomial_chaos_leja(
 
     pce = __initialize_leja_pce(
         univariate_variables, generate_candidate_samples, ncandidate_samples)
-    # pce = AdaptiveInducedPCE(nvars, cond_tol=1e2)
 
     __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
                          refinement_indicator, tol, max_nsamples, callback,

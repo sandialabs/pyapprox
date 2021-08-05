@@ -152,7 +152,6 @@ class TestAdaptivePCE(unittest.TestCase):
         assert error < 1e-7
 
     def test_adaptive_least_squares_probability_measure_sampling(self):
-        # set cond <1 to use random samples from probaility measure
         num_vars = 2
         alph = 5
         bet = 5.
@@ -167,12 +166,13 @@ class TestAdaptivePCE(unittest.TestCase):
             IndependentMultivariateRandomVariable(
                 [beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
-        pce = AdaptiveInducedPCE(num_vars, cond_tol=0)
+        pce = AdaptiveInducedPCE(
+            num_vars, cond_tol=1e2, induced_sampling=False)
         pce.sample_ratio = 2
         error, pce = self.helper(function, var_trans, pce, 4, 0.)
 
         print('probability sampling error', error)
-        assert error < 1e-10
+        assert error < 5e-8
 
 
 if __name__ == '__main__':

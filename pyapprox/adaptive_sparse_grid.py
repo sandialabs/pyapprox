@@ -1152,7 +1152,6 @@ class SubSpaceRefinementManager(object):
             new_item = (priority, error, count)
             self.active_subspace_queue.put(new_item)
             self.error[count] = error
-            print(subspace_index, priority)
 
     def get_total_work(self):
         return self.num_equivalent_function_evaluations
