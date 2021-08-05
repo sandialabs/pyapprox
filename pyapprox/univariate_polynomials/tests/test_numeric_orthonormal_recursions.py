@@ -199,27 +199,52 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         assert np.allclose(ab, true_ab)
 
         # lognormal is a very hard test
-        rv = stats.lognorm(1)
-        # mean, std = 1e4, 7.5e3
-        # beta = std*np.sqrt(6)/np.pi
-        # mu = mean - beta*np.euler_gamma
-        # rv = stats.gumbel_r(loc=mu, scale=beta)
+        # rv = stats.lognorm(1)
+        # custom_integrate_fun = native_recursion_integrate_fun
+        # interval_size = abs(np.diff(rv.interval(0.99)))
+        # integrate_fun = partial(custom_integrate_fun, interval_size)
+        # quad_opts = {"integrate_fun": integrate_fun}
+        # # quad_opts = {}
+        # opts = {"numeric": True, "quad_options": quad_opts}
+
+        # loc, scale = transform_scale_parameters(rv)
+        # ab = predictor_corrector_known_pdf(
+        #     nterms, 0, np.inf, lambda x: rv.pdf(x*scale+loc)*scale, opts)
+        # for ii in range(1, nterms):
+        #     assert np.all(gauss_quadrature(ab, ii)[0] > 0)
+        # gram_mat = ortho_polynomial_grammian_bounded_continuous_variable(
+        #     rv, ab, nterms-1, tol=tol, integrate_fun=integrate_fun)
+        # # print(gram_mat-np.eye(gram_mat.shape[0]))
+        # # print(np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max())
+        # assert np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max() < 5e-10
+
+        nterms = 2
+        mean, std = 1e4, 7.5e3
+        beta = std*np.sqrt(6)/np.pi
+        mu = mean - beta*np.euler_gamma
+        # mu, beta = 1, 1
+        rv = stats.gumbel_r(loc=mu, scale=beta)
         custom_integrate_fun = native_recursion_integrate_fun
-        interval_size = abs(np.diff(rv.interval(0.99)))
-        integrate_fun = partial(custom_integrate_fun, interval_size)
+        tabulated_quad_rules = {}
+        from numpy.polynomial.legendre import leggauss
+        for nquad_samples in [100, 200, 400]:
+            tabulated_quad_rules[nquad_samples] = leggauss(nquad_samples)
+        # interval_size must be in canonical domain
+        interval_size = abs(np.diff(rv.interval(0.99)))/beta
+        integrate_fun = partial(
+            custom_integrate_fun, interval_size,
+            tabulated_quad_rules=tabulated_quad_rules, verbose=3)
         quad_opts = {"integrate_fun": integrate_fun}
         # quad_opts = {}
         opts = {"numeric": True, "quad_options": quad_opts}
 
         loc, scale = transform_scale_parameters(rv)
         ab = predictor_corrector_known_pdf(
-            nterms, 0, np.inf, lambda x: rv.pdf(x*scale+loc)*scale, opts)
-        for ii in range(1, nterms):
-            assert np.all(gauss_quadrature(ab, ii)[0] > 0)
+            nterms, -np.inf, np.inf, lambda x: rv.pdf(x*scale+loc)*scale, opts)
         gram_mat = ortho_polynomial_grammian_bounded_continuous_variable(
             rv, ab, nterms-1, tol=tol, integrate_fun=integrate_fun)
         # print(gram_mat-np.eye(gram_mat.shape[0]))
-        # print(np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max())
+        print(np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max())
         assert np.absolute(gram_mat-np.eye(gram_mat.shape[0])).max() < 5e-10
 
     def test_predictor_corrector_function_of_independent_variables(self):

@@ -40,7 +40,7 @@ def get_askey_recursion_coefficients(poly_name, opts, num_coefs):
         return hermite_recurrence(num_coefs, rho=0., probability=True)
 
     if poly_name == "krawtchouk":
-        msg = "Although bounded the Hahn polynomials are not defined "
+        msg = "Although bounded the Krawtchouk polynomials are not defined "
         msg += "on the canonical domain [-1,1]. Must use numeric recursion "
         msg += "to generate polynomials on [-1,1] for consistency"
         warn(msg, UserWarning)
@@ -92,13 +92,13 @@ def get_askey_recursion_coefficients_from_variable(var, num_coefs):
 
 
 def get_numerically_generated_recursion_coefficients_from_samples(
-        xk, pk, num_coefs, orthonormality_tol):
+        xk, pk, num_coefs, orthonormality_tol, truncated_probability_tol=0):
 
     if num_coefs > xk.shape[0]:
         msg = "Number of coefs requested is larger than number of "
         msg += "probability masses"
         raise ValueError(msg)
-    recursion_coeffs = lanczos(xk, pk, num_coefs)
+    recursion_coeffs = lanczos(xk, pk, num_coefs, truncated_probability_tol)
 
     p = evaluate_orthonormal_polynomial_1d(
         np.asarray(xk, dtype=float), num_coefs-1, recursion_coeffs)
@@ -158,7 +158,7 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
         xk = (xk-loc)/scale
 
         return get_numerically_generated_recursion_coefficients_from_samples(
-            xk, pk, num_coefs, orthonormality_tol)
+            xk, pk, num_coefs, orthonormality_tol, truncated_probability_tol)
 
     # integration performed in canonical domain so need to map back to
     # domain of pdf

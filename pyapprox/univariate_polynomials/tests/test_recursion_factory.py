@@ -166,7 +166,8 @@ class TestRecursionFactory(unittest.TestCase):
                 loc = -2
             else:
                 loc = 2
-            var = getattr(stats, name)(**shapes, loc=loc, scale=3)
+            scale = 3
+            var = getattr(stats, name)(**shapes, loc=loc, scale=scale)
             # print(var, var.interval(1))
             tol = 1e-8
             if name not in fat_tail_continuous_var_names:
@@ -177,7 +178,8 @@ class TestRecursionFactory(unittest.TestCase):
                 for nquad_samples in [100, 200, 400]:
                     tabulated_quad_rules[nquad_samples] = leggauss(
                         nquad_samples)
-                interval_size = abs(np.diff(var.interval(0.99)))
+                # interval_size must be in canonical domain
+                interval_size = abs(np.diff(var.interval(0.99)))/scale
                 integrate_fun = partial(
                     native_recursion_integrate_fun, interval_size,
                     tabulated_quad_rules=tabulated_quad_rules)

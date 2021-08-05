@@ -179,11 +179,11 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
             barycentric_lagrange_interpolation_precompute(
                 num_act_dims, abscissa_1d, barycentric_weights_1d,
                 active_abscissa_indices_1d)
-    
+
     try:
         from pyapprox.cython.barycentric_interpolation import \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx
-        
+
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
                 x, fn_vals, active_dims,
@@ -199,9 +199,9 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
         trace_error_with_msg(msg, e)
 
         result = __multivariate_hierarchical_barycentric_lagrange_interpolation(
-                    x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
-                    num_abscissa_1d, num_active_abscissa_1d, shifts,
-                    abscissa_and_weights)
+            x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
+            num_abscissa_1d, num_active_abscissa_1d, shifts,
+            abscissa_and_weights)
 
     return result
 
@@ -211,7 +211,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
         x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
         num_abscissa_1d, num_active_abscissa_1d, shifts,
         abscissa_and_weights):
-    
+
     eps = 2*np.finfo(np.double).eps
     num_pts = x.shape[1]
     num_act_dims = active_dims.shape[0]

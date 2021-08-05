@@ -1,4 +1,8 @@
 import numpy as np
+from functools import partial
+import scipy
+
+from pyapprox.random_variable_algebra import invert_monotone_function
 
 
 def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
@@ -16,7 +20,7 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
     weights : np.ndarray (num_samples)
         Importance weights associated with each sample. If samples Y are drawn
         from biasing distribution g(y) but we wish to compute VaR with respect
-        to measure f(y) then weights are the ratio f(y_i)/g(y_i) for 
+        to measure f(y) then weights are the ratio f(y_i)/g(y_i) for
         i=1,...,num_samples.
 
     Returns
@@ -35,16 +39,16 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
     if not samples_sorted:
         # TODO only need to find largest k entries. k is determined by
         # ecdf>=alpha
-        I = np.argsort(samples)
-        xx, ww = samples[I], weights[I]
+        II = np.argsort(samples)
+        xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
     ecdf = ww.cumsum()
     index = np.arange(num_samples)[ecdf >= alpha][0]
     VaR = xx[index]
     if not samples_sorted:
-        index = I[index]
-        #assert samples[index]==VaR
+        index = II[index]
+        # assert samples[index]==VaR
     return VaR, index
 
 
@@ -68,7 +72,7 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     weights : np.ndarray (num_samples)
         Importance weights associated with each sample. If samples Y are drawn
         from biasing distribution g(y) but we wish to compute VaR with respect
-        to measure f(y) then weights are the ratio f(y_i)/g(y_i) for 
+        to measure f(y) then weights are the ratio f(y_i)/g(y_i) for
         i=1,...,num_samples.
 
     Returns
@@ -216,12 +220,12 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
     while True:
         vals = function(candidate_samples)
         assert vals.ndim == 1 or vals.shape[1] == 1
-        I = np.where(vals < VaR)[0]
-        J = np.where(vals >= VaR)[0]
-        Iend = min(I.shape[0], Ir.shape[0]-Icnt)
-        Jend = min(J.shape[0], Jr.shape[0]-Jcnt)
-        samples[:, Ir[Icnt:Icnt+Iend]] = candidate_samples[:, I[:Iend]]
-        samples[:, Jr[Jcnt:Jcnt+Jend]] = candidate_samples[:, J[:Jend]]
+        II = np.where(vals < VaR)[0]
+        JJ = np.where(vals >= VaR)[0]
+        Iend = min(II.shape[0], Ir.shape[0]-Icnt)
+        Jend = min(JJ.shape[0], Jr.shape[0]-Jcnt)
+        samples[:, Ir[Icnt:Icnt+Iend]] = candidate_samples[:, II[:Iend]]
+        samples[:, Jr[Jcnt:Jcnt+Jend]] = candidate_samples[:, JJ[:Jend]]
         Icnt += Iend
         Jcnt += Jend
         if Icnt == Ir.shape[0] and Jcnt == Jr.shape[0]:
@@ -231,7 +235,8 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
     return samples
 
 
-def compute_conditional_expectations(eta, samples, disutility_formulation=True):
+def compute_conditional_expectations(
+        eta, samples, disutility_formulation=True):
     r"""
     Compute the conditional expectation of :math:`Y`
     .. math::
@@ -271,3 +276,37 @@ def compute_conditional_expectations(eta, samples, disutility_formulation=True):
         values = np.maximum(
             0, eta[np.newaxis, :]-samples[:, np.newaxis]).mean(axis=0)
     return values
+
+
+def univariate_cdf_continuous_variable(pdf, lb, ub, x, quad_opts={}):
+    x = np.atleast_1d(x)
+    assert x.ndim == 1
+    assert x.min() >= lb and x.max() <= ub
+    vals = np.empty_like(x, dtype=float)
+    for jj in range(x.shape[0]):
+        integral, err = scipy.integrate.quad(pdf, lb, x[jj], **quad_opts)
+        vals[jj] = integral
+        if vals[jj] > 1 and vals[jj]-1 < quad_opts.get("epsabs", 1.49e-8):
+            vals[jj] = 1.
+    return vals
+
+
+def univariate_quantile_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
+                                            quad_opts={}):
+    if quad_opts.get("epsabs", 1.49e-8) > opt_tol:
+        raise ValueError("epsabs must be smaller than opt_tol")
+    func = partial(univariate_cdf_continuous_variable,
+                   pdf, bounds[0], bounds[1], quad_opts=quad_opts)
+    method = 'bisect'
+    quantile = invert_monotone_function(
+        func, bounds, np.array([beta]), method, opt_tol)
+    return quantile
+
+
+def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
+                                        quad_opts={}):
+    quantile = univariate_quantile_continuous_variable(
+        pdf, bounds, beta, opt_tol, quad_opts)
+    def integrand(x): return x*pdf(x)
+    return 1/(1-beta)*scipy.integrate.quad(
+        integrand, quantile, bounds[1], **quad_opts)[0]

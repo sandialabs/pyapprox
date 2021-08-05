@@ -1,3 +1,6 @@
+import numpy as np
+from functools import partial
+
 from pyapprox.first_order_stochastic_dominance import *
 from pyapprox.risk_measures import compute_conditional_expectations
 
@@ -8,7 +11,7 @@ class SSDOptProblem(FSDOptProblem):
 
     -Y \ge -Y^\prime
     """
-    
+
     def set_smoother(self, smoother_type, eps):
         self.smoother_type = smoother_type
         self.eps = eps
@@ -28,14 +31,14 @@ class SSDOptProblem(FSDOptProblem):
     def constraint_fun(self, x):
         r"""
         Compute the constraints. The nth row of the Jacobian is
-        the derivative of the nth constraint :math:`c_n(x)`. 
-        Let :math:`h(z)` be the smooth max function and :math:`f(x)` the 
+        the derivative of the nth constraint :math:`c_n(x)`.
+        Let :math:`h(z)` be the smooth max function and :math:`f(x)` the
         function approximation evaluated
         at the training samples and coeficients :math:`x`, then
 
-        .. math:: 
+        .. math::
 
-           c_n(x) = 
+           c_n(x) =
            \sum_{m=1}^M h(f(x_m)-f(x_n))- h(y_m-f(x_n))\ge 0
 
         Parameters
@@ -68,7 +71,7 @@ class SSDOptProblem(FSDOptProblem):
         plt.plot(pce_vals, train_econds, 's-r', label=r'$\mathrm{Train}$')
         plt.legend()
         plt.show()
-        
+
 
 def solve_SSD_constrained_least_squares_smooth(
         samples, values, eval_basis_matrix, eta_indices=None,
@@ -95,7 +98,7 @@ def solve_SSD_constrained_least_squares_smooth(
         values_std = values.std()
     else:
         values_std = 1
-    scaled_values = values/values_std
+    scaled_values = values.copy()/values_std
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
     residual = scaled_values-basis_matrix.dot(x0)
@@ -104,13 +107,13 @@ def solve_SSD_constrained_least_squares_smooth(
     ssd_opt_problem = SSDOptProblem(
         scaled_values, fun, jac, None, eta_indices, probabilities,
         smoother_type, eps, ncoef)
-    
+
     result = ssd_opt_problem.solve(x0, optim_options, method)
     assert result.success is True
     coef = result.x*values_std
     # ssd_opt_problem.debug_plot(coef)
 
     if return_full:
-        return coef, fsd_opt_problem
+        return coef, ssd_opt_problem
     else:
         return coef

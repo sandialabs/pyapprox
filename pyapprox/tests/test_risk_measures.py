@@ -1,7 +1,9 @@
 import unittest
 from scipy import stats
-from scipy.special import erf, erfinv, factorial
+from scipy.special import erf, erfinv, factorial, betainc, beta as beta_fn, \
+    gamma as gamma_fn
 from pyapprox.risk_measures import *
+from pyapprox.variables import get_distribution_info
 from scipy import integrate
 from functools import partial
 from scipy.optimize import minimize
@@ -44,6 +46,19 @@ def compute_cvar_from_univariate_function(f, pdf, lbx, ubx, alpha, init_guess,
     value_at_risk = result['x']
     cvar = result['fun']
     return value_at_risk, cvar
+
+
+def cvar_beta_variable(rv, beta):
+    """
+    cvar of Beta variable on [0,1]
+    """
+    qq = rv.ppf(beta)
+    scales, shapes = get_distribution_info(rv)[1:]
+    qq = (qq-scales["loc"])/scales["scale"]
+    g1, g2 = shapes["a"], shapes["b"]
+    cvar01 = ((1-betainc(1+g1, g2, qq))*gamma_fn(1+g1)*gamma_fn(g2) /
+              gamma_fn(1+g1+g2))/(beta_fn(g1, g2)*(1-beta))
+    return cvar01*scales["scale"] + scales["loc"]
 
 
 def triangle_quantile(u, c, loc, scale):
@@ -628,6 +643,23 @@ class TestRiskMeasures(unittest.TestCase):
         values1 = [np.maximum(0, eta[ii]-samples).mean()
                    for ii in range(eta.shape[0])]
         assert np.allclose(values, values1)
+
+    def test_univariate_cvar_continuous_variable(self):
+        beta = 0.8
+        var = stats.beta(3, 5)
+        quantile = univariate_quantile_continuous_variable(
+            var.pdf, var.support(), beta, 1e-6)
+        # print((quantile, var.ppf(beta)))
+        assert np.allclose(quantile, var.ppf(beta))
+
+        cvar = univariate_cvar_continuous_variable(
+            var.pdf, var.support(), beta, 1e-6)
+        assert np.allclose(cvar, cvar_beta_variable(var, beta))
+
+        var = stats.beta(3, 5, loc=1, scale=2)
+        cvar = univariate_cvar_continuous_variable(
+            var.pdf, var.support(), beta, 1e-8, {"epsabs": 1e-10})
+        assert np.allclose(cvar, cvar_beta_variable(var, beta))
 
 
 if __name__ == "__main__":

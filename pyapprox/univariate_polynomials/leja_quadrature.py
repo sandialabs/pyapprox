@@ -290,6 +290,7 @@ def get_discrete_univariate_leja_quadrature_rule(
             recursion_opts = {"orthonormality_tol": orthonormality_tol}
         ab = get_recursion_coefficients_from_variable(
             variable, xk.shape[0], recursion_opts)
+
         quad_rule = partial(
             candidate_based_christoffel_leja_rule_1d, ab,
             generate_candidate_samples, xk.shape[0], growth_rule=growth_rule,
@@ -304,7 +305,7 @@ def get_univariate_leja_quadrature_rule(
         variable,
         growth_rule,
         method='pdf',
-        orthonormality_tol=1e-11,
+        orthonormality_tol=1e-8,
         initial_points=None,
         return_weights_for_all_levels=True, recursion_opts=None,
         minimizer_opts=None):

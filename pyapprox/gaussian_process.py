@@ -155,6 +155,12 @@ class GaussianProcess(GaussianProcessRegressor):
     def condition_number(self):
         return np.linalg.cond(self.L_.dot(self.L_.T))
 
+    def get_training_samples(self):
+        if hasattr(self, "var_trans") and self.var_trans is not None:
+            return self.var_trans.map_from_canonical_space(self.X_train_.T)
+        else:
+            return self.X_train_.T
+
 
 class RandomGaussianProcessRealizations:
     """
@@ -184,9 +190,9 @@ class RandomGaussianProcessRealizations:
             gp.kernel_, [ConstantKernel])
         if constant_kernel is not None:
             self.kernel = constant_kernel*self.kernel
-        self.use_cholesky = use_cholesky
-        # it is useful to specify alpha different to the one use to invert
-        # Kernel marix at training data of gp
+            self.use_cholesky = use_cholesky
+            # it is useful to specify alpha different to the one use to invert
+            # Kernel marix at training data of gp
         self.alpha = alpha
 
     def fit(self, candidate_samples, rand_noise=None,
@@ -298,14 +304,19 @@ class AdaptiveGaussianProcess(GaussianProcess):
         self.sampler = sampler
 
     def refine(self, num_samples):
+        # new samples must be in user domain
         new_samples, chol_flag = self.sampler(num_samples)
         new_values = self.func(new_samples)
         assert new_values.shape[1] == 1  # must be scalar values QoI
         if hasattr(self, 'X_train_'):
-            train_samples = np.hstack([self.X_train_.T, new_samples])
+            # get_training_samples returns samples in user space
+            train_samples = self.get_training_samples()
+            train_samples = np.hstack([train_samples, new_samples])
             train_values = np.vstack([self.y_train_, new_values])
         else:
             train_samples, train_values = new_samples, new_values
+            # if self.var_trans is not None then when fit is called
+            # train_samples are mapped to cannonical domain
         self.fit(train_samples, train_values)
         return chol_flag
 
@@ -504,7 +515,7 @@ def extract_gaussian_process_attributes_for_integration(gp):
 
     if (not type(kernel) == RBF and not
         (type(kernel) == Matern and not np.isfinite(kernel.nu)) and not
-            (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
+        (type(kernel) == UnivariateMarginalizedSquaredExponentialKernel)):
         # Squared exponential kernel
         msg = f'GP Kernel type: {type(kernel)} '
         msg += 'Only squared exponential kernel supported'
@@ -544,7 +555,7 @@ def integrate_gaussian_process(gp, variable, return_full=False,
     """
     x_train, y_train, K_inv, kernel_length_scale, kernel_var, \
         transform_quad_rules = \
-        extract_gaussian_process_attributes_for_integration(gp)
+            extract_gaussian_process_attributes_for_integration(gp)
 
     result = integrate_gaussian_process_squared_exponential_kernel(
         x_train, y_train, K_inv, kernel_length_scale,
@@ -664,7 +675,7 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
             xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
         else:
             xi_1_ii = None
-        # xi_1 *= xi_1_ii
+            # xi_1 *= xi_1_ii
 
         tau_list.append(tau_ii)
         P_list.append(P_ii)
@@ -841,6 +852,8 @@ def generate_candidate_samples(nvars, num_candidate_samples,
         # marginal_icdfs = [v.ppf for v in self.variables]
         from scipy import stats
         marginal_icdfs = []
+        # spread QMC samples over entire domain. Range of variable
+        # is used but not its PDF
         for v in variables.all_variables():
             lb, ub = v.interval(1)
             if not np.isfinite(lb) or not np.isfinite(ub):
@@ -904,7 +917,8 @@ class CholeskySampler(object):
 
     def __init__(self, num_vars, num_candidate_samples, variables=None,
                  generate_random_samples=None, init_pivots=None,
-                 nugget=0, econ=True, gen_candidate_samples=None):
+                 nugget=0, econ=True, gen_candidate_samples=None,
+                 var_trans=None):
         self.nvars = num_vars
         self.kernel_theta = None
         self.chol_flag = None
@@ -915,12 +929,21 @@ class CholeskySampler(object):
                 generate_candidate_samples, self.nvars,
                 generate_random_samples=self.generate_random_samples,
                 variables=self.variables)
-        self.candidate_samples = gen_candidate_samples(num_candidate_samples)
+        self.var_trans = var_trans
+        self.set_candidate_samples(
+            gen_candidate_samples(num_candidate_samples))
         self.set_weight_function(None)
         self.ntraining_samples = 0
         self.set_init_pivots(init_pivots)
         self.nugget = nugget
         self.econ = econ
+
+    def set_candidate_samples(self, candidate_samples):
+        if self.var_trans is not None:
+            self.candidate_samples = self.var_trans.map_to_canonical_space(
+                candidate_samples)
+        else:
+            self.candidate_samples = candidate_samples
 
     def add_nugget(self):
         self.Kmatrix[np.arange(self.Kmatrix.shape[0]),
@@ -928,9 +951,16 @@ class CholeskySampler(object):
 
     def set_weight_function(self, weight_function):
         self.pivot_weights = None
-        self.weight_function = weight_function
+        if self.var_trans is None or weight_function is None:
+            self.weight_function = weight_function
+        else:
+            # weight function is applied in canonical_space
+            def wt_function(x):
+                return weight_function(
+                    self.var_trans.map_from_canonical_space(x))
+            self.weight_function = wt_function
         if self.weight_function is not None:
-            self.pivot_weights = weight_function(self.candidate_samples)
+            self.pivot_weights = self.weight_function(self.candidate_samples)
         self.weight_function_changed = True
 
     def set_kernel(self, kernel):
@@ -1004,7 +1034,10 @@ class CholeskySampler(object):
         self.training_samples = np.hstack(
             [self.training_samples, new_samples])
 
-        return new_samples, self.chol_flag
+        if self.var_trans is None:
+            return new_samples, self.chol_flag
+        return self.var_trans.map_from_canonical_space(
+            new_samples), self.chol_flag
 
 
 class AdaptiveCholeskyGaussianProcessFixedKernel(object):

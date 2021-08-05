@@ -396,7 +396,8 @@ def adaptive_approximate_gaussian_process(
         length_scale=1,
         length_scale_bounds=(1e-2, 10),
         generate_candidate_samples=None,
-        weight_function=None):
+        weight_function=None,
+        normalize_inputs=False):
     r"""
     Adaptively construct a Gaussian process approximation of a function using
     weighted-pivoted-Cholesky sampling and the Matern kernel
@@ -517,8 +518,12 @@ def adaptive_approximate_gaussian_process(
 
     variable = IndependentMultivariateRandomVariable(
         univariate_variables)
-    var_trans = AffineRandomVariableTransformation(variable)
-    nvars = var_trans.num_vars()
+    nvars = variable.num_vars()
+
+    if normalize_inputs:
+        var_trans = AffineRandomVariableTransformation(variable)
+    else:
+        var_trans = None
 
     kernel = __setup_gaussian_process_kernel(
         nvars, length_scale, length_scale_bounds,
@@ -526,15 +531,19 @@ def adaptive_approximate_gaussian_process(
         noise_level, noise_level_bounds, nu)
 
     sampler = CholeskySampler(
-        nvars, ncandidate_samples, var_trans.variable,
-        gen_candidate_samples=generate_candidate_samples)
+        nvars, ncandidate_samples, variable,
+        gen_candidate_samples=generate_candidate_samples,
+        var_trans=var_trans)
     sampler_kernel = copy.deepcopy(kernel)
     sampler.set_kernel(sampler_kernel)
+    print(weight_function)
     sampler.set_weight_function(weight_function)
 
     gp = AdaptiveGaussianProcess(
         kernel, n_restarts_optimizer=n_restarts_optimizer, alpha=alpha)
     gp.setup(fun, sampler)
+    if var_trans is not None:
+        gp.set_variable_transformation(var_trans)
 
     if checkpoints is None:
         checkpoints = np.linspace(10, max_nsamples, 10).astype(int)

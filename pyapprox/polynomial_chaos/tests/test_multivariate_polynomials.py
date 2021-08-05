@@ -939,6 +939,43 @@ class TestMultivariatePolynomials(unittest.TestCase):
         assert np.allclose(
             poly.variance(), stats.beta(dist_alpha1*2, dist_beta1*2).var())
 
+    def test_hermite_basis_for_lognormal_variables(self):
+        def function(x): return (x.T)**2
+
+        degree = 2
+        # mu_g, sigma_g = 1e1, 0.1
+        mu_l, sigma_l = 2.1e11, 2.1e10
+        mu_g = np.log(mu_l**2/np.sqrt(mu_l**2+sigma_l**2))
+        sigma_g = np.sqrt(np.log(1+sigma_l**2/mu_l**2))
+
+        lognorm = stats.lognorm(s=sigma_g, scale=np.exp(mu_g))
+        # assert np.allclose([lognorm.mean(), lognorm.std()], [mu_l, sigma_l])
+
+        univariate_variables = [stats.norm(mu_g, sigma_g)]
+        var_trans = AffineRandomVariableTransformation(univariate_variables)
+        pce = PolynomialChaosExpansion()
+        pce_opts = define_poly_options_from_variable_transformation(
+            var_trans)
+        pce.configure(pce_opts)
+        pce.set_indices(
+            compute_hyperbolic_indices(var_trans.num_vars(), degree, 1.))
+
+        nsamples = int(1e6)
+        samples = lognorm.rvs(nsamples)[None, :]
+        values = function(samples)
+
+        ntrain_samples = 20
+        train_samples = lognorm.rvs(ntrain_samples)[None, :]
+        train_values = function(train_samples)
+        from pyapprox.quantile_regression import solve_quantile_regression, \
+            solve_least_squares_regression
+        coef = solve_quantile_regression(
+            0.5, np.log(train_samples), train_values, pce.basis_matrix,
+            normalize_vals=True)
+        pce.set_coefficients(coef)
+        print(pce.mean(), values.mean())
+        assert np.allclose(pce.mean(), values.mean(), rtol=1e-3)
+
 
 if __name__ == "__main__":
     multivariate_polynomials_test_suite = \

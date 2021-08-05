@@ -50,7 +50,7 @@ def stieltjes(nodes, weights, N):
     return ab
 
 
-def lanczos(nodes, weights, N):
+def lanczos(nodes, weights, N, prob_tol=0):
     '''
     Parameters
     ----------
@@ -75,7 +75,7 @@ def lanczos(nodes, weights, N):
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way
-    if abs(weights.sum()-1) > 2e-15:
+    if abs(weights.sum()-1) > prob_tol+2e-15:
         msg = f"weights sum is {weights.sum()} and so does not define "
         msg += "a probability measure"
         raise ValueError(msg)
@@ -712,12 +712,20 @@ def ortho_polynomial_grammian_bounded_continuous_variable(
 def native_recursion_integrate_fun(
         interval_size, lb, ub, integrand, verbose=0, nquad_samples=50,
         max_steps=1000, tabulated_quad_rules=None, atol=1e-8, rtol=1e-8):
+    """
+    Parameters
+    ----------
+    interval_size : float
+        Size of the interval used to break up the integrand. Must be in the
+        canonical domain of rhe random variable
+    """
+
     # this funciton works well for smooth unbounded variables
     # but scipy.integrate.quad works well for non smooth
     # variables
     val = \
         integrate_using_univariate_gauss_legendre_quadrature_unbounded(
             integrand, lb, ub, nquad_samples, interval_size=interval_size,
-            verbose=verbose, max_steps=max_steps, atol=atol, rtol=rtol, 
+            verbose=verbose, max_steps=max_steps, atol=atol, rtol=rtol,
             tabulated_quad_rules=tabulated_quad_rules)
     return val

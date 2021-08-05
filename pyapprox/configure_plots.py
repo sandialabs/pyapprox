@@ -33,3 +33,12 @@ linestyle_tuples = {
      'dashdotdotted':         (0, (3, 5, 1, 5, 1, 5)),
      'loosely dashdotdotted': (0, (3, 10, 1, 10, 1, 10)),
      'densely dashdotdotted': (0, (3, 1, 1, 1, 1, 1))}
+
+
+def mathrm_label(label):
+    return r"$\mathrm{%s}$" % label.replace(" ", r"\;")
+    return label
+
+
+def mathrm_labels(labels):
+    return [mathrm_label(label) for label in labels]

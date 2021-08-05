@@ -899,3 +899,70 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
             X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
             cmap='jet')
     return fig, axs
+
+
+def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
+    """
+    Only works if rv1 and rv2 are defined on consecutive integers
+    """
+    from matplotlib import cm
+    from pyapprox.utilities import cartesian_product, outer_product
+    from pyapprox.variables import get_probability_masses
+
+    if ax is None:
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection='3d')
+    x_1d = [get_probability_masses(rv)[0] for rv in [rv1, rv2]]
+    w_1d = [get_probability_masses(rv)[1] for rv in [rv1, rv2]]
+    samples = cartesian_product(x_1d)
+    weights = outer_product(w_1d)
+
+    dz = weights
+    cmap = cm.get_cmap('jet')  # Get desired colormap - you can change this!
+    max_height = np.max(dz)    # get range of colorbars so we can normalize
+    min_height = np.min(dz)
+    # scale each z to [0,1], and get their rgb values
+    rgba = [cmap((k-min_height)/max_height) for k in dz]
+    # Only works if rv1 and rv2 are defined on consecutive integers
+    dx, dy = 1, 1
+    ax.bar3d(samples[0, :], samples[1, :], 0, dx, dy, dz, color=rgba,
+             zsort='average')
+
+    angle = 45
+    ax.view_init(10, angle)
+    ax.set_axis_off()
+
+
+def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
+    """
+    Only works if rv1 and rv2 are defined on consecutive integers
+    """
+    import copy
+    from pyapprox.utilities import outer_product
+    from pyapprox.variables import get_probability_masses
+
+    if ax is None:
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111)
+    x_1d = [get_probability_masses(rv)[0] for rv in [rv1, rv2]]
+    w_1d = [get_probability_masses(rv)[1] for rv in [rv1, rv2]]
+    weights = outer_product(w_1d)
+
+    Z = np.reshape(weights, (len(x_1d[0]), len(x_1d[1])), order='F')
+    Z[Z < zero_tol] = np.inf
+    cmap = copy.copy(plt.cm.viridis)
+    cmap.set_bad('gray', 1)
+    xx = np.hstack((x_1d[0], x_1d[0].max()+1))-0.5
+    yy = np.hstack((x_1d[1], x_1d[1].max()+1))-0.5
+    p = ax.pcolormesh(xx, yy, Z.T, cmap=cmap)
+    plt.colorbar(p, ax=ax)
+    # xticks = ax.get_xticks()
+    # xticklabels = ax.get_xticklabels()
+    # print(xticklabels, xticks)
+    # yticks = ax.get_yticks()
+    # yticklabels = ax.get_yticklabels()
+    # print(yticklabels, yticks)
+    # ax.set_xticks((xx[:-1]+xx[1:])/2)
+    # ax.set_xticklabels([f"${x}$" for x in x_1d[0]])
+    # ax.set_yticks((yy[:-1]+yy[1:])/2)
+    # ax.set_yticklabels([f"${x}$" for x in x_1d[1]])

@@ -299,6 +299,59 @@ class TestApproximate(unittest.TestCase):
              'ncandidate_samples': 1e3, 'callback': callback}).approx
         assert errors[-1] < 1e-8
 
+    def test_adaptive_approximate_gaussian_process_normalize_inputs(self):
+        from sklearn.gaussian_process.kernels import Matern
+        num_vars = 1
+        univariate_variables = [stats.beta(5, 10, 0, 2)]*num_vars
+
+        # Generate random function
+        nu = np.inf  # 2.5
+        kernel = Matern(0.1, nu=nu)
+        X = np.linspace(-1, 1, 1000)[np.newaxis, :]
+        alpha = np.random.normal(0, 1, X.shape[1])
+
+        def fun(x):
+            return kernel(x.T, X.T).dot(alpha)[:, np.newaxis]
+            # return np.cos(2*np.pi*x.sum(axis=0)/num_vars)[:, np.newaxis]
+
+        errors = []
+        validation_samples = pya.generate_independent_random_samples(
+            pya.IndependentMultivariateRandomVariable(univariate_variables),
+            100)
+        validation_values = fun(validation_samples)
+
+        def callback(gp):
+            gp_vals = gp(validation_samples)
+            assert gp_vals.shape == validation_values.shape
+            error = np.linalg.norm(gp_vals-validation_values)/np.linalg.norm(
+                validation_values)
+            print(error, gp.y_train_.shape[0])
+            errors.append(error)
+
+        weight_function = partial(
+            pya.tensor_product_pdf,
+            univariate_pdfs=[v.pdf for v in univariate_variables])
+
+        gp = adaptive_approximate(
+            fun, univariate_variables, 'gaussian_process',
+            {'nu': nu, 'noise_level': None, 'normalize_y': True,
+             'alpha': 1e-10,  "normalize_inputs": True,
+             "weight_function": weight_function,
+             'ncandidate_samples': 1e3, 'callback': callback}).approx
+
+        # import matplotlib.pyplot as plt
+        # plt.plot(gp.X_train_.T[0, :], 0*gp.X_train_.T[0, :], 's')
+        # plt.plot(gp.get_training_samples()[0, :], 0*gp.get_training_samples()[0, :], 'x')
+        # plt.plot(gp.sampler.candidate_samples[0, :], 0*gp.sampler.candidate_samples[0, :], '^')
+        # plt.plot(validation_samples[0, :], validation_values[:, 0], 'o')
+        # var = univariate_variables[0]
+        # lb, ub = var.interval(1)
+        # xx = np.linspace(lb, ub, 101)
+        # plt.plot(xx, var.pdf(xx), 'r-')
+        # plt.show()
+        print(errors[-1])
+        assert errors[-1] < 1e-7
+
     def test_approximate_fixed_pce(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars

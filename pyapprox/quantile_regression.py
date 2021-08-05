@@ -8,7 +8,7 @@ def scale_linear_system(matrix):
     assert col_norms.shape[0] == matrix.shape[1]
     scaled_matrix = matrix/col_norms
     # print(np.linalg.norm(scaled_matrix, axis=0))
-    return scaled_matrix,col_norms
+    return scaled_matrix, col_norms
 
 
 def rescale_linear_system_coefficients(coef, col_norms):
@@ -16,39 +16,46 @@ def rescale_linear_system_coefficients(coef, col_norms):
     return scaled_coef
 
 
-def quantile_regression(basis_matrix, values, tau):
+def quantile_regression(basis_matrix, values, tau, opts={}):
     from cvxopt import matrix, solvers, spmatrix, sparse
     assert basis_matrix.ndim == 2
     assert values.ndim == 1
-    nsamples,nbasis = basis_matrix.shape
+    nsamples, nbasis = basis_matrix.shape
     assert values.shape[0] == nsamples
-    
+
     # See https://cvxopt.org/userguide/coneprog.html
     # for documentation on tolerance parameters
     # see https://stats.stackexchange.com/questions/384909/formulating-quantile-regression-as-linear-programming-problem/384913
-    solvers.options['show_progress'] = False
-    #solvers.options['max_iters'] = 1000
-    solvers.options['abstol'] = 1e-8
-    solvers.options['reltol'] = 1e-8
-    solvers.options['feastol'] = 1e-8
+    solvers.options['show_progress'] = opts.get("show_progress", False)
+    if "max_iters" in opts:
+        solvers.options['max_iters'] = opts["max_iters"]
+    solvers.options['abstol'] = opts.get("abstol", 1e-8)
+    solvers.options['reltol'] = opts.get("reltol", 1e-8)
+    solvers.options['feastol'] = opts.get("feastol", 1e-8)
 
-    #basis_matrix,col_norms = scale_linear_system(basis_matrix)
-    #values_mean = values.mean(axis=0)
-    #scaled_values = values-values_mean
+    for key in opts.keys():
+        if key not in ["abstol", "reltol", "feastol", "show_progress",
+                       "max_iters"]:
+            raise ValueError(f"Option {key} not supported")
+
+    # basis_matrix, col_norms = scale_linear_system(basis_matrix)
+    # values_mean = values.mean(axis=0)
+    # scaled_values = values-values_mean
     scaled_values = values
     scale = 1
-    
+
     c_arr = np.hstack(
         (np.zeros(nbasis), tau*np.ones(nsamples),
-        (1-tau)*np.ones(nsamples)))[:, np.newaxis]
+         (1-tau)*np.ones(nsamples)))[:, np.newaxis]
     c = matrix(c_arr)
-    
-    Isamp  = np.identity(nsamples)
+
+    Isamp = np.identity(nsamples)
     A = sparse([[matrix(basis_matrix)], [matrix(Isamp)], [matrix(-Isamp)]])
     b = matrix(scaled_values)
     G = spmatrix(
         -1.0, nbasis+np.arange(2*nsamples), nbasis+np.arange(2*nsamples))
     h = matrix(np.zeros(nbasis+2*nsamples))
+    # print(np.array(A).shape, np.array(G), np.array(b), np.array(h), nbasis, nsamples, Isamp.shape, A, basis_matrix.shape)
     sol = np.asarray(
         solvers.lp(c=c*scale, G=G*scale, h=h*scale, A=A*scale, b=b*scale)['x'])
     coef = sol[:nbasis]
@@ -75,12 +82,23 @@ def quantile_regression(basis_matrix, values, tau):
     # #coef[0]+=values_mean
     # return coef
 
-    
-def solve_quantile_regression(tau, samples, values, eval_basis_matrix):
+
+def solve_quantile_regression(tau, samples, values, eval_basis_matrix,
+                              normalize_vals=False, opts={}):
     basis_matrix = eval_basis_matrix(samples)
-    quantile_coef = quantile_regression(basis_matrix, values.squeeze(), tau=tau)
+    if basis_matrix.shape[0] < basis_matrix.shape[1]:
+        raise ValueError("System is under-determined")
+    if normalize_vals is True:
+        factor = values[:, 0].std()
+        vals = values.copy()/factor
+    else:
+        vals = values
+    quantile_coef = quantile_regression(
+        basis_matrix, vals.squeeze(), tau=tau, opts=opts)
+    if normalize_vals is True:
+        quantile_coef *= factor
     # assume first coefficient is for constant term
-    quantile_coef[0]=0
+    quantile_coef[0] = 0
     centered_approx_vals = basis_matrix.dot(quantile_coef)[:, 0]
     deviation = conditional_value_at_risk(
         values[:, 0]-centered_approx_vals, tau)
@@ -89,9 +107,17 @@ def solve_quantile_regression(tau, samples, values, eval_basis_matrix):
 
 
 def solve_least_squares_regression(samples, values, eval_basis_matrix,
-                                   lamda=0.):
+                                   lamda=0., normalize_vals=True):
     basis_matrix = eval_basis_matrix(samples)
-    lstsq_coef = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]
+    # assume first coefficient is for constant term
+    if normalize_vals is True:
+        factor = values[:, 0].std()
+        vals = values.copy()/factor
+    else:
+        vals = values
+    lstsq_coef = np.linalg.lstsq(basis_matrix, vals, rcond=None)[0]
+    if normalize_vals is True:
+        lstsq_coef *= factor
     lstsq_coef[0] = 0
     centered_approx_vals = basis_matrix.dot(lstsq_coef)[:, 0]
     residuals = values[:, 0]-centered_approx_vals

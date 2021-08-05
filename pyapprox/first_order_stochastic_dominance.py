@@ -293,7 +293,6 @@ class FSDOptProblem(object):
             [partial(f, self.eps, -self.eps) for f in smoothers[smoother_type]]
 
     def objective_fun(self, x):
-        coef = x[:self.ncoef]
         __approx_values = self.fun(x)
         assert __approx_values.shape == self.values.shape
         val = 0.5*np.sum(self.probabilities*(self.values-__approx_values)**2)
@@ -327,14 +326,14 @@ class FSDOptProblem(object):
     def constraint_fun(self, x):
         r"""
         Compute the constraints. The nth row of the Jacobian is
-        the derivative of the nth constraint :math:`c_n(x)`. 
-        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the 
+        the derivative of the nth constraint :math:`c_n(x)`.
+        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the
         function approximation evaluated
         at the training samples and coeficients :math:`x`, then
 
-        .. math:: 
+        .. math::
 
-           c_n(x) = 
+           c_n(x) =
            \sum_{m=1}^M h(f(x_m)-f(x_n))- h(y_m-f(x_n))\le 0
 
         Parameters
@@ -362,16 +361,16 @@ class FSDOptProblem(object):
     def constraint_jac(self, x):
         r"""
         Compute the Jacobian of the constraints. The nth row of the Jacobian is
-        the derivative of the nth constraint :math:`c_n(x)`. 
-        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the 
+        the derivative of the nth constraint :math:`c_n(x)`.
+        Let :math:`h(z)` be the smooth heaviside function and :math:`f(x)` the
         function approximation evaluated
         at the training samples and coeficients :math:`x`, then
 
-        .. math:: 
+        .. math::
 
-           \frac{\partial c_n}{\partial x} = 
+           \frac{\partial c_n}{\partial x} =
            \sum_{m=1}^M h^\prime(f(x_m)-f(x_n))
-              \left(\nabla_x f(x_m)-\nabla_x f(x_n))\right) - 
+              \left(\nabla_x f(x_m)-\nabla_x f(x_n))\right) -
               h^\prime(y_m-f(x_n))\left(-\nabla_x f(x_n))\right)
 
         Parameters
@@ -388,8 +387,8 @@ class FSDOptProblem(object):
         __approx_values = self.fun(coef)
         __jac = self.jac(coef)
         hder1 = self.smooth_jac(
-            (__approx_values[None, :]-__approx_values[self.eta_indices, None])) *\
-            self.probabilities
+            (__approx_values[None, :] -
+             __approx_values[self.eta_indices, None]))*self.probabilities
         fder1 = (__jac[None, :, :]-__jac[self.eta_indices, None, :])
         con_jac = np.sum(hder1[:, :, None]*fder1, axis=1)
         hder2 = self.smooth_jac(
@@ -416,14 +415,14 @@ class FSDOptProblem(object):
 
     def constraint_hess(self, x, lmult):
         r"""
-        Compute the Hessian of the constraints applied to the Lagrange 
+        Compute the Hessian of the constraints applied to the Lagrange
         multipliers.
 
         We need to compute
 
         .. math:: d^2/dx^2 f(g(x))=g'(x)^2 f''(g(x))+g''(x)f'(g(x))
 
-        and assume that  :math:`g''(x)=0 \forall x`. I.e. only linear 
+        and assume that  :math:`g''(x)=0 \forall x`. I.e. only linear
         approximations g(x) are implemented
 
         Parameters
@@ -448,8 +447,8 @@ class FSDOptProblem(object):
         __approx_values = self.fun(coef)
         __jac = self.jac(coef)
         hder1 = self.smooth_hess(
-            (__approx_values[None, :]-__approx_values[self.eta_indices, None])) *\
-            self.probabilities
+            (__approx_values[None, :] -
+             __approx_values[self.eta_indices, None]))*self.probabilities
         hder2 = self.smooth_hess(
             (self.values[None, :]-__approx_values[self.eta_indices, None])) *\
             self.probabilities
@@ -491,8 +490,8 @@ class FSDOptProblem(object):
         Returns
         -------
         res : OptimizeResult
-            The optimization result represented as a OptimizeResult object. 
-            Important attributes are: x the solution array, success a Boolean 
+            The optimization result represented as a OptimizeResult object.
+            Important attributes are: x the solution array, success a Boolean
             flag indicating if the optimizer exited successfully and message
             which describes the cause of the termination.
         """
@@ -591,7 +590,7 @@ def solve_FSD_constrained_least_squares_smooth(
         values_std = values.std()
     else:
         values_std = 1
-    scaled_values = values/values_std
+    scaled_values = values.copy()/values_std
 
     x0 = np.linalg.lstsq(basis_matrix, scaled_values, rcond=None)[0]
     residual = scaled_values-basis_matrix.dot(x0)
@@ -608,7 +607,7 @@ def solve_FSD_constrained_least_squares_smooth(
     assert result.success is True
 
     # fsd_opt_problem.debug_plot(result.x, samples[0, :])
-    
+
     coef = result.x*values_std
 
     # xx = np.linspace(-1.5,2,100)

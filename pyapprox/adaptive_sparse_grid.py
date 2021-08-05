@@ -233,7 +233,9 @@ def partition_sparse_grid_samples(sparse_grid):
     return samples, active_samples
 
 
-def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True):
+def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
+                                 samples_marker=('k', 'o', None),
+                                 active_samples_marker=('r', 'o', None)):
     from pyapprox.visualization import plot_2d_indices
     active_subspace_indices, active_subspace_idx = get_active_subspace_indices(
         sparse_grid.active_subspace_indices_dict,
@@ -246,10 +248,12 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True):
     sparse_grid_subspace_idx[active_subspace_idx] = False
 
     if plot_grid:
-        f, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
+        if axs is None:
+            f, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
     else:
-        f, axs = plt.subplots(1, 1, sharey=False, figsize=(8, 6))
-        axs = [axs]
+        if axis is None:
+            f, axs = plt.subplots(1, 1, sharey=False, figsize=(8, 6))
+            axs = [axs]
 
     plot_2d_indices(
         sparse_grid.subspace_indices[:, sparse_grid_subspace_idx],
@@ -262,14 +266,27 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True):
 
     if plot_grid:
         samples, active_samples = partition_sparse_grid_samples(sparse_grid)
+        samples = sparse_grid.variable_transformation.map_from_canonical_space(
+            samples)
+        active_samples = \
+            sparse_grid.variable_transformation.map_from_canonical_space(
+                active_samples)
         if sparse_grid.config_variables_idx is None:
-            axs[1].plot(samples[0, :], samples[1, :], 'ko')
-            axs[1].plot(active_samples[0, :], active_samples[1, :], 'ro')
+            axs[1].plot(samples[0, :], samples[1, :], samples_marker[1],
+                        color=samples_marker[0], ms=samples_marker[2])
+            axs[1].plot(active_samples[0, :], active_samples[1, :],
+                        active_samples_marker[1],
+                        color=active_samples_marker[0],
+                        ms=active_samples_marker[2])
         else:
             for ii in range(samples.shape[1]):
-                axs[1].plot(samples[0, ii], samples[1, ii], 'ko')
+                axs[1].plot(samples[0, ii], samples[1, ii],  samples_marker[1],
+                            color=samples_marker[0], ms=samples_marker[2])
             for ii in range(active_samples.shape[1]):
-                axs[1].plot(active_samples[0, ii], active_samples[1, ii], 'ro')
+                axs[1].plot(active_samples[0, ii], active_samples[1, ii],
+                            active_samples_marker[1],
+                            color=active_samples_marker[0],
+                            ms=active_samples_marker[2])
             from matplotlib.pyplot import MaxNLocator
             ya = axs[1].get_yaxis()
             ya.set_major_locator(MaxNLocator(integer=True))
