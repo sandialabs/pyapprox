@@ -190,9 +190,9 @@ class RandomGaussianProcessRealizations:
             gp.kernel_, [ConstantKernel])
         if constant_kernel is not None:
             self.kernel = constant_kernel*self.kernel
-            self.use_cholesky = use_cholesky
-            # it is useful to specify alpha different to the one use to invert
-            # Kernel marix at training data of gp
+        self.use_cholesky = use_cholesky
+        # it is useful to specify alpha different to the one use to invert
+        # Kernel marix at training data of gp
         self.alpha = alpha
 
     def fit(self, candidate_samples, rand_noise=None,
@@ -675,7 +675,7 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
             xi_1_ii = integrate_xi_1(xx_1d, ww_1d, lscale[ii])
         else:
             xi_1_ii = None
-            # xi_1 *= xi_1_ii
+        # xi_1 *= xi_1_ii
 
         tau_list.append(tau_ii)
         P_list.append(P_ii)

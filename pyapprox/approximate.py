@@ -15,7 +15,7 @@ from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
-    variance_pce_refinement_indicator
+    variance_pce_refinement_indicator, AdaptiveInducedPCE
 from pyapprox.polynomial_sampling import christoffel_weights
 from pyapprox import compute_hyperbolic_indices
 from pyapprox.variables import is_bounded_continuous_variable
@@ -227,13 +227,100 @@ def adaptive_approximate_sparse_grid(
 
 
 def adaptive_approximate_polynomial_chaos(
-        fun, univariate_variables, callback=None,
+        fun, variable, method="leja", options={}):
+    methods = {"leja": adaptive_approximate_polynomial_chaos_leja,
+               "induced": adaptive_approximate_polynomial_chaos_induced}
+              # "random": adaptive_approximate_polynomial_chaos_random}
+
+    if method not in methods:
+        msg = f'Method {method} not found.\n Available methods are:\n'
+        for key in methods.keys():
+            msg += f"\t{key}\n"
+        raise Exception(msg)
+
+    if options is None:
+        options = {}
+    return methods[method](fun, variable, **options)
+
+
+def __initialize_leja_pce(
+        univariate_variables, generate_candidate_samples, ncandidate_samples):
+
+    for rv in univariate_variables:
+        if not is_bounded_continuous_variable(rv):
+            msg = "For now leja sampling based PCE is only supported for "
+            msg += " bounded continouous random variables when"
+            msg += " generate_candidate_samples is not provided."
+            if generate_candidate_samples is None:
+                raise Exception(msg)
+            else:
+                break
+
+    if generate_candidate_samples is None:
+        # Todo implement default for non-bounded variables that uses induced
+        # sampling
+        # candidate samples must be in canonical domain
+        nvars = len(univariate_variables)
+        candidate_samples = -np.cos(
+            np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
+        # candidate_samples = -np.cos(
+        #    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
+    else:
+        candidate_samples = generate_candidate_samples(ncandidate_samples)
+
+    pce = AdaptiveLejaPCE(
+        nvars, candidate_samples, factorization_type='fast')
+    return pce
+
+
+def __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
+                         refinement_indicator, tol, max_nsamples, callback,
+                         max_level_1d):
+    pce.verbose = verbose
+    pce.set_function(fun, var_trans)
+    if growth_rules is None:
+        growth_incr = 2
+        growth_rules = partial(constant_increment_growth_rule, growth_incr)
+    assert callable(growth_rules)
+    unique_quadrule_variables, unique_quadrule_indices = \
+        get_unique_quadrule_variables(var_trans)
+    growth_rules = [growth_rules]*len(unique_quadrule_indices)
+
+    admissibility_function = None  # provide after growth_rules have been added
+    pce.set_refinement_functions(
+        refinement_indicator, admissibility_function, growth_rules,
+        unique_quadrule_indices=unique_quadrule_indices)
+
+    nvars = var_trans.num_vars()
+    if max_level_1d is None:
+        max_level_1d = [np.inf]*nvars
+    elif np.isscalar(max_level_1d):
+        max_level_1d = [max_level_1d]*nvars
+
+    unique_max_level_1d = get_unique_max_level_1d(
+        var_trans, pce.compact_univariate_growth_rule)
+    nunique_vars = len(unique_quadrule_indices)
+    assert len(unique_max_level_1d) == nunique_vars
+    for ii in range(nunique_vars):
+        for jj in unique_quadrule_indices[ii]:
+            max_level_1d[jj] = np.minimum(
+                unique_max_level_1d[ii], max_level_1d[jj])
+
+    admissibility_function = partial(
+        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
+        tol, verbose=verbose)
+    pce.admissibility_function = admissibility_function
+
+
+def adaptive_approximate_polynomial_chaos_induced(
+        fun, univariate_variables,
+        callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
         growth_rules=None, max_nsamples=100, tol=0, verbose=0,
-        ncandidate_samples=1e4, generate_candidate_samples=None,
-        max_level_1d=None):
+        max_level_1d=None, induced_sampling=True, cond_tol=1e6):
     r"""
-    Compute an adaptive Polynomial Chaos Expansion of a function.
+    Compute an adaptive Polynomial Chaos Expansion of a function based upon
+    random induced or probability measure sampling.
 
     Parameters
     ----------
@@ -256,8 +343,8 @@ def adaptive_approximate_polynomial_chaos(
         where approx_k is the current approximation object.
 
     refinement_indicator : callable
-        A function that retuns an estimate of the error of a sparse grid subspace
-        with signature
+        A function that retuns an estimate of the error of a sparse grid
+        subspace with signature
 
         ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
 
@@ -294,6 +381,120 @@ def adaptive_approximate_polynomial_chaos(
     verbose : integer
         Controls messages printed during construction.
 
+    max_level_1d : np.ndarray (nvars)
+        The maximum level of the sparse grid in each dimension. If None
+        There is no limit
+
+    induced_sampling : boolean
+        True - use induced sampling
+        False - sample from probability measure
+
+    cond_tol : float
+        The maximum allowable condition number of the regression problem.
+        If induced_sampling is False and cond_tol < 0 then we do not sample
+        until cond number is below cond_tol but rather simply add
+        nnew_indices*abs(cond_tol) samples. That is we specify an 
+        over sampling factor
+
+
+    Returns
+    -------
+    result : :class:`pyapprox.approximate.ApproximateResult`
+         Result object with the following attributes
+
+    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+        The PCE approximation
+    """
+    variable = IndependentMultivariateRandomVariable(
+        univariate_variables)
+    var_trans = AffineRandomVariableTransformation(variable)
+
+    pce = AdaptiveInducedPCE(
+        var_trans.num_vars(), induced_sampling=induced_sampling,
+        cond_tol=cond_tol)
+
+    __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
+                         refinement_indicator, tol, max_nsamples, callback,
+                         max_level_1d)
+
+    pce.build(callback)
+    return ApproximateResult({'approx': pce})
+
+
+def adaptive_approximate_polynomial_chaos_leja(
+        fun, univariate_variables,
+        callback=None,
+        refinement_indicator=variance_pce_refinement_indicator,
+        growth_rules=None, max_nsamples=100, tol=0, verbose=0,
+        max_level_1d=None,
+        ncandidate_samples=1e4, generate_candidate_samples=None):
+    r"""
+    Compute an adaptive Polynomial Chaos Expansion of a function based upon
+    multivariate Leja sequences.
+
+    Parameters
+    ----------
+    fun : callable
+        The function to be minimized
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,nqoi)
+
+    univariate_variables : list
+        A list of scipy.stats random variables of size (nvars)
+
+    callback : callable
+        Function called after each iteration with the signature
+
+        ``callback(approx_k)``
+
+        where approx_k is the current approximation object.
+
+    refinement_indicator : callable
+        A function that retuns an estimate of the error of a sparse grid
+        subspace with signature
+
+        ``refinement_indicator(subspace_index,nnew_subspace_samples,sparse_grid) -> float, float``
+
+        where ``subspace_index`` is 1D np.ndarray of size (nvars),
+        ``nnew_subspace_samples`` is an integer specifying the number
+
+        of new samples that will be added to the sparse grid by adding the
+        subspace specified by subspace_index and ``sparse_grid`` is the current
+        :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid` object.
+        The two outputs are, respectively, the indicator used to control
+        refinement of the sparse grid and the change in error from adding the
+        current subspace. The indicator is typically but now always dependent
+        on the error.
+
+    growth_rules : list or callable
+        a list (or single callable) of growth rules with signature
+
+        ``growth_rule(l)->integer``
+
+        where the output ``nsamples`` specifies the number of indices of the
+        univariate basis of level ``l``.
+
+        If the entry is a callable then the same growth rule is
+        applied to every variable.
+
+    max_nsamples : integer
+        The maximum number of evaluations of fun.
+
+    tol : float
+        Tolerance for termination. The construction of the sparse grid is
+        terminated when the estimate error in the sparse grid (determined by
+        ``refinement_indicator`` is below tol.
+
+    verbose : integer
+        Controls messages printed during construction.
+
+    max_level_1d : np.ndarray (nvars)
+        The maximum level of the sparse grid in each dimension. If None
+        There is no limit
+
     ncandidate_samples : integer
         The number of candidate samples used to generate the Leja sequence
         The Leja sequence will be a subset of these samples.
@@ -305,10 +506,6 @@ def adaptive_approximate_polynomial_chaos(
         ``generate_candidate_samples(ncandidate_samples) -> np.ndarray``
 
         The output is a 2D np.ndarray with size(nvars,ncandidate_samples)
-
-    max_level_1d : np.ndarray (nvars)
-        The maximum level of the sparse grid in each dimension. If None
-        There is no limit
 
     Returns
     -------
@@ -322,64 +519,14 @@ def adaptive_approximate_polynomial_chaos(
     variable = IndependentMultivariateRandomVariable(
         univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
-    nvars = var_trans.num_vars()
 
-    for rv in univariate_variables:
-        if not is_bounded_continuous_variable(rv):
-            msg = "For now leja sampling based PCE is only supported for "
-            msg += " bounded continouous random variables when"
-            msg += " generate_candidate_samples is not provided."
-            if generate_candidate_samples is None:
-                raise Exception(msg)
-            else:
-                break
+    pce = __initialize_leja_pce(
+        univariate_variables, generate_candidate_samples, ncandidate_samples)
+    # pce = AdaptiveInducedPCE(nvars, cond_tol=1e2)
 
-    if generate_candidate_samples is None:
-        # Todo implement default for non-bounded variables that uses induced
-        # sampling
-        # candidate samples must be in canonical domain
-        candidate_samples = -np.cos(
-            np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
-        # candidate_samples = -np.cos(
-        #    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
-    else:
-        candidate_samples = generate_candidate_samples(ncandidate_samples)
-
-    if max_level_1d is None:
-        max_level_1d = [np.inf]*nvars
-    elif np.isscalar(max_level_1d):
-        max_level_1d = [max_level_1d]*nvars
-
-    pce = AdaptiveLejaPCE(
-        nvars, candidate_samples, factorization_type='fast')
-    pce.verbose = verbose
-    pce.set_function(fun, var_trans)
-    if growth_rules is None:
-        growth_incr = 2
-        growth_rules = partial(constant_increment_growth_rule, growth_incr)
-    assert callable(growth_rules)
-    unique_quadrule_variables, unique_quadrule_indices = \
-        get_unique_quadrule_variables(var_trans)
-    growth_rules = [growth_rules]*len(unique_quadrule_indices)
-
-    admissibility_function = None  # provide after growth_rules have been added
-    pce.set_refinement_functions(
-        refinement_indicator, admissibility_function, growth_rules,
-        unique_quadrule_indices=unique_quadrule_indices)
-
-    unique_max_level_1d = get_unique_max_level_1d(
-        var_trans, pce.compact_univariate_growth_rule)
-    nunique_vars = len(unique_quadrule_indices)
-    assert len(unique_max_level_1d) == nunique_vars
-    for ii in range(nunique_vars):
-        for jj in unique_quadrule_indices[ii]:
-            max_level_1d[jj] = np.minimum(
-                unique_max_level_1d[ii], max_level_1d[jj])
-
-    admissibility_function = partial(
-        max_level_admissibility_function, np.inf, max_level_1d, max_nsamples,
-        tol, verbose=verbose)
-    pce.admissibility_function = admissibility_function
+    __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
+                         refinement_indicator, tol, max_nsamples, callback,
+                         max_level_1d)
 
     pce.build(callback)
     return ApproximateResult({'approx': pce})

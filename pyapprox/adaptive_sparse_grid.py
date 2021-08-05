@@ -1062,7 +1062,6 @@ class SubSpaceRefinementManager(object):
         if work_qoi_index is not None:
             raise Exception('This option is deprecated and will be removed')
 
-
     def set_config_variable_index(self, idx, config_var_trans=None):
         if self.function is None:
             msg = 'Must call set_function before entry'
@@ -1138,15 +1137,22 @@ class SubSpaceRefinementManager(object):
             count = item[2]  # index of grid.subspace_indices
             # find num_samples for subspace
             subspace_index = self.subspace_indices[:, count]
-            num_subspace_samples = \
-                self.subspace_values_indices_list[count].shape[0]
+            # num_new_subspace_samples = \
+            #   self.subspace_values_indices_list[count].shape[0]
+            idx1 = self.unique_poly_indices_idx[count]
+            if count < self.unique_poly_indices_idx.shape[0]-1:
+                idx2 = self.unique_poly_indices_idx[count+1]
+            else:
+                idx2 = self.poly_indices.shape[1]
+            num_new_subspace_samples = self.poly_indices[:, idx1:idx2].shape[1]
             # print(num_subspace_samples,subspace_index)
             # compute priority and error for subspace
             priority, error = self.refinement_indicator(
-                subspace_index, num_subspace_samples, self)
+                subspace_index, num_new_subspace_samples, self)
             new_item = (priority, error, count)
             self.active_subspace_queue.put(new_item)
             self.error[count] = error
+            print(subspace_index, priority)
 
     def get_total_work(self):
         return self.num_equivalent_function_evaluations

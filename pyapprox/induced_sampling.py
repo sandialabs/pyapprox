@@ -1034,7 +1034,8 @@ def generate_induced_samples_migliorati(pce, num_samples_per_index):
     return samples[:, np.random.permutation(np.arange(samples.shape[1]))]
 
 
-def compute_preconditioned_canonical_basis_matrix_condition_number(pce, samples):
+def compute_preconditioned_canonical_basis_matrix_condition_number(
+        pce, samples):
     return compute_preconditioned_basis_matrix_condition_number(
         pce.canonical_basis_matrix, samples)
 
@@ -1064,14 +1065,16 @@ def generate_induced_samples_migliorati_tolerance(pce, cond_tol, samples=None,
         pce, new_samples)
 
     if verbosity > 0:
-        print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+        print('\tCond No.', cond, 'No. samples', new_samples.shape[1],
+              "cond_tol", cond_tol)
     while cond > cond_tol:
         new_samples = np.hstack(
             (new_samples, generate_induced_samples_migliorati(pce, 1)))
         cond = compute_preconditioned_canonical_basis_matrix_condition_number(
             pce, new_samples)
         if verbosity > 0:
-            print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+            print('\tCond No.', cond, 'No. samples', new_samples.shape[1],
+                  "cond_tol", cond_tol)
     return new_samples
 
 
@@ -1087,12 +1090,18 @@ def increment_induced_samples_migliorati(pce, cond_tol, samples, indices,
     num_samples = samples.shape[1]
     num_samples_per_new_index = num_samples//indices.shape[1]
     pce.set_indices(new_indices)
+    # must generate a certain number of samples using new indices
+    # so that the combination of these samples with the previous samples
+    # are from the new induced distribution
     new_samples = np.hstack((
         samples, generate_induced_samples_migliorati(
             pce, num_samples_per_new_index)))
     pce.set_indices(np.hstack((indices, new_indices)))
+    # Now sample from all indices to generate samples until cond_tol
+    # is satisfied
     new_samples = generate_induced_samples_migliorati_tolerance(
-        pce, cond_tol, new_samples)
+        pce, cond_tol, new_samples, verbosity)
+    assert np.allclose(pce_indices, np.hstack((indices, new_indices)))
     pce.set_indices(pce_indices)
 
     if verbosity > 0:

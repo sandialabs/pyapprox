@@ -151,7 +151,7 @@ class TestAdaptivePCE(unittest.TestCase):
         print('induced sampling error', error)
         assert error < 1e-7
 
-    def test_adaptive_least_squares_proability_measure_sampling(self):
+    def test_adaptive_least_squares_probability_measure_sampling(self):
         # set cond <1 to use random samples from probaility measure
         num_vars = 2
         alph = 5

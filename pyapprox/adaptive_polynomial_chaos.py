@@ -9,7 +9,8 @@ from pyapprox.multivariate_polynomials import (
 from pyapprox.induced_sampling import (
     increment_induced_samples_migliorati,
     generate_induced_samples_migliorati_tolerance,
-    christoffel_weights
+    christoffel_weights,
+    compute_preconditioned_canonical_basis_matrix_condition_number
 )
 from pyapprox.utilities import (
     add_columns_to_pivoted_lu_factorization,
@@ -21,8 +22,9 @@ from pyapprox.utilities import (
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
 )
 from pyapprox.adaptive_sparse_grid import SubSpaceRefinementManager
-from pyapprox.probability_measure_sampling import \
+from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
+)
 
 
 def get_subspace_active_poly_array_indices(adaptive_pce, ii):
@@ -85,7 +87,6 @@ def solve_preconditioned_least_squares(basis_matrix_func, samples, values,
     weights = precond_func(basis_matrix, samples)
     basis_matrix = basis_matrix*weights[:, np.newaxis]
     rhs = values*weights[:, np.newaxis]
-
     coef = np.linalg.lstsq(basis_matrix, rhs, rcond=None)[0]
     return coef
 
@@ -101,7 +102,6 @@ def solve_preconditioned_orthogonal_matching_pursuit(basis_matrix_func,
     omp = OrthogonalMatchingPursuit(tol=tol, fit_intercept=False)
     omp.fit(basis_matrix, rhs)
     coef = omp.coef_
-
     return coef[:, np.newaxis]
 
 
@@ -110,21 +110,95 @@ def christoffel_preconditioning_function(basis_matrix, samples):
     return weights
 
 
+def generate_probability_samples_tolerance(pce, nindices, cond_tol, samples=None,
+                                           verbosity=0):
+    r"""
+    Add samples in integer increments of nindices.
+    E.g. if try nsamples = nindices, 2*nindices, 3*nindices
+    until condition number is less than tolerance.
+
+    Parameters
+    ----------
+    samples : np.ndarray
+        samples in the canonical domain of the polynomial
+
+    Returns
+    -------
+    new_samples : np.ndarray(nvars, nnew_samples)
+        New samples appended to samples. must be in canonical space
+    """
+    variable = pce.var_trans.variable
+    if samples is None:
+        new_samples = generate_independent_random_samples(
+            variable, nindices)
+        new_samples = pce.var_trans.map_to_canonical_space(new_samples)
+    else:
+        new_samples = samples.copy()
+    cond = compute_preconditioned_canonical_basis_matrix_condition_number(
+        pce, new_samples)
+    if verbosity > 0:
+        print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+    cnt = 1
+    max_nsamples = 100*pce.indices.shape[1]
+    while cond > cond_tol:
+        tmp = generate_independent_random_samples(variable, cnt*nindices)
+        tmp = pce.var_trans.map_to_canonical_space(tmp)
+        new_samples = np.hstack((new_samples, tmp))
+        cond = compute_preconditioned_canonical_basis_matrix_condition_number(
+            pce, new_samples)
+        if verbosity > 0:
+            print('\tCond No.', cond, 'No. samples', new_samples.shape[1])
+        # double number of samples added so loop does not take to long
+        cnt *= 2
+        if new_samples.shape[1] > max_nsamples:
+            msg = "Basis and sample combination is ill conditioned"
+            raise RuntimeError(msg)
+    return new_samples
+
+
+def increment_probability_samples(pce, cond_tol, samples, indices,
+                                  new_indices, verbosity=3):
+    r"""
+    Parameters
+    ----------
+    samples : np.ndarray
+        samples in the canonical domain of the polynomial
+
+    Returns
+    -------
+    new_samples : np.ndarray(nvars, nnew_samples)
+        New samples appended to samples. must be in canonical space
+    """
+    # allocate at one sample for every new basis
+    tmp = generate_independent_random_samples(
+        pce.var_trans.variable, new_indices.shape[1])
+    tmp = pce.var_trans.map_to_canonical_space(tmp)
+    new_samples = np.hstack((samples, tmp))
+    # keep sampling until condition number is below cond_tol
+    new_samples = generate_probability_samples_tolerance(
+        pce, new_indices.shape[1], cond_tol, new_samples, verbosity)
+    if verbosity > 0:
+        print('No. samples', new_samples.shape[1])
+        print('No. initial samples', samples.shape[1])
+        print('No. indices', indices.shape[1], pce.indices.shape[1])
+        print('No. new indices', new_indices.shape[1])
+        print('No. new samples',
+              new_samples.shape[1]-samples.shape[1])
+    return new_samples
+
+
 class AdaptiveInducedPCE(SubSpaceRefinementManager):
-    def __init__(self, num_vars, cond_tol=1e2):
+    def __init__(self, num_vars, cond_tol=1e2, induced_sampling=True):
         super(AdaptiveInducedPCE, self).__init__(num_vars)
         self.cond_tol = cond_tol
         self.fit_opts = {'omp_tol': 0}
         self.set_preconditioning_function(christoffel_preconditioning_function)
         self.fit_function = self._fit
-        if cond_tol < 1:
-            self.induced_sampling = False
+        self.induced_sampling = induced_sampling
+        assert abs(cond_tol) > 1
+        if not induced_sampling:
             self.set_preconditioning_function(
                 precond_func=lambda m, x: np.ones(x.shape[1]))
-            self.sample_ratio = 5
-        else:
-            self.induced_sampling = True
-            self.sample_ratio = None
 
         self.moments = None
 
@@ -143,25 +217,36 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
     def increment_samples(self, current_poly_indices, unique_poly_indices):
         if self.induced_sampling:
-            samples = increment_induced_samples_migliorati(
+            return increment_induced_samples_migliorati(
                 self.pce, self.cond_tol, self.samples,
                 current_poly_indices, unique_poly_indices)
-        else:
+        if self.cond_tol < 0:
+            sample_ratio = -self.cond_tol
             samples = generate_independent_random_samples(
                 self.pce.var_trans.variable,
-                self.sample_ratio*unique_poly_indices.shape[1])
+                sample_ratio*unique_poly_indices.shape[1])
             samples = self.pce.var_trans.map_to_canonical_space(samples)
             samples = np.hstack([self.samples, samples])
-        return samples
+            return samples
+
+        return increment_probability_samples(
+                self.pce, self.cond_tol, self.samples,
+                current_poly_indices, unique_poly_indices)
 
     def allocate_initial_samples(self):
         if self.induced_sampling:
             return generate_induced_samples_migliorati_tolerance(
                 self.pce, self.cond_tol)
-        else:
+
+        if self.cond_tol < 0:
+            sample_ratio = -self.cond_tol
             return generate_independent_random_samples(
                 self.pce.var_trans.variable,
-                self.sample_ratio*self.pce.num_terms())
+                sample_ratio*self.pce.num_terms())
+
+        return generate_probability_samples_tolerance(
+                self.pce, self.pce.num_terms(),
+                self.cond_tol)
 
     def create_new_subspaces_data(self, new_subspace_indices):
         num_current_subspaces = self.subspace_indices.shape[1]
@@ -244,6 +329,17 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
     def num_training_samples(self):
         return self.samples.shape[1]
+
+    def build(self, callback=None):
+        """
+        """
+        while (not self.active_subspace_queue.empty() or
+               self.subspace_indices.shape[1] == 0):
+            self.refine()
+            self.recompute_active_subspace_priorities()
+
+            if callback is not None:
+                callback(self)
 
 
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
@@ -424,14 +520,3 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
     def get_active_unique_poly_indices(self):
         II = get_active_poly_array_indices(self)
         return self.poly_indices[:, II]
-
-    def build(self, callback=None):
-        """
-        """
-        while (not self.active_subspace_queue.empty() or
-               self.subspace_indices.shape[1] == 0):
-            self.refine()
-            self.recompute_active_subspace_priorities()
-
-            if callback is not None:
-                callback(self)

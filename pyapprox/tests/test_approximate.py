@@ -80,7 +80,7 @@ class TestApproximate(unittest.TestCase):
         # print(np.min(errors))
         assert np.min(errors) < 1e-3
 
-    def test_approximate_polynomial_chaos_default_options(self):
+    def test_approximate_polynomial_chaos_leja(self):
         nvars = 3
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
         # we can use different univariate variables than specified by
@@ -89,12 +89,51 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]*nvars
         approx = adaptive_approximate(
             benchmark.fun, univariate_variables,
-            method='polynomial_chaos').approx
+            method='polynomial_chaos',
+            options={"method": "leja",
+                     "options": {"max_nsamples": 100}}).approx
         nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, approx.variable_transformation.variable,
             nsamples)
         assert error < 1e-12
+
+    def test_approximate_polynomial_chaos_induced(self):
+        nvars = 3
+        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        # we can use different univariate variables than specified by
+        # benchmark. In this case we use the same but setup them uphear
+        # to demonstrate this functionality
+        univariate_variables = [stats.uniform(0, 1)]*nvars
+        # approx = adaptive_approximate(
+        #     benchmark.fun, univariate_variables,
+        #     method='polynomial_chaos',
+        #     options={"method": "induced",
+        #              "options": {"max_nsamples": 200,
+        #                          "induced_sampling": True,
+        #                          "cond_tol": 1e8}}).approx
+        # nsamples = 100
+        # error = compute_l2_error(
+        #     approx, benchmark.fun, approx.variable_transformation.variable,
+        #     nsamples)
+        # print(error)
+        # assert error < 1e-5
+
+        # probablility sampling
+        approx = adaptive_approximate(
+            benchmark.fun, univariate_variables,
+            method='polynomial_chaos',
+            options={"method": "induced",
+                     "options": {"max_nsamples": 100,
+                                 "induced_sampling": False,
+                                 "cond_tol": 1e4,
+                                 "max_level_1d": 4, "verbose": 3}}).approx
+        nsamples = 100
+        error = compute_l2_error(
+            approx, benchmark.fun, approx.variable_transformation.variable,
+            nsamples)
+        print(error)
+        assert error < 1e-5
 
     def test_approximate_polynomial_chaos_custom_poly_type(self):
         benchmark = setup_benchmark('ishigami', a=7, b=0.1)
