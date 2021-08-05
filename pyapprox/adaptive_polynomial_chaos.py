@@ -21,7 +21,8 @@ from pyapprox.utilities import (
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
 )
 from pyapprox.adaptive_sparse_grid import SubSpaceRefinementManager
-from pyapprox.probability_measure_sampling import generate_independent_random_samples
+from pyapprox.probability_measure_sampling import \
+    generate_independent_random_samples
 
 
 def get_subspace_active_poly_array_indices(adaptive_pce, ii):
@@ -51,8 +52,8 @@ def variance_pce_refinement_indicator(
     """
     key = hash_array(subspace_index)
     ii = adaptive_pce.active_subspace_indices_dict[key]
-    I = get_subspace_active_poly_array_indices(adaptive_pce, ii)
-    error = np.sum(adaptive_pce.pce.coefficients[I]**2, axis=0)
+    II = get_subspace_active_poly_array_indices(adaptive_pce, ii)
+    error = np.sum(adaptive_pce.pce.coefficients[II]**2, axis=0)
     indicator = error.copy()
 
     if normalize:
@@ -147,16 +148,20 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
                 current_poly_indices, unique_poly_indices)
         else:
             samples = generate_independent_random_samples(
-                self.pce.var_trans.variable, self.sample_ratio*unique_poly_indices.shape[1])
+                self.pce.var_trans.variable,
+                self.sample_ratio*unique_poly_indices.shape[1])
             samples = self.pce.var_trans.map_to_canonical_space(samples)
             samples = np.hstack([self.samples, samples])
         return samples
 
     def allocate_initial_samples(self):
         if self.induced_sampling:
-            return generate_induced_samples_migliorati_tolerance(self.pce, self.cond_tol)
+            return generate_induced_samples_migliorati_tolerance(
+                self.pce, self.cond_tol)
         else:
-            return generate_independent_random_samples(self.pce.var_trans.variable, self.sample_ratio*self.pce.num_terms())
+            return generate_independent_random_samples(
+                self.pce.var_trans.variable,
+                self.sample_ratio*self.pce.num_terms())
 
     def create_new_subspaces_data(self, new_subspace_indices):
         num_current_subspaces = self.subspace_indices.shape[1]
@@ -171,16 +176,16 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         num_vars, num_new_subspaces = new_subspace_indices.shape
         unique_poly_indices = np.zeros((num_vars, 0), dtype=int)
         for ii in range(num_new_subspaces):
-            I = get_subspace_active_poly_array_indices(
+            II = get_subspace_active_poly_array_indices(
                 self, num_current_subspaces+ii)
             unique_poly_indices = np.hstack(
-                [unique_poly_indices, self.poly_indices[:, I]])
+                [unique_poly_indices, self.poly_indices[:, II]])
 
         # Current_poly_indices will include active indices not added
         # during this call, i.e. in new_subspace_indices.
         # thus cannot use
-        # I = get_active_poly_array_indices(self)
-        # unique_poly_indices = self.poly_indices[:,I]
+        # II = get_active_poly_array_indices(self)
+        # unique_poly_indices = self.poly_indices[:,II]
         # to replace above loop
         current_poly_indices = self.poly_indices[
             :, :self.unique_poly_indices_idx[num_current_subspaces]]
@@ -211,8 +216,8 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
     def fit(self):
         return self.fit_function(
-            self.pce, self.pce.canonical_basis_matrix, self.samples, self.values,
-            **self.fit_opts)
+            self.pce, self.pce.canonical_basis_matrix, self.samples,
+            self.values, **self.fit_opts)
 
     def add_new_subspaces(self, new_subspace_indices):
         num_new_subspace_samples = super(
@@ -226,8 +231,8 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
         return self.pce(samples)
 
     def get_active_unique_poly_indices(self):
-        I = get_active_poly_array_indices(self)
-        return self.poly_indices[:, I]
+        II = get_active_poly_array_indices(self)
+        return self.poly_indices[:, II]
 
     def set_preconditioning_function(self, precond_func):
         """
@@ -246,8 +251,9 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         # TODO: remove cond_tol from __init__
         super(AdaptiveLejaPCE, self).__init__(num_vars, 1e-8)
 
-        # Make sure correct preconditioning function is used. AdaptiveInducedPCE
-        # has some internal logic that can overide default we want
+        # Make sure correct preconditioning function is used.
+        # AdaptiveInducedPCE has some internal logic that can overide default
+        # we want
         self.set_preconditioning_function(christoffel_preconditioning_function)
 
         # Must be in canonical space
@@ -270,9 +276,9 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
 
         num_new_subspace_samples = np.empty((num_new_subspaces), dtype=int)
         for ii in range(num_new_subspaces):
-            I = get_subspace_active_poly_array_indices(
+            II = get_subspace_active_poly_array_indices(
                 self, num_current_subspaces+ii)
-            num_new_subspace_samples[ii] = I.shape[0]
+            num_new_subspace_samples[ii] = II.shape[0]
         return num_new_subspace_samples
 
     def condition_number(self):
@@ -303,7 +309,8 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         num_initial_rows = num_samples
         self.L_factor, self.U_factor, pivots =\
             truncated_pivoted_lu_factorization(
-                precond_basis_matrix, max_iters, num_initial_rows=num_initial_rows)
+                precond_basis_matrix, max_iters,
+                num_initial_rows=num_initial_rows)
         self.pivots = np.arange(num_samples)[pivots[:num_initial_rows]]
         self.pivots = np.concatenate(
             [self.pivots, np.arange(num_initial_rows, pivots.shape[0])])
@@ -335,10 +342,10 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         num_vars, num_new_subspaces = new_subspace_indices.shape
         unique_poly_indices = np.zeros((num_vars, 0), dtype=int)
         for ii in range(num_new_subspaces):
-            I = get_subspace_active_poly_array_indices(
+            II = get_subspace_active_poly_array_indices(
                 self, num_current_subspaces+ii)
             unique_poly_indices = np.hstack(
-                [unique_poly_indices, self.poly_indices[:, I]])
+                [unique_poly_indices, self.poly_indices[:, II]])
         self.pce.set_indices(unique_poly_indices)
 
         precond_weights_prev = self.precond_weights
@@ -415,8 +422,8 @@ class AdaptiveLejaPCE(AdaptiveInducedPCE):
         return self.pce(samples)
 
     def get_active_unique_poly_indices(self):
-        I = get_active_poly_array_indices(self)
-        return self.poly_indices[:, I]
+        II = get_active_poly_array_indices(self)
+        return self.poly_indices[:, II]
 
     def build(self, callback=None):
         """
