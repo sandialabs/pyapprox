@@ -8,7 +8,6 @@ from pyapprox.variables import (
     IndependentMultivariateRandomVariable,
     DesignVariable
 )
-
 from pyapprox.models.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
@@ -306,6 +305,7 @@ class ChemicalReactionModel(object):
     Vigil et al., Phys. Rev. E., 1996; Makeev et al., J. Chem. Phys., 2002
     Bert dubescere used this example 2014 talk
     """
+
     def __init__(self, qoi_functional=None, final_time=100):
         self.qoi_functional = qoi_functional
         self.time = np.arange(0, final_time+0.2, 0.2)
@@ -346,7 +346,7 @@ def random_oscillator_rhs(y, t, z):
 
 class RandomOscillator(object):
     def __init__(self, qoi_functional=None):
-        self.num_dims = 6
+        self.num_vars = 6
         self.t = np.arange(0, 20, 0.1)
         self.num_qoi = 1
         self.name = 'random-oscillator-6'
@@ -430,3 +430,89 @@ class RandomOscillator(object):
     def __call__(self, samples):
         return evaluate_1darray_function_on_2d_array(
             self.value, samples, None)
+
+
+def get_coupled_springs_nominal_values():
+    return np.array([1., 1.5, 8., 40., 0.5, 1.0, 0.8, 0.5,
+                     0.5, 0.0, 2.25, 0.0], np.double)
+
+
+def define_coupled_springs_random_variables():
+    ranges = np.array([0.9, 1.1,  1.4, 1.6,  7., 9.,  39., 41.,
+                       0.4, 0.6,  0.9, 1.1,  0.7, 0.9,  0.4, 0.6,
+                       0.4, 0.6,  -0.1, 0.1,  2.2, 2.3,  -0.1, 0.1],
+                      np.double)
+    univariate_variables = [
+        stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
+        for ii in range(len(ranges)//2)]
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    return variable
+
+
+@njit(cache=True)
+def coupled_springs_rhs(y, t, z):
+    """
+    Defines the differential equations for the coupled spring-mass system.
+
+    Arguments:
+    w :  vector of the state variables:
+    w = [x1, y1, x2, y2]
+    t :  time
+    p :  vector of the parameters:
+    p = [m1, m2, k1, k2, L1, L2, b1, b2
+
+    m1 and m2 are the masses
+    k1 and k2 are the spring constants
+    L1 and L2 are the natural lengths
+    b1 abd b2 are the friction coefficients
+    x1 and x2 are the initial displacements;
+    y1 and y2 are the initial velocities
+    """
+    x1, y1, x2, y2 = y
+    m1, m2, k1, k2, L1, L2, b1, b2 = z[:8]
+    return [y1, (-b1*y1-k1*(x1-L1)+k2*(x2-x1-L2))/m1,
+            y2, (-b2*y2-k2*(x2-x1-L2))/m2]
+
+
+class CoupledSprings(object):
+    """
+    Two objects with masses m1 and m2 are coupled through springs with
+    spring constants k1 and k2. The left end of the left spring is fixed.
+    We assume that the lengths of the springs, when subjected to no external
+    forces, are L1 and L2.
+
+    The masses are sliding on a surface that creates friction,
+    so there are two friction coefficients, b1 and b2.
+    http://www.scipy.org/Cookbook/CoupledSpringMassSystem
+    """
+
+    def __init__(self, qoi_functional=None):
+        self.num_vars = 12
+        self.t = np.arange(0., 10., .1)
+        self.num_qoi = 1
+        self.name = 'coupled-springs-12'
+        if qoi_functional is None:
+            self.qoi_functional = lambda sol: np.array([sol[-1]])
+        else:
+            self.qoi_functional = qoi_functional
+
+    def run(self, z):
+        assert z.ndim == 1
+        abserr = 1.0e-8
+        relerr = 1.0e-6
+        y0 = [z[8], z[9], z[10], z[11]]
+        return integrate.odeint(
+            coupled_springs_rhs, y0, self.t, args=(z,),
+            atol=abserr, rtol=relerr)[:, ::2]
+
+    def value(self, z):
+        assert z.ndim == 1
+        sol = self.run(z)
+        print(sol.shape)
+        assert False
+        return self.qoi_functional(sol)
+
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(
+            self.value, samples, None)
+

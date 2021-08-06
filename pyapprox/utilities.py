@@ -1897,3 +1897,7 @@ def unique_elements_from_2D_list(list_2d):
 
 def flatten_2D_list(list_2d):
     return [item for sub in list_2d for item in sub]
+
+def qr_solve(Q, R, rhs):
+    tmp = np.dot(Q.T, rhs)
+    return solve_triangular(R, tmp, lower=False)

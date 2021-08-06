@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from scipy.linalg import lu_factor, lu as scipy_lu
+from scipy.linalg import lu_factor, lu as scipy_lu, qr as qr_factorization
 
 from pyapprox.utilities import *
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
@@ -562,6 +562,7 @@ class TestUtilities(unittest.TestCase):
         A = A.T.dot(A)
         L_np = np.linalg.cholesky(A)
         L = cholesky_decomposition(A)
+        assert np.allclose(L, L_np)
 
     def test_pivoted_cholesky_decomposition(self):
         nrows, npivots = 4, 4
@@ -1090,6 +1091,14 @@ class TestUtilities(unittest.TestCase):
             integrand, lb, ub, nquad_samples, interval_size=2)
         assert np.allclose(res, [1, 2, 3**2+2**2])
 
+    def test_qr_solve(self):
+        nrows = 3
+        rhs = np.random.normal(0., 1., (nrows, 1))
+        A = np.random.normal(0., 1., (nrows, nrows))
+        A = A.T.dot(A)
+        Q, R = qr_factorization(A)
+        sol = qr_solve(Q, R, rhs)
+        assert np.allclose(sol, np.linalg.solve(A, rhs))
 
 if __name__ == "__main__":
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(

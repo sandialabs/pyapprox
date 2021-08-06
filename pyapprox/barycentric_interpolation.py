@@ -337,8 +337,8 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                         break
                 result[kk, :] = c_persistent[:, num_act_dims_pt-1] / denom
                 if np.any(np.isnan(result[kk, :])):
-                    #print (c_persistent [:,num_act_dims_pt-1])
-                    #print (denom)
+                    # print (c_persistent [:,num_act_dims_pt-1])
+                    # print (denom)
                     raise ValueError('Error values not finite')
     return result
 

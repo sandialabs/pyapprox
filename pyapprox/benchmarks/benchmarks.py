@@ -19,7 +19,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     define_wing_weight_random_variables, wing_weight_function,
     wing_weight_gradient, define_chemical_reaction_random_variables,
     ChemicalReactionModel, define_random_oscillator_random_variables,
-    RandomOscillator, piston_function_gradient
+    RandomOscillator, piston_function_gradient, CoupledSprings,
+    define_coupled_springs_random_variables
     )
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
@@ -391,7 +392,8 @@ def setup_benchmark(name, **kwargs):
                   'wing_weight': setup_wing_weight_benchmark,
                   'piston': setup_piston_benchmark,
                   'chemical_reaction': setup_chemical_reaction_benchmark,
-                  'random_oscillator': setup_random_oscillator_benchmark}
+                  'random_oscillator': setup_random_oscillator_benchmark,
+                  'coupled_springs': setup_coupled_springs_benchmark}
     if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -529,6 +531,14 @@ def setup_chemical_reaction_benchmark():
 def setup_random_oscillator_benchmark():
     variable = define_random_oscillator_random_variables()
     model = RandomOscillator()
+    attributes = {'fun': model,
+                  'variable': variable}
+    return Benchmark(attributes)
+
+
+def setup_coupled_springs_benchmark():
+    variable = define_coupled_springs_random_variables()
+    model = CoupledSprings()
     attributes = {'fun': model,
                   'variable': variable}
     return Benchmark(attributes)
