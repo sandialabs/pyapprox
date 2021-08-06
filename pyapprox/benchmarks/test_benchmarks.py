@@ -100,6 +100,22 @@ class TestBenchmarks(unittest.TestCase):
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 
+    def test_random_oscillator_analytical_solution(self):
+        benchmark = setup_benchmark("random_oscillator")
+        time = benchmark.fun.t
+        sample = benchmark.variable.get_statistics("mean")
+        asol = benchmark.fun.analytical_solution(sample, time)
+        nsol = benchmark.fun.numerical_solution(sample.squeeze())
+        assert np.allclose(asol, nsol[:, 0])
+
+    def test_piston_gradient(self):
+        benchmark = setup_benchmark("piston")
+        sample = pya.generate_independent_random_samples(benchmark.variable, 1)
+        print(benchmark.jac(sample))
+        errors = pya.check_gradients(benchmark.fun, benchmark. jac, sample)
+        errors = errors[np.isfinite(errors)]
+        assert errors.max() > 0.1 and errors.min() <= 6e-7
+
 
 if __name__ == "__main__":
     benchmarks_test_suite = unittest.TestLoader().loadTestsFromTestCase(
