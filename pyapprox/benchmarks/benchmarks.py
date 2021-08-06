@@ -3,18 +3,23 @@ from scipy import stats
 from functools import partial
 
 import pyapprox as pya
-from pyapprox.benchmarks.sensitivity_benchmarks import \
-    get_sobol_g_function_statistics, get_ishigami_funciton_statistics, \
-    oakley_function, oakley_function_statistics, sobol_g_function, \
+from pyapprox.benchmarks.sensitivity_benchmarks import (
+    get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
+    oakley_function, oakley_function_statistics, sobol_g_function,
     ishigami_function, ishigami_function_jacobian, ishigami_function_hessian
-from pyapprox.benchmarks.surrogate_benchmarks import rosenbrock_function, \
-    rosenbrock_function_jacobian, rosenbrock_function_hessian_prod, \
-    rosenbrock_function_mean, cantilever_beam_constraints_jacobian, \
-    cantilever_beam_constraints, cantilever_beam_objective, \
-    cantilever_beam_objective_grad, define_beam_random_variables, \
-    define_piston_random_variables, piston_function, \
-    define_wing_weight_random_variables, wing_weight_function, \
-    wing_weight_gradient
+    )
+
+from pyapprox.benchmarks.surrogate_benchmarks import (
+    rosenbrock_function,
+    rosenbrock_function_jacobian, rosenbrock_function_hessian_prod,
+    rosenbrock_function_mean, cantilever_beam_constraints_jacobian,
+    cantilever_beam_constraints, cantilever_beam_objective,
+    cantilever_beam_objective_grad, define_beam_random_variables,
+    define_piston_random_variables, piston_function,
+    define_wing_weight_random_variables, wing_weight_function,
+    wing_weight_gradient, define_chemical_reaction_random_variables,
+    ChemicalReactionModel
+    )
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
 
@@ -383,7 +388,8 @@ def setup_benchmark(name, **kwargs):
                   'genz': setup_genz_function,
                   'cantilever_beam': setup_cantilever_beam_benchmark,
                   'wing_weight': setup_wing_weight_benchmark,
-                  'piston': setup_piston_benchmark}
+                  'piston': setup_piston_benchmark,
+                  'chemical_reaction': setup_chemical_reaction_benchmark}
     if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -493,4 +499,25 @@ def setup_wing_weight_benchmark():
     attributes = {'fun': wing_weight_function,
                   'variable': variable,
                   'jac':  wing_weight_gradient}
+    return Benchmark(attributes)
+
+
+def setup_chemical_reaction_benchmark():
+    """
+    Setup the chemical reaction model benchmark
+
+    Model of species absorbing onto a surface out of gas phase
+    # u = y[0] = monomer species
+    # v = y[1] = dimer species
+    # w = y[2] = inert species
+
+    References
+    ----------
+    Vigil et al., Phys. Rev. E., 1996; Makeev et al., J. Chem. Phys., 2002
+    Bert Debuschere used this example 2014 talk
+    """
+    variable = define_chemical_reaction_random_variables()
+    model = ChemicalReactionModel()
+    attributes = {'fun': model,
+                  'variable': variable}
     return Benchmark(attributes)

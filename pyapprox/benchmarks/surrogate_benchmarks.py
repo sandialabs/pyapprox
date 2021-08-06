@@ -1,8 +1,17 @@
 from scipy import stats
-from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    DesignVariable
 import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
+from scipy import integrate
+from numba import njit
+
+from pyapprox.variables import (
+    IndependentMultivariateRandomVariable,
+    DesignVariable
+)
+
+from pyapprox.models.wrappers import (
+    evaluate_1darray_function_on_2d_array
+)
 
 
 def rosenbrock_function(samples):
@@ -215,3 +224,66 @@ def define_wing_weight_random_variables():
         stats.uniform(0.025, 0.055)]
     variable = IndependentMultivariateRandomVariable(univariate_variables)
     return variable
+
+
+def get_chemical_reaction_variable_ranges():
+    nominal_vars = np.array(
+        [1.6, 20.75, 0.04, 1.0, 0.36, 0.016], np.double)
+    ranges = np.empty(2*nominal_vars.shape[0])
+    ranges[:4] = [0., 4, 5., 35.]
+    ranges[4::2] = nominal_vars[2:]*0.9
+    ranges[5::2] = nominal_vars[2:]*1.1
+    return nominal_vars, ranges
+
+
+def define_chemical_reaction_random_variables():
+    nominal_vars, ranges = get_chemical_reaction_variable_ranges()
+    univariate_variables = [
+        stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
+        for ii in range(len(ranges)//2)]
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    return variable
+
+
+@njit(cache=True)
+def chemical_reaction_rhs(sol, time, params):
+    a, b, c, d, e, f = params
+    z = 1. - sol[0] - sol[1] - sol[2]
+    return (a*z - c*sol[0] - 4*d*sol[0]*sol[1],
+            2*b*z**2 - 4*d*sol[0]*sol[1],
+            e*z - f*sol[2])
+
+
+def solve_chemical_reaction_model(z, time):
+    y0 = [0., 0., 0.]
+    y = integrate.odeint(chemical_reaction_rhs, y0, time,
+                         args=(z,))
+    return y
+
+
+class ChemicalReactionModel(object):
+    """
+    Model of species absorbing onto a surface out of gas phase
+    # u = y[0] = monomer species
+    # v = y[1] = dimer species
+    # w = y[2] = inert species
+
+    Vigil et al., Phys. Rev. E., 1996; Makeev et al., J. Chem. Phys., 2002
+    Bert dubescere used this example 2014 talk
+    """
+    def __init__(self, qoi_functional=None, final_time=100):
+        self.qoi_functional = qoi_functional
+        self.time = np.arange(0, final_time+0.2, 0.2)
+        self.nominal_vars, self.var_ranges = \
+            get_chemical_reaction_variable_ranges()
+        if self.qoi_functional is None:
+            self.qoi_functional = lambda sol: np.array([sol[-1, 0]])
+
+    def value(self, sample):
+        assert sample.ndim == 1
+        y = solve_chemical_reaction_model(sample, self.time)
+        return self.qoi_functional(y)
+
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(
+            self.value, samples, None)

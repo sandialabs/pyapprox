@@ -1,5 +1,3 @@
-from pyapprox.utilities import get_all_sample_combinations
-from pyapprox.utilities import hash_array
 import time
 import numpy as np
 import subprocess
@@ -8,11 +6,14 @@ import glob
 from functools import partial
 from multiprocessing import Pool
 
+from pyapprox.utilities import get_all_sample_combinations
+from pyapprox.utilities import hash_array
+
 
 def get_num_args(function):
     """
     Return the number of arguments of a function.
-    If function is a member function of a class the self argument is not 
+    If function is a member function of a class the self argument is not
     counted.
 
     Parameters
@@ -56,7 +57,7 @@ def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
         ``function(sample) -> np.ndarray```
 
         where sample is a 1d np.ndarray of shape (num_vars) and the output is
-        a np.ndarray of values of shape (num_qoi). The output can also be a 
+        a np.ndarray of values of shape (num_qoi). The output can also be a
         scalar
 
     samples : np.ndarray (num_vars, num_samples)
@@ -129,7 +130,7 @@ def run_shell_command(shell_command, opts={}):
     filename = opts.get('filename', None)
 
     if output_verbosity == 0:
-        out = subprocess.check_output(shell_command, shell=True, env=env)
+        subprocess.check_output(shell_command, shell=True, env=env)
     elif output_verbosity == 1:
         if filename is None:
             filename = 'shell_command.out'
@@ -310,7 +311,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
     """
     Warning
     -------
-    pool.map serializes each argument and so if model is a class, 
+    pool.map serializes each argument and so if model is a class,
     any of its member variables that are updated in __call__ will not
     persist once each __call__ to pool completes.
     """
@@ -330,7 +331,7 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
         pool_given = True
     result = pool.map(
         model, [(samples[:, ii:ii+1]) for ii in range(samples.shape[1])])
-    if pool_given == False:
+    if pool_given is False:
         pool.close()
 
     # result  = [model(samples[:, ii:ii+1]) for ii in range(samples.shape[1])]
@@ -362,17 +363,17 @@ class TimerModelWrapper(object):
 
     def x__getattr__(self, name):
         """
-        Cannot get following to work 
+        Cannot get following to work
 
         If defining a custom __getattr__ it seems I cannot have member
         variables with the same name in this class and class definition
         of function
 
-        if self.function is itself a model object allow the access of 
+        if self.function is itself a model object allow the access of
         self.function.name using self.name
 
-        Note  __getattr__ 
-        will be invoked on python objects only when the requested 
+        Note  __getattr__
+        will be invoked on python objects only when the requested
         attribute is not found in the particular object's space.
         """
 
@@ -389,9 +390,9 @@ class TimerModelWrapper(object):
 
 class WorkTracker(object):
     """
-    Store the cost needed to evaluate a function under different configurations,
-    e.g. mesh resolution of a finite element model used to solve a PDE.
-
+    Store the cost needed to evaluate a function under different
+    configurations, e.g. mesh resolution of a finite element model
+    used to solve a PDE.
     """
 
     def __init__(self):
@@ -463,17 +464,17 @@ class WorkTrackingModel(object):
         Parameters
         ----------
         function : callable
-            A function with signature 
+            A function with signature
 
             ``function(w) -> np.ndarray (nsamples,nqoi+1)``
 
              where ``w`` is a np.ndarray of shape (nvars,nsamples).
-             The last qoi returned by function (i.e. the last column of the 
+             The last qoi returned by function (i.e. the last column of the
              output array) must be the cost of the simulation. This column
              is removed from the output of __call__.
 
         base_model : callable
-            A function with signature 
+            A function with signature
 
             ``base_model(w) -> float``
 
@@ -484,7 +485,7 @@ class WorkTrackingModel(object):
              of the base_model.
 
         num_config_vars : integer
-             The number of configuration variables of fun. For most functions 
+             The number of configuration variables of fun. For most functions
              this will be zero.
 
         Notes
@@ -510,12 +511,11 @@ class WorkTrackingModel(object):
         Returns
         -------
         values : np.ndarray (nsamples,nqoi)
-            The values of self.function. The last qoi returned by self.function 
-            (i.e. the last column of the output array of size (nsamples,nqoi+1) 
+            The values of self.function. The last qoi returned by self.function
+            (i.e. the last column of the output array of size (nsamples,nqoi+1)
             is the cost of the simulation. This column is not included in
             values.
         """
-        #data = self.wt_function(samples)
         data = eval(self.wt_function, samples)
         values = data[:, :-1]
         work = data[:, -1]
@@ -545,35 +545,37 @@ class PoolModel(object):
     def __init__(self, function, max_eval_concurrency, assert_omp=True,
                  base_model=None):
         """
-        Evaluate a function at multiple samples in parallel using 
+        Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool
 
         Parameters
         ----------
         function : callable
-            A function with signature 
+            A function with signature
 
             ``function(w) -> np.ndarray (nsamples,nqoi+1)``
 
              where ``w`` is a np.ndarray of shape (nvars,nsamples).
 
         max_eval_concurrency : integer
-            The maximum number of simulations that can be run in parallel. 
-            Should be no more than the maximum number of cores on the computer 
+            The maximum number of simulations that can be run in parallel.
+            Should be no more than the maximum number of cores on the computer
             being used
 
         assert_omp : boolean
-            If True make sure that python is only using one thread per model 
-            instance. On OSX and Linux machines this means that the environement
-            variable OMP_NUM_THREADS has been set to 1 with, e.g. 
+            If True make sure that python is only using one thread per model
+            instance. On OSX and Linux machines this means that the
+            environement variable OMP_NUM_THREADS has been set to 1 with, e.g.
             export OMP_NUM_THREADS=1
 
-            This is useful because often many python packages, e.g. SciPy, NumPy
-            use multiple threads and this can cause running multiple evaluations
-            of function to be slow because of resource allocation issues.
+            This is useful because often many python packages,
+            e.g. SciPy, NumPy
+            use multiple threads and this can cause running multiple
+            evaluations of function to be slow because of resource allocation
+            issues.
 
         base_model : callable
-            A function with signature 
+            A function with signature
 
             ``base_model(w) -> float``
 
@@ -602,15 +604,15 @@ class PoolModel(object):
         Parameters
         ----------
         max_eval_concurrency : integer
-            The maximum number of simulations that can be run in parallel. 
-            Should be no more than the maximum number of cores on the computer 
+            The maximum number of simulations that can be run in parallel.
+            Should be no more than the maximum number of cores on the computer
             being used
         """
         self.max_eval_concurrency = max_eval_concurrency
 
     def __call__(self, samples):
         """
-        Evaluate a function at multiple samples in parallel using 
+        Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool
 
         Parameters
@@ -635,7 +637,6 @@ def get_active_set_model_from_variable(function, variable, active_var_indices,
     model = ActiveSetVariableModel(
         function, variable.num_vars(), inactive_var_values, active_var_indices)
     return model, active_variable
-
 
 
 class ActiveSetVariableModel(object):
@@ -710,7 +711,7 @@ def default_map_to_multidimensional_index(num_config_vars, indices):
 
 class MultiLevelWrapper(object):
     """
-    Specify a one-dimension model hierachy from a multiple dimensional 
+    Specify a one-dimension model hierachy from a multiple dimensional
     hierarchy
     For example if model has configure variables which refine the x and y
     physical directions then one can specify a multilevel hierarchy by creating
