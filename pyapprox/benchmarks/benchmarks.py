@@ -20,7 +20,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     wing_weight_gradient, define_chemical_reaction_random_variables,
     ChemicalReactionModel, define_random_oscillator_random_variables,
     RandomOscillator, piston_function_gradient, CoupledSprings,
-    define_coupled_springs_random_variables
+    define_coupled_springs_random_variables, HastingsEcology,
+    define_hastings_ecology_random_variables
     )
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
@@ -393,7 +394,8 @@ def setup_benchmark(name, **kwargs):
                   'piston': setup_piston_benchmark,
                   'chemical_reaction': setup_chemical_reaction_benchmark,
                   'random_oscillator': setup_random_oscillator_benchmark,
-                  'coupled_springs': setup_coupled_springs_benchmark}
+                  'coupled_springs': setup_coupled_springs_benchmark,
+                  'hastings_ecology': setup_hastings_ecology_benchmark}
     if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -539,6 +541,14 @@ def setup_random_oscillator_benchmark():
 def setup_coupled_springs_benchmark():
     variable = define_coupled_springs_random_variables()
     model = CoupledSprings()
+    attributes = {'fun': model,
+                  'variable': variable}
+    return Benchmark(attributes)
+
+
+def setup_hastings_ecology_benchmark():
+    variable = define_hastings_ecology_random_variables()
+    model = HastingsEcology()
     attributes = {'fun': model,
                   'variable': variable}
     return Benchmark(attributes)

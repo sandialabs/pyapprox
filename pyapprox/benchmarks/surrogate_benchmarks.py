@@ -492,7 +492,7 @@ class CoupledSprings(object):
         self.num_qoi = 1
         self.name = 'coupled-springs-12'
         if qoi_functional is None:
-            self.qoi_functional = lambda sol: np.array([sol[-1]])
+            self.qoi_functional = lambda sol: np.array([sol[-1, 0]])
         else:
             self.qoi_functional = qoi_functional
 
@@ -508,11 +508,97 @@ class CoupledSprings(object):
     def value(self, z):
         assert z.ndim == 1
         sol = self.run(z)
-        print(sol.shape)
-        assert False
         return self.qoi_functional(sol)
 
     def __call__(self, samples):
         return evaluate_1darray_function_on_2d_array(
             self.value, samples, None)
 
+
+def get_hastings_ecology_nominal_values():
+    return np.array([5.0, 4.1, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0],
+                    np.double)
+
+
+def define_hastings_ecology_random_variables():
+    nominal_sample = get_hastings_ecology_nominal_values()
+    ranges = np.zeros((2*len(nominal_sample)), np.double)
+    ranges[::2] = nominal_sample*0.9
+    ranges[1::2] = nominal_sample*1.1
+    univariate_variables = [
+        stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
+        for ii in range(len(ranges)//2)]
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    return variable
+
+
+@njit(cache=True)
+def hastings_ecology_rhs(y, t, z):
+    """
+    """
+    y1, y2, y3 = y
+    a1, b1, a2, b2, d1, d2 = z[:6]
+    return [y1*(1-y1)-a1*y1*y2/(1+b1*y1),
+            a1*y1*y2/(1.0 + b1*y1) - a2*y2*y3/(1.0 + b2*y2) - d1*y2,
+            a2*y2*y3/(1.0 + b2*y2) - d2*y3]
+
+
+class HastingsEcology(object):
+    """
+    http://www.jstor.org/stable/1940591
+
+    Original model
+
+    dY1/dT = R_0 Y_1(1-Y_1/K_0)-C_1 F_1(Y_1) Y_2
+    dY1/dT = F_1(Y_1) Y_2 - F_2(Y_2) Y_3 - D_1 Y_2
+    dY1/dT = C_2 F_2(Y_2) Y_3 - D_2 Y_3
+
+    F_i(U) = A_iU/(B_i+U) i=1,2
+
+    T is time
+    R0 intrinsic growth rate
+    K0 carry capacity
+    C1 conversion rate to prey for species y2
+    C2 conversion rate to prey for species y3
+    D1 constant death rate for species y2
+    D2 constant death rate for species y3
+    A1 saturating functional response for f1
+    A2 saturating functional response for f2
+    B1 prey population level where the predator rate per unit prey
+       is half its maximum value for f1
+    B1 prey population level where the predator rate per unit prey
+       is half its maximum value for f2
+
+    Model is non-dimensionalized
+    a_1 = K_0 A_1/(R_0 B_1)
+    b_1 = K_0/B_1
+    a_1 = C_2 A_2 K_0/(C_1 R_0 B_2)
+    b_1 = K0/(C_1 B_2)
+    d_1 = D_1/R_0
+    d_2 = D_2/R_0
+    """
+
+    def __init__(self, qoi_functional=None):
+        self.num_vars = 12
+        self.t = np.arange(0., 100)
+        self.num_qoi = 1
+        self.name = 'hastings-ecology-6'
+        if qoi_functional is None:
+            self.qoi_functional = lambda sol: np.array([sol[-1, 0]])
+        else:
+            self.qoi_functional = qoi_functional
+
+    def run(self, z):
+        assert z.ndim == 1
+        y0 = z[6:]
+        return integrate.odeint(
+            hastings_ecology_rhs, y0, self.t, args=(z,))
+
+    def value(self, z):
+        assert z.ndim == 1
+        sol = self.run(z)
+        return self.qoi_functional(sol)
+
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(
+            self.value, samples, None)

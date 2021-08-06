@@ -547,7 +547,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         errors = pya.check_gradients(
             model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
         errors = errors[np.isfinite(errors)]
-        assert errors.max() > 0.1 and errors.min() <= 2e-6
+        assert errors.max() > 0.1 and errors.min() <= 4e-6
 
 
 if __name__ == "__main__":
