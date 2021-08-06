@@ -11,6 +11,7 @@ import pyapprox as pya
 
 class TestSpectralDiffusion2D(unittest.TestCase):
     def setUp(self):
+        np.random.seed(1)
         self.eps = 2 * np.finfo(np.float).eps
 
     def test_derivative_matrix(self):
@@ -85,7 +86,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         def exact_sol(x): return np.log(x+1.) / np.log(2.) - x
         assert np.linalg.norm(exact_sol(mesh_pts.squeeze())-solution) < 3e-13
 
-    def test_integrate(self):
+    def test_integrate_1d(self):
         order = 4
         model = SteadyStateDiffusionEquation1D()
         bndry_cond = [0.0, 0.0]
@@ -130,7 +131,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             -(qoi_coords*np.log(9./4.)-2.*np.log(qoi_coords+2.) +
               np.log(4.))/np.log(3./2.), qoi)
 
-    def test_evaluate_gradient(self):
+    def test_evaluate_gradient_1d(self):
         """
         for the PDE ((1+sum(z^2)*x)*u(x)')' = -2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
@@ -146,7 +147,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
         model.diffusivity_function = lambda x, z: (z[0]**2+z[1]**2)*x + 1.
         model.forcing_function = lambda x, z: 0*x-2
-        model.qoi_coords = np.array([0.05, 0.5, 0.95])
 
         sample = np.random.RandomState(2).uniform(-1, 1, (2, 1))
         model.diffusivity_derivs_function = \
@@ -497,6 +497,57 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         eval_samples = np.array([[1./np.sqrt(2), 1./np.sqrt(2)]]).T
         qoi = model.interpolate(solution, eval_samples)
         assert np.allclose(qoi, 0.32071594511)
+
+    def test_integrate_2d(self):
+        order = 4
+        model = SteadyStateDiffusionEquation2D()
+        bndry_cond = [0.0, 0.0]
+        lims = [0., 1., 0., 1.]
+        model.initialize(order, bndry_cond, lims)
+        mesh_pts = model.get_collocation_points()
+        assert np.allclose(
+            model.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 2./3.)
+
+        order = 4
+        model = SteadyStateDiffusionEquation2D()
+        bndry_cond = [0.0, 0.0]
+        lims = [-1., 1., -1., 1.]
+        model.initialize(order, bndry_cond, lims)
+        mesh_pts = model.get_collocation_points()
+        assert np.allclose(
+            model.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 8./3.)
+
+    def test_evaluate_gradient_2d(self):
+        """
+        for the PDE ((1+sum(z^2)*x)*u(x)')' = -2, u(0) = 0, u(1) = 1
+        use model.evaluate_gradient to evaluate the gradient of the QoI
+        with respect to the random parameter vector z.
+        The QoI is the intergral of the solution over the entire domain
+        The adjoint rhs is then just 1.
+        """
+        order = 20
+        model = SteadyStateDiffusionEquation2D()
+        lims = [0., 1., 0., 1.]
+        bndry_cond = [0., 0.]
+        model.initialize(order, bndry_cond, lims)
+
+        model.diffusivity_function = \
+            lambda x, z: (z[0]**2+z[1]**2)*(x[0]+x[1]) + 1.
+        model.forcing_function = lambda x, z: 0*x[0]-2
+
+        sample = np.random.RandomState(2).uniform(-1, 1, (2, 1))
+        model.diffusivity_derivs_function = \
+            lambda x, z, i: np.array([2.*(x[0]+x[1])*z[i]]).T
+        model.forcing_derivs_function = \
+            lambda x, z, i: np.array([0.*x[0]]).T
+        model(sample)
+        # evaluate_gradient has to be called before any more calls to
+        # model.solve with different parameters, because we need to
+        # access self.fwd_solution, which will change with any subsuquent calls
+        errors = pya.check_gradients(
+            model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
+        errors = errors[np.isfinite(errors)]
+        assert errors.max() > 0.1 and errors.min() <= 2e-6
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 import numpy as np
 import inspect
-from scipy.linalg import qr as qr_factorization, solve_triangular
+from scipy.linalg import qr as qr_factorization
+from copy import deepcopy
 
-from pyapprox.utilities import cartesian_product
+from pyapprox.utilities import cartesian_product, outer_product
 from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.barycentric_interpolation import (
     compute_barycentric_weights_1d,
@@ -130,11 +131,15 @@ class SteadyStateDiffusionEquation1D(object):
         matrix[-1, -1] = 1
         return matrix
 
+    def apply_boundary_conditions_to_rhs(self, rhs):
+        rhs[0] = self.bndry_cond[0]
+        rhs[-1] = self.bndry_cond[1]
+        return rhs
+
     def apply_boundary_conditions(self, matrix, forcing):
         assert len(self.bndry_cond) == 2
         matrix = self.apply_boundary_conditions_to_matrix(matrix)
-        forcing[0] = self.bndry_cond[0]
-        forcing[-1] = self.bndry_cond[1]
+        forcing = self.apply_boundary_conditions_to_rhs(forcing)
         return matrix, forcing
 
     def explicit_runge_kutta(self, rhs, sol, time, time_step_size):
@@ -293,16 +298,15 @@ class SteadyStateDiffusionEquation1D(object):
         """
         Typically with FEM we solve Ax=b and the discrete adjoint equation
         is A'y=z. But with collocation this does not work. Instead of
-        taking the adjoint of the discrete system as the aforemntioned 
-        approach does. We discretize continuous adjoin equation. Which for
-        the ellipic diffusion equation is just Ay=z. That is the adjoint 
+        taking the adjoint of the discrete system as the aforemntioned
+        approach does. We discretize continuous adjoint equation. Which for
+        the ellipic diffusion equation is just Ay=z. That is the adjoint
         of A is A.
         """
 
         if order == self.order:
             # used when computing gradient from adjoint solution
             matrix = self.collocation_matrix.copy()
-            mesh_pts = self.mesh_pts
         else:
             # used when computing error estimate from adjoint solution
             if self.adjoint_derivative_matrix is None:
@@ -319,19 +323,22 @@ class SteadyStateDiffusionEquation1D(object):
             matrix = self.form_collocation_matrix(
                 self.adjoint_derivative_matrix, diffusivity)
             self.adjoint_collocation_matrix = matrix.copy()
-            mesh_pts = self.adjoint_mesh_pts
 
         # regardless of whether computing error estimate or
         # computing gradient, rhs is always derivative (with respect to the
         # solution) of the qoi_functional
-        qoi_deriv = self.qoi_functional_deriv(mesh_pts)
+        qoi_deriv = self.qoi_functional_deriv(self.fwd_solution)
 
         matrix = self.apply_boundary_conditions_to_matrix(matrix)
+        qoi_deriv = self.apply_adjoint_boundary_conditions_to_rhs(qoi_deriv)
+        adj_solution = np.linalg.solve(matrix, qoi_deriv)
+        return adj_solution
+
+    def apply_adjoint_boundary_conditions_to_rhs(self, qoi_deriv):
         # adjoint always has zero Dirichlet BC
         qoi_deriv[0] = 0
         qoi_deriv[-1] = 0
-        adj_solution = np.linalg.solve(matrix, qoi_deriv)
-        return adj_solution
+        return qoi_deriv
 
     def compute_residual(self, matrix, solution, forcing):
         matrix, forcing = self.apply_boundary_conditions(matrix, forcing)
@@ -485,6 +492,10 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
         self.left_bc, self.right_bc = None, None
         self.top_bc, self.bottom_bc = None, None
 
+        # default qoi functional is integral of solution over entire domain
+        self.qoi_functional = self.integrate
+        self.qoi_functional_deriv = lambda x: x*0.+1.
+
     def determine_boundary_indices(self):
         # boundary edges are stored with the following order,
         # left, right, bottom, top
@@ -539,15 +550,13 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
         scaled_matrix_1 = np.empty(self.derivative_matrix_1.shape)
         scaled_matrix_2 = np.empty(self.derivative_matrix_2.shape)
         for i in range(scaled_matrix_1.shape[0]):
-            scaled_matrix_1[i, :] = self.derivative_matrix_1[i,
-                                                             :] * diagonal[i]
-            scaled_matrix_2[i, :] = self.derivative_matrix_2[i,
-                                                             :] * diagonal[i]
+            scaled_matrix_1[i, :] = self.derivative_matrix_1[i, :]*diagonal[i]
+            scaled_matrix_2[i, :] = self.derivative_matrix_2[i, :]*diagonal[i]
         matrix_1 = np.dot(self.derivative_matrix_1, scaled_matrix_1)
         matrix_2 = np.dot(self.derivative_matrix_2, scaled_matrix_2)
         return matrix_1 + matrix_2
 
-    def apply_boundary_conditions(self, matrix, forcing):
+    def apply_boundary_conditions_to_matrix(self, matrix):
         # apply default homogeenous zero value direchlet conditions if
         # necessary
         if self.left_bc is None:
@@ -564,7 +573,9 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
         for i in range(self.boundary_indices.shape[0]):
             index = self.boundary_indices[i]
             matrix[index, index] = 1.
+        return matrix
 
+    def apply_boundary_conditions_to_rhs(self, forcing):
         # apply left boundary condition
         indices = self.boundary_indices[self.boundary_edges[0]]
         forcing[indices] = self.left_bc(self.mesh_pts[0, indices])
@@ -577,8 +588,7 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
         # apply top boundary condition
         indices = self.boundary_indices[self.boundary_edges[3]]
         forcing[indices] = self.top_bc(self.mesh_pts[1, indices])
-
-        return matrix, forcing
+        return forcing
 
     def plot(self, mesh_values, num_plot_pts_1d=100):
         if num_plot_pts_1d is not None:
@@ -588,3 +598,31 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
             plot_surface_from_function(func, [self.xlim[0], self.xlim[1],
                                               self.ylim[0], self.ylim[1]],
                                        num_plot_pts_1d, False)
+
+    def apply_adjoint_boundary_conditions_to_rhs(self, qoi_deriv):
+        # adjoint always has zero Dirichlet BC
+        # apply left boundary condition
+        for ii in range(4):
+            indices = self.boundary_indices[self.boundary_edges[ii]]
+            qoi_deriv[indices] = 0
+        return qoi_deriv
+
+    def integrate(self, mesh_values, order=None):
+        if order is None:
+            order = self.order
+        # Get Gauss-Legendre rule
+        gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
+        pts_1d, wts_1d = [], []
+        lims = self.xlim+self.ylim
+        for ii in range(2):
+            # Scale points from [-1,1] to to physical domain
+            x_range = lims[2*ii+1]-lims[2*ii]
+            # Remove factor of 0.5 from weights and shift to [a,b]
+            wts_1d.append(gl_wts*x_range)
+            pts_1d.append(x_range*(gl_pts+1.)/2.+lims[2*ii])
+        # Interpolate mesh values onto quadrature nodes
+        pts = cartesian_product(pts_1d)
+        wts = outer_product(wts_1d)
+        gl_vals = self.interpolate(mesh_values, pts)
+        # Compute and return integral
+        return np.dot(gl_vals[:, 0], wts)
