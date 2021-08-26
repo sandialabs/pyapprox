@@ -504,11 +504,13 @@ class TestSensitivityAnalysis(unittest.TestCase):
         mean_total_effects = result['total_effects']['mean']
         mean_main_effects = mean_sobol_indices[:nvars]
 
-        print(result['mean']['values'][-1])
-        print(result['variance']['values'][-1])
-        print(benchmark.main_effects[:, 0]-mean_main_effects)
-        print(benchmark.total_effects[:, 0]-mean_total_effects)
-        print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
+        print(result['sobol_indices']['std'])
+
+        # print(result['mean']['values'][-1])
+        # print(result['variance']['values'][-1])
+        # print(benchmark.main_effects[:, 0]-mean_main_effects)
+        # print(benchmark.total_effects[:, 0]-mean_total_effects)
+        # print(benchmark.sobol_indices[:-1, 0]-mean_sobol_indices)
         assert np.allclose(mean_mean, benchmark.mean, rtol=1e-3, atol=3e-3)
         assert np.allclose(mean_main_effects,
                            benchmark.main_effects[:, 0], rtol=1e-3, atol=3e-3)

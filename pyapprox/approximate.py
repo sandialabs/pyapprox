@@ -39,7 +39,7 @@ class ApproximateResult(OptimizeResult):
 
 
 def adaptive_approximate_sparse_grid(
-        fun, univariate_variables, callback=None,
+        fun, variables, callback=None,
         refinement_indicator=variance_refinement_indicator,
         univariate_quad_rule_info=None, max_nsamples=100, tol=0, verbose=0,
         config_variables_idx=None, config_var_trans=None, cost_function=None,
@@ -57,8 +57,8 @@ def adaptive_approximate_sparse_grid(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    univariate_variables : list
-        A list of scipy.stats random variables of size (nvars)
+    variables : IndependentMultivariateRandomVariable
+        A set of independent univariate random variables
 
     callback : callable
         Function called after each iteration with the signature
@@ -173,9 +173,7 @@ def adaptive_approximate_sparse_grid(
     approx : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`
         The sparse grid approximation
     """
-    variable = IndependentMultivariateRandomVariable(
-        univariate_variables)
-    var_trans = AffineRandomVariableTransformation(variable)
+    var_trans = AffineRandomVariableTransformation(variables)
     nvars = var_trans.num_vars()
     if config_var_trans is not None:
         nvars += config_var_trans.num_vars()
@@ -230,7 +228,7 @@ def adaptive_approximate_polynomial_chaos(
         fun, variable, method="leja", options={}):
     methods = {"leja": adaptive_approximate_polynomial_chaos_leja,
                "induced": adaptive_approximate_polynomial_chaos_induced}
-              # "random": adaptive_approximate_polynomial_chaos_random}
+    # "random": adaptive_approximate_polynomial_chaos_random}
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'
@@ -244,9 +242,9 @@ def adaptive_approximate_polynomial_chaos(
 
 
 def __initialize_leja_pce(
-        univariate_variables, generate_candidate_samples, ncandidate_samples):
+        variables, generate_candidate_samples, ncandidate_samples):
 
-    for rv in univariate_variables:
+    for rv in variables.all_variables():
         if not is_bounded_continuous_variable(rv):
             msg = "For now leja sampling based PCE is only supported for "
             msg += " bounded continouous random variables when"
@@ -256,7 +254,7 @@ def __initialize_leja_pce(
             else:
                 break
 
-    nvars = len(univariate_variables)
+    nvars = variables.num_vars()
     if generate_candidate_samples is None:
         # Todo implement default for non-bounded variables that uses induced
         # sampling
@@ -313,7 +311,7 @@ def __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
 
 
 def adaptive_approximate_polynomial_chaos_induced(
-        fun, univariate_variables,
+        fun, variables,
         callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
         growth_rules=None, max_nsamples=100, tol=0, verbose=0,
@@ -333,8 +331,8 @@ def adaptive_approximate_polynomial_chaos_induced(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    univariate_variables : list
-        A list of scipy.stats random variables of size (nvars)
+    variables : IndependentMultivariateRandomVariable
+        A set of independent univariate random variables
 
     callback : callable
         Function called after each iteration with the signature
@@ -406,9 +404,7 @@ def adaptive_approximate_polynomial_chaos_induced(
     approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
     """
-    variable = IndependentMultivariateRandomVariable(
-        univariate_variables)
-    var_trans = AffineRandomVariableTransformation(variable)
+    var_trans = AffineRandomVariableTransformation(variables)
 
     pce = AdaptiveInducedPCE(
         var_trans.num_vars(), induced_sampling=induced_sampling,
@@ -423,7 +419,7 @@ def adaptive_approximate_polynomial_chaos_induced(
 
 
 def adaptive_approximate_polynomial_chaos_leja(
-        fun, univariate_variables,
+        fun, variables,
         callback=None,
         refinement_indicator=variance_pce_refinement_indicator,
         growth_rules=None, max_nsamples=100, tol=0, verbose=0,
@@ -443,8 +439,8 @@ def adaptive_approximate_polynomial_chaos_leja(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    univariate_variables : list
-        A list of scipy.stats random variables of size (nvars)
+    variables : IndependentMultivariateRandomVariable
+        A set of independent univariate random variables
 
     callback : callable
         Function called after each iteration with the signature
@@ -516,13 +512,10 @@ def adaptive_approximate_polynomial_chaos_leja(
     approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
         The PCE approximation
     """
-
-    variable = IndependentMultivariateRandomVariable(
-        univariate_variables)
-    var_trans = AffineRandomVariableTransformation(variable)
+    var_trans = AffineRandomVariableTransformation(variables)
 
     pce = __initialize_leja_pce(
-        univariate_variables, generate_candidate_samples, ncandidate_samples)
+        variables, generate_candidate_samples, ncandidate_samples)
 
     __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
                          refinement_indicator, tol, max_nsamples, callback,
@@ -533,7 +526,7 @@ def adaptive_approximate_polynomial_chaos_leja(
 
 
 def adaptive_approximate_gaussian_process(
-        fun, univariate_variables, callback=None,
+        fun, variables, callback=None,
         max_nsamples=100, verbose=0, ncandidate_samples=1e4,
         checkpoints=None, nu=np.inf, n_restarts_optimizer=1,
         normalize_y=False, alpha=0,
@@ -572,8 +565,8 @@ def adaptive_approximate_gaussian_process(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    univariate_variables : list
-        A list of scipy.stats random variables of size (nvars)
+    variables : IndependentMultivariateRandomVariable
+        A set of independent univariate random variables
 
     callback : callable
         Function called after each iteration with the signature
@@ -663,12 +656,10 @@ def adaptive_approximate_gaussian_process(
     """
     assert max_nsamples <= ncandidate_samples
 
-    variable = IndependentMultivariateRandomVariable(
-        univariate_variables)
-    nvars = variable.num_vars()
+    nvars = variables.num_vars()
 
     if normalize_inputs:
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variables)
     else:
         var_trans = None
 
@@ -678,12 +669,11 @@ def adaptive_approximate_gaussian_process(
         noise_level, noise_level_bounds, nu)
 
     sampler = CholeskySampler(
-        nvars, ncandidate_samples, variable,
+        nvars, ncandidate_samples, variables,
         gen_candidate_samples=generate_candidate_samples,
         var_trans=var_trans)
     sampler_kernel = copy.deepcopy(kernel)
     sampler.set_kernel(sampler_kernel)
-    print(weight_function)
     sampler.set_weight_function(weight_function)
 
     gp = AdaptiveGaussianProcess(
@@ -808,6 +798,10 @@ def adaptive_approximate(fun, variable, method, options=None):
     methods = {'sparse_grid': adaptive_approximate_sparse_grid,
                'polynomial_chaos': adaptive_approximate_polynomial_chaos,
                'gaussian_process': adaptive_approximate_gaussian_process}
+
+    if type(variable) != IndependentMultivariateRandomVariable:
+        variable = IndependentMultivariateRandomVariable(
+            variable)
 
     if method not in methods:
         msg = f'Method {method} not found.\n Available methods are:\n'

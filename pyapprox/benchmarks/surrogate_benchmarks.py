@@ -348,7 +348,6 @@ class RandomOscillator(object):
     def __init__(self, qoi_functional=None):
         self.num_vars = 6
         self.t = np.arange(0, 20, 0.1)
-        self.num_qoi = 1
         self.name = 'random-oscillator-6'
         if qoi_functional is None:
             self.qoi_functional = lambda sol: np.array([sol[-1]])
@@ -489,7 +488,6 @@ class CoupledSprings(object):
     def __init__(self, qoi_functional=None):
         self.num_vars = 12
         self.t = np.arange(0., 10., .1)
-        self.num_qoi = 1
         self.name = 'coupled-springs-12'
         if qoi_functional is None:
             self.qoi_functional = lambda sol: np.array([sol[-1, 0]])
@@ -515,16 +513,22 @@ class CoupledSprings(object):
             self.value, samples, None)
 
 
-def get_hastings_ecology_nominal_values():
-    return np.array([5.0, 4.1, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0],
+def get_nondim_hastings_ecology_nominal_values():
+    # return np.array([5.0, 4.1, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0],
+    #                 np.double)
+    return np.array([5.0, 3, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0],
                     np.double)
 
 
-def define_hastings_ecology_random_variables():
-    nominal_sample = get_hastings_ecology_nominal_values()
+def define_nondim_hastings_ecology_random_variables():
+    nominal_sample = get_nondim_hastings_ecology_nominal_values()
     ranges = np.zeros((2*len(nominal_sample)), np.double)
-    ranges[::2] = nominal_sample*0.9
-    ranges[1::2] = nominal_sample*1.1
+    ranges[::2] = nominal_sample*0.95
+    ranges[1::2] = nominal_sample*1.05
+    ranges[:2] = 4.9, 5.1
+    ranges[12:14] = 0, 1
+    ranges[14:16] = 0, 1
+    ranges[16:18] = 5, 12
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
@@ -533,7 +537,7 @@ def define_hastings_ecology_random_variables():
 
 
 @njit(cache=True)
-def hastings_ecology_rhs(y, t, z):
+def nondim_hastings_ecology_rhs(y, t, z):
     """
     """
     y1, y2, y3 = y
@@ -541,6 +545,27 @@ def hastings_ecology_rhs(y, t, z):
     return [y1*(1-y1)-a1*y1*y2/(1+b1*y1),
             a1*y1*y2/(1.0 + b1*y1) - a2*y2*y3/(1.0 + b2*y2) - d1*y2,
             a2*y2*y3/(1.0 + b2*y2) - d2*y3]
+
+
+def non_dimensionalize_hastings_ecology_variables(z):
+    R0, K0, C1, C2, D1, D2, A1, A2, B1, B2 = z
+    a1 = K0*A1/(R0*B1)
+    b1 = K0/B1
+    a2 = C2*A2*K0/(C1*R0*B2)
+    b2 = K0/(C1*B2)
+    d1 = D1/R0
+    d2 = D2/R0
+    return np.array([a1, b1, a2, b2, d1, d2])
+
+
+@njit(cache=True)
+def dim_hastings_ecology_rhs(y, t, z):
+    """
+    """
+    y1, y2, y3 = y
+    nondim_z = non_dimensionalize_hastings_ecology_variables(z[:10])
+    nondim_z = np.vstack((nondim_z, z[10:]))
+    return nondim_hastings_ecology_rhs(y, t, z)
 
 
 class HastingsEcology(object):
@@ -572,27 +597,42 @@ class HastingsEcology(object):
     Model is non-dimensionalized
     a_1 = K_0 A_1/(R_0 B_1)
     b_1 = K_0/B_1
-    a_1 = C_2 A_2 K_0/(C_1 R_0 B_2)
-    b_1 = K0/(C_1 B_2)
+    a_2 = C_2 A_2 K_0/(C_1 R_0 B_2)
+    b_2 = K_0/(C_1 B_2)
     d_1 = D_1/R_0
     d_2 = D_2/R_0
     """
 
-    def __init__(self, qoi_functional=None):
-        self.num_vars = 12
-        self.t = np.arange(0., 100)
-        self.num_qoi = 1
-        self.name = 'hastings-ecology-6'
+    def __init__(self, qoi_functional=None, nondim=True, time=None):
+        self.num_vars = 9
+        self.opts = {"rtol": 1e-10, "atol": 1e-10}
+        if time is None:
+            self.t = np.linspace(0., 100, 101)
+        else:
+            self.t = time
+        self.nondim = nondim
+        if self.nondim:
+            self.run = self.nondim_run
+        else:
+            self.run = self.dim_run
         if qoi_functional is None:
-            self.qoi_functional = lambda sol: np.array([sol[-1, 0]])
+            self.qoi_functional = lambda sol: np.array(
+                [sol[-1, 2]])
         else:
             self.qoi_functional = qoi_functional
+        self.name = 'hastings-ecology-9'
 
-    def run(self, z):
+    def nondim_run(self, z):
         assert z.ndim == 1
         y0 = z[6:]
         return integrate.odeint(
-            hastings_ecology_rhs, y0, self.t, args=(z,))
+            nondim_hastings_ecology_rhs, y0, self.t, args=(z,), **self.opts)
+
+    def dim_run(self, z):
+        assert z.ndim == 1
+        y0 = z[10:]
+        return integrate.odeint(
+            nondim_hastings_ecology_rhs, y0, self.t, args=(z,), **self.opts)
 
     def value(self, z):
         assert z.ndim == 1

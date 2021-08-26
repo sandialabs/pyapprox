@@ -7,34 +7,41 @@ import copy
 import time
 from functools import partial
 
-from sklearn.gaussian_process.kernels import Matern, WhiteKernel, RBF, \
-    ConstantKernel
+from sklearn.gaussian_process.kernels import (
+    Matern, WhiteKernel, RBF, ConstantKernel
+)
 
-from pyapprox.gaussian_process import GaussianProcess, \
-    RandomGaussianProcessRealizations, gaussian_process_pointwise_variance, \
-    integrate_gaussian_process, extract_covariance_kernel, gaussian_tau, \
-    gaussian_u, compute_varpi, compute_varsigma_sq, variance_of_mean, \
-    gaussian_P, compute_v_sq, compute_zeta, mean_of_variance, gaussian_nu, \
-    gaussian_Pi, compute_psi, compute_chi, compute_phi, gaussian_lamda, \
-    compute_varrho, compute_xi, gaussian_xi_1, compute_varphi, \
-    marginalize_gaussian_process, compute_expected_sobol_indices, \
-    IVARSampler, CholeskySampler, GreedyVarianceOfMeanSampler, \
-    GreedyIntegratedVarianceSampler, \
-    RBF_integrated_posterior_variance_gradient_wrt_samples, integrate_tau_P, \
-    RBF_gradient_wrt_samples,  gaussian_grad_P_offdiag_term1,  \
-    gaussian_grad_P_offdiag_term2, gaussian_grad_P_diag_term1, \
-    gaussian_grad_P_diag_term2, integrate_grad_P, \
-    RBF_posterior_variance_jacobian_wrt_samples, matern_gradient_wrt_samples, \
-    AdaptiveGaussianProcess, AdaptiveCholeskyGaussianProcessFixedKernel, \
-    generate_gp_realizations
-from pyapprox.low_discrepancy_sequences import sobol_sequence
-from pyapprox.variable_transformations import \
+from pyapprox.gaussian_process import (
+    GaussianProcess,
+    RandomGaussianProcessRealizations, gaussian_process_pointwise_variance,
+    integrate_gaussian_process, extract_covariance_kernel, gaussian_tau,
+    gaussian_u, compute_varpi, compute_varsigma_sq, variance_of_mean,
+    gaussian_P, compute_v_sq, compute_zeta, mean_of_variance, gaussian_nu,
+    gaussian_Pi, compute_psi, compute_chi, compute_phi, gaussian_lamda,
+    compute_varrho, compute_xi, gaussian_xi_1, compute_varphi,
+    marginalize_gaussian_process, compute_expected_sobol_indices,
+    IVARSampler, CholeskySampler, GreedyVarianceOfMeanSampler,
+    GreedyIntegratedVarianceSampler,
+    RBF_integrated_posterior_variance_gradient_wrt_samples, integrate_tau_P,
+    RBF_gradient_wrt_samples,  gaussian_grad_P_offdiag_term1,
+    gaussian_grad_P_offdiag_term2, gaussian_grad_P_diag_term1,
+    gaussian_grad_P_diag_term2, integrate_grad_P,
+    RBF_posterior_variance_jacobian_wrt_samples, matern_gradient_wrt_samples,
+    AdaptiveGaussianProcess, AdaptiveCholeskyGaussianProcessFixedKernel
+)
+from pyapprox.low_discrepancy_sequences import (
+    sobol_sequence, transformed_halton_sequence
+)
+from pyapprox.variable_transformations import (
     AffineRandomVariableTransformation
+)
 from pyapprox.indexing import compute_hyperbolic_indices
 import pyapprox as pya
 from pyapprox.approximate import approximate
-from pyapprox.sensitivity_analysis import get_sobol_indices, \
+from pyapprox.sensitivity_analysis import (
+    get_sobol_indices,
     get_main_and_total_effect_indices_from_pce
+)
 from pyapprox.utilities import cartesian_product
 
 
@@ -843,7 +850,7 @@ class TestGaussianProcess(unittest.TestCase):
         assert np.allclose(
             total_effects, pce_total_effects, rtol=1e-4, atol=1e-4)
 
-    def generate_gp_realizations(self):
+    def test_generate_gp_realizations(self):
         bounds = np.array(
             [0.2, 0.6, 1.15e-8, 1.15e-4, 0.2e-3, 160.e-3, 0.02, 0.1, 1., 5.,
              2., 8., 0.1, 0.5, 600., 1800., 0.2, 1., 7.e-7, 3.e-6])
@@ -853,7 +860,7 @@ class TestGaussianProcess(unittest.TestCase):
         # lb, ub = bounds[:2]
         length_scale = (bounds[1::2]-bounds[::2])/1
         univariate_variables = [
-        stats.uniform(bounds[2*ii], bounds[2*ii+1]-bounds[2*ii])
+            stats.uniform(bounds[2*ii], bounds[2*ii+1]-bounds[2*ii])
             for ii in range(len(bounds)//2)]
         variable = pya.IndependentMultivariateRandomVariable(
             univariate_variables)
@@ -963,7 +970,6 @@ class TestGaussianProcess(unittest.TestCase):
         #     realization_vals.mean(axis=1)+realization_vals.std(axis=1),
         #     'y--')
         # plt.show()
-
 
 
 class TestSamplers(unittest.TestCase):

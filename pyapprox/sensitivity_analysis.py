@@ -884,45 +884,21 @@ def analytic_sobol_indices_from_gaussian_process(
               np.linalg.norm((mean_vals[:, 0]-realization_vals[:, -1])) /
               np.linalg.norm(mean_vals[:, 0]))
 
-        # print(K_inv.shape, np.linalg.norm(K_inv))
-        # print(np.linalg.norm(x_train))
-        # print(np.linalg.norm(y_train))
-        # print(np.linalg.norm(gp_realizations.train_vals[:, -1]))
-        # print(np.linalg.norm(gp.y_train_))
-
         x_train = gp_realizations.selected_canonical_samples
         # gp_realizations.train_vals is normalized so unnormalize
         y_train = gp._y_train_std*gp_realizations.train_vals
         # kernel_var has already been adjusted by call to
         # extract_gaussian_process_attributes_for_integration
-        # kernel_var *= gp._y_train_std**2
-        # L_inv = np.linalg.inv(gp_realizations.L)
-        # K_inv = L_inv.T.dot(L_inv)
         K_inv = np.linalg.inv(gp_realizations.L.dot(gp_realizations.L.T))
         K_inv /= gp._y_train_std**2
 
     sobol_values, total_values, means, variances = \
         _compute_expected_sobol_indices(
             gp, variable, interaction_terms, nquad_samples,
-            x_train, y_train, K_inv, lscale, kernel_var, transform_quad_rules,
-            gp._y_train_mean)
+            x_train, y_train, K_inv, lscale, kernel_var,
+            transform_quad_rules, gp._y_train_mean)
     sobol_values = sobol_values.T
     total_values = total_values.T
-
-    # means, variances, sobol_values,  total_values = [], [], [], []
-    # for ii in range(ngp_realizations):
-    #     sv, tv, me, vr = _compute_expected_sobol_indices(
-    #         gp, variable, interaction_terms, nquad_samples,
-    #         x_train, y_train[:, ii:ii+1],
-    #         K_inv, lscale, kernel_var, transform_quad_rules)
-    #     means.append(me)
-    #     variances.append(vr)
-    #     sobol_values.append(sv)
-    #     total_values.append(tv)
-    # means = np.asarray(means)[:, 0]
-    # variances = np.asarray(variances)[:, 0]
-    # sobol_values = np.asarray(sobol_values)[:, :, 0]
-    # total_values = np.asarray(total_values)[:, :, 0]
 
     result = dict()
     data = [sobol_values, total_values, variances, means]

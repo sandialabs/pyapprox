@@ -21,7 +21,7 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     ChemicalReactionModel, define_random_oscillator_random_variables,
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
-    define_hastings_ecology_random_variables
+    define_nondim_hastings_ecology_random_variables
     )
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
@@ -546,9 +546,9 @@ def setup_coupled_springs_benchmark():
     return Benchmark(attributes)
 
 
-def setup_hastings_ecology_benchmark():
-    variable = define_hastings_ecology_random_variables()
-    model = HastingsEcology()
+def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
+    variable = define_nondim_hastings_ecology_random_variables()
+    model = HastingsEcology(qoi_functional, True, time)
     attributes = {'fun': model,
                   'variable': variable}
     return Benchmark(attributes)
