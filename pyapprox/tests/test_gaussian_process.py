@@ -944,7 +944,6 @@ class TestGaussianProcess(unittest.TestCase):
         # realization_vals = gp_realizations(validation_samples)
         realization_vals = gp.predict_random_realization(
             validation_samples, ngp_realizations)
-        print('cond num', np.linalg.cond(gp._K_inv))
         # realization_vals = gp.sample_y(
         #    validation_samples.T, ngp_realizations)[:, 0, :]
 
