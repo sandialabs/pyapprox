@@ -32,6 +32,7 @@ from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
     CholeskySampler, GaussianProcess
 from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
+from pyapprox.neural_networks import NeuralNetwork
 
 
 class ApproximateResult(OptimizeResult):
@@ -881,6 +882,22 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     return res
 
 
+def approximate_neural_network(train_samples, train_vals,
+                               network_opts, verbosity=0,
+                               variable=None, optimizer_opts=None, x0=None):
+    print(network_opts)
+    network = NeuralNetwork(network_opts)
+    if x0 is None:
+        nrestarts = 10
+        x0 = np.random.uniform(-1, 2, (network.nparams, nrestarts))
+    if optimizer_opts is None:
+        optimizer_opts = {"method": "L-BFGS-B",
+                          "options": {"maxiter": 1000}}
+    network.fit(train_samples, train_vals, x0, verbose=verbosity,
+                opts=optimizer_opts)
+    return ApproximateResult({'approx': network})
+
+
 def approximate(train_samples, train_vals, method, options=None):
     r"""
     Approximate a scalar or vector-valued function of one or
@@ -906,7 +923,8 @@ def approximate(train_samples, train_vals, method, options=None):
     """
 
     methods = {'polynomial_chaos': approximate_polynomial_chaos,
-               'gaussian_process': approximate_gaussian_process}
+               'gaussian_process': approximate_gaussian_process,
+               'neural_network': approximate_neural_network}
     # 'tensor-train':approximate_tensor_train,
 
     if method not in methods:

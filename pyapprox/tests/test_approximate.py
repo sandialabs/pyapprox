@@ -17,10 +17,10 @@ class TestApproximate(unittest.TestCase):
 
     def test_approximate_sparse_grid_default_options(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         univariate_variables = [stats.uniform(0, 1)]*nvars
         approx = adaptive_approximate(
-            benchmark.fun, univariate_variables, 'sparse_grid').approx
+            benchmark.fun, univariate_variables, "sparse_grid").approx
         nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, approx.variable_transformation.variable,
@@ -33,7 +33,7 @@ class TestApproximate(unittest.TestCase):
         nvars = 2
         univariate_variables = [stats.binom(20, 0.5)]*nvars
         approx = adaptive_approximate(
-            fun, univariate_variables, 'sparse_grid').approx
+            fun, univariate_variables, "sparse_grid").approx
         nsamples = 100
         error = compute_l2_error(
             approx, fun, approx.variable_transformation.variable,
@@ -50,8 +50,8 @@ class TestApproximate(unittest.TestCase):
                                approx.samples_1d[0][ll-1])
 
     def test_approximate_sparse_grid_user_options(self):
-        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
-        univariate_variables = benchmark['variable'].all_variables()
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+        univariate_variables = benchmark["variable"].all_variables()
         errors = []
 
         def callback(approx):
@@ -71,25 +71,25 @@ class TestApproximate(unittest.TestCase):
         #        univariate_variables[0],growth_rule),growth_rule]
         refinement_indicator = partial(
             pya.variance_refinement_indicator, convex_param=0.5)
-        options = {'univariate_quad_rule_info': univariate_quad_rule_info,
-                   'max_nsamples': 300, 'tol': 0,
-                   'callback': callback, 'verbose': 0,
-                   'refinement_indicator': refinement_indicator}
+        options = {"univariate_quad_rule_info": univariate_quad_rule_info,
+                   "max_nsamples": 300, "tol": 0,
+                   "callback": callback, "verbose": 0,
+                   "refinement_indicator": refinement_indicator}
         adaptive_approximate(
-            benchmark.fun, univariate_variables, 'sparse_grid', options).approx
+            benchmark.fun, univariate_variables, "sparse_grid", options).approx
         # print(np.min(errors))
         assert np.min(errors) < 1e-3
 
     def test_approximate_polynomial_chaos_leja(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         # we can use different univariate variables than specified by
         # benchmark. In this case we use the same but setup them uphear
         # to demonstrate this functionality
         univariate_variables = [stats.uniform(0, 1)]*nvars
         approx = adaptive_approximate(
             benchmark.fun, univariate_variables,
-            method='polynomial_chaos',
+            method="polynomial_chaos",
             options={"method": "leja",
                      "options": {"max_nsamples": 100}}).approx
         nsamples = 100
@@ -100,14 +100,14 @@ class TestApproximate(unittest.TestCase):
 
     def test_approximate_polynomial_chaos_induced(self):
         nvars = 3
-        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         # we can use different univariate variables than specified by
         # benchmark. In this case we use the same but setup them uphear
         # to demonstrate this functionality
         univariate_variables = [stats.uniform(0, 1)]*nvars
         # approx = adaptive_approximate(
         #     benchmark.fun, univariate_variables,
-        #     method='polynomial_chaos',
+        #     method="polynomial_chaos",
         #     options={"method": "induced",
         #              "options": {"max_nsamples": 200,
         #                          "induced_sampling": True,
@@ -122,7 +122,7 @@ class TestApproximate(unittest.TestCase):
         # probablility sampling
         approx = adaptive_approximate(
             benchmark.fun, univariate_variables,
-            method='polynomial_chaos',
+            method="polynomial_chaos",
             options={"method": "induced",
                      "options": {"max_nsamples": 100,
                                  "induced_sampling": False,
@@ -136,7 +136,7 @@ class TestApproximate(unittest.TestCase):
         assert error < 1e-5
 
     def test_approximate_polynomial_chaos_custom_poly_type(self):
-        benchmark = setup_benchmark('ishigami', a=7, b=0.1)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
         # this test purposefully select wrong variable to make sure
         # poly_type overide is activated
@@ -145,20 +145,20 @@ class TestApproximate(unittest.TestCase):
             univariate_variables)
         var_trans = pya.AffineRandomVariableTransformation(variable)
         # specify correct basis so it is not chosen from var_trans.variable
-        poly_opts = {'var_trans': var_trans}
+        poly_opts = {"var_trans": var_trans}
         # but rather from another variable which will invoke Legendre polys
         basis_opts = pya.define_poly_options_from_variable(
             pya.IndependentMultivariateRandomVariable([stats.uniform()]*nvars))
-        poly_opts['poly_types'] = basis_opts
-        options = {'poly_opts': poly_opts, 'variable': variable,
-                   'options': {'max_num_step_increases': 1}}
+        poly_opts["poly_types"] = basis_opts
+        options = {"poly_opts": poly_opts, "variable": variable,
+                   "options": {"max_num_step_increases": 1}}
         ntrain_samples = 400
         train_samples = np.random.uniform(
             -np.pi, np.pi, (nvars, ntrain_samples))
         train_vals = benchmark.fun(train_samples)
         approx = approximate(
             train_samples, train_vals,
-            method='polynomial_chaos', options=options).approx
+            method="polynomial_chaos", options=options).approx
         nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, approx.var_trans.variable,
@@ -194,11 +194,11 @@ class TestApproximate(unittest.TestCase):
         true_poly = poly
 
         poly = approximate(
-            train_samples, train_vals, 'polynomial_chaos',
-            {'basis_type': 'hyperbolic_cross', 'variable': variable,
-             'options': {'verbose': 3, 'solver_type': solver_type,
-                         'min_degree': 1, 'max_degree': degree+1,
-                         'linear_solver_options': solver_options}}).approx
+            train_samples, train_vals, "polynomial_chaos",
+            {"basis_type": "hyperbolic_cross", "variable": variable,
+             "options": {"verbose": 3, "solver_type": solver_type,
+                         "min_degree": 1, "max_degree": degree+1,
+                         "linear_solver_options": solver_options}}).approx
 
         num_validation_samples = 10
         validation_samples = pya.generate_independent_random_samples(
@@ -214,10 +214,10 @@ class TestApproximate(unittest.TestCase):
 
     def test_cross_validate_pce_degree(self):
         # lasso and omp do not pass this test so recommend not using them
-        solver_type_list = ['lstsq', 'lstsq', 'lasso']  # , 'omp']#, 'lars']
+        solver_type_list = ["lstsq", "lstsq", "lasso"]  # , "omp"]#, "lars"]
         solver_options_list = [
-            {'alphas': [1e-14], 'cv':22}, {'cv': 10},
-            {'max_iter': 20, 'cv': 21}]
+            {"alphas": [1e-14], "cv":22}, {"cv": 10},
+            {"max_iter": 20, "cv": 21}]
         for solver_type, solver_options in zip(
                 solver_type_list, solver_options_list):
             self.help_cross_validate_pce_degree(solver_type, solver_options)
@@ -253,12 +253,12 @@ class TestApproximate(unittest.TestCase):
         true_poly = poly
 
         poly = approximate(
-            train_samples, train_vals, 'polynomial_chaos',
-            {'basis_type': 'expanding_basis', 'variable': variable,
-             'options': {'max_num_expansion_steps_iter': 1, 'verbose': 3,
-                         'max_num_terms': 1000,
-                         'max_num_step_increases': 2,
-                         'max_num_init_terms': 33}}).approx
+            train_samples, train_vals, "polynomial_chaos",
+            {"basis_type": "expanding_basis", "variable": variable,
+             "options": {"max_num_expansion_steps_iter": 1, "verbose": 3,
+                         "max_num_terms": 1000,
+                         "max_num_step_increases": 2,
+                         "max_num_init_terms": 33}}).approx
 
         num_validation_samples = 100
         validation_samples = pya.generate_independent_random_samples(
@@ -288,20 +288,20 @@ class TestApproximate(unittest.TestCase):
         train_vals = kernel(train_samples.T, X.T).dot(alpha)[:, np.newaxis]
 
         gp = approximate(
-            train_samples, train_vals, 'gaussian_process',
-            {'nu': nu, 'noise_level': 1e-8}).approx
+            train_samples, train_vals, "gaussian_process",
+            {"nu": nu, "noise_level": 1e-8}).approx
 
         error = np.linalg.norm(gp(X)[:, 0]-kernel(X.T, X.T).dot(alpha)) /\
             np.sqrt(X.shape[1])
         assert error < 1e-5
 
         # import matplotlib.pyplot as plt
-        # plt.plot(X[0,:],kernel(X.T,X.T).dot(alpha),'r--',zorder=100)
+        # plt.plot(X[0,:],kernel(X.T,X.T).dot(alpha),"r--",zorder=100)
         # vals,std = gp(X,return_std=True)
-        # plt.plot(X[0,:],vals[:,0],c='b')
+        # plt.plot(X[0,:],vals[:,0],c="b")
         # plt.fill_between(
-        #     X[0,:],vals[:,0]-2*std,vals[:,0]+2*std,color='b',alpha=0.5)
-        # plt.plot(train_samples[0,:], train_vals[:,0],'ro')
+        #     X[0,:],vals[:,0]-2*std,vals[:,0]+2*std,color="b",alpha=0.5)
+        # plt.plot(train_samples[0,:], train_vals[:,0],"ro")
         # plt.show()
 
     def test_adaptive_approximate_gaussian_process(self):
@@ -332,10 +332,10 @@ class TestApproximate(unittest.TestCase):
             errors.append(error)
 
         adaptive_approximate(
-            fun, univariate_variables, 'gaussian_process',
-            {'nu': nu, 'noise_level': None, 'normalize_y': True,
-             'alpha': 1e-10,
-             'ncandidate_samples': 1e3, 'callback': callback}).approx
+            fun, univariate_variables, "gaussian_process",
+            {"nu": nu, "noise_level": None, "normalize_y": True,
+             "alpha": 1e-10,
+             "ncandidate_samples": 1e3, "callback": callback}).approx
         assert errors[-1] < 1e-8
 
     def test_adaptive_approximate_gaussian_process_normalize_inputs(self):
@@ -372,21 +372,21 @@ class TestApproximate(unittest.TestCase):
             univariate_pdfs=[v.pdf for v in univariate_variables])
 
         gp = adaptive_approximate(
-            fun, univariate_variables, 'gaussian_process',
-            {'nu': nu, 'noise_level': None, 'normalize_y': True,
-             'alpha': 1e-10,  "normalize_inputs": True,
+            fun, univariate_variables, "gaussian_process",
+            {"nu": nu, "noise_level": None, "normalize_y": True,
+             "alpha": 1e-10,  "normalize_inputs": True,
              "weight_function": weight_function,
-             'ncandidate_samples': 1e3, 'callback': callback}).approx
+             "ncandidate_samples": 1e3, "callback": callback}).approx
 
         # import matplotlib.pyplot as plt
-        # plt.plot(gp.X_train_.T[0, :], 0*gp.X_train_.T[0, :], 's')
-        # plt.plot(gp.get_training_samples()[0, :], 0*gp.get_training_samples()[0, :], 'x')
-        # plt.plot(gp.sampler.candidate_samples[0, :], 0*gp.sampler.candidate_samples[0, :], '^')
-        # plt.plot(validation_samples[0, :], validation_values[:, 0], 'o')
+        # plt.plot(gp.X_train_.T[0, :], 0*gp.X_train_.T[0, :], "s")
+        # plt.plot(gp.get_training_samples()[0, :], 0*gp.get_training_samples()[0, :], "x")
+        # plt.plot(gp.sampler.candidate_samples[0, :], 0*gp.sampler.candidate_samples[0, :], "^")
+        # plt.plot(validation_samples[0, :], validation_values[:, 0], "o")
         # var = univariate_variables[0]
         # lb, ub = var.interval(1)
         # xx = np.linspace(lb, ub, 101)
-        # plt.plot(xx, var.pdf(xx), 'r-')
+        # plt.plot(xx, var.pdf(xx), "r-")
         # plt.show()
         print(errors[-1])
         assert errors[-1] < 1e-7
@@ -422,10 +422,10 @@ class TestApproximate(unittest.TestCase):
 
         indices = pya.compute_hyperbolic_indices(num_vars, 1, 1)
         nfolds = 10
-        method = 'polynomial_chaos'
-        options = {'basis_type': 'fixed', 'variable': variable,
-                   'options': {'linear_solver_options': {},
-                               'indices': indices, 'solver_type': 'lstsq'}}
+        method = "polynomial_chaos"
+        options = {"basis_type": "fixed", "variable": variable,
+                   "options": {"linear_solver_options": {},
+                               "indices": indices, "solver_type": "lstsq"}}
         approx_list, residues_list, cv_score = \
             cross_validate_approximation(
                 train_samples, train_vals, options, nfolds, method,
@@ -482,8 +482,8 @@ class TestApproximate(unittest.TestCase):
         # true_poly = poly
 
         result = approximate(
-            train_samples, train_vals, 'polynomial_chaos',
-            {'basis_type': 'expanding_basis', 'variable': variable})
+            train_samples, train_vals, "polynomial_chaos",
+            {"basis_type": "expanding_basis", "variable": variable})
 
         # Even with the same folds, iterative methods such as Lars, LarsLasso
         # and OMP will not have cv_score from approximate and cross validate
@@ -491,18 +491,54 @@ class TestApproximate(unittest.TestCase):
         # residuals to compute cross validation scores
         nfolds = 10
         linear_solver_options = [
-            {'alpha': result.reg_params[0]}, {'alpha': result.reg_params[1]}]
+            {"alpha": result.reg_params[0]}, {"alpha": result.reg_params[1]}]
         indices = [result.approx.indices[:, np.where(np.absolute(c) > 0)[0]]
                    for c in result.approx.coefficients.T]
-        options = {'basis_type': 'fixed', 'variable': variable,
-                   'options': {'linear_solver_options': linear_solver_options,
-                               'indices': indices}}
+        options = {"basis_type": "fixed", "variable": variable,
+                   "options": {"linear_solver_options": linear_solver_options,
+                               "indices": indices}}
         approx_list, residues_list, cv_score = \
             cross_validate_approximation(
-                train_samples, train_vals, options, nfolds, 'polynomial_chaos',
-                random_folds='sklearn')
+                train_samples, train_vals, options, nfolds, "polynomial_chaos",
+                random_folds="sklearn")
 
         assert (np.all(cv_score < 6e-14) and np.all(result.scores < 4e-13))
+
+    def test_approximate_neural_network(self):
+        np.random.seed(2)
+        benchmark = setup_benchmark("ishigami", a=7, b=0.1)
+        nvars = benchmark.variable.num_vars()
+        nqoi = 1
+        maxiter = 30000
+        print(benchmark.variable)
+        # var_trans = pya.AffineRandomVariableTransformation(
+        #      [stats.uniform(-2, 4)]*nvars)
+        var_trans = pya.AffineRandomVariableTransformation(benchmark.variable)
+        network_opts = {"activation_func": "sigmoid",
+                        "layers": [nvars, 75, nqoi],
+                        "loss_func": "squared_loss",
+                        "var_trans": var_trans, "lag_mult": 0}
+        optimizer_opts = {"method": "L-BFGS-B",
+                          "options": {"maxiter": maxiter, "iprint": -1,
+                                      "gtol": 1e-6}}
+        opts = {"network_opts": network_opts, "verbosity": 3,
+                "optimizer_opts": optimizer_opts}
+        ntrain_samples = 500
+        train_samples = pya.generate_independent_random_samples(
+            var_trans.variable, ntrain_samples)
+        train_samples = var_trans.map_from_canonical_space(
+            np.cos(np.random.uniform(0, np.pi, (nvars, ntrain_samples))))
+        train_vals = benchmark.fun(train_samples)
+
+        opts = {"network_opts": network_opts, "verbosity": 3,
+                "optimizer_opts": optimizer_opts, "x0": 1}
+        approx = approximate(
+            train_samples, train_vals, "neural_network", opts).approx
+        nsamples = 100
+        error = compute_l2_error(
+            approx, benchmark.fun, var_trans.variable,
+            nsamples)
+        print(error)
 
 
 if __name__ == "__main__":
