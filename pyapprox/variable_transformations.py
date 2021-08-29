@@ -112,6 +112,9 @@ class AffineBoundedVariableTransformation(object):
             user_samples, self.user_ranges, self.canonical_ranges)
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 
@@ -230,8 +233,8 @@ class AffineRandomVariableTransformation(object):
             Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
             Here each sample is considered a different QoI
         """
-        assert derivatives.shape[0] % self.num_vars() == 0
-        num_samples = int(derivatives.shape[0]/self.num_vars())
+        assert derivatives.shape[0] % self.nvars == 0
+        num_samples = int(derivatives.shape[0]/self.nvars)
         mapped_derivatives = derivatives.copy()
         for ii in range(self.variable.nunique_vars):
             var_indices = self.variable.unique_variable_indices[ii]
@@ -254,8 +257,8 @@ class AffineRandomVariableTransformation(object):
             Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
             Here each sample is considered a different QoI
         """
-        assert canonical_derivatives.shape[0] % self.num_vars() == 0
-        num_samples = int(canonical_derivatives.shape[0]/self.num_vars())
+        assert canonical_derivatives.shape[0] % self.nvars == 0
+        num_samples = int(canonical_derivatives.shape[0]/self.nvars)
         derivatives = canonical_derivatives.copy()
         for ii in range(self.variable.nunique_vars):
             var_indices = self.variable.unique_variable_indices[ii]
@@ -266,7 +269,14 @@ class AffineRandomVariableTransformation(object):
         return derivatives
 
     def num_vars(self):
-        return self.variable.num_vars()
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.variable.nvars
+    
+    @property
+    def nvars(self):
+        return self.variable.nvars
 
     def samples_of_bounded_variables_inside_domain(self, samples):
         for ii in range(self.variable.nunique_vars):
@@ -282,7 +292,7 @@ class AffineRandomVariableTransformation(object):
         return True
 
     def get_ranges(self):
-        ranges = np.empty((2*self.num_vars()), dtype=float)
+        ranges = np.empty((2*self.nvars), dtype=float)
         for ii in range(self.variable.nunique_vars):
             var = self.variable.unique_variables[ii]
             lb, ub = var.interval(1)
@@ -305,7 +315,7 @@ class RosenblattTransformation(object):
         self.tol = opts.get('tol', 1e-12)
         self.num_bins = opts.get('num_bins', 101)
         self.nvars = num_vars
-        self.canonical_variable_types = ['uniform']*self.num_vars()
+        self.canonical_variable_types = ['uniform']*self.nvars
 
     def map_from_canonical_space(self, canonical_samples):
         user_samples = inverse_rosenblatt_transformation(
@@ -320,6 +330,9 @@ class RosenblattTransformation(object):
         return canonical_samples
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 
@@ -359,6 +372,9 @@ class UniformMarginalTransformation(object):
         return canonical_samples
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 
@@ -396,6 +412,9 @@ class NatafTransformation(object):
             self.z_correlation_cholesky_factor)
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 
@@ -427,4 +446,11 @@ class TransformationComposition(object):
         return canonical_samples
 
     def num_vars(self):
-        return self.transformations[0].num_vars()
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.transformations[0].nvars
+    
+    @property
+    def nvars(self):
+        return self.transformations[0].nvars

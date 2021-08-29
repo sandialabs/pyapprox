@@ -77,9 +77,9 @@ def callback(pce):
 max_num_samples = 200
 error_tol = 1e-10
 candidate_samples = -np.cos(
-    np.random.uniform(0, np.pi, (var_trans.num_vars(), int(1e4))))
+    np.random.uniform(0, np.pi, (var_trans.nvars, int(1e4))))
 pce = pya.AdaptiveLejaPCE(
-    var_trans.num_vars(), candidate_samples, factorization_type='fast')
+    var_trans.nvars, candidate_samples, factorization_type='fast')
 
 max_level = np.inf
 max_level_1d = [max_level]*(pce.num_vars)

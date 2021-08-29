@@ -132,7 +132,7 @@ class TestBlockDiagonalOperations(unittest.TestCase):
 
 def get_tensor_product_points(level, var_trans, quad_type):
     abscissa_1d = []
-    num_vars = var_trans.num_vars()
+    num_vars = var_trans.nvars
     if quad_type == 'CC':
         x, w = clenshaw_curtis_pts_wts_1D(level)
     elif quad_type == 'GH':

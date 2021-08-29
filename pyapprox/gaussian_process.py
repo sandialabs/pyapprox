@@ -623,7 +623,7 @@ def integrate_xi_1(xx_1d, ww_1d, lscale_ii):
 def get_gaussian_process_squared_exponential_kernel_1d_integrals(
         X_train, length_scale, variable, transform_quad_rules,
         nquad_samples=50, skip_xi_1=False):
-    nvars = variable.num_vars()
+    nvars = variable.nvars
     degrees = [nquad_samples]*nvars
     univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
         variable, degrees)
@@ -1807,7 +1807,7 @@ class GreedyVarianceOfMeanSampler(object):
         return xx_1d, ww_1d
 
     def precompute_gauss_quadrature(self):
-        nvars = self.variables.num_vars()
+        nvars = self.variables.nvars
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = [length_scale]*nvars
@@ -2392,7 +2392,7 @@ def marginalize_gaussian_process(gp, variable, center=True):
     kernel_var /= float(gp._y_train_std**2)
 
     length_scale = np.atleast_1d(kernel_length_scale)
-    nvars = variable.num_vars()
+    nvars = variable.nvars
     marginalized_gps = []
     for ii in range(nvars):
         tau = np.prod(np.array(tau_list)[:ii], axis=0)*np.prod(
@@ -2455,7 +2455,7 @@ def _compute_expected_sobol_indices(
             nquad_samples=nquad_samples, skip_xi_1=True)
 
     # ntrain_samples = x_train.shape[1]
-    nvars = variable.num_vars()
+    nvars = variable.nvars
     degrees = [nquad_samples]*nvars
     univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
         variable, degrees)
@@ -2562,7 +2562,7 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
         generate_random_samples = None
     from pyapprox.gaussian_process import generate_gp_candidate_samples
     candidate_samples = generate_gp_candidate_samples(
-        variable.num_vars(), ncandidate_samples, generate_random_samples,
+        variable.nvars, ncandidate_samples, generate_random_samples,
         variable)
     gp_realizations.fit(
         candidate_samples, rand_noise, ninterpolation_samples,

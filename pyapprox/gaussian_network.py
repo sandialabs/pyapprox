@@ -815,7 +815,7 @@ def get_total_degree_polynomials(univariate_variables,degrees):
         var_trans = AffineRandomVariableTransformation(univariate_variables[ii])
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
-        indices=compute_hyperbolic_indices(var_trans.num_vars(),degrees[ii],1.0)
+        indices=compute_hyperbolic_indices(var_trans.nvars,degrees[ii],1.0)
         poly.set_indices(indices)
         polys.append(poly)
         nparams.append(indices.shape[1])

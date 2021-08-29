@@ -135,7 +135,7 @@ def generate_independent_random_samples_deprecated(var_trans, num_samples):
     """
     assert type(var_trans) == AffineRandomVariableTransformation, \
         "`var_trans` must be of AffineRandomVariableTransformation type"
-    num_vars = var_trans.num_vars()
+    num_vars = var_trans.nvars
 
     canonical_samples = np.empty((num_vars, num_samples), dtype=float)
     variables = var_trans.variables
@@ -170,7 +170,7 @@ def generate_independent_random_samples(variable, num_samples,
     """
     assert type(variable) == IndependentMultivariateRandomVariable, \
         "`variable` must be of IndependentMultivariateRandomVariable type"
-    num_vars = variable.num_vars()
+    num_vars = variable.nvars
     num_samples = int(num_samples)
     samples = np.empty((num_vars, num_samples), dtype=float)
     for ii in range(variable.nunique_vars):

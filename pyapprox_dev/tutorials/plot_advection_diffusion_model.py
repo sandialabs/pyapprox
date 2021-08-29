@@ -282,7 +282,7 @@ benchmark = setup_benchmark(
 model = benchmark.fun
 validation_levels = [5]*3
 data = error_vs_cost(
-    model, partial(generate_random_samples, benchmark.variable.num_vars()),
+    model, partial(generate_random_samples, benchmark.variable.nvars),
     validation_levels)
 plot_error_vs_cost(data, 'time')
 plt.show()

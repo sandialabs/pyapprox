@@ -41,10 +41,10 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
    univariate_variables = [uniform(),beta(3,3)]
    variable = IndependentMultivariateRandomVariable(univariate_variables)
 
-   c = np.random.uniform(0.,1.,variable.num_vars())
+   c = np.random.uniform(0.,1.,variable.nvars)
    c*=4/c.sum()
    w = np.zeros_like(c); w[0] = np.random.uniform(0.,1.,1)
-   model = GenzFunction( "oscillatory",variable.num_vars(),c=c,w=w )
+   model = GenzFunction( "oscillatory",variable.nvars,c=c,w=w )
 
 PCE represent the model output :math:`f(\V{\rv})` as an expansion in orthonormal polynomials, 
 
@@ -129,7 +129,7 @@ To set the PCE truncation to a third degree total-degree index set use
       close-figs
 
    degree=3
-   indices = compute_hyperbolic_indices(poly.num_vars(),degree,1.0)
+   indices = compute_hyperbolic_indices(poly.nvars,degree,1.0)
    poly.set_indices(indices)
 
 Now we have defined the PCE, we are now must compute its coefficients. Pyapprox supports a number of methods to compute the polynomial coefficients. Here we will use interpolation. Specifically we evaluate the function at a set of samples :math:`\mathcal{Z}=[\V{\rv}^{(1)},\ldots,\V{\rv}^{(M)}]` to obtain a set of function values :math:`\V{f}=[\V{f}^{(1)},\ldots,\V{f}^{(M)}]^T`. The function may be vectored valued and thus each :math:`\V{f}^{(i)}\in\mathbb{R}^Q` is a vector and :math:`\V{F}\in\mathbb{R}^{M\times Q}` is a matrix
@@ -149,7 +149,7 @@ Sampling from this measure is asymptorically optimal (as degree increases) for a
       close-figs
 
    ntrain_samples = int(poly.indices.shape[1]*1.1)
-   train_samples = -np.cos(np.random.uniform(0,2*np.pi,(poly.num_vars(),ntrain_samples)))
+   train_samples = -np.cos(np.random.uniform(0,2*np.pi,(poly.nvars,ntrain_samples)))
    train_samples = var_trans.map_from_canonical_space(train_samples)
    train_values  = model(train_samples)
 

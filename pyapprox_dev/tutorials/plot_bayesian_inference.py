@@ -251,7 +251,7 @@ for ii in range(1,num_obs):
                               new_joint_covariance)
     new_mean, new_cov = condition_normal_on_data(
         new_joint.mean, new_joint.covariance,
-        np.arange(new_prior.num_vars(),new_prior.num_vars()+data.num_vars()),
+        np.arange(new_prior.nvars,new_prior.nvars+data.nvars),
        data_obs)
     posteriors[ii] = pya.NormalDensity(new_mean,new_cov)
 
@@ -322,7 +322,7 @@ print('MAP sample',map_sample.squeeze())
 def unnormalized_posterior(x):
     vals = np.exp(loglike.loglike(x))
     rvs = variables.all_variables()
-    for ii in range(variables.num_vars()):
+    for ii in range(variables.nvars):
         vals[:,0] *= rvs[ii].pdf(x[ii,:])
     return vals
 
@@ -331,7 +331,7 @@ def univariate_quadrature_rule(n):
     x*=2
     return x,w
 x,w = pya.get_tensor_product_quadrature_rule(
-    100,variables.num_vars(),univariate_quadrature_rule)
+    100,variables.nvars,univariate_quadrature_rule)
 evidence = unnormalized_posterior(x)[:,0].dot(w)
 print('evidence',evidence)
 

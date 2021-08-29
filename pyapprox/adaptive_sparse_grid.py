@@ -577,19 +577,19 @@ def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
     pce = PolynomialChaosExpansion()
     pce.configure(pce_opts)
     if sparse_grid.config_variables_idx is not None:
-        assert pce.num_vars() == sparse_grid.config_variables_idx
+        assert pce.nvars == sparse_grid.config_variables_idx
     else:
-        assert pce.num_vars() == sparse_grid.num_vars
+        assert pce.nvars == sparse_grid.num_vars
 
     def get_recursion_coefficients(N, dd):
-        pce.update_recursion_coefficients([N]*pce.num_vars())
+        pce.update_recursion_coefficients([N]*pce.nvars)
         return pce.recursion_coeffs[pce.basis_type_index_map[dd]].copy()
 
     coeffs_1d = [
         convert_univariate_lagrange_basis_to_orthonormal_polynomials(
             sparse_grid.samples_1d[dd],
             partial(get_recursion_coefficients, dd=dd))
-        for dd in range(pce.num_vars())]
+        for dd in range(pce.nvars)]
 
     indices_list = []
     coeffs_list = []
@@ -1070,10 +1070,10 @@ class SubSpaceRefinementManager(object):
         self.config_var_trans = config_var_trans
         self.num_config_vars = self.num_vars-self.config_variables_idx
         if self.variable_transformation is not None:
-            assert (self.variable_transformation.num_vars() ==
+            assert (self.variable_transformation.nvars ==
                     self.config_variables_idx)
         if self.config_var_trans is not None:
-            assert self.num_config_vars == self.config_var_trans.num_vars()
+            assert self.num_config_vars == self.config_var_trans.nvars
 
     def eval_cost_function(self, samples):
         config_samples = self.map_config_samples_from_canonical_space(
@@ -1255,9 +1255,9 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
         unique_max_level_1d = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
                 var_trans, growth_rules=None)
-    quad_rules = [None for ii in var_trans.num_vars()]
-    growth_rules = [None for ii in var_trans.num_vars()]
-    max_level_1d = [None for ii in var_trans.num_vars()]
+    quad_rules = [None for ii in var_trans.nvars]
+    growth_rules = [None for ii in var_trans.nvars]
+    max_level_1d = [None for ii in var_trans.nvars]
     for quad_rule, growth_rule, indices, max_level in zip(
             unique_quad_rules, unique_growth_rules, unique_quadrule_indices,
             unique_max_level_1d):
@@ -1632,6 +1632,9 @@ class ConfigureVariableTransformation(object):
         -------
         The number of configure variables
         """
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 

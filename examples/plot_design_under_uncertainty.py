@@ -35,10 +35,10 @@ from pyapprox.models.wrappers import ActiveSetVariableModel
 nsamples = 10
 samples = pya.generate_independent_random_samples(benchmark.variable,nsamples)
 fun = ActiveSetVariableModel(
-            benchmark.fun,benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.fun,benchmark.variable.nvars+benchmark.design_variable.nvars,
             samples,benchmark.design_var_indices)
 jac = ActiveSetVariableModel(
-    benchmark.jac,benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+    benchmark.jac,benchmark.variable.nvars+benchmark.design_variable.nvars,
     samples,benchmark.design_var_indices)
 
 nsamples = 10000
@@ -49,9 +49,9 @@ generate_random_samples = partial(
 seed=1
 generate_sample_data = partial(
     generate_monte_carlo_quadrature_data,generate_random_samples,
-    benchmark.variable.num_vars(),benchmark.design_var_indices,seed=seed)
+    benchmark.variable.nvars,benchmark.design_var_indices,seed=seed)
 
-num_vars = benchmark.variable.num_vars()+benchmark.design_variable.num_vars()
+num_vars = benchmark.variable.nvars+benchmark.design_variable.nvars
 objective = StatisticalConstraint(
     benchmark.fun,benchmark.jac,expectation_fun,expectation_jac,num_vars,
     benchmark.design_var_indices,generate_sample_data,isobjective=True)

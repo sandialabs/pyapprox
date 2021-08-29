@@ -216,7 +216,7 @@ def posterior_covariance_helper(prior, rank, comparison_tol,
 
     # Extract prior information required for computing exact posterior
     # mean and covariance
-    num_vars = prior.num_vars()
+    num_vars = prior.nvars
     prior_mean = np.zeros((num_vars),float)
     L = L_op(np.eye(num_vars),False)
     L_T = L_op(np.eye(num_vars),True)
@@ -715,7 +715,7 @@ class TestLaplace(unittest.TestCase):
         # map
         misfit_model.map_point = lambda : exact_laplace_mean
 
-        num_singular_values = prior.num_vars()
+        num_singular_values = prior.nvars
         try:
             L_post_op = generate_and_save_laplace_posterior(
                 prior,misfit_model,num_singular_values,

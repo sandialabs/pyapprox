@@ -274,7 +274,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
         nsamples = 10000
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
         order = 3
         interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
@@ -306,7 +306,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
         nsamples = 10000
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
         order = 3
         interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
@@ -346,7 +346,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("oakley")
 
         nsamples = 100000
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
         order = 1
         interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
@@ -371,7 +371,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
 
         # nsobol_samples and ntrain_samples effect assert tolerances
         ntrain_samples = 500
@@ -468,7 +468,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
         from pyapprox.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
 
         ntrain_samples = 500
         # train_samples = pya.generate_independent_random_samples(

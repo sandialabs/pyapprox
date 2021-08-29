@@ -144,7 +144,7 @@ class CovarianceOperator(object):
         return self.apply(vectors, None)
 
     def num_rows(self):
-         return self.sqrt_covariance_operator.num_vars()
+         return self.sqrt_covariance_operator.nvars
 
     def num_cols(self):
          return self.num_rows()
@@ -154,8 +154,8 @@ class MultivariateGaussian(object):
     def __init__(self,sqrt_covariance_operator,mean=0.):
         self.sqrt_covariance_operator=sqrt_covariance_operator
         if np.isscalar(mean):
-            mean = mean*np.ones((self.num_vars()))
-        assert mean.ndim==1 and mean.shape[0]==self.num_vars()
+            mean = mean*np.ones((self.nvars))
+        assert mean.ndim==1 and mean.shape[0]==self.nvars
         self.mean=mean
 
     def num_vars(self):
@@ -177,7 +177,7 @@ class MultivariateGaussian(object):
         return self.sqrt_covariance_operator(vectors, transpose)
 
     def generate_samples(self,nsamples):
-        std_normal_samples = np.random.normal(0.,1.,(self.num_vars(),nsamples))
+        std_normal_samples = np.random.normal(0.,1.,(self.nvars,nsamples))
         samples = self.apply_covariance_sqrt(std_normal_samples,False)
         samples += self.mean[:,np.newaxis]
         return samples
@@ -189,7 +189,7 @@ class MultivariateGaussian(object):
         """
         covariance_operator=CovarianceOperator(self.sqrt_covariance_operator)
         return get_operator_diagonal(
-            covariance_operator,self.num_vars(),
+            covariance_operator,self.nvars,
             self.sqrt_covariance_operator.eval_concurrency,
             active_indices=active_indices)
 

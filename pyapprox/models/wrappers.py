@@ -631,11 +631,11 @@ def get_active_set_model_from_variable(function, variable, active_var_indices,
     from pyapprox import IndependentMultivariateRandomVariable
     active_variable = IndependentMultivariateRandomVariable(
         [variable.all_variables()[ii] for ii in active_var_indices])
-    mask = np.ones(variable.num_vars(), dtype=bool)
+    mask = np.ones(variable.nvars, dtype=bool)
     mask[active_var_indices] = False
     inactive_var_values = nominal_values[mask]
     model = ActiveSetVariableModel(
-        function, variable.num_vars(), inactive_var_values, active_var_indices)
+        function, variable.nvars, inactive_var_values, active_var_indices)
     return model, active_variable
 
 

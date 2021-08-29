@@ -268,7 +268,7 @@ def get_oli_leja_samples(pce, generate_candidate_samples,
 
     oli_solver.set_basis_generator(basis_generator)
 
-    num_vars = pce.num_vars()
+    num_vars = pce.nvars
     max_degree = get_total_degree(num_vars, num_leja_samples)
     indices = compute_hyperbolic_indices(num_vars, max_degree, 1.)
     # warning this assumes basis generator is always compute_hyperbolic_indices

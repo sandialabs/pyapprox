@@ -43,10 +43,10 @@ class PriorConditionedHessianMatVecOperator(object):
         return z
 
     def num_rows(self):
-        return self.prior_covariance_sqrt_operator.num_vars()
+        return self.prior_covariance_sqrt_operator.nvars
 
     def num_cols(self):
-        return self.prior_covariance_sqrt_operator.num_vars()
+        return self.prior_covariance_sqrt_operator.nvars
 
 class LaplaceSqrtMatVecOperator(object):
     r"""
@@ -88,7 +88,14 @@ class LaplaceSqrtMatVecOperator(object):
             self.set_eigenvalues(e_r)
 
     def num_vars(self):
-        return self.prior_covariance_sqrt_operator.num_vars()
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.prior_covariance_sqrt_operator.nvars
+    
+    @property
+    def nvars(self):
+        return self.prior_covariance_sqrt_operator.nvars
 
     def set_eigenvalues(self,e_r):
         self.diagonal = np.sqrt(1./(e_r+1.))-1

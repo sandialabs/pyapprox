@@ -708,7 +708,7 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
         samplesA = generate_independent_random_samples(variables, nsamples)
         samplesB = generate_independent_random_samples(variables, nsamples)
     elif method == 'halton' or 'sobol':
-        nvars = variables.num_vars()
+        nvars = variables.nvars
         if method == 'halton':
             qmc_samples = halton_sequence(
                 2*nvars, qmc_start_index, qmc_start_index+nsamples)

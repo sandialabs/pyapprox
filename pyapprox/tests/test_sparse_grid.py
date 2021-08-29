@@ -1684,6 +1684,9 @@ class MultilevelPolynomialModelConfigureVariableTransformation(object):
         return samples
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
 
@@ -1894,7 +1897,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
-        sparse_grid = CombinationSparseGrid(var_trans.num_vars())
+        sparse_grid = CombinationSparseGrid(var_trans.nvars)
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
             get_sparse_grid_univariate_leja_quadrature_rules_economical(
@@ -1931,7 +1934,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
-        sparse_grid = CombinationSparseGrid(var_trans.num_vars())
+        sparse_grid = CombinationSparseGrid(var_trans.nvars)
         admissibility_function = partial(
             max_level_admissibility_function, np.inf,
             [12]*num_vars, 100, 0, verbose=False)

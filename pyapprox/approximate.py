@@ -175,9 +175,9 @@ def adaptive_approximate_sparse_grid(
         The sparse grid approximation
     """
     var_trans = AffineRandomVariableTransformation(variables)
-    nvars = var_trans.num_vars()
+    nvars = var_trans.nvars
     if config_var_trans is not None:
-        nvars += config_var_trans.num_vars()
+        nvars += config_var_trans.nvars
     sparse_grid = CombinationSparseGrid(nvars)
 
     if max_level_1d is None:
@@ -255,7 +255,7 @@ def __initialize_leja_pce(
             else:
                 break
 
-    nvars = variables.num_vars()
+    nvars = variables.nvars
     if generate_candidate_samples is None:
         # Todo implement default for non-bounded variables that uses induced
         # sampling
@@ -290,7 +290,7 @@ def __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
         refinement_indicator, admissibility_function, growth_rules,
         unique_quadrule_indices=unique_quadrule_indices)
 
-    nvars = var_trans.num_vars()
+    nvars = var_trans.nvars
     if max_level_1d is None:
         max_level_1d = [np.inf]*nvars
     elif np.isscalar(max_level_1d):
@@ -408,7 +408,7 @@ def adaptive_approximate_polynomial_chaos_induced(
     var_trans = AffineRandomVariableTransformation(variables)
 
     pce = AdaptiveInducedPCE(
-        var_trans.num_vars(), induced_sampling=induced_sampling,
+        var_trans.nvars, induced_sampling=induced_sampling,
         cond_tol=cond_tol, fit_opts=fit_opts)
 
     __setup_adaptive_pce(pce, verbose, fun, var_trans, growth_rules,
@@ -657,7 +657,7 @@ def adaptive_approximate_gaussian_process(
     """
     assert max_nsamples <= ncandidate_samples
 
-    nvars = variables.num_vars()
+    nvars = variables.nvars
 
     if normalize_inputs:
         var_trans = AffineRandomVariableTransformation(variables)
@@ -1231,7 +1231,7 @@ def _cross_validate_pce_degree(
     rng_state = np.random.get_state()
     for degree in range(min_degree, max_degree+1):
         indices = compute_hyperbolic_indices(
-            pce.num_vars(), degree, hcross_strength)
+            pce.nvars, degree, hcross_strength)
         pce.set_indices(indices)
         if ((pce.num_terms() > 100000) and
                 (100000-prev_num_terms < pce.num_terms()-100000)):
@@ -1258,7 +1258,7 @@ def _cross_validate_pce_degree(
         prev_num_terms = pce.num_terms()
 
     pce.set_indices(compute_hyperbolic_indices(
-        pce.num_vars(), best_degree, hcross_strength))
+        pce.nvars, best_degree, hcross_strength))
     pce.set_coefficients(best_coef)
     if verbose > 0:
         print('best degree:', best_degree)
@@ -1430,7 +1430,7 @@ def _expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
                          max_iters=20,
                          max_num_step_increases=1):
     assert train_vals.shape[1] == 1
-    num_vars = pce.num_vars()
+    num_vars = pce.nvars
 
     if max_num_init_terms is None:
         max_num_init_terms = train_vals.shape[0]

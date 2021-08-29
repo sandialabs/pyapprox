@@ -46,12 +46,12 @@ class TestBenchmarks(unittest.TestCase):
         from pyapprox.models.wrappers import ActiveSetVariableModel
         fun = ActiveSetVariableModel(
             benchmark.fun,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         jac = ActiveSetVariableModel(
             benchmark.jac,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
@@ -61,12 +61,12 @@ class TestBenchmarks(unittest.TestCase):
 
         constraint_fun = ActiveSetVariableModel(
             benchmark.constraint_fun,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         constraint_jac = ActiveSetVariableModel(
             benchmark.constraint_jac,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
@@ -79,11 +79,11 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.variable, nsamples)
         constraint_fun = ActiveSetVariableModel(
             benchmark.constraint_fun,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             samples, benchmark.design_var_indices)
         constraint_jac = ActiveSetVariableModel(
             benchmark.constraint_jac,
-            benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
+            benchmark.variable.nvars+benchmark.design_variable.nvars,
             samples, benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
         errors = pya.check_gradients(

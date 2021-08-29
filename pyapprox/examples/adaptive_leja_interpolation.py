@@ -36,7 +36,7 @@ def genz_example(max_num_samples,precond_type):
 
     c = np.array([10,0.00])
     model = GenzFunction(
-        "oscillatory",variable.num_vars(),c=c,w=np.zeros_like(c))
+        "oscillatory",variable.nvars,c=c,w=np.zeros_like(c))
     # model.set_coefficients(4,'exponential-decay')
 
     validation_samples = generate_independent_random_samples(
@@ -51,9 +51,9 @@ def genz_example(max_num_samples,precond_type):
         num_samples.append(pce.samples.shape[1])
 
     candidate_samples=-np.cos(
-        np.random.uniform(0,np.pi,(var_trans.num_vars(),int(1e4))))
+        np.random.uniform(0,np.pi,(var_trans.nvars,int(1e4))))
     pce = AdaptiveLejaPCE(
-        var_trans.num_vars(),candidate_samples,factorization_type='fast')
+        var_trans.nvars,candidate_samples,factorization_type='fast')
     if precond_type=='density':
         def precond_function(basis_matrix,samples):
             trans_samples = var_trans.map_from_canonical_space(samples)
