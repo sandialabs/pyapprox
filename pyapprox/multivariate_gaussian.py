@@ -49,6 +49,9 @@ class GaussianSqrtCovarianceOperator(object):
         raise Exception('Derived classes must implement this function')
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         raise Exception('Derived classes must implement this function')
 
     def __call__(self, vectors, transpose):
@@ -103,6 +106,13 @@ class CholeskySqrtCovarianceOperator(GaussianSqrtCovarianceOperator):
         r"""
         Return the number of variables of the multivariate Gaussian
         """
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.covariance.shape[0]
+    
+    @property
+    def nvars(self):
         return self.covariance.shape[0]
 
 class CovarianceOperator(object):
@@ -149,10 +159,19 @@ class MultivariateGaussian(object):
         self.mean=mean
 
     def num_vars(self):
-        r"""
+        """
         Return the number of variables of the multivariate Gaussian
         """
-        return self.sqrt_covariance_operator.num_vars()
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.sqrt_covariance_operator.nvars
+    
+    @property
+    def nvars(self):
+        """Return the number of variables of the multivariate Gaussian."""
+        return self.sqrt_covariance_operator.nvars
+
 
     def apply_covariance_sqrt(self, vectors, transpose):
         return self.sqrt_covariance_operator(vectors, transpose)

@@ -257,6 +257,9 @@ class IndependentMultivariateRandomVariable(object):
         self.variable_labels = variable_labels
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
     def all_variables(self):
@@ -462,6 +465,13 @@ class DesignVariable(object):
         self.bounds = bounds
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return len(self.bounds.lb)
+    
+    @property
+    def nvars(self):
         return len(self.bounds.lb)
 
 

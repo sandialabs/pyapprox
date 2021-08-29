@@ -87,6 +87,9 @@ class IdentityTransformation(object):
         return samples
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
     def map_derivatives_from_canonical_space(self, derivatives):

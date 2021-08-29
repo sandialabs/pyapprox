@@ -315,7 +315,22 @@ class GaussianNetwork(object):
         #self.node_var_ids=[[ii] for ii in range(nnodes)]
 
     def num_vars(self):
-        r"""
+        """
+        Return number of uncertain variables in the network
+        
+        Returns
+        -------
+        nnetwork_vars : integer
+            The number of uncertain variables in the network
+        """
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.nnetwork_vars
+    
+    @property
+    def nvars(self):
+        """
         Return number of uncertain variables in the network
         
         Returns
