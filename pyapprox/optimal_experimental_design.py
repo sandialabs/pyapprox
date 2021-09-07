@@ -1,15 +1,19 @@
-from scipy.optimize import Bounds, minimize, LinearConstraint, NonlinearConstraint
 from functools import partial
 import numpy as np
 from scipy.linalg import solve_triangular
 import copy
+
+from scipy.optimize import (
+    Bounds, minimize, LinearConstraint, NonlinearConstraint
+)
 
 
 def compute_prediction_variance(design_prob_measure, pred_factors,
                                 homog_outer_prods, noise_multiplier=None,
                                 regression_type='lstsq'):
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     u = np.linalg.solve(M1, pred_factors.T)
     if M0 is not None:
         M0u = M0.dot(u)
@@ -21,7 +25,7 @@ def compute_prediction_variance(design_prob_measure, pred_factors,
 
 def compute_homoscedastic_outer_products(factors):
     r"""
-    Compute 
+    Compute
 
     .. math:: f(x_i)f(x_i)^T\quad \forall i=0,\ldots,M
 
@@ -39,7 +43,7 @@ def compute_homoscedastic_outer_products(factors):
     Returns
     -------
     homoscedastic_outer_products : np.ndarray (N,N,M)
-       The outer products of each row of F with itself, i.e. 
+       The outer products of each row of F with itself, i.e.
        :math:`f(x_i)f(x_i)^T`
     """
     num_design_pts, num_factors = factors.shape
@@ -52,7 +56,8 @@ def compute_homoscedastic_outer_products(factors):
 
 
 def get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type):
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type):
     r"""
     Compute the matrices :math:`M_0` and :math:`M_1` used to compute the
     asymptotic covariance matrix :math:`C(\mu) = M_1^{-1} M_0 M^{-1}` of the
@@ -75,7 +80,7 @@ def get_M0_and_M1_matrices(
     Parameters
     ----------
     homog_outer_prods : np.ndarray(num_factors,num_factors,num_design_pts)
-        The outer products :math:`f(x_i)f(x_i)^T` for each design point 
+        The outer products :math:`f(x_i)f(x_i)^T` for each design point
         :math:`x_i`
 
     design_prob_measure : np.ndarray (num_design_pts)
@@ -85,7 +90,7 @@ def get_M0_and_M1_matrices(
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -134,14 +139,14 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
                                     num_design_pts)
-       The outer_products :math:`f(x_i)f(x_i)^T` for each design point 
+       The outer_products :math:`f(x_i)f(x_i)^T` for each design point
        :math:`x_i`
 
     design_factors : np.ndarray (num_design_pts,num_design_factors)
        The design factors evaluated at each of the design points
 
     pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
-       The prediction factors :math:`g` evaluated at each of the prediction 
+       The prediction factors :math:`g` evaluated at each of the prediction
        points
 
     design_prob_measure : np.ndarray (num_design_pts)
@@ -155,7 +160,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -166,7 +171,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-    #import time
+    # import time
     # t0=time.time()
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors = pred_factors.shape
@@ -193,7 +198,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
                     Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
                     np.sum(Fu**2, axis=1)
             gradient /= num_pred_pts
-            #print('that took',time.time()-t0)
+            # print('that took',time.time()-t0)
             return value, gradient.T
         else:
             return value
@@ -213,7 +218,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         # Gradient
         F_M1_inv_P = design_factors.dot(u)
         gradient = -np.sum(F_M1_inv_P**2, axis=1) / num_pred_pts
-        #print('That took', time.time()-t0)
+        # print('That took', time.time()-t0)
         return value, gradient.T
 
 
@@ -221,20 +226,20 @@ def coptimality_criterion(homog_outer_prods, design_factors,
                           design_prob_measure, return_grad=True,
                           noise_multiplier=None, regression_type='lstsq'):
     r"""
-    Evaluate the C-optimality criterion for a given design probability measure 
+    Evaluate the C-optimality criterion for a given design probability measure
     for the linear model
 
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon.
 
     The criteria is
 
-    .. math:: c^T C(\mu) c 
+    .. math:: c^T C(\mu) c
 
     where
 
     .. math:: C(\mu) = M_1^{-1} M_0 M^{-1}
 
-    for some vector :math:`c`. Here we assume without loss of genearlity 
+    for some vector :math:`c`. Here we assume without loss of genearlity
     :math:`c=(1,1,...,1)^T`
 
     Parameters
@@ -257,7 +262,7 @@ def coptimality_criterion(homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -327,7 +332,7 @@ def doptimality_criterion(homog_outer_prods, design_factors,
     ----------
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
                                     num_design_pts)
-       The outer_products :math:`f(x_i)f(x_i)^T` for each design point 
+       The outer_products :math:`f(x_i)f(x_i)^T` for each design point
        :math:`x_i`
 
     design_factors : np.ndarray (num_design_pts,num_design_factors)
@@ -344,7 +349,7 @@ def doptimality_criterion(homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -361,9 +366,10 @@ def doptimality_criterion(homog_outer_prods, design_factors,
     if design_prob_measure.ndim == 2:
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
-    #M1 = homog_outer_prods.dot(design_prob_measure)
+    # M1 = homog_outer_prods.dot(design_prob_measure)
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     M1_inv = np.linalg.inv(M1)
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)
@@ -386,7 +392,7 @@ def doptimality_criterion(homog_outer_prods, design_factors,
                 # computing diagonal elements with trace is more efficient than
                 # extracting diagonal (below) and looping through each element
                 # (above)
-                #gradient = -2*np.diag(design_factors.dot(M1_inv.dot(design_factors.T)))+np.diag(noise_multiplier[:,np.newaxis]*design_factors.dot(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)))
+                # gradient = -2*np.diag(design_factors.dot(M1_inv.dot(design_factors.T)))+np.diag(noise_multiplier[:,np.newaxis]*design_factors.dot(M0_inv.dot((noise_multiplier[:,np.newaxis]*design_factors).T)))
                 gradient = -2*np.sum(design_factors.T*(M1_inv.dot(design_factors.T)), axis=0)+np.sum(
                     (noise_multiplier[:, np.newaxis]*design_factors).T*(M0_inv.dot((noise_multiplier[:, np.newaxis]*design_factors).T)), axis=0)
             elif regression_type == 'quantile':
@@ -427,7 +433,7 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
                           noise_multiplier=None,
                           regression_type='lstsq'):
     r"""
-    Evaluate the A-optimality criterion for a given design probability measure 
+    Evaluate the A-optimality criterion for a given design probability measure
     for the linear model
 
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon.
@@ -460,7 +466,7 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -478,25 +484,26 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     M1_inv = np.linalg.inv(M1)
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)
         value = np.trace(M1_inv.dot(gamma))
         if (return_grad):
             ident = np.eye(gamma.shape[0])
-            M0_inv = np.linalg.inv(M0)
-            kappa = M1.dot(M0_inv)
             gradient = np.zeros(num_design_pts)
             for ii in range(num_design_pts):
                 if regression_type == 'lstsq':
                     gradient[ii] = np.trace(
                         M1_inv.dot(homog_outer_prods[:, :, ii]).dot(
-                            -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
+                            -2*gamma.T+noise_multiplier[ii]**2*ident).dot(
+                                M1_inv))
                 elif regression_type == 'quantile':
                     gradient[ii] = np.trace(
                         M1_inv.dot(homog_outer_prods[:, :, ii]).dot(
-                            -2*gamma.T/noise_multiplier[:, np.newaxis][ii]+ident).dot(M1_inv))
+                            -2*gamma.T/noise_multiplier[:, np.newaxis][ii] +
+                            ident).dot(M1_inv))
             return value, gradient.T
         else:
             return value
@@ -504,7 +511,7 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
         value = np.trace(M1_inv)
         # Gradient
         if (return_grad):
-            #gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
+            # gradient = -np.array([(M1_inv*homog_outer_prods[:,:,ii].dot(M1_inv)).sum() for ii in range(homog_outer_prods.shape[2])])
             # below is faster than above
             temp = M1_inv.dot(M1_inv)
             gradient = -np.sum(design_factors.T *
@@ -518,7 +525,7 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
                           noise_multiplier=None, regression_type='lstsq'):
     r"""
-    Evaluate the R-optimality criterion for a given design probability measure 
+    Evaluate the R-optimality criterion for a given design probability measure
     for the linear model
 
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon.
@@ -534,7 +541,7 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
     Parameters
     ----------
     beta : float
-       The confidence level of CVAR 
+       The confidence level of CVAR
 
     homog_outer_prods : np.ndarray (num_design_factors,num_design_factors,
                                     num_design_pts)
@@ -544,7 +551,7 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
        The design factors evaluated at each of the design points
 
     pred_factors : np.ndarray (num_pred_pts,num_pred_factors)
-       The prediction factors :math:`g` evaluated at each of the prediction 
+       The prediction factors :math:`g` evaluated at each of the prediction
        points
 
     design_prob_measure : np.ndarray (num_design_pts)
@@ -558,7 +565,7 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -578,7 +585,8 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     if noise_multiplier is not None:
         Q, R = np.linalg.qr(M1)
         u = solve_triangular(R, Q.T.dot(pred_factors.T))
@@ -596,7 +604,8 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
                                   cvar_grad[:, np.newaxis], axis=0)
             elif regression_type == 'quantile':
                 gradient = np.sum(
-                    (2*Fu*Fgamma/noise_multiplier[:, np.newaxis]+Fu**2).T*cvar_grad[:, np.newaxis], axis=0)
+                    (2*Fu*Fgamma/noise_multiplier[:, np.newaxis]+Fu**2).T *
+                    cvar_grad[:, np.newaxis], axis=0)
 
             return value, gradient.T
         else:
@@ -624,7 +633,7 @@ def goptimality_criterion(homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
                           noise_multiplier=None, regression_type='lstsq'):
     r"""
-    valuate the G-optimality criterion for a given design probability measure 
+    valuate the G-optimality criterion for a given design probability measure
     for the linear model
 
     .. math::  y(x) = F(x)\theta+\eta(x)\epsilon.
@@ -660,7 +669,7 @@ def goptimality_criterion(homog_outer_prods, design_factors,
         The design dependent noise function :math:`\eta(x)`
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. 
+        The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
     Returns
@@ -677,7 +686,8 @@ def goptimality_criterion(homog_outer_prods, design_factors,
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
     M0, M1 = get_M0_and_M1_matrices(
-        homog_outer_prods, design_prob_measure, noise_multiplier, regression_type)
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
     if noise_multiplier is not None:
         Q, R = np.linalg.qr(M1)
         u = solve_triangular(R, Q.T.dot(pred_factors.T))
@@ -758,7 +768,6 @@ def extract_minimax_design_from_optimize_result(res):
 
 def r_oed_objective(beta, pred_weights, x):
     num_pred_pts = pred_weights.shape[0]
-    t = x[0]
     u = x[1:num_pred_pts+1].squeeze()
     return x[0]+1/(1-beta)*u.dot(pred_weights)
 
@@ -792,7 +801,6 @@ def r_oed_sparse_constraint_jacobian(num_design_pts, local_oed_jac, x):
     local_jac = -local_oed_jac(x[num_pred_pts+1:])
     assert local_jac.ndim == 2 and local_jac.shape == (
         num_pred_pts, num_design_pts)
-    size = num_pred_pts*num_design_pts+1
     jac = np.empty((num_pred_pts, 2+num_design_pts))
     jac[:, :2] = 1
     jac[:, 2:] = local_jac
@@ -802,7 +810,8 @@ def r_oed_sparse_constraint_jacobian(num_design_pts, local_oed_jac, x):
 
 def get_r_oed_bounds(num_pred_pts, num_design_pts):
     return Bounds(
-        [-np.inf]+[0]*(num_pred_pts+num_design_pts), [np.inf]*(num_pred_pts+1)+[1]*(num_design_pts))
+        [-np.inf]+[0]*(num_pred_pts+num_design_pts),
+        [np.inf]*(num_pred_pts+1)+[1]*(num_design_pts))
 
 
 def get_r_oed_default_initial_guess(num_pred_pts, num_design_pts):
@@ -825,8 +834,8 @@ def extract_r_oed_design_from_optimize_result(num_design_pts, res):
 
 def get_r_oed_jacobian_structure(num_pred_pts, num_design_pts):
     nonlinear_constraint_structure = np.hstack(
-        [np.ones((num_pred_pts, 1)), np.eye(num_pred_pts, num_pred_pts), np.ones((
-            num_pred_pts, num_design_pts))])
+        [np.ones((num_pred_pts, 1)), np.eye(num_pred_pts, num_pred_pts),
+         np.ones((num_pred_pts, num_design_pts))])
     linear_constraint_structure = np.zeros((1, num_pred_pts+num_design_pts+1))
     linear_constraint_structure[0, 1+num_pred_pts:] = 1
     structure = np.vstack(
@@ -1104,8 +1113,8 @@ class AlphabetOptimalDesign(object):
         nonlinear_constraints = self.minimax_nonlinear_constraints(
             parameter_samples, design_samples)
         num_design_pts = design_samples.shape[1]
-        return self._solve_minimax(nonlinear_constraints, num_design_pts, options,
-                                   return_full, x0)
+        return self._solve_minimax(
+            nonlinear_constraints, num_design_pts, options, return_full, x0)
 
     def bayesian_objective_jacobian_components(
             self, parameter_samples, design_samples):
@@ -1139,8 +1148,9 @@ class AlphabetOptimalDesign(object):
                                  sample_weights=None, options=None,
                                  return_full=False, x0=None):
         assert callable(self.design_factors)
-        objs, jacs, num_design_pts = self.bayesian_objective_jacobian_components(
-            samples, design_samples)
+        objs, jacs, num_design_pts = \
+            self.bayesian_objective_jacobian_components(
+                samples, design_samples)
         lb_con = ub_con = np.atleast_1d(1)
         A_con = np.ones((1, num_design_pts))
         linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
@@ -1201,13 +1211,17 @@ class AlphabetOptimalDesign(object):
             return weights, res
 
 
-def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq', noise_multiplier=None, solver_opts=None, pred_factors=None, cvar_tol=None):
+def optimal_experimental_design(
+        design_pts, fun, criteria, regresion_type='lstsq',
+        noise_multiplier=None, solver_opts=None, pred_factors=None,
+        cvar_tol=None):
     r"""
     Compute optimal experimental designs for models of the form
 
     .. math:: y(\rv)=m(\rv;\theta)+\eta(\rv)\epsilon
 
-    to be used with estimators, such as least-squares and quantile regression, to find approximate parameters 
+    to be used with estimators, such as least-squares and quantile regression,
+    to find approximate parameters
     :math:`\hat{\theta}` that are the solutions of
 
     .. math:: \mathrm{argmin}_\theta \frac{1}{M}\sum_{i=1}^M e(y_i-m(\rv_i;\theta))
@@ -1229,7 +1243,8 @@ def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq
        from data collected using the optimal design
 
        A np.ndarray with shape (nsamples,nfactors) where
-       each column is the jacobian of :math:`m(\rv,\theta)` for some :math:`\theta`
+       each column is the jacobian of :math:`m(\rv,\theta)` for
+       some :math:`\theta`
 
     criteria : string
        The optimality criteria. Supported criteria are
@@ -1241,21 +1256,25 @@ def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq
        - ``'R'``
        - ``'G'``
 
-       The criteria I,G and R require pred_factors to be provided. A, C and D optimality do not. R optimality requires cvar_tol to be provided.
+       The criteria I,G and R require pred_factors to be provided. A, C and D
+       optimality do not. R optimality requires cvar_tol to be provided.
 
-       See [KJLSIAMUQ2020]_ for a definition of these criteria
+       See [KJHSIAMUQ2020]_ for a definition of these criteria
 
     regression_type : string
-        The method used to compute the coefficients of the linear model. This defineds the loss function :math:`e`. 
-        Currently supported options are 
+        The method used to compute the coefficients of the linear model.
+        This defines the loss function :math:`e`.
+        Currently supported options are
 
-        - ``'lstsq'`` 
+        - ``'lstsq'``
         - ``'quantile'``
 
-        Both these options will produce the same design if noise_multiplier is None
+        Both these options will produce the same design if noise_multiplier
+        is None
 
     noise_multiplier : np.ndarray (nsamples)
-        An array specifying the noise multiplier :math:`\eta` at each design point
+        An array specifying the noise multiplier :math:`\eta` at each
+        design point
 
     solver_opts : dict
         Options passed to the non-linear optimizer which solves
@@ -1270,10 +1289,12 @@ def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq
         parameters
 
         A np.ndarray with shape (nsamples,nfactors) where
-       each column is the jacobian of :math:`g(\rv,\theta)` for some :math:`\theta`
+        each column is the jacobian of :math:`g(\rv,\theta)` for
+        some :math:`\theta`
 
     cvar_tol : float
-        The :math:`0\le\beta<1` quantile defining the R-optimality criteria. When :math:`\beta=0`, I and R optimal designs will be the same.
+        The :math:`0\le\beta<1` quantile defining the R-optimality criteria.
+        When :math:`\beta=0`, I and R optimal designs will be the same.
 
     Returns
     -------
@@ -1281,12 +1302,12 @@ def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq
         The design points used in the experimental design
 
     nrepetitions : np.ndarray (nfinal_design_pts)
-        The number of times to evaluate the model at each 
+        The number of times to evaluate the model at each
         design point
 
     References
     ----------
-    .. [KJLSIAMUQ2020] `D.P. Kouri, J.D. Jakeman, J. Lewis, Risk-Adapted Optimal Experimental Design.`
+    .. [KJHSIAMUQ2020] `D.P. Kouri, J.D. Jakeman, G. Huerta, Risk-Adapted Optimal Experimental Design.`
 
     """
     if not callable(fun):
@@ -1300,10 +1321,11 @@ def optimal_experimental_design(design_pts, fun, criteria, regresion_type='lstsq
 
     ncandidate_design_pts = design_pts.shape[1]
     opt_problem = AlphabetOptimalDesign(
-        criteria, design_factors, regression_type='quantile', noise_multiplier=noise_multiplier, opts=opts)
+        criteria, design_factors, regression_type='quantile',
+        noise_multiplier=noise_multiplier, opts=opts)
     if solver_opts is None:
         solver_opts = {'iprint': 1, 'ftol': 1e-8}
     mu = opt_problem.solve(solver_opts)
     mu = np.round(mu*ncandidate_design_pts)
-    I = np.where(mu > 0)[0]
-    return design_pts[:, I], mu[I]
+    II = np.where(mu > 0)[0]
+    return design_pts[:, II], mu[II]

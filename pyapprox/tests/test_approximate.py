@@ -531,7 +531,7 @@ class TestApproximate(unittest.TestCase):
         train_vals = benchmark.fun(train_samples)
 
         opts = {"network_opts": network_opts, "verbosity": 3,
-                "optimizer_opts": optimizer_opts, "x0": 1}
+                "optimizer_opts": optimizer_opts, "x0": 10}
         approx = approximate(
             train_samples, train_vals, "neural_network", opts).approx
         nsamples = 100
@@ -539,6 +539,7 @@ class TestApproximate(unittest.TestCase):
             approx, benchmark.fun, var_trans.variable,
             nsamples)
         print(error)
+        assert error < 4e-2
 
 
 if __name__ == "__main__":
