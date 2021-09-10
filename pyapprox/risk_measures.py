@@ -88,8 +88,8 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     assert np.allclose(weights.sum(), 1), (weights.sum())
     assert weights.ndim == 1 or weights.shape[1] == 1
     if not samples_sorted:
-        I = np.argsort(samples)
-        xx, ww = samples[I], weights[I]
+        II = np.argsort(samples)
+        xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
     VaR, index = value_at_risk(xx, alpha, ww, samples_sorted=True)
@@ -135,16 +135,16 @@ def cvar_importance_sampling_biasing_density(pdf, function, beta, VaR, tau, x):
 
 
     VaR : float
-        The value-at-risk associated above which to compute conditional value 
+        The value-at-risk associated above which to compute conditional value
         at risk
 
     tau : float
-        The quantile of interest. 100*tau% percent of data will fall below this 
+        The quantile of interest. 100*tau% percent of data will fall below this
         value
 
     beta: float
         Tunable parameter that controls shape of biasing density. As beta=0
-        all samples will have values above VaR. If beta=tau, then biasing 
+        all samples will have values above VaR. If beta=tau, then biasing
         density will just be density of X p(x).
 
     x : np.ndarray (nsamples)
@@ -162,10 +162,10 @@ def cvar_importance_sampling_biasing_density(pdf, function, beta, VaR, tau, x):
     assert vals.ndim == 1 or vals.shape[1] == 1
     y = function(x)
     assert y.ndim == 1 or y.shape[1] == 1
-    I = np.where(y < VaR)[0]
-    J = np.where(y >= VaR)[0]
-    vals[I] *= beta/tau
-    vals[J] *= (1-beta)/(1-tau)
+    II = np.where(y < VaR)[0]
+    JJ = np.where(y >= VaR)[0]
+    vals[II] *= beta/tau
+    vals[JJ] *= (1-beta)/(1-tau)
     return vals
 
 
@@ -189,12 +189,12 @@ def generate_samples_from_cvar_importance_sampling_biasing_density(
 
     beta: float
         Tunable parameter that controls shape of biasing density. As beta=0
-        all samples will have values above VaR.  If beta=tau, then biasing 
+        all samples will have values above VaR.  If beta=tau, then biasing
         density will just be density of X p(x). Best value of beta is problem
         dependent, but 0.2 has often been a reasonable choice.
 
     VaR : float
-        The value-at-risk associated above which to compute conditional value 
+        The value-at-risk associated above which to compute conditional value
         at risk
 
     generate_candidate_samples : callable
@@ -307,6 +307,7 @@ def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
                                         quad_opts={}):
     quantile = univariate_quantile_continuous_variable(
         pdf, bounds, beta, opt_tol, quad_opts)
+
     def integrand(x): return x*pdf(x)
     return 1/(1-beta)*scipy.integrate.quad(
         integrand, quantile, bounds[1], **quad_opts)[0]

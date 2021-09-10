@@ -539,7 +539,7 @@ class TestApproximate(unittest.TestCase):
             approx, benchmark.fun, var_trans.variable,
             nsamples)
         print(error)
-        assert error < 4e-2
+        assert error < 6e-2
 
 
 if __name__ == "__main__":

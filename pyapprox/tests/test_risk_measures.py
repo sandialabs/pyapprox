@@ -1,34 +1,43 @@
+import numpy as np
 import unittest
 from scipy import stats
-from scipy.special import erf, erfinv, factorial, betainc, beta as beta_fn, \
+from scipy.special import (
+    erf, erfinv, betainc, beta as beta_fn,
     gamma as gamma_fn
-from pyapprox.risk_measures import *
-from pyapprox.variables import get_distribution_info
+)
 from scipy import integrate
 from functools import partial
 from scipy.optimize import minimize
+
+from pyapprox.risk_measures import (
+    value_at_risk, conditional_value_at_risk,
+    univariate_quantile_continuous_variable,
+    compute_conditional_expectations,
+    univariate_cvar_continuous_variable
+    )
+from pyapprox.variables import get_distribution_info
 
 
 def cvar_univariate_integrand(f, pdf, t, x):
     x = np.atleast_2d(x)
     assert x.shape[0] == 1
     pdf_vals = pdf(x[0, :])
-    I = np.where(pdf_vals > 0)[0]
+    II = np.where(pdf_vals > 0)[0]
     vals = np.zeros(x.shape[1])
-    if I.shape[0] > 0:
-        vals[I] = np.maximum(f(x[:, I])[:, 0]-t, 0)*pdf_vals[I]
+    if II.shape[0] > 0:
+        vals[II] = np.maximum(f(x[:, II])[:, 0]-t, 0)*pdf_vals[II]
     return vals
 
 
 def compute_cvar_objective_from_univariate_function_quadpack(
         f, pdf, lbx, ubx, alpha, t, tol=4*np.finfo(float).eps):
-    import warnings
+    # import warnings
     # warnings.simplefilter("ignore")
     integral, err = integrate.quad(
         partial(cvar_univariate_integrand, f, pdf, t), lbx, ubx,
         epsrel=tol, epsabs=tol, limit=100)
     # warnings.simplefilter("default")
-    #assert err<1e-13, err
+    # assert err<1e-13, err
     val = t+1./(1.-alpha)*integral
     return val
 
@@ -71,13 +80,13 @@ def triangle_quantile(u, c, loc, scale):
     lb = loc
     mid = loc+c*scale
     ub = loc+scale
-    I = np.where((u >= 0) & (u < (mid-lb)/(ub-lb)))[0]
+    II = np.where((u >= 0) & (u < (mid-lb)/(ub-lb)))[0]
     J = np.where((u <= 1) & (u >= (mid-lb)/(ub-lb)))[0]
-    if I.shape[0]+J.shape[0] != u.shape[0]:
+    if II.shape[0]+J.shape[0] != u.shape[0]:
         raise Exception('Ensure u in [0,1] and loc<=loc+c*scale <=loc+scale')
 
     quantiles = np.empty_like(u)
-    quantiles[I] = lb + np.sqrt((ub-lb)*(mid-lb)*u[I])
+    quantiles[II] = lb + np.sqrt((ub-lb)*(mid-lb)*u[II])
     quantiles[J] = ub - np.sqrt((ub-lb)*(ub-mid)*(1-u[J]))
     return quantiles
 
@@ -95,17 +104,17 @@ def triangle_superquantile(u, c, loc, scale):
     def right_integral(u): return ub*u-2./3*(u-1) * \
         np.sqrt((u-1)*(lb-ub)*(ub-mid))
 
-    I = np.where((u >= 0) & (u < (mid-lb)/(ub-lb)))[0]
+    II = np.where((u >= 0) & (u < (mid-lb)/(ub-lb)))[0]
     J = np.where((u < 1) & (u >= (mid-lb)/(ub-lb)))[0]
     K = np.where((u == 1))[0]
 
-    if I.shape[0]+J.shape[0]+K.shape[0] != u.shape[0]:
+    if II.shape[0]+J.shape[0]+K.shape[0] != u.shape[0]:
         raise Exception('Ensure u in [0,1] and loc<=loc+c*scale <=loc+scale')
 
     superquantiles = np.empty_like(u)
-    superquantiles[I] = (
-        left_integral((mid-lb)/(ub-lb))-left_integral(u[I]) +
-        right_integral(1)-right_integral((mid-lb)/(ub-lb)))/(1-u[I])
+    superquantiles[II] = (
+        left_integral((mid-lb)/(ub-lb))-left_integral(u[II]) +
+        right_integral(1)-right_integral((mid-lb)/(ub-lb)))/(1-u[II])
     superquantiles[J] = (right_integral(1)-right_integral(u[J]))/(1-u[J])
     superquantiles[K] = stats.triang.interval(1, c, loc, scale)[1]
     return superquantiles
@@ -143,8 +152,8 @@ def get_lognormal_example_exact_quantities(mu, sigma):
     def cond_exp_le_eta(y):
         vals = np.zeros_like(y, dtype=float)
         II = np.where(y > 0)[0]
-        vals[II] = mean*stats.norm.cdf((np.log(y[II])-mu-sigma**2)/sigma)/f_cdf(
-            y[II])
+        vals[II] = mean*stats.norm.cdf(
+            (np.log(y[II])-mu-sigma**2)/sigma)/f_cdf(y[II])
         return vals
 
     def ssd(y): return f_cdf(y)*(y-cond_exp_le_eta(y))
@@ -171,13 +180,13 @@ def get_truncated_lognormal_example_exact_quantities(lb, ub, mu, sigma):
     # truncated_normal_cdf = lambda x: (
     #    stats.norm.cdf((x-mu)/sigma)-stats.norm.cdf(alpha))/denom
 
-    def truncated_normal_cdf(x): return truncnorm_rv.cdf(
+    def truncated_normal_cdf(x): return stats.truncnorm.cdf(
         x, alpha, beta, loc=mu, scale=sigma)
 
-    def truncated_normal_pdf(x): return truncnorm_rv.pdf(
+    def truncated_normal_pdf(x): return stats.truncnorm.pdf(
         x, alpha, beta, loc=mu, scale=sigma)
 
-    def truncated_normal_ppf(p): return truncnorm_rv.ppf(
+    def truncated_normal_ppf(p): return stats.truncnorm.ppf(
         p, alpha, beta, loc=mu, scale=sigma)
 
     # CDF of output variable (log truncated normal PDF)
@@ -240,24 +249,24 @@ def plot_truncated_lognormal_example_exact_quantities(
         num_samples=int(1e5), plot=False, mu=0, sigma=1):
     if plot:
         assert num_samples <= 1e5
-    num_vars = 1.
+
     lb, ub = -1, 3
 
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
         get_truncated_lognormal_example_exact_quantities(lb, ub, mu, sigma)
-    # lb,ub passed to truncnorm_rv are defined for standard normal.
+    # lb,ub passed to stats.truncnorm are defined for standard normal.
     # Adjust for mu and sigma using
     alpha, beta = (lb-mu)/sigma, (ub-mu)/sigma
-    samples = truncnorm_rv.rvs(
+    samples = stats.truncnorm.rvs(
         alpha, beta, mu, sigma, size=num_samples)[np.newaxis, :]
     values = f(samples)[:, 0]
 
-    fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
-
-    from pyapprox.density import EmpiricalCDF
     ygrid = np.linspace(np.exp(lb)-1, np.exp(ub)*1.1, 100)
-    ecdf = EmpiricalCDF(values)
     if plot:
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
+        from pyapprox.density import EmpiricalCDF
+        ecdf = EmpiricalCDF(values)
         axs[0].plot(ygrid, ecdf(ygrid), '-')
         axs[0].plot(ygrid, f_cdf(ygrid), '--')
         axs[0].set_xlim(ygrid.min(), ygrid.max())
@@ -330,23 +339,23 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5), plot=False,
     f, f_cdf, f_pdf, VaR, CVaR, ssd, ssd_disutil = \
         get_lognormal_example_exact_quantities(mu, sigma)
     from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
-    #samples = np.random.normal(mu,sigma,(num_vars,num_samples))
-    #values = f(samples)[:,0]
+    # samples = np.random.normal(mu,sigma,(num_vars,num_samples))
+    # values = f(samples)[:,0]
     samples = transformed_halton_sequence(
         [partial(stats.norm.ppf, loc=mu, scale=sigma)], num_vars, num_samples)
     values = f(samples)[:, 0]
 
-    fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
-
-    from pyapprox.density import EmpiricalCDF
     if plot:
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
+        # from pyapprox.density import EmpiricalCDF
         ygrid = np.linspace(-1, 5, 100)
-        #ecdf = EmpiricalCDF(values)
+        # ecdf = EmpiricalCDF(values)
         # axs[0].plot(ygrid,ecdf(ygrid),'-')
         axs[0].plot(ygrid, f_cdf(ygrid), '--')
         # axs[0].set_xlim(ygrid.min(),ygrid.max())
         axs[0].set_title('CDF')
-        #ecdf = EmpiricalCDF(-values)
+        # ecdf = EmpiricalCDF(-values)
         # axs[0].plot(-ygrid,ecdf(-ygrid),'-')
 
         ygrid = np.linspace(-1, 20, 100)
@@ -377,10 +386,10 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5), plot=False,
     else:
         assert np.allclose(ecvar.squeeze(), CVaR(pgrid).squeeze(), rtol=4e-2)
 
-    #ygrid = np.linspace(-1,10,100)
+    # ygrid = np.linspace(-1,10,100)
     ygrid = np.linspace(
-        logstats.norm.ppf(0.0, np.exp(mu), sigma),
-        logstats.norm.ppf(0.9, np.exp(mu), sigma), 101)
+        stats.lognorm.ppf(0.0, np.exp(mu), sigma),
+        stats.lognorm.ppf(0.9, np.exp(mu), sigma), 101)
     essd = compute_conditional_expectations(ygrid, values, False)
     # print(np.linalg.norm(essd.squeeze()-ssd(ygrid),ord=np.inf))
     if plot:
@@ -443,14 +452,14 @@ class TestRiskMeasures(unittest.TestCase):
         samples = np.random.normal(0, 1, num_samples)
         # [np.random.permutation(num_samples)]
         samples = np.arange(1, num_samples+1)
-        #xx = np.sort(samples)
-        #VaR,VaR_index = value_at_risk(xx,alpha,weights,samples_sorted=True)
+        # xx = np.sort(samples)
+        # VaR,VaR_index = value_at_risk(xx,alpha,weights,samples_sorted=True)
         xx = samples
         VaR, VaR_index = value_at_risk(
             xx, alpha, weights, samples_sorted=False)
         sorted_index = int(np.ceil(alpha*num_samples)-1)
-        I = np.argsort(samples)
-        index = I[sorted_index]
+        II = np.argsort(samples)
+        index = II[sorted_index]
         print(index, VaR_index)
         assert np.allclose(VaR_index, index)
         assert np.allclose(VaR, xx[index])
@@ -494,8 +503,8 @@ class TestRiskMeasures(unittest.TestCase):
         samples = np.random.normal(bias_mu, bias_sigma, num_samples)
         target_pdf_vals = stats.norm.pdf(samples, loc=mu, scale=sigma)
         bias_pdf_vals = stats.norm.pdf(samples, loc=bias_mu, scale=bias_sigma)
-        I = np.where(bias_pdf_vals < np.finfo(float).eps)[0]
-        assert np.all(target_pdf_vals[I] < np.finfo(float).eps)
+        II = np.where(bias_pdf_vals < np.finfo(float).eps)[0]
+        assert np.all(target_pdf_vals[II] < np.finfo(float).eps)
         J = np.where(bias_pdf_vals >= np.finfo(float).eps)[0]
         weights = np.zeros_like(target_pdf_vals)
         weights[J] = target_pdf_vals[J]/bias_pdf_vals[J]
@@ -522,41 +531,41 @@ class TestRiskMeasures(unittest.TestCase):
         tol = 4*np.finfo(float).eps
         alpha = .8
         t = VaR(alpha)
-        #fun1 = lambda x: np.maximum(f(x)-t,0)*stats.norm.pdf(x,loc=mu,scale=sigma)
+        # fun1 = lambda x: np.maximum(f(x)-t,0)*stats.norm.pdf(x,loc=mu,scale=sigma)
 
         def fun1(x):
             x = np.atleast_1d(x)
             pdf_vals = stats.norm.pdf(x, loc=mu, scale=sigma)
             # Next line avoids problems caused by f(x) being to large or nan
-            I = np.where(pdf_vals > 0)[0]
+            II = np.where(pdf_vals > 0)[0]
             vals = np.zeros_like(x)
-            vals[I] = np.maximum(f(x[I])-t, 0)*pdf_vals[I]
+            vals[II] = np.maximum(f(x[II])-t, 0)*pdf_vals[II]
             return vals
         cvar1 = t+1./(1.-alpha)*integrate.quad(
             fun1, lbx, ubx, epsabs=tol, epsrel=tol, full_output=True)[0]
 
-        #fun2 = lambda x: f(x)*stats.norm.pdf(x,loc=mu,scale=sigma)
+        # fun2 = lambda x: f(x)*stats.norm.pdf(x,loc=mu,scale=sigma)
         def fun2(x):
             x = np.atleast_1d(x)
             pdf_vals = stats.norm.pdf(x, loc=mu, scale=sigma)
             # Next line avoids problems caused by f(x) being to large or nan
-            I = np.where(pdf_vals > 0)[0]
+            II = np.where(pdf_vals > 0)[0]
             vals = np.zeros_like(x)
-            vals[I] = f(x[I])*pdf_vals[I]
+            vals[II] = f(x[II])*pdf_vals[II]
             return vals
         x_cdf = partial(stats.norm.cdf, loc=mu, scale=sigma)
         integral = integrate.quad(
             fun2, np.log(t), ubx, epsabs=tol, epsrel=tol, full_output=True)[0]
         cvar2 = t+1./(1.-alpha)*(integral-t*(1-x_cdf(np.log(t))))
-        #fun3=lambda x: np.absolute(f(x)-t)*stats.norm.pdf(x,loc=mu,scale=sigma)
+        # fun3=lambda x: np.absolute(f(x)-t)*stats.norm.pdf(x,loc=mu,scale=sigma)
 
         def fun3(x):
             x = np.atleast_1d(x)
             pdf_vals = stats.norm.pdf(x, loc=mu, scale=sigma)
             # Next line avoids problems caused by f(x) being to large or nan
-            I = np.where(pdf_vals > 0)[0]
+            II = np.where(pdf_vals > 0)[0]
             vals = np.zeros_like(x)
-            vals[I] = np.absolute(f(x[I])-t)*pdf_vals[I]
+            vals[II] = np.absolute(f(x[II])-t)*pdf_vals[II]
             return vals
 
         mean = CVaR(0)
@@ -566,8 +575,8 @@ class TestRiskMeasures(unittest.TestCase):
 
         lbx, ubx = - np.inf, np.inf
         value_at_risk4, cvar4 = compute_cvar_from_univariate_function(
-            f, partial(stats.norm.pdf, loc=mu, scale=sigma), lbx, ubx, alpha, 5,
-            tol=1e-7)
+            f, partial(stats.norm.pdf, loc=mu, scale=sigma), lbx, ubx,
+            alpha, 5, tol=1e-7)
 
         # print(abs(cvar1-CVaR(alpha)))
         # print(abs(cvar2-CVaR(alpha)))
@@ -582,7 +591,7 @@ class TestRiskMeasures(unittest.TestCase):
         N = 6
         p = np.ones(N)/N
         X = np.random.normal(0, 1, N)
-        #X = np.arange(1,N+1)
+        # X = np.arange(1,N+1)
         X = np.sort(X)
         beta = 7/12
         i_beta_exact = 3
