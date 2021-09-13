@@ -483,7 +483,7 @@ def get_coefficients_for_plotting(pce, qoi_idx):
     indices = pce.indices.copy()
     assert coeff.shape[0] == indices.shape[1]
 
-    num_vars = pce.num_vars()
+    num_vars = pce.nvars
     degree = -1
     indices_dict = dict()
     max_degree = indices.sum(axis=0).max()
@@ -818,11 +818,11 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
         nominal_sample = variable.get_statistics("mean")
 
     if subplot_tuple is None:
-        nfig_rows, nfig_cols = 1, variable.num_vars()
+        nfig_rows, nfig_cols = 1, variable.nvars
     else:
         nfig_rows, nfig_cols = subplot_tuple
 
-    if nfig_rows*nfig_cols < variable.num_vars():
+    if nfig_rows*nfig_cols < variable.nvars:
         raise ValueError("Number of subplots is insufficient")
 
     fig, axs = plt.subplots(
@@ -834,7 +834,7 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
         plot_1d_cross_section(
             fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi, plt_kwargs)
 
-    for ii in range(variable.num_vars(), nfig_rows*nfig_cols):
+    for ii in range(variable.nvars, nfig_rows*nfig_cols):
         axs[ii].axis("off")
 
     return fig, axs
@@ -849,7 +849,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
 
     if variable_pairs is None:
         variable_pairs = np.array(
-            compute_anova_level_indices(variable.num_vars(), 2))
+            compute_anova_level_indices(variable.nvars, 2))
         # make first column values vary fastest so we plot lower triangular
         # matrix of subplots
         variable_pairs[:, 0], variable_pairs[:, 1] = \
@@ -859,7 +859,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         raise ValueError("Variable pairs has the wrong shape")
 
     if subplot_tuple is None:
-        nfig_rows, nfig_cols = variable.num_vars(), variable.num_vars()
+        nfig_rows, nfig_cols = variable.nvars, variable.nvars
     else:
         nfig_rows, nfig_cols = subplot_tuple
 

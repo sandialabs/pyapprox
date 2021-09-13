@@ -50,7 +50,7 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
 
    c = np.array([10,0.01])
    model = GenzFunction(
-       "oscillatory",variable.num_vars(),c=c,w=np.zeros_like(c))
+       "oscillatory",variable.nvars,c=c,w=np.zeros_like(c))
    # model.set_coefficients(4,'exponential-decay')
 
 Here we have intentionally set the coefficients :math:`c`: of the Genz function to be highly anisotropic, to emphasize the properties of the adaptive algorithm.
@@ -105,9 +105,9 @@ Now we setup the adaptive algorithm.
     error_tol=1e-10
 
     candidate_samples=-np.cos(
-        np.random.uniform(0,np.pi,(var_trans.num_vars(),int(1e4))))
+        np.random.uniform(0,np.pi,(var_trans.nvars,int(1e4))))
     pce = AdaptiveLejaPCE(
-        var_trans.num_vars(),candidate_samples,factorization_type='fast')
+        var_trans.nvars,candidate_samples,factorization_type='fast')
 
     max_level=np.inf
     max_level_1d=[max_level]*(pce.num_vars)

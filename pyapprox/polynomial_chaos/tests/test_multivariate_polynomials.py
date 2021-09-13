@@ -695,12 +695,12 @@ class TestMultivariatePolynomials(unittest.TestCase):
         degree1, degree2 = 3, 2
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree1))
+            variable.nvars, degree1))
         poly1.set_coefficients(np.random.normal(
             0, 1, (poly1.indices.shape[1], 1)))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree2))
+            variable.nvars, degree2))
         poly2.set_coefficients(np.random.normal(
             0, 1, (poly2.indices.shape[1], 1)))
 
@@ -732,10 +732,10 @@ class TestMultivariatePolynomials(unittest.TestCase):
         degree1, degree2 = 1, 2
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree1))
+            variable.nvars, degree1))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree2))
+            variable.nvars, degree2))
 
         # coef1 = np.random.normal(0,1,(poly1.indices.shape[1],1))
         # coef2 = np.random.normal(0,1,(poly2.indices.shape[1],1))
@@ -759,12 +759,12 @@ class TestMultivariatePolynomials(unittest.TestCase):
         degree1, degree2 = 2, 3
         poly1 = get_polynomial_from_variable(variable)
         poly1.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree1))
+            variable.nvars, degree1))
         poly1.set_coefficients(np.random.normal(
             0, 1, (poly1.indices.shape[1], 1)))
         poly2 = get_polynomial_from_variable(variable)
         poly2.set_indices(compute_hyperbolic_indices(
-            variable.num_vars(), degree2))
+            variable.nvars, degree2))
         poly2.set_coefficients(np.random.normal(
             0, 1, (poly2.indices.shape[1], 1)))
 
@@ -958,7 +958,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
             var_trans)
         pce.configure(pce_opts)
         pce.set_indices(
-            compute_hyperbolic_indices(var_trans.num_vars(), degree, 1.))
+            compute_hyperbolic_indices(var_trans.nvars, degree, 1.))
 
         nsamples = int(1e6)
         samples = lognorm.rvs(nsamples)[None, :]

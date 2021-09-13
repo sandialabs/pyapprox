@@ -257,7 +257,7 @@ class PolynomialChaosExpansion(object):
     def __pow__(self, order):
         poly = get_polynomial_from_variable(self.var_trans.variable)
         if order == 0:
-            poly.set_indices(np.zeros([self.num_vars(), 1], dtype=int))
+            poly.set_indices(np.zeros([self.nvars, 1], dtype=int))
             poly.set_coefficients(np.ones([1, self.coefficients.shape[1]]))
             return poly
 
@@ -304,14 +304,14 @@ class PolynomialChaosExpansion(object):
         """
         self.var_trans = opts["var_trans"]
         self.config_opts = opts
-        self.max_degree = -np.ones(self.num_vars(), dtype=int)
+        self.max_degree = -np.ones(self.nvars, dtype=int)
 
     def update_recursion_coefficients(self, num_coefs_per_var):
         num_coefs_per_var = np.atleast_1d(num_coefs_per_var)
         initializing = False
         if self.basis_type_index_map is None:
             initializing = True
-            self.basis_type_index_map = np.zeros((self.num_vars()), dtype=int)
+            self.basis_type_index_map = np.zeros((self.nvars), dtype=int)
         ii = 0
         for key, poly_opts in self.config_opts['poly_types'].items():
             if (initializing or (
@@ -337,7 +337,7 @@ class PolynomialChaosExpansion(object):
             self.basis_type_index_map[self.basis_type_var_indices[ii]] = ii
             ii += 1
         if (np.unique(np.hstack(self.basis_type_var_indices)).shape[0] !=
-                self.num_vars()):
+                self.nvars):
             msg = 'poly_opts does not specify a basis for each input '
             msg += 'variable'
             raise ValueError(msg)
@@ -348,7 +348,7 @@ class PolynomialChaosExpansion(object):
             indices = indices.reshape((1, indices.shape[0]))
 
         self.indices = indices
-        assert indices.shape[0] == self.num_vars()
+        assert indices.shape[0] == self.nvars
         max_degree = indices.max(axis=1)
         if np.any(self.max_degree < max_degree):
             self.update_recursion_coefficients(max_degree+1)
@@ -356,7 +356,7 @@ class PolynomialChaosExpansion(object):
 
     def basis_matrix(self, samples, opts=dict()):
         assert samples.ndim == 2
-        assert samples.shape[0] == self.num_vars()
+        assert samples.shape[0] == self.nvars
         canonical_samples = self.var_trans.map_to_canonical_space(
             samples)
         basis_matrix = self.canonical_basis_matrix(canonical_samples, opts)
@@ -403,7 +403,14 @@ class PolynomialChaosExpansion(object):
         return np.dot(basis_matrix, self.coefficients)
 
     def num_vars(self):
-        return self.var_trans.num_vars()
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.var_trans.nvars
+    
+    @property
+    def nvars(self):
+        return self.var_trans.nvars
 
     def __call__(self, samples):
         return self.value(samples)
@@ -452,7 +459,7 @@ class PolynomialChaosExpansion(object):
 
 
 def get_univariate_quadrature_rules_from_pce(pce, degrees):
-    num_vars = pce.num_vars()
+    num_vars = pce.nvars
     degrees = np.atleast_1d(degrees)
     if degrees.shape[0] == 1 and num_vars > 1:
         degrees = np.array([degrees[0]]*num_vars)
@@ -483,11 +490,11 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
 
 
 def get_univariate_quadrature_rules_from_variable(variable, degrees):
-    assert len(degrees) == variable.num_vars()
+    assert len(degrees) == variable.nvars
     pce = get_polynomial_from_variable(variable)
     indices = []
-    for ii in range(pce.num_vars()):
-        indices_ii = np.zeros((pce.num_vars(), degrees[ii]+1), dtype=int)
+    for ii in range(pce.nvars):
+        indices_ii = np.zeros((pce.nvars, degrees[ii]+1), dtype=int)
         indices_ii[ii, :] = np.arange(degrees[ii]+1, dtype=int)
         indices.append(indices_ii)
     pce.set_indices(np.hstack(indices))
@@ -501,7 +508,7 @@ def get_tensor_product_quadrature_rule_from_pce(pce, degrees):
         pce, degrees)
     canonical_samples, weights = \
         get_tensor_product_quadrature_rule(
-            degrees+1, pce.num_vars(), univariate_quadrature_rules)
+            degrees+1, pce.nvars, univariate_quadrature_rules)
     samples = pce.var_trans.map_from_canonical_space(
         canonical_samples)
     return samples, weights
@@ -567,7 +574,7 @@ def conditional_moments_of_polynomial_chaos_expansion(
             poly.recursion_coeffs[poly.basis_type_index_map[inactive_idx[dd]]])
         basis_vals_1d.append(basis_vals_1d_dd)
 
-    active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
+    active_idx = np.setdiff1d(np.arange(poly.nvars), inactive_idx)
     mean = coef[0].copy()
     for ii in range(1, indices.shape[1]):
         index = indices[:, ii]
@@ -600,12 +607,12 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     # poly.config_opts.copy will not work
     opts = copy.deepcopy(poly.config_opts)
     all_variables = poly.var_trans.variable.all_variables()
-    active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
+    active_idx = np.setdiff1d(np.arange(poly.nvars), inactive_idx)
     active_variables = IndependentMultivariateRandomVariable(
         [all_variables[ii] for ii in active_idx])
     opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
 
-    marginalized_var_nums = -np.ones(poly.num_vars())
+    marginalized_var_nums = -np.ones(poly.nvars)
     marginalized_var_nums[active_idx] = np.arange(active_idx.shape[0])
     keys_to_delete = []
     for key, poly_opts in opts['poly_types'].items():
@@ -679,7 +686,7 @@ def compute_product_coeffs_1d_for_each_variable(
         poly, max_degrees1, max_degrees2):
     # must ensure that poly1 and poly2 have the same basis types
     # in each dimension
-    num_vars = poly.num_vars()
+    num_vars = poly.nvars
 
     def get_recursion_coefficients(N, dd):
         poly.update_recursion_coefficients([N]*num_vars)

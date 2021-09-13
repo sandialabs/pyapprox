@@ -139,7 +139,7 @@ class TestMCMC(unittest.TestCase):
             # a time
             vals = np.exp(loglike.loglike(x))
             rvs = variables.all_variables()
-            for ii in range(variables.num_vars()):
+            for ii in range(variables.nvars):
                 vals[:,0] *= rvs[ii].pdf(x[ii,:])
             return vals
 
@@ -148,7 +148,7 @@ class TestMCMC(unittest.TestCase):
             x*=2
             return x,w
         x,w = get_tensor_product_quadrature_rule(
-            100,variables.num_vars(),univariate_quadrature_rule)
+            100,variables.nvars,univariate_quadrature_rule)
         evidence = unnormalized_posterior(x)[:,0].dot(w)
         #print('evidence',evidence)
 
@@ -177,7 +177,7 @@ class TestMCMC(unittest.TestCase):
         print('MAP sample',map_sample)
         print('exact mean',exact_mean.squeeze())
         print('MCMC mean',samples.mean(axis=1))
-        assert np.allclose(map_sample,np.zeros((variables.num_vars(),1)))
+        assert np.allclose(map_sample,np.zeros((variables.nvars,1)))
         #tolerance 3e-2 can be exceeded for certain random runs
         assert np.allclose(
             exact_mean.squeeze(), samples.mean(axis=1),atol=3e-2)

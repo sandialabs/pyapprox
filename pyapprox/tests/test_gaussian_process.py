@@ -870,7 +870,7 @@ class TestGaussianProcess(unittest.TestCase):
         #     [stats.uniform(lb, ub-lb)])#, stats.uniform(1e4, 1e5-1e4)])
         # length_scale = (ub-lb)/10
 
-        nvars = variable.num_vars()
+        nvars = variable.nvars
 
         fkernel = Matern(length_scale, length_scale_bounds='fixed', nu=np.inf)
         fkernel = ConstantKernel(

@@ -218,9 +218,9 @@ class DecoupledSystemSurrogate(object):
                 variables, enforce_variable_bounds, univariate_quad_rule_info,
                 quad_method, growth_incr)
         
-        nvars = var_trans.num_vars()
+        nvars = var_trans.nvars
         if config_var_trans is not None:
-            nvars += config_var_trans.num_vars()
+            nvars += config_var_trans.nvars
             
         if max_level_1d is None:
             max_level_1d = [np.inf]*nvars

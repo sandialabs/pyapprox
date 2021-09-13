@@ -257,6 +257,9 @@ class IndependentMultivariateRandomVariable(object):
         self.variable_labels = variable_labels
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
         return self.nvars
 
     def all_variables(self):
@@ -304,7 +307,7 @@ class IndependentMultivariateRandomVariable(object):
             stats_ii = np.atleast_1d(getattr(var, function_name)(**kwargs))
             assert stats_ii.ndim == 1
             if ii == 0:
-                stats = np.empty((self.num_vars(), stats_ii.shape[0]))
+                stats = np.empty((self.nvars, stats_ii.shape[0]))
             stats[indices] = stats_ii
         return stats
 
@@ -317,12 +320,12 @@ class IndependentMultivariateRandomVariable(object):
                 stats_jj = np.atleast_1d(getattr(var, function_name)(x[jj, :]))
                 assert stats_jj.ndim == 1
                 if stats is None:
-                    stats = np.empty((self.num_vars(), stats_jj.shape[0]))
+                    stats = np.empty((self.nvars, stats_jj.shape[0]))
                 stats[jj] = stats_jj
         return stats
 
     def pdf(self, x, log=False):
-        assert x.shape[0] == self.num_vars()
+        assert x.shape[0] == self.nvars
         if log is False:
             marginal_vals = self.evaluate("pdf", x)
         else:
@@ -332,9 +335,9 @@ class IndependentMultivariateRandomVariable(object):
     def __str__(self):
         variable_labels = self.variable_labels
         if variable_labels is None:
-            variable_labels = ["z%d" % ii for ii in range(self.num_vars())]
+            variable_labels = ["z%d" % ii for ii in range(self.nvars)]
         string = "I.I.D. Variable\n"
-        string += f"Number of variables: {self.num_vars()}\n"
+        string += f"Number of variables: {self.nvars}\n"
         string += "Unique variables and global id:\n"
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
@@ -462,6 +465,13 @@ class DesignVariable(object):
         self.bounds = bounds
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return len(self.bounds.lb)
+    
+    @property
+    def nvars(self):
         return len(self.bounds.lb)
 
 

@@ -90,7 +90,7 @@ class TestInducedSampling(unittest.TestCase):
 
         pce = PolynomialChaosExpansion()
         pce.configure(pce_opts)
-        indices = compute_hyperbolic_indices(pce.num_vars(), degree, 1.0)
+        indices = compute_hyperbolic_indices(pce.nvars, degree, 1.0)
         pce.set_indices(indices)
 
         num_samples = int(3e4)
@@ -144,7 +144,7 @@ class TestInducedSampling(unittest.TestCase):
         # pce.basis_matrix here. If use canonical_basis_matrix then
         # densities must be mapped to this space also which can be difficult
         samples2 = random_induced_measure_sampling(
-            num_samples, pce.num_vars(), pce.basis_matrix, density,
+            num_samples, pce.nvars, pce.basis_matrix, density,
             proposal_density, generate_proposal_samples, envelope_factor)
 
         def induced_density(x):

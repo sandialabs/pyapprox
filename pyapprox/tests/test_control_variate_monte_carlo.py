@@ -180,7 +180,7 @@ class ShortColumnModelEnsemble(object):
         return (1 - M/(b*(h**2)*Y) - (P*(1 + M)/(h*Y))**2)[:,np.newaxis]
 
     def get_quadrature_rule(self):
-        nvars = self.variable.num_vars()
+        nvars = self.variable.nvars
         degrees=[10]*nvars
         var_trans = pya.AffineRandomVariableTransformation(self.variable)
         gauss_legendre = partial(
@@ -189,7 +189,7 @@ class ShortColumnModelEnsemble(object):
             gauss_legendre,gauss_legendre,pya.gauss_hermite_pts_wts_1D,
             pya.gauss_hermite_pts_wts_1D,pya.gauss_hermite_pts_wts_1D]
         x,w = pya.get_tensor_product_quadrature_rule(
-            degrees,self.variable.num_vars(),univariate_quadrature_rules,
+            degrees,self.variable.nvars,univariate_quadrature_rules,
             var_trans.map_from_canonical_space)
         return x,w
 

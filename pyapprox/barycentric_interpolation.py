@@ -184,7 +184,7 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
 
         result = \
             multivariate_hierarchical_barycentric_lagrange_interpolation_pyx(
-                x, fn_vals, active_dims,
+                x, fn_vals, active_dims.astype(np.int64),
                 active_abscissa_indices_1d.astype(np.int_),
                 num_abscissa_1d.astype(np.int_),
                 num_active_abscissa_1d.astype(np.int_),

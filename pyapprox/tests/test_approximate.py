@@ -137,7 +137,7 @@ class TestApproximate(unittest.TestCase):
 
     def test_approximate_polynomial_chaos_custom_poly_type(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
         # this test purposefully select wrong variable to make sure
         # poly_type overide is activated
         univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
@@ -507,7 +507,7 @@ class TestApproximate(unittest.TestCase):
     def test_approximate_neural_network(self):
         np.random.seed(2)
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        nvars = benchmark.variable.num_vars()
+        nvars = benchmark.variable.nvars
         nqoi = 1
         maxiter = 30000
         print(benchmark.variable)

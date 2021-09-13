@@ -53,6 +53,13 @@ class Density:
         return self.pdf(samples)
 
     def num_vars(self):
+        import warnings
+        warnings.warn("Use of `num_vars()` will be deprecated. Access property `.nvars` instead", 
+                      PendingDeprecationWarning)
+        return self.num_dims
+    
+    @property
+    def nvars(self):
         return self.num_dims
 
 
