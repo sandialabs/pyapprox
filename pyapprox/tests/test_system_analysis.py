@@ -6,10 +6,9 @@ from scipy import stats
 from pyapprox.variables import variables_equivalent
 from pyapprox.coupled_systems import SystemNetwork
 from pyapprox.system_analysis import (
-    DecoupledSystemSurrogate, get_coupling_variables_via_sampling,
-    TerminateTest
+    DecoupledSystemSurrogate, TerminateTest
 )
-from mpmf.tests.test_coupled_systems import (
+from pyapprox.tests.test_coupled_systems import (
     get_3_recursive_polynomial_components, build_chain_graph
 )
 from pyapprox.adaptive_sparse_grid import variance_refinement_indicator
