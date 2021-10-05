@@ -1,20 +1,21 @@
 import numpy as np
 import copy
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
-from pyapprox.adaptive_sparse_grid import CombinationSparseGrid, \
-    variance_refinement_indicator, max_level_admissibility_function, \
-    get_sparse_grid_univariate_leja_quadrature_rules_economical, \
-    update_smolyak_coefficients, insitu_update_sparse_grid_quadrature_rule
-from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
 from functools import partial
-from mpmf.coupled_systems import SystemNetwork
-from pyapprox.probability_measure_sampling import \
-    generate_independent_random_samples
 from scipy import stats
 import os
 import networkx as nx
-import pickle
+
+from pyapprox.probability_measure_sampling import (
+    generate_independent_random_samples
+)
+from pyapprox.variable_transformations import AffineRandomVariableTransformation
+from pyapprox.adaptive_sparse_grid import (
+    CombinationSparseGrid,
+    variance_refinement_indicator, max_level_admissibility_function,
+    get_sparse_grid_univariate_leja_quadrature_rules_economical,
+    update_smolyak_coefficients, insitu_update_sparse_grid_quadrature_rule
+)
+from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
 
 
 def get_coupling_variables_via_sampling(
@@ -35,7 +36,8 @@ def get_coupling_variables_via_sampling(
         values = network(samples, component_ids)
         if filename is not None:
             np.savez(filename, values=values, samples=samples)
-    coupling_bounds = np.array([[v.min(axis=0), v.max(axis=0)] for v in values])
+    coupling_bounds = np.array(
+        [[v.min(axis=0), v.max(axis=0)] for v in values])
     coupling_variables = {}
 
     graph = network.graph
@@ -61,21 +63,25 @@ class DecoupledSystemSurrogate(object):
     ----------
     system_network : :class:SystemNetwork
         Object describing the connections between components of a system model.
-        
+
     variables : :class:`pyapprox.IndependentMultivariateRandomVariable`
         The system level variables
+
+    estimate_coupling_ranges : boolean
+        True - estimate ranges of coupling variables
+        False - use set_coupling_variables to define ranges
 
     Attributes
     ----------
 
     surogate_network : :class:SystemNetwork
         Object containing the surrogates of each system component
-        
+
     """
     def __init__(self, system_network, variables, nrefinement_samples=1e6,
                  verbose=0, estimate_coupling_ranges=False):
         self.system_network = system_network
-        #self.surrogate_network = copy.deepcopy(self.system_network)
+        # self.surrogate_network = copy.deepcopy(self.system_network)
         self.surrogate_network = self.copy_network(self.system_network)
         self.variables = variables
         self.nrefinement_samples = int(nrefinement_samples)
@@ -112,7 +118,7 @@ class DecoupledSystemSurrogate(object):
             copy_network.bicoupling_nominal_values = \
                 network.bicoupling_nominal_values
         return copy_network
-        
+
     def initialize_component_surrogates(self, component_options):
         """
         Initialize a surrogate of each system component.
@@ -120,27 +126,27 @@ class DecoupledSystemSurrogate(object):
         Parameters
         ----------
         component_options : iterable
-            List of dictionary of options containing the arguments necessary to 
+            List of dictionary of options containing the arguments necessary to
             initialize each surrogate
 
-            See documentation of 
-           :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
+            See documentation of
+           :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
         """
-        #self.random_samples_for_refinement_test = \
-        #    generate_independent_random_samples(
-        #        self.variables, self.nrefinement_samples)
+        # self.random_samples_for_refinement_test = \
+        #     generate_independent_random_samples(
+        #         self.variables, self.nrefinement_samples)
         marginal_icdfs = [v.ppf for v in self.variables.all_variables()]
         self.random_samples_for_refinement_test = \
-            transformed_halton_sequence(marginal_icdfs,
-                len(marginal_icdfs), self.nrefinement_samples)
-        
+            transformed_halton_sequence(
+                marginal_icdfs, len(marginal_icdfs), self.nrefinement_samples)
+
         surr_graph = self.surrogate_network.graph
-        component_nvars = self.surrogate_network.component_nvars()
+        # component_nvars = self.surrogate_network.component_nvars()
         for nid in surr_graph.nodes:
             options = component_options[nid]
             surr_graph.nodes[nid]['functions'] = \
                 self.initialize_surrogate(surr_graph.nodes[nid], **options)
-        
+
         # Add first index of each variable to active set of respective grid
         self.component_output_ranges = []
         for nid in surr_graph.nodes:
@@ -166,6 +172,10 @@ class DecoupledSystemSurrogate(object):
         random_variables = [global_variables[v] for v in var_indices]
         for ii, idx in enumerate(node['local_random_var_indices']):
             local_variables[idx] = random_variables[ii]
+        # if 'coupling_variables' not in node:
+        #     msg = "must call set_coupling_variables with initial estimate of "
+        #     msg += "ranges"
+        #     raise ValueError(msg)
         coupling_variables = node['coupling_variables']
         for ii, idx in enumerate(node['local_coupling_var_indices_in']):
             local_variables[idx] = coupling_variables[ii]
@@ -177,7 +187,7 @@ class DecoupledSystemSurrogate(object):
                                         quad_method, growth_incr=2):
         var_trans = AffineRandomVariableTransformation(
             variables, enforce_variable_bounds)
-            
+
         if univariate_quad_rule_info is None:
             quad_rules, growth_rules, unique_quadrule_indices, \
                 unique_max_level_1d = \
@@ -204,8 +214,8 @@ class DecoupledSystemSurrogate(object):
 
         options : dict
             Arguments necessary to initialize each surrogate.
-            See documentation of 
-            :func:`pyapprox.approximate.adaptive_approximate_sparse_grid` 
+            See documentation of
+            :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
 
         Returns
         -------
@@ -217,11 +227,11 @@ class DecoupledSystemSurrogate(object):
             self.get_univariate_quadrature_rules(
                 variables, enforce_variable_bounds, univariate_quad_rule_info,
                 quad_method, growth_incr)
-        
+
         nvars = var_trans.num_vars()
         if config_var_trans is not None:
             nvars += config_var_trans.num_vars()
-            
+
         if max_level_1d is None:
             max_level_1d = [np.inf]*nvars
         elif np.isscalar(max_level_1d):
@@ -230,6 +240,11 @@ class DecoupledSystemSurrogate(object):
         admissibility_function = partial(
             max_level_admissibility_function, np.inf, max_level_1d,
             max_nsamples, tol, verbose=verbose)
+        if (self.estimate_coupling_ranges is True and
+                refinement_indicator is not None):
+            msg = "Can only estimate ranges if default refinement indicator "
+            msg += "is used"
+            raise ValueError(msg)
         if refinement_indicator is None:
             refinement_indicator = self.__refinement_indicator
 
@@ -240,7 +255,7 @@ class DecoupledSystemSurrogate(object):
             var_trans, unique_quadrule_indices=unique_quadrule_indices,
             verbose=verbose, cost_function=cost_function,
             config_var_trans=config_var_trans)
-        
+
         if self.verbose > 0:
             print('------------------------------------')
             print(f'Initializing component {node["label"]}')
@@ -269,24 +284,24 @@ class DecoupledSystemSurrogate(object):
 
     def __refinement_indicator(
             self, subspace_index, num_new_subspace_samples, surrogate):
-        #try:
+        # try:
         values_old = self(self.random_samples_for_refinement_test)[0]
-        #except:
-        #values_old = None
+        # except:
+        # values_old = None
 
         old_smolyak_coeffs = surrogate.smolyak_coefficients.copy()
         new_smolyak_coeffs = update_smolyak_coefficients(
             subspace_index, surrogate.subspace_indices,
             old_smolyak_coeffs.copy())
-        
+
         surrogate.smolyak_coefficients = new_smolyak_coeffs
-        #try:
+        # try:
         values_new_all = self(self.random_samples_for_refinement_test,
                               np.arange(self.system_network.ncomponents()))
         values_new = self(self.random_samples_for_refinement_test)[0]
         self.extract_coupling_ranges_from_samples(values_new_all)
-        #except:
-        #values_new = None
+        # except:
+        # values_new = None
 
         surrogate.smolyak_coefficients = old_smolyak_coeffs
 
@@ -307,7 +322,7 @@ class DecoupledSystemSurrogate(object):
         indicator = indicator[qoi_chosen]
 
         # print(subspace_index, indicator, error, qoi_chosen)
-        
+
         cost_per_sample = surrogate.eval_cost_function(
             subspace_index[:, np.newaxis])
         cost = cost_per_sample*num_new_subspace_samples
@@ -315,12 +330,11 @@ class DecoupledSystemSurrogate(object):
         indicator /= -cost
         error = error[qoi_chosen]
 
-        
         if (subspace_index.sum() == 1 and indicator == 0):
             # indicator == 0 imples downstream models are constant functions
             indicator, error = variance_refinement_indicator(
                 subspace_index, num_new_subspace_samples, surrogate)
-            
+
         return indicator, error
 
     def __get_priorities(self, debug=False):
@@ -350,7 +364,7 @@ class DecoupledSystemSurrogate(object):
             print(f'By adding subspace {subspace_indices[kk]}')
             print(f'Total work {self.get_total_work()}')
             print('--')
-            
+
         self.component_output_ranges = []
         best_surrogate_to_refine = surr_graph.nodes[kk]['functions']
         best_surrogate_to_refine.refine()
@@ -374,7 +388,7 @@ class DecoupledSystemSurrogate(object):
         for nid in surr_graph_nodes:
             update_coupling_variables = False
             node = surr_graph_nodes[nid]
-            noutputs = len(self.component_output_ranges[nid])
+            # noutputs = len(self.component_output_ranges[nid])
             coupling_inds = node['global_coupling_component_indices']
             cp_vars = node['coupling_variables']
             for kk, v in enumerate(cp_vars):
@@ -395,7 +409,7 @@ class DecoupledSystemSurrogate(object):
                     node['coupling_variables'][kk] = \
                         stats.uniform(new_range[0], new_range[1]-new_range[0])
                     if self.verbose > 0:
-                        msg = f'Adjusting ranges of local coupling variable '
+                        msg = 'Adjusting ranges of local coupling variable '
                         msg += f' {kk} of component {nid} from '
                         msg += f'{v_range} to {new_range}'
                         print(msg)
@@ -422,10 +436,10 @@ class DecoupledSystemSurrogate(object):
         ----------
         terminate_test : callable
             Function with signature
-          
+
             `terminate_test(approx) -> boolean`
-        
-            where self is passed as approx. If true the build will be 
+
+            where self is passed as approx. If true the build will be
             terminated. If False it will be allowed to continue. If provided
             this function overides the default termination which is only
             evaluated if terminate_test is False
@@ -433,13 +447,13 @@ class DecoupledSystemSurrogate(object):
         surr_graph = self.surrogate_network.graph
         if (terminate_test is not None and terminate_test(self)):
             return True
-        
+
         for nid in surr_graph.nodes:
             surrogate = surr_graph.nodes[nid]['functions']
-            if (not surrogate.active_subspace_queue.empty() or
-                surrogate.subspace_indices.shape[1] == 0):
+            if ((not surrogate.active_subspace_queue.empty()) or
+                    (surrogate.subspace_indices.shape[1] == 0)):
                 # At least one surrogate can be refined
-               return False
+                return False
 
         # all surrogates can no longer be refined
         # component sparse grid exit criteria has stopped subspaces
@@ -480,7 +494,7 @@ class DecoupledSystemSurrogate(object):
             samples = np.delete(samples, np.unique(np.hstack(
                 self.config_var_indices)), axis=0)
         return self.surrogate_network(samples, component_ids)
-    
+
     def __get_work(self):
         """
         Return the number of equivalent function evaluations for each grid
@@ -495,7 +509,7 @@ class DecoupledSystemSurrogate(object):
     def get_total_work(self):
         """Return the total work used to construct the current state."""
         return np.sum(self.__get_work())
-  
+
 
 class TerminateTest(object):
     def __init__(self, max_iters=np.inf, max_work=np.inf, verbosity=0):
@@ -511,9 +525,9 @@ class TerminateTest(object):
             if self.verbosity > 0:
                 print('End refinement: maximum work budget exceeded.')
             return True
-        
+
         if (self.iters > self.max_iters):
-            if self.verbosity>0:
+            if self.verbosity > 0:
                 print('End refinement: maximum iterations reached.')
             return True
 

@@ -140,6 +140,15 @@ def beam_constraint_II_design_jac(samples):
 
 
 def define_piston_random_variables():
+    """
+    M piston mass (kg)
+    S surface area (m^2)
+    V_0 initial gas volume (m^3)
+    k spring coefficient (N/m)
+    P_0 atmospheric pressure (N/m^2)
+    T_a ambient temperature (K)
+    T_0 filling gas temperature (K)
+    """
     M = stats.uniform(loc=30., scale=30.)
     S = stats.uniform(loc=0.005, scale=0.015)
     V_0 = stats.uniform(loc=0.002, scale=0.008)

@@ -1,7 +1,9 @@
-import numpy as np, os
-from numpy import dot, diag, sqrt
+from pyapprox.multivariate_gaussian import MultivariateGaussian
+import numpy as np
+import os
 from pyapprox.randomized_svd import randomized_svd
 from scipy.linalg import eigh as generalized_eigevalue_decomp
+
 
 class PriorConditionedHessianMatVecOperator(object):
     r"""
@@ -11,7 +13,8 @@ class PriorConditionedHessianMatVecOperator(object):
     and the misfit Hessian H compute
         L*H*L'*w
     """
-    def __init__(self, prior_covariance_sqrt_operator, misfit_hessian_operator):
+    def __init__(self, prior_covariance_sqrt_operator,
+                 misfit_hessian_operator):
         self.prior_covariance_sqrt_operator = prior_covariance_sqrt_operator
         self.misfit_hessian_operator = misfit_hessian_operator
 
@@ -34,12 +37,12 @@ class PriorConditionedHessianMatVecOperator(object):
         z : (num_dims,num_vectors) matrix
             The matrix vector products: L'*H*L*w
         """
-        x = self.prior_covariance_sqrt_operator.apply(vectors,transpose=False)
-        assert x.shape[1]==vectors.shape[1], \
-          'prior_covariance_sqrt_operator is returning incorrect values'
+        x = self.prior_covariance_sqrt_operator.apply(vectors, transpose=False)
+        assert x.shape[1] == vectors.shape[1], \
+            'prior_covariance_sqrt_operator is returning incorrect values'
         y = self.misfit_hessian_operator.apply(x)
-        assert y.shape[1]==x.shape[1], 'misfit_hessian_operator is returning incorrect values'
-        z = self.prior_covariance_sqrt_operator.apply(y,transpose=True)
+        assert y.shape[1] == x.shape[1], 'misfit_hessian_operator is returning incorrect values'
+        z = self.prior_covariance_sqrt_operator.apply(y, transpose=True)
         return z
 
     def num_rows(self):
@@ -47,6 +50,7 @@ class PriorConditionedHessianMatVecOperator(object):
 
     def num_cols(self):
         return self.prior_covariance_sqrt_operator.num_vars()
+
 
 class LaplaceSqrtMatVecOperator(object):
     r"""
@@ -59,6 +63,7 @@ class LaplaceSqrtMatVecOperator(object):
         L*(V*D*V'+I)*w
     where D = diag(np.sqrt(1./(e_r+1.))-1)
     """
+
     def __init__(self, prior_covariance_sqrt_operator, e_r=None, V_r=None,
                  M=None, filename=None):
         r"""
@@ -90,20 +95,20 @@ class LaplaceSqrtMatVecOperator(object):
     def num_vars(self):
         return self.prior_covariance_sqrt_operator.num_vars()
 
-    def set_eigenvalues(self,e_r):
+    def set_eigenvalues(self, e_r):
         self.diagonal = np.sqrt(1./(e_r+1.))-1
         self.e_r = e_r
 
-    def save(self,filename):
+    def save(self, filename):
         if self.M is not None:
-            np.savez(filename,e_r=self.e_r, V_r=self.V_r, M=self.M)
+            np.savez(filename, e_r=self.e_r, V_r=self.V_r, M=self.M)
         else:
-            #savez cannot save python None
-            np.savez(filename,e_r=self.e_r, V_r=self.V_r)
+            # savez cannot save python None
+            np.savez(filename, e_r=self.e_r, V_r=self.V_r)
 
-    def load(self,filename):
+    def load(self, filename):
         if not os.path.exists(filename):
-            raise Exception('file %s does not exist'%filename)
+            raise Exception('file %s does not exist' % filename)
         data = np.load(filename)
         self.V_r = data['V_r']
         if 'M' in list(data.keys()):
@@ -112,9 +117,9 @@ class LaplaceSqrtMatVecOperator(object):
             self.M = None
         self.set_eigenvalues(data['e_r'])
 
-    def apply_mass_weighted_eigvec_adjoint(self,vectors):
+    def apply_mass_weighted_eigvec_adjoint(self, vectors):
         r"""
-        Apply the mass weighted adjoint of the eigenvectors V_r to a set 
+        Apply the mass weighted adjoint of the eigenvectors V_r to a set
         of vectors w. I.e. compute
            x = V_r^T*M*w
 
@@ -129,12 +134,12 @@ class LaplaceSqrtMatVecOperator(object):
             The matrix vector products: V'M*w
         """
         if self.M is not None:
-            print((self.M , 'a', type(self.M)))
-            assert self.M.ndim==1 and self.M.shape[0]==vectors.shape[0]
+            print((self.M, 'a', type(self.M)))
+            assert self.M.ndim == 1 and self.M.shape[0] == vectors.shape[0]
             for i in range(vectors.shape[0]):
-                vectors[i,:] *= self.M[i]
+                vectors[i, :] *= self.M[i]
         # else: M is the identity so do nothing
-        return np.dot(self.V_r.T,vectors)
+        return np.dot(self.V_r.T, vectors)
 
     def apply(self, vectors, transpose=False):
         r"""
@@ -156,20 +161,21 @@ class LaplaceSqrtMatVecOperator(object):
         """
         if transpose:
             vectors = self.prior_covariance_sqrt_operator.apply(
-                vectors,transpose=True)
+                vectors, transpose=True)
         # x = V'*vectors
         x = self.apply_mass_weighted_eigvec_adjoint(vectors)
         # y = D*x
-        y = x*self.diagonal[:,np.newaxis]
+        y = x*self.diagonal[:, np.newaxis]
         # z = V*y
-        z = np.dot(self.V_r,y)
+        z = np.dot(self.V_r, y)
         z += vectors
         if not transpose:
-            z = self.prior_covariance_sqrt_operator.apply(z,transpose=False)
+            z = self.prior_covariance_sqrt_operator.apply(z, transpose=False)
         return z
 
     def __call__(self, vectors, transpose=False):
         return self.apply(vectors, transpose)
+
 
 def get_laplace_covariance_sqrt_operator(
         prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts,
@@ -197,7 +203,7 @@ def get_laplace_covariance_sqrt_operator(
     min_singular_value : double (default=0.1)
        The minimum singular value to retain in SVD. Note
        This can be different from the entry 'min_singular_value' in svd_opts
-    
+
     Returns
     -------
     covariance_sqrt_operator :  Matrix vector multiplication operator
@@ -205,12 +211,13 @@ def get_laplace_covariance_sqrt_operator(
     """
     e_r, V_r = get_low_rank_prior_conditioned_misfit_hessian(
         prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts,
-         min_singular_value)
+        min_singular_value)
 
     operator = LaplaceSqrtMatVecOperator(
         prior_covariance_sqrt_operator, e_r, V_r, weights)
 
     return operator
+
 
 def get_low_rank_prior_conditioned_misfit_hessian(
         prior_covariance_sqrt_operator, misfit_hessian_operator, svd_opts,
@@ -248,10 +255,11 @@ def get_low_rank_prior_conditioned_misfit_hessian(
     operator = PriorConditionedHessianMatVecOperator(
         prior_covariance_sqrt_operator, misfit_hessian_operator)
 
-    svd_opts['single_pass']=True
-    U,S,V = randomized_svd(operator, svd_opts)
-    I = np.where(S>=min_singular_value)[0]
-    e_r = S[I]; V_r = U[:,I]
+    svd_opts['single_pass'] = True
+    U, S, V = randomized_svd(operator, svd_opts)
+    I = np.where(S >= min_singular_value)[0]
+    e_r = S[I]
+    V_r = U[:, I]
     return e_r, V_r
 
 
@@ -284,20 +292,24 @@ def find_map_point(objective, initial_guess, opts=None):
         The maximum of the log posterior
     """
     if opts is None:
-        opts = {'maxiter':1000,'gtol':1e-10}
+        opts = {'maxiter': 1000, 'gtol': 1e-10}
 
-    obj_func = lambda x: -objective(x[:,np.newaxis],{'eval_type':'value'})[0,:]
-    obj_grad = lambda x: -objective(x[:,np.newaxis],{'eval_type':'grad'})[0,:]
+    def obj_func(x): return - \
+        objective(x[:, np.newaxis], {'eval_type': 'value'})[0, :]
+
+    def obj_grad(x): return - \
+        objective(x[:, np.newaxis], {'eval_type': 'grad'})[0, :]
     from scipy.optimize import fmin_bfgs
     out = fmin_bfgs(obj_func, fprime=obj_grad,
                     x0=initial_guess, gtol=opts['gtol'],
-                    maxiter=opts['maxiter'], disp=False,full_output=True)
+                    maxiter=opts['maxiter'], disp=False, full_output=True)
     map_point = out[0]
     obj_max = out[1]
     return map_point, obj_max
 
+
 def laplace_posterior_approximation_for_linear_models(
-        linear_matrix,prior_mean,prior_hessian,noise_covariance_inv,obs,
+        linear_matrix, prior_mean, prior_hessian, noise_covariance_inv, obs,
         bvec=None):
     r"""
     Compute the mean and covariance of the Laplace posterior of a linear model
@@ -335,23 +347,24 @@ def laplace_posterior_approximation_for_linear_models(
     posterior_covariance: (num_dims,num_dims) matrix
         The covariance of the Gaussian posterior
     """
-    if prior_mean.ndim==1:
-        prior_mean = prior_mean[:,np.newaxis]
-    if obs.ndim==1:
-        obs = obs[:,np.newaxis]
-    assert prior_mean.ndim==2 and prior_mean.shape[1]==1
-    assert obs.ndim==2 and obs.shape[1] == 1
-    misfit_hessian=dot(
-        dot(linear_matrix.T,noise_covariance_inv),linear_matrix)
+    if prior_mean.ndim == 1:
+        prior_mean = prior_mean[:, np.newaxis]
+    if obs.ndim == 1:
+        obs = obs[:, np.newaxis]
+    assert prior_mean.ndim == 2 and prior_mean.shape[1] == 1
+    assert obs.ndim == 2 and obs.shape[1] == 1
+    misfit_hessian = np.dot(
+        np.dot(linear_matrix.T, noise_covariance_inv), linear_matrix)
     posterior_covariance = np.linalg.inv(misfit_hessian + prior_hessian)
-    residual = obs-dot(linear_matrix,prior_mean)
+    residual = obs-np.dot(linear_matrix, prior_mean)
     if bvec is not None:
         residual -= bvec
-    temp = dot(dot(linear_matrix.T,noise_covariance_inv),residual)
-    posterior_mean = dot(posterior_covariance,temp)+prior_mean
+    temp = np.dot(np.dot(linear_matrix.T, noise_covariance_inv), residual)
+    posterior_mean = np.dot(posterior_covariance, temp)+prior_mean
     return posterior_mean, posterior_covariance
 
-def push_forward_gaussian_though_linear_model(A,b,mean,covariance):
+
+def push_forward_gaussian_though_linear_model(A, b, mean, covariance):
     r"""
     Find the mean and covariance of a gaussian distribution when it
     is push forward through a linear model. A linear transformation
@@ -367,10 +380,11 @@ def push_forward_gaussian_though_linear_model(A,b,mean,covariance):
     y~N(Ax+b,A\Sigma A^T)
     """
 
-    y_mean = dot(A,mean)+b
-    y_covariance = dot(dot(A,covariance),A.T)
+    y_mean = np.dot(A, mean)+b
+    y_covariance = np.dot(np.dot(A, covariance), A.T)
 
     return y_mean, y_covariance
+
 
 class MisfitHessianVecOperator(object):
     r"""
@@ -379,7 +393,8 @@ class MisfitHessianVecOperator(object):
     the action of the Hessian is computed using finite differences of 
     gradients of the misfit of from function evaluations.
     """
-    def __init__(self, model, map_point, 
+
+    def __init__(self, model, map_point,
                  fd_eps=2*np.sqrt(np.finfo(float).eps)):
         r"""
         Initialize the MisfitHessianVecOperator
@@ -404,14 +419,14 @@ class MisfitHessianVecOperator(object):
 
         self.map_point_misfit_gradient = None
 
-        if not hasattr(self.model,'hessian') or fd_eps is not None:
+        if not hasattr(self.model, 'hessian') or fd_eps is not None:
             assert fd_eps is not None
-            assert fd_eps>=2*np.sqrt(np.finfo(float).eps)
-            if hasattr(self.model,'gradient_set'):
+            assert fd_eps >= 2*np.sqrt(np.finfo(float).eps)
+            if hasattr(self.model, 'gradient_set'):
                 self.map_point_misfit_gradient = self.model.gradient_set(
-                    map_point[:,np.newaxis])[:,0]
-                assert (self.map_point_misfit_gradient.shape[0]==
-                    self.map_point.shape[0])
+                    map_point[:, np.newaxis])[:, 0]
+                assert (self.map_point_misfit_gradient.shape[0] ==
+                        self.map_point.shape[0])
             else:
                 msg = 'model does not have member function called gradient'
                 raise Exception(msg)
@@ -425,7 +440,7 @@ class MisfitHessianVecOperator(object):
     def apply(self, vectors, transpose=None):
         r"""
         Compute action of hessian on a vector
-        
+
         If self.model has no function hessian() then
         use first-order finite difference of gradient to compute action
         of Hessian on a vector, e.g
@@ -453,24 +468,25 @@ class MisfitHessianVecOperator(object):
         hessian_vector_products : (num_dims,num_vectors) matrix
             The Hessian vector products
         """
-        if hasattr(self.model,'hessian') and self.fd_eps is None:
-            print ('TODO replace by opearator hess_vec_prod = model.hess.apply(map_point,vectors). first arg says where to evaluate hessian opearator')
+        if hasattr(self.model, 'hessian') and self.fd_eps is None:
+            print('TODO replace by opearator hess_vec_prod = model.hess.apply(map_point,vectors). first arg says where to evaluate hessian opearator')
             H = self.model.hessian(self.map_point)
-            hessian_vector_products = np.dot(H,vectors)
-        elif hasattr(self.model,'gradient_set'):
-            grad_func = lambda x: self.model.gradient_set(x).T
+            hessian_vector_products = np.dot(H, vectors)
+        elif hasattr(self.model, 'gradient_set'):
+            def grad_func(x): return self.model.gradient_set(x).T
             # function passed to directional_derivatives function must return
             # np.ndarray with shape (num_samples,num_vars)
             # each gradient entry is considered a qoi of a function
             # directional_derivatives function also returns np.ndarray of shape
             # (num_vectors,num_dims) so must transpose result
             hessian_vector_products = directional_derivatives(
-                    grad_func, self.map_point,
-                    self.map_point_misfit_gradient, vectors, self.fd_eps).T
+                grad_func, self.map_point,
+                self.map_point_misfit_gradient, vectors, self.fd_eps).T
         else:
-            msg='To implement action of hessian you need to specify hessian function or gradient_set function'
+            msg = 'To implement action of hessian you need to specify hessian function or gradient_set function'
             raise Exception(msg)
         return hessian_vector_products
+
 
 def directional_derivatives(function, sample, value_at_sample, vectors, fd_eps,
                             normalize_vectors=False,
@@ -510,42 +526,41 @@ def directional_derivatives(function, sample, value_at_sample, vectors, fd_eps,
     directional_derivatives : (num_dims,num_vectors) matrix
         The directional derivatives in the direction of the vectors
     """
-    if sample.ndim==1:
-        sample = sample[:,np.newaxis]
+    if sample.ndim == 1:
+        sample = sample[:, np.newaxis]
     else:
-        assert sample.shape[1]==1
-    assert vectors.ndim==2
+        assert sample.shape[1] == 1
+    assert vectors.ndim == 2
 
     if not use_central_finite_difference:
-        if value_at_sample.ndim==1:
-            value_at_sample=value_at_sample[np.newaxis,:]
+        if value_at_sample.ndim == 1:
+            value_at_sample = value_at_sample[np.newaxis, :]
         else:
-            assert value_at_sample.shape[0]==1
+            assert value_at_sample.shape[0] == 1
         num_perturbed_samples = vectors.shape[1]
         perturbed_samples = np.tile(
-            sample,(1,num_perturbed_samples))
+            sample, (1, num_perturbed_samples))
         perturbed_samples += fd_eps*vectors
         perturbed_values = function(perturbed_samples)
-        assert perturbed_values.shape[0]==vectors.shape[1]
+        assert perturbed_values.shape[0] == vectors.shape[1]
         directional_derivatives = (
             perturbed_values-value_at_sample)/(fd_eps)
-        assert directional_derivatives.shape[1]==value_at_sample.shape[1]
+        assert directional_derivatives.shape[1] == value_at_sample.shape[1]
     else:
         num_perturbed_samples = 2*vectors.shape[1]
         perturbed_samples = np.tile(
-            sample,(1,num_perturbed_samples))
-        perturbed_samples[:,:num_perturbed_samples/2] += fd_eps*vectors
-        perturbed_samples[:,num_perturbed_samples/2:] -= fd_eps*vectors
+            sample, (1, num_perturbed_samples))
+        perturbed_samples[:, :num_perturbed_samples/2] += fd_eps*vectors
+        perturbed_samples[:, num_perturbed_samples/2:] -= fd_eps*vectors
         perturbed_values = function(perturbed_samples)
-        assert perturbed_values.shape[0]==2*vectors.shape[1]
-        directional_derivatives=(perturbed_values[:num_perturbed_samples/2,:]-
-            perturbed_values[num_perturbed_samples/2:,:])/(2*fd_eps)
-    
-    if normalize_vectors:
-        directional_derivatives /= np.linalg.norm(vectors,axis=0)
-    assert directional_derivatives.shape[0]==vectors.shape[1]
-    return directional_derivatives
+        assert perturbed_values.shape[0] == 2*vectors.shape[1]
+        directional_derivatives = (perturbed_values[:num_perturbed_samples/2, :] -
+                                   perturbed_values[num_perturbed_samples/2:, :])/(2*fd_eps)
 
+    if normalize_vectors:
+        directional_derivatives /= np.linalg.norm(vectors, axis=0)
+    assert directional_derivatives.shape[0] == vectors.shape[1]
+    return directional_derivatives
 
 
 def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
@@ -573,51 +588,55 @@ def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
     posterior_samples : matrix (num_dims,num_samples)
         Samples from the posterior
     """
-    assert laplace_mean.ndim==2 and laplace_mean.shape[1]==1
-    std_normal_samples = np.random.normal(0.,1.,(num_dims,num_samples))
+    assert laplace_mean.ndim == 2 and laplace_mean.shape[1] == 1
+    std_normal_samples = np.random.normal(0., 1., (num_dims, num_samples))
     if weights is not None:
-        assert weights.ndim==1 and weights.shape[0]==num_dims
+        assert weights.ndim == 1 and weights.shape[0] == num_dims
         std_normal_samples /= np.sqrt(weights)
 
     posterior_samples = \
-      laplace_covariance_sqrt.apply(std_normal_samples,transpose=False)+\
-      laplace_mean
+        laplace_covariance_sqrt.apply(std_normal_samples, transpose=False) +\
+        laplace_mean
     return posterior_samples
 
+
 def get_pointwise_laplace_variance(prior, laplace_covariance_sqrt):
-    prior_pointwise_variance=prior.pointwise_variance()
+    prior_pointwise_variance = prior.pointwise_variance()
     return get_pointwise_laplace_variance_using_prior_variance(
         prior, laplace_covariance_sqrt, prior_pointwise_variance)
 
+
 def get_pointwise_laplace_variance_using_prior_variance(
-    prior, laplace_covariance_sqrt, prior_pointwise_variance):
+        prior, laplace_covariance_sqrt, prior_pointwise_variance):
     # compute L*V_r
-    tmp1 = prior.apply_covariance_sqrt(laplace_covariance_sqrt.V_r,False)
+    tmp1 = prior.apply_covariance_sqrt(laplace_covariance_sqrt.V_r, False)
     # compute D*(L*V_r)**2
     tmp2 = laplace_covariance_sqrt.e_r/(1.+laplace_covariance_sqrt.e_r)
-    tmp3 = np.sum(tmp1**2*tmp2,axis=1)
+    tmp3 = np.sum(tmp1**2*tmp2, axis=1)
     return prior_pointwise_variance-tmp3, prior_pointwise_variance
 
-from pyapprox.multivariate_gaussian import MultivariateGaussian
+
 def generate_and_save_laplace_posterior(
-        prior,misfit_model, num_singular_values,
+        prior, misfit_model, num_singular_values,
         svd_history_filename='svd-history.npz',
         Lpost_op_filename='laplace_sqrt_operator.npz',
         num_extra_svd_samples=10,
         fd_eps=2*np.sqrt(np.finfo(float).eps)):
 
     if os.path.exists(svd_history_filename):
-        raise Exception('File %s already exists. Exiting so as not to overwrite'%svd_history_filename)
+        raise Exception(
+            'File %s already exists. Exiting so as not to overwrite' % svd_history_filename)
     if os.path.exists(Lpost_op_filename):
-        raise Exception('File %s already exists. Exiting so as not to overwrite'%Lpost_op_filename)
+        raise Exception(
+            'File %s already exists. Exiting so as not to overwrite' % Lpost_op_filename)
 
     sample = misfit_model.map_point()
     misfit_hessian_operator = MisfitHessianVecOperator(
         misfit_model, sample, fd_eps=fd_eps)
     standard_svd_opts = {
-        'num_singular_values':num_singular_values, 'num_extra_samples':num_extra_svd_samples}
-    svd_opts={'single_pass':True, 'standard_opts':standard_svd_opts,
-              'history_filename':svd_history_filename}
+        'num_singular_values': num_singular_values, 'num_extra_samples': num_extra_svd_samples}
+    svd_opts = {'single_pass': True, 'standard_opts': standard_svd_opts,
+                'history_filename': svd_history_filename}
     L_post_op = get_laplace_covariance_sqrt_operator(
         prior.sqrt_covariance_operator, misfit_hessian_operator,
         svd_opts, weights=None, min_singular_value=0.0)
@@ -626,27 +645,30 @@ def generate_and_save_laplace_posterior(
     L_post_op.save(Lpost_op_filename)
     return L_post_op
 
+
 def generate_and_save_pointwise_variance(
         prior, L_post_op, prior_variance_filename='prior_pointwise-variance.npz',
         posterior_variance_filename='posterior_pointwise-variance.npz'):
     if not os.path.exists(prior_variance_filename):
         posterior_pointwise_variance, prior_pointwise_variance =\
-        get_pointwise_laplace_variance(prior, L_post_op)
+            get_pointwise_laplace_variance(prior, L_post_op)
         np.savez(
             prior_variance_filename, prior_pointwise_variance=prior_pointwise_variance)
         np.savez(posterior_variance_filename,
-                    posterior_pointwise_variance=posterior_pointwise_variance)
+                 posterior_pointwise_variance=posterior_pointwise_variance)
     else:
-        print(('File %s already exists. Loading data'%prior_variance_filename))
-        prior_pointwise_variance = np.load(prior_variance_filename)['prior_pointwise_variance']
+        print(('File %s already exists. Loading data' % prior_variance_filename))
+        prior_pointwise_variance = np.load(prior_variance_filename)[
+            'prior_pointwise_variance']
         if not os.path.exists(posterior_variance_filename):
             posterior_pointwise_variance, prior_pointwise_variance = \
-              get_pointwise_laplace_variance_using_prior_variance(
-                  prior, L_post_op, prior_pointwise_variance)
+                get_pointwise_laplace_variance_using_prior_variance(
+                    prior, L_post_op, prior_pointwise_variance)
             np.savez(posterior_variance_filename,
-                        posterior_pointwise_variance=posterior_pointwise_variance)
+                     posterior_pointwise_variance=posterior_pointwise_variance)
         else:
-            posterior_pointwise_variance = np.load(posterior_variance_filename)['posterior_pointwise_variance']
+            posterior_pointwise_variance = np.load(posterior_variance_filename)[
+                'posterior_pointwise_variance']
     return prior_pointwise_variance, posterior_pointwise_variance
 
 
@@ -654,41 +676,43 @@ def compute_posterior_mean_covar_optimal_for_prediction(
         obs, obs_matrix, prior_mean, prior_covar, obs_noise_covar,
         pred_matrix, economical=False):
 
-    assert pred_matrix.shape[0]<=prior_mean.shape[0]
+    assert pred_matrix.shape[0] <= prior_mean.shape[0]
 
     # step 1
-    OP = np.dot(pred_matrix,prior_covar)
+    OP = np.dot(pred_matrix, prior_covar)
     # step 2
-    C = np.dot(OP,obs_matrix.T)
+    C = np.dot(OP, obs_matrix.T)
     # step 3
-    Pz = np.dot(OP,pred_matrix.T)
+    Pz = np.dot(OP, pred_matrix.T)
     # step 4
     Pz_inv = np.linalg.inv(Pz)
     # step 5
-    A = np.dot(C.T,np.dot(Pz_inv,C))
+    A = np.dot(C.T, np.dot(Pz_inv, C))
     # step 6
-    data_covar = np.dot(np.dot(obs_matrix,prior_covar),obs_matrix.T)+\
-      obs_noise_covar
+    data_covar = np.dot(np.dot(obs_matrix, prior_covar), obs_matrix.T) +\
+        obs_noise_covar
     # step 7
-    #print 'TODO replace generalized_eigevalue_decomp by my subspace iteration'
-    evals,evecs = generalized_eigevalue_decomp(A,data_covar)
-    evecs=evecs[:,::-1]; evals = evals[::-1]
-    rank = min(pred_matrix.shape[0],obs_matrix.shape[0])
-    evecs=evecs[:,:rank]; evals = evals[:rank]
+    # print 'TODO replace generalized_eigevalue_decomp by my subspace iteration'
+    evals, evecs = generalized_eigevalue_decomp(A, data_covar)
+    evecs = evecs[:, ::-1]
+    evals = evals[::-1]
+    rank = min(pred_matrix.shape[0], obs_matrix.shape[0])
+    evecs = evecs[:, :rank]
+    evals = evals[:rank]
     # step 8
-    ppf_covar_evecs=np.dot(C,evecs)
+    ppf_covar_evecs = np.dot(C, evecs)
 
-    residual = obs - np.dot(obs_matrix,prior_mean)
-    opt_pf_covar = Pz - np.dot(ppf_covar_evecs,ppf_covar_evecs.T)
-    opt_pf_mean = np.dot(ppf_covar_evecs,np.dot(evecs.T,residual))+np.dot(
-        pred_matrix,prior_mean)
-    
+    residual = obs - np.dot(obs_matrix, prior_mean)
+    opt_pf_covar = Pz - np.dot(ppf_covar_evecs, ppf_covar_evecs.T)
+    opt_pf_mean = np.dot(ppf_covar_evecs, np.dot(evecs.T, residual))+np.dot(
+        pred_matrix, prior_mean)
+
     if economical:
         return opt_pf_mean, opt_pf_covar
     else:
-        posterior_evec = np.dot(np.dot(OP.T,Pz_inv),ppf_covar_evecs)
-        posterior_covar = prior_covar-np.dot(posterior_evec,posterior_evec.T)
-        posterior_mean = np.dot(np.dot(posterior_evec,evecs.T),residual)+\
-                         prior_mean
+        posterior_evec = np.dot(np.dot(OP.T, Pz_inv), ppf_covar_evecs)
+        posterior_covar = prior_covar-np.dot(posterior_evec, posterior_evec.T)
+        posterior_mean = np.dot(np.dot(posterior_evec, evecs.T), residual) +\
+            prior_mean
 
         return opt_pf_mean, opt_pf_covar, posterior_mean, posterior_covar

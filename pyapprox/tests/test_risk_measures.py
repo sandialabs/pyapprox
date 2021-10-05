@@ -70,6 +70,11 @@ def cvar_beta_variable(rv, beta):
     return cvar01*scales["scale"] + scales["loc"]
 
 
+def cvar_gaussian_variable(rv, beta):
+    mu, sigma = rv.mean(), rv.std()
+    return mu+sigma*rv.pdf(rv.ppf(beta))/(1-beta)
+
+
 def triangle_quantile(u, c, loc, scale):
     """
     Also known as inverse CDF
@@ -137,7 +142,6 @@ def get_lognormal_example_exact_quantities(mu, sigma):
     def f_pdf(y):
         vals = np.zeros_like(y, dtype=float)
         II = np.where(y > 0)[0]
-        print(II)
         vals[II] = np.exp(-(np.log(y[II])-mu)**2/(2*sigma**2))/(
             sigma*np.sqrt(2*np.pi)*y[II])
         return vals
@@ -499,6 +503,12 @@ class TestRiskMeasures(unittest.TestCase):
             return vals
 
         alpha = 0.8
+
+        print(CVaR(alpha), cvar_gaussian_variable(
+            stats.norm(loc=mu, scale=sigma), alpha))
+        assert np.allclose(CVaR(alpha), cvar_gaussian_variable(
+            stats.norm(loc=mu, scale=sigma), alpha))
+
         num_samples = int(1e5)
         samples = np.random.normal(bias_mu, bias_sigma, num_samples)
         target_pdf_vals = stats.norm.pdf(samples, loc=mu, scale=sigma)
