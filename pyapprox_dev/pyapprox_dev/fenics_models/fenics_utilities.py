@@ -24,14 +24,14 @@ def constrained_newton_energy_solve(F, uh, dirichlet_bcs=None, bc0=None,
         The energy functional.
 
     uh : dl.Function
-        Final solution. The initial state on entry to the function 
+        Final solution. The initial state on entry to the function
         will be used as initial guess and then overwritten
 
     dirichlet_bcs : list
         The Dirichlet boundary conditions on the unknown u.
 
     bc0 : list
-        The Dirichlet boundary conditions for the step (du) in the Newton 
+        The Dirichlet boundary conditions for the step (du) in the Newton
         iterations.
 
     """
@@ -124,7 +124,7 @@ def constrained_newton_energy_solve(F, uh, dirichlet_bcs=None, bc0=None,
             print('a')
             lin_it = dla.solve(Hn, du, -gn, "lu")
             # linear_solver.set_operator(Hn)
-            #lin_it = linear_solver.solve(du, -gn)
+            # lin_it = linear_solver.solve(du, -gn)
         total_cg_iter += lin_it
 
         du_gn = du.inner(gn)
@@ -146,7 +146,7 @@ def constrained_newton_energy_solve(F, uh, dirichlet_bcs=None, bc0=None,
             uh.assign(uh_backtrack)
             uh.vector().axpy(alpha, du)
             Fnext = dla.assemble(F)
-            #print(Fnext,Fn + alpha*c_armijo*du_gn)
+            # print(Fnext,Fn + alpha*c_armijo*du_gn)
             if Fnext < Fn + alpha*c_armijo*du_gn:
                 Fn = Fnext
                 bk_converged = True
@@ -169,7 +169,7 @@ def constrained_newton_energy_solve(F, uh, dirichlet_bcs=None, bc0=None,
             break
 
     if prt_level > 0:
-        if reason is 3:
+        if reason == 3:
             print("{0:3d} {1:6d}    {2:15e} {3:15e} {4:15e} {5:15e}".format(
                 it+1, lin_it, Fn, gn_norm, du_gn, alpha))
         print(termination_reasons[reason])
@@ -195,14 +195,14 @@ def unconstrained_newton_solve(F, J, uh, dirichlet_bcs=None, bc0=None,
         The variational form.
 
     uh : dl.Function
-        Final solution. The initial state on entry to the function 
+        Final solution. The initial state on entry to the function
         will be used as initial guess and then overwritten
 
     dirichlet_bcs : list
         The Dirichlet boundary conditions on the unknown u.
 
     bc0 : list
-        The Dirichlet boundary conditions for the step (du) in the Newton 
+        The Dirichlet boundary conditions for the step (du) in the Newton
         iterations.
 
     """
@@ -313,7 +313,7 @@ def unconstrained_newton_solve(F, J, uh, dirichlet_bcs=None, bc0=None,
                 for bc in bc0:
                     bc.apply(res)
             Fnext = res.norm("l2")
-            #print(Fn,Fnext,Fn + alpha*c_armijo*du_gn)
+            # print(Fn,Fnext,Fn + alpha*c_armijo*du_gn)
             if Fnext < Fn + alpha*c_armijo*du_gn:
                 # if True:
                 Fn = Fnext
@@ -342,7 +342,7 @@ def unconstrained_newton_solve(F, J, uh, dirichlet_bcs=None, bc0=None,
             break
 
     if prt_level > 0:
-        if reason is 3:
+        if reason == 3:
             print("{0:3d} {1:6d}    {2:15e} {3:15e} {4:15e} {5:15e} {6:3d}".format(
                 it+1, lin_it, Fn, gn_norm, du_gn, alpha, nbt+1))
         print(termination_reasons[reason])
@@ -402,14 +402,17 @@ def get_1d_dirichlet_boundary_conditions_from_expression(expression, xl, xr):
         "near(x[0],%e)&&on_boundary" % xr)
     bndry_obj = [left_bndry, right_bndry]
     boundary_conditions = [
-        ['dirichlet', bndry_obj[ii], expression] for ii in range(len(bndry_obj))]
+        ['dirichlet', bndry_obj[ii], expression]
+        for ii in range(len(bndry_obj))]
     return boundary_conditions
 
 
-def get_dirichlet_boundary_conditions_from_expression(expression, xl, xr, yb, yt):
+def get_dirichlet_boundary_conditions_from_expression(expression, xl, xr, yb,
+                                                      yt):
     bndry_obj = get_2d_rectangular_mesh_boundaries(xl, xr, yb, yt)
     boundary_conditions = [
-        ['dirichlet', bndry_obj[ii], expression] for ii in range(len(bndry_obj))]
+        ['dirichlet', bndry_obj[ii], expression]
+        for ii in range(len(bndry_obj))]
     return boundary_conditions
 
 
@@ -448,7 +451,8 @@ def mark_boundaries(mesh, boundary_conditions):
     return boundaries
 
 
-def collect_dirichlet_boundaries(function_space, boundary_conditions, boundaries):
+def collect_dirichlet_boundaries(function_space, boundary_conditions,
+                                 boundaries):
     num_bndrys = len(boundary_conditions)
     dirichlet_bcs = []
     for ii in range(num_bndrys):
@@ -490,9 +494,9 @@ def get_num_subdomain_dofs(Vh, subdomain):
     """
     temp = dla.Function(Vh)
     bc = dla.DirichletBC(Vh, dla.Constant(1.0), subdomain)
-    # warning applying bc does not just apply subdomain.inside to all coordinates
-    # it does some boundary points more than once and other inside points not
-    # at all.
+    # warning applying bc does not just apply subdomain.inside to all
+    # coordinates it does some boundary points more than once and other
+    # inside points not at all.
     bc.apply(temp.vector())
     vec = temp.vector().get_local()
     dl.plot(temp)
@@ -506,7 +510,7 @@ def get_surface_of_3d_function(Vh_2d, z, function):
         assert V.ufl_element().degree() == 1
     mesh_coords = Vh_2d.mesh().coordinates().reshape((-1, 2))
     v_2d = dl.vertex_to_dof_map(Vh_2d)
-    #v_2d = Vh_2d.dofmap().dofs()
+    # v_2d = Vh_2d.dofmap().dofs()
     values = np.zeros(Vh_2d.dim(), dtype=float)
     for ii in range(mesh_coords.shape[0]):
         y = function(mesh_coords[ii, 0], mesh_coords[ii, 1], z)
@@ -627,8 +631,8 @@ def compute_errors(u_e, u):
     return errors
 
 
-def compute_convergence_rates(run_model, u_e, max_degree=1, num_levels=5, min_n=8,
-                              min_degree=1):
+def compute_convergence_rates(run_model, u_e, max_degree=1, num_levels=5,
+                              min_n=8, min_degree=1):
     """Compute convergences rates for various error norms
     Adapted from https://fenicsproject.org/pub/tutorial/html/._ftut1020.html
     """
@@ -726,9 +730,10 @@ def get_vertices_of_polygon(ampothem, nedges):
     return vertices
 
 
-def generate_polygonal_mesh(resolution, ampothem, nedges, radius, plot_mesh=False):
+def generate_polygonal_mesh(resolution, ampothem, nedges, radius,
+                            plot_mesh=False):
     """
-    Sometimes segault is thrown when mshr.generate_mesh() is 
+    Sometimes segault is thrown when mshr.generate_mesh() is
     called. This is because resolution is to low to resolve
     smaller inner-most circle.
     """
@@ -758,6 +763,7 @@ def generate_polygonal_mesh(resolution, ampothem, nedges, radius, plot_mesh=Fals
         subdomain2 = dl.AutoSubDomain(
             lambda x: np.sqrt((x[0]-cx2)**2+(x[1]-cy2)**2) < radius/2+1e-8)
         subdomain2.mark(subdomains, 2)
+        import matplotlib.pyplot as plt
         dl.plot(mesh)
         dl.plot(subdomains)
         plt.show()
@@ -784,7 +790,7 @@ def get_polygon_boundary_segments(ampothem, nedges, nsegments_per_edge=None,
         pt_diff = pt_end-pt_begin
         p1 = pt_begin
         for jj in range(nsegments_per_edge):
-            #p2 = pt_begin+pt_diff*(jj+1)/nsegments_per_edge
+            # p2 = pt_begin+pt_diff*(jj+1)/nsegments_per_edge
             p2 = pt_begin+pt_diff*cumulative_segment_sizes[jj]
             bndry_seg = get_2d_bndry_segment(p1[0], p1[1], p2[0], p2[1])
             bndry_obj.append(bndry_seg)

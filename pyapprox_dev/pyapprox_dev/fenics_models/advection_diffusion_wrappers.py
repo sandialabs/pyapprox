@@ -633,7 +633,7 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
     # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model, base_model)
 
-    from pyapprox.bayesian_inference.markov_chain_monte_carlo import \
+    from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import \
         GaussianLogLike
     if true_sample.shape != (5, 1):
         msg = 'true_sample must be the concatenation of random sample and the '

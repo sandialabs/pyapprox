@@ -1,12 +1,13 @@
 import sys
-import unittest, pytest
+import unittest
+import pytest
 
 import sympy as sp
-import matplotlib.pyplot as plt
 
 
 if sys.platform == 'win32':
     pytestmark = pytest.mark.skip("Skipping test on Windows")
+    has_dl = False
     has_dla = False
 
     # Create stub class for test

@@ -9,17 +9,24 @@ if sys.platform == 'win32':
 try:
     import dolfin as dl
     from pyapprox_dev.fenics_models.fenics_utilities import *
+    has_dl = True
+except (ImportError, ModuleNotFoundError):
+    has_dl = False
+
+try:
     import fenics_adjoint as dla
+    has_dla = True
 except (ImportError, ModuleNotFoundError):
     has_dla = False
 
+if not has_dla and has_dl:
+    # dolfin adjoint overwrites some doflin_functions
+    # so if not present just use dolfin functions
+    import dolfin as dla
+elif not has_dl and not has_dla:
     # Create stub class
     class dla(object):
         UserExpression = object
-
-else:
-    # If no exceptions raised
-    has_dla = True
 
 
 def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
@@ -31,7 +38,7 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
 
     du/dt = grad (k* grad u) - vel*grad u + f
 
-    WARNING: when point sources solution changes significantly when mesh is 
+    WARNING: when point sources solution changes significantly when mesh is
     varied
     """
     mesh = function_space.mesh()
