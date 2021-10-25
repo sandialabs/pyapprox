@@ -46,9 +46,9 @@ def package_available(name):
     try:
         print(name)
         mod = importlib.import_module(name)
-        print(name,'a')
+        print(name, 'a')
     except (ModuleNotFoundError, ImportError):
         pkg_available = False
 
-    print pkg_available
+    print (pkg_available)
     return pkg_available
