@@ -44,8 +44,11 @@ def hash_array(array, decimals=None):
 def package_available(name):
     pkg_available = True
     try:
+        print(name)
         mod = importlib.import_module(name)
+        print(name,'a')
     except (ModuleNotFoundError, ImportError):
         pkg_available = False
 
+    print pkg_available
     return pkg_available
