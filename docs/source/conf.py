@@ -45,10 +45,10 @@ extensions = [
 #     'matplotlib.sphinxext.plot_directive']
 #     'matplotlib.sphinxext.ipython_directive',
 #     'matplotlib.sphinxext.ipython_console_highlighting']
-    
-extensions +=['matplotlib.sphinxext.plot_directive',
-              'IPython.sphinxext.ipython_console_highlighting',
-              'IPython.sphinxext.ipython_directive']
+
+extensions += ['matplotlib.sphinxext.plot_directive',
+               'IPython.sphinxext.ipython_console_highlighting',
+               'IPython.sphinxext.ipython_directive']
 
 extensions += ['sphinx_automodapi.automodapi']
 
@@ -73,8 +73,8 @@ example_filenames_in_order = [
     'plot_gaussian_mfnets.py'
 ]
 
-example_dirs = ['../../tutorials']
-gallery_dirs = ['auto_tutorials']
+example_dirs = ['../../tutorials', '../../examples']
+gallery_dirs = ['auto_tutorials', 'auto_examples']
 
 import pkg_resources
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
@@ -84,7 +84,10 @@ if 'pyapprox-dev' in installed_pkgs:
     gallery_dirs += ['auto_dev_tutorials']
     example_filenames_in_order.insert(1, 'plot_advection_diffusion_model.py')
     example_filenames_in_order.insert(3, 'plot_bayesian_inference.py')
-    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py') 
+    example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
+
+example_filenames_in_order += [
+    'plot_sparse_grid_uq.py', 'plot_design_under_uncertainty.py']
 
 # print(installed_pkgs)
 print(example_filenames_in_order)

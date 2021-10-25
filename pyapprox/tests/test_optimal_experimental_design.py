@@ -1,8 +1,18 @@
 import unittest
-from pyapprox.optimal_experimental_design import *
-from pyapprox.risk_measures import conditional_value_at_risk
-from pyapprox.monomial import univariate_monomial_basis_matrix
+import numpy as np
 from functools import partial
+
+from pyapprox.optimal_experimental_design import (
+    compute_homoscedastic_outer_products,
+    compute_prediction_variance, goptimality_criterion,
+    r_oed_objective, r_oed_objective_jacobian,
+    r_oed_constraint_objective, r_oed_constraint_jacobian,
+    ioptimality_criterion, coptimality_criterion, doptimality_criterion,
+    aoptimality_criterion, AlphabetOptimalDesign,
+    optimal_experimental_design, roptimality_criterion,
+    ioptimal_criterion_more_design_pts_than_params
+)
+from pyapprox.monomial import univariate_monomial_basis_matrix
 import pyapprox as pya
 from pyapprox import cartesian_product
 
@@ -91,10 +101,11 @@ def emax_model_grad_parameters(parameters, samples):
     return grad
 
 
-def check_derivative(function, num_design_pts, rel=True):
-    #design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
+def check_derivative(function, num_design_pts, rel=True, plot=False):
+    # design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
     design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
-    return pya.check_gradients(function, True, design_prob_measure, rel=rel)
+    return pya.check_gradients(
+        function, True, design_prob_measure, rel=rel, plot=plot)
 
 
 class TestOptimalExperimentalDesign(unittest.TestCase):
@@ -125,22 +136,25 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # heteroscedastic error lstsq
         noise_multiplier = design_samples**2+1
         variance = compute_prediction_variance(
-            design_prob_measure, pred_factors, homog_outer_prods, noise_multiplier)
+            design_prob_measure, pred_factors, homog_outer_prods,
+            noise_multiplier)
         M1 = homog_outer_prods.dot(design_prob_measure)
         M0 = homog_outer_prods.dot(design_prob_measure*noise_multiplier**2)
         variance1 = np.diag(
-            pred_factors.dot(np.linalg.inv(M1).dot(M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
+            pred_factors.dot(np.linalg.inv(M1).dot(
+                M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
         assert np.allclose(variance, variance1)
 
         # heteroscedastic error quantile
         noise_multiplier = design_samples**2+1
         variance = compute_prediction_variance(
-            design_prob_measure, pred_factors, homog_outer_prods, noise_multiplier,
-            'quantile')
+            design_prob_measure, pred_factors, homog_outer_prods,
+            noise_multiplier, 'quantile')
         M0 = homog_outer_prods.dot(design_prob_measure)
         M1 = homog_outer_prods.dot(design_prob_measure/noise_multiplier)
         variance1 = np.diag(
-            pred_factors.dot(np.linalg.inv(M1).dot(M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
+            pred_factors.dot(np.linalg.inv(M1).dot(
+                M0.dot(np.linalg.inv(M1)).dot(pred_factors.T))))
         assert np.allclose(variance, variance1)
 
     def test_r_oed_objective_and_constraint_wrappers(self):
@@ -156,7 +170,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
         goptimality_criterion_wrapper = partial(
-            goptimality_criterion, homog_outer_prods, design_factors, pred_factors)
+            goptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors)
         mu = np.random.uniform(0, 1, (num_design_pts))
         mu /= mu.sum()
         obj, jac = goptimality_criterion_wrapper(mu)
@@ -178,7 +193,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             r_oed_constraint_jacobian, num_design_pts,
             lambda x: goptimality_criterion_wrapper(x)[1])
         x0 = np.concatenate([np.ones(num_pred_pts+1), mu])[:, np.newaxis]
-        from pyapprox import approx_jacobian
+        # from pyapprox import approx_jacobian
         # print(x0.shape)
         # print(approx_jacobian(r_oed_constraint_wrapper,x0[:,0]))
         diffs = pya.check_gradients(
@@ -188,12 +203,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
     def test_homoscedastic_ioptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 101
-        num_pred_pts = 51
-        pred_samples = np.random.uniform(-1, 1, num_pred_pts)
-        # TODO check if design factors may have to be a subset of pred_factors
-        # pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        #assert num_design_pts<=pred_factors.shape[0]
-        #design_factors = pred_factors[:num_design_pts,:]
+        num_pred_pts = 11 #51
+        #pred_samples = np.random.uniform(-1, 1, num_pred_pts)
+        #pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
+        pred_samples, pred_prob_measure = pya.gauss_jacobi_pts_wts_1D(
+           num_pred_pts, 0, 0)
+
         design_samples = np.linspace(-1, 1, num_design_pts)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
@@ -202,16 +217,32 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
         ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion, homog_outer_prods, design_factors, pred_factors)
+            ioptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors, pred_prob_measure=pred_prob_measure)
+        np.random.seed(1)
         diffs = check_derivative(ioptimality_criterion_wrapper, num_design_pts)
-        assert diffs.min() < 6e-5, diffs
+        assert diffs.min() < 2e-5, diffs
 
         mu = np.random.uniform(0, 1, (num_design_pts))
         mu /= mu.sum()
         M1 = homog_outer_prods.dot(mu)
         u = np.linalg.solve(M1, pred_factors.T)
-        assert np.allclose(np.diag(pred_factors.dot(u)).mean(),
-                           ioptimality_criterion_wrapper(mu, return_grad=False))
+        assert np.allclose(
+            np.diag(pred_factors.dot(u)*pred_prob_measure).sum(),
+            ioptimality_criterion_wrapper(mu, return_grad=False))
+
+        ioptimality_criterion_wrapper_II = partial(
+            ioptimal_criterion_more_design_pts_than_params, homog_outer_prods,
+            design_factors, pred_factors, pred_prob_measure=pred_prob_measure)
+        # print(np.diag(pred_factors.dot(u)*pred_prob_measure).sum(),
+        #       ioptimality_criterion_wrapper_II(mu, return_grad=False), 'a')
+        np.random.seed(1)
+        diffs = check_derivative(
+            ioptimality_criterion_wrapper_II, num_design_pts, rel=True,
+            plot=True)
+        import matplotlib.pyplot as plt
+        plt.show()
+        assert diffs.min() < 2e-5, diffs
 
     def test_hetroscedastic_ioptimality_criterion(self):
         """
@@ -230,8 +261,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
         ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion, homog_outer_prods, design_factors, pred_factors,
-            noise_multiplier=noise_multiplier)
+            ioptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors, noise_multiplier=noise_multiplier)
 
         # Test least squares hetroscedastic gradients are correct
         diffs = check_derivative(ioptimality_criterion_wrapper, num_design_pts)
@@ -239,7 +270,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         # Test quantile regression gradients
         ioptimality_criterion_wrapper = partial(
-            ioptimality_criterion, homog_outer_prods, design_factors, pred_factors,
+            ioptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors,
             noise_multiplier=noise_multiplier, regression_type='quantile')
         diffs = check_derivative(ioptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
@@ -263,8 +295,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         u = np.linalg.solve(M1, pred_factors.T)
         assert np.allclose(
             np.diag(u.T.dot(M0).dot(u)).mean(),
-            ioptimality_criterion(homog_outer_prods, design_factors, pred_factors,
-                                  mu, return_grad=False))
+            ioptimality_criterion(homog_outer_prods, design_factors,
+                                  pred_factors, mu, return_grad=False))
 
     def test_homoscedastic_goptimality_criterion(self):
         poly_degree = 3
@@ -273,8 +305,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         pred_samples = np.random.uniform(-1, 1, num_pred_pts)
         # TODO check if design factors may have to be a subset of pred_factors
         # pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        #assert num_design_pts<=pred_factors.shape[0]
-        #design_factors = pred_factors[:num_design_pts,:]
+        # assert num_design_pts<=pred_factors.shape[0]
+        # design_factors = pred_factors[:num_design_pts,:]
         design_samples = np.linspace(-1, 1, num_design_pts)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
@@ -283,7 +315,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
         goptimality_criterion_wrapper = partial(
-            goptimality_criterion, homog_outer_prods, design_factors, pred_factors)
+            goptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors)
         diffs = check_derivative(goptimality_criterion_wrapper, num_design_pts)
         # print(diffs)
         assert diffs.min() < 6e-5, diffs
@@ -305,8 +338,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         homog_outer_prods = compute_homoscedastic_outer_products(
             design_factors)
         goptimality_criterion_wrapper = partial(
-            goptimality_criterion, homog_outer_prods, design_factors, pred_factors,
-            noise_multiplier=noise_multiplier)
+            goptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors, noise_multiplier=noise_multiplier)
 
         # Test hetroscedastic API gradients are correct
         diffs = check_derivative(goptimality_criterion_wrapper, num_design_pts)
@@ -314,7 +347,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         # Test quantile regression gradients
         goptimality_criterion_wrapper = partial(
-            goptimality_criterion, homog_outer_prods, design_factors, pred_factors,
+            goptimality_criterion, homog_outer_prods, design_factors,
+            pred_factors,
             noise_multiplier=noise_multiplier, regression_type='quantile')
         diffs = check_derivative(goptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
@@ -344,7 +378,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             coptimality_criterion, homog_outer_prods, design_factors,
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(coptimality_criterion_wrapper, num_design_pts)
-        #print (diffs)
+        # print (diffs)
         assert diffs.min() < 5e-5, diffs
 
         # Test quantile regression gradients
@@ -369,7 +403,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(
@@ -377,14 +411,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         coptimality_criterion_wrapper = partial(
             coptimality_criterion, homog_outer_prods, design_factors)
         diffs = check_derivative(coptimality_criterion_wrapper, num_design_pts)
-        #print (diffs)
+        # print (diffs)
         assert diffs.min() < 5e-5, diffs
 
     def test_homoscedastic_doptimality_criterion(self):
         poly_degree = 3
         num_design_pts = 11
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(
@@ -392,23 +426,24 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         doptimality_criterion_wrapper = partial(
             doptimality_criterion, homog_outer_prods, design_factors)
         diffs = check_derivative(doptimality_criterion_wrapper, num_design_pts)
-        #print (diffs)
+        # print (diffs)
         assert diffs.min() < 5e-5, diffs
 
         mu = np.random.uniform(0, 1, (num_design_pts))
         mu /= mu.sum()
         M1 = homog_outer_prods.dot(mu)
-        print(np.linalg.det(M1),
-              doptimality_criterion_wrapper(mu, return_grad=False))
-        assert np.allclose(np.log(np.linalg.det(np.linalg.inv(M1))),
-                           doptimality_criterion_wrapper(mu, return_grad=False))
+        # print(np.linalg.det(M1),
+        #       doptimality_criterion_wrapper(mu, return_grad=False))
+        assert np.allclose(
+            np.log(np.linalg.det(np.linalg.inv(M1))),
+            doptimality_criterion_wrapper(mu, return_grad=False))
 
         def jac(x):
             jac_mat = doptimality_criterion(
                 homog_outer_prods, design_factors, x)[1]
-            print(jac_mat.shape)
+            # print(jac_mat.shape)
             return jac_mat
-        
+
         def hess_matvec(x, p):
             mat = doptimality_criterion(
                 homog_outer_prods, design_factors, x,
@@ -430,7 +465,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             doptimality_criterion, homog_outer_prods, design_factors,
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(doptimality_criterion_wrapper, num_design_pts)
-        #print (diffs)
+        # print (diffs)
 
         assert diffs[np.isfinite(diffs)].min() < 2e-4, diffs
 
@@ -457,7 +492,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         homog_outer_prods = compute_homoscedastic_outer_products(
@@ -466,7 +501,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             aoptimality_criterion, homog_outer_prods, design_factors)
         diffs = check_derivative(
             aoptimality_criterion_wrapper, num_design_pts, True)
-        #print (diffs)
+        # print (diffs)
         assert diffs.min() < 6e-5, diffs
 
         mu = np.random.uniform(0, 1, (num_design_pts))
@@ -489,7 +524,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             aoptimality_criterion, homog_outer_prods, design_factors,
             noise_multiplier=noise_multiplier)
         diffs = check_derivative(aoptimality_criterion_wrapper, num_design_pts)
-        #print (diffs)
+        # print (diffs)
 
         assert diffs[np.isfinite(diffs)].min() < 1e-4, diffs
 
@@ -513,11 +548,11 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
     def test_gradient_log_determinant(self):
         """
-        Test the identities 
+        Test the identities
         -log (det(Y)) = log(det(inv(Y)))
         d/dw_i X.T.dot(diag(w)).dot(X)=X.T.dot(diag(e_i)).dot(X)
         where e_i is unit vector with 1 in ith entry
-        d/dw_i log(Y) = trace(inv(Y)*dY/dw_i) 
+        d/dw_i log(Y) = trace(inv(Y)*dY/dw_i)
         """
         X = np.random.normal(0, 1, (3, 3))
         w = np.arange(1, 4, dtype=float)[:, np.newaxis]
@@ -559,23 +594,23 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
     def test_homoscedastic_least_squares_doptimal_design(self):
         """
-        Create D-optimal designs, for least squares regression with 
+        Create D-optimal designs, for least squares regression with
         homoscedastic noise, and compare to known analytical solutions.
-        See Section 5 of Wenjie Z, Computing Optimal Designs for Regression 
+        See Section 5 of Wenjie Z, Computing Optimal Designs for Regression
         Modelsvia Convex Programming, Ph.D. Thesis, 2012
         """
         poly_degree = 2
         num_design_pts = 7
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
 
         opt_problem = AlphabetOptimalDesign('D', design_factors)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(I, [0, 3, 6])
-        assert np.allclose(np.ones(3)/3, mu[I])
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(II, [0, 3, 6])
+        assert np.allclose(np.ones(3)/3, mu[II])
 
         # See J.E. Boon, Generating Exact D-Optimal Designs for Polynomial
         # Models 2007. For how to derive analytical solution for this test case
@@ -583,23 +618,23 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 3
         num_design_pts = 30
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         opt_problem = AlphabetOptimalDesign('D', design_factors)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(I, [0, 8, 21, 29])
-        assert np.allclose(0.25*np.ones(4), mu[I], atol=1e-5)
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(II, [0, 8, 21, 29])
+        assert np.allclose(0.25*np.ones(4), mu[II], atol=1e-5)
 
     def test_heteroscedastic_quantile_local_doptimal_design(self):
         """
-        Create D-optimal designs, for least squares regression with 
+        Create D-optimal designs, for least squares regression with
         homoscedastic noise, and compare to known analytical solutions.
-        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile 
+        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile
         Regression Models https://doi.org/10.1080/01621459.2012.695665
         """
-        poly_degree = 2
+        # poly_degree = 2
         num_design_pts = 17
         lb, ub = 2, 10
         design_samples = np.linspace(lb, ub, num_design_pts)
@@ -614,7 +649,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         opt_problem = AlphabetOptimalDesign(
             'D', design_factors, noise_multiplier=noise_multiplier)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-10})
-        I = np.where(mu > 1e-5)[0]
+        II = np.where(mu > 1e-5)[0]
         if n == -1 or n == -2:
             exact_design_samples = [lb, ub]
         elif n == 0 or n == 1:
@@ -622,8 +657,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
                 max(lb, (n+1)*ub*theta[1]/((n+2)*theta[1]+ub)), ub]
         else:
             raise Exception("n must be in {-2,-1,0,1}")
-        assert np.allclose(exact_design_samples, design_samples[I])
-        assert np.allclose(mu[I], [0.5, 0.5])
+        assert np.allclose(exact_design_samples, design_samples[II])
+        assert np.allclose(mu[II], [0.5, 0.5])
 
     def test_homoscedastic_least_squares_goptimal_design(self):
         """
@@ -632,19 +667,19 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 2
         num_design_pts = 7
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
-        #pred_factors = design_factors
+        # pred_factors = design_factors
         pred_factors = univariate_monomial_basis_matrix(
             poly_degree, np.linspace(-1, 1, num_design_pts))
 
         opts = {'pred_factors': pred_factors}
         opt_problem = AlphabetOptimalDesign('G', design_factors, opts=opts)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(I, [0, 3, 6])
-        assert np.allclose(np.ones(3)/3, mu[I])
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(II, [0, 3, 6])
+        assert np.allclose(np.ones(3)/3, mu[II])
 
         # check G gives same as D optimality. This holds due to equivalence
         # theorem
@@ -654,15 +689,18 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
 
         # test high-level api for D optimality
         selected_pts, mu_d = optimal_experimental_design(
-            design_samples[np.newaxis, :], design_factors, 'D', regresion_type='lstsq', noise_multiplier=None)
-        assert np.allclose(selected_pts, design_samples[I])
-        assert np.allclose(mu_d, np.round(mu[I]*num_design_pts))
+            design_samples[np.newaxis, :], design_factors, 'D',
+            regresion_type='lstsq', noise_multiplier=None)
+        assert np.allclose(selected_pts, design_samples[II])
+        assert np.allclose(mu_d, np.round(mu[II]*num_design_pts))
 
         # test high-level api for G optimality
         selected_pts, mu_g = optimal_experimental_design(
-            design_samples[np.newaxis, :], design_factors, 'G', regresion_type='lstsq', noise_multiplier=None, pred_factors=pred_factors)
-        assert np.allclose(selected_pts, design_samples[I])
-        assert np.allclose(mu_g, np.round(mu[I]*num_design_pts))
+            design_samples[np.newaxis, :], design_factors, 'G',
+            regresion_type='lstsq', noise_multiplier=None,
+            pred_factors=pred_factors)
+        assert np.allclose(selected_pts, design_samples[II])
+        assert np.allclose(mu_g, np.round(mu[II]*num_design_pts))
 
     def test_homoscedastic_roptimality_criterion(self):
         beta = 0.5  # when beta=0 we get I optimality
@@ -672,8 +710,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         pred_samples = np.random.uniform(-1, 1, num_pred_pts)
         # TODO check if design factors may have to be a subset of pred_factors
         # pred_factors=univariate_monomial_basis_matrix(poly_degree,pred_samples)
-        #assert num_design_pts<=pred_factors.shape[0]
-        #design_factors = pred_factors[:num_design_pts,:]
+        # assert num_design_pts<=pred_factors.shape[0]
+        # design_factors = pred_factors[:num_design_pts,:]
         design_samples = np.linspace(-1, 1, num_design_pts)
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
@@ -715,7 +753,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         poly_degree = 1
         num_design_pts = 2
         design_samples = np.linspace(-1, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         num_pred_pts = 3
@@ -724,7 +762,8 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             poly_degree, pred_samples)
 
         opts = {'beta': 0, 'pred_factors': pred_factors,
-                'pred_samples': pred_samples[np.newaxis, :], 'nonsmooth': False}
+                'pred_samples': pred_samples[np.newaxis, :],
+                'nonsmooth': False}
 
         opt_problem = AlphabetOptimalDesign('R', design_factors, opts=opts)
         solver_opts = {'disp': True, 'iprint': 0,
@@ -750,17 +789,18 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         assert np.allclose(mu_R, mu_I)
 
 
-def help_check_michaelis_menten_model_minimax_optimal_design(criteria, heteroscedastic=False):
+def help_check_michaelis_menten_model_minimax_optimal_design(
+        criteria, heteroscedastic=False):
     """
     If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
-    at b. This can be proved with an application of Holders inequality to 
+    at b. This can be proved with an application of Holders inequality to
     show that the determinant of the fihser information matrix decreases
     with increasing theta_2.
     """
     iprint = 0
     num_design_pts = 30
     design_samples = np.linspace(1e-3, 1, num_design_pts)
-    #pred_samples = design_samples
+    # pred_samples = design_samples
     pred_samples = np.linspace(0, 1, num_design_pts+10)
     if heteroscedastic:
         n = 1
@@ -784,7 +824,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(criteria, heterosce
     xx2 = np.linspace(0.2, 1, 5)
     from pyapprox import cartesian_product
     parameter_samples = cartesian_product([xx1, xx2])
-    x0 = None
+    # x0 = None
     minimax_opt_problem = AlphabetOptimalDesign(
         criteria, local_design_factors, noise_multiplier, opts=opts)
 
@@ -861,11 +901,11 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
     def test_michaelis_menten_model_locally_d_optimal_design(self):
         """
         Exact solution obtained from
-        Holger Dette and  Stefanie Biedermann, 
+        Holger Dette and  Stefanie Biedermann,
         Robust and Efficient Designs for the Michaelis-Menten Model, 2003
 
         From looking at fisher_information_matrix it is clear that theta_1
-        has no effect on the optimal solution so we can set it to 1 
+        has no effect on the optimal solution so we can set it to 1
         without loss of generality.
         """
         theta = np.array([1, 0.5])
@@ -881,32 +921,34 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
 
         num_design_pts = 5
         design_samples = np.linspace(0, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
         design_factors = michaelis_menten_model_grad_parameters(
             theta, design_samples[np.newaxis, :]).T
 
         opt_problem = AlphabetOptimalDesign('D', design_factors)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
         # design pts are (theta_2/(2*theta_2+1)) and 1 with masses 0.5,0.5
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(I, [1, 4])
-        assert np.allclose(mu[I], np.ones(2)*0.5)
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(II, [1, 4])
+        assert np.allclose(mu[II], np.ones(2)*0.5)
 
         exact_determinant = 1/(64*theta_2**2*(1+theta_2)**6)
         determinant = np.linalg.det(
             (design_factors*mu[:, np.newaxis]).T.dot(design_factors))
         assert np.allclose(determinant, exact_determinant)
 
-    def test_michaelis_menten_model_minimax_d_optimal_least_squares_design(self):
+    def test_michaelis_menten_model_minimax_d_optimal_least_squares_design(
+            self):
         """
-        If theta_2 in [a,b] the minimax optimal design will be locally d-optimal
-        at b. This can be proved with an application of Holders inequality to 
+        If theta_2 in [a,b] the minimax optimal design will be locally
+        d-optimal at b.
+        This can be proved with an application of Holders inequality to
         show that the determinant of the fihser information matrix decreases
         with increasing theta_2.
         """
         num_design_pts = 7
         design_samples = np.linspace(0, 1, num_design_pts)
-        noise_multiplier = None
+        # noise_multiplier = None
 
         local_design_factors = \
             lambda p, x: michaelis_menten_model_grad_parameters(p, x).T
@@ -918,20 +960,20 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         mu = opt_problem.solve_nonlinear_minimax(
             parameter_samples, design_samples[np.newaxis, :],
             {'iprint': 1, 'ftol': 1e-8})
-        I = np.where(mu > 1e-5)[0]
+        II = np.where(mu > 1e-5)[0]
         # given largest theta_2=1 then optimal design will be at 1/3,1
         # with masses=0.5
-        assert np.allclose(I, [2, 6])
-        assert np.allclose(mu[I], np.ones(2)*0.5)
+        assert np.allclose(II, [2, 6])
+        assert np.allclose(mu[II], np.ones(2)*0.5)
 
     def test_heteroscedastic_quantile_bayesian_doptimal_design(self):
         """
-        Create D-optimal designs, for least squares regression with 
+        Create D-optimal designs, for least squares regression with
         homoscedastic noise, and compare to known analytical solutions.
-        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile 
+        See Theorem 4.3 in Dette & Trampisch, Optimal Designs for Quantile
         Regression Models https://doi.org/10.1080/01621459.2012.695665
         """
-        poly_degree = 2
+        # poly_degree = 2
         num_design_pts = 100
         x_lb, x_ub = 1e-3, 2000
         design_samples = np.linspace(x_lb, x_ub, num_design_pts)
@@ -943,8 +985,8 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         local_design_factors = \
             lambda p, x: michaelis_menten_model_grad_parameters(p, x).T
         xx1 = np.array([10])  # theta_1 does not effect optimum
-        #xx2 = np.linspace(100,2000,50)
-        #parameter_samples = cartesian_product([xx1,xx2])
+        # xx2 = np.linspace(100,2000,50)
+        # parameter_samples = cartesian_product([xx1,xx2])
 
         p_lb, p_ub = 100, 2000
         local_design_factors = \
@@ -961,18 +1003,19 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         mu, res = opt_problem.solve_nonlinear_bayesian(
             parameter_samples, design_samples[np.newaxis,
                                               :], sample_weights=ww2,
-            options={'iprint': 0, 'ftol': 1e-8, 'disp': True}, return_full=True)
+            options={'iprint': 0, 'ftol': 1e-8, 'disp': True},
+            return_full=True)
 
         # vals = []
         # for ii in range(design_samples.shape[0]):
         #     xopt = np.zeros(design_samples.shape[0])+1e-8;
         #     #xopt[-1]=.5; xopt[ii]=.5
         #     vals.append(res.obj_fun(xopt))
-        #plt.plot(design_samples,vals); plt.show()
+        # plt.plot(design_samples,vals); plt.show()
 
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(design_samples[I], [754.4, x_ub])
-        assert np.allclose(mu[I], [0.5, 0.5])
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(design_samples[II], [754.4, x_ub])
+        assert np.allclose(mu[II], [0.5, 0.5])
 
     def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
         help_check_michaelis_menten_model_minimax_optimal_design('G')
@@ -997,15 +1040,15 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         """
         lb2, ub2 = 1, 10
         design_samples = np.linspace(0, 1, 5*int(ub2+lb2)+1)
-        noise_multiplier = None
+        # noise_multiplier = None
         parameter_sample = np.array([(ub2+lb2)/2])
         design_factors = exponential_growth_model_grad_parameters(
             parameter_sample, design_samples[np.newaxis, :]).T
         opt_problem = AlphabetOptimalDesign('D', design_factors)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
-        I = np.where(mu > 1e-5)[0]
-        assert np.allclose(mu[I], 1)
-        assert np.allclose(design_samples[I], 1/parameter_sample)
+        II = np.where(mu > 1e-5)[0]
+        assert np.allclose(mu[II], 1)
+        assert np.allclose(design_samples[II], 1/parameter_sample)
 
     def test_exponential_growth_model_bayesian_d_optimal_design(self):
         """
@@ -1022,7 +1065,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             design_samples = np.linspace(0, 1, num_design_pts)
             design_samples = np.sort(np.unique(np.concatenate(
                 [design_samples, optimal_design_samples[ub2][0]])))
-            noise_multiplier = None
+            # noise_multiplier = None
 
             local_design_factors = \
                 lambda p, x: exponential_growth_model_grad_parameters(p, x).T
@@ -1035,16 +1078,18 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
 
             mu, res = opt_problem.solve_nonlinear_bayesian(
                 parameter_samples, design_samples[np.newaxis, :],
-                sample_weights=ww2, options={'iprint': 0, 'ftol': 1e-14, 'disp': True, 'tol': 1e-12}, return_full=True)
-            I = np.where(mu > 1e-5)[0]
+                sample_weights=ww2, options={
+                    'iprint': 0, 'ftol': 1e-14,
+                    'disp': True, 'tol': 1e-12}, return_full=True)
+            II = np.where(mu > 1e-5)[0]
             J = np.nonzero(design_samples == np.array(
                 optimal_design_samples[ub2][0])[:, None])[1]
             mu_paper = np.zeros(design_samples.shape[0])
             mu_paper[J] = optimal_design_samples[ub2][1]
             # published designs are not optimal for larger values of ub2
-            if I.shape == J.shape and np.allclose(I, J):
+            if II.shape == J.shape and np.allclose(II, J):
                 assert np.allclose(
-                    mu[I], optimal_design_samples[ub2][1], rtol=3e-2)
+                    mu[II], optimal_design_samples[ub2][1], rtol=3e-2)
             assert (res.obj_fun(mu) <= res.obj_fun(mu_paper)+1e-6)
 
 

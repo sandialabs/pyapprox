@@ -3,7 +3,8 @@ import unittest
 from scipy import stats
 
 from pyapprox.coupled_systems import (
-    SystemNetwork, build_chain_graph, build_peer_graph
+    SystemNetwork, build_chain_graph, build_peer_graph, plot_adjacency_matrix,
+    gauss_jacobi_fixed_point_iteration
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import \
@@ -72,7 +73,18 @@ def get_3_peer_polynomial_components():
     nvars = np.unique(np.concatenate(global_random_var_indices)).sum()
     univariate_variables = [stats.uniform(0, 1)]*nvars
     variables = IndependentMultivariateRandomVariable(univariate_variables)
-    return graph, variables, graph_data
+
+    def system_fun(samples):
+        funs = graph_data['functions']
+        global_random_var_indices = graph_data['global_random_var_indices']
+        values0 = funs[0](samples[global_random_var_indices[0], :])
+        values1 = funs[1](samples[global_random_var_indices[1], :])
+        values2 = funs[2](
+            np.vstack([samples[global_random_var_indices[2], :],
+                       values1.T, values0.T]))
+        return [values0, values1, values2]
+
+    return graph, variables, graph_data, system_fun
 
 
 def get_3_peer_polynomial_components_multiple_qoi():
@@ -268,12 +280,132 @@ def get_3_recursive_polynomial_components_multiple_qoi():
     return graph, variables, graph_data
 
 
+def get_chaudhuri_3_component_system():
+    def fn1(samples):
+        x = samples[:3]
+        C = samples[3:]
+        A1 = np.array([[9.7236, 0.2486]])
+        C1 = 0.01*(x[0]**2+2*x[1]-x[2]) + A1.dot(C)[0, :]/np.linalg.norm(
+            C, axis=0)
+        y1 = 0.1*x[0] + x[1] - 0.5*x[2] + 10*C1
+        vals = np.vstack([C1, y1]).T
+        return vals
+
+    def fn2(samples):
+        x = samples[:3]
+        C = samples[3:]
+        A2 = np.array([[0.2486, 9.7764]])
+        C2 = 0.01*(x[0]*x[1]+x[1]**2+x[2]) + A2.dot(C)[0, :]/np.linalg.norm(
+            C, axis=0)
+        y2 = 5*x[1] - x[2] - 5*C2
+        return np.vstack([C2, y2]).T
+
+    def fn3(samples):
+        # samples y1, y2
+        return (samples[0:1, :] + samples[1:2, :]).T
+
+    nexog_vars = 5
+    variable = IndependentMultivariateRandomVariable(
+        [stats.norm(1, 0.1)]*nexog_vars)
+
+    # 0.02+(9.7236*x+0.2486*y)/sqrt[x^2+y^2]-x=0
+    # 0.03+(9.7764*y+0.2486*x)/sqrt[x^2+y^2]-y=0
+
+    return [fn1, fn2, fn3], variable
+
+
 class TestCoupledSystem(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_gauss_jacobi_fpi_peer(self):
+        ncomponent_outputs = [1, 1, 1]
+        ncomponent_coupling_vars = [0, 0, 2]
+        noutputs = np.sum(ncomponent_outputs)
+        ncoupling_vars = np.sum(ncomponent_coupling_vars)
+        adjacency_matrix = np.zeros((ncoupling_vars, noutputs))
+
+        adjacency_matrix[0, 0] = 1
+        adjacency_matrix[1, 1] = 1
+        from scipy import sparse as scipy_sparse
+        adjacency_matrix = scipy_sparse.csr_matrix(adjacency_matrix)
+        # plot_adjacency_matrix(adjacency_matrix, component_shapes)
+        # from matplotlib import pyplot as plt
+        # plt.show()
+
+        # output_extraction_matrices = [[0], [1], [2]]
+        exog_extraction_matrices = [[0], [0, 1], [2]]
+        coup_extraction_matrices = [[], [], [1, 0]]
+
+        graph, variables, graph_data, system_fun = \
+            get_3_peer_polynomial_components()
+        component_funs = graph_data["functions"]
+
+        nsamples = 10
+        exog_samples = generate_independent_random_samples(
+            variables, nsamples)
+        init_coup_samples = np.ones((adjacency_matrix.shape[0], nsamples))
+
+        outputs = gauss_jacobi_fixed_point_iteration(
+            adjacency_matrix, exog_extraction_matrices,
+            coup_extraction_matrices, component_funs,
+            init_coup_samples, exog_samples,
+            relax_factor=1, tol=1e-15, max_iters=100, verbose=1)
+
+        true_outputs = system_fun(exog_samples)
+        assert np.allclose(outputs, np.hstack(true_outputs))
+
+
+    def test_gauss_jacobi_fpi_feedback(self):
+        ncomponent_outputs = [2, 2, 1]
+        ncomponent_coupling_vars = [2, 2, 2]
+        noutputs = np.sum(ncomponent_outputs)
+        ncoupling_vars = np.sum(ncomponent_coupling_vars)
+        adjacency_matrix = np.zeros((ncoupling_vars, noutputs))
+
+        adjacency_matrix[0, 0] = 1  # xi_00 = C1
+        adjacency_matrix[1, 2] = 1  # xi_01 = C2
+        adjacency_matrix[2, 0] = 1  # xi_10 = C1
+        adjacency_matrix[3, 2] = 1  # xi_11 = C2
+        adjacency_matrix[4, 1] = 1  # xi_20 = y1
+        adjacency_matrix[5, 3] = 1  # xi_21 = y2
+        from scipy import sparse as scipy_sparse
+        adjacency_matrix = scipy_sparse.csr_matrix(adjacency_matrix)
+        # plot_adjacency_matrix(
+        #     adjacency_matrix, (ncomponent_coupling_vars, ncomponent_outputs))
+        # from matplotlib import pyplot as plt
+        # plt.show()
+
+        component_funs, variables = get_chaudhuri_3_component_system()
+
+        # output_extraction_matrices = [[0, 1], [1, 2], [3]]
+        exog_extraction_matrices = [[0, 1, 2], [0, 3, 4], []]
+        coup_extraction_matrices = [[0, 1], [2, 3], [4, 5]]
+
+        nsamples = 10
+        exog_samples = generate_independent_random_samples(
+            variables, nsamples-1)
+        exog_samples = np.hstack(
+            (exog_samples, variables.get_statistics("mean")))
+        init_coup_samples = 5*np.ones((adjacency_matrix.shape[0], nsamples))
+
+        outputs = gauss_jacobi_fixed_point_iteration(
+            adjacency_matrix, exog_extraction_matrices,
+            coup_extraction_matrices, component_funs,
+            init_coup_samples, exog_samples,
+            tol=1e-12, max_iters=20, verbose=0,
+            anderson_memory=1)
+
+        # Mathematica Solution
+        # Solve[(0.02 + (9.7236*x + 0.2486*y)/Sqrt[x^2 + y^2] - x == 0) &&
+        # 0.03 + (9.7764*y + 0.2486*x)/Sqrt[x^2 + y^2] - y == 0, {x, y}]
+        # print(outputs[-1, [0, 2]], [6.63852, 7.52628])
+        assert np.allclose(outputs[-1, [0, 2]], [6.63852, 7.52628])
+
+
     def test_peer_feed_forward_system_of_polynomials(self):
-        graph, variables, graph_data = get_3_peer_polynomial_components()
+        graph, variables, graph_data, system_fun = \
+            get_3_peer_polynomial_components()
         network = SystemNetwork(graph)
 
         nsamples = 10
@@ -283,14 +415,7 @@ class TestCoupledSystem(unittest.TestCase):
         component_nvars = network.component_nvars()
         assert component_nvars == [1, 2, 3]
 
-        funs = graph_data['functions']
-        global_random_var_indices = graph_data['global_random_var_indices']
-        values0 = funs[0](samples[global_random_var_indices[0], :])
-        values1 = funs[1](samples[global_random_var_indices[1], :])
-        true_values = funs[2](
-            np.vstack([samples[global_random_var_indices[2], :],
-                       values1.T, values0.T]))
-
+        true_values = system_fun(samples)
         assert np.allclose(values, true_values)
 
     def test_peer_feed_forward_system_of_polynomials_multiple_qoi(self):

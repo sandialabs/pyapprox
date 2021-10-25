@@ -82,15 +82,15 @@ class CoolingPassage1(dl.SubDomain):
                  and (x[0] >= 0.1-1e-12) and (x[0] <= 0.2+1e-12))
         cond2 = ((abs(x[1]) <= 0.035+1e-12)
                  and (x[0] <= 0.1+1e-12) and (x[0] >= 0.05-1e-12))
-        cond3 = ((abs(x[1]) <= 0.02+1e-12) and (x[0] <=
-                                                0.05+1e-12) and (x[0] >= 0.025-1e-12))
+        cond3 = ((abs(x[1]) <= 0.02+1e-12) and
+                 (x[0] <= 0.05+1e-12) and (x[0] >= 0.025-1e-12))
         return ((cond1 or cond2 or cond3) and on_boundary)
 
 
 class CoolingPassage2(dl.SubDomain):
     def inside(self, x, on_boundary):
-        cond1 = ((abs(x[1]) <= 0.045+1e-12) and (x[0] <=
-                                                 0.45+1e-12) and (x[0] >= 0.25-1e-12))
+        cond1 = ((abs(x[1]) <= 0.045+1e-12) and
+                 (x[0] <= 0.45+1e-12) and (x[0] >= 0.25-1e-12))
         return (cond1 and on_boundary)
 
 
@@ -137,7 +137,7 @@ class AirfoilHeatTransferModel(object):
         h_le : float
             Leading edge heat transfer coefficient
 
-        h_lt : float 
+        h_lt : float
             Tail edge heat transfer coefficient
 
         thermal_conductivity : float
@@ -146,7 +146,7 @@ class AirfoilHeatTransferModel(object):
         t_c1 : float
             First passage coolant temperature
 
-        t_c2 : float 
+        t_c2 : float
             Second passage coolant temperature
 
         t_c3 : float

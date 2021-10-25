@@ -102,7 +102,10 @@ def get_M0_and_M1_matrices(
         The matrix :math:`M_1`
 
     """
+    design_prob_measure = design_prob_measure.squeeze()
     if noise_multiplier is None:
+        M1 = homog_outer_prods.dot(design_prob_measure)
+        assert M1.ndim == 2
         return None, homog_outer_prods.dot(design_prob_measure)
 
     if regression_type == 'lstsq':
@@ -119,8 +122,8 @@ def get_M0_and_M1_matrices(
 
 def ioptimality_criterion(homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
-                          noise_multiplier=None,
-                          regression_type='lstsq'):
+                          noise_multiplier=None, regression_type='lstsq',
+                          pred_prob_measure=None):
     r"""
     Evaluate the I-optimality criterion for a given design probability measure
     for the linear model
@@ -163,6 +166,9 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
+    pred_prob_measure : np.ndarray (num_pred_pts)
+        The prob measure :math:`\nu` on the prediction points
+
     Returns
     -------
     value : float
@@ -175,6 +181,10 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
     # t0=time.time()
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors = pred_factors.shape
+
+    if pred_prob_measure is None:
+        pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
+
     if design_prob_measure.ndim == 2:
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
@@ -185,25 +195,33 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         Q, R = np.linalg.qr(M1)
         u = solve_triangular(R, Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
-        value = np.sum(u*M0u) / num_pred_pts
+        # value = np.sum(u*M0u) / num_pred_pts
+        value = np.sum(u*pred_prob_measure*M0u)
         if (return_grad):
             gamma = -solve_triangular(R, (Q.T.dot(M0u)))
             Fu = design_factors.dot(u)
             t = noise_multiplier[:, np.newaxis] * Fu
             Fgamma = design_factors.dot(gamma)
             if regression_type == 'lstsq':
-                gradient = 2*np.sum(Fu*Fgamma, axis=1) + np.sum(t**2, axis=1)
+                # gradient = 2*np.sum(Fu*Fgamma, axis=1) + np.sum(t**2, axis=1)
+                # gradient /= num_pred_pts
+                gradient = 2*np.sum(Fu*Fgamma*pred_prob_measure, axis=1) +\
+                    np.sum(t**2*pred_prob_measure, axis=1)
             elif regression_type == 'quantile':
+                # gradient = 2*np.sum(
+                #    Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
+                #    np.sum(Fu**2, axis=1)
+                # gradient /= num_pred_pts
                 gradient = 2*np.sum(
-                    Fu*Fgamma/noise_multiplier[:, np.newaxis], axis=1) + \
-                    np.sum(Fu**2, axis=1)
-            gradient /= num_pred_pts
+                    Fu*Fgamma/noise_multiplier[:, np.newaxis] *
+                    pred_prob_measure, axis=1) + np.sum(
+                        Fu**2*pred_prob_measure, axis=1)
             # print('that took',time.time()-t0)
             return value, gradient.T
         else:
             return value
     else:
-        #import time
+        # import time
         # t0=time.time()
         u = np.linalg.solve(M1, pred_factors.T)
         # Value
@@ -212,14 +230,86 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         # We know that diag(A.T.dot(B)) = (A*B).axis=0)
         # The following sums over all entries of A*B we get the mean of the
         # variance
-        value = np.sum(pred_factors*u.T) / num_pred_pts
+        # value = np.sum(pred_factors*u.T) / num_pred_pts
+        # print(pred_prob_measure)
+        value = np.sum(np.sum(pred_factors*u.T, axis=1)*pred_prob_measure)
         if (not return_grad):
             return value
         # Gradient
+        # F_M1_inv_P = design_factors.dot(u)
+        # gradient = -np.sum(F_M1_inv_P**2, axis=1) / num_pred_pts
         F_M1_inv_P = design_factors.dot(u)
-        gradient = -np.sum(F_M1_inv_P**2, axis=1) / num_pred_pts
+        gradient = -np.sum(F_M1_inv_P**2*pred_prob_measure, axis=1)
         # print('That took', time.time()-t0)
         return value, gradient.T
+
+
+def ioptimal_criterion_more_design_pts_than_params(
+        homog_outer_prods, design_factors,
+        pred_factors, design_prob_measure, return_grad=True,
+        noise_multiplier=None, regression_type='lstsq',
+        pred_prob_measure=None):
+
+    num_design_pts, num_design_factors = design_factors.shape
+    num_pred_pts,   num_pred_factors = pred_factors.shape
+    if pred_prob_measure is None:
+        pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
+
+    pred_outer_prods = compute_homoscedastic_outer_products(pred_factors)
+    B = pred_outer_prods.dot(pred_prob_measure)
+    M0, M1 = get_M0_and_M1_matrices(
+        homog_outer_prods, design_prob_measure, noise_multiplier,
+        regression_type)
+
+    # TODO: do not use u_vecs, v_vecs in computations when identity
+    # TODO: do not compute wv_vecs when noise_multiplier is None
+    num_unknowns = M1.shape[0]
+    u_vecs = np.eye(num_unknowns)
+    v_vecs = B
+
+    # print(pred_prob_measure)
+
+    # solve state equations
+    # wu_vecs = np.linalg.solve(M1, u_vecs)
+    # wv_vecs = np.linalg.solve(M1, v_vecs)
+    Q, R = np.linalg.qr(M1)
+    wu_vecs = solve_triangular(R, Q.T.dot(u_vecs))
+    if noise_multiplier is not None:
+        wv_vecs = solve_triangular(R, Q.T.dot(v_vecs))
+        # value = np.trace(wu_vecs.T.dot(M0).dot(wv_vecs))
+        value = np.sum(wu_vecs*M0.dot(wv_vecs))
+    else:
+        # dont need inv(M).dot(v_vecs) for value but do need it for gradient
+        # see below
+        wv_vecs = v_vecs
+        # value = np.trace(wu_vecs.T.dot(wv_vecs))
+        value = np.sum(wu_vecs*wv_vecs)
+
+    if not return_grad:
+        return value
+
+    # solve adjoint equations
+    if noise_multiplier is not None:
+        lamu_vecs = np.linalg.solve(M1, -M0.dot(wv_vecs))
+        lamv_vecs = np.linalg.solve(M1, -M0.dot(wu_vecs))
+    else:
+        lamu_vecs = -solve_triangular(R, Q.T.dot(v_vecs))
+        lamv_vecs = -wu_vecs
+
+    # compute gradient
+    gradient = np.zeros(num_design_pts)
+    for ii in range(num_design_pts):
+        M0_grad_ii = homog_outer_prods[:, :, ii]
+        if noise_multiplier is not None:
+            M0_grad_ii *= noise_multiplier[ii]**2
+        M1_grad_ii = homog_outer_prods[:, :, ii]
+        for jj in range(num_unknowns):
+            gradient[ii] += (
+                wu_vecs[:, jj].T.dot(M0_grad_ii.dot(wv_vecs[:, jj])) +
+                lamu_vecs[:, jj].T.dot(M1_grad_ii).dot(wu_vecs[:, jj]) +
+                lamv_vecs[:, jj].T.dot(M1_grad_ii).dot(wv_vecs[:, jj]))
+
+    return value, gradient
 
 
 def coptimality_criterion(homog_outer_prods, design_factors,
@@ -631,7 +721,8 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
 
 def goptimality_criterion(homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
-                          noise_multiplier=None, regression_type='lstsq'):
+                          noise_multiplier=None, regression_type='lstsq',
+                          pred_prob_measure=None):
     r"""
     valuate the G-optimality criterion for a given design probability measure
     for the linear model
@@ -671,6 +762,10 @@ def goptimality_criterion(homog_outer_prods, design_factors,
     regression_type : string
         The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
+
+    pred_prob_measure : np.ndarray (num_pred_pts)
+         The prob measure :math:`\nu` on the prediction points. G optimality
+         ignores this
 
     Returns
     -------
@@ -888,10 +983,12 @@ class AlphabetOptimalDesign(object):
         elif self.criteria in pred_criteria_funcs:
             criteria_fun = pred_criteria_funcs[self.criteria]
             pred_factors = opts['pred_factors']
+            pred_prob_measure = opts.get("pred_prob_measure", None)
             objective = partial(
                 criteria_fun, homog_outer_prods, design_factors,
                 pred_factors, noise_multiplier=noise_multiplier,
-                return_grad=False, regression_type=self.regression_type)
+                return_grad=False, regression_type=self.regression_type,
+                pred_prob_measure=pred_prob_measure)
 
             def jac(r): return criteria_fun(
                 homog_outer_prods, design_factors, pred_factors, r,

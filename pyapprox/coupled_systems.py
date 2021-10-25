@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 
 
-def get_adjacency_matrices(system_labels, component_labels):
+def get_extraction_matrices(system_labels, component_labels):
     ncomponents = len(component_labels)
     ncols = len(system_labels)
     adj_matrices = []
@@ -14,6 +14,171 @@ def get_adjacency_matrices(system_labels, component_labels):
             adj_matrix[jj, kk] = 1
         adj_matrices.append(adj_matrix)
     return adj_matrices
+
+
+def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None):
+    r"""
+    Parameters
+    ----------
+    adjacency_matrix : np.ndarray (ncoupling_vars, noutputs)
+        The adjacency matrix with entries that are either zero or one.
+        The entry (i,j) is one if :math:`\xi_i=y_j` zero otherwise, where
+        :math:`\xi_i` are coupling variables and :math:`y_j` output variables
+
+    component_info : tuple (ncomponents)
+        Tuple (ncomponent_coupling_vars, ncomponent_outputs,) where
+        ncomponent_coupling_vars is a np.ndarray with shape (ncomponents) and
+        ncomponent_outputs is a np.ndarray with shape (ncomponents,)
+    """
+    if type(adjacency_matrix) != np.ndarray:
+        adjacency_matrix = adjacency_matrix.todense()
+
+    for row in adjacency_matrix:
+        if np.count_nonzero(row) > 1:
+            raise ValueError("Must have at most one non zero entry per row")
+
+    component_shapes = [
+        (jj, ii) for ii, jj in zip(component_info[0], component_info[1])]
+
+    from matplotlib import pyplot as plt, patches
+    if ax is None:
+        plt.figure(figsize=(6, 6))
+        ax = plt.gca()
+
+    ax.imshow(adjacency_matrix, interpolation="none", aspect=1, cmap="Greys")
+    # major ticks
+    ax.set_xticks(np.arange(0, adjacency_matrix.shape[1], dtype=np.int))
+    ax.set_yticks(np.arange(0, adjacency_matrix.shape[0], dtype=np.int))
+    # minor ticks
+    ax.set_xticks(
+        np.arange(-0.5, adjacency_matrix.shape[1], 1), minor=True)
+    ax.set_yticks(
+        np.arange(-0.5, adjacency_matrix.shape[0], 1), minor=True)
+    ax.grid(which="minor", color="black", linestyle="-", linewidth="1")
+
+    if component_shapes is None:
+        return
+
+    ncoupling_vars, noutputs = adjacency_matrix.shape
+    current_idx, current_jdx = 0, 0
+    from itertools import cycle
+    colors = cycle(["grey", "b"])
+    for component_shape in component_shapes:
+        # plot rectangle that separates coupling variables
+        # belonging to different components
+        ax.add_patch(
+            patches.Rectangle(
+                (-0.5, current_jdx-0.5),
+                noutputs, component_shape[1],
+                facecolor=next(colors),  # edgecolor="r",
+                linewidth="3", alpha=0.3, zorder=100))
+        # plot line that separates output belonging to different components
+        # skip line at 0
+        if current_idx > 0:
+            ax.axvline(x=current_idx-0.5, color='r', lw=5)
+        current_idx += component_shape[0]
+        current_jdx += component_shape[1]
+
+
+def extract_sub_samples(extraction_matrix, samples):
+    # The following does not take account of sparsity
+    # sub_samples = extraction_matrix.dot(samples)
+    # so instead assume extraction matrix is a vector of indices
+    sub_samples = samples[extraction_matrix, :]
+    return sub_samples
+
+
+def evaluate_component_functions(
+        component_funs, exog_extraction_matrices,
+        coup_extraction_matrices,
+        exog_samples, coup_samples):
+    """
+    Notes:
+    This could be parallelized if necessary
+    """
+    ncomponents = len(component_funs)
+    values = []
+    for ii in range(ncomponents):
+        exog_samples_ii = extract_sub_samples(
+            exog_extraction_matrices[ii], exog_samples)
+        coup_samples_ii = extract_sub_samples(
+            coup_extraction_matrices[ii], coup_samples)
+        # assume component funs take all exog variables then all coup variables
+        component_samples_ii = np.vstack((exog_samples_ii, coup_samples_ii))
+        component_values = component_funs[ii](component_samples_ii)
+        values.append(component_values)
+    return np.hstack(values)
+
+
+def equality_constrained_linear_least_squares(A, B, y, z):
+    from scipy.linalg import lapack
+    return lapack.dgglse(A, B, y, z)[3]
+
+
+def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
+                                       exog_extraction_matrices,
+                                       coup_extraction_matrices,
+                                       component_funs,
+                                       init_coup_samples, exog_samples,
+                                       tol=1e-15,
+                                       max_iters=100, verbose=0,
+                                       # relax_factor=1,
+                                       anderson_memory=0):
+
+    if init_coup_samples.shape[1] != exog_samples.shape[1]:
+        raise ValueError("Must provide initial guess for every sample")
+    ncomponents = len(component_funs)
+    if len(exog_extraction_matrices) != ncomponents:
+        raise ValueError("Must provide extraction matrix for each component")
+
+    it = 0
+    coup_samples = init_coup_samples
+    coup_history = np.empty(
+        (coup_samples.shape[1], coup_samples.shape[0], anderson_memory+1))
+    residuals_history = np.empty(
+        (coup_samples.shape[1], coup_samples.shape[0], anderson_memory+1))
+    while True:
+        outputs = evaluate_component_functions(
+            component_funs, exog_extraction_matrices, coup_extraction_matrices,
+            exog_samples, coup_samples)
+        new_coup_samples = adjacency_matrix.dot(outputs.T)
+
+        residuals = new_coup_samples-coup_samples
+
+        diff_norms = np.max(residuals, axis=0)
+        error = np.max(diff_norms)
+
+        if verbose > 0:
+            msg = f"Iter  {it} : {error}"
+            print(msg)
+
+        if error <= tol or it+1 >= max_iters:
+            break
+
+        idx = min(anderson_memory+1, it+1)
+        if it+1 >= anderson_memory:
+            # delete oldest entry
+            coup_history[:, :, :anderson_memory] = \
+                coup_history[:, :, 1:].copy()
+            residuals_history[:, :, :anderson_memory] = \
+                residuals_history[:, :, 1:].copy()
+        coup_history[:, :, idx-1] = new_coup_samples.T
+        residuals_history[:, :, idx-1] = residuals.T
+
+        # Anderson acceleration
+        # based alpha on first sample
+        A = residuals_history[0, :, :idx]
+        B = np.ones((1, A.shape[1]), dtype=float)
+        y = np.zeros((A.shape[0]), dtype=float)
+        z = np.ones((1), dtype=float)
+        alpha = equality_constrained_linear_least_squares(A, B, y, z)
+        coup_samples = coup_history[:, :, :idx].dot(alpha).T
+
+        # standard Gauss Jacobi
+        # coup_samples = (
+        #    relax_factor*new_coup_samples+(1-relax_factor)*coup_samples)
+        it += 1
+    return outputs
 
 
 def get_local_coupling_variables_indices_in(component_random_variable_labels,

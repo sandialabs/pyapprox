@@ -966,3 +966,14 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     # ax.set_xticklabels([f"${x}$" for x in x_1d[0]])
     # ax.set_yticks((yy[:-1]+yy[1:])/2)
     # ax.set_yticklabels([f"${x}$" for x in x_1d[1]])
+
+    
+def plot_qoi_marginals(values):
+    from scipy import stats
+    nqoi = values.shape[1]
+    fig, axs = plt.subplots(1, nqoi, figsize=(nqoi*8, 6))
+    for ii in range(nqoi):
+        kde = stats.gaussian_kde(values[:, ii])
+        yy = np.linspace(values[:, ii].min(), values[:, ii].max(), 101)
+        axs[ii].plot(yy, kde(yy))
+    return axs

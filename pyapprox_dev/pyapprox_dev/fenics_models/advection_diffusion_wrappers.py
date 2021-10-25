@@ -10,7 +10,7 @@ def dl_qoi_functional_misc(u):
     r"""
     Use the QoI from [JEGGIJNME2020]
 
-    To reproduce adaptive multi index results use following 
+    To reproduce adaptive multi index results use following
     expr = dl.Expression(
         '1./(sigma*sigma*2*pi)*std::exp(-(std::pow(x[0]-xk,2)+std::pow(x[1]-yk,2))/sigma*sigma)',
         xk=0.3,yk=0.5,sigma=0.16,degree=2)
@@ -200,7 +200,7 @@ class AdvectionDiffusionModel(object):
 
     def set_num_config_vars(self):
         r"""
-        Should be equal to the number of physical dimensions + 1 
+        Should be equal to the number of physical dimensions + 1
         (for the temporal resolution)
         """
         self.num_config_vars = 3
@@ -226,7 +226,7 @@ class AdvectionDiffusionModel(object):
 
         Notes
         -----
-        Dolfin objects must be initialized inside this function otherwise 
+        Dolfin objects must be initialized inside this function otherwise
         this object cannot be pickled and used with multiprocessing.Pool
         """
         assert samples.ndim == 2
@@ -317,7 +317,7 @@ class AdvectionDiffusionSourceInversionModel(AdvectionDiffusionModel):
 
 def qoi_functional_source_inversion(sols):
     r"""
-    JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR 
+    JINGLAI LI AND YOUSSEF M. MARZOUK. ADAPTIVE CONSTRUCTION OF SURROGATES FOR
     THE BAYESIAN SOLUTION OF INVERSE PROBLEMS
 
     sensor_times t=0.1, t=0.2
@@ -328,8 +328,8 @@ def qoi_functional_source_inversion(sols):
     difusivity = 1
 
     Youssef M. Marzouk, Habib N. Najm, Larry A. Rahn,
-    Stochastic spectral methods for efficient Bayesian solution of inverse problems,
-    Journal of Computational Physics,
+    Stochastic spectral methods for efficient Bayesian solution of 
+    inverse problems, Journal of Computational Physics,
     Volume 224, Issue 2,
     2007,
     Pages 560-586,https://doi.org/10.1016/j.jcp.2006.10.010
@@ -359,7 +359,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
        \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
        u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
-    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set 
+    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
 
     .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
 
@@ -412,21 +412,21 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
         ``fun(w) -> np.ndarray``
 
         where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
-        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars`` 
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
         rows of ``w`` are realizations of the random variables. The last 3 rows
-        are configuration variables specifying the numerical discretization of 
+        are configuration variables specifying the numerical discretization of
         the PDE model. Specifically the first and second configuration variables
         specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
-        the resolution of the FEM mesh in the directions :math:`{x_1}` and 
-        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}` 
-        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration 
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
         variable specifies the level :math:`l_t` of the temporal discretization.
-        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep 
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
         size is and :math:`T/2^{l_{t}+2}`.
 
     variable : pya.IndependentMultivariateRandomVariable
         Object containing information of the joint density of the inputs z
-        which is the tensor product of independent and identically distributed 
+        which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
 
     Examples
@@ -481,8 +481,8 @@ def setup_multi_level_advection_diffusion_benchmark(
     final_time, degree = 1.0, 1
     options = {'corr_len': corr_len}
     base_model = AdvectionDiffusionModel(
-        final_time, degree, qoi_functional_misc, second_order_timestepping=False,
-        options=options)
+        final_time, degree, qoi_functional_misc,
+        second_order_timestepping=False, options=options)
     multilevel_model = MultiLevelWrapper(
         base_model, base_model.num_config_vars)
     # add wrapper to allow execution times to be captured
@@ -496,9 +496,12 @@ def setup_multi_level_advection_diffusion_benchmark(
     return Benchmark(attributes)
 
 
-def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.array([0.05, 0.15]), source_strength=0.5, source_width=0.1, true_sample=np.array([[0.25, 0.75, 4, 4, 4]]).T, noise_stdev=0.4, max_eval_concurrency=1):
+def setup_advection_diffusion_source_inversion_benchmark(
+        measurement_times=np.array([0.05, 0.15]), source_strength=0.5,
+        source_width=0.1, true_sample=np.array([[0.25, 0.75, 4, 4, 4]]).T,
+        noise_stdev=0.4, max_eval_concurrency=1):
     r"""
-    Compute functionals of the following model of transient diffusion of 
+    Compute functionals of the following model of transient diffusion of
     a contaminant
 
     .. math::
@@ -507,7 +510,7 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
        \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
        u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
 
-    Following [MNRJCP2006]_, [LMSISC2014]_ we set 
+    Following [MNRJCP2006]_, [LMSISC2014]_ we set
 
     .. math:: g(x,t)=\frac{s}{2\pi h^2}\exp\left(-\frac{\lvert x-x_\mathrm{src}\rvert^2}{2h^2}\right)
 
@@ -517,30 +520,31 @@ def setup_advection_diffusion_source_inversion_benchmark(measurement_times=np.ar
 
     and we model the diffusivity :math:`k=1` as a constant.
 
-    The quantities of interest are point observations :math:`u(x_l)` 
-    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L` 
-    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last 
+    The quantities of interest are point observations :math:`u(x_l)`
+    taken at :math:`P` points in time :math:`\{t_p\}_{p=1}^P` at :math:`L`
+    locations :math:`\{x_l\}_{l=1}^L`. The final time :math:`T` is the last
     observation time.
 
-    These functionals can be used to define the posterior distribution 
+    These functionals can be used to define the posterior distribution
 
     .. math::  \pi_{\text{post}}(\rv)=\frac{\pi(\V{y}|\rv)\pi(\rv)}{\int_{\rvdom} \pi(\V{y}|\rv)\pi(\rv)d\rv}
 
-    where the prior is the tensor product of independent and identically 
-    distributed uniform variables on :math:`[0,1]` i.e. 
+    where the prior is the tensor product of independent and identically
+    distributed uniform variables on :math:`[0,1]` i.e.
     :math:`\pi(\rv)=1`, and the likelihood is given by
 
     .. math:: \pi(\V{y}|\rv)=\frac{1}{(2\pi)^{d/2}\sigma}\exp\left(-\frac{1}{2}\frac{(y-f(\rv))^T(y-f(\rv))}{\sigma^2}\right)
 
-    and :math:`y` are noisy observations of the solution `u` at the 9 
-    points of a uniform :math:`3\times 3` grid covering the physical domain 
-    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is indepenent and Normally distrbuted with mean 
+    and :math:`y` are noisy observations of the solution `u` at the 9
+    points of a uniform :math:`3\times 3` grid covering the physical domain
+    :math:`D` at successive times :math:`\{t_p\}_{p=1}^P`. Here the noise is
+    indepenent and Normally distrbuted with mean
     zero and variance :math:`\sigma^2`.
 
     Parameters
     ----------
     measurement_times : np.ndarray (P)
-        The times :math:`\{t_p\}_{p=1}^P` at which measurements of the 
+        The times :math:`\{t_p\}_{p=1}^P` at which measurements of the
         contaminant concentration are taken
 
     source_strength : float

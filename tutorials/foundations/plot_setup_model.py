@@ -197,8 +197,8 @@ print(worktracking_fun_ensemble.work_tracker)
 #^^^^
 #PoolModel cannot be used with lambda functions. You will get error similar to pickle.PicklingError: Can't pickle <function <lambda> at 0x12b4e6440>: attribute lookup <lambda> on __main__ failed
 
-sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
+# sphinx_gallery_thumbnail_path = './figures/cantilever-beam.png'
 
 #%%
 #.. gallery thumbnail will say broken if no plots are made in this file so
-#.. specify a default file as above.
+#.. specify a default file as above. Must start with a #

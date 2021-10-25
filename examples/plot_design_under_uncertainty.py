@@ -2,16 +2,17 @@
 Design Under Uncertainty
 ========================
 
-We will ue the Cantilever Beam benchmark to illustrate how to design under uncertainty.
+We will ue the Cantilever Beam benchmark to illustrate how to design under
+uncertainty.
 
 .. figure:: ../../figures/cantilever-beam.png
    :align: center
 
    Conceptual model of the cantilever-beam
-   
+
 .. table:: Uncertainties
    :align: center
-	    
+
    =============== ========= =======================
    Uncertainty     Symbol    Prior
    =============== ========= =======================

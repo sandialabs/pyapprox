@@ -38,6 +38,7 @@ from pyapprox.multivariate_polynomials import *
 from pyapprox.sensitivity_analysis import *
 from pyapprox.gaussian_network import *
 from pyapprox.gaussian_process import *
+from pyapprox.approximate import *
 
 import sys
 from pyapprox.sys_utilities import package_available

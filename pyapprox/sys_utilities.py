@@ -31,9 +31,9 @@ def hash_array(array, decimals=None):
     key : integer
        The hash value of the array
     """
-    #assert array.ndim==1
-    #array = np.ascontiguousarray(array)
-    #array.flags.writeable = False
+    # assert array.ndim==1
+    # array = np.ascontiguousarray(array)
+    # array.flags.writeable = False
     # return hash(array.data)
     if decimals is not None:
         array = np.around(array, decimals)
@@ -47,5 +47,5 @@ def package_available(name):
         mod = importlib.import_module(name)
     except (ModuleNotFoundError, ImportError):
         pkg_available = False
-    
+
     return pkg_available

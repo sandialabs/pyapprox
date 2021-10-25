@@ -1,6 +1,7 @@
 from scipy.stats._distn_infrastructure import rv_sample, rv_continuous
 from scipy.stats import _continuous_distns
 from scipy.stats import _discrete_distns
+from scipy import stats
 import numpy as np
 from functools import partial
 
@@ -471,6 +472,43 @@ class rv_function_indpndt_vars_gen(rv_continuous):
 
     def _pdf(self, x, fun, init_variables, quad_rules):
         raise NotImplementedError("Expression for PDF not known")
+
+
+def combine_uncertain_and_bounded_design_variables(
+        random_variable, design_variable, random_variable_indices=None):
+    """
+    Convert design variables to random variables defined over them
+    optimization bounds.
+
+    Parameters
+    ----------
+    random_variable_indices : np.ndarray
+        The variable numbers of the random variables in the new combined
+        variable.
+    """
+
+    if random_variable_indices is None:
+        random_variable_indices = np.arange(random_variable.num_vars())
+
+    if len(random_variable_indices) != random_variable.num_vars():
+        raise ValueError
+
+    nvars = random_variable.num_vars() + design_variable.num_vars()
+    design_variable_indices = np.setdiff1d(
+        np.arange(nvars), random_variable_indices)
+
+    variable_list = [None for ii in range(nvars)]
+    all_random_variables = random_variable.all_variables()
+    for ii in range(random_variable.num_vars()):
+        variable_list[random_variable_indices[ii]] = all_random_variables[ii]
+    for ii in range(design_variable.num_vars()):
+        lb = design_variable.bounds.lb[ii]
+        ub = design_variable.bounds.ub[ii]
+        if not np.isfinite(lb) or not np.isfinite(ub):
+            raise ValueError(f"Design variable {ii} is not bounded")
+        rv = stats.uniform(lb, ub-lb)
+        variable_list[design_variable_indices[ii]] = rv
+    return IndependentMultivariateRandomVariable(variable_list)
 
 
 rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
