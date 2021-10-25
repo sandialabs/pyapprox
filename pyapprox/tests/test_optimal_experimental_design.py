@@ -239,9 +239,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         np.random.seed(1)
         diffs = check_derivative(
             ioptimality_criterion_wrapper_II, num_design_pts, rel=True,
-            plot=True)
-        import matplotlib.pyplot as plt
-        plt.show()
+            plot=False)
+        # import matplotlib.pyplot as plt
+        # plt.show()
         assert diffs.min() < 2e-5, diffs
 
     def test_hetroscedastic_ioptimality_criterion(self):
