@@ -350,11 +350,10 @@ class TestCoupledSystem(unittest.TestCase):
             adjacency_matrix, exog_extraction_matrices,
             coup_extraction_matrices, component_funs,
             init_coup_samples, exog_samples,
-            relax_factor=1, tol=1e-15, max_iters=100, verbose=1)
+            tol=1e-15, max_iters=100, verbose=1)
 
         true_outputs = system_fun(exog_samples)
         assert np.allclose(outputs, np.hstack(true_outputs))
-
 
     def test_gauss_jacobi_fpi_feedback(self):
         ncomponent_outputs = [2, 2, 1]
@@ -402,7 +401,6 @@ class TestCoupledSystem(unittest.TestCase):
         # print(outputs[-1, [0, 2]], [6.63852, 7.52628])
         assert np.allclose(outputs[-1, [0, 2]], [6.63852, 7.52628])
 
-
     def test_peer_feed_forward_system_of_polynomials(self):
         graph, variables, graph_data, system_fun = \
             get_3_peer_polynomial_components()
@@ -410,7 +408,7 @@ class TestCoupledSystem(unittest.TestCase):
 
         nsamples = 10
         samples = generate_independent_random_samples(variables, nsamples)
-        values = network(samples)
+        values = network(samples, [0, 1, 2])
 
         component_nvars = network.component_nvars()
         assert component_nvars == [1, 2, 3]
