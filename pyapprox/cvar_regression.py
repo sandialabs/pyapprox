@@ -1,12 +1,13 @@
-from scipy.optimize import minimize
 import numpy as np
 from scipy import sparse
-from functools import partial
-from scipy import integrate
-from pyapprox.risk_measures import value_at_risk
+
+from pyapprox.risk_measures import (
+    value_at_risk, conditional_value_at_risk
+)
 
 
-def conditional_value_at_risk_subgradient(samples, alpha, weights=None, samples_sorted=False):
+def conditional_value_at_risk_subgradient(
+        samples, alpha, weights=None, samples_sorted=False):
     assert samples.ndim == 1 or samples.shape[1] == 1
     samples = samples.squeeze()
     num_samples = samples.shape[0]
@@ -15,8 +16,8 @@ def conditional_value_at_risk_subgradient(samples, alpha, weights=None, samples_
     assert np.allclose(weights.sum(), 1)
     assert weights.ndim == 1 or weights.shape[1] == 1
     if not samples_sorted:
-        I = np.argsort(samples)
-        xx, ww = samples[I], weights[I]
+        II = np.argsort(samples)
+        xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
     VaR, index = value_at_risk(xx, alpha, ww, samples_sorted=True)
@@ -26,21 +27,21 @@ def conditional_value_at_risk_subgradient(samples, alpha, weights=None, samples_
     grad[index+1:] = 1/(1-alpha)*weights[index+1:]
     if not samples_sorted:
         # grad is for sorted samples so revert to original ordering
-        grad = grad[np.argsort(I)]
+        grad = grad[np.argsort(II)]
     return grad
 
 
 def smooth_max_function(smoother_type, eps, x):
     if smoother_type == 0:
-        I = np.where(np.isfinite(np.exp(-x/eps)))
+        II = np.where(np.isfinite(np.exp(-x/eps)))
         vals = np.zeros_like(x)
-        vals[I] = (x[I] + eps*np.log(1+np.exp(-x[I]/eps)))
+        vals[II] = (x[II] + eps*np.log(1+np.exp(-x[II]/eps)))
         assert np.all(np.isfinite(vals))
         return vals
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
-        I = np.where((x > 0) & (x < eps))  # [0]
-        vals[I] = x[I]**3/eps**2*(1-x[I]/(2*eps))
+        II = np.where((x > 0) & (x < eps))  # [0]
+        vals[II] = x[II]**3/eps**2*(1-x[II]/(2*eps))
         J = np.where(x >= eps)  # [0]
         vals[J] = x[J]-eps/2
         return vals
@@ -51,14 +52,14 @@ def smooth_max_function(smoother_type, eps, x):
 
 def smooth_max_function_first_derivative(smoother_type, eps, x):
     if smoother_type == 0:
-        #vals = 1.-1./(1+np.exp(x/eps))
+        # vals = 1.-1./(1+np.exp(x/eps))
         vals = 1./(1+np.exp(-x/eps))
         assert np.all(np.isfinite(vals))
         return vals.T
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
-        I = np.where((x > 0) & (x < eps))  # [0]
-        vals[I] = (x[I]**2*(3*eps-2*x[I]))/eps**3
+        II = np.where((x > 0) & (x < eps))  # [0]
+        vals[II] = (x[II]**2*(3*eps-2*x[II]))/eps**3
         J = np.where(x >= eps)  # [0]
         vals[J] = 1
         return vals.T
@@ -74,15 +75,18 @@ def smooth_max_function_second_derivative(smoother_type, eps, x):
         return vals
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
-        I = np.where((x > 0) & (x < eps))  # [0]
-        vals[I] = 6*x[I]*(eps-x[I])/eps**3
+        II = np.where((x > 0) & (x < eps))  # [0]
+        vals[II] = 6*x[II]*(eps-x[II])/eps**3
         return vals
     else:
         msg = "incorrect smoother_type"
         raise Exception(msg)
 
 
-def smooth_conditional_value_at_risk(smoother_type, eps, alpha, x, weights=None):
+def smooth_conditional_value_at_risk(
+        smoother_type, eps, alpha, x, weights=None):
+    if x.ndim == 1:
+        x = x[:, None]
     assert x.ndim == 2 and x.shape[1] == 1
     t = x[-1]
     if weights is None:
@@ -96,12 +100,14 @@ def smooth_conditional_value_at_risk(smoother_type, eps, alpha, x, weights=None)
 
 def smooth_conditional_value_at_risk_gradient(
         smoother_type, eps, alpha, x, weights=None):
+    if x.ndim == 1:
+        x = x[:, None]
     assert x.ndim == 2 and x.shape[1] == 1
     t = x[-1]
     if weights is None:
         weights = np.ones(x.shape[0]-1)/(x.shape[0]-1)
     assert weights.ndim == 1 and weights.shape[0] == x.shape[0]-1
-    nsamples = x.shape[0]-1
+    # nsamples = x.shape[0]-1
     grad = np.empty(x.shape[0])
     grad[-1] = 1-smooth_max_function_first_derivative(
         smoother_type, eps, x[:-1]-t).dot(weights)/((1-alpha))
@@ -114,7 +120,7 @@ def smooth_conditional_value_at_risk_composition(
         smoother_type, eps, alpha, fun, jac, x, weights=None):
     """
     fun : callable
-         A function with signature 
+         A function with signature
 
          ``fun(x)->ndarray (nsamples,1)``
 
@@ -128,7 +134,7 @@ def smooth_conditional_value_at_risk_composition(
 
         where nsamples is the number of values used to compute
         CVAR. Typically this function will be a loop evaluating
-        the gradient of a function (with resepct to x) ``fun(x,z)`` at 
+        the gradient of a function (with resepct to x) ``fun(x,z)`` at
         realizations of random variables ``z``
     """
     assert x.ndim == 2 and x.shape[1] == 1
@@ -421,5 +427,3 @@ def cvar_regression(basis_matrix, values, alpha, verbosity=1):
     residuals = values-basis_matrix.dot(sol)[:, 0]
     coef = np.append(conditional_value_at_risk(residuals, alpha), sol)
     return coef
-
-

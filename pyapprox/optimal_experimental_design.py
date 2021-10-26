@@ -6,6 +6,12 @@ import copy
 from scipy.optimize import (
     Bounds, minimize, LinearConstraint, NonlinearConstraint
 )
+from pyapprox.risk_measures import conditional_value_at_risk
+
+from pyapprox.cvar_regression import (
+    conditional_value_at_risk_subgradient, smooth_conditional_value_at_risk,
+    smooth_conditional_value_at_risk_gradient
+)
 
 
 def compute_prediction_variance(design_prob_measure, pred_factors,
@@ -613,7 +619,8 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
 
 def roptimality_criterion(beta, homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
-                          noise_multiplier=None, regression_type='lstsq'):
+                          noise_multiplier=None, regression_type='lstsq',
+                          eps=0):
     r"""
     Evaluate the R-optimality criterion for a given design probability measure
     for the linear model
@@ -658,6 +665,10 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         The method used to compute the coefficients of the linear model.
         Currently supported options are ``lstsq`` and ``quantile``.
 
+    eps : float
+        Hyper-parameter controlling the smoothness of smooth cvar
+        if eps==0 then no smoothing is used.
+
     Returns
     -------
     value : float
@@ -667,8 +678,6 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         The gradient of the objective function. Only if return_grad is True.
     """
     assert beta >= 0 and beta <= 1
-    from pyapprox.risk_measures import conditional_value_at_risk
-    from pyapprox.cvar_regression import conditional_value_at_risk_subgradient
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors = pred_factors.shape
     if design_prob_measure.ndim == 2:
@@ -682,13 +691,21 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         u = solve_triangular(R, Q.T.dot(pred_factors.T))
         M0u = M0.dot(u)
         variances = np.sum(u*M0u, axis=0)
-        value = conditional_value_at_risk(variances, beta)
+        if eps == 0:
+            value = conditional_value_at_risk(variances, beta)
+        else:
+            value = smooth_conditional_value_at_risk(0, eps, beta, variances)
         if (return_grad):
             gamma = -solve_triangular(R, (Q.T.dot(M0u)))
             Fu = design_factors.dot(u)
             t = noise_multiplier[:, np.newaxis] * Fu
             Fgamma = design_factors.dot(gamma)
-            cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+            if eps == 0:
+                cvar_grad = conditional_value_at_risk_subgradient(
+                    variances, beta)
+            else:
+                cvar_grad = smooth_conditional_value_at_risk_gradient(
+                    0, eps, beta, variances)
             if regression_type == 'lstsq':
                 gradient = np.sum((2*Fu*Fgamma+t**2).T *
                                   cvar_grad[:, np.newaxis], axis=0)
@@ -709,12 +726,19 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         # The following sums over all entries of A*B we get the diagonal
         # variances
         variances = np.sum(pred_factors*u.T, axis=1)
-        value = conditional_value_at_risk(variances, beta)
+        if eps == 0:
+            value = conditional_value_at_risk(variances, beta)
+        else:
+            value = smooth_conditional_value_at_risk(0, eps, beta, variances)
         if (not return_grad):
             return value
         # Gradient
         F_M1_inv_P = design_factors.dot(u)
-        cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+        if eps == 0:
+            cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+        else:
+            cvar_grad = smooth_conditional_value_at_risk_gradient(
+                0, eps, beta, variances)
         gradient = -np.sum(F_M1_inv_P.T**2*cvar_grad[:, np.newaxis], axis=0)
         return value, gradient.T
 
@@ -997,11 +1021,12 @@ class AlphabetOptimalDesign(object):
         elif self.criteria == 'R':
             beta = opts['beta']
             pred_factors = opts['pred_factors']
+            eps = opts.get('eps', 0)
             objective = partial(
                 roptimality_criterion, beta, homog_outer_prods,
                 design_factors, pred_factors,
                 noise_multiplier=noise_multiplier, return_grad=False,
-                regression_type=self.regression_type)
+                regression_type=self.regression_type, eps=eps)
 
             def jac(r): return roptimality_criterion(
                 beta, homog_outer_prods, design_factors, pred_factors, r,
@@ -1036,7 +1061,7 @@ class AlphabetOptimalDesign(object):
             return self._solve_minimax(
                 nonlinear_constraints, num_design_pts, options, return_full,
                 init_design)
-        elif self.criteria == 'R' and not self.opts.get('nonsmooth', False):
+        elif self.criteria == 'R' and self.opts.get("eps", 0) == 0:
             # if nonsmooth is True then minimize then constraint objective
             # (objective returned self.get_objective_and_jacobian) will not be
             # differentiable instead and the jacobian returned will consists of sub-differentials and this will be passed to minimize and this section skipped
