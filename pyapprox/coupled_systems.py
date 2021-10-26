@@ -133,7 +133,7 @@ def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
 
     it = 0
     coup_samples = init_coup_samples
-    coup_history = np.empty(
+    coup_history = np.ones(
         (coup_samples.shape[1], coup_samples.shape[0], anderson_memory+1))
     residuals_history = np.empty(
         (coup_samples.shape[1], coup_samples.shape[0], anderson_memory+1))
@@ -156,7 +156,7 @@ def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
             break
 
         idx = min(anderson_memory+1, it+1)
-        if it+1 >= anderson_memory:
+        if it > anderson_memory:
             # delete oldest entry
             coup_history[:, :, :anderson_memory] = \
                 coup_history[:, :, 1:].copy()
