@@ -1,8 +1,10 @@
 import numpy as np
 from scipy import sparse
 
-from pyapprox.risk_measures import (
-    value_at_risk, conditional_value_at_risk
+from pyapprox.risk_measures import value_at_risk
+from pyapprox.first_order_stochastic_dominance import (
+    smooth_max_function_log, smooth_max_function_first_derivative_log,
+    smooth_max_function_second_derivative_log
 )
 
 
@@ -33,11 +35,7 @@ def conditional_value_at_risk_subgradient(
 
 def smooth_max_function(smoother_type, eps, x):
     if smoother_type == 0:
-        II = np.where(np.isfinite(np.exp(-x/eps)))
-        vals = np.zeros_like(x)
-        vals[II] = (x[II] + eps*np.log(1+np.exp(-x[II]/eps)))
-        assert np.all(np.isfinite(vals))
-        return vals
+        return smooth_max_function_log(eps, 0, x)
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
         II = np.where((x > 0) & (x < eps))  # [0]
@@ -52,10 +50,7 @@ def smooth_max_function(smoother_type, eps, x):
 
 def smooth_max_function_first_derivative(smoother_type, eps, x):
     if smoother_type == 0:
-        # vals = 1.-1./(1+np.exp(x/eps))
-        vals = 1./(1+np.exp(-x/eps))
-        assert np.all(np.isfinite(vals))
-        return vals.T
+        return smooth_max_function_first_derivative_log(eps, 0, x)
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
         II = np.where((x > 0) & (x < eps))  # [0]
@@ -70,9 +65,7 @@ def smooth_max_function_first_derivative(smoother_type, eps, x):
 
 def smooth_max_function_second_derivative(smoother_type, eps, x):
     if smoother_type == 0:
-        vals = 1/(eps*(np.exp(-x/eps)+2+np.exp(x/eps)))
-        assert np.all(np.isfinite(vals))
-        return vals
+        return smooth_max_function_second_derivative_log(eps, 0, x)
     elif smoother_type == 1:
         vals = np.zeros(x.shape)
         II = np.where((x > 0) & (x < eps))  # [0]
@@ -84,40 +77,38 @@ def smooth_max_function_second_derivative(smoother_type, eps, x):
 
 
 def smooth_conditional_value_at_risk(
-        smoother_type, eps, alpha, x, weights=None):
+        smoother_type, eps, alpha, x, t, weights=None):
     if x.ndim == 1:
         x = x[:, None]
     assert x.ndim == 2 and x.shape[1] == 1
-    t = x[-1]
     if weights is None:
         return t+smooth_max_function(
-            smoother_type, eps, x[:-1]-t).mean()/(1-alpha)
+            smoother_type, eps, x-t)[:, 0].mean()/(1-alpha)
 
-    assert weights.ndim == 1 and weights.shape[0] == x.shape[0]-1
+    assert weights.ndim == 1 and weights.shape[0] == x.shape[0]
     return t+smooth_max_function(
-        smoother_type, eps, x[:-1]-t)[:, 0].dot(weights)/(1-alpha)
+        smoother_type, eps, x-t)[:, 0].dot(weights)/(1-alpha)
 
 
 def smooth_conditional_value_at_risk_gradient(
-        smoother_type, eps, alpha, x, weights=None):
+        smoother_type, eps, alpha, x, t, weights=None):
     if x.ndim == 1:
         x = x[:, None]
     assert x.ndim == 2 and x.shape[1] == 1
-    t = x[-1]
     if weights is None:
-        weights = np.ones(x.shape[0]-1)/(x.shape[0]-1)
-    assert weights.ndim == 1 and weights.shape[0] == x.shape[0]-1
+        weights = np.ones(x.shape[0])/(x.shape[0])
+    assert weights.ndim == 1 and weights.shape[0] == x.shape[0]
     # nsamples = x.shape[0]-1
-    grad = np.empty(x.shape[0])
+    grad = np.empty(x.shape[0]+1)
     grad[-1] = 1-smooth_max_function_first_derivative(
-        smoother_type, eps, x[:-1]-t).dot(weights)/((1-alpha))
+        smoother_type, eps, x-t).squeeze().dot(weights)/((1-alpha))
     grad[:-1] = smooth_max_function_first_derivative(
-        smoother_type, eps, x[:-1]-t)/(1-alpha)*weights
+        smoother_type, eps, x-t).squeeze()/(1-alpha)*weights
     return grad
 
 
 def smooth_conditional_value_at_risk_composition(
-        smoother_type, eps, alpha, fun, jac, x, weights=None):
+        smoother_type, eps, alpha, fun, jac, x, t, weights=None):
     """
     fun : callable
          A function with signature
@@ -138,23 +129,23 @@ def smooth_conditional_value_at_risk_composition(
         realizations of random variables ``z``
     """
     assert x.ndim == 2 and x.shape[1] == 1
-    fun_vals = fun(x[:-1])
-    assert fun_vals.ndim == 2
+    fun_vals = fun(x)
+    assert fun_vals.ndim == 2 and fun_vals.shape[1] == 1
+    fun_vals = fun_vals[:, 0]
     nsamples = fun_vals.shape[0]
-    t = x[-1]
     if weights is None:
         weights = np.ones(nsamples)/(nsamples)
     assert weights.ndim == 1 and weights.shape[0] == nsamples
     obj_val = t+smooth_max_function(
-        smoother_type, eps, fun_vals-t)[:, 0].dot(weights)/(1-alpha)
+        smoother_type, eps, fun_vals-t).dot(weights)/(1-alpha)
 
-    grad = np.empty(x.shape[0])
+    grad = np.empty(x.shape[0]+1)
     grad[-1] = 1-smooth_max_function_first_derivative(
         smoother_type, eps, fun_vals-t).dot(weights)/((1-alpha))
-    jac_vals = jac(x[:-1])
-    assert jac_vals.shape == (nsamples, x.shape[0]-1)
+    jac_vals = jac(x)
+    assert jac_vals.shape == (nsamples, x.shape[0])
     grad[:-1] = (smooth_max_function_first_derivative(
-        smoother_type, eps, fun_vals-t).T*jac_vals/(1-alpha)).T.dot(weights)
+        smoother_type, eps, fun_vals-t)[:, None]*jac_vals/(1-alpha)).T.dot(weights)
     return obj_val, grad
 
 

@@ -11,9 +11,9 @@ def smooth_max_function_log(eps, shift, x):
     # vals = (x + eps*np.log(1+np.exp(-x_div_eps)))
     # avoid overflow
     vals = np.zeros_like(x)
-    I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
-    vals[I] = x[I]+eps*np.log(1+np.exp(-x_div_eps[I]))
-    J = np.where(x_div_eps>=1e2)
+    II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
+    vals[II] = x[II]+eps*np.log(1+np.exp(-x_div_eps[II]))
+    J = np.where(x_div_eps >= 1e2)
     vals[J] = x[J]
     assert np.all(np.isfinite(vals))
     return vals
@@ -24,10 +24,10 @@ def smooth_max_function_first_derivative_log(eps, shift, x):
     x_div_eps = x/eps
     # vals = 1./(1+np.exp(-x_div_eps+shift))
     # Avoid overflow.
-    I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
+    II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
     vals = np.zeros(x.shape)
-    vals[I] = 1./(1+np.exp(-x_div_eps[I]-shift/eps))
-    vals[x_div_eps>=1e2] = 1.
+    vals[II] = 1./(1+np.exp(-x_div_eps[II]-shift/eps))
+    vals[x_div_eps >= 1e2] = 1.
     assert np.all(np.isfinite(vals))
     return vals
 
@@ -37,9 +37,9 @@ def smooth_max_function_second_derivative_log(eps, shift, x):
     x_div_eps = x/eps
     vals = np.zeros(x.shape)
     # Avoid overflow.
-    I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
-    vals[I] = np.exp(x_div_eps[I]+shift/eps)/(
-        eps*(np.exp(x_div_eps[I]+shift/eps)+1)**2)
+    II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
+    vals[II] = np.exp(x_div_eps[II]+shift/eps)/(
+        eps*(np.exp(x_div_eps[II]+shift/eps)+1)**2)
     assert np.all(np.isfinite(vals))
     return vals
 
@@ -49,13 +49,13 @@ def smooth_max_function_third_derivative_log(eps, shift, x):
     x_div_eps = x/eps
     vals = np.zeros_like(x)
     # Avoid overflow.
-    I = np.where((x_div_eps<1e2)&(x_div_eps>-1e2))
-    #vals[I] = np.exp(-x_div_eps[I])*(np.exp(-x_div_eps[I])-1)/(
-    #    eps**2*(1+np.exp(-x_div_eps[I]))**3)
-    vals[I] = np.exp(x_div_eps[I]+shift/eps)/(
-        eps**2*(1+np.exp(x_div_eps[I]+shift/eps))**2)
-    vals[I] -= 2*np.exp(x_div_eps[I]+shift/eps)**2/(
-        eps**2*(1+np.exp(x_div_eps[I]+shift/eps))**3)
+    II = np.where((x_div_eps < 1e2) & (x_div_eps > -1e2))
+    # vals[II] = np.exp(-x_div_eps[II])*(np.exp(-x_div_eps[II])-1)/(
+    #    eps**2*(1+np.exp(-x_div_eps[II]))**3)
+    vals[II] = np.exp(x_div_eps[II]+shift/eps)/(
+        eps**2*(1+np.exp(x_div_eps[II]+shift/eps))**2)
+    vals[II] -= 2*np.exp(x_div_eps[II]+shift/eps)**2/(
+        eps**2*(1+np.exp(x_div_eps[II]+shift/eps))**3)
     return vals
 
 
@@ -73,7 +73,7 @@ def smooth_left_heaviside_function_second_derivative_log(eps, shift, x):
 
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.ones_like(x)
     for ii in range(x.shape[0]):
@@ -89,7 +89,7 @@ def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_first_derivative_quartic(
         eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
@@ -102,7 +102,7 @@ def numba_smooth_left_heaviside_function_first_derivative_quartic(
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_second_derivative_quartic(
         eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.zeros_like(x)
     for ii in range(x.shape[0]):
@@ -115,7 +115,7 @@ def numba_smooth_left_heaviside_function_second_derivative_quartic(
 
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.ones_like(x)
     c3, c4, c5 = 10, -15, 6
@@ -132,7 +132,7 @@ def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_first_derivative_quintic(
         eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6
@@ -147,7 +147,7 @@ def numba_smooth_left_heaviside_function_first_derivative_quintic(
 @jit(nopython=True)
 def numba_smooth_left_heaviside_function_second_derivative_quintic(
         eps, shift, x):
-    assert shift == 0 # need to employ chain rule to accound for shift
+    assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
     vals = np.zeros_like(x)
     c3, c4, c5 = 10, -15, 6

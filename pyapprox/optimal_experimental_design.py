@@ -730,6 +730,7 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
             value = conditional_value_at_risk(variances, beta)
         else:
             value = smooth_conditional_value_at_risk(0, eps, beta, variances)
+
         if (not return_grad):
             return value
         # Gradient
@@ -1031,7 +1032,7 @@ class AlphabetOptimalDesign(object):
             def jac(r): return roptimality_criterion(
                 beta, homog_outer_prods, design_factors, pred_factors, r,
                 return_grad=True, noise_multiplier=noise_multiplier,
-                regression_type=self.regression_type)[1]
+                regression_type=self.regression_type, eps=eps)[1]
         else:
             msg = f'Optimality criteria: {self.criteria} is not supported. '
             msg += 'Supported criteria are:\n'

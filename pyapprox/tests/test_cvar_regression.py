@@ -1,9 +1,19 @@
 import unittest
-from pyapprox.cvar_regression import *
+import numpy as np
+from functools import partial
+
+from pyapprox.cvar_regression import (
+    smooth_conditional_value_at_risk,
+    smooth_conditional_value_at_risk_gradient,
+    smooth_conditional_value_at_risk, smooth_max_function,
+    smooth_max_function_first_derivative,
+    smooth_max_function_second_derivative,
+    smooth_conditional_value_at_risk_composition
+)
+
+from pyapprox.risk_measures import value_at_risk
+
 from pyapprox.optimization import check_gradients
-from scipy import stats
-from pyapprox.tests.test_risk_measures import \
-    get_lognormal_example_exact_quantities
 
 
 class TestCVARRegression(unittest.TestCase):
@@ -27,29 +37,29 @@ class TestCVARRegression(unittest.TestCase):
     def test_smooth_max_function_gradients(self):
         smoother_type, eps = 0, 1e-1
         self.help_check_smooth_max_function_gradients(smoother_type, eps)
-        
+
         smoother_type, eps = 1, 1e-1
         self.help_check_smooth_max_function_gradients(smoother_type, eps)
 
     def help_check_smooth_conditional_value_at_risk(
             self, smoother_type, eps, alpha):
         samples = np.linspace(-1, 1, 11)
-        t = 0.1
-        x0 = np.concatenate([samples, [t]])[:, np.newaxis]
+        t = value_at_risk(samples, alpha)[0]
+        x0 = np.hstack((samples, t))[:, None]
         errors = check_gradients(
-            partial(smooth_conditional_value_at_risk,
-                    smoother_type, eps, alpha),
-            partial(smooth_conditional_value_at_risk_gradient, smoother_type,
-                    eps, alpha), x0)
+            lambda xx: smooth_conditional_value_at_risk(
+                smoother_type, eps, alpha, xx[:-1], xx[-1]),
+            lambda xx: smooth_conditional_value_at_risk_gradient(
+                smoother_type, eps, alpha, xx[:-1], xx[-1]), x0)
         assert errors.min() < 1e-6
 
         weights = np.random.uniform(1, 2, samples.shape[0])
         weights /= weights.sum()
         errors = check_gradients(
-            partial(smooth_conditional_value_at_risk, smoother_type, eps, alpha,
-                    weights=weights),
-            partial(smooth_conditional_value_at_risk_gradient, smoother_type,
-                    eps, alpha, weights=weights), x0)
+            lambda xx: smooth_conditional_value_at_risk(
+                smoother_type, eps, alpha, xx[:-1], xx[-1], weights),
+            lambda xx: smooth_conditional_value_at_risk_gradient(
+                smoother_type, eps, alpha, xx[:-1], xx[-1], weights), x0)
         assert errors.min() < 1e-6
 
     def test_smooth_conditional_value_at_risk_gradient(self):
@@ -73,8 +83,8 @@ class TestCVARRegression(unittest.TestCase):
         assert (errors.min() < 1e-6)
 
         errors = check_gradients(
-            partial(smooth_conditional_value_at_risk_composition,
-                    smoother_type, eps, alpha, fun, jac),
+            lambda xx: smooth_conditional_value_at_risk_composition(
+                smoother_type, eps, alpha, fun, jac, xx[:-1], xx[-1]),
             True, x0)
         assert errors.min() < 1e-7
 
