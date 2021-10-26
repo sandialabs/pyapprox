@@ -44,4 +44,4 @@ import sys
 from pyapprox.sys_utilities import package_available
 
 
-PYA_DEV_AVAILABLE = package_available('pyapprox_dev') and sys.platform != 'win32'
+PYA_DEV_AVAILABLE = package_available('pyapprox_dev.bayesian_inference') and sys.platform != 'win32'
