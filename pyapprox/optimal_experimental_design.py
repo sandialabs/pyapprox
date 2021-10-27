@@ -9,8 +9,8 @@ from scipy.optimize import (
 from pyapprox.risk_measures import conditional_value_at_risk
 
 from pyapprox.cvar_regression import (
-    conditional_value_at_risk_subgradient, smooth_conditional_value_at_risk,
-    smooth_conditional_value_at_risk_gradient
+    conditional_value_at_risk_subgradient, smooth_conditional_value_at_risk_split,
+    smooth_conditional_value_at_risk_gradient_split
 )
 
 
@@ -173,7 +173,9 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         Currently supported options are ``lstsq`` and ``quantile``.
 
     pred_prob_measure : np.ndarray (num_pred_pts)
-        The prob measure :math:`\nu` on the prediction points
+        The prob measure :math:`\nu` on the prediction points. If none then
+        assumes samples are random and
+        pred_prob_measure[ii] =  1/num_pred_factors for all uu
 
     Returns
     -------
@@ -250,7 +252,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         return value, gradient.T
 
 
-def ioptimal_criterion_more_design_pts_than_params(
+def ioptimality_criterion_more_design_pts_than_params(
         homog_outer_prods, design_factors,
         pred_factors, design_prob_measure, return_grad=True,
         noise_multiplier=None, regression_type='lstsq',
@@ -263,6 +265,7 @@ def ioptimal_criterion_more_design_pts_than_params(
 
     pred_outer_prods = compute_homoscedastic_outer_products(pred_factors)
     B = pred_outer_prods.dot(pred_prob_measure)
+    B[B < 0] = 0
     M0, M1 = get_M0_and_M1_matrices(
         homog_outer_prods, design_prob_measure, noise_multiplier,
         regression_type)
@@ -620,7 +623,7 @@ def aoptimality_criterion(homog_outer_prods, design_factors,
 def roptimality_criterion(beta, homog_outer_prods, design_factors,
                           pred_factors, design_prob_measure, return_grad=True,
                           noise_multiplier=None, regression_type='lstsq',
-                          eps=0):
+                          eps=0, tt=None, pred_prob_measure=None):
     r"""
     Evaluate the R-optimality criterion for a given design probability measure
     for the linear model
@@ -669,6 +672,14 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         Hyper-parameter controlling the smoothness of smooth cvar
         if eps==0 then no smoothing is used.
 
+    tt : float
+        The current estimate of t used to compute cvar
+
+    pred_prob_measure : np.ndarray (num_pred_pts)
+        The prob measure :math:`\nu` on the prediction points. If none then
+        assumes samples are random and
+        pred_prob_measure[ii] =  1/num_pred_factors for all uu
+
     Returns
     -------
     value : float
@@ -677,12 +688,20 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
     grad : np.ndarray (num_design_pts)
         The gradient of the objective function. Only if return_grad is True.
     """
-    assert beta >= 0 and beta <= 1
+    if (eps > 0 and tt is None) or (eps == 0 and tt is not None):
+        raise ValueError("If eps>0 tt must both be specified")
+    if beta < 0 or beta >= 1:
+        raise ValueError("Beta must be in [0,1)")
+
     num_design_pts, num_design_factors = design_factors.shape
     num_pred_pts,   num_pred_factors = pred_factors.shape
+
+    if pred_prob_measure is None:
+        pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
     if design_prob_measure.ndim == 2:
         assert design_prob_measure.shape[1] == 1
         design_prob_measure = design_prob_measure[:, 0]
+
     M0, M1 = get_M0_and_M1_matrices(
         homog_outer_prods, design_prob_measure, noise_multiplier,
         regression_type)
@@ -692,31 +711,36 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         M0u = M0.dot(u)
         variances = np.sum(u*M0u, axis=0)
         if eps == 0:
-            value = conditional_value_at_risk(variances, beta)
+            value = conditional_value_at_risk(
+                variances, beta, pred_prob_measure)
         else:
-            value = smooth_conditional_value_at_risk(0, eps, beta, variances)
-        if (return_grad):
-            gamma = -solve_triangular(R, (Q.T.dot(M0u)))
-            Fu = design_factors.dot(u)
-            t = noise_multiplier[:, np.newaxis] * Fu
-            Fgamma = design_factors.dot(gamma)
-            if eps == 0:
-                cvar_grad = conditional_value_at_risk_subgradient(
-                    variances, beta)
-            else:
-                cvar_grad = smooth_conditional_value_at_risk_gradient(
-                    0, eps, beta, variances)
-            if regression_type == 'lstsq':
-                gradient = np.sum((2*Fu*Fgamma+t**2).T *
-                                  cvar_grad[:, np.newaxis], axis=0)
-            elif regression_type == 'quantile':
-                gradient = np.sum(
-                    (2*Fu*Fgamma/noise_multiplier[:, np.newaxis]+Fu**2).T *
-                    cvar_grad[:, np.newaxis], axis=0)
-
-            return value, gradient.T
-        else:
+            value = smooth_conditional_value_at_risk_split(
+                0, eps, beta, variances, tt, pred_prob_measure)
+        if not return_grad:
             return value
+
+        gamma = -solve_triangular(R, (Q.T.dot(M0u)))
+        Fu = design_factors.dot(u)
+        t = noise_multiplier[:, np.newaxis] * Fu
+        Fgamma = design_factors.dot(gamma)
+        if eps == 0:
+            cvar_grad = conditional_value_at_risk_subgradient(
+                variances, beta, pred_prob_measure)
+        else:
+            grad = smooth_conditional_value_at_risk_gradient_split(
+                0, eps, beta, variances, tt, pred_prob_measure)
+            cvar_grad, t_grad = grad[:-1], grad[-1]
+        if regression_type == 'lstsq':
+            gradient = (np.sum((2*Fu*Fgamma+t**2).T *
+                               cvar_grad[:, np.newaxis], axis=0)).T
+        elif regression_type == 'quantile':
+            gradient = (np.sum(
+                (2*Fu*Fgamma/noise_multiplier[:, np.newaxis]+Fu**2).T *
+                cvar_grad[:, np.newaxis], axis=0)).T
+        if eps == 0:
+            return value, gradient
+
+        return value, np.hstack((gradient, t_grad))
     else:
         u = np.linalg.solve(M1, pred_factors.T)
         # Value
@@ -727,21 +751,29 @@ def roptimality_criterion(beta, homog_outer_prods, design_factors,
         # variances
         variances = np.sum(pred_factors*u.T, axis=1)
         if eps == 0:
-            value = conditional_value_at_risk(variances, beta)
+            value = conditional_value_at_risk(
+                variances, beta, pred_prob_measure)
         else:
-            value = smooth_conditional_value_at_risk(0, eps, beta, variances)
+            value = smooth_conditional_value_at_risk_split(
+                0, eps, beta, variances, tt, pred_prob_measure)
 
         if (not return_grad):
             return value
         # Gradient
         F_M1_inv_P = design_factors.dot(u)
         if eps == 0:
-            cvar_grad = conditional_value_at_risk_subgradient(variances, beta)
+            cvar_grad = conditional_value_at_risk_subgradient(
+                variances, beta, pred_prob_measure)
         else:
-            cvar_grad = smooth_conditional_value_at_risk_gradient(
-                0, eps, beta, variances)
-        gradient = -np.sum(F_M1_inv_P.T**2*cvar_grad[:, np.newaxis], axis=0)
-        return value, gradient.T
+            grad = smooth_conditional_value_at_risk_gradient_split(
+                0, eps, beta, variances, tt, pred_prob_measure)
+            cvar_grad = grad[:-1]
+            t_grad = grad[-1]
+        gradient = -np.sum(F_M1_inv_P.T**2*cvar_grad[:, np.newaxis], axis=0).T
+        if eps == 0:
+            return value, gradient
+
+        return value, np.hstack((gradient, t_grad))
 
 
 def goptimality_criterion(homog_outer_prods, design_factors,
@@ -988,7 +1020,9 @@ class AlphabetOptimalDesign(object):
 
         # criteria requiring pred_factors
         pred_criteria_funcs = {
-            'G': goptimality_criterion, 'I': ioptimality_criterion}
+            'G': goptimality_criterion,
+            'I': ioptimality_criterion}
+        # 'I': ioptimality_criterion_more_design_pts_than_params}
         # criteria not requiring pred_factors
         other_criteria_funcs = {
             'A': aoptimality_criterion, 'C': coptimality_criterion,
@@ -1016,23 +1050,27 @@ class AlphabetOptimalDesign(object):
                 pred_prob_measure=pred_prob_measure)
 
             def jac(r): return criteria_fun(
-                homog_outer_prods, design_factors, pred_factors, r,
-                return_grad=True, noise_multiplier=noise_multiplier,
-                regression_type=self.regression_type)[1]
+                    homog_outer_prods, design_factors, pred_factors, r,
+                    return_grad=True, noise_multiplier=noise_multiplier,
+                    regression_type=self.regression_type,
+                    pred_prob_measure=pred_prob_measure)[1]
         elif self.criteria == 'R':
             beta = opts['beta']
             pred_factors = opts['pred_factors']
             eps = opts.get('eps', 0)
+            pred_prob_measure = opts.get("pred_prob_measure", None)
             objective = partial(
                 roptimality_criterion, beta, homog_outer_prods,
                 design_factors, pred_factors,
                 noise_multiplier=noise_multiplier, return_grad=False,
-                regression_type=self.regression_type, eps=eps)
+                regression_type=self.regression_type, eps=eps,
+                pred_prob_measure=pred_prob_measure)
 
-            def jac(r): return roptimality_criterion(
-                beta, homog_outer_prods, design_factors, pred_factors, r,
-                return_grad=True, noise_multiplier=noise_multiplier,
-                regression_type=self.regression_type, eps=eps)[1]
+            def jac(r, tt=None): return roptimality_criterion(
+                    beta, homog_outer_prods, design_factors, pred_factors, r,
+                    return_grad=True, noise_multiplier=noise_multiplier,
+                    regression_type=self.regression_type, eps=eps, tt=tt,
+                    pred_prob_measure=pred_prob_measure)[1]
         else:
             msg = f'Optimality criteria: {self.criteria} is not supported. '
             msg += 'Supported criteria are:\n'
@@ -1093,6 +1131,34 @@ class AlphabetOptimalDesign(object):
                     get_r_oed_linear_constraints, num_pred_pts),
                 extract_design_from_optimize_result=partial(
                     extract_r_oed_design_from_optimize_result, num_design_pts))
+        elif self.criteria == 'R' and (self.opts.get("eps", 0) > 0):
+            objective_split, jac_split = self.get_objective_and_jacobian(
+                self.design_factors, homog_outer_prods,
+                self.noise_multiplier, self.opts)
+
+            def robjective(xx):
+                return objective_split(xx[:-1], tt=xx[-1])
+
+            def rjac(xx):
+                return jac_split(xx[:-1], tt=xx[-1])
+
+            self.bounds = Bounds(
+                [0]*num_design_pts+[-np.inf], [1]*num_design_pts+[np.inf])
+
+            lb_con = ub_con = np.atleast_1d(1)
+            A_con = np.hstack((np.ones((1, num_design_pts)), np.zeros((1, 1))))
+            self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
+
+            if init_design is None:
+                x0 = np.hstack((np.ones(num_design_pts)/num_design_pts, 1))
+            else:
+                x0 = np.hstack((init_design, 1))
+
+            res = self.__solve(x0, robjective, rjac, options)
+            weights = res.x[:-1]
+            if not return_full:
+                return weights
+            return weights, res
 
         self.bounds = Bounds([0]*num_design_pts, [1]*num_design_pts)
         lb_con = ub_con = np.atleast_1d(1)
@@ -1104,6 +1170,15 @@ class AlphabetOptimalDesign(object):
         else:
             x0 = init_design
 
+        res = self.__solve(x0, objective, jac, options)
+        weights = res.x
+
+        if not return_full:
+            return weights
+
+        return weights, res
+
+    def __solve(self, x0, objective, jac, options):
         if 'solver' in options:
             options = options.copy()
             method = options['solver']
@@ -1132,12 +1207,7 @@ class AlphabetOptimalDesign(object):
                 constraints=[self.linear_constraint], options=options,
                 bounds=self.bounds)
 
-        weights = res.x
-
-        if not return_full:
-            return weights
-
-        return weights, res
+        return res
 
     def minimax_nonlinear_constraints(self, parameter_samples, design_samples):
         constraints = []

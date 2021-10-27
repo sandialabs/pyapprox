@@ -48,18 +48,18 @@ class TestCVARRegression(unittest.TestCase):
         x0 = np.hstack((samples, t))[:, None]
         errors = check_gradients(
             lambda xx: smooth_conditional_value_at_risk(
-                smoother_type, eps, alpha, xx[:-1], xx[-1]),
+                smoother_type, eps, alpha, xx),
             lambda xx: smooth_conditional_value_at_risk_gradient(
-                smoother_type, eps, alpha, xx[:-1], xx[-1]), x0)
+                smoother_type, eps, alpha, xx), x0)
         assert errors.min() < 1e-6
 
         weights = np.random.uniform(1, 2, samples.shape[0])
         weights /= weights.sum()
         errors = check_gradients(
             lambda xx: smooth_conditional_value_at_risk(
-                smoother_type, eps, alpha, xx[:-1], xx[-1], weights),
+                smoother_type, eps, alpha, xx, weights),
             lambda xx: smooth_conditional_value_at_risk_gradient(
-                smoother_type, eps, alpha, xx[:-1], xx[-1], weights), x0)
+                smoother_type, eps, alpha, xx, weights), x0)
         assert errors.min() < 1e-6
 
     def test_smooth_conditional_value_at_risk_gradient(self):
@@ -84,7 +84,7 @@ class TestCVARRegression(unittest.TestCase):
 
         errors = check_gradients(
             lambda xx: smooth_conditional_value_at_risk_composition(
-                smoother_type, eps, alpha, fun, jac, xx[:-1], xx[-1]),
+                smoother_type, eps, alpha, fun, jac, xx),
             True, x0)
         assert errors.min() < 1e-7
 

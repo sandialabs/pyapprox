@@ -77,6 +77,18 @@ def smooth_max_function_second_derivative(smoother_type, eps, x):
 
 
 def smooth_conditional_value_at_risk(
+        smoother_type, eps, alpha, x, weights=None):
+    r"""
+    used for solving
+
+    min_{x,t} t+1/(1-\alpha)E([x-t]^+)
+    We need to minimize both t and x because t is a function of X
+    """
+    return smooth_conditional_value_at_risk_split(
+        smoother_type, eps, alpha, x[:-1], x[-1], weights)
+
+
+def smooth_conditional_value_at_risk_split(
         smoother_type, eps, alpha, x, t, weights=None):
     if x.ndim == 1:
         x = x[:, None]
@@ -91,6 +103,12 @@ def smooth_conditional_value_at_risk(
 
 
 def smooth_conditional_value_at_risk_gradient(
+        smoother_type, eps, alpha, x, weights=None):
+    return smooth_conditional_value_at_risk_gradient_split(
+        smoother_type, eps, alpha, x[:-1], x[-1], weights)
+
+
+def smooth_conditional_value_at_risk_gradient_split(
         smoother_type, eps, alpha, x, t, weights=None):
     if x.ndim == 1:
         x = x[:, None]
@@ -108,7 +126,7 @@ def smooth_conditional_value_at_risk_gradient(
 
 
 def smooth_conditional_value_at_risk_composition(
-        smoother_type, eps, alpha, fun, jac, x, t, weights=None):
+        smoother_type, eps, alpha, fun, jac, x, weights=None):
     """
     fun : callable
          A function with signature
@@ -128,6 +146,12 @@ def smooth_conditional_value_at_risk_composition(
         the gradient of a function (with resepct to x) ``fun(x,z)`` at
         realizations of random variables ``z``
     """
+    return smooth_conditional_value_at_risk_composition_split(
+        smoother_type, eps, alpha, fun, jac, x[:-1], x[-1], weights)
+
+
+def smooth_conditional_value_at_risk_composition_split(
+        smoother_type, eps, alpha, fun, jac, x, t, weights=None):
     assert x.ndim == 2 and x.shape[1] == 1
     fun_vals = fun(x)
     assert fun_vals.ndim == 2 and fun_vals.shape[1] == 1
