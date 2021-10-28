@@ -1112,7 +1112,7 @@ class AlphabetOptimalDesign(object):
             objective = self.setup_objective(
                 "G", homog_outer_prods,
                 design_factors, noise_multiplier, opts)
-    
+
             def fun(xx): return objective(xx)[0]
             def jac(xx): return objective(xx)[1]
             constraint_obj = partial(
@@ -1125,12 +1125,12 @@ class AlphabetOptimalDesign(object):
             objective = self.setup_objective(
                 "G", homog_outer_prods,
                 design_factors, noise_multiplier, opts)
-            # instead of computing objective using lambda use partial and allow
-            # eval_grad to be passed as argument here
             constraint_obj = partial(
-                minimax_oed_constraint_objective, lambda xx: objective(xx)[0])
+                minimax_oed_constraint_objective, partial(
+                    obj_from_obj_plus_jac_fun, objective))
             constraint_jac = partial(
-                minimax_oed_constraint_jacobian, lambda xx: objective(xx)[1])
+                minimax_oed_constraint_jacobian, partial(
+                    jac_from_obj_plus_jac_fun, objective))
             return [NonlinearConstraint(
                 constraint_obj, 0, np.inf, jac=constraint_jac)]
         return None
@@ -1344,6 +1344,14 @@ class AlphabetOptimalDesign(object):
             return weights, res
 
 
+def obj_from_obj_plus_jac_fun(fun, xx):
+    return fun(xx)[0]
+
+
+def jac_from_obj_plus_jac_fun(fun, xx):
+    return fun(xx)[1]
+
+
 class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
     def __init__(self, criteria, design_factors, noise_multiplier=None,
                  opts=None, regression_type='lstsq'):
@@ -1385,9 +1393,11 @@ class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
                 self.criteria, homog_outer_prods.copy(), design_factors.copy(),
                 noise_multiplier, copy.deepcopy(opts))
             constraint_obj = partial(
-                minimax_oed_constraint_objective, lambda xx: objective(xx)[0])
+                minimax_oed_constraint_objective, partial(
+                    obj_from_obj_plus_jac_fun, objective))
             constraint_jac = partial(
-                minimax_oed_constraint_jacobian, lambda xx: objective(xx)[1])
+                minimax_oed_constraint_jacobian, partial(
+                    jac_from_obj_plus_jac_fun, objective))
             constraint = NonlinearConstraint(
                 constraint_obj, 0, np.inf, jac=constraint_jac)
             constraints.append(constraint)
@@ -1422,11 +1432,11 @@ class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
         assert callable(self.design_factors)
         if self.noise_multiplier is not None:
             assert callable(self.noise_multiplier)
-        nonlinear_constraints = self.setup_minimax_nonlinear_constraints(
+        self.nonlinear_constraints = self.setup_minimax_nonlinear_constraints(
             parameter_samples, design_samples)
         num_design_pts = design_samples.shape[1]
         return self._solve_minimax(
-            nonlinear_constraints, num_design_pts, options, return_full, x0)
+            self.nonlinear_constraints, num_design_pts, options, return_full, x0)
 
     def bayesian_objective_jacobian_components(
             self, parameter_samples, design_samples):

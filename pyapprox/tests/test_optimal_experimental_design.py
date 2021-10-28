@@ -245,9 +245,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # plt.show()
         assert diffs.min() < 2e-5, diffs
 
-    def test_hetroscedastic_ioptimality_criterion(self):
+    def test_heteroscedastic_ioptimality_criterion(self):
         """
-        Test homoscedastic and hetroscedastic API produce same value
+        Test homoscedastic and heteroscedastic API produce same value
         when noise is homoscedastic
         """
         poly_degree = 10
@@ -265,7 +265,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             ioptimality_criterion, homog_outer_prods, design_factors,
             pred_factors, noise_multiplier=noise_multiplier)
 
-        # Test least squares hetroscedastic gradients are correct
+        # Test least squares heteroscedastic gradients are correct
         diffs = check_derivative(ioptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
@@ -277,7 +277,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(ioptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
-        # Test homoscedastic and hetroscedastic API produce same value
+        # Test homoscedastic and heteroscedastic API produce same value
         # when noise is homoscedastic
         pp = np.ones((num_design_pts, 1))/num_design_pts
         noise_multiplier = noise_multiplier*0+1
@@ -322,9 +322,9 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # print(diffs)
         assert diffs.min() < 6e-5, diffs
 
-    def test_hetroscedastic_goptimality_criterion(self):
+    def test_heteroscedastic_goptimality_criterion(self):
         """
-        Test homoscedastic and hetroscedastic API produce same value
+        Test homoscedastic and heteroscedastic API produce same value
         when noise is homoscedastic
         """
         poly_degree = 10
@@ -342,7 +342,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             goptimality_criterion, homog_outer_prods, design_factors,
             pred_factors, noise_multiplier=noise_multiplier)
 
-        # Test hetroscedastic API gradients are correct
+        # Test heteroscedastic API gradients are correct
         diffs = check_derivative(goptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
@@ -354,7 +354,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(goptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
-        # Test homoscedastic and hetroscedastic API produce same value
+        # Test homoscedastic and heteroscedastic API produce same value
         # when noise is homoscedastic
         pp = np.ones((num_design_pts, 1))/num_design_pts
         noise_multiplier = noise_multiplier*0+1
@@ -366,7 +366,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
                 homog_outer_prods, design_factors, pred_factors,
                 pp, return_grad=False, noise_multiplier=noise_multiplier))
 
-    def test_hetroscedastic_coptimality_criterion(self):
+    def test_heteroscedastic_coptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1, 1, num_design_pts)
@@ -389,7 +389,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(coptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
-        # Test homoscedastic and hetroscedastic API produce same value
+        # Test homoscedastic and heteroscedastic API produce same value
         # when noise is homoscedastic
         pp = np.ones((num_design_pts, 1))/num_design_pts
         noise_multiplier = noise_multiplier*0+1
@@ -449,11 +449,10 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             mat = doptimality_criterion(
                 homog_outer_prods, design_factors, x,
                 return_hessian=True)[2]
-            print(mat.shape, p.shape, mat.dot(p).shape)
             return mat.dot(p)
         pya.check_hessian(jac, hess_matvec, mu[:, np.newaxis])
 
-    def test_hetroscedastic_doptimality_criterion(self):
+    def test_heteroscedastic_doptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 51
         design_samples = np.linspace(-1, 1, num_design_pts)
@@ -478,7 +477,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             doptimality_criterion_wrapper, num_design_pts, rel=False)
         assert diffs.min() < 6e-5, diffs
 
-        # Test homoscedastic and hetroscedastic API produce same value
+        # Test homoscedastic and heteroscedastic API produce same value
         # when noise is homoscedastic
         pp = np.ones((num_design_pts, 1))/num_design_pts
         noise_multiplier = noise_multiplier*0+1
@@ -512,7 +511,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             np.trace(np.linalg.inv(M1)),
             aoptimality_criterion_wrapper(mu, return_grad=False))
 
-    def test_hetroscedastic_aoptimality_criterion(self):
+    def test_heteroscedastic_aoptimality_criterion(self):
         poly_degree = 10
         num_design_pts = 101
         design_samples = np.linspace(-1, 1, num_design_pts)
@@ -536,7 +535,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         diffs = check_derivative(aoptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 1e-3, diffs
 
-        # Test homoscedastic and hetroscedastic API produce same value
+        # Test homoscedastic and heteroscedastic API produce same value
         # when noise is homoscedastic
         pp = np.ones((num_design_pts, 1))/num_design_pts
         noise_multiplier = noise_multiplier*0+1
@@ -755,7 +754,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             True, x0, rel=True)
         assert diffs.min() < 6e-5, diffs
 
-    def test_hetroscedastic_roptimality_criterion(self):
+    def test_heteroscedastic_roptimality_criterion(self):
         poly_degree = 10
         beta = 0.5
         num_design_pts = 101
@@ -772,11 +771,11 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             roptimality_criterion, beta, homog_outer_prods, design_factors,
             pred_factors, noise_multiplier=noise_multiplier)
 
-        # Test hetroscedastic API gradients are correct
+        # Test heteroscedastic API gradients are correct
         diffs = check_derivative(roptimality_criterion_wrapper, num_design_pts)
         assert diffs.min() < 6e-5, diffs
 
-    def test_hetroscedastic_roptimality_criterion_smooth(self):
+    def test_heteroscedastic_roptimality_criterion_smooth(self):
         eps = 1e-2
         poly_degree = 10
         beta = 0.5
@@ -794,7 +793,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
             roptimality_criterion, beta, homog_outer_prods, design_factors,
             pred_factors, noise_multiplier=noise_multiplier, eps=eps)
 
-        # Test hetroscedastic API gradients are correct
+        # Test heteroscedastic API gradients are correct
         design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
         tt = 0.1
         x0 = np.vstack((design_prob_measure, tt))
@@ -849,12 +848,12 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
     def test_homoscedastic_least_squares_roptimal_design(self):
         mu_R, mu_I = self.help_homoscedastic_least_squares_roptimal_design(0)
         assert np.allclose(mu_R, mu_I)
-        print(mu_R, mu_I)
+        # print(mu_R, mu_I)
         np.random.seed(1)
         # the use of smoothing introduces an error
         mu_R, mu_I = self.help_homoscedastic_least_squares_roptimal_design(
             1e-2)
-        print(mu_R, mu_I)
+        # print(mu_R, mu_I)
         assert np.allclose(mu_R, mu_I, atol=1e-3)
 
 
@@ -897,9 +896,23 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
     minimax_opt_problem = NonLinearAlphabetOptimalDesign(
         criteria, local_design_factors, noise_multiplier, opts=opts)
 
-    mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
+    mu_minimax, res = minimax_opt_problem.solve_nonlinear_minimax(
         parameter_samples, design_samples[np.newaxis, :],
-        {'iprint': iprint, 'ftol': 1e-12, 'maxiter': maxiter})
+        {'iprint': iprint, 'ftol': 1e-12, 'maxiter': maxiter},
+        return_full=True)
+
+    # check that constraint functions are not being overwritten
+    # when created. This was a previous bug
+    z0 = np.hstack((res.fun, mu_minimax))
+    constraint_vals_I = np.array(
+        [z0[0]-minimax_opt_problem.nonlinear_constraints[ii].fun(z0)
+         for ii in range(len(minimax_opt_problem.nonlinear_constraints))])
+    constraint_vals_II = []
+    for ii in range(len(minimax_opt_problem.nonlinear_constraints)):
+        constraint = minimax_opt_problem.setup_minimax_nonlinear_constraints(
+                parameter_samples[:, ii:ii+1], design_samples[None, :])
+        constraint_vals_II.append(z0[0]-constraint[0].fun(z0))
+    assert np.allclose(constraint_vals_I, constraint_vals_II)
 
     import copy
     opts = copy.deepcopy(opts)
@@ -934,7 +947,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
     # for d optimal design one local design will be optimal but because
     # of numerical precision it agrees only to 1e-6 with minimax design
     # so round answer and compare. argmin returns first instance of minimum
-    print(max_stat)
+    # print(max_stat)
     max_stat = np.round(max_stat, 5)
     assert np.argmin(max_stat) == 0
 
@@ -1087,10 +1100,10 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(mu[II], [0.5, 0.5])
 
     def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
-        # help_check_michaelis_menten_model_minimax_optimal_design('G')
-        # help_check_michaelis_menten_model_minimax_optimal_design('D')
-        # help_check_michaelis_menten_model_minimax_optimal_design('A')
-        # help_check_michaelis_menten_model_minimax_optimal_design('I')
+        help_check_michaelis_menten_model_minimax_optimal_design('G')
+        help_check_michaelis_menten_model_minimax_optimal_design('D')
+        help_check_michaelis_menten_model_minimax_optimal_design('A')
+        help_check_michaelis_menten_model_minimax_optimal_design('I')
         help_check_michaelis_menten_model_minimax_optimal_design('R')
 
     def test_michaelis_menten_model_minimax_designs_heteroscedastic(self):
