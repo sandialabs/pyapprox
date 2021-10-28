@@ -9,7 +9,8 @@ from scipy.optimize import (
 from pyapprox.risk_measures import conditional_value_at_risk
 
 from pyapprox.cvar_regression import (
-    conditional_value_at_risk_subgradient, smooth_conditional_value_at_risk_split,
+    conditional_value_at_risk_subgradient,
+    smooth_conditional_value_at_risk_split,
     smooth_conditional_value_at_risk_gradient_split
 )
 
@@ -1015,170 +1016,126 @@ class AlphabetOptimalDesign(object):
         self.opts = opts
         self.regression_type = regression_type
 
-    def get_objective_and_jacobian(self, design_factors, homog_outer_prods,
-                                   noise_multiplier, opts):
+        homog_outer_prods = compute_homoscedastic_outer_products(
+            self.design_factors)
+        self.__objective = self.setup_objective(
+            self.criteria, homog_outer_prods, self.design_factors,
+            self.noise_multiplier, self.opts)
+        self.__constraints = self.__setup_constraints(
+            self.criteria, homog_outer_prods, self.design_factors,
+            self.noise_multiplier, self.opts)
 
-        # criteria requiring pred_factors
-        pred_criteria_funcs = {
-            'G': goptimality_criterion,
-            'I': ioptimality_criterion}
-        # 'I': ioptimality_criterion_more_design_pts_than_params}
-        # criteria not requiring pred_factors
-        other_criteria_funcs = {
-            'A': aoptimality_criterion, 'C': coptimality_criterion,
-            'D': doptimality_criterion}
+    def objective(self, xx, **kwargs):
+        # kwargs needed for smooth version of r-optimality
+        return self.__objective(xx, **kwargs)
 
-        if self.criteria in other_criteria_funcs:
-            criteria_fun = other_criteria_funcs[self.criteria]
-            objective = partial(
-                criteria_fun, homog_outer_prods, design_factors,
-                noise_multiplier=noise_multiplier, return_grad=False,
-                regression_type=self.regression_type)
+    def constraint(self, xx):
+        assert len(self.__constraints) == 1
+        return self.__constraints[0](xx)
 
-            def jac(r): return criteria_fun(
-                homog_outer_prods, design_factors, r, return_grad=True,
-                noise_multiplier=noise_multiplier,
-                regression_type=self.regression_type)[1]
-        elif self.criteria in pred_criteria_funcs:
-            criteria_fun = pred_criteria_funcs[self.criteria]
-            pred_factors = opts['pred_factors']
-            pred_prob_measure = opts.get("pred_prob_measure", None)
-            objective = partial(
-                criteria_fun, homog_outer_prods, design_factors,
-                pred_factors, noise_multiplier=noise_multiplier,
-                return_grad=False, regression_type=self.regression_type,
-                pred_prob_measure=pred_prob_measure)
+    def setup_objective(self, criteria, homog_outer_prods, design_factors,
+                        noise_multiplier, opts):
+        pred_criteria = ["I", "R", "G"]
+        other_criteria = ["A", "C", "D"]
+        if self.criteria in pred_criteria:
+            return self.__setup_pred_objective(
+                criteria, homog_outer_prods, design_factors,
+                noise_multiplier, opts)
 
-            def jac(r): return criteria_fun(
-                    homog_outer_prods, design_factors, pred_factors, r,
-                    return_grad=True, noise_multiplier=noise_multiplier,
-                    regression_type=self.regression_type,
-                    pred_prob_measure=pred_prob_measure)[1]
-        elif self.criteria == 'R':
-            beta = opts['beta']
-            pred_factors = opts['pred_factors']
-            eps = opts.get('eps', 0)
-            pred_prob_measure = opts.get("pred_prob_measure", None)
-            objective = partial(
-                roptimality_criterion, beta, homog_outer_prods,
-                design_factors, pred_factors,
-                noise_multiplier=noise_multiplier, return_grad=False,
-                regression_type=self.regression_type, eps=eps,
-                pred_prob_measure=pred_prob_measure)
+        elif self.criteria in other_criteria:
+            return self.__setup_other_objective(
+                criteria, homog_outer_prods, design_factors,
+                noise_multiplier, opts)
 
-            def jac(r, tt=None): return roptimality_criterion(
-                    beta, homog_outer_prods, design_factors, pred_factors, r,
-                    return_grad=True, noise_multiplier=noise_multiplier,
-                    regression_type=self.regression_type, eps=eps, tt=tt,
-                    pred_prob_measure=pred_prob_measure)[1]
         else:
             msg = f'Optimality criteria: {self.criteria} is not supported. '
             msg += 'Supported criteria are:\n'
-            for key in other_criteria_funcs.keys():
+            for key in pred_criteria+other_criteria:
                 msg += f"\t{key}\n"
-            for key in pred_criteria_funcs.keys():
-                msg += f"\t{key}\n"
-            msg += '\tR\n'
+                msg += '\tR\n'
             raise Exception(msg)
-        return objective, jac
 
-    def solve(self, options=None, init_design=None, return_full=False):
-        num_design_pts = self.design_factors.shape[0]
-        homog_outer_prods = compute_homoscedastic_outer_products(
-            self.design_factors)
+    def __setup_pred_objective(self, criteria, homog_outer_prods,
+                               design_factors, noise_multiplier, opts):
+        pred_factors = opts['pred_factors']
+        pred_prob_measure = opts.get("pred_prob_measure", None)
 
-        objective, jac = self.get_objective_and_jacobian(
-            self.design_factors, homog_outer_prods,
-            self.noise_multiplier, self.opts)
+        if criteria == "I":
+            return partial(
+                ioptimality_criterion, homog_outer_prods,
+                design_factors,
+                pred_factors, noise_multiplier=noise_multiplier,
+                return_grad=True, regression_type=self.regression_type,
+                pred_prob_measure=pred_prob_measure)
+        elif criteria == "R":
+            eps = opts.get('eps', 0)
+            beta = opts['beta']
+            if eps > 0:
+                return lambda xx: roptimality_criterion(
+                    beta, homog_outer_prods,
+                    design_factors, pred_factors, xx[:-1],
+                    noise_multiplier=noise_multiplier, return_grad=True,
+                    regression_type=self.regression_type, eps=eps,
+                    pred_prob_measure=pred_prob_measure, tt=xx[-1])
+            else:
+                if pred_prob_measure is None:
+                    num_pred_pts = opts['pred_factors'].shape[0]
+                    pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
+                r_obj = partial(r_oed_objective, beta, pred_prob_measure)
+                r_jac = partial(
+                    r_oed_objective_jacobian, beta, pred_prob_measure)
+                return lambda xx: (r_obj(xx), r_jac(xx))
+        elif criteria == "G":
+            # pred_prob_measure is not used here because we are looking
+            # for worst case
+            return partial(
+                goptimality_criterion, homog_outer_prods,
+                design_factors,
+                pred_factors, noise_multiplier=noise_multiplier,
+                return_grad=True, regression_type=self.regression_type)
 
-        if self.criteria == 'G':
+    def __setup_other_objective(self, criteria, homog_outer_prods,
+                                design_factors, noise_multiplier, opts):
+        other_criteria_funcs = {
+            'A': aoptimality_criterion, 'C': coptimality_criterion,
+            'D': doptimality_criterion}
+        criteria_fun = other_criteria_funcs[criteria]
+        return partial(
+            criteria_fun, homog_outer_prods, design_factors,
+            noise_multiplier=noise_multiplier, return_grad=True,
+            regression_type=self.regression_type)
+
+    def __setup_constraints(self, criteria, homog_outer_prods,
+                            design_factors, noise_multiplier, opts):
+        num_design_pts = design_factors.shape[0]
+        if criteria == "R" and opts.get('eps', 0) == 0:
+            objective = self.setup_objective(
+                "G", homog_outer_prods,
+                design_factors, noise_multiplier, opts)
+    
+            def fun(xx): return objective(xx)[0]
+            def jac(xx): return objective(xx)[1]
             constraint_obj = partial(
-                minimax_oed_constraint_objective, objective)
-            constraint_jac = partial(minimax_oed_constraint_jacobian, jac)
-            nonlinear_constraints = [NonlinearConstraint(
-                constraint_obj, 0, np.inf, jac=constraint_jac)]
-            return self._solve_minimax(
-                nonlinear_constraints, num_design_pts, options, return_full,
-                init_design)
-        elif self.criteria == 'R' and self.opts.get("eps", 0) == 0:
-            # if nonsmooth is True then minimize then constraint objective
-            # (objective returned self.get_objective_and_jacobian) will not be
-            # differentiable instead and the jacobian returned will consists of sub-differentials and this will be passed to minimize and this section skipped
-            self.criteria = 'G'
-            objective, jac = self.get_objective_and_jacobian(
-                self.design_factors, homog_outer_prods,
-                self.noise_multiplier, self.opts)
-            self.criteria = 'R'
-            beta = self.opts['beta']
-            num_pred_pts = self.opts['pred_factors'].shape[0]
-            weights = np.ones(num_pred_pts)/num_pred_pts
-            assert weights.shape[0] == num_pred_pts
-            r_obj = partial(r_oed_objective, beta, weights)
-            r_jac = partial(r_oed_objective_jacobian, beta, weights)
-            constraint_obj = partial(
-                r_oed_constraint_objective, num_design_pts, objective)
+                r_oed_constraint_objective, num_design_pts, fun)
             constraint_jac = partial(
                 r_oed_constraint_jacobian, num_design_pts, jac)
-            nonlinear_constraints = [NonlinearConstraint(
+            return [NonlinearConstraint(
                 constraint_obj, 0, np.inf, jac=constraint_jac)]
-            return self._solve_minimax(
-                nonlinear_constraints, num_design_pts, options, return_full,
-                init_design, objective=r_obj, jac=r_jac,
-                get_bounds=partial(get_r_oed_bounds, num_pred_pts),
-                get_init_guess=partial(
-                    get_r_oed_default_initial_guess, num_pred_pts),
-                get_linear_constraint=partial(
-                    get_r_oed_linear_constraints, num_pred_pts),
-                extract_design_from_optimize_result=partial(
-                    extract_r_oed_design_from_optimize_result, num_design_pts))
-        elif self.criteria == 'R' and (self.opts.get("eps", 0) > 0):
-            objective_split, jac_split = self.get_objective_and_jacobian(
-                self.design_factors, homog_outer_prods,
-                self.noise_multiplier, self.opts)
+        elif criteria == "G":
+            objective = self.setup_objective(
+                "G", homog_outer_prods,
+                design_factors, noise_multiplier, opts)
+            # instead of computing objective using lambda use partial and allow
+            # eval_grad to be passed as argument here
+            constraint_obj = partial(
+                minimax_oed_constraint_objective, lambda xx: objective(xx)[0])
+            constraint_jac = partial(
+                minimax_oed_constraint_jacobian, lambda xx: objective(xx)[1])
+            return [NonlinearConstraint(
+                constraint_obj, 0, np.inf, jac=constraint_jac)]
+        return None
 
-            def robjective(xx):
-                return objective_split(xx[:-1], tt=xx[-1])
-
-            def rjac(xx):
-                return jac_split(xx[:-1], tt=xx[-1])
-
-            self.bounds = Bounds(
-                [0]*num_design_pts+[-np.inf], [1]*num_design_pts+[np.inf])
-
-            lb_con = ub_con = np.atleast_1d(1)
-            A_con = np.hstack((np.ones((1, num_design_pts)), np.zeros((1, 1))))
-            self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-
-            if init_design is None:
-                x0 = np.hstack((np.ones(num_design_pts)/num_design_pts, 1))
-            else:
-                x0 = np.hstack((init_design, 1))
-
-            res = self.__solve(x0, robjective, rjac, options)
-            weights = res.x[:-1]
-            if not return_full:
-                return weights
-            return weights, res
-
-        self.bounds = Bounds([0]*num_design_pts, [1]*num_design_pts)
-        lb_con = ub_con = np.atleast_1d(1)
-        A_con = np.ones((1, num_design_pts))
-        self.linear_constraint = LinearConstraint(A_con, lb_con, ub_con)
-
-        if init_design is None:
-            x0 = np.ones(num_design_pts)/num_design_pts
-        else:
-            x0 = init_design
-
-        res = self.__solve(x0, objective, jac, options)
-        weights = res.x
-
-        if not return_full:
-            return weights
-
-        return weights, res
-
-    def __solve(self, x0, objective, jac, options):
+    def __minimize(self, x0, objective, jac, options):
         if 'solver' in options:
             options = options.copy()
             method = options['solver']
@@ -1209,34 +1166,122 @@ class AlphabetOptimalDesign(object):
 
         return res
 
-    def minimax_nonlinear_constraints(self, parameter_samples, design_samples):
-        constraints = []
-        for ii in range(parameter_samples.shape[1]):
-            design_factors = self.design_factors(
-                parameter_samples[:, ii], design_samples)
-            homog_outer_prods = compute_homoscedastic_outer_products(
-                design_factors)
-            opts = copy.deepcopy(self.opts)
-            if opts is not None and 'pred_factors' in opts:
-                opts['pred_factors'] = opts['pred_factors'](
-                    parameter_samples[:, ii], opts['pred_samples'])
-            if self.noise_multiplier is None:
-                noise_multiplier = None
-            else:
-                noise_multiplier = self.noise_multiplier(
-                    parameter_samples[:, ii], design_samples).squeeze()
-                assert noise_multiplier.ndim == 1
-                assert noise_multiplier.shape[0] == design_samples.shape[1]
-            obj, jac = self.get_objective_and_jacobian(
-                design_factors.copy(), homog_outer_prods.copy(),
-                noise_multiplier, copy.deepcopy(opts))
-            constraint_obj = partial(minimax_oed_constraint_objective, obj)
-            constraint_jac = partial(minimax_oed_constraint_jacobian, jac)
-            constraint = NonlinearConstraint(
-                constraint_obj, 0, np.inf, jac=constraint_jac)
-            constraints.append(constraint)
+    def __setup_bounds(self):
+        """
+        Define the bounds of the optimization variables
+        """
+        num_design_pts = self.design_factors.shape[0]
+        if self.criteria == "R" and self.opts.get('eps', 0) > 0:
+            # smoothed roptimaility must solve for design and variable tt which
+            # estimates the quantile used in cvar so make bounds correct size
+            return Bounds(
+                [0]*num_design_pts+[-np.inf], [1]*num_design_pts+[np.inf])
+        else:
+            return Bounds([0]*num_design_pts, [1]*num_design_pts)
 
-        return constraints
+    def __setup_linear_constraint(self):
+        """
+        Enforce the constraint that the sum of the design probability masses
+        sum to one
+        """
+        num_design_pts = self.design_factors.shape[0]
+        lb_con = ub_con = np.atleast_1d(1)
+        if self.criteria == "R" and self.opts.get('eps', 0) > 0:
+            # smoothed roptimaility must solve for design and variable tt which
+            # estimates the quantile used in cvar so make constraint correct
+            # size
+            A_con = np.hstack((np.ones((1, num_design_pts)), np.zeros((1, 1))))
+        else:
+            A_con = np.ones((1, num_design_pts))
+        return LinearConstraint(A_con, lb_con, ub_con)
+
+    def __setup_initial_guess(self, init_design):
+        num_design_pts = self.design_factors.shape[0]
+        if self.criteria == "R" and self.opts.get('eps', 0) > 0:
+            # smoothed roptimaility must solve for design and variable tt which
+            # estimates the quantile used in cvar so add initial guess of 1
+            if init_design is None:
+                return np.hstack((np.ones(num_design_pts)/num_design_pts, 1))
+            else:
+                return np.hstack((init_design, 1))
+
+        if init_design is None:
+            return np.ones(num_design_pts)/num_design_pts
+        else:
+            return init_design
+
+    def __generic_solve(self, options, init_design, return_full):
+        """
+        Some criteria can be solved in exactly the same way, that is using
+        the workflow in this function.
+        """
+        self.bounds = self.__setup_bounds()
+        self.linear_constraint = self.__setup_linear_constraint()
+        x0 = self.__setup_initial_guess(init_design)
+        res = self.__minimize(x0, self.objective, True, options)
+        weights = res.x
+
+        if not return_full:
+            return weights
+
+        return weights, res
+
+    def __roptimality_solve(self, options, init_design, return_full):
+        if self.opts.get("eps", 0) == 0:
+            return self.__roptimality_solve_slack(
+                options, init_design, return_full)
+
+        return self.__roptimality_solve_smooth(
+            options, init_design, return_full)
+
+    def __roptimality_solve_slack(self, options, init_design, return_full):
+        """
+        Solve exact reformulation of roptimality by adding slack variables.
+        This adds a lot of constraints and so can be computationally demanding
+        """
+        num_design_pts = self.design_factors.shape[0]
+        num_pred_pts = self.opts['pred_factors'].shape[0]
+        return self._solve_minimax(
+            self.__constraints, num_design_pts, options, return_full,
+            init_design, objective=self.objective, jac=True,
+            get_bounds=partial(get_r_oed_bounds, num_pred_pts),
+            get_init_guess=partial(
+                get_r_oed_default_initial_guess, num_pred_pts),
+            get_linear_constraint=partial(
+                get_r_oed_linear_constraints, num_pred_pts),
+            extract_design_from_optimize_result=partial(
+                extract_r_oed_design_from_optimize_result, num_design_pts))
+
+    def __roptimality_solve_smooth(self, options, init_design, return_full):
+        """
+        Solve the smoothed version of roptimality. The smoothed version
+        introduces a small error but is much more computationaly efficient
+        than the slack variable baed reformulation.
+        """
+        weights, res = self.__generic_solve(options, init_design, return_full)
+
+        # smoothed roptimaility must solve for design and variable tt which
+        # estimates the quantile used in cvar so subtract off tt from design
+        # returned
+        if not return_full:
+            return weights[:-1]
+        return weights[:-1], res
+
+    def __goptimality_solve(self, options, init_design, return_full):
+        num_design_pts = self.design_factors.shape[0]
+        return self._solve_minimax(
+            self.__constraints, num_design_pts, options, return_full,
+            init_design)
+
+    def solve(self, options=None, init_design=None, return_full=False):
+        if self.criteria in ["A", "D", "C", "I"]:
+            return self.__generic_solve(options, init_design, return_full)
+
+        if self.criteria == "R":
+            return self.__roptimality_solve(options, init_design, return_full)
+
+        if self.criteria == 'G':
+            return self.__goptimality_solve(options, init_design, return_full)
 
     def _solve_minimax(self, nonlinear_constraints, num_design_pts, options,
                        return_full, x0, objective=minimax_oed_objective,
@@ -1298,12 +1343,86 @@ class AlphabetOptimalDesign(object):
         else:
             return weights, res
 
+
+class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
+    def __init__(self, criteria, design_factors, noise_multiplier=None,
+                 opts=None, regression_type='lstsq'):
+        if not callable(design_factors):
+            msg = "design_factors must be a function that returns local"
+            msg += " design factors for a given estimate of the unknown"
+            msg += "model parameters"
+            raise TypeError(msg)
+
+        self.criteria = criteria
+        self.noise_multiplier = noise_multiplier
+        self.design_factors = design_factors
+        self.opts = opts
+        self.regression_type = regression_type
+
+    def setup_minimax_nonlinear_constraints(
+            self, parameter_samples, design_samples):
+        constraints = []
+        for ii in range(parameter_samples.shape[1]):
+            design_factors = self.design_factors(
+                parameter_samples[:, ii], design_samples)
+            homog_outer_prods = compute_homoscedastic_outer_products(
+                design_factors)
+            opts = copy.deepcopy(self.opts)
+            if opts is not None and 'pred_factors' in opts:
+                opts['pred_factors'] = opts['pred_factors'](
+                    parameter_samples[:, ii], opts['pred_samples'])
+            if self.noise_multiplier is None:
+                noise_multiplier = None
+            else:
+                noise_multiplier = self.noise_multiplier(
+                    parameter_samples[:, ii], design_samples).squeeze()
+                assert noise_multiplier.ndim == 1
+                assert noise_multiplier.shape[0] == design_samples.shape[1]
+            #obj, jac = self.get_objective_and_jacobian(
+            #    design_factors.copy(), homog_outer_prods.copy(),
+            #    noise_multiplier, copy.deepcopy(opts))
+            objective = self.setup_objective(
+                self.criteria, homog_outer_prods.copy(), design_factors.copy(),
+                noise_multiplier, copy.deepcopy(opts))
+            constraint_obj = partial(
+                minimax_oed_constraint_objective, lambda xx: objective(xx)[0])
+            constraint_jac = partial(
+                minimax_oed_constraint_jacobian, lambda xx: objective(xx)[1])
+            constraint = NonlinearConstraint(
+                constraint_obj, 0, np.inf, jac=constraint_jac)
+            constraints.append(constraint)
+
+        return constraints
+
+    def setup_objective(self, criteria, homog_outer_prods, design_factors,
+                        noise_multiplier, opts):
+        if criteria == "R":
+            pred_factors = opts['pred_factors']
+            pred_prob_measure = opts.get("pred_prob_measure", None)
+            eps = 0  # just assume cvar is differentiable and
+            # use subgradients to compute design. This may not always work
+            # but has worked for all examples I have testsed
+            # we can introduce slack variables to make sure problem is
+            # differentiable everywhere but this will be computationally
+            # expensive
+            beta = opts['beta']
+            return lambda xx: roptimality_criterion(
+                beta, homog_outer_prods,
+                design_factors, pred_factors, xx,
+                noise_multiplier=noise_multiplier, return_grad=True,
+                regression_type=self.regression_type, eps=eps,
+                pred_prob_measure=pred_prob_measure)
+
+        return super().setup_objective(
+            criteria, homog_outer_prods, design_factors,
+            noise_multiplier, opts)
+
     def solve_nonlinear_minimax(self, parameter_samples, design_samples,
                                 options=None, return_full=False, x0=None):
         assert callable(self.design_factors)
         if self.noise_multiplier is not None:
             assert callable(self.noise_multiplier)
-        nonlinear_constraints = self.minimax_nonlinear_constraints(
+        nonlinear_constraints = self.setup_minimax_nonlinear_constraints(
             parameter_samples, design_samples)
         num_design_pts = design_samples.shape[1]
         return self._solve_minimax(
@@ -1311,7 +1430,7 @@ class AlphabetOptimalDesign(object):
 
     def bayesian_objective_jacobian_components(
             self, parameter_samples, design_samples):
-        objs, jacs = [], []
+        objs = []
         for ii in range(parameter_samples.shape[1]):
             design_factors = self.design_factors(
                 parameter_samples[:, ii], design_samples)
@@ -1328,20 +1447,19 @@ class AlphabetOptimalDesign(object):
             if opts is not None and 'pred_factors' in opts:
                 opts['pred_factors'] = opts['pred_factors'](
                     parameter_samples[:, ii], opts['pred_samples'])
-            obj, jac = self.get_objective_and_jacobian(
-                design_factors.copy(), homog_outer_prods.copy(),
+            objective = self.setup_objective(
+                self.criteria, homog_outer_prods.copy(), design_factors.copy(),
                 noise_multiplier, copy.deepcopy(opts))
-            objs.append(obj)
-            jacs.append(jac)
+            objs.append(objective)
 
         num_design_pts = homog_outer_prods.shape[2]
-        return objs, jacs, num_design_pts
+        return objs, num_design_pts
 
     def solve_nonlinear_bayesian(self, samples, design_samples,
                                  sample_weights=None, options=None,
                                  return_full=False, x0=None):
         assert callable(self.design_factors)
-        objs, jacs, num_design_pts = \
+        objs, num_design_pts = \
             self.bayesian_objective_jacobian_components(
                 samples, design_samples)
         lb_con = ub_con = np.atleast_1d(1)
@@ -1356,15 +1474,18 @@ class AlphabetOptimalDesign(object):
 
         def objective(x):
             objective = 0
-            for obj, weight in zip(objs, sample_weights):
-                objective += obj(x)*weight
-            return objective
-
-        def jacobian(x):
             vec = 0
-            for jac, weight in zip(jacs, sample_weights):
-                vec += jac(x)*weight
-            return vec
+            for obj, weight in zip(objs, sample_weights):
+                val, grad = obj(x)
+                objective += val*weight
+                vec += grad*weight
+            return objective, vec
+
+        # def jacobian(x):
+        #     vec = 0
+        #     for jac, weight in zip(jacs, sample_weights):
+        #         vec += jac(x)*weight
+        #     return vec
 
         bounds = Bounds(
             [0]*num_design_pts, [1]*num_design_pts)
@@ -1387,11 +1508,11 @@ class AlphabetOptimalDesign(object):
             from scipy.optimize._constraints import new_constraint_to_old
             con = new_constraint_to_old(self.linear_constraint, x0)
             res = minimize_ipopt(
-                objective, x0, jac=jacobian, bounds=bounds, constraints=con,
+                objective, x0, jac=True, bounds=bounds, constraints=con,
                 options=options)
         else:
             res = minimize(
-                objective, x0, method=method, jac=jacobian, hess=None,
+                objective, x0, method=method, jac=True, hess=None,
                 constraints=constraints, options=options,
                 bounds=bounds)
 

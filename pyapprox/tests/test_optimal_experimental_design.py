@@ -10,7 +10,8 @@ from pyapprox.optimal_experimental_design import (
     ioptimality_criterion, coptimality_criterion, doptimality_criterion,
     aoptimality_criterion, AlphabetOptimalDesign,
     optimal_experimental_design, roptimality_criterion,
-    ioptimality_criterion_more_design_pts_than_params
+    ioptimality_criterion_more_design_pts_than_params,
+    NonLinearAlphabetOptimalDesign
 )
 from pyapprox.monomial import univariate_monomial_basis_matrix
 import pyapprox as pya
@@ -848,6 +849,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
     def test_homoscedastic_least_squares_roptimal_design(self):
         mu_R, mu_I = self.help_homoscedastic_least_squares_roptimal_design(0)
         assert np.allclose(mu_R, mu_I)
+        print(mu_R, mu_I)
         np.random.seed(1)
         # the use of smoothing introduces an error
         mu_R, mu_I = self.help_homoscedastic_least_squares_roptimal_design(
@@ -892,7 +894,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
     from pyapprox import cartesian_product
     parameter_samples = cartesian_product([xx1, xx2])
     # x0 = None
-    minimax_opt_problem = AlphabetOptimalDesign(
+    minimax_opt_problem = NonLinearAlphabetOptimalDesign(
         criteria, local_design_factors, noise_multiplier, opts=opts)
 
     mu_minimax = minimax_opt_problem.solve_nonlinear_minimax(
@@ -914,7 +916,7 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
             {'iprint': iprint, 'ftol': 1e-12, 'maxiter': maxiter})
         mu_local_list.append(mu_local)
 
-    constraints = minimax_opt_problem.minimax_nonlinear_constraints(
+    constraints = minimax_opt_problem.setup_minimax_nonlinear_constraints(
         parameter_samples, design_samples[np.newaxis, :])
 
     max_stat = []
@@ -1023,7 +1025,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         xx2 = np.linspace(0.2, 1, 5)
         from pyapprox import cartesian_product
         parameter_samples = cartesian_product([xx1, xx2])
-        opt_problem = AlphabetOptimalDesign('D', local_design_factors)
+        opt_problem = NonLinearAlphabetOptimalDesign('D', local_design_factors)
         mu = opt_problem.solve_nonlinear_minimax(
             parameter_samples, design_samples[np.newaxis, :],
             {'iprint': 1, 'ftol': 1e-8})
@@ -1063,7 +1065,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         xx2 = (xx2+1)/2*(p_ub-p_lb)+p_lb
         parameter_samples = cartesian_product([xx1, xx2])
 
-        opt_problem = AlphabetOptimalDesign(
+        opt_problem = NonLinearAlphabetOptimalDesign(
             'D', local_design_factors, noise_multiplier=noise_multiplier,
             regression_type='quantile')
 
@@ -1085,10 +1087,10 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(mu[II], [0.5, 0.5])
 
     def test_michaelis_menten_model_minimax_designs_homoscedastic(self):
-        help_check_michaelis_menten_model_minimax_optimal_design('G')
-        help_check_michaelis_menten_model_minimax_optimal_design('D')
-        help_check_michaelis_menten_model_minimax_optimal_design('A')
-        help_check_michaelis_menten_model_minimax_optimal_design('I')
+        # help_check_michaelis_menten_model_minimax_optimal_design('G')
+        # help_check_michaelis_menten_model_minimax_optimal_design('D')
+        # help_check_michaelis_menten_model_minimax_optimal_design('A')
+        # help_check_michaelis_menten_model_minimax_optimal_design('I')
         help_check_michaelis_menten_model_minimax_optimal_design('R')
 
     def test_michaelis_menten_model_minimax_designs_heteroscedastic(self):
@@ -1140,7 +1142,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             xx2 = (xx2+1)/2*(ub2-lb2)+lb2  # transform from [-1,1] to [lb2,ub2]
             parameter_samples = xx2[np.newaxis, :]
 
-            opt_problem = AlphabetOptimalDesign(
+            opt_problem = NonLinearAlphabetOptimalDesign(
                 'D', local_design_factors, opts=None)
 
             mu, res = opt_problem.solve_nonlinear_bayesian(
@@ -1157,7 +1159,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             if II.shape == J.shape and np.allclose(II, J):
                 assert np.allclose(
                     mu[II], optimal_design_samples[ub2][1], rtol=3e-2)
-            assert (res.obj_fun(mu) <= res.obj_fun(mu_paper)+1e-6)
+            assert (res.obj_fun(mu)[0] <= res.obj_fun(mu_paper)[0]+1e-6)
 
 
 if __name__ == "__main__":
