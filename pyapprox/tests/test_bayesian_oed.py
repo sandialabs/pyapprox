@@ -28,6 +28,28 @@ from pyapprox.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
 from pyapprox.bayesian_inference.laplace import laplace_evidence
+from pyapprox.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.indexing import compute_hyperbolic_indices
+from pyapprox.monomial import monomial_basis_matrix
+
+
+def linear_obs_fun(Amat, samples):
+    """
+    Linear model. Fix some unknowns
+    """
+    assert samples.ndim == 2
+    nvars = Amat.shape[1]
+    assert samples.shape[0] <= nvars
+    coef = np.ones((nvars, samples.shape[1]))
+    coef[nvars-samples.shape[0]:, :] = samples
+    return Amat.dot(coef).T
+
+
+def exponential_qoi_fun(samples):
+    return np.exp(samples.sum(axis=0))[:, None]
 
 
 class TestBayesianOED(unittest.TestCase):
@@ -654,60 +676,56 @@ class TestBayesianOED(unittest.TestCase):
 
     def help_compare_prediction_based_oed(
             self, deviation_fun, gauss_deviation_fun, use_gauss_quadrature,
-            ninner_loop_samples, tol):
-        nrandom_vars = 1
-        noise_std = 1
-        ndesign = 4
-        nouter_loop_samples = int(1e2)
+            ninner_loop_samples, ndesign_vars, tol):
+        ncandidates_1d = 5
+        design_candidates = cartesian_product(
+            [np.linspace(-1, 1, ncandidates_1d)]*ndesign_vars)
+        ncandidates = design_candidates.shape[1]
 
-        ncandidates = 6
-        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        # Define model used to predict likely observable data
+        indices = compute_hyperbolic_indices(ndesign_vars, 1)[:, 1:]
+        Amat = monomial_basis_matrix(indices, design_candidates)
+        obs_fun = partial(linear_obs_fun, Amat)
 
-        def obs_fun(samples):
-            assert design_candidates.ndim == 2
-            assert samples.ndim == 2
-            Amat = design_candidates.T
-            return Amat.dot(samples).T
+        # Define model used to predict unobservable QoI
+        qoi_fun = exponential_qoi_fun
 
-        def qoi_fun(samples):
-            return np.exp(samples.sum(axis=0))[:, None]
-
+        # Define the prior PDF of the unknown variables
+        nrandom_vars = indices.shape[1]
         prior_variable = IndependentMultivariateRandomVariable(
             [stats.norm(0, 0.5)]*nrandom_vars)
 
-        true_sample = np.array([.4]*nrandom_vars)[:, None]
-
-        def obs_process(new_design_indices):
-            obs = obs_fun(true_sample)[:, new_design_indices]
-            obs += oed.noise_fun(obs)
-            return obs
-
-        generate_random_prior_samples = partial(
-            generate_independent_random_samples, prior_variable)
-
-        def generate_inner_prior_samples_mc(n):
-            # fix seed that when econ is False we are still creating
-            # the samples each time. This is just for testing purposes
-            # to make sure that econ is True does this in effect
-            np.random.seed(1)
-            return generate_random_prior_samples(n), np.ones(n)/n
-
-        if use_gauss_quadrature:
-            x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples)
-            x_quad = x_quad*np.sqrt(prior_variable.get_statistics('var')[:, 0])
-
-        def generate_inner_prior_samples_gauss(n):
-            # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[0]
-            return x_quad[None, :], w_quad
-
-        if use_gauss_quadrature:
-            generate_inner_prior_samples = generate_inner_prior_samples_gauss
-        else:
-            generate_inner_prior_samples = generate_inner_prior_samples_mc
+        # Define the independent observational noise
+        noise_std = 1
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
+
+        # Define OED options
+        nouter_loop_samples = 100
+        if use_gauss_quadrature:
+            # 301 needed for cvar deviation
+            # only 31 needed for variance deviation
+            ninner_loop_samples_1d = ninner_loop_samples
+            var_trans = AffineRandomVariableTransformation(prior_variable)
+            x_quad, w_quad = gauss_hermite_pts_wts_1D(
+                ninner_loop_samples_1d)
+            x_quad = cartesian_product([x_quad]*nrandom_vars)
+            w_quad = outer_product([w_quad]*nrandom_vars)
+            x_quad = var_trans.map_from_canonical_space(x_quad)
+            ninner_loop_samples = x_quad.shape[1]
+
+            def generate_inner_prior_samples(nsamples):
+                assert nsamples == x_quad.shape[1], (nsamples, x_quad.shape)
+                return x_quad, w_quad
+        else:
+            # use default Monte Carlo sampling
+            generate_inner_prior_samples = None
+
+        # Define initial design
+        init_design_indices = np.array([ncandidates//2])
+
+        # Setup OED problem
         oed = BayesianBatchDeviationOED(
             design_candidates, obs_fun, noise_std, prior_variable,
             qoi_fun, nouter_loop_samples, ninner_loop_samples,
@@ -720,7 +738,9 @@ class TestBayesianOED(unittest.TestCase):
         prior_cov_inv = np.linalg.inv(prior_cov)
         selected_indices = init_design_indices
 
-        for step in range(len(init_design_indices), ndesign):
+        # Generate experimental design
+        nexperiments = 3
+        for step in range(len(init_design_indices), nexperiments):
             # Copy current state of OED before new data is determined
             # This copy will be used to compute Laplace based utility and
             # evidence values for testing
@@ -734,18 +754,20 @@ class TestBayesianOED(unittest.TestCase):
 
             exact_deviations = np.empty(nouter_loop_samples)
             for jj in range(nouter_loop_samples):
+                # only test intermediate quantities associated with design
+                # chosen by the OED step
                 idx = oed.collected_design_indices
                 obs_jj = oed_copy.outer_loop_obs[jj:jj+1, idx]
 
                 noise_cov_inv_jj = np.eye(idx.shape[0])/noise_std**2
                 exact_post_mean_jj, exact_post_cov_jj = \
                     laplace_posterior_approximation_for_linear_models(
-                        design_candidates[:, idx].T,
+                        Amat[idx, :],
                         prior_mean, prior_cov_inv, noise_cov_inv_jj, obs_jj.T)
 
                 exact_deviations[jj] = gauss_deviation_fun(
                     exact_post_mean_jj, exact_post_cov_jj)
-            # print('d', exact_deviations, deviations[:, 0])
+            # print('d', np.absolute(exact_deviations-deviations[:, 0]).max())
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(
                 utility_vals[selected_indices], np.mean(exact_deviations),
@@ -755,18 +777,24 @@ class TestBayesianOED(unittest.TestCase):
         def gauss_oed_variance_deviation(mean, cov):
             # compute variance of exp(X) where X has mean and variance
             # mean, cov. I.e. compute vairance of lognormal
-            mu_g, sigma_g = mean[0], np.sqrt(cov[0, 0])
+            mu_g, sigma_g = mean.sum(), np.sqrt(cov.sum())
             pred_variable = stats.lognorm(s=sigma_g, scale=np.exp(mu_g))
             return pred_variable.var()
 
-        # self.help_compare_prediction_based_oed(
-        #     oed_variance_deviation, gauss_oed_variance_deviation, True,
-        #     21, None)
+        ndesign_vars = 1
+        self.help_compare_prediction_based_oed(
+            oed_variance_deviation, gauss_oed_variance_deviation, True,
+            21, ndesign_vars, 1e-8)
+
+        ndesign_vars = 2
+        self.help_compare_prediction_based_oed(
+            oed_variance_deviation, gauss_oed_variance_deviation, True,
+            21, ndesign_vars, 1e-8)
 
         def gauss_cvar_fun(p, mean, cov):
             # compute conditionalv value at risk of exp(X) where X has
             # mean and variance mean, cov. I.e. compute CVaR of lognormal
-            mu_g, sigma_g = mean[0], np.sqrt(cov[0, 0])
+            mu_g, sigma_g = mean.sum(), np.sqrt(cov.sum())
             mean = np.exp(mu_g+sigma_g**2/2)
             value_at_risk = np.exp(mu_g+sigma_g*np.sqrt(2)*erfinv(2*p-1))
             cvar = mean*stats.norm.cdf(
@@ -774,16 +802,25 @@ class TestBayesianOED(unittest.TestCase):
             return cvar-mean
 
         beta = 0.5
+        ndesign_vars = 1
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            True, 301, 2e-3)
+            True, 301, ndesign_vars, 2e-3)
 
         beta = 0.5
+        ndesign_vars = 1
         self.help_compare_prediction_based_oed(
             partial(oed_conditional_value_at_risk_deviation, beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
-            False, 100000, 1e-2)
+            False, 10000, ndesign_vars, 3e-2)
+
+        beta = 0.5
+        ndesign_vars = 2
+        self.help_compare_prediction_based_oed(
+            partial(oed_conditional_value_at_risk_deviation, beta,
+                    samples_sorted=True), partial(gauss_cvar_fun, beta),
+            False, 10000, ndesign_vars, 5e-2)
 
 
 if __name__ == "__main__":

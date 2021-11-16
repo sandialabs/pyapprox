@@ -321,19 +321,19 @@ def laplace_posterior_approximation_for_linear_models(
 
     Parameters
     ----------
-    linear_matrix : (num_qoi,num_dims) matrix
+    linear_matrix : (num_qoi, num_dims) matrix
         The matrix reprsenting the linear forward model.
 
-    prior_mean : (num_dims,1) vector
+    prior_mean : (num_dims, 1) vector
         The mean of the Gaussian prior
 
-    prior_hessian: (num_dims,num_dims) matrix
+    prior_hessian: (num_dims, num_dims) matrix
         The Hessian (inverse of the covariance) of the Gaussian prior
 
-    noise_covariance_inv : (num_qoi,num_qoi) matrix
+    noise_covariance_inv : (num_qoi, num_qoi) matrix
         The inverse of the covariance of the osbervational noise
 
-    obs : (num_qoi,1) vector
+    obs : (num_qoi, 1) vector
         The observations
 
     bvec : np.ndarray(num_qoi)
@@ -341,10 +341,10 @@ def laplace_posterior_approximation_for_linear_models(
 
     Returns
     -------
-    posterior_mean : (num_dims,1) vector
+    posterior_mean : (num_dims, 1) vector
         The mean of the Gaussian posterior
 
-    posterior_covariance: (num_dims,num_dims) matrix
+    posterior_covariance: (num_dims, num_dims) matrix
         The covariance of the Gaussian posterior
     """
     if prior_mean.ndim == 1:

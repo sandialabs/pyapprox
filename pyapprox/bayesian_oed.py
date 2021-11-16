@@ -227,7 +227,7 @@ def precompute_compute_expected_kl_utility_data(
 
     # generate samples and values for the outer loop
     outer_loop_prior_samples = generate_outer_prior_samples(
-        nouter_loop_samples)
+        nouter_loop_samples)[0]
     outer_loop_pred_obs = obs_fun(outer_loop_prior_samples)
     outer_loop_obs = outer_loop_pred_obs + noise_fun(outer_loop_pred_obs)
 
@@ -562,7 +562,7 @@ class BayesianBatchKLOED(object):
 
     def generate_prior_samples(self, nsamples):
         return generate_independent_random_samples(
-            self.prior_variable, nsamples)
+            self.prior_variable, nsamples), np.ones(nsamples)/nsamples
 
     def loglike_fun(self, obs, pred_obs, active_indices=None):
         return gaussian_loglike_fun(
