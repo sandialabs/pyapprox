@@ -616,15 +616,21 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # Models 2007. For how to derive analytical solution for this test case
 
         poly_degree = 3
-        num_design_pts = 30
+        num_design_pts = 60
         design_samples = np.linspace(-1, 1, num_design_pts)
+        # include theoretical optima see Boon paper
+        design_samples = np.sort(np.hstack(
+            (design_samples, -1/np.sqrt(5), 1/np.sqrt(5))))
         # noise_multiplier = None
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         opt_problem = AlphabetOptimalDesign('D', design_factors)
         mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
         II = np.where(mu > 1e-5)[0]
-        assert np.allclose(II, [0, 8, 21, 29])
+        print(design_samples[II])
+        jj = np.where(design_samples == -1/np.sqrt(5))[0][0]
+        kk = np.where(design_samples == 1/np.sqrt(5))[0][0]
+        assert np.allclose(II, [0, jj, kk, mu.shape[0]-1])
         assert np.allclose(0.25*np.ones(4), mu[II], atol=1e-5)
 
     def test_heteroscedastic_quantile_local_doptimal_design(self):

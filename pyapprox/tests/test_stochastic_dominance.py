@@ -1,9 +1,16 @@
 import unittest
-from pyapprox.first_order_stochastic_dominance import *
-from pyapprox.second_order_stochastic_dominance import *
+import numpy as np
+from functools import partial
+
+from pyapprox.first_order_stochastic_dominance import (
+    linear_model_fun, linear_model_jac, FSDOptProblem
+)
+from pyapprox.second_order_stochastic_dominance import (
+    solve_SSD_constrained_least_squares_smooth
+)
 from pyapprox.optimization import check_gradients, check_hessian
 from pyapprox.rol_minimize import has_ROL
-from functools import partial
+from pyapprox.risk_measures import compute_conditional_expectations
 
 
 skiptest_rol = unittest.skipIf(
@@ -16,8 +23,8 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         np.random.seed(1)
 
     def setup_linear_regression_problem(self, nsamples, degree, delta):
-        #samples = np.random.normal(0, 1, (1, nsamples-1))
-        #samples = np.hstack([samples, samples[:, 0:1]+delta])
+        # samples = np.random.normal(0, 1, (1, nsamples-1))
+        # samples = np.hstack([samples, samples[:, 0:1]+delta])
         samples = np.linspace(1e-3, 2+1e-3, nsamples)[None, :]
         # have two samples close together so gradient of smooth heaviside
         # function evaluated at approx_values - approx_values[jj] is
@@ -139,7 +146,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
 
         def eval_basis_matrix(x):
             return (x**np.arange(nbasis)[:, None]).T
-        tau = 0.75
+        # tau = 0.75
         tol = 1e-14
         eps = 1e-3
         optim_options = {'verbose': 3, 'maxiter': 2000,
@@ -147,7 +154,7 @@ class TestFirstOrderStochasticDominance(unittest.TestCase):
         ssd_coef = solve_SSD_constrained_least_squares_smooth(
             samples, values, eval_basis_matrix, optim_options=optim_options,
             eps=eps, method='trust-constr', scale_data=True)
-        true_coef = np.zeros((nbasis))
+        # true_coef = np.zeros((nbasis))
         approx_vals = eval_basis_matrix(samples).dot(ssd_coef)
         assert approx_vals.max() >= values.max()
         assert approx_vals.mean() >= values.mean()

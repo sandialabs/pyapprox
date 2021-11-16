@@ -716,3 +716,27 @@ def compute_posterior_mean_covar_optimal_for_prediction(
             prior_mean
 
         return opt_pf_mean, opt_pf_covar, posterior_mean, posterior_covar
+
+
+def laplace_evidence(likelihood_fun, prior_pdf, post_covariance, map_point):
+    """
+    References
+    ----------
+    Ryan, K. (2003). Estimating Expected Information Gains for Experimental
+    Designs with Application to the Random Fatigue-Limit Model. Journal of
+    Computational and Graphical Statistics, 12(3), 585-603.
+    http://www.jstor.org/stable/1391040
+
+    Friel, N. and Wyse, J. (2012), Estimating the evidence – a review.
+    Statistica Neerlandica, 66: 288-308.
+    https://doi.org/10.1111/j.1467-9574.2011.00515.x
+    """
+    assert map_point.ndim == 2
+    nvars = post_covariance.shape[0]
+    lval = likelihood_fun(map_point)
+    prior_val = prior_pdf(map_point)
+    assert lval.ndim == 1
+    assert prior_val.ndim == 2
+    evidence = (2*np.pi)**(nvars/2)*np.sqrt(np.linalg.det(post_covariance))
+    evidence *= lval[0]*prior_val[0, 0]
+    return evidence
