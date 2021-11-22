@@ -391,7 +391,7 @@ def __compute_expected_deviation_monte_carlo(
     if not return_all:
         return expected_deviation
     else:
-        return expected_deviation, deviations, evidences
+        return expected_deviation, deviations, evidences, weights
 
 
 def compute_expected_deviation_monte_carlo(
@@ -606,6 +606,8 @@ class BayesianBatchKLOED(object):
     def update_design(self):
         if not hasattr(self, "outer_loop_obs"):
             raise ValueError("Must call self.populate before creating designs")
+        if self.collected_design_indices is None:
+            self.collected_design_indices = np.zeros((0), dtype=int)
         utility_vals, selected_index = select_design(
             self.design_candidates, self.collected_design_indices,
             self.compute_expected_utility)

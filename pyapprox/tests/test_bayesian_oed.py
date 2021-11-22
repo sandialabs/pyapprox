@@ -158,8 +158,9 @@ class TestBayesianOED(unittest.TestCase):
         prior_cov_inv = np.linalg.inv(prior_cov)
         noise_cov_inv = np.eye(Amat.shape[0])/noise_std**2
 
-        generate_random_prior_samples = partial(
-            generate_independent_random_samples, prior_variable)
+        def generate_random_prior_samples(n):
+            return (generate_independent_random_samples(prior_variable, n),
+                    np.ones(n)/n)
 
         def generate_inner_prior_samples_mc(n):
             return generate_random_prior_samples(n), np.ones(n)/n
@@ -749,8 +750,9 @@ class TestBayesianOED(unittest.TestCase):
             # Update the design
             utility_vals, selected_indices = oed.update_design()
 
-            utility, deviations, evidences = oed_copy.compute_expected_utility(
-                oed_copy.collected_design_indices, selected_indices, True)
+            utility, deviations, evidences, weights = \
+                oed_copy.compute_expected_utility(
+                    oed_copy.collected_design_indices, selected_indices, True)
 
             exact_deviations = np.empty(nouter_loop_samples)
             for jj in range(nouter_loop_samples):
