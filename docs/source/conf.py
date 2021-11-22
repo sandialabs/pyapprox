@@ -12,6 +12,11 @@
 #
 import os
 import sys
+import pkg_resources
+from sphinx_gallery.sorting import _SortKey  # , ExampleTitleSortKey
+import warnings
+
+
 sys.path.append(os.path.abspath('../../'))
 sys.setrecursionlimit(1500)
 
@@ -54,7 +59,6 @@ extensions += ['sphinx_automodapi.automodapi']
 
 extensions += ['sphinx_gallery.gen_gallery']
 
-from sphinx_gallery.sorting import _SortKey, ExampleTitleSortKey
 example_filenames_in_order = [
     'plot_setup_model.py',
     'plot_monte_carlo.py',
@@ -73,10 +77,10 @@ example_filenames_in_order = [
     'plot_gaussian_mfnets.py'
 ]
 
-example_dirs = ['../../tutorials', '../../examples']
-gallery_dirs = ['auto_tutorials', 'auto_examples']
+example_dirs = ['../../tutorials']  # , '../../examples']
+gallery_dirs = ['auto_tutorials']  # , 'auto_examples']
 
-import pkg_resources
+
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
 if 'pyapprox-dev' in installed_pkgs:
     # add documentation for modules in pyapprox_dev
@@ -90,16 +94,16 @@ example_filenames_in_order += [
     'plot_sparse_grid_uq.py', 'plot_design_under_uncertainty.py']
 
 # print(installed_pkgs)
-print(example_filenames_in_order)
-print(example_dirs)
+# print(example_filenames_in_order)
+# print(example_dirs)
+
 
 class ExamplesExplicitOrder(_SortKey):
 
     def __call__(self, filename):
         return example_filenames_in_order.index(filename)
 
-    
-    
+
 # Note sphink-gallery only runs examples in files that start with plot_
 # To add subfolders in examples must add README.rst to that subfolder in
 # addition to .py files
@@ -127,7 +131,6 @@ sphinx_gallery_conf['first_notebook_cell'] = r"Add latex macros$$\newcommand{\V}
 # Note sphinx can use align with single line, e.g. a=1 & & b=1 if \\ is added to the end of the line, i.e  a=1 & & b=1\\
 
 # silence warning created by sphinx-gallery
-import warnings
 warnings.filterwarnings("ignore", category=UserWarning,
                         message='Matplotlib is currently using agg, which is a'
                                 ' non-GUI backend, so cannot show the figure.')
@@ -171,7 +174,7 @@ html_theme_options = {
     'logo_only': False,
 #    'navigation_depth': 5 # if this is set it seems to overide maxdepth set in .rst files such as index.rst
 }
-html_logo='./figures/pyapprox-logo.png'
+html_logo = './figures/pyapprox-logo.png'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -237,30 +240,29 @@ SOFTWARE.\par
 # """
 
 # used when building html version
-mathjax_config = {                  
-    "TeX": {                        
-        "Macros": {                 
-            "V": [r'{\boldsymbol{#1}}',1],
-            "mean": [r'{\mathbb{E}\left[#1\right]}',1],
-            "var": [r'{\mathbb{V}\left[#1\right]}',1],
-            "rv":r'z',
-            "reals":r'\mathbb{R}',
-            "pdf":r'\rho',
-            "rvdom":r'\Gamma',
-            "coloneqq":r'\colon=',
-            "norm":[r'{\lVert #1 \rVert}',1],
-            "argmax":[r'\operatorname{argmax}'],
-            "argmin":[r'\operatorname{argmin}'],
-            "covar":[r'\mathbb{C}\text{ov}\left[#1,#2\right]',2],
-            "corr" :[r'\mathbb{C}\text{or}\left[#1,#2\right]',2],
-            "ai":r'\alpha',
-            "bi":r'\beta',
-            "dx":[r'\;\mathrm{d}#1',1],
+mathjax_config = {
+    "TeX": {
+        "Macros": {
+            "V": [r'{\boldsymbol{#1}}', 1],
+            "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
+            "var": [r'{\mathbb{V}\left[#1\right]}', 1],
+            "rv": r'z',
+            "reals": r'\mathbb{R}',
+            "pdf": r'\rho',
+            "rvdom": r'\Gamma',
+            "coloneqq": r'\colon=',
+            "norm": [r'{\lVert #1 \rVert}', 1],
+            "argmax": [r'\operatorname{argmax}'],
+            "argmin": [r'\operatorname{argmin}'],
+            "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
+            "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
+            "ai": r'\alpha',
+            "bi": r'\beta',
+            "dx": [r'\;\mathrm{d}#1', 1],
             },
-        'extensions': ["AMSmath.js","AMSsymbols.js"]
-        }                           
-    } 
+        'extensions': ["AMSmath.js", "AMSsymbols.js"]
+        }
+    }
 
 # Supress all warnings so they do not appear in the documentation
-import warnings
 warnings.filterwarnings("ignore")
