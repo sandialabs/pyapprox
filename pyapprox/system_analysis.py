@@ -8,7 +8,9 @@ import networkx as nx
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
+from pyapprox.variable_transformations import (
+    AffineRandomVariableTransformation
+)
 from pyapprox.adaptive_sparse_grid import (
     CombinationSparseGrid,
     variance_refinement_indicator, max_level_admissibility_function,
@@ -50,6 +52,22 @@ def get_coupling_variables_via_sampling(
             diff = ub-lb
             lb = lb - diff*expansion_factor/2
             ub = ub + diff*expansion_factor/2
+            coupling_variables[jj].append(stats.uniform(lb, ub-lb))
+    return coupling_variables
+
+
+def get_coupling_variables_from_specified_ranges(network):
+    """
+    Assumes ranges have been added to graph.
+    """
+    coupling_variables = {}
+    graph = network.graph
+    for jj in graph.nodes:
+        coupling_variables[jj] = []
+        indices = graph.nodes[jj]['global_coupling_component_indices']
+        ranges = graph.nodes[jj]['coupling_variables_ranges']
+        for ii in range(len(indices)//2):
+            lb, ub = ranges[ii]
             coupling_variables[jj].append(stats.uniform(lb, ub-lb))
     return coupling_variables
 
@@ -490,9 +508,9 @@ class DecoupledSystemSurrogate(object):
             Evaluation of each component in component_ids at the samples
             Each entry of the list is np.ndarray (nsamples, nlocal_qoi)
         """
-        if len(self.config_var_indices) > 0:
-            samples = np.delete(samples, np.unique(np.hstack(
-                self.config_var_indices)), axis=0)
+        # if len(self.config_var_indices) > 0:
+        #     samples = np.delete(samples, np.unique(np.hstack(
+        #         self.config_var_indices)), axis=0)
         return self.surrogate_network(samples, component_ids)
 
     def __get_work(self):
@@ -532,3 +550,13 @@ class TerminateTest(object):
             return True
 
         return False
+
+
+def get_coupling_variable_bounds(coupling_variables):
+    coupling_bounds = []
+    for jj in coupling_variables.keys():
+        coupling_bounds_jj = []
+        for var in coupling_variables[jj]:
+            coupling_bounds_jj.append(var.interval(1))
+        coupling_bounds.append(np.asarray(coupling_bounds_jj))
+    return coupling_bounds

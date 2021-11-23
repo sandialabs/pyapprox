@@ -1,8 +1,19 @@
 import numpy as np
 import networkx as nx
+from pyapprox.utilities import flatten_2D_list
 
 
 def get_extraction_matrices(system_labels, component_labels):
+    """
+    Returns
+    -------
+    extraction_matrices : list
+        List of extraction matrices with shape below
+
+    extraction_matrix : np.ndarray (ncomponent_labels, nsystem_labels)
+        Matrix of zeros and ones. If the (i,j) entry is one that indicates
+        the ith component quantity is the jth system quantity
+    """
     ncomponents = len(component_labels)
     ncols = len(system_labels)
     adj_matrices = []
@@ -16,7 +27,64 @@ def get_extraction_matrices(system_labels, component_labels):
     return adj_matrices
 
 
-def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None):
+def get_adjacency_matrix_from_labels(
+        component_output_labels, component_coupling_labels):
+    """
+    Compute the adjacency matrix of a coupled system from the component
+    output and coupling labels
+
+    Adjacency matrices index system outputs by staking the outputs of
+    each component
+    sequentially and ordered by the index of the component. Similarly
+    the coupling variables are the component coupling variables sequentially
+    stacked. If a component does not have a coupling variable it is skipped
+    E.g. Consider 3 models each with one output and coupled in a chain.
+    The number of coupling variables are [0, 1, 1] and the number of outputs
+    are [1,1,]. The adjacency matrix will be shape (2, 3) with entries
+    [[0, 1, 0]
+    [0, 0, 1]]
+
+    Returns
+    -------
+    adjacency_matrix : np.ndarray (ncoupling_vars, noutputs)
+        Matrix of zeros and ones.  If the (i,j) entry is one that indicates
+        the ith system coupling variable is the jth system output.
+    """
+    ncomponent_outputs = [len(ol) for ol in component_output_labels]
+    ncomponent_coupling_vars = [len(cl) for cl in component_coupling_labels]
+    ncoupling_vars = np.sum(ncomponent_coupling_vars)
+    noutputs = np.sum(ncomponent_outputs)
+    adjacency_matrix = np.zeros((ncoupling_vars, noutputs))
+    all_output_labels, all_coupling_labels = [], []
+    all_output_labels = flatten_2D_list(component_output_labels)
+    all_coupling_labels = flatten_2D_list(component_coupling_labels)
+    for ii in range(len(all_coupling_labels)):
+        cl = all_coupling_labels[ii]
+        for jj in range(len(all_output_labels)):
+            ol = all_output_labels[jj]
+            if cl == ol:
+                adjacency_matrix[ii, jj] = 1
+    from scipy import sparse as scipy_sparse
+    adjacency_matrix = scipy_sparse.csr_matrix(adjacency_matrix)
+    return adjacency_matrix, all_output_labels, all_coupling_labels
+
+
+def get_adjacency_matrix_component_info(
+        component_output_labels, component_coupling_labels):
+    """
+    Returns
+    -------
+    component_info : tuple (ncomponents)
+        Tuple (ncomponent_coupling_vars, ncomponent_outputs) where
+        ncomponent_coupling_vars is a np.ndarray with shape (ncomponents) and
+        ncomponent_outputs is a np.ndarray with shape (ncomponents)
+    """
+    return (np.array([len(cl) for cl in component_coupling_labels]),
+            np.array([len(cl) for cl in component_output_labels]))
+
+
+def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None,
+                          xticklabels=None, yticklabels=None):
     r"""
     Parameters
     ----------
@@ -26,9 +94,12 @@ def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None):
         :math:`\xi_i` are coupling variables and :math:`y_j` output variables
 
     component_info : tuple (ncomponents)
-        Tuple (ncomponent_coupling_vars, ncomponent_outputs,) where
+        Tuple (ncomponent_coupling_vars, ncomponent_outputs) where
         ncomponent_coupling_vars is a np.ndarray with shape (ncomponents) and
-        ncomponent_outputs is a np.ndarray with shape (ncomponents,)
+        ncomponent_outputs is a np.ndarray with shape (ncomponents)
+        Plot code assumes that adjacency matrix stores the outputs
+        (and coupling vars) of each component sequentially, e.g. all of outputs
+        from component 1 then all outputs of component 2 and so on.
     """
     if type(adjacency_matrix) != np.ndarray:
         adjacency_matrix = adjacency_matrix.todense()
@@ -37,8 +108,11 @@ def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None):
         if np.count_nonzero(row) > 1:
             raise ValueError("Must have at most one non zero entry per row")
 
-    component_shapes = [
-        (jj, ii) for ii, jj in zip(component_info[0], component_info[1])]
+    if component_info is not None:
+        component_shapes = [
+            (jj, ii) for ii, jj in zip(component_info[0], component_info[1])]
+    else:
+        component_shapes = None
 
     from matplotlib import pyplot as plt, patches
     if ax is None:
@@ -55,6 +129,11 @@ def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None):
     ax.set_yticks(
         np.arange(-0.5, adjacency_matrix.shape[0], 1), minor=True)
     ax.grid(which="minor", color="black", linestyle="-", linewidth="1")
+
+    if xticklabels is not None:
+        ax.set_xticklabels(xticklabels, rotation=90)
+    if yticklabels is not None:
+        ax.set_yticklabels(yticklabels)
 
     if component_shapes is None:
         return
@@ -409,6 +488,70 @@ class SystemNetwork(object):
         return vals
 
 
+class GaussJacobiSystemNetwork(SystemNetwork):
+    def __init__(self, graph):
+        super().__init__(graph)
+        self.adjacency_matrix = None
+        self.exog_ext_matrices = None
+        self.coup_ext_matrices = None
+        self.qoi_ext_matrices = None
+        self.ncomponent_outputs = None
+        self.output_indices = None
+        self.init_coup_sample = None
+
+        self.functions = self.get_graph_attribute("functions")
+
+    def set_adjacency_matrix(self, adjacency_matrix):
+        self.adjacency_matrix = adjacency_matrix
+
+    def set_extraction_matrices(
+            self, exog_ext_matrices, coup_ext_matrices, qoi_ext_matrices,
+            ncomponent_outputs):
+        self.exog_ext_matrices = exog_ext_matrices
+        self.coup_ext_matrices = coup_ext_matrices
+        self.qoi_ext_matrices = qoi_ext_matrices
+        self.ncomponent_outputs = ncomponent_outputs
+        self.output_indices = np.hstack(
+            (0, np.cumsum(self.ncomponent_outputs)))
+
+    def set_initial_coupling_sample(self, init_coup_sample):
+        """
+        The same coupling sample will be used to initialize the Gauss
+        Jacobi iteration
+        """
+        self.init_coup_sample = init_coup_sample
+
+    def __call__(self, exog_samples, component_ids=None,
+                 init_coup_samples=None):
+        if (self.adjacency_matrix is None):
+            raise ValueError("Must set adjacency matrix")
+        if (self.exog_ext_matrices is None or self.coup_ext_matrices is None):
+            raise ValueError("Must set extraction matrices")
+
+        if init_coup_samples is None:
+            if (self.init_coup_sample is None):
+                msg = "Must set provide initial coupling sample for each"
+                msg += " exog_sample or use set_initial_coupling_sample"
+                raise ValueError(msg)
+            init_coup_samples = np.tile(
+                self.init_coup_sample, (1, exog_samples.shape[1]))
+        outputs = gauss_jacobi_fixed_point_iteration(
+            self.adjacency_matrix, self.exog_ext_matrices,
+            self.coup_ext_matrices, self.functions,
+            init_coup_samples, exog_samples,
+            tol=1e-15, max_iters=100, verbose=1)
+        print(outputs)
+        if component_ids is None:
+            if self.qoi_ext_matrices is None:
+                raise ValueError("Must set QoI extraction matrix")
+            # assumes output of each component are returned in sequential order
+            return np.hstack(
+                [outputs[:, self.output_indices[ii]:self.output_indices[ii+1]][:, self.qoi_ext_matrices[ii]] for ii in range(self.ncomponents())])
+        # assumes output of each component are returned in sequential order
+        return [outputs[:, self.output_indices[ii]:self.output_indices[ii+1]]
+                for ii in component_ids]
+
+
 def extract_node_data(node_id, data):
     node_data = dict()
     for key, item in data.items():
@@ -447,4 +590,21 @@ def build_peer_graph(nmodels, data=dict()):
     edges = [[ii, nmodels-1]for ii in range(nmodels-1)]
     g.add_edges_from(edges)
 
+    return g
+
+
+def build_3_component_full_graph(data=dict()):
+    """
+    0
+    | \
+    |  \
+    v   v
+    1 --> 2
+    """
+    g = nx.DiGraph()
+    for ii in range(3):
+        node_data = extract_node_data(ii, data)
+        g.add_node(ii, **node_data)
+    edges = [[0, 1], [0, 2], [1, 2]]
+    g.add_edges_from(edges)
     return g

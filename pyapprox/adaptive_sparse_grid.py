@@ -1648,7 +1648,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
         quadrule_variables)
     quad_rules = []
     max_levels = sparse_grid.subspace_indices.max(axis=1)
-    initial_points_list = []
+    # initial_points_list = []
     growth_rules = []
     all_variable = sparse_grid.variable_transformation.variable.all_variables()
     for ii in range(num_random_vars):
@@ -1669,7 +1669,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
         # map to new canonical domain
         canonical_initial_points_new = new_var_trans.map_to_canonical_space_1d(
                 initial_points_old, ii)
-        initial_points_list.append(canonical_initial_points_new)
+        # initial_points_list.append(canonical_initial_points_new)
 
         quad_rules.append(get_univariate_leja_quadrature_rule(
             quadrule_variables[ii], growth_rule, method,

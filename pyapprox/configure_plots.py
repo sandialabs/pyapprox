@@ -36,7 +36,8 @@ linestyle_tuples = {
 
 
 def mathrm_label(label):
-    return r"$\mathrm{%s}$" % label.replace(" ", r"\;")
+    label = r"$\mathrm{%s}$" % label.replace(" ", r"\;")
+    label = label.replace("-", r"}$-$\mathrm{")
     return label
 
 

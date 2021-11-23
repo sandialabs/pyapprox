@@ -58,9 +58,12 @@ def transform_initial_samples(variable, initial_points):
             initial_points = np.asarray(
                 [[variable.ppf(0.5)]]).T
             initial_points = (initial_points-loc)/scale
-        # initial samples must be in canonical space
-        assert np.all((initial_points >= bounds[0]) &
-                      (initial_points <= bounds[1]))
+        # # initial samples must be in canonical space
+        # eps = 10*np.finfo(float).eps
+        # if np.any((initial_points < bounds[0]-eps) |
+        #           (initial_points > bounds[1]+eps)):
+        #     print(initial_points - bounds[0], bounds[1]-initial_points)
+        #     raise RuntimeError("initial points out of bounds")
         return initial_points, bounds
 
     bounds = list(variable.interval(1))
