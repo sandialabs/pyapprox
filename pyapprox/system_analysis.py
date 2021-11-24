@@ -38,8 +38,8 @@ def get_coupling_variables_via_sampling(
         values = network(samples, component_ids)
         if filename is not None:
             np.savez(filename, values=values, samples=samples)
-    coupling_bounds = np.array(
-        [[v.min(axis=0), v.max(axis=0)] for v in values])
+
+    coupling_bounds = [[v.min(axis=0), v.max(axis=0)] for v in values]
     coupling_variables = {}
 
     graph = network.graph
@@ -100,7 +100,7 @@ class DecoupledSystemSurrogate(object):
                  verbose=0, estimate_coupling_ranges=False):
         self.system_network = system_network
         # self.surrogate_network = copy.deepcopy(self.system_network)
-        self.surrogate_network = self.copy_network(self.system_network)
+        self.surrogate_network = self.system_network.copy()
         self.variables = variables
         self.nrefinement_samples = int(nrefinement_samples)
         self.verbose = verbose
@@ -116,26 +116,6 @@ class DecoupledSystemSurrogate(object):
                     surr_graph.nodes[nid]['global_config_var_indices'])
                 del surr_graph.nodes[nid]['local_config_var_indices']
                 del surr_graph.nodes[nid]['global_config_var_indices']
-
-    def copy_network(self, network):
-        copy_graph = nx.DiGraph()
-        copy_graph.add_nodes_from(network.graph)
-        copy_graph.add_edges_from(network.graph.edges)
-        for nid in network.graph.nodes:
-            node = network.graph.nodes[nid]
-            for key, item in node.items():
-                if key != 'functions':
-                    copy_graph.nodes[nid][key] = copy.deepcopy(item)
-                else:
-                    # shallow copy of functions. Deep copy will try to pickle
-                    # the functions which cannot be used with PoolModel or
-                    # WorkTracker model
-                    copy_graph.nodes[nid][key] = item
-        copy_network = type(network)(copy_graph)
-        if hasattr(network, 'bicoupling_nominal_values'):
-            copy_network.bicoupling_nominal_values = \
-                network.bicoupling_nominal_values
-        return copy_network
 
     def initialize_component_surrogates(self, component_options):
         """
@@ -159,11 +139,12 @@ class DecoupledSystemSurrogate(object):
                 marginal_icdfs, len(marginal_icdfs), self.nrefinement_samples)
 
         surr_graph = self.surrogate_network.graph
-        # component_nvars = self.surrogate_network.component_nvars()
+        functions = []
         for nid in surr_graph.nodes:
             options = component_options[nid]
-            surr_graph.nodes[nid]['functions'] = \
-                self.initialize_surrogate(surr_graph.nodes[nid], **options)
+            functions.append(
+                self.initialize_surrogate(surr_graph.nodes[nid], **options))
+        self.surrogate_network.set_functions(functions)
 
         # Add first index of each variable to active set of respective grid
         self.component_output_ranges = []
@@ -190,10 +171,6 @@ class DecoupledSystemSurrogate(object):
         random_variables = [global_variables[v] for v in var_indices]
         for ii, idx in enumerate(node['local_random_var_indices']):
             local_variables[idx] = random_variables[ii]
-        # if 'coupling_variables' not in node:
-        #     msg = "must call set_coupling_variables with initial estimate of "
-        #     msg += "ranges"
-        #     raise ValueError(msg)
         coupling_variables = node['coupling_variables']
         for ii, idx in enumerate(node['local_coupling_var_indices_in']):
             local_variables[idx] = coupling_variables[ii]
@@ -207,10 +184,10 @@ class DecoupledSystemSurrogate(object):
             variables, enforce_variable_bounds)
 
         if univariate_quad_rule_info is None:
-            quad_rules, growth_rules, unique_quadrule_indices, \
-                unique_max_level_1d = \
-                    get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                        var_trans, method=quad_method, growth_incr=growth_incr)
+            (quad_rules, growth_rules, unique_quadrule_indices,
+             unique_max_level_1d) = \
+                 get_sparse_grid_univariate_leja_quadrature_rules_economical(
+                     var_trans, method=quad_method, growth_incr=growth_incr)
         else:
             quad_rules, growth_rules = univariate_quad_rule_info
             unique_quadrule_indices = None
@@ -302,10 +279,7 @@ class DecoupledSystemSurrogate(object):
 
     def __refinement_indicator(
             self, subspace_index, num_new_subspace_samples, surrogate):
-        # try:
-        values_old = self(self.random_samples_for_refinement_test)[0]
-        # except:
-        # values_old = None
+        values_old = self(self.random_samples_for_refinement_test)
 
         old_smolyak_coeffs = surrogate.smolyak_coefficients.copy()
         new_smolyak_coeffs = update_smolyak_coefficients(
@@ -316,7 +290,7 @@ class DecoupledSystemSurrogate(object):
         # try:
         values_new_all = self(self.random_samples_for_refinement_test,
                               np.arange(self.system_network.ncomponents()))
-        values_new = self(self.random_samples_for_refinement_test)[0]
+        values_new = self(self.random_samples_for_refinement_test)
         self.extract_coupling_ranges_from_samples(values_new_all)
         # except:
         # values_new = None
@@ -333,6 +307,7 @@ class DecoupledSystemSurrogate(object):
         # new_moments = [np.mean(values_new, axis=0), np.var(values_new, axis=0)]
         # error = np.absolute(new_moments[0] - moments[0])**2 + np.absolute(
         #    new_moments[1] - moments[1])
+
         error = np.linalg.norm(values_old-values_new, axis=0)
         indicator = error.copy()
 
@@ -382,7 +357,6 @@ class DecoupledSystemSurrogate(object):
             print(f'By adding subspace {subspace_indices[kk]}')
             print(f'Total work {self.get_total_work()}')
             print('--')
-
         self.component_output_ranges = []
         best_surrogate_to_refine = surr_graph.nodes[kk]['functions']
         best_surrogate_to_refine.refine()
@@ -508,9 +482,6 @@ class DecoupledSystemSurrogate(object):
             Evaluation of each component in component_ids at the samples
             Each entry of the list is np.ndarray (nsamples, nlocal_qoi)
         """
-        # if len(self.config_var_indices) > 0:
-        #     samples = np.delete(samples, np.unique(np.hstack(
-        #         self.config_var_indices)), axis=0)
         return self.surrogate_network(samples, component_ids)
 
     def __get_work(self):

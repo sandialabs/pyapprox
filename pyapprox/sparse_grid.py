@@ -497,13 +497,7 @@ def get_sparse_grid_samples_and_weights(num_vars, level,
 
 
 def get_subspace_values(values, subspace_values_indices):
-    num_qoi = values.shape[1]
-    num_subspace_samples = subspace_values_indices.shape[0]
     subspace_values = values[subspace_values_indices, :]
-    # subspace_values = np.empty((num_subspace_samples,num_qoi),dtype=float)
-    # for jj in range(num_subspace_samples):
-    #     values_index = subspace_values_indices[jj]
-    #     subspace_values[jj,:] = values[values_index,:]
     return subspace_values
 
 

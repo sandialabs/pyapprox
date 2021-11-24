@@ -5,11 +5,13 @@ from scipy import sparse as scipy_sparse
 
 from pyapprox.coupled_systems import (
     SystemNetwork, build_chain_graph, build_peer_graph, plot_adjacency_matrix,
-    gauss_jacobi_fixed_point_iteration, GaussJacobiSystemNetwork
+    gauss_jacobi_fixed_point_iteration, GaussJacobiSystemNetwork,
+    get_extraction_indices, get_extraction_matrices
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
+from pyapprox.utilities import flatten_2D_list
 
 
 def get_3_peer_polynomial_components():
@@ -320,6 +322,28 @@ class TestCoupledSystem(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
+    def test_get_extraction_matrices(self):
+        component_output_labels = [
+            ['v', 'dt_{orbit}', 'dt_{eclipse}', 'theta_{slew}'],
+            ['tau_{tot}', 'PACS'],
+            ['P_{tot}', 'A_{sa}', 'I_{max}', 'I_{min}']
+        ]
+        component_coupling_labels = [
+            [],
+            ['v', 'dt_{orbit}', 'theta_{slew}', 'I_{max}', 'I_{min}'],
+            ['PACS', 'dt_{orbit}', 'dt_{eclipse}']]
+        coup_ext_matrices = get_extraction_matrices(
+            flatten_2D_list(component_output_labels),
+            component_coupling_labels)
+        coup_ext_indices = get_extraction_indices(
+            flatten_2D_list(component_output_labels),
+            component_coupling_labels)
+        true_inds = [[], [0, 1, 3, 8, 9], [5, 1, 2]]
+        for inds, mat, tinds in zip(
+                coup_ext_indices, coup_ext_matrices, true_inds):
+            assert np.allclose(inds, tinds)
+            assert np.allclose(inds, np.where(mat == 1)[1])
+
     def test_gauss_jacobi_fpi_peer(self):
         ncomponent_outputs = [1, 1, 1]
         ncomponent_coupling_vars = [0, 0, 2]
@@ -334,9 +358,10 @@ class TestCoupledSystem(unittest.TestCase):
         # from matplotlib import pyplot as plt
         # plt.show()
 
-        # output_extraction_matrices = [[0], [1], [2]]
-        exog_extraction_matrices = [[0], [0, 1], [2]]
-        coup_extraction_matrices = [[], [], [1, 0]]
+        # output_extraction_indices = [[0], [1], [2]]
+        exog_extraction_indices = [[0], [0, 1], [2]]
+        coup_extraction_indices = [[], [], [1, 0]]
+        qoi_ext_indices = [2]
 
         graph, variables, graph_data, system_fun = \
             get_3_peer_polynomial_components()
@@ -348,10 +373,10 @@ class TestCoupledSystem(unittest.TestCase):
         init_coup_samples = np.ones((adjacency_matrix.shape[0], nsamples))
 
         outputs = gauss_jacobi_fixed_point_iteration(
-            adjacency_matrix, exog_extraction_matrices,
-            coup_extraction_matrices, component_funs,
+            adjacency_matrix, exog_extraction_indices,
+            coup_extraction_indices, component_funs,
             init_coup_samples, exog_samples,
-            tol=1e-15, max_iters=100, verbose=1)
+            tol=1e-15, max_iters=100, verbose=0)[0]
 
         true_outputs = system_fun(exog_samples)
         assert np.allclose(outputs, np.hstack(true_outputs))
@@ -359,27 +384,27 @@ class TestCoupledSystem(unittest.TestCase):
         # test when component_ids are specified
         network = GaussJacobiSystemNetwork(graph)
         network.set_adjacency_matrix(adjacency_matrix)
-        network.set_extraction_matrices(
-            exog_extraction_matrices, coup_extraction_matrices, None,
+        network.set_extraction_indices(
+            exog_extraction_indices, coup_extraction_indices, qoi_ext_indices,
             ncomponent_outputs)
         component_ids = [0, 1, 2]
         outputs = network(exog_samples, component_ids,
                           init_coup_samples=init_coup_samples)
         assert np.allclose(np.hstack(outputs), np.hstack(true_outputs))
 
-        # test when component_ids are not specified and so qoi matrices are
+        # test when component_ids are not specified and so qoi indices are
         # needed
-        qoi_ext_matrices = [[], [], [0]]  # return qoi of last model
+        qoi_ext_indices = [2]  # return qoi of last model
         network = GaussJacobiSystemNetwork(graph)
         network.set_adjacency_matrix(adjacency_matrix)
-        network.set_extraction_matrices(
-            exog_extraction_matrices, coup_extraction_matrices,
-            qoi_ext_matrices,
+        network.set_extraction_indices(
+            exog_extraction_indices, coup_extraction_indices,
+            qoi_ext_indices,
             ncomponent_outputs)
         component_ids = None
         outputs = network(exog_samples, component_ids,
                           init_coup_samples=init_coup_samples)
-        print(outputs, true_outputs[-1])
+        # print(outputs, true_outputs[-1])
         assert np.allclose(outputs, true_outputs[-1])
 
     def test_gauss_jacobi_fpi_feedback(self):
@@ -403,9 +428,9 @@ class TestCoupledSystem(unittest.TestCase):
 
         component_funs, variables = get_chaudhuri_3_component_system()
 
-        # output_extraction_matrices = [[0, 1], [1, 2], [3]]
-        exog_extraction_matrices = [[0, 1, 2], [0, 3, 4], []]
-        coup_extraction_matrices = [[0, 1], [2, 3], [4, 5]]
+        # output_extraction_indices = [[0, 1], [1, 2], [3]]
+        exog_extraction_indices = [[0, 1, 2], [0, 3, 4], []]
+        coup_extraction_indices = [[0, 1], [2, 3], [4, 5]]
 
         nsamples = 10
         exog_samples = generate_independent_random_samples(
@@ -415,11 +440,11 @@ class TestCoupledSystem(unittest.TestCase):
         init_coup_samples = 5*np.ones((adjacency_matrix.shape[0], nsamples))
 
         outputs = gauss_jacobi_fixed_point_iteration(
-            adjacency_matrix, exog_extraction_matrices,
-            coup_extraction_matrices, component_funs,
+            adjacency_matrix, exog_extraction_indices,
+            coup_extraction_indices, component_funs,
             init_coup_samples, exog_samples,
             tol=1e-12, max_iters=20, verbose=0,
-            anderson_memory=1)
+            anderson_memory=1)[0]
 
         # Mathematica Solution
         # Solve[(0.02 + (9.7236*x + 0.2486*y)/Sqrt[x^2 + y^2] - x == 0) &&
@@ -480,15 +505,15 @@ class TestCoupledSystem(unittest.TestCase):
         adjacency_matrix[2, 1] = 1
         adjacency_matrix = scipy_sparse.csr_matrix(adjacency_matrix)
 
-        exog_extraction_matrices = [[0], [0, 1], [2]]
-        coup_extraction_matrices = [[], [], [0, 1, 2]]
-        qoi_extraction_matrices = [[0], [0, 1], [0]]
+        exog_extraction_indices = [[0], [0, 1], [2]]
+        coup_extraction_indices = [[], [], [0, 1, 2]]
+        qoi_extraction_indices = [0, 2, 3, 4]
 
         network = GaussJacobiSystemNetwork(graph)
         network.set_adjacency_matrix(adjacency_matrix)
-        network.set_extraction_matrices(
-            exog_extraction_matrices, coup_extraction_matrices,
-            qoi_extraction_matrices, ncomponent_outputs)
+        network.set_extraction_indices(
+            exog_extraction_indices, coup_extraction_indices,
+            qoi_extraction_indices, ncomponent_outputs)
         network.set_initial_coupling_sample(np.ones((ncoupling_vars, 1)))
         component_ids = [0, 1, 2]
         outputs = network(samples, component_ids, init_coup_samples=None)
@@ -500,7 +525,6 @@ class TestCoupledSystem(unittest.TestCase):
 
         outputs = network(samples, component_ids=None, init_coup_samples=None)
         assert np.allclose(outputs, np.hstack(true_outputs)[:, [0, 2, 3, 4]])
-
 
     def test_recursive_feed_forward_system_of_polynomials(self):
         graph, variables, graph_data = get_3_recursive_polynomial_components()
@@ -550,3 +574,4 @@ if __name__ == "__main__":
     coupled_system_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestCoupledSystem)
     unittest.TextTestRunner(verbosity=2).run(coupled_system_test_suite)
+    

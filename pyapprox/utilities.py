@@ -7,6 +7,7 @@ from numpy.polynomial.legendre import leggauss
 
 from scipy.special import erf, beta as beta_fn, gammaln
 from scipy.linalg import solve_triangular
+from scipy.linalg import lapack
 
 from numba import njit
 
@@ -1902,3 +1903,7 @@ def flatten_2D_list(list_2d):
 def qr_solve(Q, R, rhs):
     tmp = np.dot(Q.T, rhs)
     return solve_triangular(R, tmp, lower=False)
+
+
+def equality_constrained_linear_least_squares(A, B, y, z):
+    return lapack.dgglse(A, B, y, z)[3]

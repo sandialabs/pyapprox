@@ -1,10 +1,30 @@
 import numpy as np
 import networkx as nx
-from pyapprox.utilities import flatten_2D_list
+from scipy import sparse as scipy_sparse
+import copy
+
+from pyapprox.utilities import (
+    flatten_2D_list, equality_constrained_linear_least_squares
+)
 
 
 def get_extraction_matrices(system_labels, component_labels):
     """
+    Compute the extraction matrics of each component used to extract
+    quantities from a global list
+
+    Note
+    ----
+    Should use get_extraction_indices instead
+
+    Parameters
+    ----------
+    system_labels : list
+        The collection of all component labels
+
+    component_labels : list of lists
+        The labels of each component
+
     Returns
     -------
     extraction_matrices : list
@@ -19,12 +39,44 @@ def get_extraction_matrices(system_labels, component_labels):
     adj_matrices = []
     for ii in range(ncomponents):
         nrows = len(component_labels[ii])
-        adj_matrix = np.zeros((nrows, ncols))
+        adj_matrix = np.zeros((nrows, ncols), dtype=int)
         for jj in range(nrows):
             kk = system_labels.index(component_labels[ii][jj])
             adj_matrix[jj, kk] = 1
         adj_matrices.append(adj_matrix)
     return adj_matrices
+
+
+def get_extraction_indices(system_labels, component_labels):
+    """
+    Compute the indices indicating where each component label sits in the
+    system_labels
+
+    Parameters
+    ----------
+    system_labels : list
+        The collection of all component labels
+
+    component_labels : list of lists
+        The labels of each component
+
+
+    Returns
+    -------
+    extraction_indices : list
+        List of extraction indices with shape (ncomponent_labels)
+        extraction_indices[ii][jj] indicates that the ith component quantity
+        is the jth system quantity
+    """
+    ncomponents = len(component_labels)
+    adj_indices = []
+    for ii in range(ncomponents):
+        ncoupling_vars_ii = len(component_labels[ii])
+        adj_indices_ii = np.empty(ncoupling_vars_ii, dtype=int)
+        for jj in range(ncoupling_vars_ii):
+            adj_indices_ii[jj] = system_labels.index(component_labels[ii][jj])
+        adj_indices.append(adj_indices_ii)
+    return adj_indices
 
 
 def get_adjacency_matrix_from_labels(
@@ -44,11 +96,26 @@ def get_adjacency_matrix_from_labels(
     [[0, 1, 0]
     [0, 0, 1]]
 
+    Parameters
+    ----------
+    component_output_labels : list
+        The labels of each component output
+
+    component_coupling_labels : list of lists
+        The labels of each component coupling variable
+
     Returns
     -------
     adjacency_matrix : np.ndarray (ncoupling_vars, noutputs)
         Matrix of zeros and ones.  If the (i,j) entry is one that indicates
         the ith system coupling variable is the jth system output.
+
+    all_output_labels : list
+        The labels of the system outputs (collection of all component outputs)
+
+    all_coupling_labels : list
+        The labels of the system coupling variables
+        (collection of all component outputs)
     """
     ncomponent_outputs = [len(ol) for ol in component_output_labels]
     ncomponent_coupling_vars = [len(cl) for cl in component_coupling_labels]
@@ -64,14 +131,76 @@ def get_adjacency_matrix_from_labels(
             ol = all_output_labels[jj]
             if cl == ol:
                 adjacency_matrix[ii, jj] = 1
-    from scipy import sparse as scipy_sparse
     adjacency_matrix = scipy_sparse.csr_matrix(adjacency_matrix)
     return adjacency_matrix, all_output_labels, all_coupling_labels
+
+
+def get_local_coupling_variables_indices_in(component_random_variable_labels,
+                                            component_coupling_labels,
+                                            local_random_var_indices=None):
+    """
+    Get the indices of the coupling variables of a component as they
+    appear in the system output variables.
+
+    Notes
+    -----
+    The user does not need to use this function
+    """
+    ncomponents = len(component_random_variable_labels)
+    if local_random_var_indices is None:
+        local_random_var_indices = [
+            np.arange(len(ll)) for ll in component_random_variable_labels]
+    local_coupling_var_indices_in = []
+    for ii in range(ncomponents):
+        assert len(component_random_variable_labels[ii]) == len(
+            local_random_var_indices[ii])
+        local_coupling_var_indices_in.append(
+            np.delete(np.arange(
+                len(component_random_variable_labels[ii]) +
+                len(component_coupling_labels[ii])),
+                      local_random_var_indices[ii]))
+    return local_coupling_var_indices_in
+
+
+def get_global_coupling_indices_in(component_coupling_labels,
+                                   component_output_labels):
+    """
+    Get the index pairs (ii, jj) denoting the jjth qoi of the iith component
+    which correspond to each system coupling variable
+
+    Notes
+    -----
+    The user does not need to use this function
+    """
+    ncomponents = len(component_coupling_labels)
+    global_coupling_component_indices = []
+    for ii in range(ncomponents):
+        inds = []
+        for label in component_coupling_labels[ii]:
+            for jj in range(ncomponents):
+                try:
+                    kk = component_output_labels[jj].index(label)
+                    inds += [jj, kk]
+                    break
+                except:
+                    pass
+        global_coupling_component_indices.append(inds)
+    return global_coupling_component_indices
 
 
 def get_adjacency_matrix_component_info(
         component_output_labels, component_coupling_labels):
     """
+    Get the number of coupling variables and outputs of each component
+
+    Parameters
+    ----------
+    component_output_labels : list
+        The labels of each component output
+
+    component_coupling_labels : list of lists
+        The labels of each component coupling variable
+
     Returns
     -------
     component_info : tuple (ncomponents)
@@ -86,6 +215,8 @@ def get_adjacency_matrix_component_info(
 def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None,
                           xticklabels=None, yticklabels=None):
     r"""
+    Plot an adjacency matrix
+
     Parameters
     ----------
     adjacency_matrix : np.ndarray (ncoupling_vars, noutputs)
@@ -159,29 +290,100 @@ def plot_adjacency_matrix(adjacency_matrix, component_info=None, ax=None,
         current_jdx += component_shape[1]
 
 
-def extract_sub_samples(extraction_matrix, samples):
-    # The following does not take account of sparsity
-    # sub_samples = extraction_matrix.dot(samples)
-    # so instead assume extraction matrix is a vector of indices
-    sub_samples = samples[extraction_matrix, :]
+def extract_sub_samples_using_matrix(extraction_matrix, samples):
+    """
+    Extract component quantities from the system quantities
+
+    Notes
+    -----
+    This is inefficient. Use extract_sub_samples instead
+
+    Parameters
+    ----------
+    extraction_matrix : np.ndarray (ncomponent_vars, nsystem_vars)
+        The indices of component variables as they are in the system variables
+
+    samples : np.ndarray (nsystem_vars, nsamples)
+        Samples of the system variables (collection of all component variables)
+
+    Returns
+    -------
+    sub_samples : np.ndarray (ncomponent_vars, nsamples)
+        Samples of the component variables
+    """
+    return extraction_matrix.dot(samples)
+
+
+def extract_sub_samples(extraction_indices, samples):
+    """
+    Extract component variables from the system varaibles
+
+    Parameters
+    ----------
+    extraction_indices : np.ndarray (ncomponent_vars)
+        The indices of component variables as they are in the system variables
+
+    samples : np.ndarray (nsystem_vars, nsamples)
+        Samples of the system variables (collection of all component variables)
+
+    Returns
+    -------
+    sub_samples : np.ndarray (ncomponent_vars, nsamples)
+        Samples of the component variables
+    """
+    sub_samples = samples[extraction_indices, :]
     return sub_samples
 
 
 def evaluate_component_functions(
-        component_funs, exog_extraction_matrices,
-        coup_extraction_matrices,
+        component_funs, exog_extraction_indices, coup_extraction_indices,
         exog_samples, coup_samples):
     """
-    Notes:
-    This could be parallelized if necessary
+    Evaluate a set of component functions at a set of samples
+
+    component_funs : list [callable]
+        List of funcions with signature
+
+        ``fun(component_samples)->np.ndarray (nsamples, ncomponent_outputs)``
+
+        where component_samples has shape (ncomponent_vars, nsamples).
+        WARNING: component_samples must be
+        np.vstack(exog_samples_ii, coup_samples_ii) where
+        exog_samples_ii, coup_samples_ii are the exogeneous and coupling
+        variable samples specific to the ii-th component
+
+    exog_extraction_indices : list [np.ndarray]
+        List of extraction indices that select component exogeneous variables
+        from the list of all system exogeneous varaiables
+
+    coup_extraction_indices : list [np.ndarray]
+        List of extraction indices that select component coupling variables
+        from the list of all system coupling variables
+
+    exog_samples : np.ndarray (nexog_vars, nsamples)
+        Samples of the system exogeneous variables
+
+    coup_samples : np.ndarray (nexog_vars, nsamples)
+        Sample of the system coupling variables
+
+    Returns
+    -------
+    values : np.ndarray (nsamples, nsystem_outputs)
+        The outputs of each component evaluated at the exogeneous and coupling
+        samples. The outputs of each component are stacked sequentially
+        using np.hstack
+
+    Notes
+    -----
+    This could be parallelized if necessary.
     """
     ncomponents = len(component_funs)
     values = []
     for ii in range(ncomponents):
         exog_samples_ii = extract_sub_samples(
-            exog_extraction_matrices[ii], exog_samples)
+            exog_extraction_indices[ii], exog_samples)
         coup_samples_ii = extract_sub_samples(
-            coup_extraction_matrices[ii], coup_samples)
+            coup_extraction_indices[ii], coup_samples)
         # assume component funs take all exog variables then all coup variables
         component_samples_ii = np.vstack((exog_samples_ii, coup_samples_ii))
         component_values = component_funs[ii](component_samples_ii)
@@ -189,27 +391,79 @@ def evaluate_component_functions(
     return np.hstack(values)
 
 
-def equality_constrained_linear_least_squares(A, B, y, z):
-    from scipy.linalg import lapack
-    return lapack.dgglse(A, B, y, z)[3]
-
-
 def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
-                                       exog_extraction_matrices,
-                                       coup_extraction_matrices,
+                                       exog_extraction_indices,
+                                       coup_extraction_indices,
                                        component_funs,
                                        init_coup_samples, exog_samples,
                                        tol=1e-15,
                                        max_iters=100, verbose=0,
-                                       # relax_factor=1,
                                        anderson_memory=0):
+    r"""
+    Solve a set of coupled equations using Gauss-Jacobi fixed point iteration
 
+    Parameters
+    ----------
+    adjacency_matrix : np.ndarray (ncoupling_vars, noutputs)
+        The adjacency matrix with entries that are either zero or one.
+        The entry (i,j) is one if :math:`\xi_i=y_j` zero otherwise, where
+        :math:`\xi_i` are coupling variables and :math:`y_j` output variables
+
+    exog_extraction_indices : list [np.ndarray]
+        List of extraction indices that select component exogeneous variables
+        from the list of all system exogeneous varaiables
+
+    coup_extraction_indices : list [np.ndarray]
+        List of extraction indices that select component coupling variables
+        from the list of all system coupling variables
+
+    component_funs : list [callable]
+        List of funcions with signature
+
+        ``fun(component_samples)->np.ndarray (nsamples, ncomponent_outputs)``
+
+        where component_samples has shape (ncomponent_vars, nsamples).
+        WARNING: component_samples must be
+        np.vstack(exog_samples_ii, coup_samples_ii) where
+        exog_samples_ii, coup_samples_ii are the exogeneous and coupling
+        variable samples specific to the ii-th component
+
+    init_coup_samples : np.ndarray (nsystem_coupling_vars, nsamples)
+        The initial samples of the coupling variables used to start the
+        fixed point iteration
+
+    exog_samples : np.ndarray (nexog_vars, nsamples)
+        Samples of the system exogeneous variables
+
+    tol : float
+        The error tolerance used to terminate the fixed point interation
+
+    max_iters : integer
+        The maximum number of fixed point iterations
+
+    verbose : integer
+        The amount of information to print to standard output
+
+    anderson_memory : integer
+        The amount of memory used in the Anderson extrapolation
+
+    Returns
+    -------
+    outputs : np.ndarray (nsamples, nsystem_outputs)
+        The outputs of each component evaluated at the exogeneous and coupling
+        samples. The outputs of each component are stacked sequentially
+        using np.hstack
+
+    niters_per_sample : np.ndarray(nsamples)
+        the number of iterations needed for each sample
+    """
     if init_coup_samples.shape[1] != exog_samples.shape[1]:
         raise ValueError("Must provide initial guess for every sample")
     ncomponents = len(component_funs)
-    if len(exog_extraction_matrices) != ncomponents:
+    if len(exog_extraction_indices) != ncomponents:
         raise ValueError("Must provide extraction matrix for each component")
 
+    niters_per_sample = -np.ones(exog_samples.shape[1])
     it = 0
     coup_samples = init_coup_samples
     coup_history = np.ones(
@@ -218,7 +472,7 @@ def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
         (coup_samples.shape[1], coup_samples.shape[0], anderson_memory+1))
     while True:
         outputs = evaluate_component_functions(
-            component_funs, exog_extraction_matrices, coup_extraction_matrices,
+            component_funs, exog_extraction_indices, coup_extraction_indices,
             exog_samples, coup_samples)
         new_coup_samples = adjacency_matrix.dot(outputs.T)
 
@@ -257,47 +511,33 @@ def gauss_jacobi_fixed_point_iteration(adjacency_matrix,
         # coup_samples = (
         #    relax_factor*new_coup_samples+(1-relax_factor)*coup_samples)
         it += 1
-    return outputs
-
-
-def get_local_coupling_variables_indices_in(component_random_variable_labels,
-                                            component_coupling_labels,
-                                            local_random_var_indices=None):
-    ncomponents = len(component_random_variable_labels)
-    if local_random_var_indices is None:
-        local_random_var_indices = [
-            np.arange(len(ll)) for ll in component_random_variable_labels]
-    local_coupling_var_indices_in = []
-    for ii in range(ncomponents):
-        assert len(component_random_variable_labels[ii]) == len(
-            local_random_var_indices[ii])
-        local_coupling_var_indices_in.append(
-            np.delete(np.arange(
-                len(component_random_variable_labels[ii]) +
-                len(component_coupling_labels[ii])),
-                      local_random_var_indices[ii]))
-    return local_coupling_var_indices_in
-
-
-def get_global_coupling_indices_in(component_coupling_labels,
-                                   component_output_labels):
-    ncomponents = len(component_coupling_labels)
-    global_coupling_component_indices = []
-    for ii in range(ncomponents):
-        inds = []
-        for label in component_coupling_labels[ii]:
-            for jj in range(ncomponents):
-                try:
-                    kk = component_output_labels[jj].index(label)
-                    inds += [jj, kk]
-                    break
-                except:
-                    pass
-        global_coupling_component_indices.append(inds)
-    return global_coupling_component_indices
+        niters_per_sample[(diff_norms <= tol) & (niters_per_sample < 0)] = it
+    return outputs, niters_per_sample
 
 
 def evaluate_function(graph, node_id, global_samples):
+    """
+    Evaluate a component of a system of coupled components with only feed
+    forward coupling
+
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        A directed ayclic graph encoding the coupling between components
+
+    node_id : integer
+        The component to be evaluated. No downstream components will be
+        evaluated, only components that produce outputs that effect
+        the output of the chosen component will be evaluated.
+
+    global_samples : np.ndarray (nexog_vars, nsamples)
+        Samples of the system exogeneous variables
+
+    Returns
+    -------
+    values : np.ndarray (nsamples, ncomponent_outputs)
+        The values of the component evaluated at the set of samples
+    """
     node = graph.nodes[node_id]
     global_random_var_indices = node['global_random_var_indices']
     local_random_samples = global_samples[global_random_var_indices, :]
@@ -367,6 +607,26 @@ def evaluate_function(graph, node_id, global_samples):
 
 
 def evaluate_functions(graph, global_samples, node_ids=None):
+    """
+    Evaluate a set of components in a system of coupled components with
+    only feed forward coupling
+
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        A directed ayclic graph encoding the coupling between components
+
+    global_samples : np.ndarray (nexog_vars, nsamples)
+        Samples of the system exogeneous variables
+
+    node_ids : list[integer]
+        The components to be evaluated. If None all component will be evalauted
+
+    Returns
+    -------
+    values : np.ndarray (nsamples, ncomponent_outputs)
+        The values of the component evaluated at the set of samples
+    """
     values = []
     for nid in graph.nodes:
         graph.nodes[nid]['values'] = None
@@ -380,9 +640,11 @@ def evaluate_functions(graph, global_samples, node_ids=None):
 
 class SystemNetwork(object):
     """
-    Object describing the connections between components of a system model.
+    Object describing the connections between components of a system model
+    with only feed-forward coupling.
 
     Parameters
+    ----------
     graph : :class:`networkx.DiGrapgh`
         Graph representing the coupled system
 
@@ -436,6 +698,37 @@ class SystemNetwork(object):
         self.graph = graph
         self.__validate_graph()
 
+    def set_functions(self, functions):
+        surr_graph = self.graph
+        for nid in surr_graph.nodes:
+            surr_graph.nodes[nid]['functions'] = functions[nid]
+
+    def copy_graph(self):
+        copy_graph = nx.DiGraph()
+        copy_graph.add_nodes_from(self.graph)
+        copy_graph.add_edges_from(self.graph.edges)
+        for nid in self.graph.nodes:
+            node = self.graph.nodes[nid]
+            for key, item in node.items():
+                if key != 'functions':
+                    copy_graph.nodes[nid][key] = copy.deepcopy(item)
+                else:
+                    # shallow copy of functions. Deep copy will try to pickle
+                    # the functions which cannot be used with PoolModel or
+                    # WorkTracker model
+                    copy_graph.nodes[nid][key] = item
+        return copy_graph
+
+    def copy(self):
+        """
+        Return deep copy of this object except for shallow copies of functions.
+        Deep copy will try to pickle the functions which cannot be used with
+        PoolModel or WorkTracker model
+        """
+        copy_graph = self.copy_graph()
+        copy_network = type(self)(copy_graph)
+        return copy_network
+
     def __validate_graph(self):
         for node_id in self.graph.nodes:
             node = self.graph.nodes[node_id]
@@ -472,11 +765,19 @@ class SystemNetwork(object):
 
         Returns
         -------
-        values : list
+        values : list or np.ndarray
             Evaluation of each component in component_ids at the samples
             Each entry of the list is np.ndarray (nsamples, nlocal_qoi)
+            If component_ids is None then values will be the
+            np.ndarray (nsamples, nlocal_qoi) containing only the output
+            of the most downsream component
         """
-        return evaluate_functions(self.graph, samples, component_ids)
+        values = evaluate_functions(self.graph, samples, component_ids)
+        if component_ids is None:
+            # values are outputs of most downstream component
+            # assumes these are QoI and return as np.ndarray
+            return values[0]
+        return values
 
     def ncomponents(self):
         return len(self.graph.nodes)
@@ -489,27 +790,72 @@ class SystemNetwork(object):
 
 
 class GaussJacobiSystemNetwork(SystemNetwork):
+    """
+    Use Gauss Jacobi iteration to evaluate a coupled system with either
+    feed-forward or feed-back coupling or both.
+    """
+
     def __init__(self, graph):
         super().__init__(graph)
         self.adjacency_matrix = None
-        self.exog_ext_matrices = None
-        self.coup_ext_matrices = None
-        self.qoi_ext_matrices = None
+        self.exog_ext_indices = None
+        self.coup_ext_indices = None
+        self.qoi_ext_indices = None
         self.ncomponent_outputs = None
         self.output_indices = None
         self.init_coup_sample = None
+        self.opts = {"tol": 1e-15, "max_iters": 100, "verbose": 0,
+                     "anderson_memory": 0}
+        self.functions = None
+        self.set_functions(self.get_graph_attribute("functions"))
+        self.eval_iteration_count_history = []
 
-        self.functions = self.get_graph_attribute("functions")
+    def set_functions(self, functions):
+        super().set_functions(functions)
+        self.functions = functions
 
     def set_adjacency_matrix(self, adjacency_matrix):
+        """
+        Set the system adjacency matrix
+
+        Parameters
+        ----------
+        adjacency_matrix : np.ndarray or csr_matrix (ncoupling_vars, noutputs)
+            Matrix of zeros and ones.  If the (i,j) entry is one that indicates
+            the ith system coupling variable is the jth system output.
+            self.adjacency_matrix = adjacency_matrix
+        """
         self.adjacency_matrix = adjacency_matrix
 
-    def set_extraction_matrices(
-            self, exog_ext_matrices, coup_ext_matrices, qoi_ext_matrices,
+    def set_extraction_indices(
+            self, exog_ext_indices, coup_ext_indices, qoi_ext_indices,
             ncomponent_outputs):
-        self.exog_ext_matrices = exog_ext_matrices
-        self.coup_ext_matrices = coup_ext_matrices
-        self.qoi_ext_matrices = qoi_ext_matrices
+        """
+        Parameters
+        ----------
+        exog_ext_indices : list [np.ndarray]
+            List of extraction indices that select component exogeneous
+            variables from the list of all system exogeneous varaiables
+
+        coup_ext_indices : list [np.ndarray]
+            List of extraction indices that select component coupling variables
+            from the list of all system coupling variables
+
+        coup_ext_indices : np.ndarray(nqoi)
+            List of extraction indices that select the quantities of interest
+            from the list of all system outputs
+
+        ncomponent_outputs : iterable
+            The number of ouputs of each component
+        """
+        if ((type(qoi_ext_indices) != np.ndarray or qoi_ext_indices.ndim != 1)
+            and not (type(qoi_ext_indices) == list and
+                     type(qoi_ext_indices[0]) == int)):
+            raise ValueError(
+                "qoi_ext_indices, must be a 1D np.ndarray or list")
+        self.exog_ext_indices = exog_ext_indices
+        self.coup_ext_indices = coup_ext_indices
+        self.qoi_ext_indices = qoi_ext_indices
         self.ncomponent_outputs = ncomponent_outputs
         self.output_indices = np.hstack(
             (0, np.cumsum(self.ncomponent_outputs)))
@@ -518,15 +864,65 @@ class GaussJacobiSystemNetwork(SystemNetwork):
         """
         The same coupling sample will be used to initialize the Gauss
         Jacobi iteration
+
+        init_coup_sample : np.ndarary (nsystem_coupling_vars, 1)
+            The initial value of the coupling vars
         """
+        if init_coup_sample.ndim != 2 or init_coup_sample.shape[1] != 1:
+            raise ValueError("init_coup sample must be a 2D np.ndarray")
         self.init_coup_sample = init_coup_sample
+
+    def ncoupling_vars(self):
+        return self.adjacency_matrix.shape[0]
+
+    def nsystem_outputs(self):
+        return self.adjacency_matrix.shape[1]
+
+    def set_gauss_jacobi_options(self, opts):
+        self.opts = opts
+
+    def copy(self):
+        """
+        Return deep copy of this object except for shallow copies of functions.
+        Deep copy will try to pickle the functions which cannot be used with
+        PoolModel or WorkTracker model
+        """
+        copy_graph = self.copy_graph()
+        copy_network = type(self)(copy_graph)
+        copy_network.set_adjacency_matrix(self.adjacency_matrix)
+        copy_network.set_extraction_indices(
+            self.exog_ext_indices, self.coup_ext_indices, self.qoi_ext_indices,
+            self.ncomponent_outputs)
+        copy_network.set_initial_coupling_sample(self.init_coup_sample)
+        return copy_network
 
     def __call__(self, exog_samples, component_ids=None,
                  init_coup_samples=None):
+        """
+        Evaluate the system at a set of samples.
+
+        Parameters
+        ----------
+        samples : np.ndarray (nvars, nsamples)
+            Samples of the system parameters
+
+        component_ids : iterable
+            The ids of the components whose evaluation is requested
+
+        init_coup_samples : np.ndarray (nsystem_coupling_vars, nsamples)
+            The initial samples of the coupling variables used to start the
+            fixed point iteration
+
+        Returns
+        -------
+        values : list
+            Evaluation of each component in component_ids at the samples
+            Each entry of the list is np.ndarray (nsamples, nlocal_qoi)
+        """
         if (self.adjacency_matrix is None):
             raise ValueError("Must set adjacency matrix")
-        if (self.exog_ext_matrices is None or self.coup_ext_matrices is None):
-            raise ValueError("Must set extraction matrices")
+        if (self.exog_ext_indices is None or self.coup_ext_indices is None):
+            raise ValueError("Must set extraction indices")
 
         if init_coup_samples is None:
             if (self.init_coup_sample is None):
@@ -535,24 +931,31 @@ class GaussJacobiSystemNetwork(SystemNetwork):
                 raise ValueError(msg)
             init_coup_samples = np.tile(
                 self.init_coup_sample, (1, exog_samples.shape[1]))
-        outputs = gauss_jacobi_fixed_point_iteration(
-            self.adjacency_matrix, self.exog_ext_matrices,
-            self.coup_ext_matrices, self.functions,
-            init_coup_samples, exog_samples,
-            tol=1e-15, max_iters=100, verbose=1)
-        print(outputs)
+        # init_output_samples = self.expand_initial_coupling_samples(
+        #     init_coup_samples)
+
+        outputs, iters = gauss_jacobi_fixed_point_iteration(
+            self.adjacency_matrix, self.exog_ext_indices,
+            self.coup_ext_indices, self.functions,
+            # init_output_samples,
+            init_coup_samples,
+            exog_samples, **self.opts)
+        self.eval_iteration_count_history.append(iters)
         if component_ids is None:
-            if self.qoi_ext_matrices is None:
-                raise ValueError("Must set QoI extraction matrix")
-            # assumes output of each component are returned in sequential order
-            return np.hstack(
-                [outputs[:, self.output_indices[ii]:self.output_indices[ii+1]][:, self.qoi_ext_matrices[ii]] for ii in range(self.ncomponents())])
+            if self.qoi_ext_indices is None:
+                raise ValueError("Must set QoI extraction indices")
+            qoi = outputs[:, self.qoi_ext_indices]
+            return qoi
         # assumes output of each component are returned in sequential order
         return [outputs[:, self.output_indices[ii]:self.output_indices[ii+1]]
                 for ii in component_ids]
 
 
 def extract_node_data(node_id, data):
+    """
+    Extract the values of the attributes of a node from a dictionary
+    containing node data for each component in a system
+    """
     node_data = dict()
     for key, item in data.items():
         node_data[key] = item[node_id]
@@ -561,6 +964,8 @@ def extract_node_data(node_id, data):
 
 def build_chain_graph(nmodels, data=dict()):
     """
+    Build a directed a cyclic graph that consists of a chain of components.
+
     0 -> 1 -> 2 -> ... -> n-2 -> n-1
     """
     g = nx.DiGraph()
@@ -576,6 +981,9 @@ def build_chain_graph(nmodels, data=dict()):
 
 def build_peer_graph(nmodels, data=dict()):
     """
+    Build a directed a cyclic graph that consists of a single leaf node and
+    N-1 root nodes.
+
     0   ->
     1   ->
     ...    n-1
@@ -595,6 +1003,9 @@ def build_peer_graph(nmodels, data=dict()):
 
 def build_3_component_full_graph(data=dict()):
     """
+    Build a graph with three components where components 0 and 1 both connect
+    to component 2 and component 0 also connects to component 1.
+
     0
     | \
     |  \
