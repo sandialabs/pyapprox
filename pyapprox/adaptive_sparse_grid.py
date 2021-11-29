@@ -1137,15 +1137,12 @@ class SubSpaceRefinementManager(object):
             count = item[2]  # index of grid.subspace_indices
             # find num_samples for subspace
             subspace_index = self.subspace_indices[:, count]
-            # num_new_subspace_samples = \
-            #   self.subspace_values_indices_list[count].shape[0]
             idx1 = self.unique_poly_indices_idx[count]
             if count < self.unique_poly_indices_idx.shape[0]-1:
                 idx2 = self.unique_poly_indices_idx[count+1]
             else:
                 idx2 = self.poly_indices.shape[1]
             num_new_subspace_samples = self.poly_indices[:, idx1:idx2].shape[1]
-            # print(num_subspace_samples,subspace_index)
             # compute priority and error for subspace
             priority, error = self.refinement_indicator(
                 subspace_index, num_new_subspace_samples, self)
@@ -1484,7 +1481,8 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         num_new_subspaces = new_subspace_indices.shape[1]
         num_current_subspaces = self.subspace_indices.shape[1]
         num_new_subspace_samples = super(
-            CombinationSparseGrid, self).add_new_subspaces(new_subspace_indices)
+            CombinationSparseGrid, self).add_new_subspaces(
+                new_subspace_indices)
 
         cnt = num_current_subspaces
         new_subspace_moments = np.empty(

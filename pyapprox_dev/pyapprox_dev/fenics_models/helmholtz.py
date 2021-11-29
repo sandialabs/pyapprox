@@ -1,6 +1,4 @@
-import numpy as np
 import dolfin as dl
-import matplotlib.pyplot as plt
 from pyapprox_dev.fenics_models.fenics_utilities import *
 dl.set_log_level(40)
 # dl.set_log_level(20)

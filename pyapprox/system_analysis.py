@@ -314,8 +314,6 @@ class DecoupledSystemSurrogate(object):
         qoi_chosen = np.argmax(indicator)
         indicator = indicator[qoi_chosen]
 
-        # print(subspace_index, indicator, error, qoi_chosen)
-
         cost_per_sample = surrogate.eval_cost_function(
             subspace_index[:, np.newaxis])
         cost = cost_per_sample*num_new_subspace_samples
@@ -368,6 +366,8 @@ class DecoupledSystemSurrogate(object):
             # print(nid)
             surrogate = surr_graph.nodes[nid]['functions']
             surrogate.recompute_active_subspace_priorities()
+            # tmp_priorities, tmp_subspace_indices = self.__get_priorities()
+            # print(tmp_priorities, tmp_subspace_indices)
 
         self.best_component = kk
         self.best_subspace_index = subspace_indices[kk]

@@ -4,12 +4,13 @@ from pyapprox_dev.fenics_models.advection_diffusion import \
     run_steady_state_model
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from functools import reduce
 import operator
 import math
 import dolfin as dl
 import mshr
+
+# dl.set_log_level(40)
 
 
 def sort_points_in_anti_clockwise_order(coords):
@@ -114,7 +115,7 @@ class AirfoilHeatTransferModel(object):
         self.domain = generate_blade_domain()
 
     def get_boundary_conditions_and_function_space(self, random_sample):
-        function_space = dl.FunctionSpace(self.mesh, "Lagrange", degree)
+        function_space = dl.FunctionSpace(self.mesh, "Lagrange", self.degree)
         t_c1, t_c2, t_c3, thermal_conductivity, h_le, h_te = random_sample
         airfoil_expr = dl.Expression(
             'h_te+(h_le-h_te)*std::exp(-4*std::pow(x[0]/(chord*lhot),2))',
@@ -174,6 +175,7 @@ class AirfoilHeatTransferModel(object):
             self.initialize_random_expressions(random_sample)
         sol = run_steady_state_model(
             function_space, kappa, forcing, boundary_conditions)
+        print('NDOF', resolution_levels, sol.vector().get_local().shape)
         return sol
 
     def qoi_functional(self, sol):
@@ -195,22 +197,22 @@ class AirfoilHeatTransferModel(object):
         return mesh
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    degree = 1
-    model = AirfoilHeatTransferModel(degree)
-    sample = np.array([595, 645, 705, 29, 1025, 1000, 0])
-    sol = model.solve(sample[:, np.newaxis])
+#     degree = 1
+#     model = AirfoilHeatTransferModel(degree)
+#     sample = np.array([595, 645, 705, 29, 1025, 1000, 0])
+#     sol = model.solve(sample[:, np.newaxis])
 
-    qoi = model(sample[:, np.newaxis])
+#     qoi = model(sample[:, np.newaxis])
 
-    fig, axs = plt.subplots(1, 1)
-    p = dl.plot(sol)
-    # plt.colorbar(p)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig('blade_sol.pdf')
-    plt.show()
+#     fig, axs = plt.subplots(1, 1)
+#     p = dl.plot(sol)
+#     # plt.colorbar(p)
+#     plt.axis('off')
+#     plt.tight_layout()
+#     plt.savefig('blade_sol.pdf')
+#     plt.show()
 
 
 # #check boundary

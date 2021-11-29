@@ -142,9 +142,12 @@ def get_local_coupling_variables_indices_in(component_random_variable_labels,
     Get the indices of the coupling variables of a component as they
     appear in the system output variables.
 
-    Notes
-    -----
-    The user does not need to use this function
+    Parameters
+    ----------
+    local_random_var_indices : np.ndarray (nrandom_vars)
+        The indices of the random variables as they appaer in the component
+        model. If None assume that model is parameterized by all random
+        variables first and coupling variables second.
     """
     ncomponents = len(component_random_variable_labels)
     if local_random_var_indices is None:
@@ -538,6 +541,7 @@ def evaluate_function(graph, node_id, global_samples):
     values : np.ndarray (nsamples, ncomponent_outputs)
         The values of the component evaluated at the set of samples
     """
+
     node = graph.nodes[node_id]
     global_random_var_indices = node['global_random_var_indices']
     local_random_samples = global_samples[global_random_var_indices, :]
