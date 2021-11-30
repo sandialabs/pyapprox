@@ -1200,7 +1200,7 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest 
+        The covariance C between each of the models. The highest
         fidelity model is the first model, i.e its variance is cov[0,0]
 
     costs : np.ndarray (nmodels)
@@ -1211,11 +1211,11 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
 
     Returns
     -------
-    nhf_samples : integer 
+    nhf_samples : integer
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i=r_i*nhf_samples,i=1,...,nmodels-1
 
     log10_variance : float
@@ -1240,11 +1240,9 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
 
 
 def get_rsquared_acv_KL_best(cov, nsample_ratios):
-    r""" 
-    """
     nmodels = cov.shape[1]
     opt_rsquared = -1
-    KL = None
+    # KL = None
     for K in range(1, nmodels):
         for L in range(1, K+1):
             get_discrepancy_covariances = partial(
@@ -1256,7 +1254,7 @@ def get_rsquared_acv_KL_best(cov, nsample_ratios):
             # print(K,L,rsquared)
             if rsquared > opt_rsquared:
                 opt_rsquared = rsquared
-                KL = (K, L)
+                # KL = (K, L)
     return opt_rsquared
 
 
@@ -1264,7 +1262,8 @@ def allocate_samples_acv_best_kl(cov, costs, target_cost, standardize=True,
                                  initial_guess=None, optim_options=None,
                                  optim_method='SLSQP'):
     nmodels = len(costs)
-    sol, KL, opt_log10_var = None, None, np.inf
+    sol, opt_log10_var = None, np.inf
+    # KL = None
 
     for K in range(1, nmodels):
         for L in range(1, K+1):
@@ -1272,19 +1271,19 @@ def allocate_samples_acv_best_kl(cov, costs, target_cost, standardize=True,
             nhf_samples, nsample_ratios, log10_var = allocate_samples_acv(
                 cov, costs, target_cost, estimator, standardize,
                 initial_guess, optim_options, optim_method)
-            #print("K, L = ", K, L)
-            #print("\t ", log10_var)
+            # print("K, L = ", K, L)
+            # print("\t ", log10_var)
             if log10_var < opt_log10_var:
                 opt_log10_var = log10_var
                 sol = (nhf_samples, nsample_ratios)
-                KL = (K, L)
+                # KL = (K, L)
 
     return sol[0], sol[1], opt_log10_var
 
 
 class ModelEnsemble(object):
     r"""
-    Wrapper class to allow easy one-dimensional 
+    Wrapper class to allow easy one-dimensional
     indexing of models in an ensemble.
     """
 
@@ -1302,14 +1301,43 @@ class ModelEnsemble(object):
             names = ['f%d' % ii for ii in range(self.nmodels)]
         self.names = names
 
+    def evaluate_at_separated_samples(self, samples_list, active_model_ids):
+        r"""
+        Evaluate a set of models at different sets of samples.
+        The models need not have the same parameters.
+
+        Parameters
+        ----------
+        samples_list : list[np.ndarray (nvars_ii, nsamples_ii)]
+            Realizations of the multivariate random variable model to evaluate
+            each model.
+
+        active_model_ids : iterable
+            The models to evaluate
+
+        Returns
+        -------
+        values_list : list[np.ndarray (nsamples,nqoi)]
+            The values of the models at the different sets of samples
+
+        """
+        values_0 = self.functions[active_model_ids[0]](samples_list[0])
+        assert values_0.ndim == 2
+        values_list = [values_0]
+        for ii in range(1, active_model_ids.shape[0]):
+            values_list.append(self.functions[active_model_ids[ii]](
+                samples_list[ii]))
+        return values_list
+
     def __call__(self, samples):
         r"""
-        Evaluate a set of models at a set of samples
+        Evaluate a set of models at a set of samples. The models must have the
+        same parameters.
 
         Parameters
         ----------
         samples : np.ndarray (nvars+1,nsamples)
-            Realizations of a multivariate random variable each with an 
+            Realizations of a multivariate random variable each with an
             additional scalar model id indicating which model to evaluate.
 
         Returns
@@ -1322,16 +1350,16 @@ class ModelEnsemble(object):
         assert model_ids.max() < self.nmodels
         active_model_ids = np.unique(model_ids).astype(int)
         active_model_id = active_model_ids[0]
-        I = np.where(model_ids == active_model_id)[0]
-        values_0 = self.functions[active_model_id](samples[:-1, I])
+        II = np.where(model_ids == active_model_id)[0]
+        values_0 = self.functions[active_model_id](samples[:-1, II])
         assert values_0.ndim == 2
         nqoi = values_0.shape[1]
         values = np.empty((samples.shape[1], nqoi))
-        values[I, :] = values_0
+        values[II, :] = values_0
         for ii in range(1, active_model_ids.shape[0]):
             active_model_id = active_model_ids[ii]
-            I = np.where(model_ids == active_model_id)[0]
-            values[I] = self.functions[active_model_id](samples[:-1, I])
+            II = np.where(model_ids == active_model_id)[0]
+            values[II] = self.functions[active_model_id](samples[:-1, II])
         return values
 
 
@@ -1566,7 +1594,7 @@ def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
         get_cv_weights, seed):
     r"""
     Compute the approximate control variate estimate of a high-fidelity
-    model from using it and a set of lower fidelity models. 
+    model from using it and a set of lower fidelity models.
     Also compute the single fidelity Monte Carlo estimate of the mean from
     only the high-fidelity data.
 
@@ -1605,17 +1633,18 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
                                 ntrials=1e3, max_eval_concurrency=1,
                                 target_cost=None, costs=None):
     r"""
-    Numerically estimate the variance of an approximate control variate estimator
-    and compare its value to the estimator using only the high-fidelity data.
+    Numerically estimate the variance of an approximate control variate
+    estimator and compare its value to the estimator using only the
+    high-fidelity data.
 
     Parameters
     ----------
     ntrials : integer
-        The number of times to compute estimator using different randomly 
+        The number of times to compute estimator using different randomly
         generated set of samples
 
     max_eval_concurrency : integer
-        The number of processors used to compute realizations of the estimators,
+        The number of processors used to compute realizations of the estimators
         which can be run independently and in parallel.
     """
 
@@ -1654,7 +1683,7 @@ def estimate_variance_reduction(model_ensemble, cov, generate_samples,
 def get_mfmc_control_variate_weights_pool_wrapper(cov, nsamples):
     r"""
     Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with 
+    cannot be defined as a lambda locally in a test when using with
     multiprocessing pool because python cannot pickle such lambda functions
     """
     return get_mfmc_control_variate_weights(cov)
@@ -1663,7 +1692,7 @@ def get_mfmc_control_variate_weights_pool_wrapper(cov, nsamples):
 def get_mlmc_control_variate_weights_pool_wrapper(cov, nsamples):
     r"""
     Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with 
+    cannot be defined as a lambda locally in a test when using with
     multiprocessing pool because python cannot pickle such lambda functions
     """
     return get_mlmc_control_variate_weights(cov.shape[0])
@@ -1711,7 +1740,7 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
         The number of information sources
 
     variable : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
-        Object defining the nvar uncertain random variables. 
+        Object defining the nvar uncertain random variables.
         Samples will be drawn from its joint density.
 
     model_ensemble : callable
@@ -1719,7 +1748,7 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
 
         ``model_ensemble(samples) -> np.ndarray (nsamples,1)``
 
-        where samples is a np.ndarray with shape (nvars+1,nsamples) 
+        where samples is a np.ndarray with shape (nvars+1,nsamples)
 
     npilot_samples : integer
         The number of samples used to compute correlations
@@ -1750,7 +1779,7 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
 
 def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
     """
-    Approxiamte the variance of the Monte Carlo estimate of the mean using 
+    Approxiamte the variance of the Monte Carlo estimate of the mean using
     bootstraping
 
     Parameters
@@ -1792,22 +1821,22 @@ def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
 def bootstrap_mfmc_estimator(values, weights, nbootstraps=10,
                              verbose=True, acv_modification=True):
     r"""
-    Boostrap the approximate MFMC estimate of the mean of 
+    Boostrap the approximate MFMC estimate of the mean of
     high-fidelity data with low-fidelity models with unknown means
 
     Parameters
     ----------
     values : list (nmodels)
         The evaluations of each information source seperated in form
-        necessary for control variate estimators. 
+        necessary for control variate estimators.
         Each entry of the list contains
 
         values0 : np.ndarray (num_samples_i0,num_qoi)
            Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of 
+           used to compute the estimator :math:`Q_{i,N}` of
 
         values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate 
+            Evaluations used compute the approximate
             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
 
     weights : np.ndarray (nmodels-1)
@@ -1846,7 +1875,8 @@ def bootstrap_mfmc_estimator(values, weights, nbootstraps=10,
             nsamples2 = vals2.shape[0]
             assert nsamples1 == nhf_samples
             I2 = np.random.choice(
-                np.arange(nhf_samples, nsamples2), size=(nsamples2-nhf_samples),
+                np.arange(nhf_samples, nsamples2),
+                size=(nsamples2-nhf_samples),
                 replace=True)
             # maks sure same shared samples are still used.
             vals2_boot = np.vstack([vals2[I1], vals2[I2]])
@@ -1871,7 +1901,7 @@ def compute_covariance_from_control_variate_samples(values):
     ----------
     values : list (nmodels)
         The evaluations of each information source seperated in form
-        necessary for control variate estimators. 
+        necessary for control variate estimators.
         Each entry of the list contains
 
         values0 : np.ndarray (num_samples_i0,num_qoi)
@@ -1879,7 +1909,7 @@ def compute_covariance_from_control_variate_samples(values):
            used to compute the estimator :math:`Q_{i,N}` of
 
         values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate 
+            Evaluations used compute the approximate
              mean :math:`\mu_{i,r_iN}` of the low fidelity models.
 
     Returns
@@ -1894,7 +1924,8 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def compare_estimator_variances(target_costs, estimators, cov_matrix, model_costs):
+def compare_estimator_variances(
+        target_costs, estimators, cov_matrix, model_costs):
     variances, nsamples_history = [], []
     for target_cost in target_costs:
         for estimator in estimators:

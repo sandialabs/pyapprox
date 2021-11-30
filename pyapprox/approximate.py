@@ -832,8 +832,8 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     basis_type : string
         Type of approximation. Should be one of
 
-        - 'expanding_basis' see :func:`pyapprox.approximate.cross_validate_pce_degree`
-        - 'hyperbolic_cross' see :func:`pyapprox.approximate.expanding_basis_pce`
+        - 'hyperbolic_cross' see :func:`pyapprox.approximate.cross_validate_pce_degree`
+        - 'expanding_basis' see :func:`pyapprox.approximate.expanding_basis_pce`
         - 'fixed' see :func:`pyapprox.approximate.approximate_fixed_pce`
 
     variable : pya.IndependentMultivariateRandomVariable
@@ -855,6 +855,8 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
          - :func:`pyapprox.approximate.cross_validate_pce_degree`
 
          - :func:`pyapprox.approximate.expanding_basis_pce`
+
+         - :func:`pyapprox.approximate.approximate_fixed_pce`
     """
     funcs = {'expanding_basis': expanding_basis_pce,
              'hyperbolic_cross': cross_validate_pce_degree,
@@ -1802,3 +1804,112 @@ def cross_validate_approximation(
         cv_score += np.sum(residues**2, axis=0)
     cv_score = np.sqrt(cv_score/ntrain_samples)
     return approx_list, residues_list, cv_score
+
+
+def quadratic_oversampling_ratio(nindices):
+    return nindices**2
+
+
+def increment_samples_using_oversampling_ratio(
+        train_samples, indices, oversampling_ratio, generate_samples):
+    ndesired_samples = oversampling_ratio(indices.shape[1])
+    nnew_samples = ndesired_samples-train_samples.shape[1]
+    new_train_samples = generate_samples(nnew_samples)
+    return new_train_samples
+
+
+def increment_samples_using_condition_number(
+        train_samples, indices, pce, generate_samples, sample_growth_factor,
+        cond_tol, max_nsamples):
+    pce.set_indices(indices)
+    ndesired_samples = indices.shape[1]
+    cond_num = np.inf
+    ncurrent_samples = train_samples.shape[1]
+    new_train_samples = np.zeros((pce.num_vars(), 0))
+    if train_samples.shape[1] == 0:
+        basis_matrix = np.zeros((0, indices.shape[1]))
+    else:
+        basis_matrix = pce.basis_matrix(train_samples)
+    while True:
+        ndesired_samples = min(
+            ndesired_samples*sample_growth_factor, max_nsamples)
+        assert ndesired_samples > ncurrent_samples
+        # generate a new increment of samples
+        nsample_incr = ndesired_samples-(
+            ncurrent_samples+new_train_samples.shape[1])
+        print(ncurrent_samples, nsample_incr, train_samples.shape,
+              ndesired_samples, indices.shape)
+        samples_incr = generate_samples(nsample_incr)
+        # add increment to total set of new samples
+        new_train_samples = np.hstack((
+            new_train_samples, samples_incr))
+        # compute basis matrix for sample increment
+        basis_matrix_incr = pce.basis_matrix(samples_incr)
+        # compute condition number of entire sample set
+        basis_matrix = np.vstack((basis_matrix, basis_matrix_incr))
+        cond_num = np.linalg.cond(basis_matrix)
+        if cond_num <= cond_tol:
+            break
+        if ncurrent_samples + new_train_samples.shape[1] >= max_nsamples:
+            break
+    return new_train_samples
+
+
+def adaptive_approximate_polynomial_chaos_increment_degree(
+        fun, pce, max_degree, max_nsamples=100, cond_tol=None,
+        sample_growth_factor=2, verbose=0, hcross_strength=1,
+        oversampling_ratio=quadratic_oversampling_ratio,
+        solver_type='lasso', linear_solver_options={},
+        callback=None):
+
+    if cond_tol is not None and oversampling_ratio is not None:
+        raise ValueError("cond_tol or over_sampling_ratio must be None")
+
+    if cond_tol is None and oversampling_ratio is None:
+        raise ValueError("cond_tol or over_sampling_ratio must be None")
+
+    degree = 0
+    generate_samples = partial(
+        generate_independent_random_samples, pce.var_trans.variable)
+    train_samples = np.zeros((pce.num_vars(), 0))
+    while True:
+        if degree > max_degree:
+            break
+        if train_samples.shape[1] > max_nsamples:
+            break
+
+        indices = compute_hyperbolic_indices(
+            pce.num_vars(), degree, hcross_strength)
+        if cond_tol is not None:
+            new_train_samples = increment_samples_using_condition_number(
+                train_samples, indices, pce, generate_samples,
+                sample_growth_factor, cond_tol, max_nsamples)
+        else:
+            new_train_samples = increment_samples_using_oversampling_ratio(
+                train_samples, indices, oversampling_ratio, generate_samples)
+        new_train_values = fun(new_train_samples)
+        if train_samples.shape[1] == 0:
+            train_values = new_train_values
+        else:
+            train_values = np.vstack((train_values, new_train_values))
+        train_samples = np.hstack((train_samples, new_train_samples))
+        # Todo allow expanding basis as well
+        result = approximate_fixed_pce(
+            pce, train_samples, train_values, indices, verbose,
+            solver_type, linear_solver_options)
+        if callback is not None:
+            callback(result.approx)
+        # TODO: if requested add exit condition that checks cross validation
+        # error. For now if want to print cross validation error
+        # implement that inside a callback
+        # if nfolds > 0:
+        #     method_opts = {"basis_type": "fixed", "verbose": verbose}
+        #     method = approximate_polynomial_chaos()
+        #     cv_score = cross_validate_approximation(
+        #         train_samples, train_values, method_options, nfolds, method)
+
+        degree += 1
+    result = ApproximateResult(
+        {'approx': result.approx, 'train_samples': train_samples,
+         'train_values': train_values})
+    return result

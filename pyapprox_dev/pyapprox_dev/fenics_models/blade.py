@@ -4,7 +4,7 @@ from pyapprox_dev.fenics_models.advection_diffusion import \
     run_steady_state_model
 import os
 import numpy as np
-from functools import reduce
+from functools import reduce, lru_cache
 import operator
 import math
 import dolfin as dl
@@ -192,40 +192,10 @@ class AirfoilHeatTransferModel(object):
             vals = vals[:, np.newaxis]
         return vals
 
+    # lru cache is needed for multi-fidelity studies to ensure
+    # same mesh for a given resolution. There seems to be some randomness
+    # to mesh generation
+    @lru_cache(maxsize=10)
     def get_mesh(self, resolution):
         mesh = mshr.generate_mesh(self.domain, resolution)
         return mesh
-
-
-# if __name__ == '__main__':
-
-#     degree = 1
-#     model = AirfoilHeatTransferModel(degree)
-#     sample = np.array([595, 645, 705, 29, 1025, 1000, 0])
-#     sol = model.solve(sample[:, np.newaxis])
-
-#     qoi = model(sample[:, np.newaxis])
-
-#     fig, axs = plt.subplots(1, 1)
-#     p = dl.plot(sol)
-#     # plt.colorbar(p)
-#     plt.axis('off')
-#     plt.tight_layout()
-#     plt.savefig('blade_sol.pdf')
-#     plt.show()
-
-
-# #check boundary
-# from pyapprox_dev.fenics_models.fenics_utilities import mark_boundaries, collect_dirichlet_boundaries
-# boundaries = mark_boundaries(mesh,boundary_conditions)
-# dirichlet_bcs = collect_dirichlet_boundaries(
-#     function_space,boundary_conditions, boundaries)
-# temp = dl.Function(function_space)
-# temp.vector()[:]=-1
-# for bc in dirichlet_bcs:
-#     bc.apply(temp.vector())
-# fig,axs=plt.subplots(1,1)
-# p=dl.plot(temp)
-# plt.colorbar(p)
-# #dl.plot(mesh)
-# plt.show()

@@ -4,9 +4,12 @@ import numpy as np
 import copy
 from functools import partial
 
-from pyapprox.approximate import approximate, adaptive_approximate, \
-    cross_validate_pce_degree, compute_l2_error, \
-    cross_validate_approximation, LinearLeastSquaresCV
+from pyapprox.approximate import (
+    approximate, adaptive_approximate,
+    cross_validate_pce_degree, compute_l2_error,
+    cross_validate_approximation, LinearLeastSquaresCV,
+    adaptive_approximate_polynomial_chaos_increment_degree
+)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 import pyapprox as pya
 
@@ -541,7 +544,36 @@ class TestApproximate(unittest.TestCase):
         print(error)
         assert error < 6e-2
 
+    def test_adaptive_approximate_increment_degree(self):
+        num_vars = 2
+        univariate_variables = [stats.uniform(-1, 2)]*num_vars
+        variable = pya.IndependentMultivariateRandomVariable(
+            univariate_variables)
+        var_trans = pya.AffineRandomVariableTransformation(variable)
+        poly = pya.PolynomialChaosExpansion()
+        poly_opts = pya.define_poly_options_from_variable_transformation(
+            var_trans)
+        poly.configure(poly_opts)
 
+        degree = 3
+        poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree))
+        poly.set_coefficients(
+            np.random.normal(0, 1, (poly.indices.shape[1], 1)))
+        fun = poly
+
+        max_degree = degree+2
+        pce = copy.deepcopy(poly)
+        result = adaptive_approximate_polynomial_chaos_increment_degree(
+            fun, pce, max_degree, max_nsamples=100, cond_tol=1e4,
+            sample_growth_factor=2, verbose=0,
+            oversampling_ratio=None, solver_type='lstsq',
+            callback=None)
+        print('Ntrain samples', result.train_samples.shape[1])
+        assert np.allclose(
+            result.approx.coefficients[:poly.coefficients.shape[0]],
+            poly.coefficients)
+
+        
 if __name__ == "__main__":
     approximate_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestApproximate)
