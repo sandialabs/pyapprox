@@ -562,9 +562,8 @@ class TestApproximate(unittest.TestCase):
         fun = poly
 
         max_degree = degree+2
-        pce = copy.deepcopy(poly)
         result = adaptive_approximate_polynomial_chaos_increment_degree(
-            fun, pce, max_degree, max_nsamples=100, cond_tol=1e4,
+            fun, variable, max_degree, max_nsamples=31, cond_tol=1e4,
             sample_growth_factor=2, verbose=0,
             oversampling_ratio=None, solver_type='lstsq',
             callback=None)

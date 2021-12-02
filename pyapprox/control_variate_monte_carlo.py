@@ -43,10 +43,10 @@ def compute_correlations_from_covariance(cov):
 
 def standardize_sample_ratios(nhf_samples, nsample_ratios):
     """
-    Ensure num high fidelity samples is positive (>0) and then recompute 
-    sample ratios. This is useful when num high fidelity samples and 
-    sample ratios are computed by an optimization process. This function 
-    is useful for optimization problems with a numerical or analytical 
+    Ensure num high fidelity samples is positive (>0) and then recompute
+    sample ratios. This is useful when num high fidelity samples and
+    sample ratios are computed by an optimization process. This function
+    is useful for optimization problems with a numerical or analytical
     solution.
 
     Parameters
@@ -55,8 +55,8 @@ def standardize_sample_ratios(nhf_samples, nsample_ratios):
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        The sample ratios r used to specify the number of samples of the
+        lower fidelity models, e.g. N_i = r_i*nhf_samples,
         i=1,...,nmodels-1
 
     Returns
@@ -70,8 +70,6 @@ def standardize_sample_ratios(nhf_samples, nsample_ratios):
     nsamples = np.array([r*nhf_samples for r in nsample_ratios])
     nhf_samples = int(max(1, np.floor(nhf_samples)))
     nsample_ratios = np.floor(nsamples)/nhf_samples
-    #nhf_samples = int(max(1,np.round(nhf_samples)))
-    #nsample_ratios = [max(np.round(nn/nhf_samples),0) for nn in nsamples]
     return nhf_samples, np.asarray(nsample_ratios)
 
 
@@ -111,7 +109,7 @@ def get_control_variate_rsquared(cov):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity 
+        The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
     Returns
@@ -119,7 +117,7 @@ def get_control_variate_rsquared(cov):
     rsquared : float
         The value  :math:`r^2`
     """
-    nmodels = cov.shape[0]
+    # nmodels = cov.shape[0]
     rsquared = cov[0, 1:].dot(np.linalg.solve(cov[1:, 1:], cov[1:, 0]))
     rsquared /= cov[0, 0]
     return rsquared
@@ -127,17 +125,17 @@ def get_control_variate_rsquared(cov):
 
 def get_rsquared_mfmc(cov, nsample_ratios):
     r"""
-    Compute r^2 used to compute the variance reduction  of 
+    Compute r^2 used to compute the variance reduction  of
     Multifidelity Monte Carlo (MFMC)
 
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity 
+        The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
     Returns
@@ -159,7 +157,7 @@ def get_rsquared_mfmc(cov, nsample_ratios):
 
 def get_rsquared_mlmc(cov, nsample_ratios, pkg=np):
     r"""
-    Compute r^2 used to compute the variance reduction of 
+    Compute r^2 used to compute the variance reduction of
     Multilevel Monte Carlo (MLMC)
 
     See Equation 2.24 in ARXIV paper where alpha_i=-1 for all i
@@ -167,12 +165,12 @@ def get_rsquared_mlmc(cov, nsample_ratios, pkg=np):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity 
+        The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        The sample ratios r used to specify the number of samples of the
+        lower fidelity models, e.g. N_i = r_i*nhf_samples,
         i=1,...,nmodels-1.
         The values r_i correspond to eta_i in Equation 2.24
 
@@ -213,7 +211,7 @@ def get_mlmc_control_variate_weights(nmodels):
 
 def compute_approximate_control_variate_mean_estimate(weights, values):
     r"""
-    Use approximate control variate Monte Carlo to estimate the mean of 
+    Use approximate control variate Monte Carlo to estimate the mean of
     high-fidelity data with low-fidelity models with unknown means
 
     Parameters
@@ -223,10 +221,10 @@ def compute_approximate_control_variate_mean_estimate(weights, values):
 
         values0 : np.ndarray (num_samples_i0,num_qoi)
            Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of 
+           used to compute the estimator :math:`Q_{i,N}` of
 
         values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate 
+            Evaluations used compute the approximate
             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
 
     weights : np.ndarray (nmodels-1)
@@ -248,7 +246,7 @@ def compute_approximate_control_variate_mean_estimate(weights, values):
 
 def compute_control_variate_mean_estimate(weights, values, lf_means):
     r"""
-    Use control variate Monte Carlo to estimate the mean of 
+    Use control variate Monte Carlo to estimate the mean of
     high-fidelity data with low-fidelity models with known means
 
     Parameters
@@ -258,7 +256,7 @@ def compute_control_variate_mean_estimate(weights, values, lf_means):
 
         values0 : np.ndarray (num_samples_i0,num_qoi)
            Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of 
+           used to compute the estimator :math:`Q_{i,N}` of
 
     weights : np.ndarray (nmodels-1)
         the control variate weights
@@ -288,7 +286,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity 
+        The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
     costs : np.ndarray (nmodels)
@@ -298,17 +296,17 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
         The total cost budget
 
     standardize : boolean
-        If true make sure that nhf_samples is an integer and that 
-        nhf_samples*nsamples_ratios are integers. False is only ever used 
+        If true make sure that nhf_samples is an integer and that
+        nhf_samples*nsamples_ratios are integers. False is only ever used
         for testing.
 
     Returns
     -------
-    nhf_samples : integer 
+    nhf_samples : integer
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i=r_i*nhf_samples, i=1,...,nmodels-1
 
     log10_variance : float
@@ -317,8 +315,8 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
 
     nmodels = cov.shape[0]
     corr = compute_correlations_from_covariance(cov)
-    I = np.argsort(np.absolute(corr[0, 1:]))[::-1]
-    if not np.allclose(I, np.arange(nmodels-1)):
+    II = np.argsort(np.absolute(corr[0, 1:]))[::-1]
+    if not np.allclose(II, np.arange(nmodels-1)):
         msg = 'Models must be ordered with decreasing correlation with '
         msg += 'high-fidelity model'
         raise Exception(msg)
@@ -330,7 +328,7 @@ def allocate_samples_mfmc(cov, costs, target_cost, standardize=True):
     #     #print(ii, cost_ratio, corr_ratio, corr[0, ii:ii+3]**2,
     #     #corr[0, ii:ii+2], costs[ii:ii+2])
     #     assert cost_ratio > corr_ratio, (cost_ratio, corr_ratio)
-        
+
     # ii = nmodels-2
     # corr_ratio = (corr[0, ii]**2 - corr[0, ii+1]**2)/(corr[0, ii+1]**2)
     # cost_ratio = costs[ii] / costs[ii+1]
@@ -371,7 +369,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
     Parameters
     ----------
     cov : np.ndarray (nmodels,nmodels)
-        The covariance C between each of the models. The highest fidelity 
+        The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
     costs : np.ndarray (nmodels)
@@ -381,19 +379,19 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
         The total cost budget
 
     standardize : boolean
-        If true make sure that nhf_samples is an integer and that 
-        nhf_samples*nsamples_ratios are integers. False is only ever used 
+        If true make sure that nhf_samples is an integer and that
+        nhf_samples*nsamples_ratios are integers. False is only ever used
         for testing.
 
 
     Returns
     -------
-    nhf_samples : integer 
+    nhf_samples : integer
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
-        lower fidelity models, e.g. N_i = r_i*nhf_samples, 
+        The sample ratios r used to specify the number of samples of the
+        lower fidelity models, e.g. N_i = r_i*nhf_samples,
         i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
         the number of samples in the two different discrepancies involving
         the ith model.
@@ -460,7 +458,7 @@ def allocate_samples_mlmc(cov, costs, target_cost, standardize=True):
 
 def get_lagrange_multiplier_mlmc(cov, costs, nhf_samples):
     r"""
-    Given an optimal sample allocation recover the optimal value of the 
+    Given an optimal sample allocation recover the optimal value of the
     Lagrange multiplier. This is only used for testing
     """
     ii = 0  # 0th discrepancy
@@ -472,10 +470,10 @@ def get_lagrange_multiplier_mlmc(cov, costs, nhf_samples):
 
 def get_discrepancy_covariances_IS(cov, nsample_ratios, pkg=np):
     r"""
-    Get the covariances of the discrepancies :math:`\delta` 
-    between each low-fidelity model and its estimated mean when the same 
-    :math:`N` samples are used to compute the covariance between each models 
-    and :math:`N-r_\alpha` samples are allocated to 
+    Get the covariances of the discrepancies :math:`\delta`
+    between each low-fidelity model and its estimated mean when the same
+    :math:`N` samples are used to compute the covariance between each models
+    and :math:`N-r_\alpha` samples are allocated to
     estimate the low-fidelity means, and each of these sets are drawn
     independently from one another.
 
@@ -496,7 +494,7 @@ def get_discrepancy_covariances_IS(cov, nsample_ratios, pkg=np):
         The matrix of covariances between the discrepancies :math:`\delta`
 
     cf : np.ndarray (nmodels-1)
-        The vector of covariances between the discrepancies and the 
+        The vector of covariances between the discrepancies and the
         high-fidelity model.
     """
     nmodels = cov.shape[0]
@@ -515,7 +513,7 @@ def get_discrepancy_covariances_IS(cov, nsample_ratios, pkg=np):
 
 def get_discrepancy_covariances_MF(cov, nsample_ratios, pkg=np):
     r"""
-    Get the covariances of the discrepancies :math:`\delta` 
+    Get the covariances of the discrepancies :math:`\delta`
     between each low-fidelity model and its estimated mean using the MFMC
     sampling strategy.
 
@@ -536,7 +534,7 @@ def get_discrepancy_covariances_MF(cov, nsample_ratios, pkg=np):
         The matrix of covariances between the discrepancies :math:`\delta`
 
     cf : np.ndarray (nmodels-1)
-        The vector of covariances between the discrepancies and the 
+        The vector of covariances between the discrepancies and the
         high-fidelity model.
     """
     nmodels = cov.shape[0]
@@ -553,16 +551,16 @@ def get_discrepancy_covariances_MF(cov, nsample_ratios, pkg=np):
 
 def get_discrepancy_covariances_KL(cov, nsample_ratios, K, L, pkg=np):
     r"""
-    Get the covariances of the discrepancies :math:`\delta` 
+    Get the covariances of the discrepancies :math:`\delta`
     between each low-fidelity model and its estimated mean using the MFMC
     sampling strategy and the ACV KL estimator.
 
-    The ACV-KL estimator partitions all of the control variates into two 
-    groups; the first K variables form a K -level approximate control 
+    The ACV-KL estimator partitions all of the control variates into two
+    groups; the first K variables form a K -level approximate control
     variate, and the last :math:`M-K` variables are used to reduce the variance
-    of estimating :math:`\mu_L` some :math:`L \le K` . The resulting estimator 
-    accelerates convergence to OCV-K , and L provides a degree of freedom 
-    for targeting a control variate level that contributes the greatest to 
+    of estimating :math:`\mu_L` some :math:`L \le K` . The resulting estimator
+    accelerates convergence to OCV-K , and L provides a degree of freedom
+    for targeting a control variate level that contributes the greatest to
     the estimator variance.
 
     Parameters
@@ -577,8 +575,8 @@ def get_discrepancy_covariances_KL(cov, nsample_ratios, K, L, pkg=np):
         The number of effective control variates.
 
     L : integer (1<=L<=K+1)
-        The id of the models whose mean is being targeted by the 
-        remaining nmodels-K low fidelity models. 
+        The id of the models whose mean is being targeted by the
+        remaining nmodels-K low fidelity models.
 
     pkg : package (optional)
         A python package (numpy or torch) used to store the covariances.
@@ -589,7 +587,7 @@ def get_discrepancy_covariances_KL(cov, nsample_ratios, K, L, pkg=np):
         The matrix of covariances between the discrepancies :math:`\delta`
 
     cf : np.ndarray (nmodels-1)
-        The vector of covariances between the discrepancies and the 
+        The vector of covariances between the discrepancies and the
         high-fidelity model.
     """
     nmodels = cov.shape[0]
@@ -627,7 +625,7 @@ def get_discrepancy_covariances_KL(cov, nsample_ratios, K, L, pkg=np):
 
 def get_control_variate_weights(cov):
     r"""
-    Get the weights used by the control variate estimator with known low 
+    Get the weights used by the control variate estimator with known low
     fidelity means.
 
     Parameters
@@ -659,7 +657,7 @@ def get_approximate_control_variate_weights(cov, nsample_ratios,
 
     get_discrepancy_covariances : callable
         Function with signature get_discrepancy_covariances(cov,nsample_ratios)
-        which returns the covariances between the discrepancies betweem the 
+        which returns the covariances between the discrepancies betweem the
         low-fidelity models and their approximated mean.
 
     Returns
@@ -674,8 +672,8 @@ def get_approximate_control_variate_weights(cov, nsample_ratios,
 
 def get_rsquared_acv(cov, nsample_ratios, get_discrepancy_covariances):
     r"""
-    Compute r^2 used to compute the variance reduction  of 
-    Approximate Control Variate Algorithms 
+    Compute r^2 used to compute the variance reduction of
+    Approximate Control Variate Algorithms
 
     Parameters
     ----------
@@ -684,12 +682,12 @@ def get_rsquared_acv(cov, nsample_ratios, get_discrepancy_covariances):
         is the first model, i.e its variance is cov[0,0]
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
     get_discrepancy_covariances : callable
-        Function that returns the covariances of the control variate 
-        discrepancies. Functions must have the signature 
+        Function that returns the covariances of the control variate
+        discrepancies. Functions must have the signature
         CF,cf = get_discrepancy_covariances(cov,nsample_ratios)
 
     Returns
@@ -762,7 +760,7 @@ def generate_samples_and_values_mlmc(nhf_samples, nsample_ratios, functions,
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
     functions : list of callables
@@ -833,7 +831,7 @@ def get_mfmc_control_variate_weights(cov):
 
 def validate_nsample_ratios(nhf_samples, nsample_ratios):
     r"""
-    Check that nsample_ratios* nhf_samples are all integers
+    Check that nsample_ratios*nhf_samples are all integers
     and that nsample_ratios are all larger than 1
     """
     nmodels = len(nsample_ratios)+1
@@ -846,7 +844,8 @@ def validate_nsample_ratios(nhf_samples, nsample_ratios):
     nlf_samples = nhf_samples*nsample_ratios
     for ii in range(nmodels-1):
         assert np.allclose(
-            nlf_samples[ii]/int(nlf_samples[ii]), 1.0, atol=1e-5)
+            nlf_samples[ii]-np.round(nlf_samples[ii]), 0.0, atol=1e-7), (
+                nlf_samples[ii]-np.round(nlf_samples[ii]))
     nlf_samples = np.asarray(nlf_samples, dtype=int)
     return nlf_samples
 
@@ -854,13 +853,14 @@ def validate_nsample_ratios(nhf_samples, nsample_ratios):
 def generate_samples_and_values_acv_KL(nhf_samples, nsample_ratios, functions,
                                        generate_samples, K, L):
     r"""
-
+    Parameters
+    ----------
     K : integer (K<=nmodels-1)
         The number of effective control variates.
 
     L : integer (1<=L<=K+1)
-        The id of the models whose mean is being targeted by the 
-        remaining nmodels-K low fidelity models. 
+        The id of the models whose mean is being targeted by the
+        remaining nmodels-K low fidelity models.
     """
     nsample_ratios = np.asarray(nsample_ratios)
     nlf_samples = validate_nsample_ratios(nhf_samples, nsample_ratios)
@@ -933,7 +933,7 @@ def generate_samples_and_values_mfmc(nhf_samples, nsample_ratios, functions,
         The number of samples of the high fidelity model
 
     nsample_ratios : np.ndarray (nmodels-1)
-        The sample ratios r used to specify the number of samples of the 
+        The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
     functions : list of callables
@@ -944,13 +944,13 @@ def generate_samples_and_values_mfmc(nhf_samples, nsample_ratios, functions,
 
     Returns
     =======
-    samples : list 
-        List containing the samples :math:`\mathcal{Z}_{i,1}` and 
+    samples : list
+        List containing the samples :math:`\mathcal{Z}_{i,1}` and
         :math:`\mathcal{Z}_{i,2}` for each model :math:`i=0,\ldots,M-1`.
-        The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]], 
+        The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]],
         where :math:`M` is the number of models
 
-    values : list 
+    values : list
         Model values at the points in samples
 
     """
@@ -1374,7 +1374,7 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
         The number of samples used to estimate the covariance
 
     generate_samples : callable
-        Function used to generate realizations of the random variables with 
+        Function used to generate realizations of the random variables with
         call signature samples = generate_samples(npilot_samples)
 
     model_emsemble : callable
@@ -1447,7 +1447,7 @@ class ACVMF(object):
         This is not the variance reduction relative to the equivalent
         Monte Carlo estimator. A variance reduction can be smaller than
         one and still correspond to a multi-fidelity estimator that
-        has a larger variance than the single fidelity Monte Carlo 
+        has a larger variance than the single fidelity Monte Carlo
         that uses the equivalent number of high-fidelity samples
         """
         return 1-self.get_rsquared(nsample_ratios)
@@ -1779,7 +1779,7 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
 
 def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
     """
-    Approxiamte the variance of the Monte Carlo estimate of the mean using
+    Approximate the variance of the Monte Carlo estimate of the mean using
     bootstraping
 
     Parameters
@@ -1952,7 +1952,7 @@ def plot_estimator_variances(nsamples_history, variances, model_costs,
         ax.loglog(est_total_costs, est_variances, ':', label=est_labels[ii],
                   ls=linestyles[ii])
     if ylabel is None:
-        ylable = r'$\mathrm{Estimator\;Variance}$'
+        ylabel = r'$\mathrm{Estimator\;Variance}$'
     ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
     ax.set_ylabel(ylabel)
     ax.legend()

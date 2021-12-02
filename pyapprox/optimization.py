@@ -458,8 +458,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         False - do not print
 
     rel : boolean
-        True - compute the relative error in the directional derivative, 
-        i.e. the absolute error divided by the directional derivative using 
+        True - compute the relative error in the directional derivative,
+        i.e. the absolute error divided by the directional derivative using
         ``jac``.
         False - compute the absolute error in the directional derivative
 
@@ -470,7 +470,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     Returns
     -------
     errors : np.ndarray (14, nqoi)
-        The errors in the directional derivative of ``fun`` at 14 different 
+        The errors in the directional derivative of ``fun`` at 14 different
         values of finite difference tolerance for each quantity of interest
     """
     assert zz.ndim == 2

@@ -1832,7 +1832,9 @@ def increment_samples_using_condition_number(
         basis_matrix = pce.basis_matrix(train_samples)
     while True:
         ndesired_samples = min(
-            ndesired_samples*sample_growth_factor, max_nsamples)
+            int(ndesired_samples*sample_growth_factor), max_nsamples)
+        if ndesired_samples < ncurrent_samples:
+            ndesired_samples = int(ncurrent_samples*sample_growth_factor)
         assert ndesired_samples > ncurrent_samples
         # generate a new increment of samples
         nsample_incr = ndesired_samples-(
@@ -1856,11 +1858,16 @@ def increment_samples_using_condition_number(
 
 
 def adaptive_approximate_polynomial_chaos_increment_degree(
-        fun, pce, max_degree, max_nsamples=100, cond_tol=None,
+        fun, variable, max_degree, max_nsamples=100, cond_tol=None,
         sample_growth_factor=2, verbose=0, hcross_strength=1,
         oversampling_ratio=quadratic_oversampling_ratio,
         solver_type='lasso', linear_solver_options={},
         callback=None):
+
+    var_trans = AffineRandomVariableTransformation(variable)
+    pce = PolynomialChaosExpansion()
+    pce_opts = define_poly_options_from_variable_transformation(var_trans)
+    pce.configure(pce_opts)
 
     if cond_tol is not None and oversampling_ratio is not None:
         raise ValueError("cond_tol or over_sampling_ratio must be None")
