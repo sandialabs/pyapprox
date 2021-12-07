@@ -113,7 +113,7 @@ class TestSystemAnalysis(unittest.TestCase):
             assert np.allclose(
                 validation_values[node_id], component_vals_approx)
         assert np.allclose(
-            approx(validation_samples)[-1], validation_values[-1])
+            approx(validation_samples), validation_values[-1])
 
     def test_feed_forward_system_of_polynomials_estimate_coupling_bounds(self):
         graph, variables, graph_data = get_3_recursive_polynomial_components()
@@ -168,7 +168,7 @@ class TestSystemAnalysis(unittest.TestCase):
             assert np.allclose(
                 validation_values[node_id], component_vals_approx)
         assert np.allclose(
-            approx(validation_samples)[-1], validation_values[-1])
+            approx(validation_samples), validation_values[-1])
 
     def test_three_component_adaptive_refinement(self):
         """
