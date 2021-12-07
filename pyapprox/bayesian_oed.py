@@ -357,7 +357,7 @@ def compute_expected_kl_utility_monte_carlo(
         active_indices, return_all)
 
 
-def __compute_expected_deviation_monte_carlo(
+def __compute_negative_expected_deviation_monte_carlo(
         outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, return_all):
@@ -389,12 +389,12 @@ def __compute_expected_deviation_monte_carlo(
         weights)
     expected_deviation = np.sum(deviations*outer_loop_weights)
     if not return_all:
-        return expected_deviation
+        return -expected_deviation
     else:
-        return expected_deviation, deviations, evidences, weights
+        return -expected_deviation, deviations, evidences, weights
 
 
-def compute_expected_deviation_monte_carlo(
+def compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_obs, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, collected_design_indices,
@@ -406,7 +406,7 @@ def compute_expected_deviation_monte_carlo(
         # assume the observations at the collected_design_indices are already
         # incorporated into the inner and outer loop weights
         active_indices = np.asarray(new_design_indices)
-    return __compute_expected_deviation_monte_carlo(
+    return __compute_negative_expected_deviation_monte_carlo(
         outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, return_all)
@@ -694,7 +694,7 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
         # weights for each inner iteration of the inner loop that is
         # computed using
         # the associated outerloop data
-        return compute_expected_deviation_monte_carlo(
+        return compute_negative_expected_deviation_monte_carlo(
             self.loglike_fun, self.outer_loop_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, self.inner_loop_pred_qois,
