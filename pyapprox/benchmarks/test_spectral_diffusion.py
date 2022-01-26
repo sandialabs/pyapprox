@@ -156,7 +156,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         def exact_sol(x): return np.sin(x.T)
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
-            exact_sol(mesh_pts)-solution) < 4e-14
+            exact_sol(mesh_pts)-solution) < 6e-14
 
     def test_inhomogeneous_diffusion_equation_with_variable_coefficient(self):
         """
