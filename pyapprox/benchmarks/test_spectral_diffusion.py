@@ -1,14 +1,33 @@
 import numpy as np
 import unittest
+from functools import partial
 
 from pyapprox.benchmarks.spectral_diffusion import (
-    kronecker_product_2d, chebyshev_derivative_matrix,
     SteadyStateAdvectionDiffusionEquation1D,
     TransientAdvectionDiffusionEquation1D,
     SteadyStateAdvectionDiffusionEquation2D
 )
 from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
 import pyapprox as pya
+
+
+def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
+        sol_string, diffusivity, advection_1, advection_2):
+    import sympy as sp
+    # from sympy.abc import t as sp_t
+    from sympy import lambdify
+    sp_x, sp_y = sp.symbols(['x', 'y'])
+    # u = sp.sin(sp.pi*sp_x)*sp.cos(sp_t)
+    u = sp.sympify(sol_string)
+    dxu2 = u.diff(sp_x, 2) + u.diff(sp_y, 2)  # diffusion
+    # dtu = u.diff(sp_t, 1)   # time derivative
+    dxu = advection_1*u.diff(sp_x, 1)+advection_2*u.diff(sp_y, 1)  # advection
+    #sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
+    sp_forcing = (diffusivity*dxu2+dxu)
+    print(sp_forcing)
+    # forcing_fun = lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
+    forcing_fun = lambdify((sp_x, sp_y), sp_forcing, "numpy")
+    return forcing_fun
 
 
 class TestSpectralDiffusion2D(unittest.TestCase):
@@ -71,8 +90,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
         def exact_sol(x): return 0.5*x.T
-        print(np.linalg.norm(
-            exact_sol(mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 20*self.eps
 
@@ -93,8 +111,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         solution = model.run(sample)
         def exact_sol(x): return (
             np.exp(4*x)-4*np.exp(-4)*(x-1)-np.exp(4)).T/16
-        print(np.linalg.norm(
-            exact_sol(mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 1e-11
 
@@ -115,8 +132,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
         def exact_sol(x): return -(0.5*(x-3.)*x).T
-        print(np.linalg.norm(
-            exact_sol(mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 30*self.eps
 
@@ -138,8 +154,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
         def exact_sol(x): return np.sin(x.T)
-        print(np.linalg.norm(
-            exact_sol(mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 4e-14
 
@@ -160,8 +175,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
         def exact_sol(x): return (np.log(x+1.) / np.log(2.) - x).T
-        print(np.linalg.norm(
-            exact_sol(mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 4e-14
 
@@ -318,9 +332,9 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
         exact_error = abs(exact_qoi-qoi)
 
-        print('err estimate', error_estimate)
-        print('exact err', exact_error)
-        print('effectivity ratio', error_estimate / exact_error)
+        # print('err estimate', error_estimate)
+        # print('exact err', exact_error)
+        # print('effectivity ratio', error_estimate / exact_error)
         # should be very close to 1. As adjoint order is increased
         # it will converge to 1
 
@@ -432,25 +446,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             lambda x, z: 0*x.T, order, domain, final_time, time_step_size,
             lambda x: exact_sol(x, 0))
 
-        # import sympy as sp
-        # from sympy.abc import t as sp_t
-        # from sympy import lambdify
-        # sp_x = sp.symbols('x')
-        # u = sp.sin(sp.pi*sp_x)*sp.cos(sp_t)
-        # sol_string = "sin(pi*x)*cos(t)"
-        # u = sp.sympify(sol_string)
-        # dxu2 = u.diff(sp_x, 2)
-        # dtu = u.diff(sp_t, 1)
-        # sp_forcing = dtu-dxu2
-        # forcing_fun = lambdify((sp_x, sp_t), sp_forcing, "numpy")
-        # print(sp_forcing)
-        # xx = np.linspace(0, 1, 101)
-        # pya.plt.plot(xx, forcing_fun(xx, 0.2))
-        # pya.plt.plot(xx, model.forcing_fun(xx[None, :], 0, 0.2), '--')
-        # print(forcing_fun(xx, 0.2)-
-        #       model.forcing_fun(xx[None, :], 0, 0.2)[:, 0])
-        # pya.plt.show()
-
         sample = np.ones((1), float)  # dummy argument for this example
 
         # model.set_time_step_method('backward-euler')
@@ -516,14 +511,14 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             model_sol_t = solution[:, -1:]
             L2_error = np.sqrt(model.integrate((exact_sol_t-model_sol_t)**2))
             errors[i] = L2_error
-            print(L2_error, solution.shape)
+            # print(L2_error, solution.shape)
             time_step_sizes[i] = time_step_size
             num_time_steps[i] = model.num_time_steps
             time_step_size /= 2
 
         conv_rate = -np.log10(errors[-1]/errors[0])/np.log10(
             num_time_steps[-1]/num_time_steps[0])
-        print(conv_rate)
+        # print(conv_rate)
         assert np.allclose(conv_rate, 2, atol=1e-4)
         # pya.plt.loglog(
         #     num_time_steps, errors, 'o-r',
@@ -560,7 +555,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 32./np.pi*z[0]*sigma*np.sin(np.pi/2.*(x[0, :]**2+x[1, :]**2)) *
                 (x[0, :]**2 * np.exp(-z[0]**2)*(x[1, :]**2-0.25)+x[1, :]**2 *
                  np.exp(-z[0]**2)*(x[0, :]**2-0.25)))[:, None]
-            print(vals.shape, x.shape)
             return vals
 
         def diffusivity_fun(x, z):
@@ -581,15 +575,60 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x[0:1, :].T*0, "D"]]
         model.initialize(
                 bndry_conds, diffusivity_fun, forcing_fun,
-                lambda x, z: np.zeros((x.shape[1], 1)), order, domain)
+                lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
 
         num_dims = 1
         rng = np.random.RandomState(1)
         sample = rng.uniform(-np.sqrt(3), np.sqrt(3), (num_dims))
         mesh_pts = model.get_collocation_points()
         solution = model.run(sample)
-        print (np.linalg.norm(exact_sol(mesh_pts, sample)-solution))
+        # print (np.linalg.norm(exact_sol(mesh_pts, sample)-solution))
         assert np.linalg.norm(exact_sol(mesh_pts, sample) - solution) < 2.e-12
+
+    def test_2d_advection_diffusion_neumann_bcs(self):
+        sol_string = "x**2*sin(pi*y)"
+        sp_forcing_fun = \
+            get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
+                sol_string, 1, 1, 0)
+
+        def exact_sol(x): return (x[0, :]**2*np.sin(np.pi*x[1, :]))[:, None]
+
+        def forcing_fun(x, z):
+            return sp_forcing_fun(x[0, :], x[1, :])[:, None]
+
+        order = 32
+        model = SteadyStateAdvectionDiffusionEquation2D()
+        domain = [0, 1, 0, 1]
+        bndry_conds = [
+            [lambda x: np.zeros((x.shape[1], 1)), "N"],
+            # [lambda x: exact_sol(x), "D"],
+            [lambda x: exact_sol(x), "D"],
+            [lambda x: np.zeros((x.shape[1], 1)), "D"],
+            [lambda x: np.zeros((x.shape[1], 1)), "D"]]
+        model.initialize(
+            bndry_conds, lambda x, z: np.ones((x.shape[1], 1)), forcing_fun,
+            lambda x, z: np.hstack(
+                (np.ones((x.shape[1], 1)), np.zeros((x.shape[1], 1)))),
+            order, domain)
+
+        sample = np.zeros((0))  # dummy for this example
+        solution = model.run(sample)
+
+        # print(np.linalg.norm(exact_sol(model.mesh_pts)-solution))
+        # fig, axs = pya.plt.subplots(1, 2, figsize=(8, 6))
+        # X, Y, Z = pya.get_meshgrid_function_data(exact_sol, model.domain, 30)
+        # p = axs[0].contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
+        # pya.plt.colorbar(p, ax=axs[0])
+        # X, Y, Z = pya.get_meshgrid_function_data(
+        #     partial(model.interpolate, solution), model.domain, 30)
+        # p = axs[1].contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
+        # pya.plt.colorbar(p, ax=axs[1])
+        # pya.plt.show()
+
+        assert np.linalg.norm(
+            exact_sol(model.mesh_pts)-solution) < 1e-9
 
     def test_integrate_2d(self):
         order = 4
@@ -602,7 +641,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         model.initialize(
             bndry_conds, lambda x, z: np.ones((x.shape[1], 1)),
             lambda x, z: np.zeros((x.shape[1], 1)),
-            lambda x, z: np.zeros((x.shape[1], 1)), order, domain)
+            lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
         mesh_pts = model.get_collocation_points()
         assert np.allclose(
             model.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 2./3.)
@@ -641,7 +680,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             bndry_conds,
             lambda x, z: ((z[0]**2+z[1]**2)*(x[0]+x[1]) + 1.)[:, None],
             lambda x, z: 0*x[:1].T-2,
-            lambda x, z: np.zeros((x.shape[1], 1)), order, domain)
+            lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
 
         sample = np.random.RandomState(2).uniform(-1, 1, (2, 1))
         model.diffusivity_derivs_fun = \
@@ -649,7 +688,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         model.forcing_derivs_fun = \
             lambda x, z, i: np.zeros((x.shape[1], 1))
         model.advection_derivs_fun = \
-            lambda x, z, i: np.zeros((x.shape[1], 1))
+            lambda x, z, i: np.zeros((x.shape[1], 2))
         model(sample)
         # evaluate_gradient has to be called before any more calls to
         # model.solve with different parameters, because we need to

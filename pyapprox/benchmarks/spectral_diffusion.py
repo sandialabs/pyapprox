@@ -95,7 +95,6 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
 
     def map_samples_from_canonical_domain(self, canonical_pts):
         pts = map_hypercube_samples(canonical_pts, self.canonical_domain, self.domain)
-        print(pts)
         return pts
 
     def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
@@ -239,7 +238,7 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
     def solve(self, diffusivity, forcing, advection):
         assert diffusivity.ndim == 2 and diffusivity.shape[1] == 1
         assert forcing.ndim == 2 and forcing.shape[1] == 1
-        assert advection.ndim == 2 and advection.shape[1] == 1
+        assert advection.ndim == 2 and advection.shape[1] == self.mesh_pts.shape[0]
         # forcing will be overwritten with bounary values so must take a
         # deep copy
         forcing = forcing.copy()
@@ -350,7 +349,7 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
 
         # print(np.dot(residual, adj_solution )/self.integrate(
         #    residual * adj_solution)
-        print('cond', np.linalg.cond(self.adjoint_collocation_matrix))
+        # print('cond', np.linalg.cond(self.adjoint_collocation_matrix))
         error_estimate = self.integrate(residual * adj_solution, self.order*2)
 
         return error_estimate
@@ -597,7 +596,6 @@ class TransientAdvectionDiffusionEquation1D(
         # num_time_steps is number of steps taken after initial time
         self.num_time_steps = int(
             np.ceil(self.final_time/self.time_step_size))
-        print(self.time_step_size, self.num_time_steps)
         self.times = np.empty((self.num_time_steps+1), float)
         sols = np.empty((self.initial_sol.shape[0],
                          self.num_time_steps+1), float)
@@ -626,8 +624,13 @@ class SteadyStateAdvectionDiffusionEquation2D(
         SteadyStateAdvectionDiffusionEquation1D):
     """
     solve  (a(x)*u_x)_x = f
+
+    boundary edges are stored with the following order,
+    left, right, bottom, top
     """
     def set_domain(self, domain, order):
+        # boundary edges are stored with the following order,
+        # left, right, bottom, top
         self.order = order
         assert len(domain) == 4
         self.domain = domain
@@ -678,29 +681,22 @@ class SteadyStateAdvectionDiffusionEquation2D(
         super().set_boundary_conditions(bndry_conds)
         II = np.where(
             self.boundary_indices_to_edges_map[self.neumann_bndry_indices] < 2)
-        II = np.where(
-            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] > 1)
         self.lr_neumann_bndry_indices = self.neumann_bndry_indices[II]
-        self.bt_neumann_bndry_indices = self.neumann_bndry_indices[II]
+        JJ = np.where(
+            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] > 1)
+        self.bt_neumann_bndry_indices = self.neumann_bndry_indices[JJ]
 
     def form_collocation_matrix(self, diffusivity_vals, advection_vals):
         assert diffusivity_vals.ndim == 2 and diffusivity_vals.shape[1] == 1
-        assert advection_vals.ndim == 2 and advection_vals.shape[1] == 1
+        assert advection_vals.ndim == 2 and advection_vals.shape[1] == 2
         matrix_1 = np.dot(self.derivative_matrix_1,
                           diffusivity_vals*self.derivative_matrix_1)
         matrix_2 = np.dot(self.derivative_matrix_2,
                           diffusivity_vals*self.derivative_matrix_2)
 
         matrix_1 += self.derivative_matrix_1*advection_vals[:, 0]
-        matrix_2 += self.derivative_matrix_2*advection_vals[:, 0]
+        matrix_2 += self.derivative_matrix_2*advection_vals[:, 1]
 
-        # scaled_matrix_1 = np.empty(self.derivative_matrix_1.shape)
-        # scaled_matrix_2 = np.empty(self.derivative_matrix_2.shape)
-        # for i in range(scaled_matrix_1.shape[0]):
-        #     scaled_matrix_1[i, :] = self.derivative_matrix_1[i, :]*diagonal[i]
-        #     scaled_matrix_2[i, :] = self.derivative_matrix_2[i, :]*diagonal[i]
-        # matrix_1 = np.dot(self.derivative_matrix_1, scaled_matrix_1)
-        # matrix_2 = np.dot(self.derivative_matrix_2, scaled_matrix_2)
         return matrix_1 + matrix_2
 
     def apply_boundary_conditions_to_matrix_engine(
