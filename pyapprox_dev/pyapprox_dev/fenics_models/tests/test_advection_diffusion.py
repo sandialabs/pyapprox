@@ -3,6 +3,7 @@ import unittest
 import pytest
 
 import sympy as sp
+import numpy as np
 
 
 if sys.platform == 'win32':

@@ -136,7 +136,7 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
         for bc in dirichlet_bcs:
             bc.apply(A)
         solver = dla.LUSolver(A)
-        #solver.parameters["reuse_factorization"] = True
+        # solver.parameters["reuse_factorization"] = True
     else:
         solver = None
 
@@ -174,7 +174,7 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
         for jj in range(len(alpha_1_list)):
             alpha_1_list[jj].t = prev_t
 
-        #A, b = dl.assemble_system(a, L, dirichlet_bcs)
+        # A, b = dl.assemble_system(a, L, dirichlet_bcs)
         # for bc in dirichlet_bcs:
         #    bc.apply(A,b)
         if boundary_conditions is not None:
@@ -183,6 +183,7 @@ def run_model(function_space, kappa, forcing, init_condition, dt, final_time,
                 bc.apply(A)
 
         b = dla.assemble(L)
+        # TODO apply BC after point sources
         for bc in dirichlet_bcs:
             bc.apply(b)
 

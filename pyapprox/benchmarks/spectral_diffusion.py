@@ -9,10 +9,12 @@ from pyapprox.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
 )
+from pyapprox.variable_transformations import map_hypercube_samples
 from pyapprox.models.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
 from pyapprox.utilities import qr_solve
+from pyapprox.sys_utilities import get_num_args
 
 
 def kronecker_product_2d(matrix1, matrix2):
@@ -68,210 +70,176 @@ def chebyshev_derivative_matrix(order):
     return pts, derivative_matrix
 
 
-class SteadyStateDiffusionEquation1D(object):
+class SteadyStateAdvectionDiffusionEquation1D(object):
     """
     solve  (a(x)*u_x)_x = f; x in [0,1]; subject to u(0)=a; u(1)=b
     """
 
     def __init__(self):
-        self.diffusivity = None
-        self.forcing_function = None
-        self.bndry_cond = [0., 0.]
-        self.xlim = [0, 1]
+        self.diffusivity_fun = None
+        self.forcing_fun = None
+        self.advection_fun = None
+        self.domain = None
         self.adjoint_derivative_matrix = None
         self.adjoint_mesh_pts = None
-        self.num_time_steps = 0
-        self.time_step_size = None
-        self.initial_sol = None
-        self.num_stored_timesteps = 1
-        self.time_step_method = 'crank-nicholson'
+        self.bndry_conds = None
+        self.dirichlet_bndry_indices = None
+        self.neumann_bndry_indices = None
+        self.adjoint_bndry_conds = None
+        self.adjoint_dirichlet_bndry_indices = None
+        self.adjoint_neumann_bndry_indices = None
 
         # default qoi functional is integral of solution over entire domain
         self.qoi_functional = self.integrate
         self.qoi_functional_deriv = lambda x: x*0.+1.
 
-    def scale_canonical_pts(self, pts):
-        return (self.xlim[1]-self.xlim[0])*(pts+1.)/2.+self.xlim[0]
+    def map_samples_from_canonical_domain(self, canonical_pts):
+        pts = map_hypercube_samples(canonical_pts, self.canonical_domain, self.domain)
+        print(pts)
+        return pts
 
-    def initialize(self, order, bndry_cond=None, xlim=None):
+    def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
+                   advection_fun, order, domain):
+        self.set_domain(domain, order)
+        self.set_boundary_conditions(bndry_conds)
+        self.set_diffusivity_function(diffusivity_fun)
+        self.set_forcing_function(forcing_fun)
+        self.set_advection_function(advection_fun)
+
+    def set_domain(self, domain, order):
         self.order = order
-        if xlim is not None:
-            self.xlim = xlim
-        if bndry_cond is not None:
-            self.bndry_cond = bndry_cond
-
+        assert len(domain) == 2
+        self.domain = domain
+        self.canonical_domain = [-1, 1]
         mesh_pts, self.derivative_matrix = chebyshev_derivative_matrix(order)
-        # scale mesh points to from [-1,1] to [a,b]
-        self.mesh_pts_1d = self.scale_canonical_pts(mesh_pts)
-        self.mesh_pts = self.mesh_pts_1d
         # scale derivative matrix from [-1,1] to [a,b]
-        self.derivative_matrix *= 2./(self.xlim[1]-self.xlim[0])
+        self.derivative_matrix *= 2./(self.domain[1]-self.domain[0])
+        self.mesh_pts_1d = mesh_pts
+        self.mesh_pts = self.map_samples_from_canonical_domain(mesh_pts[None, :])
+        # define boundary indices of each segment
+        self.boundary_indices = [
+            np.array([0]), np.array([self.derivative_matrix.shape[0]-1])]
 
-    def set_diffusivity(self, func):
-        assert callable(func)
-        assert len(inspect.getargspec(func)[0]) == 2
-        self.diffusivity = func
+    def set_boundary_conditions(self, bndry_conds):
+        """
+        Set time independent boundary conditions
+        """
+        self.bndry_conds = bndry_conds
+        self.dirichlet_bndry_indices = []
+        self.neumann_bndry_indices = []
 
-    def set_forcing(self, func):
-        assert callable(func)
-        assert len(inspect.getargspec(func)[0]) == 2
-        self.forcing_function = func
+        if len(bndry_conds) != len(self.boundary_indices):
+            msg = "Incorrect number of boundary conditions provided.\n"
+            msg += f"\tNum boundary edges {len(self.boundary_indices)}\n"
+            msg += f"\tNum boundary conditions provided {len(bndry_conds)}\n"
+            raise ValueError(msg)
 
-    def form_collocation_matrix(self, derivative_matrix, diagonal):
-        scaled_matrix = np.empty(derivative_matrix.shape)
-        for i in range(scaled_matrix.shape[0]):
-            scaled_matrix[i, :] = derivative_matrix[i, :] * diagonal[i]
+        # increase this if make boundary time dependent and/or
+        # parameter dependent
+        num_args = 1
+        self.adjoint_bndry_conds = []
+        for ii, bndry_cond in enumerate(bndry_conds):
+            assert len(bndry_cond) == 2
+            assert callable(bndry_cond[0])
+            if get_num_args(bndry_cond[0]) != num_args:
+                msg = f"Boundary condition function must have {num_args} "
+                msg += "arguments"
+                raise ValueError(msg)
+            idx = self.boundary_indices[ii]
+            if bndry_cond[1] == "D":
+                self.dirichlet_bndry_indices.append(idx)
+            elif bndry_cond[1] == "N":
+                self.neumann_bndry_indices.append(idx)
+            else:
+                raise ValueError("Incorrect boundary type")
+            # adjoint boundary conditions are always dirichlet zero
+            self.adjoint_bndry_conds.append(
+                [lambda x: np.zeros((x.shape[1], 1)), "D"])
+
+        if len(self.dirichlet_bndry_indices) > 0:
+            self.dirichlet_bndry_indices = np.concatenate(
+                self.dirichlet_bndry_indices)
+        else:
+            self.dirichlet_bndry_indices = np.empty((0), dtype=int)
+        if len(self.neumann_bndry_indices) > 0:
+            self.neumann_bndry_indices = np.concatenate(
+                self.neumann_bndry_indices)
+        else:
+            self.neumann_bndry_indices = np.empty((0), dtype=int)
+
+        if (np.sum([len(idx) for idx in self.boundary_indices]) !=
+                len(self.dirichlet_bndry_indices) +
+                len(self.neumann_bndry_indices)):
+            raise ValueError("Boundary indices mismatch")
+
+        self.adjoint_dirichlet_bndry_indices = np.concatenate((
+            self.dirichlet_bndry_indices, self.neumann_bndry_indices))
+        self.adjoint_neumann_bndry_indices = np.empty((0), dtype=int)
+
+    def set_diffusivity_function(self, fun):
+        assert callable(fun)
+        assert get_num_args(fun) == 2
+        self.diffusivity_fun = fun
+
+    def set_advection_function(self, fun):
+        assert callable(fun)
+        assert get_num_args(fun) == 2
+        self.advection_fun = fun
+
+    def set_forcing_function(self, fun):
+        assert callable(fun)
+        assert get_num_args(fun) == 2
+        self.forcing_fun = fun
+
+    def form_collocation_matrix(self, diffusivity_vals, advection_vals):
+        return self.form_collocation_matrix_engine(
+            self.derivative_matrix, diffusivity_vals, advection_vals)
+
+    def form_collocation_matrix_engine(self, derivative_matrix, diffusivity_vals,
+                                       advection_vals):
+        assert diffusivity_vals.ndim == 2 and diffusivity_vals.shape[1] == 1
+        assert advection_vals.ndim == 2 and advection_vals.shape[1] == 1
+        # scaled_matrix = np.empty(derivative_matrix.shape)
+        # for i in range(scaled_matrix.shape[0]):
+        #     scaled_matrix[i, :] = derivative_matrix[i, :]*diffusivity_vals[i]
+        scaled_matrix = diffusivity_vals*derivative_matrix
         matrix = np.dot(derivative_matrix, scaled_matrix)
+
+        # matrix += np.dot(derivative_matrix, np.diag(advection_vals[:, 0]))
+        matrix += derivative_matrix*advection_vals[:, 0]
         return matrix
 
     def apply_boundary_conditions_to_matrix(self, matrix):
-        matrix[0, :] = 0
-        matrix[-1, :] = 0
-        matrix[0, 0] = 1
-        matrix[-1, -1] = 1
+        return self.apply_boundary_conditions_to_matrix_engine(
+            matrix, self.dirichlet_bndry_indices, self.neumann_bndry_indices)
+
+    def apply_boundary_conditions_to_matrix_engine(
+            self, matrix, dirichlet_bndry_indices, neumann_bndry_indices):
+        matrix[dirichlet_bndry_indices, :] = 0.0
+        matrix[dirichlet_bndry_indices,
+               dirichlet_bndry_indices] = 1.0
+        matrix[neumann_bndry_indices, :] = \
+            self.derivative_matrix[neumann_bndry_indices, :]
         return matrix
 
     def apply_boundary_conditions_to_rhs(self, rhs):
-        rhs[0] = self.bndry_cond[0]
-        rhs[-1] = self.bndry_cond[1]
+        return self.__apply_boundary_conditions_to_rhs(rhs, self.bndry_conds)
+
+    def __apply_boundary_conditions_to_rhs(self, rhs, bndry_conds):
+        for ii, bndry_cond in enumerate(bndry_conds):
+            idx = self.boundary_indices[ii]
+            rhs[idx] = bndry_cond[0](self.mesh_pts[:, idx])
         return rhs
 
     def apply_boundary_conditions(self, matrix, forcing):
-        assert len(self.bndry_cond) == 2
         matrix = self.apply_boundary_conditions_to_matrix(matrix)
         forcing = self.apply_boundary_conditions_to_rhs(forcing)
         return matrix, forcing
 
-    def explicit_runge_kutta(self, rhs, sol, time, time_step_size):
-        assert callable(rhs)
-        dt2 = time_step_size/2.
-        k1 = rhs(time, sol)
-        k2 = rhs(time+dt2, sol+dt2*k1)
-        k3 = rhs(time+dt2, sol+dt2*k2)
-        k4 = rhs(time+time_step_size, sol+time_step_size*k3)
-        new_sol = sol+time_step_size/6.*(k1+2.*k2+2.*k3+k4)
-        new_sol[0] = self.bndry_cond[0]
-        new_sol[-1] = self.bndry_cond[1]
-        return new_sol
-
-    def form_adams_moulton_3rd_order_system(self, matrix, current_sol,
-                                            current_forcing, future_forcing,
-                                            prev_forcing, prev_sol,
-                                            time_step_size):
-        """ 3rd order Adams-Moultobn method
-        WARNING: seems to be unstable (at least my implementation)
-        y_{n+2} = y_{n+1}+h(c_0y_{n+2}+c_1y_{n+1}+c_3y_{n})
-        c = (5/12,2/3,-1./12)
-        """
-
-        dt12 = time_step_size/12.
-        dt12matrix = dt12*matrix
-        identity = np.eye(matrix.shape[0])
-        matrix = identity-5.*dt12matrix
-        forcing = np.dot(identity+8.*dt12matrix, current_sol)
-        forcing += dt12*(5.*future_forcing+8.*current_forcing-prev_forcing)
-        forcing -= np.dot(dt12matrix, prev_sol)
-        # currently I do not support time varying boundary conditions
-        return self.apply_boundary_conditions(matrix, forcing)
-
-    def get_implicit_time_step_rhs(self, current_sol, time, sample):
-        future_forcing = self.forcing_function(
-            self.mesh_pts, time+self.time_step_size, sample)
-        if (self.time_step_method == "backward-euler"):
-            forcing = current_sol + self.time_step_size*future_forcing
-        elif (self.time_step_method == "crank-nicholson"):
-            identity = np.eye(self.collocation_matrix.shape[0])
-            forcing = np.dot(
-                identity+0.5*self.time_step_size*self.collocation_matrix, current_sol)
-            current_forcing = self.forcing_function(
-                self.mesh_pts, time, sample)
-            forcing += 0.5*self.time_step_size*(current_forcing+future_forcing)
-        else:
-            raise Exception('incorrect timestepping method specified')
-
-        # apply boundary conditions
-        forcing[0] = self.bndry_cond[0]
-        forcing[-1] = self.bndry_cond[1]
-        return forcing
-
-    def get_implicit_timestep_matrix_inverse_factors(self, matrix):
-        identity = np.eye(matrix.shape[0])
-        if (self.time_step_method == "backward-euler"):
-            matrix = identity-self.time_step_size*matrix
-        elif (self.time_step_method == "crank-nicholson"):
-            matrix = identity-self.time_step_size/2.*matrix
-        else:
-            raise Exception('incorrect timestepping method specified')
-        self.apply_boundary_conditions_to_matrix(matrix)
-        return qr_factorization(matrix)
-
-    def time_step(self, current_sol, time, sample):
-        if self.time_step_method == 'RK4':
-            def rhs_func(t, u): return np.dot(
-                self.collocation_matrix, u) +\
-                self.forcing_function(self.mesh_pts, t, sample)
-            current_sol = self.explicit_runge_kutta(
-                rhs_func, current_sol, time, self.time_step_size)
-        else:
-            rhs = self.get_implicit_time_step_rhs(current_sol, time, sample)
-            current_sol = qr_solve(
-                self.implicit_matrix_factors[0], self.implicit_matrix_factors[1],
-                rhs[:, None])[:, 0]
-            #current_sol = np.linalg.solve( matrix, rhs )
-
-        return current_sol
-
-    def transient_solve(self, sample):
-        # in future consider supporting time varying diffusivity. This would
-        # require updating collocation matrix at each time-step
-        # for now make diffusivity time-independent
-        # assert self.diffusivity_function.__code__.co_argcount == 3
-        diffusivity = self.diffusivity_function(self.mesh_pts, sample)
-        self.collocation_matrix = self.form_collocation_matrix(
-            self.derivative_matrix, diffusivity)
-
-        # consider replacing time = 0 with time = self.initial_time
-        time = 0.
-
-        assert self.forcing_function.__code__.co_argcount == 3
-        current_forcing = self.forcing_function(self.mesh_pts, time, sample)
-        if self.num_time_steps > 0:
-            assert self.initial_sol is not None
-            assert self.time_step_size is not None
-            current_sol = self.initial_sol.copy()
-            assert self.num_stored_timesteps <= self.num_time_steps
-            # num_time_steps is number of steps taken after initial time
-            self.times = np.empty((self.num_stored_timesteps), float)
-            sols = np.empty((self.initial_sol.shape[0],
-                             self.num_stored_timesteps), float)
-            sol_cntr = 0
-            sol_storage_stride = self.num_time_steps/self.num_stored_timesteps
-            if self.time_step_method != 'RK4':
-                self.implicit_matrix_factors = \
-                    self.get_implicit_timestep_matrix_inverse_factors(
-                        self.collocation_matrix)
-            for i in range(1, self.num_time_steps+1):
-                # Construct linear system
-                current_sol = self.time_step(current_sol, time, sample)
-                time += self.time_step_size
-
-                # Store history if requested
-                if i % sol_storage_stride == 0:
-                    sols[:, sol_cntr] = current_sol
-                    self.times[sol_cntr] = time
-                    sol_cntr += 1
-            assert sol_cntr == self.num_stored_timesteps
-            return sols
-        else:
-            current_forcing = self.forcing_function(
-                self.mesh_pts, time, sample)
-            matrix, rhs = self.apply_boundary_conditions(
-                self.collocation_matrix.copy(), current_forcing)
-            return np.linalg.solve(matrix, rhs)
-
-    def solve(self, diffusivity, forcing):
-        assert diffusivity.ndim == 1
-        assert forcing.ndim == 1
+    def solve(self, diffusivity, forcing, advection):
+        assert diffusivity.ndim == 2 and diffusivity.shape[1] == 1
+        assert forcing.ndim == 2 and forcing.shape[1] == 1
+        assert advection.ndim == 2 and advection.shape[1] == 1
         # forcing will be overwritten with bounary values so must take a
         # deep copy
         forcing = forcing.copy()
@@ -279,7 +247,7 @@ class SteadyStateDiffusionEquation1D(object):
         self.forcing_vals = forcing.copy()
         assert not np.any(diffusivity <= 0.)
         self.collocation_matrix = self.form_collocation_matrix(
-            self.derivative_matrix, diffusivity)
+            diffusivity, advection)
         matrix, forcing = self.apply_boundary_conditions(
             self.collocation_matrix.copy(), forcing)
         solution = np.linalg.solve(matrix, forcing)
@@ -289,17 +257,18 @@ class SteadyStateDiffusionEquation1D(object):
 
     def run(self, sample):
         assert sample.ndim == 1
-        diffusivity = self.diffusivity_function(self.mesh_pts, sample)
-        forcing = self.forcing_function(self.mesh_pts, sample)
-        solution = self.solve(diffusivity, forcing)
+        diffusivity = self.diffusivity_fun(self.mesh_pts, sample[:, None])
+        forcing = self.forcing_fun(self.mesh_pts, sample[:, None])
+        advection = self.advection_fun(self.mesh_pts, sample[:, None])
+        solution = self.solve(diffusivity, forcing, advection)
         return solution
 
     def solve_adjoint(self, sample, order):
         """
         Typically with FEM we solve Ax=b and the discrete adjoint equation
         is A'y=z. But with collocation this does not work. Instead of
-        taking the adjoint of the discrete system as the aforemntioned
-        approach does. We discretize continuous adjoint equation. Which for
+        taking the adjoint of the discrete system as the aforementioned
+        approach does. We discretize the continuous adjoint equation. Which for
         the ellipic diffusion equation is just Ay=z. That is the adjoint
         of A is A.
         """
@@ -312,16 +281,17 @@ class SteadyStateDiffusionEquation1D(object):
             if self.adjoint_derivative_matrix is None:
                 adjoint_mesh_pts, self.adjoint_derivative_matrix = \
                     chebyshev_derivative_matrix(order)
-                self.adjoint_mesh_pts = self.scale_canonical_pts(
+                self.adjoint_mesh_pts = self.map_samples_from_canonical_domain(
                     adjoint_mesh_pts)
                 # scale derivative matrix from [-1,1] to [a,b]
                 self.adjoint_derivative_matrix *= 2. / \
-                    (self.xlim[1]-self.xlim[0])
+                    (self.domain[1]-self.domain[0])
+                # TODO: THIS will not yet work for 2D
 
-            diffusivity = self.diffusivity_function(
-                self.adjoint_mesh_pts, sample)
-            matrix = self.form_collocation_matrix(
-                self.adjoint_derivative_matrix, diffusivity)
+            diffusivity = self.diffusivity_fun(self.adjoint_mesh_pts, sample)
+            advection = self.advection_fun(self.adjoint_mesh_pts, sample)
+            matrix = self.form_collocation_matrix_engine(
+                self.adjoint_derivative_matrix, diffusivity, advection)
             self.adjoint_collocation_matrix = matrix.copy()
 
         # regardless of whether computing error estimate or
@@ -329,35 +299,30 @@ class SteadyStateDiffusionEquation1D(object):
         # solution) of the qoi_functional
         qoi_deriv = self.qoi_functional_deriv(self.fwd_solution)
 
-        matrix = self.apply_boundary_conditions_to_matrix(matrix)
-        qoi_deriv = self.apply_adjoint_boundary_conditions_to_rhs(qoi_deriv)
+        matrix = self.apply_boundary_conditions_to_matrix_engine(
+            matrix, self.adjoint_dirichlet_bndry_indices,
+            self.adjoint_neumann_bndry_indices)
+        qoi_deriv = self.__apply_boundary_conditions_to_rhs(
+            qoi_deriv, self.adjoint_bndry_conds)
         adj_solution = np.linalg.solve(matrix, qoi_deriv)
         return adj_solution
-
-    def apply_adjoint_boundary_conditions_to_rhs(self, qoi_deriv):
-        # adjoint always has zero Dirichlet BC
-        qoi_deriv[0] = 0
-        qoi_deriv[-1] = 0
-        return qoi_deriv
 
     def compute_residual(self, matrix, solution, forcing):
         matrix, forcing = self.apply_boundary_conditions(matrix, forcing)
         return forcing - np.dot(matrix, solution)
 
-    def compute_residual_derivative(self, solution, diagonal,
-                                    forcing_deriv):
-        matrix = self.form_collocation_matrix(self.derivative_matrix,
-                                              diagonal)
-        # Todo: check if boundary conditions need to be applied to both
-        # matrix and forcing_derivs or just matrix. If the former
-        # what boundary conditions to I impose on the focing deriv
-        matrix = self.apply_boundary_conditions_to_matrix(
-            matrix)
+    def compute_residual_derivative(self, solution, diffusivity_deriv,
+                                    forcing_deriv, advection_deriv):
+        matrix = self.form_collocation_matrix(
+            diffusivity_deriv, advection_deriv)
+        matrix = self.apply_boundary_conditions_to_matrix_engine(
+            matrix, self.adjoint_dirichlet_bndry_indices,
+            self.adjoint_neumann_bndry_indices)
         # the values here are the derivative of the boundary conditions
         # with respect to the random parameters. I assume that
         # this is always zero
-        forcing_deriv[0] = 0
-        forcing_deriv[-1] = 0
+        forcing_deriv = self.__apply_boundary_conditions_to_rhs(
+            forcing_deriv, self.adjoint_bndry_conds)
         return forcing_deriv.squeeze() - np.dot(matrix, solution)
 
     def compute_error_estimate(self, sample):
@@ -370,8 +335,7 @@ class SteadyStateDiffusionEquation1D(object):
             self.fwd_solution, self.adjoint_mesh_pts)
 
         # compute residual of forward solution using higher-order grid
-        forcing_vals = self.forcing_function(self.adjoint_mesh_pts,
-                                             sample)
+        forcing_vals = self.forcing_fun(self.adjoint_mesh_pts, sample)
 
         # compute residual
         residual = self.compute_residual(self.adjoint_collocation_matrix,
@@ -398,13 +362,15 @@ class SteadyStateDiffusionEquation1D(object):
         adj_solution = self.solve_adjoint(sample, self.order)
         gradient = np.empty((num_stoch_dims), float)
         for i in range(num_stoch_dims):
-            diffusivity_deriv_vals_i = self.diffusivity_derivs_function(
-                self.mesh_pts.squeeze(), sample, i)
-            forcing_deriv_vals_i = self.forcing_derivs_function(
-                self.mesh_pts.squeeze(), sample, i)
+            diffusivity_deriv_vals_i = self.diffusivity_derivs_fun(
+                self.mesh_pts, sample, i)
+            forcing_deriv_vals_i = self.forcing_derivs_fun(
+                self.mesh_pts, sample, i)
+            advection_deriv_vals_i = self.advection_derivs_fun(
+                self.mesh_pts, sample, i)
             residual_deriv = self.compute_residual_derivative(
                 self.fwd_solution, diffusivity_deriv_vals_i,
-                forcing_deriv_vals_i)
+                forcing_deriv_vals_i, advection_deriv_vals_i)
             gradient[i] = self.integrate(residual_deriv * adj_solution)
         return gradient
 
@@ -422,8 +388,8 @@ class SteadyStateDiffusionEquation1D(object):
         # Get Gauss-Legendre rule
         gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
         # Scale points from [-1,1] to to physical domain
-        x_range = self.xlim[1]-self.xlim[0]
-        gl_pts = x_range*(gl_pts+1.)/2.+self.xlim[0]
+        x_range = self.domain[1]-self.domain[0]
+        gl_pts = x_range*(gl_pts+1.)/2.+self.domain[0]
         # Remove factor of 0.5 from weights
         gl_wts *= x_range
         # Interpolate mesh values onto quadrature nodes
@@ -434,10 +400,14 @@ class SteadyStateDiffusionEquation1D(object):
     def interpolate(self, mesh_values, eval_samples):
         if eval_samples.ndim == 1:
             eval_samples = eval_samples[None, :]
+        assert eval_samples.shape[0] == self.mesh_pts.shape[0]
         if mesh_values.ndim == 1:
             mesh_values = mesh_values[:, None]
         assert mesh_values.ndim == 2
-        num_dims = eval_samples.shape[0]
+        num_dims = eval_samples.shape[0]  # map samples to canonical domain
+        eval_samples = map_hypercube_samples(
+            eval_samples, self.domain, self.canonical_domain)
+        # mesh_pts_1d are in canonical domain
         abscissa_1d = [self.mesh_pts_1d]*num_dims
         weights_1d = [compute_barycentric_weights_1d(xx) for xx in abscissa_1d]
         interp_vals = multivariate_barycentric_lagrange_interpolation(
@@ -454,7 +424,7 @@ class SteadyStateDiffusionEquation1D(object):
         if num_plot_pts_1d is not None:
             # interpolate values onto plot points
             plot_mesh = np.linspace(
-                self.xlim[0], self.xlim[1], num_plot_pts_1d)
+                self.domain[0], self.domain[1], num_plot_pts_1d)
             interp_vals = self.interpolate(mesh_values, plot_mesh)
             pylab.plot(plot_mesh, interp_vals, color+'-')
 
@@ -466,7 +436,7 @@ class SteadyStateDiffusionEquation1D(object):
             pylab.plot(self.mesh_pts, mesh_values, color)
 
     def get_collocation_points(self):
-        return np.atleast_2d(self.mesh_pts)
+        return self.mesh_pts
 
     def get_derivative_matrix(self):
         return self.derivative_matrix
@@ -476,128 +446,282 @@ class SteadyStateDiffusionEquation1D(object):
             self.value, samples, None)
 
 
-
-class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
-    """
-    solve  (a(x)*u_x)_x = f; x in [0,1]x[0,1];
-    subject to u(0,:)=a(x); u(:,0)=b(x), u(1,:)=c(x), u(:,1)=d(x)
-    """
-
+class TransientAdvectionDiffusionEquation1D(
+        SteadyStateAdvectionDiffusionEquation1D):
     def __init__(self):
-        self.diffusivity = None
-        self.forcing_function = None
-        self.bndry_cond = [0., 0., 0., 0.]
-        self.xlim = [0, 1]
-        self.ylim = [0, 1]
-        self.left_bc, self.right_bc = None, None
-        self.top_bc, self.bottom_bc = None, None
+        super().__init__()
+        self.num_time_steps = None
+        self.time_step_size = None
+        self.final_time = None
+        self.times = None
+        self.initial_sol = None
+        self.time_step_method = None
+        self.implicit_matrix_factors = None
 
-        # default qoi functional is integral of solution over entire domain
-        self.qoi_functional = self.integrate
-        self.qoi_functional_deriv = lambda x: x*0.+1.
+        # currently do not support time dependent boundary conditions,
+        # diffusivity or advection
+
+    def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
+                   advection_fun, order, domain, final_time, time_step_size,
+                   initial_sol_fun, time_step_method="crank-nicholson"):
+        super().initialize(bndry_conds, diffusivity_fun, forcing_fun,
+                           advection_fun, order, domain)
+        self.set_time_step_size(final_time, time_step_size)
+        self.set_time_step_method(time_step_method)
+        if get_num_args(initial_sol_fun) != 1:
+            msg = "initial_sol_fun must be a callable function with 1 argument"
+            raise ValueError(msg)
+        self.initial_sol = initial_sol_fun(self.mesh_pts)
+
+    def set_forcing_function(self, fun):
+        """
+        Set time dependent forcing
+        """
+        assert callable(fun)
+        assert get_num_args(fun) == 3
+        self.forcing_fun = fun
+
+    def set_time_step_size(self, final_time, time_step_size):
+        self.final_time = final_time
+        self.time_step_size = time_step_size
+
+    def set_time_step_method(self, time_step_method):
+        self.time_step_method = time_step_method
+
+    def explicit_runge_kutta(self, rhs, sol, time, time_step_size):
+        assert callable(rhs)
+        dt2 = time_step_size/2.
+        k1 = rhs(time, sol)
+        k2 = rhs(time+dt2, sol+dt2*k1)
+        k3 = rhs(time+dt2, sol+dt2*k2)
+        k4 = rhs(time+time_step_size, sol+time_step_size*k3)
+        new_sol = sol+time_step_size/6.*(k1+2.*k2+2.*k3+k4)
+        self.apply_boundary_conditions_to_rhs(new_sol)
+        return new_sol
+
+    def forward_euler(self, rhs, sol, time, time_step_size):
+        k1 = rhs(time, sol)
+        new_sol = sol+time_step_size*k1
+        self.apply_boundary_conditions_to_rhs(new_sol)
+        return new_sol
+
+    def form_adams_moulton_3rd_order_system(self, matrix, current_sol,
+                                            current_forcing, future_forcing,
+                                            prev_forcing, prev_sol,
+                                            time_step_size):
+        """ 3rd order Adams-Moultobn method
+        WARNING: seems to be unstable (at least my implementation)
+        y_{n+2} = y_{n+1}+h(c_0y_{n+2}+c_1y_{n+1}+c_3y_{n})
+        c = (5/12,2/3,-1./12)
+        """
+
+        dt12 = time_step_size/12.
+        dt12matrix = dt12*matrix
+        identity = np.eye(matrix.shape[0])
+        matrix = identity-5.*dt12matrix
+        rhs = np.dot(identity+8.*dt12matrix, current_sol)
+        rhs += dt12*(5.*future_forcing+8.*current_forcing-prev_forcing)
+        rhs -= np.dot(dt12matrix, prev_sol)
+        # currently I do not support time varying boundary conditions
+        return self.apply_boundary_conditions_to_rhs(rhs)
+
+    def get_implicit_time_step_rhs(self, current_sol, time, sample):
+        assert current_sol.ndim == 2 and current_sol.shape[1] == 1
+        future_forcing = self.forcing_fun(
+            self.mesh_pts, sample, time+self.time_step_size)
+        if (self.time_step_method == "backward-euler"):
+            rhs = current_sol + self.time_step_size*future_forcing
+        elif (self.time_step_method == "crank-nicholson"):
+            identity = np.eye(self.collocation_matrix.shape[0])
+            rhs = np.dot(
+                identity+0.5*self.time_step_size*self.collocation_matrix,
+                current_sol)
+            current_forcing = self.forcing_fun(
+                self.mesh_pts, sample, time)
+            rhs += 0.5*self.time_step_size*(current_forcing+future_forcing)
+        else:
+            raise Exception('incorrect timestepping method specified')
+        # apply boundary conditions
+        return self.apply_boundary_conditions_to_rhs(rhs)
+
+    def get_implicit_timestep_matrix_inverse_factors(self, matrix):
+        identity = np.eye(matrix.shape[0])
+        if (self.time_step_method == "backward-euler"):
+            matrix = identity-self.time_step_size*matrix
+        elif (self.time_step_method == "crank-nicholson"):
+            matrix = identity-self.time_step_size/2.*matrix
+        else:
+            raise Exception('incorrect timestepping method specified')
+        self.apply_boundary_conditions_to_matrix(matrix)
+        return qr_factorization(matrix)
+
+    def time_step(self, current_sol, time, sample):
+        if (self.time_step_method == 'RK4' or
+                self.time_step_method == 'forward-euler'):
+            def rhs_fun(t, u): return np.dot(
+                self.collocation_matrix, u) +\
+                self.forcing_fun(self.mesh_pts, sample, t)
+            if self.time_step_method == 'RK4':
+                current_sol = self.explicit_runge_kutta(
+                    rhs_fun, current_sol, time, self.time_step_size)
+            else:
+                current_sol = self.forward_euler(
+                    rhs_fun, current_sol, time, self.time_step_size)
+        else:
+            rhs = self.get_implicit_time_step_rhs(current_sol, time, sample)
+            current_sol = qr_solve(
+                self.implicit_matrix_factors[0],
+                self.implicit_matrix_factors[1],
+                rhs)
+            # current_sol = np.linalg.solve( matrix, rhs )
+
+        return current_sol
+
+    def transient_solve(self, sample):
+        # in future consider supporting time varying diffusivity. This would
+        # require updating collocation matrix at each time-step
+        # for now make diffusivity time-independent
+        # assert self.diffusivity_fun.__code__.co_argcount == 3
+
+        # consider replacing time = 0 with time = self.initial_time
+        time = 0.
+        diffusivity = self.diffusivity_fun(self.mesh_pts, sample)
+        advection = self.advection_fun(self.mesh_pts, sample)
+        self.collocation_matrix = self.form_collocation_matrix(
+            diffusivity, advection)
+
+        assert (self.initial_sol is not None and
+                self.initial_sol.shape[1] == 1)
+        assert self.time_step_size is not None
+        current_sol = self.initial_sol.copy()
+        # num_time_steps is number of steps taken after initial time
+        self.num_time_steps = int(
+            np.ceil(self.final_time/self.time_step_size))
+        print(self.time_step_size, self.num_time_steps)
+        self.times = np.empty((self.num_time_steps+1), float)
+        sols = np.empty((self.initial_sol.shape[0],
+                         self.num_time_steps+1), float)
+        self.times[0] = time
+        sols[:, 0] = self.initial_sol[:, 0]
+        sol_cntr = 1
+        if self.time_step_method not in ['RK4', 'forward-euler']:
+            self.implicit_matrix_factors = \
+                self.get_implicit_timestep_matrix_inverse_factors(
+                    self.collocation_matrix)
+        dt_tol = 1e-12
+        while time < self.final_time-dt_tol:
+            # Construct linear system
+            current_sol = self.time_step(current_sol, time, sample)
+            time += self.time_step_size
+            time = min(time, self.final_time)
+
+            # Store history
+            sols[:, sol_cntr] = current_sol[:, 0].copy()
+            self.times[sol_cntr] = time
+            sol_cntr += 1
+        return sols[:, :sol_cntr]
+
+
+class SteadyStateAdvectionDiffusionEquation2D(
+        SteadyStateAdvectionDiffusionEquation1D):
+    """
+    solve  (a(x)*u_x)_x = f
+    """
+    def set_domain(self, domain, order):
+        self.order = order
+        assert len(domain) == 4
+        self.domain = domain
+        self.canonical_domain = [-1, 1, -1, 1]
+        mesh_pts, derivative_matrix_1d = chebyshev_derivative_matrix(order)
+
+        self.mesh_pts_1d = mesh_pts
+        self.mesh_pts = self.map_samples_from_canonical_domain(
+            cartesian_product([self.mesh_pts_1d]*2))
+
+        # define boundary indices of each segment
+        self.determine_boundary_indices()
+
+        ident = np.eye(self.order+1)
+        self.derivative_matrix_1 = np.kron(
+            ident, derivative_matrix_1d*2./(self.domain[1]-self.domain[0]))
+        # form derivative (in x2-direction) matrix of a 2d polynomial
+        # this assumes that 2d-mesh_pts varies in x1 faster than x2,
+        # e.g. points are
+        # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
+        self.derivative_matrix_2 = np.kron(
+            derivative_matrix_1d, ident*2./(self.domain[3]-self.domain[2]))
 
     def determine_boundary_indices(self):
         # boundary edges are stored with the following order,
         # left, right, bottom, top
-        self.boundary_edges = [[], [], [], []]
-        self.boundary_indices = np.empty((4*self.order), int)
-        # To avoid double counting the bottom and upper boundaries
-        # will not include the edge indices
-        cntr = 0
+        self.boundary_indices = [[] for ii in range(4)]
+        self.boundary_indices_to_edges_map = -np.ones(self.mesh_pts.shape[1])
+        # Todo avoid double counting the bottom and upper boundaries
         for i in range(self.mesh_pts.shape[1]):
-            if (self.mesh_pts[0, i] == self.xlim[0]):
-                self.boundary_indices[cntr] = i
-                self.boundary_edges[0].append(cntr)
-                cntr += 1
-            elif (self.mesh_pts[0, i] == self.xlim[1]):
-                self.boundary_indices[cntr] = i
-                self.boundary_edges[1].append(cntr)
-                cntr += 1
-            elif (self.mesh_pts[1, i] == self.ylim[0]):
-                self.boundary_indices[cntr] = i
-                self.boundary_edges[2].append(cntr)
-                cntr += 1
-            elif (self.mesh_pts[1, i] == self.ylim[1]):
-                self.boundary_indices[cntr] = i
-                self.boundary_edges[3].append(cntr)
-                cntr += 1
+            if (self.mesh_pts[0, i] == self.domain[0]):
+                self.boundary_indices[0].append(i)
+                self.boundary_indices_to_edges_map[i] = 0
+            elif (self.mesh_pts[0, i] == self.domain[1]):
+                self.boundary_indices[1].append(i)
+                self.boundary_indices_to_edges_map[i] = 1
+            elif (self.mesh_pts[1, i] == self.domain[2]):
+                self.boundary_indices[2].append(i)
+                self.boundary_indices_to_edges_map[i] = 2
+            elif (self.mesh_pts[1, i] == self.domain[3]):
+                self.boundary_indices[3].append(i)
+                self.boundary_indices_to_edges_map[i] = 3
 
-    def initialize(self, order, bndry_cond=None, lims=None):
-        # 1d model transforms mesh pts 1d from are on [-1,1] to [a,b]
-        # I will asssume that second physical dimension is also [a,b]
-        super(SteadyStateDiffusionEquation2D, self).initialize(order,
-                                                               bndry_cond[:2],
-                                                               lims[:2])
-        self.ylim = lims[2:]
-        self.bndry_cond = bndry_cond
-        self.order = order
-        self.mesh_pts_1d = self.mesh_pts
-        self.mesh_pts = cartesian_product([self.mesh_pts_1d]*2, 1)
+        self.boundary_indices = [
+            np.array(idx, dtype=int) for idx in self.boundary_indices]
 
-        # note scaling of self.derivative_matrix to [a,b] happens at base class
-        self.determine_boundary_indices()
-        # form derivative (in x1-direction) matrix of a 2d polynomial
-        # this assumes that 2d-mesh_pts varies in x1 faster than x2,
-        # e.g. points are
-        # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
-        Ident = np.eye(self.order+1)
-        derivative_matrix_1d = self.get_derivative_matrix()
-        self.derivative_matrix_1 = np.kron(Ident, derivative_matrix_1d)
-        # form derivative (in x2-direction) matrix of a 2d polynomial
-        self.derivative_matrix_2 = np.kron(derivative_matrix_1d, Ident)
+    def set_boundary_conditions(self, bndry_conds):
+        super().set_boundary_conditions(bndry_conds)
+        II = np.where(
+            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] < 2)
+        II = np.where(
+            self.boundary_indices_to_edges_map[self.neumann_bndry_indices] > 1)
+        self.lr_neumann_bndry_indices = self.neumann_bndry_indices[II]
+        self.bt_neumann_bndry_indices = self.neumann_bndry_indices[II]
 
-    def form_collocation_matrix(self, derivative_matrix, diagonal):
-        scaled_matrix_1 = np.empty(self.derivative_matrix_1.shape)
-        scaled_matrix_2 = np.empty(self.derivative_matrix_2.shape)
-        for i in range(scaled_matrix_1.shape[0]):
-            scaled_matrix_1[i, :] = self.derivative_matrix_1[i, :]*diagonal[i]
-            scaled_matrix_2[i, :] = self.derivative_matrix_2[i, :]*diagonal[i]
-        matrix_1 = np.dot(self.derivative_matrix_1, scaled_matrix_1)
-        matrix_2 = np.dot(self.derivative_matrix_2, scaled_matrix_2)
+    def form_collocation_matrix(self, diffusivity_vals, advection_vals):
+        assert diffusivity_vals.ndim == 2 and diffusivity_vals.shape[1] == 1
+        assert advection_vals.ndim == 2 and advection_vals.shape[1] == 1
+        matrix_1 = np.dot(self.derivative_matrix_1,
+                          diffusivity_vals*self.derivative_matrix_1)
+        matrix_2 = np.dot(self.derivative_matrix_2,
+                          diffusivity_vals*self.derivative_matrix_2)
+
+        matrix_1 += self.derivative_matrix_1*advection_vals[:, 0]
+        matrix_2 += self.derivative_matrix_2*advection_vals[:, 0]
+
+        # scaled_matrix_1 = np.empty(self.derivative_matrix_1.shape)
+        # scaled_matrix_2 = np.empty(self.derivative_matrix_2.shape)
+        # for i in range(scaled_matrix_1.shape[0]):
+        #     scaled_matrix_1[i, :] = self.derivative_matrix_1[i, :]*diagonal[i]
+        #     scaled_matrix_2[i, :] = self.derivative_matrix_2[i, :]*diagonal[i]
+        # matrix_1 = np.dot(self.derivative_matrix_1, scaled_matrix_1)
+        # matrix_2 = np.dot(self.derivative_matrix_2, scaled_matrix_2)
         return matrix_1 + matrix_2
 
-    def apply_boundary_conditions_to_matrix(self, matrix):
-        # apply default homogeenous zero value direchlet conditions if
-        # necessary
-        if self.left_bc is None:
-            self.left_bc = lambda x: 0.
-        if self.right_bc is None:
-            self.right_bc = lambda x: 0.
-        if self.bottom_bc is None:
-            self.bottom_bc = lambda x: 0.
-        if self.top_bc is None:
-            self.top_bc = lambda x: 0.
-
-        # adjust collocation matrix
-        matrix[self.boundary_indices, :] = 0.
-        for i in range(self.boundary_indices.shape[0]):
-            index = self.boundary_indices[i]
-            matrix[index, index] = 1.
+    def apply_boundary_conditions_to_matrix_engine(
+            self, matrix, dirichlet_bndry_indices, neumann_bndry_indices):
+        matrix[dirichlet_bndry_indices, :] = 0.0
+        matrix[dirichlet_bndry_indices,
+               dirichlet_bndry_indices] = 1.0
+        # left and right boundaries
+        matrix[self.lr_neumann_bndry_indices, :] = \
+            self.derivative_matrix_1[self.lr_neumann_bndry_indices, :]
+        matrix[self.bt_neumann_bndry_indices, :] = \
+            self.derivative_matrix_1[self.bt_neumann_bndry_indices, :]
         return matrix
-
-    def apply_boundary_conditions_to_rhs(self, forcing):
-        # apply left boundary condition
-        indices = self.boundary_indices[self.boundary_edges[0]]
-        forcing[indices] = self.left_bc(self.mesh_pts[0, indices])
-        # apply right boundary condition
-        indices = self.boundary_indices[self.boundary_edges[1]]
-        forcing[indices] = self.right_bc(self.mesh_pts[0, indices])
-        # apply bottom boundary condition
-        indices = self.boundary_indices[self.boundary_edges[2]]
-        forcing[indices] = self.bottom_bc(self.mesh_pts[1, indices])
-        # apply top boundary condition
-        indices = self.boundary_indices[self.boundary_edges[3]]
-        forcing[indices] = self.top_bc(self.mesh_pts[1, indices])
-        return forcing
 
     def plot(self, mesh_values, num_plot_pts_1d=100):
         if num_plot_pts_1d is not None:
             # interpolate values onto plot points
-            def func(x): return self.interpolate(mesh_values, x)
+            def fun(x): return self.interpolate(mesh_values, x)
             from utilities.visualisation import plot_surface_from_function
-            plot_surface_from_function(func, [self.xlim[0], self.xlim[1],
-                                              self.ylim[0], self.ylim[1]],
-                                       num_plot_pts_1d, False)
+            plot_surface_from_function(
+                fun, self.domain, num_plot_pts_1d, False)
 
     def apply_adjoint_boundary_conditions_to_rhs(self, qoi_deriv):
         # adjoint always has zero Dirichlet BC
@@ -613,13 +737,12 @@ class SteadyStateDiffusionEquation2D(SteadyStateDiffusionEquation1D):
         # Get Gauss-Legendre rule
         gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
         pts_1d, wts_1d = [], []
-        lims = self.xlim+self.ylim
         for ii in range(2):
             # Scale points from [-1,1] to to physical domain
-            x_range = lims[2*ii+1]-lims[2*ii]
+            x_range = self.domain[2*ii+1]-self.domain[2*ii]
             # Remove factor of 0.5 from weights and shift to [a,b]
             wts_1d.append(gl_wts*x_range)
-            pts_1d.append(x_range*(gl_pts+1.)/2.+lims[2*ii])
+            pts_1d.append(x_range*(gl_pts+1.)/2.+self.domain[2*ii])
         # Interpolate mesh values onto quadrature nodes
         pts = cartesian_product(pts_1d)
         wts = outer_product(wts_1d)

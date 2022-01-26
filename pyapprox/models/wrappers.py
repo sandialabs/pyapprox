@@ -8,40 +8,7 @@ from multiprocessing import Pool
 
 from pyapprox.utilities import get_all_sample_combinations
 from pyapprox.utilities import hash_array
-
-
-def get_num_args(function):
-    """
-    Return the number of arguments of a function.
-    If function is a member function of a class the self argument is not
-    counted.
-
-    Parameters
-    ----------
-    function : callable
-        The Python callable to be interrogated
-
-    Return
-    ------
-    num_args : integer
-        The number of arguments to the function including
-        args, varargs, keywords
-    """
-    import inspect
-    args = inspect.getfullargspec(function)
-    num_args = 0
-    if args[0] is not None:
-        num_args += len(args[0])
-        if 'self' in args[0]:
-            num_args -= 1
-    if args[1] is not None:
-        num_args += len(args[1])
-    if args[2] is not None:
-        num_args += len(args[2])
-    # do not count defaults of keywords conatined in args[3]
-    # if args[3] is not None:
-    #    num_args += len(args[3])
-    return num_args
+from pyapprox.sys_utilities import get_num_args
 
 
 def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
