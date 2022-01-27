@@ -23,7 +23,7 @@ def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
     # dtu = u.diff(sp_t, 1)   # time derivative
     dxu = advection_1*u.diff(sp_x, 1)+advection_2*u.diff(sp_y, 1)  # advection
     #sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
-    sp_forcing = (diffusivity*dxu2+dxu)
+    sp_forcing = -(diffusivity*dxu2-dxu)
     print(sp_forcing)
     # forcing_fun = lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
     forcing_fun = lambdify((sp_x, sp_y), sp_forcing, "numpy")
@@ -76,7 +76,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_homogeneous_possion_equation(self):
         """
-        solve u(x)'' = 0, u(0) = 0, u(1) = 0.5
+        solve -u(x)'' = 0, u(0) = 0, u(1) = 0.5
         """
 
         order = 4
@@ -96,7 +96,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_neumann_boundary_conditions(self):
         """
-        Solve u(x)''=exp(4x) u(-1)'=0 and u(1)=0
+        Solve -u(x)''=exp(4x) u(-1)'=0 and u(1)=0
         """
         order = 20
         model = SteadyStateAdvectionDiffusionEquation1D()
@@ -104,7 +104,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x.T*0, "D"]]
         domain = [-1, 1]
         model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: np.exp(4*x.T),
+                         lambda x, z: -np.exp(4*x.T),
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
@@ -117,13 +117,13 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_inhomogeneous_possion_equation(self):
         """
-        solve u(x)'' = -1, u(0) = 0, u(1) = 1
-        solution u(x) =  -0.5*(x-3.)*x
+        solve -u(x)'' = -1, u(0) = 0, u(1) = 1
+        solution u(x) =  0.5*(x-3.)*x
         """
         order = 4
         model = SteadyStateAdvectionDiffusionEquation1D()
         bndry_conds = [[lambda x: x.T*0, "D"],
-                       [lambda x: x.T*0+1, "D"]]
+                       [lambda x: x.T*0-1, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: x.T*0+1,
                          lambda x, z: 0*x.T-1,
@@ -131,14 +131,14 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
-        def exact_sol(x): return -(0.5*(x-3.)*x).T
-        # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
+        def exact_sol(x): return (0.5*(x-3.)*x).T
+        print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 30*self.eps
 
     def test_inhomogeneous_advection_diffusion_equation(self):
         """
-        solve u(x)'' + a u(x)' = (a cos(x)-sin(x)), u(0) = 0, u(1) = sin(1)
+        solve -u(x)'' + a u(x)' = a cos(x)+sin(x), u(0) = 0, u(1) = sin(1)
         solution u(x) =  sin(x)
         """
         a = 10
@@ -148,7 +148,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x.T*0+np.sin(1), "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: x.T*0+1,
-                         lambda x, z: (a*np.cos(x)-np.sin(x)).T,
+                         lambda x, z: (a*np.cos(x)+np.sin(x)).T,
                          lambda x, z: x.T*0+a, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
@@ -158,9 +158,34 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 6e-14
 
+    def test_homogeneous_advection_diffusion_equation(self):
+        """
+        solve -a u(x)'' - u(x)' = 0, u(0) = 0, u(1) = 1
+        solution u(x) =  sin(x)
+        """
+        a = 1
+        order = 20
+        model = SteadyStateAdvectionDiffusionEquation1D()
+        bndry_conds = [[lambda x: x.T*0, "D"],
+                       [lambda x: x.T*0+1, "D"]]
+        domain = [0, 1]
+        model.initialize(bndry_conds, lambda x, z: x.T*0+a,
+                         lambda x, z: x.T*0,
+                         lambda x, z: x.T*0-1, order, domain)
+        mesh_pts = model.get_collocation_points()
+        sample = np.zeros((0))  # dummy for this example
+        solution = model.run(sample)
+        def exact_sol(x): return ((np.exp(-x/a)-1)/(np.exp(-1/a)-1)).T
+        # pya.plt.plot(mesh_pts[0, :], exact_sol(mesh_pts)[:, 0])
+        # pya.plt.plot(mesh_pts[0, :], solution[:, 0], '--')
+        # pya.plt.show()
+        print(np.linalg.norm(exact_sol(mesh_pts)-solution))
+        assert np.linalg.norm(
+            exact_sol(mesh_pts)-solution) < 8e-14
+
     def test_inhomogeneous_diffusion_equation_with_variable_coefficient(self):
         """
-        solve ((1+x)*u(x)')' = -1, u(0) = 0, u(1) = 0
+        solve -((1+x)*u(x)')' = 1, u(0) = 0, u(1) = 0
         solution u(x) = log(x+1)/log(2) - x
         """
         order = 20
@@ -169,7 +194,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x.T*0, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: x.T+1,
-                         lambda x, z: x.T*0-1,
+                         lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
@@ -186,7 +211,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x.T*0, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: x.T+1,
-                         lambda x, z: x.T*0-1,
+                         lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         assert np.allclose(model.integrate(mesh_pts.T**2), 1./3.)
@@ -206,7 +231,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_evaluate(self):
         """
-        for the PDE ((1+z*x)*u(x)')' = -1, u(0) = 0, u(1) = 0
+        for the PDE -((1+z*x)*u(x)')' = 1, u(0) = 0, u(1) = 0
         buse model.evaluate to extract QoI
         """
         order = 20
@@ -215,7 +240,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                        [lambda x: x.T*0, "D"]]
         domain = [0, 1]
         model.initialize(bndry_conds, lambda x, z: z*x.T + 1.,
-                         lambda x, z:  0*x.T-1,
+                         lambda x, z:  0*x.T+1,
                          lambda x, z: x.T*0, order, domain)
 
         qoi_coords = np.array([0.05, 0.5, 0.95])
@@ -233,7 +258,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_evaluate_gradient_1d(self):
         """
-        for the PDE ((1+sum(z^2)*x)*u(x)')' = -2, u(0) = 0, u(1) = 1
+        for the PDE -((1+sum(z^2)*x)*u(x)')' = 2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
         with respect to the random parameter vector z.
         The QoI is the intergral of the solution over the entire domain
@@ -246,7 +271,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         domain = [0, 1]
         model.initialize(
             bndry_conds, lambda x, z: ((z[0]**2+z[1]**2)*x + 1.).T,
-            lambda x, z: 0*x.T-2, lambda x, z: x.T*0, order, domain)
+            lambda x, z: 0*x.T+2, lambda x, z: x.T*0, order, domain)
 
         sample = np.random.RandomState(2).uniform(-1, 1, (2, 1))
         # derivatives with respect to the mesh x
@@ -266,7 +291,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
     def test_evaluate_advection_gradient_1d(self):
         """
         For the PDE
-             ((1+sum(z^2)*x)*u(x)')'+2*sum(z)*u(x)' = -2, u(0) = 0, u(1) = 1
+             -((1+sum(z^2)*x)*u(x)')'+2*sum(z)*u(x)' = 2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
         with respect to the random parameter vector z.
         The QoI is the intergral of the solution over the entire domain
@@ -280,7 +305,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         domain = [0, 1]
         model.initialize(
             bndry_conds, lambda x, z: ((z[0]**2+z[1]**2)*x + 1.).T,
-            lambda x, z: 0*x.T-2,
+            lambda x, z: 0*x.T+2,
             lambda x, z: aa*(z[0]+z[1])+0*x.T,
             order, domain)
 
@@ -302,7 +327,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
     @unittest.skip("Not fully implemented")
     def test_compute_error_estimate(self):
         """
-        for the PDE ((1+z*x)*u(x)')' = -1, u(0) = 0, u(1) = 0
+        for the PDE -((1+z*x)*u(x)')' = 1, u(0) = 0, u(1) = 0
         use model.compute_error_estomate to compute an error estimate of
         the deterministic error in the foward solution.
         The QoI is the intergral of the solution over the entire domain
@@ -315,7 +340,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         model.initialize(order, bndry_cond, xlim)
 
         model.diffusivity_fun = lambda x, z: z[0]*x + 1.
-        model.forcing_func = lambda x, z: 0.*x-1.
+        model.forcing_func = lambda x, z: 0.*x+1.
 
         sample = np.ones((1, 1), float)
         qoi = model(sample)
@@ -549,7 +574,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sigma = 1
 
         def forcing_fun(x, z):
-            vals = (32.*(1.+sigma*z[0]*sigma*np.cos(
+            vals = -(32.*(1.+sigma*z[0]*sigma*np.cos(
                 np.pi/2.*(x[0, :]**2+x[1, :]**2))/np.pi**2) *
                 np.exp(-z[0]**2)*(x[0, :]**2+x[1, :]**2-0.5) -
                 32./np.pi*z[0]*sigma*np.sin(np.pi/2.*(x[0, :]**2+x[1, :]**2)) *
@@ -596,7 +621,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         def forcing_fun(x, z):
             return sp_forcing_fun(x[0, :], x[1, :])[:, None]
 
-        order = 32
+        order = 16
         model = SteadyStateAdvectionDiffusionEquation2D()
         domain = [0, 1, 0, 1]
         bndry_conds = [
@@ -612,10 +637,12 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             order, domain)
 
         sample = np.zeros((0))  # dummy for this example
+        import time; t0 = time.time()
         solution = model.run(sample)
+        print(time.time()-t0)
 
         # print(np.linalg.norm(exact_sol(model.mesh_pts)-solution))
-        # fig, axs = pya.plt.subplots(1, 2, figsize=(8, 6))
+        # fig, axs = pya.plt.subplots(1, 2, figsize=(2*8, 6))
         # X, Y, Z = pya.get_meshgrid_function_data(exact_sol, model.domain, 30)
         # p = axs[0].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
@@ -663,7 +690,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
     def test_evaluate_gradient_2d(self):
         """
-        for the PDE ((1+sum(z^2)*x)*u(x)')' = -2, u(0) = 0, u(1) = 1
+        for the PDE -((1+sum(z^2)*x)*u(x)')' = 2, u(0) = 0, u(1) = 1
         use model.evaluate_gradient to evaluate the gradient of the QoI
         with respect to the random parameter vector z.
         The QoI is the intergral of the solution over the entire domain
@@ -679,7 +706,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         model.initialize(
             bndry_conds,
             lambda x, z: ((z[0]**2+z[1]**2)*(x[0]+x[1]) + 1.)[:, None],
-            lambda x, z: 0*x[:1].T-2,
+            lambda x, z: 0*x[:1].T+2,
             lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
 
         sample = np.random.RandomState(2).uniform(-1, 1, (2, 1))

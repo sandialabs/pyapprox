@@ -72,7 +72,7 @@ def chebyshev_derivative_matrix(order):
 
 class SteadyStateAdvectionDiffusionEquation1D(object):
     """
-    solve  (a(x)*u_x)_x = f; x in [0,1]; subject to u(0)=a; u(1)=b
+    Solve  -(a(x)*u_x)_x+b(x)*u_x = f
     """
 
     def __init__(self):
@@ -104,6 +104,8 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
         self.set_diffusivity_function(diffusivity_fun)
         self.set_forcing_function(forcing_fun)
         self.set_advection_function(advection_fun)
+
+        self.gl_pts, self.gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
 
     def set_domain(self, domain, order):
         self.order = order
@@ -204,9 +206,10 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
         scaled_matrix = diffusivity_vals*derivative_matrix
         matrix = np.dot(derivative_matrix, scaled_matrix)
 
-        # matrix += np.dot(derivative_matrix, np.diag(advection_vals[:, 0]))
-        matrix += derivative_matrix*advection_vals[:, 0]
-        return matrix
+        # matrix -= np.dot(derivative_matrix, np.diag(advection_vals[:, 0]))
+        matrix -= derivative_matrix*advection_vals[:, 0]
+        # want to solve u_xx-au_x+f=0 i.e. -u_xx+au_x=f so add negative
+        return -matrix
 
     def apply_boundary_conditions_to_matrix(self, matrix):
         return self.apply_boundary_conditions_to_matrix_engine(
@@ -384,13 +387,11 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
     def integrate(self, mesh_values, order=None):
         if order is None:
             order = self.order
-        # Get Gauss-Legendre rule
-        gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
         # Scale points from [-1,1] to to physical domain
         x_range = self.domain[1]-self.domain[0]
-        gl_pts = x_range*(gl_pts+1.)/2.+self.domain[0]
+        gl_pts = x_range*(self.gl_pts+1.)/2.+self.domain[0]
         # Remove factor of 0.5 from weights
-        gl_wts *= x_range
+        gl_wts = self.gl_wts*x_range
         # Interpolate mesh values onto quadrature nodes
         gl_vals = self.interpolate(mesh_values, gl_pts)
         # Compute and return integral
@@ -447,6 +448,9 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
 
 class TransientAdvectionDiffusionEquation1D(
         SteadyStateAdvectionDiffusionEquation1D):
+    """
+    Solve  u_t=(a(x)*u_x)_x-b(x)*u_x + f
+    """
     def __init__(self):
         super().__init__()
         self.num_time_steps = None
@@ -580,13 +584,14 @@ class TransientAdvectionDiffusionEquation1D(
         # in future consider supporting time varying diffusivity. This would
         # require updating collocation matrix at each time-step
         # for now make diffusivity time-independent
-        # assert self.diffusivity_fun.__code__.co_argcount == 3
 
         # consider replacing time = 0 with time = self.initial_time
         time = 0.
         diffusivity = self.diffusivity_fun(self.mesh_pts, sample)
         advection = self.advection_fun(self.mesh_pts, sample)
-        self.collocation_matrix = self.form_collocation_matrix(
+        # negate collocation matrix because it has moved from
+        # lhs for steady state to rhs for transient
+        self.collocation_matrix = -self.form_collocation_matrix(
             diffusivity, advection)
 
         assert (self.initial_sol is not None and
@@ -623,7 +628,7 @@ class TransientAdvectionDiffusionEquation1D(
 class SteadyStateAdvectionDiffusionEquation2D(
         SteadyStateAdvectionDiffusionEquation1D):
     """
-    solve  (a(x)*u_x)_x = f
+    solve  -(a(x)*u_x)_x + b(x)*u_x = f
 
     boundary edges are stored with the following order,
     left, right, bottom, top
@@ -694,10 +699,11 @@ class SteadyStateAdvectionDiffusionEquation2D(
         matrix_2 = np.dot(self.derivative_matrix_2,
                           diffusivity_vals*self.derivative_matrix_2)
 
-        matrix_1 += self.derivative_matrix_1*advection_vals[:, 0]
-        matrix_2 += self.derivative_matrix_2*advection_vals[:, 1]
+        matrix_1 -= self.derivative_matrix_1*advection_vals[:, 0]
+        matrix_2 -= self.derivative_matrix_2*advection_vals[:, 1]
 
-        return matrix_1 + matrix_2
+        # want to solve -u_xx-u_yy+au_x+bu_y=f so add negative
+        return -matrix_1 - matrix_2
 
     def apply_boundary_conditions_to_matrix_engine(
             self, matrix, dirichlet_bndry_indices, neumann_bndry_indices):
@@ -728,17 +734,19 @@ class SteadyStateAdvectionDiffusionEquation2D(
         return qoi_deriv
 
     def integrate(self, mesh_values, order=None):
+        return self.integrate_subdomain(mesh_values, self.domain, order)
+
+    def integrate_subdomain(self, mesh_values, subdomain, order=None):
         if order is None:
             order = self.order
-        # Get Gauss-Legendre rule
-        gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
+
         pts_1d, wts_1d = [], []
         for ii in range(2):
             # Scale points from [-1,1] to to physical domain
-            x_range = self.domain[2*ii+1]-self.domain[2*ii]
+            x_range = subdomain[2*ii+1]-subdomain[2*ii]
             # Remove factor of 0.5 from weights and shift to [a,b]
-            wts_1d.append(gl_wts*x_range)
-            pts_1d.append(x_range*(gl_pts+1.)/2.+self.domain[2*ii])
+            wts_1d.append(self.gl_wts*x_range)
+            pts_1d.append(x_range*(self.gl_pts+1.)/2.+subdomain[2*ii])
         # Interpolate mesh values onto quadrature nodes
         pts = cartesian_product(pts_1d)
         wts = outer_product(wts_1d)
