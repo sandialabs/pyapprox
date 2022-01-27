@@ -196,13 +196,13 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
         return self.form_collocation_matrix_engine(
             self.derivative_matrix, diffusivity_vals, advection_vals)
 
-    def form_collocation_matrix_engine(self, derivative_matrix, diffusivity_vals,
-                                       advection_vals):
+    def form_collocation_matrix_engine(self, derivative_matrix,
+                                       diffusivity_vals, advection_vals):
         assert diffusivity_vals.ndim == 2 and diffusivity_vals.shape[1] == 1
         assert advection_vals.ndim == 2 and advection_vals.shape[1] == 1
         # scaled_matrix = np.empty(derivative_matrix.shape)
-        # for i in range(scaled_matrix.shape[0]):
-        #     scaled_matrix[i, :] = derivative_matrix[i, :]*diffusivity_vals[i]
+        # for ii in range(scaled_matrix.shape[0]):
+        #     scaled_matrix[ii, :]=derivative_matrix[ii, :]*diffusivity_vals[ii]
         scaled_matrix = diffusivity_vals*derivative_matrix
         matrix = np.dot(derivative_matrix, scaled_matrix)
 
@@ -363,17 +363,17 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
         # qoi_deriv = self.qoi_functional_deriv(self.mesh_pts)
         adj_solution = self.solve_adjoint(sample, self.order)
         gradient = np.empty((num_stoch_dims), float)
-        for i in range(num_stoch_dims):
+        for ii in range(num_stoch_dims):
             diffusivity_deriv_vals_i = self.diffusivity_derivs_fun(
-                self.mesh_pts, sample, i)
+                self.mesh_pts, sample, ii)
             forcing_deriv_vals_i = self.forcing_derivs_fun(
-                self.mesh_pts, sample, i)
+                self.mesh_pts, sample, ii)
             advection_deriv_vals_i = self.advection_derivs_fun(
-                self.mesh_pts, sample, i)
+                self.mesh_pts, sample, ii)
             residual_deriv = self.compute_residual_derivative(
                 self.fwd_solution, diffusivity_deriv_vals_i,
                 forcing_deriv_vals_i, advection_deriv_vals_i)
-            gradient[i] = self.integrate(residual_deriv * adj_solution)
+            gradient[ii] = self.integrate(residual_deriv * adj_solution)
         return gradient
 
     def value(self, sample):
@@ -665,19 +665,19 @@ class SteadyStateAdvectionDiffusionEquation2D(
         self.boundary_indices = [[] for ii in range(4)]
         self.boundary_indices_to_edges_map = -np.ones(self.mesh_pts.shape[1])
         # Todo avoid double counting the bottom and upper boundaries
-        for i in range(self.mesh_pts.shape[1]):
-            if (self.mesh_pts[0, i] == self.domain[0]):
-                self.boundary_indices[0].append(i)
-                self.boundary_indices_to_edges_map[i] = 0
-            elif (self.mesh_pts[0, i] == self.domain[1]):
-                self.boundary_indices[1].append(i)
-                self.boundary_indices_to_edges_map[i] = 1
-            elif (self.mesh_pts[1, i] == self.domain[2]):
-                self.boundary_indices[2].append(i)
-                self.boundary_indices_to_edges_map[i] = 2
-            elif (self.mesh_pts[1, i] == self.domain[3]):
-                self.boundary_indices[3].append(i)
-                self.boundary_indices_to_edges_map[i] = 3
+        for ii in range(self.mesh_pts.shape[1]):
+            if (self.mesh_pts[0, ii] == self.domain[0]):
+                self.boundary_indices[0].append(ii)
+                self.boundary_indices_to_edges_map[ii] = 0
+            elif (self.mesh_pts[0, ii] == self.domain[1]):
+                self.boundary_indices[1].append(ii)
+                self.boundary_indices_to_edges_map[ii] = 1
+            elif (self.mesh_pts[1, ii] == self.domain[2]):
+                self.boundary_indices[2].append(ii)
+                self.boundary_indices_to_edges_map[ii] = 2
+            elif (self.mesh_pts[1, ii] == self.domain[3]):
+                self.boundary_indices[3].append(ii)
+                self.boundary_indices_to_edges_map[ii] = 3
 
         self.boundary_indices = [
             np.array(idx, dtype=int) for idx in self.boundary_indices]
@@ -713,8 +713,9 @@ class SteadyStateAdvectionDiffusionEquation2D(
         # left and right boundaries
         matrix[self.lr_neumann_bndry_indices, :] = \
             self.derivative_matrix_1[self.lr_neumann_bndry_indices, :]
+        # bottom and top boundaries
         matrix[self.bt_neumann_bndry_indices, :] = \
-            self.derivative_matrix_1[self.bt_neumann_bndry_indices, :]
+            self.derivative_matrix_2[self.bt_neumann_bndry_indices, :]
         return matrix
 
     def plot(self, mesh_values, num_plot_pts_1d=100):
