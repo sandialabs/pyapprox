@@ -610,7 +610,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # print (np.linalg.norm(exact_sol(mesh_pts, sample)-solution))
         assert np.linalg.norm(exact_sol(mesh_pts, sample) - solution) < 2.e-12
 
-    def test_2d_advection_diffusion_neumann_bcs(self):
+    def test_2d_advection_diffusion_neumann_x_dim_bcs(self):
         sol_string = "x**2*sin(pi*y)"
         sp_forcing_fun = \
             get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
@@ -626,7 +626,6 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         domain = [0, 1, 0, 1]
         bndry_conds = [
             [lambda x: np.zeros((x.shape[1], 1)), "N"],
-            # [lambda x: exact_sol(x), "D"],
             [lambda x: exact_sol(x), "D"],
             [lambda x: np.zeros((x.shape[1], 1)), "D"],
             [lambda x: np.zeros((x.shape[1], 1)), "D"]]
@@ -637,9 +636,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             order, domain)
 
         sample = np.zeros((0))  # dummy for this example
-        import time; t0 = time.time()
         solution = model.run(sample)
-        print(time.time()-t0)
 
         # print(np.linalg.norm(exact_sol(model.mesh_pts)-solution))
         # fig, axs = pya.plt.subplots(1, 2, figsize=(2*8, 6))
@@ -653,6 +650,37 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
         # pya.plt.colorbar(p, ax=axs[1])
         # pya.plt.show()
+
+        assert np.linalg.norm(
+            exact_sol(model.mesh_pts)-solution) < 1e-9
+
+    def test_2d_advection_diffusion_neumann_y_dim_bcs(self):
+        sol_string = "y**2*sin(pi*x)"
+        sp_forcing_fun = \
+            get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
+                sol_string, 1, 1, 0)
+
+        def exact_sol(x): return (x[1, :]**2*np.sin(np.pi*x[0, :]))[:, None]
+
+        def forcing_fun(x, z):
+            return sp_forcing_fun(x[0, :], x[1, :])[:, None]
+
+        order = 16
+        model = SteadyStateAdvectionDiffusionEquation2D()
+        domain = [0, 1, 0, 1]
+        bndry_conds = [
+            [lambda x: np.zeros((x.shape[1], 1)), "D"],
+            [lambda x: np.zeros((x.shape[1], 1)), "D"],
+            [lambda x: np.zeros((x.shape[1], 1)), "N"],
+            [lambda x: exact_sol(x), "D"]]
+        model.initialize(
+            bndry_conds, lambda x, z: np.ones((x.shape[1], 1)), forcing_fun,
+            lambda x, z: np.hstack(
+                (np.ones((x.shape[1], 1)), np.zeros((x.shape[1], 1)))),
+            order, domain)
+
+        sample = np.zeros((0))  # dummy for this example
+        solution = model.run(sample)
 
         assert np.linalg.norm(
             exact_sol(model.mesh_pts)-solution) < 1e-9
