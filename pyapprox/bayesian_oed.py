@@ -10,6 +10,34 @@ from pyapprox.probability_measure_sampling import (
 
 @njit(cache=True)
 def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
+    """
+    Compute the scaled l2-norm distance between two sets of samples
+    E.g. for one point
+
+
+    a[ii]*(XX[ii]-YY[ii])+b[ii]
+
+
+    Parameters
+    ----------
+    XX : np.ndarray (nvars, 1, NN)
+        The first set of samples
+
+    YY : np.ndarray (LL, MM, NN)
+        The second set of samples. The 3D arrays are useful when computing
+        squared distances for multiple sets of samples
+
+    a : float or np.ndarray (NN, 1)
+        scalar multiplying l2 distance
+
+    a : float or np.ndarray (NN, 1)
+        scalar added to l2 distance
+
+    Returns
+    -------
+    ss : np.ndarray (LL, MM)
+        The scaled distances
+    """
     Yshape = YY.shape
     assert XX.shape[1] == 1
     ss = np.empty(Yshape[:2])
@@ -31,20 +59,57 @@ def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
 def gaussian_loglike_fun_broadcast(
         obs, pred_obs, noise_stdev, active_indices=None):
     """
-    This can handle all cases 1d,2d, 3d arrays but is slower
+    Conmpute the log-likelihood values from a set of real and predicted
+    observations
+
+    Parameters
+    ----------
+    obs : np.ndarray (nsamples, nobs)
+        The real observations repeated for each sample
+
+    pred_obs : np.ndarray (nsamples, nobs)
+        The observations predicited by the model for a set of samples
+
+    noise_stdev : float or np.ndarray (nobs, 1)
+        The standard deviation of Gaussian noise added to each observation
+
+    active_indices : np.ndarray (nobs, 1)
+        The subset of indices of the observations used to compute the
+        likelihood
+
+    Returns
+    -------
+    llike : np.ndaray (nsamples, 1)
+
+    Notes
+    -----
+    This can handle 1d, 2d, 3d arrays but is slower
     due to broadcasting when computing obs-pred_obs
     """
+    if (type(noise_stdev) == np.ndarray and
+            noise_stdev.shape[0] != obs.shape[1]):
+        raise ValueError("noise must be provided for each observation")
+
     if active_indices is None:
         nobs = obs.shape[-1]
-        # avoid copy is possible
-        # using special indexing with array makes a copy which is slow
-        llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs+np.sum(
-            -(obs-pred_obs)**2, axis=-1)/(2*noise_stdev**2)
+        # avoid copy if possible
+        # using special indexing with array e.g array[:, I] where I is an array
+        # makes a copy which is slow
+        if (type(noise_stdev) != np.ndarray):
+            llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs
+        else:
+            llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))
+        llike += np.sum(-(obs-pred_obs)**2/(2*noise_stdev**2), axis=-1)
     else:
         nobs = active_indices.shape[0]
-        llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs+np.sum(
-            -(obs[..., active_indices]-pred_obs[..., active_indices])**2,
-            axis=-1)/(2*noise_stdev**2)
+        if (type(noise_stdev) != np.ndarray):
+            llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs+np.sum(
+                -(obs[..., active_indices]-pred_obs[..., active_indices])**2
+                / (2*noise_stdev**2), axis=-1)
+        else:
+            llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))+np.sum(
+                -(obs[..., active_indices]-pred_obs[..., active_indices])**2
+                / (2*noise_stdev[active_indices]**2), axis=-1)
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
@@ -61,7 +126,10 @@ def gaussian_loglike_fun_economial_3D(
     else:
         nobs = active_indices.shape[-1]
 
-    tmp1 = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs
+    if (type(noise_stdev) != np.ndarray):
+        tmp1 = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs
+    else:
+        tmp1 = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))
     tmp2 = -1/(2*noise_stdev**2)
     llike = sq_dists_numba_3d(obs, pred_obs, tmp2, tmp1, active_indices)
     if llike.ndim == 1:
@@ -83,7 +151,11 @@ def gaussian_loglike_fun_economial_2D(
         sq_dists = cdist(
             obs[..., active_indices], pred_obs[..., active_indices],
             "sqeuclidean")
-    llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs-sq_dists[0, :]/(
+    if (type(noise_stdev) != np.ndarray):
+        llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs-sq_dists[0, :]/(
+            2*noise_stdev**2)
+    else:
+        llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))-sq_dists[0, :]/(
             2*noise_stdev**2)
     if llike.ndim == 1:
         llike = llike[:, None]
@@ -140,7 +212,8 @@ def __compute_expected_kl_utility_monte_carlo(
                          outer_loop_weights)
     if not return_all:
         return utility_val
-    return utility_val, evidences
+    weights = np.exp(inner_log_likelihood_vals)*inner_loop_weights/evidences
+    return utility_val, evidences, weights
 
 
 def precompute_compute_expected_kl_utility_data(
@@ -391,7 +464,7 @@ def __compute_negative_expected_deviation_monte_carlo(
     if not return_all:
         return -expected_deviation
     else:
-        return -expected_deviation, deviations, evidences, weights
+        return -expected_deviation, evidences, weights, deviations
 
 
 def compute_negative_expected_deviation_monte_carlo(
@@ -571,7 +644,7 @@ class BayesianBatchKLOED(object):
     def populate(self):
         (self.outer_loop_obs, self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
-         self.outer_loop_prior_samples, __) = \
+         self.outer_loop_prior_samples, self.inner_loop_prior_samples) = \
              precompute_compute_expected_kl_utility_data(
                  self.generate_prior_samples, self.nouter_loop_samples,
                  self.obs_fun, self.noise_fun, self.ninner_loop_samples,

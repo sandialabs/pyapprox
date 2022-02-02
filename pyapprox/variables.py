@@ -357,6 +357,12 @@ class IndependentMultivariateRandomVariable(object):
                 string += "\n"
         return string
 
+    def is_bounded_continuous_variable(self):
+        for rv in self.unique_variables:
+            if not is_bounded_continuous_variable(rv):
+                return False
+        return True
+
 
 class float_rv_discrete(rv_sample):
     """Discrete distribution defined on locations represented as floats.

@@ -90,6 +90,7 @@ class TestBayesianOED(unittest.TestCase):
 
         prior_pdf = stats.norm(prior_mean[0], np.sqrt(prior_cov[0])).pdf
         pred_obs = fun(design, xx[None, :])
+        print(obs.shape)
         lvals = np.exp(
             gaussian_loglike_fun(obs, pred_obs, noise_std))*prior_pdf(
                 xx)[:, None]
@@ -750,7 +751,7 @@ class TestBayesianOED(unittest.TestCase):
             # Update the design
             utility_vals, selected_indices = oed.update_design()
 
-            utility, deviations, evidences, weights = \
+            utility, evidences, weights, deviations  = \
                 oed_copy.compute_expected_utility(
                     oed_copy.collected_design_indices, selected_indices, True)
 

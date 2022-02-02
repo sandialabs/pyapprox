@@ -88,13 +88,17 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
         self.adjoint_bndry_conds = None
         self.adjoint_dirichlet_bndry_indices = None
         self.adjoint_neumann_bndry_indices = None
-
+        self.qoi_functional = None
         # default qoi functional is integral of solution over entire domain
-        self.qoi_functional = self.integrate
-        self.qoi_functional_deriv = lambda x: x*0.+1.
+        self.set_qoi_functional(self.integrate, lambda sol: sol*0.+1.)
+
+    def set_qoi_functional(self, qoi_functional, qoi_functional_deriv=None):
+        self.qoi_functional = qoi_functional
+        self.qoi_functional_deriv = qoi_functional_deriv
 
     def map_samples_from_canonical_domain(self, canonical_pts):
-        pts = map_hypercube_samples(canonical_pts, self.canonical_domain, self.domain)
+        pts = map_hypercube_samples(
+            canonical_pts, self.canonical_domain, self.domain)
         return pts
 
     def initialize(self, bndry_conds, diffusivity_fun, forcing_fun,
@@ -241,7 +245,8 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
     def solve(self, diffusivity, forcing, advection):
         assert diffusivity.ndim == 2 and diffusivity.shape[1] == 1
         assert forcing.ndim == 2 and forcing.shape[1] == 1
-        assert advection.ndim == 2 and advection.shape[1] == self.mesh_pts.shape[0]
+        assert advection.ndim == 2 and (
+            advection.shape[1] == self.mesh_pts.shape[0])
         # forcing will be overwritten with bounary values so must take a
         # deep copy
         forcing = forcing.copy()
@@ -625,6 +630,35 @@ class TransientAdvectionDiffusionEquation1D(
         return sols[:, :sol_cntr]
 
 
+def integrate_subdomain(mesh_values, subdomain, order, interpolate,
+                        quad_rule=None):
+    # Keep separate from model class so that pre-computed so
+    # it can also be used by QoI functions
+    if quad_rule is None:
+        quad_pts, quad_wts = get_2d_sub_domain_quadrature_rule(
+            subdomain, order)
+    else:
+        quad_pts, quad_wts = quad_rule
+    quad_vals = interpolate(mesh_values, quad_pts)
+    # Compute and return integral
+    return np.dot(quad_vals[:, 0], quad_wts)
+
+
+def get_2d_sub_domain_quadrature_rule(subdomain, order):
+    gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
+    pts_1d, wts_1d = [], []
+    for ii in range(2):
+        # Scale points from [-1,1] to to physical domain
+        x_range = subdomain[2*ii+1]-subdomain[2*ii]
+        # Remove factor of 0.5 from weights and shift to [a,b]
+        wts_1d.append(gl_wts*x_range)
+        pts_1d.append(x_range*(gl_pts+1.)/2.+subdomain[2*ii])
+    # Interpolate mesh values onto quadrature nodes
+    pts = cartesian_product(pts_1d)
+    wts = outer_product(wts_1d)
+    return pts, wts
+
+
 class SteadyStateAdvectionDiffusionEquation2D(
         SteadyStateAdvectionDiffusionEquation1D):
     """
@@ -735,22 +769,7 @@ class SteadyStateAdvectionDiffusionEquation2D(
         return qoi_deriv
 
     def integrate(self, mesh_values, order=None):
-        return self.integrate_subdomain(mesh_values, self.domain, order)
-
-    def integrate_subdomain(self, mesh_values, subdomain, order=None):
         if order is None:
             order = self.order
-
-        pts_1d, wts_1d = [], []
-        for ii in range(2):
-            # Scale points from [-1,1] to to physical domain
-            x_range = subdomain[2*ii+1]-subdomain[2*ii]
-            # Remove factor of 0.5 from weights and shift to [a,b]
-            wts_1d.append(self.gl_wts*x_range)
-            pts_1d.append(x_range*(self.gl_pts+1.)/2.+subdomain[2*ii])
-        # Interpolate mesh values onto quadrature nodes
-        pts = cartesian_product(pts_1d)
-        wts = outer_product(wts_1d)
-        gl_vals = self.interpolate(mesh_values, pts)
-        # Compute and return integral
-        return np.dot(gl_vals[:, 0], wts)
+        return integrate_subdomain(
+            mesh_values, self.domain, order, self.interpolate)

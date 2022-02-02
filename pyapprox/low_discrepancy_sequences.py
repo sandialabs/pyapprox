@@ -17,11 +17,11 @@ def halton_sequence(num_vars, index1, index2):
     except Exception as e:
         trace_error_with_msg('halton_sequence extension failed', e)
 
-    return __halton_sequence(num_vars, index1, index2)
+    return __halton_sequence(num_vars, index1, index2, primes)
 
 
 @njit(cache=True)
-def __halton_sequence(num_vars, index1, index2):
+def __halton_sequence(num_vars, index1, index2, primes):
     num_samples = index2-index1
     sequence = np.zeros((num_vars, num_samples))
     ones = np.ones(num_vars)
@@ -75,13 +75,13 @@ def index_of_first_zero_bit_moving_right_to_left(ii):
     while ((ii & 1) > 0):
         ii >>= 1
         jj += 1
-        #print(ii, "{0:b}".format(ii), jj, (ii&1)>0)
+        # print(ii, "{0:b}".format(ii), jj, (ii&1)>0)
     return jj-1
 
 
 def load_direction_sequence(nvars):
     """
-    Read direction_numbers from 
+    Read direction_numbers from
     https://web.maths.unsw.edu.au/~fkuo/sobol/
     """
     import os
@@ -95,8 +95,7 @@ def load_direction_sequence(nvars):
     while ii < nvars:
         line = dir_seq_file.readline()
         if not line:
-            msg = 'Requested to many dimension. Can only compute sequences for '
-            msg += f'dimensions up to {max_nvars}.'
+            msg = 'Requested to many dimension.'
             raise Exception(msg)
         line = line.split()
         dim, s, a_vals[ii-1] = line[:3]
@@ -139,12 +138,12 @@ def compute_direction_numbers(seq, max_nbits, power, a_val):
 
 def _sobol_sequence(nvars, nsamples):
     """
-    Compute Sobol sequence using 
+    Compute Sobol sequence using
     Algorithm 659: Implementing Sobol’s quasirandom sequence generator
-    with direction_numbers obtain from 
+    with direction_numbers obtain from
     https://web.maths.unsw.edu.au/~fkuo/sobol/
 
-    See Section 1 of notes at 
+    See Section 1 of notes at
     https://web.maths.unsw.edu.au/~fkuo/sobol/joe-kuo-notes.pdf
     """
     power = 32
@@ -166,7 +165,7 @@ def _sobol_sequence(nvars, nsamples):
     samples[:, 0] = 0
 
     tmp1 = 0
-    seq = np.ones((max_nbits), dtype=np.int64)
+    # seq = np.ones((max_nbits), dtype=np.int64)
     dir_nums = compute_direction_numbers(None, max_nbits, power, None)
     for ii in range(1, nsamples):
         tmp2 = tmp1 ^ dir_nums[indices[ii-1]]
@@ -180,11 +179,12 @@ def _sobol_sequence(nvars, nsamples):
             tmp2 = tmp1 ^ dir_nums[indices[ii-1]]
             samples[dd, ii] = tmp2/const
             tmp1 = tmp2
-    assert samples.max()<=1 and samples.min()>=0
+    assert samples.max() <= 1 and samples.min() >= 0
     return samples
 
+
 def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
-    samples =  _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
+    samples = _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
     if variable is None:
         return samples
     samples = variable.evaluate('ppf', samples)
