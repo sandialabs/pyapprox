@@ -35,6 +35,9 @@ from pyapprox.utilities import cartesian_product, outer_product
 from pyapprox.indexing import compute_hyperbolic_indices
 from pyapprox.monomial import monomial_basis_matrix
 
+import warnings
+warnings.filterwarnings('error')
+
 
 def linear_obs_fun(Amat, samples):
     """
@@ -57,7 +60,7 @@ class TestBayesianOED(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def test_gaussian_loglike_fun(self):
+    def check_loglike_fun(self, noise_std, active_indices):
         nvars = 1
 
         def fun(design, samples):
@@ -66,45 +69,60 @@ class TestBayesianOED(unittest.TestCase):
             Amat = design.T
             return Amat.dot(samples).T
 
-        noise_std = 0.3
         prior_mean = np.zeros((nvars, 1))
         prior_cov = np.eye(nvars)
 
         design = np.linspace(-1, 1, 4)[None, :]
         true_sample = np.ones((nvars, 1))*0.4
         obs = fun(design, true_sample)
-        obs += np.random.normal(0, noise_std, obs.shape)
+
+        if type(noise_std) == np.ndarray:
+            assert noise_std.shape[0] == obs.shape[1] and noise_std.ndim == 2
+            obs += np.random.normal(0, 1, obs.shape)*noise_std.T
+        else:
+            obs += np.random.normal(0, 1, obs.shape)*noise_std
 
         noise_cov_inv = np.eye(obs.shape[1])/(noise_std**2)
         obs_matrix = design.T
 
-        exact_post_mean, exact_post_cov = \
-            laplace_posterior_approximation_for_linear_models(
-                obs_matrix, prior_mean, np.linalg.inv(prior_cov),
-                noise_cov_inv, obs.T)
+        if active_indices is None:
+            exact_post_mean, exact_post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    obs_matrix, prior_mean, np.linalg.inv(prior_cov),
+                    noise_cov_inv, obs.T)
+        else:
+            exact_post_mean, exact_post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    obs_matrix[active_indices, :], prior_mean,
+                    np.linalg.inv(prior_cov),
+                    noise_cov_inv[np.ix_(active_indices, active_indices)],
+                    obs[:, active_indices].T)
 
+        n_xx = 100
         lb, ub = stats.norm(0, 1).interval(0.99)
-        xx = np.linspace(lb, ub, 101)
+        xx = np.linspace(lb, ub, n_xx)
         true_pdf_vals = stats.norm(
             exact_post_mean[0], np.sqrt(exact_post_cov[0])).pdf(xx)[:, None]
 
         prior_pdf = stats.norm(prior_mean[0], np.sqrt(prior_cov[0])).pdf
         pred_obs = fun(design, xx[None, :])
-        print(obs.shape)
-        lvals = np.exp(
-            gaussian_loglike_fun(obs, pred_obs, noise_std))*prior_pdf(
-                xx)[:, None]
+        lvals = (np.exp(
+            gaussian_loglike_fun(obs, pred_obs, noise_std, active_indices)) *
+                 prior_pdf(xx)[:, None])
+        assert lvals.shape == (n_xx, 1)
 
         xx_gauss, ww_gauss = gauss_hermite_pts_wts_1D(300)
         pred_obs = fun(design, xx_gauss[None, :])
         evidence = np.exp(
-            gaussian_loglike_fun(obs, pred_obs, noise_std)[:, 0]).dot(ww_gauss)
+            gaussian_loglike_fun(
+                obs, pred_obs, noise_std, active_indices)[:, 0]).dot(ww_gauss)
         post_pdf_vals = lvals/evidence
 
         gauss_evidence = laplace_evidence(
             lambda x: np.exp(gaussian_loglike_fun(
-                obs, fun(design, x), noise_std)[:, 0]),
+                obs, fun(design, x), noise_std, active_indices)[:, 0]),
             prior_pdf, exact_post_cov, exact_post_mean)
+        print(evidence, gauss_evidence)
         assert np.allclose(evidence, gauss_evidence)
 
         # accuracy depends on quadrature rule and size of noise
@@ -115,6 +133,75 @@ class TestBayesianOED(unittest.TestCase):
         # plt.plot(xx, prior_pdf(xx))
         # plt.plot(xx, post_pdf_vals, '--')
         # plt.show()
+
+    def test_gaussian_loglike_fun(self):
+        np.random.seed(1)
+        self.check_loglike_fun(0.3, None)
+        np.random.seed(1)
+        self.check_loglike_fun(np.array([[0.25, 0.3, 0.35, 0.4]]).T, None)
+        active_indices = np.array([0, 1, 2, 3])
+        np.random.seed(1)
+        self.check_loglike_fun(0.3, active_indices)
+        np.random.seed(1)
+        self.check_loglike_fun(
+            np.array([[0.25, 0.3, 0.35, 0.4]]).T, active_indices)
+        active_indices = np.array([0, 2, 3])
+        np.random.seed(1)
+        self.check_loglike_fun(0.3, active_indices)
+        np.random.seed(1)
+        self.check_loglike_fun(
+            np.array([[0.25, 0.3, 0.35, 0.4]]).T, active_indices)
+
+    def check_gaussian_loglike_fun_3d(self, noise_std, active_indices):
+        nvars = 1
+
+        def fun(design, samples):
+            assert design.ndim == 2
+            assert samples.ndim == 2
+            Amat = design.T
+            return Amat.dot(samples).T
+
+        design = np.linspace(-1, 1, 4)[None, :]
+        true_sample = np.ones((nvars, 1))*0.4
+        obs = fun(design, true_sample)
+
+        if type(noise_std) == np.ndarray:
+            assert noise_std.shape[0] == obs.shape[1] and noise_std.ndim == 2
+            obs += np.random.normal(0, 1, obs.shape)*noise_std.T
+        else:
+            obs += np.random.normal(0, 1, obs.shape)*noise_std
+
+        n_xx = 11
+        lb, ub = stats.norm(0, 1).interval(0.99)
+        xx = np.linspace(lb, ub, n_xx)
+        pred_obs = fun(design, xx[None, :])
+
+        loglike = gaussian_loglike_fun(
+            obs, pred_obs, noise_std, active_indices)[:, 0]
+        loglike_3d = gaussian_loglike_fun(
+            obs[:, None, :], pred_obs[:, None, :], noise_std,
+            active_indices)[:, 0]
+        assert np.allclose(loglike, loglike_3d)
+
+        loglike_3d_econ = gaussian_loglike_fun(
+            np.vstack([obs[:, None, :]]*pred_obs.shape[0]),
+            pred_obs[:, None, :], noise_std,
+            active_indices)[:, 0]
+        assert np.allclose(loglike_3d, loglike_3d_econ)
+
+        loglike_3d_econ = gaussian_loglike_fun(
+            np.vstack([obs[:, None, :]]*pred_obs.shape[0]),
+            np.hstack([pred_obs[:, None, :]]*3), noise_std,
+            active_indices)[:, 0]
+        assert np.allclose(loglike_3d, loglike_3d_econ)
+
+    def test_gaussian_loglike_fun_3d(self):
+        self.check_gaussian_loglike_fun_3d(0.3, None)
+        self.check_loglike_fun(
+            np.array([[0.25, 0.3, 0.35, 0.4]]).T, None)
+        self.check_gaussian_loglike_fun_3d(0.3, np.array([0, 2, 3]))
+        self.check_gaussian_loglike_fun_3d(
+            np.array([[0.25, 0.3, 0.35, 0.4]]).T, np.array([0, 2, 3]))
 
     def test_gaussian_kl_divergence(self):
         nvars = 1
@@ -216,7 +303,7 @@ class TestBayesianOED(unittest.TestCase):
                 exact_post_mean, exact_post_cov, prior_mean, prior_cov)
             kl_divs.append(kl_div)
 
-        print(utility-np.mean(kl_divs), utility, np.mean(kl_divs))
+        # print(utility-np.mean(kl_divs), utility, np.mean(kl_divs))
         assert np.allclose(utility, np.mean(kl_divs), rtol=2e-2)
 
     def test_batch_kl_oed(self):
@@ -275,7 +362,9 @@ class TestBayesianOED(unittest.TestCase):
 
             utility_vals, selected_indices = oed.update_design()
             # ignore entries of previously collected data
-            II = np.where(d_utility_vals > 0)
+            II = np.where(d_utility_vals > 0)[0]
+            print(d_utility_vals[II])
+            print(utility_vals[II])
             print((np.absolute(
                 d_utility_vals[II]-utility_vals[II])/d_utility_vals[II]).max())
             assert np.allclose(d_utility_vals[II], utility_vals[II], rtol=4e-2)
@@ -770,7 +859,8 @@ class TestBayesianOED(unittest.TestCase):
 
                 exact_deviations[jj] = gauss_deviation_fun(
                     exact_post_mean_jj, exact_post_cov_jj)
-            print('d', np.absolute(exact_deviations-deviations[:, 0]).max(), tol)
+            print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
+                  tol)
             # print(exact_deviations, deviations[:, 0])
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(

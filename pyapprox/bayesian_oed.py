@@ -8,54 +8,6 @@ from pyapprox.probability_measure_sampling import (
 )
 
 
-@njit(cache=True)
-def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
-    """
-    Compute the scaled l2-norm distance between two sets of samples
-    E.g. for one point
-
-
-    a[ii]*(XX[ii]-YY[ii])+b[ii]
-
-
-    Parameters
-    ----------
-    XX : np.ndarray (nvars, 1, NN)
-        The first set of samples
-
-    YY : np.ndarray (LL, MM, NN)
-        The second set of samples. The 3D arrays are useful when computing
-        squared distances for multiple sets of samples
-
-    a : float or np.ndarray (NN, 1)
-        scalar multiplying l2 distance
-
-    a : float or np.ndarray (NN, 1)
-        scalar added to l2 distance
-
-    Returns
-    -------
-    ss : np.ndarray (LL, MM)
-        The scaled distances
-    """
-    Yshape = YY.shape
-    assert XX.shape[1] == 1
-    ss = np.empty(Yshape[:2])
-    if active_indices is None:
-        active_indices = np.arange(Yshape[2])
-    nactive_indices = active_indices.shape[0]
-    for ii in range(Yshape[0]):
-        for jj in range(Yshape[1]):
-            ss[ii, jj] = 0.0
-            # for kk in range(Yshape[2]):
-            #     ss[ii, jj] += (XX[ii, 0, kk] - YY[ii, jj, kk])**2
-            for kk in range(nactive_indices):
-                ss[ii, jj] += (XX[ii, 0, active_indices[kk]] -
-                               YY[ii, jj, active_indices[kk]])**2
-            ss[ii, jj] = a*ss[ii, jj]+b
-    return ss
-
-
 def gaussian_loglike_fun_broadcast(
         obs, pred_obs, noise_stdev, active_indices=None):
     """
@@ -87,32 +39,80 @@ def gaussian_loglike_fun_broadcast(
     due to broadcasting when computing obs-pred_obs
     """
     if (type(noise_stdev) == np.ndarray and
-            noise_stdev.shape[0] != obs.shape[1]):
+            noise_stdev.shape[0] != obs.shape[-1]):
         raise ValueError("noise must be provided for each observation")
 
+    if type(noise_stdev) != np.ndarray:
+        noise_stdev = np.ones((obs.shape[-1], 1), dtype=float)*noise_stdev
+
     if active_indices is None:
-        nobs = obs.shape[-1]
         # avoid copy if possible
         # using special indexing with array e.g array[:, I] where I is an array
         # makes a copy which is slow
-        if (type(noise_stdev) != np.ndarray):
-            llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs
-        else:
-            llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))
-        llike += np.sum(-(obs-pred_obs)**2/(2*noise_stdev**2), axis=-1)
+        tmp = 1/(2*noise_stdev[:, 0]**2)
+        llike = 0.5*np.sum(np.log(tmp/np.pi))
+        llike += np.sum(-(obs-pred_obs)**2*tmp, axis=-1)
     else:
-        nobs = active_indices.shape[0]
-        if (type(noise_stdev) != np.ndarray):
-            llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs+np.sum(
-                -(obs[..., active_indices]-pred_obs[..., active_indices])**2
-                / (2*noise_stdev**2), axis=-1)
-        else:
-            llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))+np.sum(
-                -(obs[..., active_indices]-pred_obs[..., active_indices])**2
-                / (2*noise_stdev[active_indices]**2), axis=-1)
+        tmp = 1/(2*noise_stdev[active_indices, 0]**2)
+        llike = 0.5*np.sum(np.log(tmp/np.pi))
+        llike += np.sum(
+            -(obs[..., active_indices]-pred_obs[..., active_indices])**2*tmp,
+            axis=-1)
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
+
+
+@njit(cache=True)
+def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
+    """
+    Compute the scaled l2-norm distance between two sets of samples
+    E.g. for one point
+
+
+    a[ii]*(XX[ii]-YY[ii])+b
+
+
+    Parameters
+    ----------
+    XX : np.ndarray (LL, 1, NN)
+        The first set of samples
+
+    YY : np.ndarray (LL, MM, NN)
+        The second set of samples. The 3D arrays are useful when computing
+        squared distances for multiple sets of samples
+
+    a : float or np.ndarray (NN, 1)
+        scalar multiplying l2 distance
+
+    a : float or np.ndarray (NN, 1)
+        scalar added to l2 distance
+
+    Returns
+    -------
+    ss : np.ndarray (LL, MM)
+        The scaled distances
+    """
+    Yshape = YY.shape
+    assert XX.shape[0] == YY.shape[0]
+    assert XX.shape[1] == 1
+    assert a.shape[0] == XX.shape[2]
+    assert a.shape[0] == YY.shape[2]
+    ss = np.empty(Yshape[:2])
+    if active_indices is None:
+        active_indices = np.arange(Yshape[2])
+    nactive_indices = active_indices.shape[0]
+    for ii in range(Yshape[0]):
+        for jj in range(Yshape[1]):
+            ss[ii, jj] = 0.0
+            # for kk in range(Yshape[2]):
+            #     ss[ii, jj] += (XX[ii, 0, kk] - YY[ii, jj, kk])**2
+            for kk in range(nactive_indices):
+                ss[ii, jj] += a[active_indices[kk]]*(
+                    XX[ii, 0, active_indices[kk]] -
+                    YY[ii, jj, active_indices[kk]])**2
+            ss[ii, jj] = ss[ii, jj]+b
+    return ss
 
 
 def gaussian_loglike_fun_economial_3D(
@@ -121,42 +121,59 @@ def gaussian_loglike_fun_economial_3D(
         raise ValueError("pred_obs must be 3D")
     # cdist has a lot of overhead and cannot be used with active_indices
     # sq_dists = sq_dists_cdist_3d(obs, pred_obs)
-    if active_indices is None:
-        nobs = obs.shape[-1]
-    else:
-        nobs = active_indices.shape[-1]
 
-    if (type(noise_stdev) != np.ndarray):
-        tmp1 = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs
+    if type(noise_stdev) != np.ndarray:
+        noise_stdev = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_stdev
+
+    tmp1 = -1/(2*noise_stdev[:, 0]**2)
+    if active_indices is None:
+        tmp2 = 0.5*np.sum(np.log(-tmp1/np.pi))
     else:
-        tmp1 = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))
-    tmp2 = -1/(2*noise_stdev**2)
-    llike = sq_dists_numba_3d(obs, pred_obs, tmp2, tmp1, active_indices)
+        tmp2 = 0.5*np.sum(np.log(-tmp1[active_indices]/np.pi))
+    llike = sq_dists_numba_3d(obs, pred_obs, tmp1, tmp2, active_indices)
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
 
 
-def gaussian_loglike_fun_economial_2D(
-        obs, pred_obs, noise_stdev, active_indices=None):
+def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
+                                          active_indices):
+    if obs.ndim != 2 or pred_obs.ndim != 2:
+        raise ValueError("obs and pred_obs must be 2D arrays")
+    if type(noise_stdev) != np.ndarray or noise_stdev.ndim != 2:
+        msg = "noise_stdev must be a 2d np.ndarray with one column"
+        raise ValueError(msg)
 
-    # cdist is fastest when suitable
     if active_indices is None:
+        weights = 1/(np.sqrt(2)*noise_stdev[:, 0])
         # avoid copy is possible
         # using special indexing with array makes a copy which is slow
-        nobs = obs.shape[-1]
-        sq_dists = cdist(obs, pred_obs, "sqeuclidean")
+        weighted_obs = obs*weights
+        weighted_pred_obs = pred_obs*weights
+        sq_dists = cdist(weighted_obs, weighted_pred_obs, "sqeuclidean")
+        return sq_dists
+
+    weights = 1/(np.sqrt(2)*noise_stdev[active_indices, 0])
+    weighted_obs = obs[:, active_indices]*weights
+    weighted_pred_obs = pred_obs[:, active_indices]*weights
+    sq_dists = cdist(weighted_obs, weighted_pred_obs, "sqeuclidean")
+    return sq_dists
+
+
+def gaussian_loglike_fun_economial_2D(
+        obs, pred_obs, noise_stdev, active_indices=None):
+    if type(noise_stdev) != np.ndarray:
+        noise_stdev = np.ones((obs.shape[-1], 1), dtype=float)*noise_stdev
+    sq_dists = compute_weighted_sqeuclidian_distance(
+        obs, pred_obs, noise_stdev, active_indices)
+    if active_indices is None:
+        llike = (0.5*np.sum(np.log(1/(2*np.pi*noise_stdev[:, 0]**2))) -
+                 sq_dists[0, :])
     else:
-        nobs = active_indices.shape[-1]
-        sq_dists = cdist(
-            obs[..., active_indices], pred_obs[..., active_indices],
-            "sqeuclidean")
-    if (type(noise_stdev) != np.ndarray):
-        llike = 0.5*np.log(1/(2*np.pi*noise_stdev**2))*nobs-sq_dists[0, :]/(
-            2*noise_stdev**2)
-    else:
-        llike = 0.5*np.sum(np.log(1/(2*np.pi*noise_stdev**2)))-sq_dists[0, :]/(
-            2*noise_stdev**2)
+        llike = (0.5*np.sum(
+            np.log(1/(2*np.pi*noise_stdev[active_indices, 0]**2))) -
+                 sq_dists[0, :])
+
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
@@ -164,7 +181,6 @@ def gaussian_loglike_fun_economial_2D(
 
 def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
     assert pred_obs.shape[-1] == obs.shape[-1]
-    print(obs.shape, pred_obs.shape)
     if obs.ndim == 3 and obs.shape[0] != 1:
         return gaussian_loglike_fun_economial_3D(
             obs, pred_obs, noise_stdev, active_indices)
