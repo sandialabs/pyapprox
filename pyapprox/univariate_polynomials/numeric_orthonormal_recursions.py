@@ -75,9 +75,9 @@ def lanczos(nodes, weights, N, prob_tol=0):
     '''
     # assert weights define a probability measure. This function
     # can be applied to non-probability measures but I do not use this way
-    if abs(weights.sum()-1) > prob_tol+2e-15:
+    if abs(weights.sum()-1) > prob_tol+4e-15:
         msg = f"weights sum is {weights.sum()} and so does not define "
-        msg += "a probability measure"
+        msg += f"a probability measure. Diff : {weights.sum()-1}"
         raise ValueError(msg)
     nnodes = nodes.shape[0]
     assert N <= nnodes

@@ -2,13 +2,12 @@ from pyapprox.models.wrappers import ActiveSetVariableModel
 from pyapprox.cvar_regression import smooth_max_function_first_derivative,\
     smooth_max_function_second_derivative
 import numpy as np
-from scipy.optimize import minimize, Bounds
+# from scipy.optimize import minimize, Bounds
 from functools import partial
 from scipy.stats import gaussian_kde as KDE
-from pyapprox.configure_plots import *
+from pyapprox.configure_plots import plt
 import scipy.stats as ss
 from pyapprox.utilities import get_all_sample_combinations
-from inspect import signature
 
 
 def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
@@ -481,7 +480,8 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
         direction /= np.linalg.norm(direction)
     assert direction.ndim == 2 and direction.shape[1] == 1
 
-    if (jacp is None and jac is None) or (jac is not None and jacp is not None):
+    if ((jacp is None and jac is None) or
+            (jac is not None and jacp is not None)):
         raise Exception('Must specify jac or jacp')
 
     if callable(jac):

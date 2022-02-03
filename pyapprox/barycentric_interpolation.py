@@ -44,22 +44,21 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
     try:
         from pyapprox.cython.barycentric_interpolation import \
             compute_barycentric_weights_1d_pyx
-        
         weights = compute_barycentric_weights_1d_pyx(samples, C_inv)
     except (ImportError, ModuleNotFoundError) as e:
         msg = 'compute_barycentric_weights_1d extension failed'
         trace_error_with_msg(msg, e)
 
-        weights = np.empty((num_samples, num_samples), dtype=float)
-        weights[0, 0] = 1.
-        for jj in range(1, num_samples):
-            weights[jj, :jj] = C_inv * \
-                (samples[:jj]-samples[jj])*weights[jj-1, :jj]
-            weights[jj, jj] = np.prod(C_inv*(samples[jj]-samples[:jj]))
-            weights[jj-1, :jj] = 1./weights[jj-1, :jj]
+    weights = np.empty((num_samples, num_samples), dtype=float)
+    weights[0, 0] = 1.
+    for jj in range(1, num_samples):
+        weights[jj, :jj] = C_inv * \
+            (samples[:jj]-samples[jj])*weights[jj-1, :jj]
+        weights[jj, jj] = np.prod(C_inv*(samples[jj]-samples[:jj]))
+        weights[jj-1, :jj] = 1./weights[jj-1, :jj]
 
-        weights[num_samples-1, :num_samples] =\
-            1./weights[num_samples-1, :num_samples]
+    weights[num_samples-1, :num_samples] =\
+        1./weights[num_samples-1, :num_samples]
 
     if not return_sequence:
         result = weights[num_samples-1, :]
@@ -68,7 +67,8 @@ def compute_barycentric_weights_1d(samples, interval_length=None,
         # where interval [a,b] is not very useful
         # print('max_weights',result.min(),result.max())
         if normalize_weights:
-            raise NotImplementedError('I do not think I want to support this option')
+            msg = 'I do not think I want to support this option'
+            raise NotImplementedError(msg)
             result /= np.absolute(result).max()
             # result[I]=result
 

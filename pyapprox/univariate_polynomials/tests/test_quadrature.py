@@ -3,6 +3,7 @@ import numpy as np
 from functools import partial
 from scipy import stats
 import sympy as sp
+import warnings
 
 from pyapprox.univariate_polynomials.quadrature import \
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D, \
@@ -165,6 +166,7 @@ class TestQuadrature(unittest.TestCase):
             # does not produce nested sequences without using initial_points
 
     def test_hermite_christoffel_leja_quadrature_rule(self):
+        # warnings.filterwarnings('error')
         variable = stats.norm(2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
@@ -178,11 +180,11 @@ class TestQuadrature(unittest.TestCase):
         assert np.allclose((samples**2).dot(weights[-1]), 1)
 
         # check samples are nested.
-        samples1, weights1 = quad_rule(level+3)
+        samples1, weights1 = quad_rule(level+1)
+        print(samples, samples1)
         assert np.allclose(samples1[:samples.shape[0]], samples)
 
     def test_uniform_christoffel_leja_quadrature_rule(self):
-        import warnings
         warnings.filterwarnings('error')
         variable = stats.uniform(-2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
@@ -217,7 +219,7 @@ class TestQuadrature(unittest.TestCase):
         assert np.allclose((samples**2).dot(weights[-1]), 1/3)
 
     def test_sampled_based_christoffel_leja_quadrature_rule(self):
-        nsamples = int(1e6)
+        nsamples = int(1e4)
         samples = np.random.normal(0, 1, (1, nsamples))
         variable = float_rv_discrete(
             name='continuous_rv_sample',

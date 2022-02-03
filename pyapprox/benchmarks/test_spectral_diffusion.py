@@ -1,6 +1,5 @@
 import numpy as np
 import unittest
-from functools import partial
 
 from pyapprox.benchmarks.spectral_diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
@@ -22,7 +21,7 @@ def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
     dxu2 = u.diff(sp_x, 2) + u.diff(sp_y, 2)  # diffusion
     # dtu = u.diff(sp_t, 1)   # time derivative
     dxu = advection_1*u.diff(sp_x, 1)+advection_2*u.diff(sp_y, 1)  # advection
-    #sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
+    # sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
     sp_forcing = -(diffusivity*dxu2-dxu)
     print(sp_forcing)
     # forcing_fun = lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
@@ -33,7 +32,7 @@ def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
 class TestSpectralDiffusion2D(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
-        self.eps = 2 * np.finfo(np.float).eps
+        self.eps = 2 * np.finfo(float).eps
 
     def test_derivative_matrix(self):
         order = 4

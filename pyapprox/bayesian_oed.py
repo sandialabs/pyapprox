@@ -164,6 +164,7 @@ def gaussian_loglike_fun_economial_2D(
 
 def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
     assert pred_obs.shape[-1] == obs.shape[-1]
+    print(obs.shape, pred_obs.shape)
     if obs.ndim == 3 and obs.shape[0] != 1:
         return gaussian_loglike_fun_economial_3D(
             obs, pred_obs, noise_stdev, active_indices)
@@ -710,6 +711,12 @@ def oed_conditional_value_at_risk_deviation(beta, samples, weights,
 
 
 class BayesianBatchDeviationOED(BayesianBatchKLOED):
+    """
+    A class to compute batch optimal experimental designs for which data
+    is not used to inform the choice of subsequent design locations.
+    The utility function measures the reduction in the standard deviation of
+    predicitions.
+    """
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -722,16 +729,19 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
         self.deviation_fun = deviation_fun
 
     def populate(self):
+        """
+        Compute the data needed to initialize the OED algorithm.
+        """
         (self.outer_loop_obs, self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
          self.outer_loop_prior_samples, self.inner_loop_prior_samples,
-         self.inner_loop_pred_qois) = \
-             precompute_compute_expected_deviation_data(
-                 self.generate_prior_samples, self.nouter_loop_samples,
-                 self.obs_fun, self.noise_fun, self.qoi_fun,
-                 self.ninner_loop_samples,
-                 generate_inner_prior_samples=self.generate_inner_prior_samples,
-                 econ=self.econ)
+         self.inner_loop_pred_qois
+         ) = precompute_compute_expected_deviation_data(
+             self.generate_prior_samples, self.nouter_loop_samples,
+             self.obs_fun, self.noise_fun, self.qoi_fun,
+             self.ninner_loop_samples,
+             generate_inner_prior_samples=self.generate_inner_prior_samples,
+             econ=self.econ)
 
         # Sort inner_loop_pred_qois and use this order to sort
         # inner_loop_prior_samples so that cvar deviation does not have to
@@ -757,8 +767,27 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
         """
-        return_all true used for debugging returns more than just utilities
-        and also returns itermediate data useful for testing
+        Compute the negative expected deviation in predictions of QoI
+
+        Parameters
+        ----------
+        collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        new_design_indices : np.ndarray (nnew_obs)
+            The indices into the qoi vector associated with new design
+            locations under consideration
+
+        return_all : boolean
+             False - return the utilities
+             True - used for debugging returns utilities
+             and itermediate data useful for testing
+
+        Returns
+        -------
+        utility : float
+            The negative expected deviation
         """
         # unlike open loop design (closed loop batch design)
         # we do not update inner and outer loop weights but rather
@@ -776,6 +805,10 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
 
 
 class BayesianSequentialKLOED(BayesianBatchKLOED):
+    """
+    A class to compute sequential optimal experimental designs that collect
+    data and use this to inform the choice of subsequent design locations.
+    """
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, obs_process, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -795,6 +828,10 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
 
     def __compute_evidence(self):
         """
+        Compute the evidence associated with using the true collected data.
+
+        Notes
+        -----
         This is a private function because calling by user will upset
         evidence calculation
 
@@ -814,6 +851,11 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
         self.evidence_from_prior = evidence_from_prior
 
     def compute_importance_weights(self):
+        """
+        Compute the importance weights used in the computation of the expected
+        utility that acccount for the fact we want to use the current posterior
+        as the prior in the utility formula.
+        """
         self.outer_importance_weights = np.exp(self.loglike_fun(
             self.collected_obs, self.outer_loop_pred_obs[
                 :, self.collected_design_indices]))/self.evidence_from_prior
@@ -851,6 +893,14 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
 
     def update_observations(self, new_obs):
         """
+        Store the newly collected obsevations which will dictate
+        the next design point.
+
+        Parameters
+        ----------
+        new_obs : np.ndarray (1, nnew_obs)
+            The new observations
+
         Notes
         -----
         self.inner_importance_weights contains likelihood vals/evidence
@@ -875,6 +925,15 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
             self.inner_loop_weights*self.inner_importance_weights
 
     def set_collected_design_indices(self, indices):
+        """
+        Set the initial design indices and collect data at the
+        corresponding design points.
+
+        Parameters
+        ----------
+        indices : np.ndarray (nindices, 1)
+            The indices corresponding to an initial design
+        """
         self.collected_design_indices = indices.copy()
         new_obs = self.obs_process(self.collected_design_indices)
         self.update_observations(new_obs)
@@ -882,14 +941,28 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
         """
-        TODO pass in these weights so do not have to do so much
-        multiplications
+        Compute the expected utility. Using the current posterior as the new
+        prior.
 
+        Parameters
+        ----------
+        collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        new_design_indices : np.ndarray (nnew_obs)
+            The indices into the qoi vector associated with new design 
+            locations under consideration
+
+        Notes
+        -----
         Passing None for collected_design_indices will ensure
         only obs at new_design indices is used to evaluate likelihood
         the data at collected indices is incoroporated into the
         inner and outer loop weights
         """
+        # TODO pass in these weights so do not have to do so much
+        # multiplications
         return compute_expected_kl_utility_monte_carlo(
             self.loglike_fun, self.outer_loop_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights_up,

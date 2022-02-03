@@ -607,10 +607,12 @@ def get_christoffel_leja_sequence_1d(
     #     ub = max(leja_sequence.max(), new_samples.max())
     #     lb = lb-0.2*abs(lb)
     #     ub = ub+0.2*abs(ub)
+    #     lb, ub = -100, 100
     #     xx = np.linspace(lb, ub, 1001)
     #     plt.plot(xx, plot_fun(xx))
+    #     print(leja_sequence)
     #     plt.plot(leja_sequence[0, :], plot_fun(leja_sequence[0, :]), 'o',
-    #              label="Current samples")
+    #              label="Current samples", ms=15)
     #     plt.plot(new_samples[0, :], obj_vals, 's', label="New samples")
     #     plt.plot(
     #         initial_guesses[0, :], plot_fun(initial_guesses[0, :]), '*',
@@ -654,7 +656,6 @@ def get_christoffel_leja_sequence_1d(
         #        x[:, None])
         hess = None
 
-        msg = "artificial bounds reached. Variable should be scaled"
         opts = options.copy()
         if "artificial_bounds" in opts:
             artificial_bounds = options["artificial_bounds"]
@@ -676,14 +677,17 @@ def get_christoffel_leja_sequence_1d(
                 fun, initial_guess, jac=jac, hess=hess, bounds=bounds,
                 options=opts, method='slsqp')
             new_samples[0, jj] = res.x
-            if ((abs(res.x-artificial_bounds[0]) < 1e-8) or
-                    (abs(res.x-artificial_bounds[1]) < 1e-8)):
-                # print(res.x, 'r')
-                warn(msg, UserWarning)
             obj_vals[jj] = res.fun
         obj_vals[~np.isfinite(obj_vals)] = np.inf
         best_idx = np.argmin(obj_vals)
         new_sample = new_samples[:, best_idx]
+        # print(new_samples, obj_vals, best_idx, new_sample, obj_vals[best_idx])
+        if ((abs(new_sample[0]-artificial_bounds[0]) < 1e-8) or
+                (abs(new_sample[0]-artificial_bounds[1]) < 1e-8)):
+            msg = f"artificial bounds {artificial_bounds} reached. "
+            msg += f"Variable should be scaled.\n Nsamples: {nsamples} "
+            msg += f"Initial guess: {initial_guess}, bounds: {bounds}"
+            warn(msg, UserWarning)
         # print(row_format.format(nsamples, coef.shape[0], new_sample[0]))
 
         if callback is not None:

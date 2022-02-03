@@ -153,7 +153,7 @@ class AffineRandomVariableTransformation(object):
         self.identity_map_indices = identity_map_indices
 
     def map_to_canonical_space(self, user_samples):
-        canonical_samples = user_samples.copy()
+        canonical_samples = user_samples.copy().astype(float)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]
@@ -180,7 +180,7 @@ class AffineRandomVariableTransformation(object):
         return canonical_samples
 
     def map_from_canonical_space(self, canonical_samples):
-        user_samples = canonical_samples.copy()
+        user_samples = canonical_samples.copy().astype(float)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
             loc, scale = self.scale_parameters[ii, :]

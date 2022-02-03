@@ -34,6 +34,10 @@ from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
+from pyapprox.quantile_regression import (
+    # solve_quantile_regression,
+    solve_least_squares_regression
+)
 
 
 class TestMultivariatePolynomials(unittest.TestCase):
@@ -490,9 +494,10 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
         poly.set_indices(np.arange(degree+1)[np.newaxis, :])
-        xk = np.arange(0, n+1)[np.newaxis, :]
+        xk = np.arange(0, n+1)[np.newaxis, :].astype(float)
         p = poly.basis_matrix(xk)
         w = rv.pmf(xk[0, :])
+        print(w)
         assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1))
 
     def test_krawtchouk_binomial(self):
@@ -511,7 +516,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_discrete_chebyshev(self):
         N, degree = 10, 5
-        xk, pk = np.arange(N), np.ones(N)/N
+        xk, pk = np.arange(N).astype(float), np.ones(N)/N
         rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))()
         var_trans = AffineRandomVariableTransformation([rv])
         poly = PolynomialChaosExpansion()
@@ -967,10 +972,11 @@ class TestMultivariatePolynomials(unittest.TestCase):
         ntrain_samples = 20
         train_samples = lognorm.rvs(ntrain_samples)[None, :]
         train_values = function(train_samples)
-        from pyapprox.quantile_regression import solve_quantile_regression, \
-            solve_least_squares_regression
-        coef = solve_quantile_regression(
-            0.5, np.log(train_samples), train_values, pce.basis_matrix,
+        # coef = solve_quantile_regression(
+        #    0.5, np.log(train_samples), train_values, pce.basis_matrix,
+        #   normalize_vals=True)
+        coef = solve_least_squares_regression(
+            np.log(train_samples), train_values, pce.basis_matrix,
             normalize_vals=True)
         pce.set_coefficients(coef)
         print(pce.mean(), values.mean())

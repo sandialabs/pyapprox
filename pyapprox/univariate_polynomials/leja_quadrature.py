@@ -141,20 +141,20 @@ def univariate_christoffel_leja_quadrature_rule(
         variable, initial_points)
 
     if minimizer_opts is None:
-        minimizer_opts = {'gtol': 1e-8, 'verbose': False}
+        minimizer_opts = {'gtol': 1e-10, 'verbose': False}
 
     if ("artificial_bounds" not in minimizer_opts and
             not is_bounded_continuous_variable(variable)):
-        # make bounds twice that of gauss quadrature points
+        # make bounds three times that of gauss quadrature points
         xg, wg = gauss_quadrature(ab, max_nsamples)
         artificial_bounds = bounds.copy()
         if not np.isfinite(bounds[0]):
             artificial_bounds[0] = xg.min()
-            artificial_bounds[0] = artificial_bounds[0]-abs(
+            artificial_bounds[0] = artificial_bounds[0]-2*abs(
                 artificial_bounds[0])
         if not np.isfinite(bounds[1]):
             artificial_bounds[1] = xg.max()
-            artificial_bounds[1] = artificial_bounds[1]+abs(
+            artificial_bounds[1] = artificial_bounds[1]+2*abs(
                 artificial_bounds[1])
         minimizer_opts["artificial_bounds"] = artificial_bounds
 

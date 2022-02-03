@@ -1,7 +1,6 @@
 import unittest
 import pyapprox as pya
 import numpy as np
-import matplotlib.pyplot as plt
 from pyapprox.configure_plots import *
 from pyapprox.control_variate_monte_carlo import *
 from scipy.stats import uniform, norm, lognorm
@@ -299,12 +298,10 @@ class TestCVMC(unittest.TestCase):
         np.linalg.cholesky(cov)
         # print(np.linalg.inv(cov))
         costs = [6, 3, 1]
-        nmodels = len(costs)
         nhf_samples, nsample_ratios, log10_var = pya.allocate_samples_mlmc(
             cov, costs, target_cost)
         assert np.allclose(10**log10_var, 1)
         nsamples = np.concatenate([[1], nsample_ratios])*nhf_samples
-        lamda = 9
         nsamples_discrepancy = 9*np.sqrt(np.asarray([1/(6+3), 4/(3+1), 4]))
         nsamples_true = [
             nsamples_discrepancy[0], nsamples_discrepancy[:2].sum(),
@@ -417,7 +414,7 @@ class TestCVMC(unittest.TestCase):
         # Note K,L=[nmodels-1,i], for all i<=nmodels-1, e.g. [4,0],
         # will give same result as acv_mf
         for K, L in KL_sets:
-            # print(K,L)
+            print(K, L)
             setup_model = \
                 setup_check_variance_reduction_model_ensemble_polynomial
             allocate_samples = pya.allocate_samples_mfmc
@@ -437,6 +434,7 @@ class TestCVMC(unittest.TestCase):
             nmodels = cov.shape[0]
             target_cost = int(1e4)
             costs = np.asarray([100//2**ii for ii in range(nmodels)])
+            print(costs)
             nhf_samples, nsample_ratios = allocate_samples(
                 cov, costs, target_cost)[:2]
 
@@ -537,15 +535,15 @@ class TestCVMC(unittest.TestCase):
 
         x0 = np.concatenate([[nhf_samples_exact], nsample_ratios_exact,
                              [lagrange_mult]])
-        if use_torch:
-            jac = estimator.jacobian(x0)
-            # objective does not have lagrangian shift so account for it
-            # missing here
-            mlmc_var = estimator.variance_reduction(
-                nsample_ratios_exact).item()*cov[0, 0]/nhf_samples_exact
-            jac[-1] -= mlmc_var
-        else:
-            jac = None
+        # if use_torch:
+        #     jac = estimator.jacobian(x0)
+        #     # objective does not have lagrangian shift so account for it
+        #     # missing here
+        #     mlmc_var = estimator.variance_reduction(
+        #         nsample_ratios_exact).item()*cov[0, 0]/nhf_samples_exact
+        #     jac[-1] -= mlmc_var
+        # else:
+        #     jac = None
 
         estimator.use_lagrange_formulation(False)
 
@@ -561,8 +559,8 @@ class TestCVMC(unittest.TestCase):
             standardize=False, initial_guess=initial_guess,
             optim_method=optim_method)
 
-        # print(nhf_samples,nhf_samples_exact)
-        # print(nsample_ratios_exact,nsample_ratios)
+        # print(nhf_samples, nhf_samples_exact)
+        # print(nsample_ratios_exact, nsample_ratios)
         assert np.allclose(nhf_samples_exact, nhf_samples)
         assert np.allclose(nsample_ratios_exact, nsample_ratios)
 
@@ -596,8 +594,8 @@ class TestCVMC(unittest.TestCase):
             0.5159013235987686, -0.2153434757601942, -0.2153434757601942])
         assert np.allclose(log10_var, regression_log10_var.min())
 
-        gamma = 1-get_rsquared_acv_KL_best(cov, nsample_ratios)
-        print(gamma)
+        # gamma = 1-get_rsquared_acv_KL_best(cov, nsample_ratios)
+        # print(gamma)
 
         # To recover alexs answer use his standardization and initial guess
         # is mlmc with standardize=True')
@@ -618,11 +616,45 @@ class TestCVMC(unittest.TestCase):
 
         estimator = ACVMF(cov, costs)
         errors = pya.check_gradients(
-            partial(acv_sample_allocation_objective, estimator),
-            partial(acv_sample_allocation_jacobian_torch, estimator),
-            nsample_ratios[:, np.newaxis], disp=False)
+            lambda x: np.array(
+                [[acv_sample_allocation_objective(estimator, x)]]),
+            lambda x: acv_sample_allocation_jacobian_torch(estimator, x).T,
+            nsample_ratios[:, np.newaxis], disp=True)
         # print(errors.min())
-        assert errors.min() < 1e-8
+        assert errors.min() < 3e-8
+
+    @skiptest
+    def test_MLMC_objective_jacobian_all(self):
+
+        cov = np.asarray([[1.00, 0.50, 0.25],
+                          [0.50, 1.00, 0.50],
+                          [0.25, 0.50, 4.00]])
+
+        costs = np.array([6., 3., 1.])
+
+
+        target_cost = 81
+
+        nhf_samples, nsample_ratios = pya.allocate_samples_mlmc(
+            cov, costs, target_cost)[:2]
+
+        estimator = MLMC(cov, costs)
+        estimator.use_lagrange_formulation(False)
+
+        x0 = np.hstack((nhf_samples, nsample_ratios))[:, np.newaxis]
+        factor = 1-0.1
+        x0 = np.concatenate([
+            x0[:1, 0]*np.random.uniform(factor, 1/factor),
+            x0[1:, 0]*np.random.uniform(
+                factor, 1/factor, x0.shape[0]-1)])[:, None]
+
+        errors = pya.check_gradients(
+            lambda x: np.array(
+                [[acv_sample_allocation_objective_all(estimator, x)]]),
+            lambda x: acv_sample_allocation_jacobian_all_torch(estimator, x).T,
+            x0, disp=True)
+        # print(errors.min())
+        assert errors.min() < 4e-8
 
     def test_bootstrap_monte_carlo_estimator(self):
         nsamples = int(1e4)
@@ -631,7 +663,7 @@ class TestCVMC(unittest.TestCase):
         est_variance = np.var(values)/nsamples
         bootstrap_mean, bootstrap_variance = \
             pya.bootstrap_monte_carlo_estimator(values, nbootstraps)
-        print(abs(est_variance-bootstrap_variance)/est_variance)
+        # print(abs(est_variance-bootstrap_variance)/est_variance)
         assert abs((est_variance-bootstrap_variance)/est_variance) < 1e-2
 
     def test_bootstrap_control_variate_estimator(self):
@@ -663,7 +695,7 @@ class TestCVMC(unittest.TestCase):
 
         # est_mean = est(values)
         est_variance = est.get_variance(nhf_samples, nsample_ratios)
-        print(abs((est_variance-bootstrap_variance)/est_variance))
+        # print(abs((est_variance-bootstrap_variance)/est_variance))
         assert abs((est_variance-bootstrap_variance)/est_variance) < 6e-2
 
 

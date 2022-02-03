@@ -32,7 +32,8 @@ def is_bounded_discrete_variable(rv):
 def get_probability_masses(rv, tol=0):
     # assert is_bounded_discrete_variable(rv)
     name, scales, shapes = get_distribution_info(rv)
-    if name == "float_rv_discrete" or name == "discrete_chebyshev":
+    if (name == "float_rv_discrete" or name == "discrete_chebyshev" or
+            name == "continuous_rv_sample"):
         return rv.dist.xk.copy(), rv.dist.pk.copy()
     elif name == "hypergeom":
         M, n, N = [shapes[key] for key in ["M", "n", "N"]]

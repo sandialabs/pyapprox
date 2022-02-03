@@ -149,7 +149,9 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
 
     orthonormality_tol = opts.get("orthonormality_tol", 1e-8)
     truncated_probability_tol = opts.get("truncated_probability_tol", 0)
-    if (not is_continuous_variable(var)):
+
+    if (not is_continuous_variable(var) or
+            var.dist.name == "continuous_rv_sample"):
         if hasattr(shapes, "xk"):
             xk, pk = shapes["xk"], shapes["pk"]
         else:

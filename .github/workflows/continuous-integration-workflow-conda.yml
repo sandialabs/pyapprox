@@ -51,7 +51,7 @@ jobs:
     - name: Test PyApprox
       shell: bash -l {0}
       run: |
-        pytest -s --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/models pyapprox/benchmarks
+        pytest -s --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/models pyapprox/benchmarks pyapprox/polynomial_chaos/tests pyapprox/univariate_polynomials/tests
 # -s disables capturing stdout so print statements print to screen
 #        python setup.py test
       

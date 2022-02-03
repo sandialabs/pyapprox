@@ -1,9 +1,11 @@
+import re
+import numpy as np
 import unittest
 import os
 import glob
 import tempfile
-from pyapprox.models.async_model import *
-from pyapprox.models.file_io_model import *
+from pyapprox.models.async_model import AsynchronousEvaluationModel
+from pyapprox.models.file_io_model import FileIOModel
 
 import multiprocessing
 max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
@@ -16,7 +18,7 @@ def remove_files(filenames):
 
 def cleanup_fileiomodel_files():
     """
-    Remove all the params.in and results.out files created by a test. 
+    Remove all the params.in and results.out files created by a test.
     This function is only useful when not using work directories
     """
     filenames = glob.glob('params.in*')
@@ -56,7 +58,8 @@ def check_model_values(model, target_function, num_vars, num_samples,
         file_samples = data['samples']
         file_values = data['vals']
         assert np.allclose(
-            true_vals[finite_evals_index, :], file_values[finite_evals_index, :])
+            true_vals[finite_evals_index, :],
+            file_values[finite_evals_index, :])
         assert np.allclose(samples, file_samples)
 
     return finite_evals_index
@@ -101,15 +104,17 @@ def get_file_io_model(delay=0., fault_percentage=0):
 
 class TestAsyncModel(unittest.TestCase):
 
-    def setup_method(self, test_method):
+    def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
-    
-    def teardown_method(self, test_method):
+
+    def tearDown(self):
         del self.tmp_dir
 
-    @classmethod 
-    def teardown_class(cls):
-        "Clean up model input/output files if necessary (e.g., due to test failure)."
+    @classmethod
+    def tearDownClass(self):
+        r"""
+        Clean up model input/output files if necessary (e.g.,
+        due to test failure)."""
         cleanup_fileiomodel_files()
 
     def test_file_io_model(self):
@@ -161,7 +166,8 @@ class TestAsyncModel(unittest.TestCase):
         os.remove('saved-data-%d-%d.npz' % (0, num_samples))
 
         workdirs = glob.glob(workdir_basename+'.*')
-        assert len(workdirs) == num_samples, "Number of sample files do not match number of samples"
+        assert len(workdirs) == num_samples, \
+            "Number of sample files do not match number of samples"
         for workdir in workdirs:
             function_eval_id = int(re.findall(
                 r'[0-9]+', os.path.split(workdir)[1])[-1])
@@ -170,7 +176,8 @@ class TestAsyncModel(unittest.TestCase):
                 assert len(workdir_filenames) == 4+min(1, verbosity)
                 assert os.path.exists(
                     os.path.join(
-                        workdir, model.results_filename+'.%d' % function_eval_id))
+                        workdir,
+                        model.results_filename+'.%d' % function_eval_id))
             else:
                 assert len(workdir_filenames) == 2+min(1, verbosity)
             assert os.path.exists(
@@ -212,7 +219,8 @@ class TestAsyncModel(unittest.TestCase):
                 assert len(workdir_filenames) == 2+min(1, verbosity)
                 assert os.path.exists(
                     os.path.join(
-                        workdir, model.results_filename+'.%d' % function_eval_id))
+                        workdir,
+                        model.results_filename+'.%d' % function_eval_id))
             else:
                 assert len(workdir_filenames) == 1+min(1, verbosity)
             assert os.path.exists(
@@ -261,8 +269,7 @@ class TestAsyncModel(unittest.TestCase):
 
         num_iters = 0
         while num_iters < 3:
-            samples = np.random.uniform(-1., 1., (num_vars, num_samples))
-            finite_evals_index = check_model_values(
+            check_model_values(
                 model, target_function, num_vars, num_samples,
                 ignore_nans=True)
             num_iters += 1
