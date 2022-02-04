@@ -11,7 +11,8 @@ from pyapprox.bayesian_oed import (
     compute_expected_kl_utility_monte_carlo,
     BayesianBatchKLOED, BayesianSequentialKLOED, d_optimal_utility,
     BayesianBatchDeviationOED, oed_variance_deviation,
-    oed_conditional_value_at_risk_deviation
+    oed_conditional_value_at_risk_deviation, get_oed_inner_quadrature_rule,
+    get_posterior_2d_interpolant_from_oed_data
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -915,6 +916,94 @@ class TestBayesianOED(unittest.TestCase):
             partial(oed_conditional_value_at_risk_deviation, beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
             False, 10000, ndesign_vars, 7e-2)
+
+    def check_get_posterior_2d_interpolant_from_oed_data(
+            self, method, rtol, ninner_loop_samples_1d):
+        np.random.seed(1)
+        nrandom_vars = 2
+        noise_std = 1
+        ndesign = 4
+        nouter_loop_samples = 10
+
+        ncandidates = 11
+        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        Amat = np.hstack((design_candidates.T, design_candidates.T**2))
+
+        def obs_fun(samples):
+            assert design_candidates.ndim == 2
+            assert samples.ndim == 2
+            return Amat.dot(samples).T
+
+        prior_variable = IndependentMultivariateRandomVariable(
+            [stats.norm(0, 1)]*nrandom_vars)
+
+        x_quad, w_quad = get_oed_inner_quadrature_rule(
+            ninner_loop_samples_1d, prior_variable, method)
+        ninner_loop_samples = x_quad.shape[1]
+
+        def generate_inner_prior_samples_gauss(n):
+            # use precomputed samples so to avoid cost of regenerating
+            assert n == x_quad.shape[1]
+            return x_quad, w_quad
+
+        generate_inner_prior_samples = generate_inner_prior_samples_gauss
+
+        init_design_indices = np.array([ncandidates//2])
+        oed = BayesianBatchKLOED(
+            design_candidates, obs_fun, noise_std, prior_variable,
+            nouter_loop_samples, ninner_loop_samples,
+            generate_inner_prior_samples)
+        oed.populate()
+        oed.set_collected_design_indices(init_design_indices)
+
+        for ii in range(1, ndesign):
+            utility_vals, selected_indices = oed.update_design()
+
+        nn, outer_loop_idx = 2, 0
+        fun = get_posterior_2d_interpolant_from_oed_data(
+            oed, prior_variable, nn, outer_loop_idx, method)
+        samples = generate_independent_random_samples(prior_variable, 100)
+        post_vals = fun(samples)
+
+        prior_mean = oed.prior_variable.get_statistics('mean')
+        prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
+        prior_cov_inv = np.linalg.inv(prior_cov)
+        noise_cov_inv = np.eye(nn)/noise_std**2
+        obs = oed.outer_loop_obs[
+            outer_loop_idx, oed.collected_design_indices[:nn]][None, :]
+        exact_post_mean, exact_post_cov = \
+            laplace_posterior_approximation_for_linear_models(
+                Amat[oed.collected_design_indices[:nn], :], prior_mean,
+                prior_cov_inv, noise_cov_inv, obs.T)
+        true_pdf = stats.multivariate_normal(
+                mean=exact_post_mean[:, 0], cov=exact_post_cov).pdf
+        true_post_vals = true_pdf(samples.T)
+        # II = np.where(
+        #     np.absolute(post_vals[:, 0]-true_post_vals) >
+        #     rtol*np.absolute(true_post_vals))[0]
+        # print(np.absolute(post_vals[:, 0]-true_post_vals)[II],
+        #       rtol*np.absolute(true_post_vals)[II])
+        assert np.allclose(post_vals[:, 0], true_post_vals, rtol=rtol)
+
+        # plot_2d_posterior_from_oed_data(oed, prior_variable, 2, 0, method)
+
+    def test_get_posterior_2d_interpolant_from_oed_data(self):
+        ninner_loop_samples_1d = 301
+        method, rtol = "linear", 2e-2
+        self.check_get_posterior_2d_interpolant_from_oed_data(
+            method, rtol, ninner_loop_samples_1d)
+        ninner_loop_samples_1d = 301
+        method, rtol = "quadratic", 2e-2
+        # note rtol is the same for quadratic and linear because
+        # linear interpolation is used for both even though different order
+        # quadrature rules are used to compute evidence
+        self.check_get_posterior_2d_interpolant_from_oed_data(
+            method, rtol, ninner_loop_samples_1d)
+        ninner_loop_samples_1d = 101
+        method, rtol = "gauss", 1e-6
+        self.check_get_posterior_2d_interpolant_from_oed_data(
+            method, rtol, ninner_loop_samples_1d)
+
 
 
 if __name__ == "__main__":

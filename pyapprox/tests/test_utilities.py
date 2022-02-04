@@ -1100,6 +1100,47 @@ class TestUtilities(unittest.TestCase):
         sol = qr_solve(Q, R, rhs)
         assert np.allclose(sol, np.linalg.solve(A, rhs))
 
+    def test_get_tensor_product_piecewise_linear_quadrature_rule(self):
+        nsamples_1d = 101
+
+        def fun(xx):
+            return np.sum(xx**2, axis=0)[:, None]
+
+        xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
+            nsamples_1d, [-1, 1, -1, 1], 1)
+        vals = fun(xx)
+        integral = vals[:, 0].dot(ww)
+        true_integral = 8/3.
+        print(integral-true_integral)
+        assert np.allclose(integral, true_integral, atol=1e-3)
+
+        # from scipy.interpolate import griddata
+        # def interp_fun(x): return griddata(xx.T, vals, x.T, method="linear")
+        # from pyapprox.visualization import plt, get_meshgrid_function_data
+        # X, Y, Z = get_meshgrid_function_data(interp_fun, [-1, 1, -1, 1], 201)
+        # plt.contourf(
+        #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 31))
+        # plt.show()
+
+        xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
+            nsamples_1d, [0, 1, 0, 2], 1)
+        vals = fun(xx)
+        integral = vals[:, 0].dot(ww)
+        true_integral = 10./3.
+        print(integral-true_integral)
+        assert np.allclose(integral, true_integral, atol=1e-3)
+
+        def fun(xx):
+            return np.sum(xx**3, axis=0)[:, None]
+        xx, ww = get_tensor_product_piecewise_polynomial_quadrature_rule(
+            nsamples_1d, [0, 1, 0, 2], 2)
+        vals = fun(xx)
+        integral = vals[:, 0].dot(ww)
+        true_integral = 9./2.
+        print(integral-true_integral)
+        assert np.allclose(integral, true_integral, atol=1e-3)
+
+
 if __name__ == "__main__":
     utilities_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestUtilities)

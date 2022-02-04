@@ -918,7 +918,8 @@ def pivot_rows(pivots, matrix, in_place=True):
     return matrix
 
 
-def get_final_pivots_from_sequential_pivots(sequential_pivots, num_pivots=None):
+def get_final_pivots_from_sequential_pivots(
+        sequential_pivots, num_pivots=None):
     if num_pivots is None:
         num_pivots = sequential_pivots.shape[0]
     assert num_pivots >= sequential_pivots.shape[0]
@@ -1907,3 +1908,46 @@ def qr_solve(Q, R, rhs):
 
 def equality_constrained_linear_least_squares(A, B, y, z):
     return lapack.dgglse(A, B, y, z)[3]
+
+
+def get_tensor_product_piecewise_polynomial_quadrature_rule(
+        nsamples_1d, ranges, degree=1):
+    """
+    Compute the nodes and weights needed to integrate a 2D function using
+    piecewise linear interpolation
+    """
+    nrandom_vars = len(ranges)//2
+    assert isinstance(nsamples_1d, int) or nrandom_vars == len(nsamples_1d)
+
+    def piecewise_univariate_linear_quad_rule(range_1d, npoints):
+        xx = np.linspace(range_1d[0], range_1d[1], npoints)
+        ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
+        ww[0] *= 0.5
+        ww[-1] *= 0.5
+        return xx, ww
+
+    def piecewise_univariate_quadratic_quad_rule(range_1d, npoints):
+        xx = np.linspace(range_1d[0], range_1d[1], npoints)
+        dx = 4/(3*(npoints-1))
+        ww = dx*np.ones((npoints))*(range_1d[1]-range_1d[0])
+        ww[0::2] *= 0.5
+        ww[0] *= 0.5
+        ww[-1] *= 0.5
+        return xx, ww
+
+    if degree == 1:
+        piecewise_univariate_quad_rule = piecewise_univariate_linear_quad_rule
+    elif degree == 2:
+        piecewise_univariate_quad_rule = \
+            piecewise_univariate_quadratic_quad_rule
+    else:
+        raise ValueError("degree must be 1 or 2")
+
+    univariate_quad_rules = [
+        partial(piecewise_univariate_quad_rule, ranges[2*ii:2*ii+2])
+        for ii in range(nrandom_vars)]
+    x_quad, w_quad = get_tensor_product_quadrature_rule(
+        [nsamples_1d]*nrandom_vars, nrandom_vars,
+        univariate_quad_rules)
+
+    return x_quad, w_quad

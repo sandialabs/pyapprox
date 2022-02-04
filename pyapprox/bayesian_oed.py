@@ -1,10 +1,23 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from numba import njit
+from functools import partial
 
 from pyapprox.risk_measures import conditional_value_at_risk
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
+)
+from pyapprox.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.utilities import (
+    get_tensor_product_quadrature_rule,
+    get_tensor_product_piecewise_polynomial_quadrature_rule
+)
+from pyapprox import get_univariate_quadrature_rules_from_variable
+from pyapprox.barycentric_interpolation import (
+    compute_barycentric_weights_1d,
+    multivariate_barycentric_lagrange_interpolation
 )
 
 
@@ -737,6 +750,16 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_variance_deviation):
+        r"""
+        qoi_fun : callable
+        Function with the signature
+
+        `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+        That returns evaluations of the forward model. Observations are assumed
+        to be :math:`f(z)+\epsilon` where :math:`\epsilon` is additive noise
+        nsamples : np.ndarray (nvars, nsamples)
+        """
         super().__init__(design_candidates, obs_fun, noise_std,
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
@@ -988,3 +1011,118 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
 
     def update_design(self):
         return super().update_design()
+
+
+def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
+                                  quad_method='gauss'):
+    nrandom_vars = prior_variable.num_vars()
+    ninner_loop_samples_1d = ninner_loop_samples
+    if quad_method == "gauss":
+        var_trans = AffineRandomVariableTransformation(prior_variable)
+        univariate_quad_rules = \
+            get_univariate_quadrature_rules_from_variable(
+                prior_variable, [ninner_loop_samples_1d]*nrandom_vars)[0]
+        x_quad, w_quad = get_tensor_product_quadrature_rule(
+            [ninner_loop_samples_1d]*nrandom_vars, nrandom_vars,
+            univariate_quad_rules,
+            transform_samples=var_trans.map_from_canonical_space)
+        return x_quad, w_quad
+
+    degree = {'linear': 1, 'quadratic': 2}[quad_method]
+    if prior_variable.is_bounded_continuous_variable():
+        alpha = 1
+    else:
+        alpha = 1-1e-6
+    new_ranges = prior_variable.get_statistics(
+        "interval", alpha=alpha).flatten()
+    x_quad, w_quad = \
+        get_tensor_product_piecewise_polynomial_quadrature_rule(
+            ninner_loop_samples_1d, new_ranges, degree)
+    w_quad *= prior_variable.pdf(x_quad)[:, 0]
+    return x_quad, w_quad
+
+
+def get_posterior_vals_at_inner_loop_samples(
+        oed, prior_variable, nn, outer_loop_idx):
+    # plot posterior for one realization of the data
+    # nn : number of data used to form posterior
+    # outer_loop_idx : the outer loop iteration used to generate the data
+    assert prior_variable.num_vars() == 2
+    evidences, weights = oed.compute_expected_utility(
+        oed.collected_design_indices[:nn], np.zeros(0, dtype=int), True)[1:3]
+    ninner_loop_samples = weights.shape[1]
+    vals = (
+        weights[outer_loop_idx, :] /
+        oed.inner_loop_weights[outer_loop_idx, :])[:, None]
+    # multiply vals by prior.
+    vals *= prior_variable.pdf(
+        oed.inner_loop_prior_samples[:, :ninner_loop_samples])
+    return vals
+
+
+def get_posterior_2d_interpolant_from_oed_data(
+        oed, prior_variable, nn, outer_loop_idx, quad_method):
+    # plot posterior for one realization of the data
+    # nn : number of data used to form posterior
+    # outer_loop_idx : the outer loop iteration used to generate the data
+    vals = get_posterior_vals_at_inner_loop_samples(
+        oed, prior_variable, nn, outer_loop_idx)
+    print(vals.min(), vals.max())
+    ninner_loop_samples = vals.shape[0]
+
+    if quad_method == "gauss":
+        # interpolate posterior vals onto equidistant mesh for plotting
+        nvars = prior_variable.num_vars()
+        abscissa_1d = []
+        for dd in range(nvars):
+            abscissa_1d.append(
+                np.unique(
+                    oed.inner_loop_prior_samples[dd, :ninner_loop_samples]))
+        fun = partial(tensor_product_barycentric_interpolation, abscissa_1d,
+                      vals[outer_loop_idx, :][:, None])
+        return fun
+
+    quad_methods = ['linear', 'quadratic', 'gauss']
+    if quad_method != "linear" and quad_method != "quadratic":
+        raise ValueError(f"quad_method must be in {quad_methods}")
+
+    # if using piecewise polynomial quadrature interpolate between using
+    # piecewise linear method
+    from scipy.interpolate import griddata
+    x_quad = oed.inner_loop_prior_samples[:, :ninner_loop_samples]
+    def fun(x): return griddata(x_quad.T, vals, x.T, method="linear")
+    return fun
+
+
+def plot_2d_posterior_from_oed_data(
+        oed, prior_variable, nn, outer_loop_idx, method):
+
+    if prior_variable.is_bounded_continuous_variable():
+        alpha = 1
+    else:
+        alpha = 0.99
+    plot_limits = prior_variable.get_statistics(
+        "interval", alpha=alpha).flatten()
+
+    fun = get_posterior_2d_interpolant_from_oed_data(
+        oed, prior_variable, nn, outer_loop_idx, method)
+    from pyapprox import plt, get_meshgrid_function_data
+    X, Y, Z = get_meshgrid_function_data(fun, plot_limits, 30)
+    p = plt.contourf(
+        X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 21))
+    plt.colorbar(p)
+    plt.show()
+
+
+def tensor_product_barycentric_interpolation(abscissa_1d, values, samples):
+    nvars = len(abscissa_1d)
+    barycentric_weights_1d = []
+    for dd in range(nvars):
+        interval_length = abscissa_1d[dd].max()-abscissa_1d[dd].min()
+        barycentric_weights_1d.append(
+            compute_barycentric_weights_1d(
+                abscissa_1d[dd], interval_length=interval_length))
+    poly_vals = multivariate_barycentric_lagrange_interpolation(
+        samples, abscissa_1d, barycentric_weights_1d, values,
+        np.arange(nvars))
+    return poly_vals
