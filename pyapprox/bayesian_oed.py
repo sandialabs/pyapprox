@@ -546,7 +546,9 @@ def select_design(design_candidates, collected_design_indices,
             # print(f'Candidate {ii}')
             utility_vals[ii] = compute_expected_utility(
                 collected_design_indices, np.array([ii]))
+            print(ii, utility_vals[ii])
     selected_index = np.argmax(utility_vals)
+    print(selected_index)
 
     return utility_vals, selected_index
 

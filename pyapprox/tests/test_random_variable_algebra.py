@@ -4,19 +4,24 @@ from scipy import stats
 from scipy.special import factorial
 import numpy as np
 
-from pyapprox.random_variable_algebra import \
-    sum_of_independent_random_variables_pdf, get_inverse_derivatives, \
-    scalar_multiple_of_random_variable, power_of_random_variable_pdf, \
-    get_global_maxima_and_minima_of_monomial_expansion, \
-    get_pdf_from_monomial_expansion, get_cdf_from_monomial_expansion, \
-    get_all_local_extrema_of_monomial_expansion_1d, \
-    sum_two_uniform_variables, \
-    product_of_independent_random_variables_pdf
+from pyapprox.random_variable_algebra import (
+    sum_of_independent_random_variables_pdf, get_inverse_derivatives,
+    scalar_multiple_of_random_variable, power_of_random_variable_pdf,
+    get_global_maxima_and_minima_of_monomial_expansion,
+    get_pdf_from_monomial_expansion, get_cdf_from_monomial_expansion,
+    get_all_local_extrema_of_monomial_expansion_1d,
+    sum_two_uniform_variables,
+    product_of_independent_random_variables_pdf,
+    weighted_sum_dependent_gaussian_variables
+)
 
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 
 
 class TestRandomVariableAlgebra(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
+    
     def test_scalar_multiple_of_random_variable(self):
         lb, ub = 0, 1
         coef = 2
@@ -338,6 +343,49 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.legend();plt.show()
         # print(np.linalg.norm(true_pdf-product_pdf,ord=np.inf))
         assert np.linalg.norm(true_pdf(zz)-product_pdf, ord=np.inf) < 0.03
+
+    def test_weighted_sum_dependent_gaussian_variables(self):
+        nvars = 2
+        mean = np.random.uniform(0, 1, (nvars, 1))
+        covariance = np.diag(np.random.uniform(1, 2, nvars))
+        weights = np.arange(1, nvars+1)[:, None]
+        sum_mean, sum_var = weighted_sum_dependent_gaussian_variables(
+            mean, covariance, weights)
+        assert np.allclose(sum_mean, np.sum(mean*weights))
+        assert np.allclose(
+            sum_var, (weights[:, 0]**2*np.diag(covariance)).sum())
+
+        nvars = 2
+        mean = np.random.uniform(0, 1, (nvars, 1))
+        covariance = np.diag(np.random.uniform(1, 2, nvars))
+        weights = np.arange(1, nvars+1)[:, None]
+        sum_mean, sum_var = weighted_sum_dependent_gaussian_variables(
+            mean, covariance, weights)
+        assert np.allclose(sum_mean, np.sum(mean*weights))
+        true_sum_var = (
+            covariance[0, 0]*weights[0, 0]**2 +
+            covariance[1, 1]*weights[1, 0]**2 +
+            2*weights.prod()*covariance[0, 1])
+        assert np.allclose(sum_var, true_sum_var)
+
+        nvars = 4
+        mean = np.random.uniform(0, 1, (nvars, 1))
+        tmp = np.random.normal(0, 1, (nvars, nvars))
+        covariance = tmp.T.dot(tmp)
+        covariance /= covariance.max()
+        weights = np.arange(1, nvars+1)[:, None]
+        # covariance = np.eye(nvars)
+        # weights = np.ones((nvars, 1))
+        sum_mean, sum_var = weighted_sum_dependent_gaussian_variables(
+            mean, covariance, weights)
+        chol_factor = np.linalg.cholesky(covariance)
+        nsamples = int(1e6)
+        samples = (chol_factor.dot(np.random.normal(0, 1, (nvars, nsamples))) +
+                   mean)
+        mc_sum_mean = (weights*samples).sum(axis=0).mean()
+        mc_sum_var = (weights*samples).sum(axis=0).var()
+        assert np.allclose(sum_mean, mc_sum_mean, rtol=1e-2)
+        assert np.allclose(sum_var, mc_sum_var, rtol=1e-2)
 
 
 if __name__ == "__main__":

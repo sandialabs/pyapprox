@@ -359,3 +359,37 @@ def sum_two_uniform_variables(ranges, zz):
     I3 = np.where((tt >= d2) & (tt <= d1+d2))[0]
     vals[I3] = factor*(d1+d2-tt[I3])
     return vals
+
+
+def weighted_sum_dependent_gaussian_variables(mean, covariance, weights):
+    """
+    Compute the Gaussian density of the weighted sum of dependent
+    Gaussian variables
+
+    Parameters
+    ----------
+    mean : np.ndarray (nvars, 1)
+        The mean of the Gaussian variables
+
+    covariance : np.ndarray (nvars, nvars)
+        The joint covariance of the Gaussian variables
+
+    weights : np.ndarray (nvars, 1)
+        The scalar weights applied to each variable
+
+    Returns
+    -------
+    sum_mean : float
+        Mean of the weighted sum
+
+    sum_variance : float
+        Variance of the weighted sum
+    """
+    assert mean.ndim == 2
+    assert weights.ndim == 2
+    assert mean.shape[0] == weights.shape[0]
+    assert covariance.shape[0] == weights.shape[0]
+    sum_mean = mean.T.dot(weights)
+    tmp = weights*covariance*weights.T
+    sum_variance = np.sum(tmp)
+    return sum_mean, sum_variance
