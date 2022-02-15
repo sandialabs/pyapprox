@@ -625,12 +625,13 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_factors = univariate_monomial_basis_matrix(
             poly_degree, design_samples)
         opt_problem = AlphabetOptimalDesign('D', design_factors)
-        mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-8})
+        mu = opt_problem.solve({'iprint': 1, 'ftol': 1e-14})
         II = np.where(mu > 1e-5)[0]
         print(design_samples[II])
         jj = np.where(design_samples == -1/np.sqrt(5))[0][0]
         kk = np.where(design_samples == 1/np.sqrt(5))[0][0]
         assert np.allclose(II, [0, jj, kk, mu.shape[0]-1])
+        print(0.25*np.ones(4)-mu[II])
         assert np.allclose(0.25*np.ones(4), mu[II], atol=1e-5)
 
     def test_heteroscedastic_quantile_local_doptimal_design(self):
