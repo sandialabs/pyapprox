@@ -55,7 +55,7 @@ setuptools.setup(
         'scipy >= 1.0.0',
         'Cython',
         'sympy',
-        'seaborn',
+        # 'seaborn',
         'numba',
         'scikit-learn',
         'pytest-cov',
@@ -68,14 +68,14 @@ setuptools.setup(
         # 'mfnets':['MFNetsSurrogates @ git+https://github.com/goroda/MFNetsSurrogates@master']
     },
     ext_modules=extensions,
-    test_suite='nose.collector',
-    tests_require=['nose'],
-    # for some reason pytest will not work on github actions.
-    # It is discovering a test which causes an error which I cannot reproduce
-    # on my machine or find a way which test is causing the issue
-    # tests_require=['pytest-cov'],
     license='MIT',
 )
 
 #TODO see https://pytest-cov.readthedocs.io/en/latest/config.html
 # to add config file for coverage tests to exclude certain files from coverage tests
+
+# to install using specific version of python use, e.g.
+# conda env create -f environment.yml python=3.6 --name pyapprox-base-3-6
+
+# to run all tests use
+# python -m unittest discover pyapprox

@@ -203,7 +203,7 @@ class TestNeuralNetwork(unittest.TestCase):
             plt.plot(xx, network(xx[None, :])[:, 0], lw=0.5, c='g')
         plt.ylim(network_vals.min()-0.1*abs(network_vals.min()),
                  network_vals.max()+0.1*abs(network_vals.max()))
-        plt.show()
+        # plt.show()
 
 
 if __name__ == "__main__":

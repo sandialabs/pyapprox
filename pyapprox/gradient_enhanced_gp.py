@@ -373,9 +373,10 @@ class GradientEnhancedGP(GaussianProcessRegressor):
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=0,
                  normalize_y=False, copy_X_train=True, random_state=None):
         super(GradientEnhancedGP, self).__init__(
-            kernel, alpha,
-            optimizer, n_restarts_optimizer,
-            normalize_y, copy_X_train, random_state)
+            kernel=kernel, alpha=alpha,
+            optimizer=optimizer, n_restarts_optimizer=n_restarts_optimizer,
+            normalize_y=normalize_y, copy_X_train=copy_X_train,
+            random_state=random_state)
         self.num_training_values = 0
 
     def stack_XX_derivs(self, XX_derivs):

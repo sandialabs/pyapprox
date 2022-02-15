@@ -166,7 +166,7 @@ class TestQuadrature(unittest.TestCase):
             # does not produce nested sequences without using initial_points
 
     def test_hermite_christoffel_leja_quadrature_rule(self):
-        warnings.filterwarnings('error')
+        # warnings.filterwarnings('error')
         variable = stats.norm(2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(
@@ -185,7 +185,7 @@ class TestQuadrature(unittest.TestCase):
         assert np.allclose(samples1[:samples.shape[0]], samples)
 
     def test_uniform_christoffel_leja_quadrature_rule(self):
-        warnings.filterwarnings('error')
+        # warnings.filterwarnings('error')
         variable = stats.uniform(-2, 3)
         growth_rule = partial(constant_increment_growth_rule, 2)
         quad_rule = get_univariate_leja_quadrature_rule(

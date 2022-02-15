@@ -101,7 +101,8 @@ class TestRecursionFactory(unittest.TestCase):
             "levy_stable", "logistic", "loggamma", "loglaplace", "lognorm",
             "gilbrat", "maxwell", "mielke", "kappa4", "kappa3", "moyal",
             "nakagami", "ncx2", "ncf", "t", "nct", "pareto", "lomax",
-            "pearson3", "powerlaw", "powerlognorm", "powernorm", "rdist",
+            "pearson3", "powerlaw",
+            "powerlognorm", "powernorm", "rdist",
             "rayleigh", "reciprocal", "rice", "recipinvgauss", "semicircular",
             "skewnorm", "trapz", "triang", "truncexpon", "truncnorm",
             "tukeylambda", "uniform", "vonmises", "vonmises_line", "wald",
@@ -129,10 +130,8 @@ class TestRecursionFactory(unittest.TestCase):
             {"beta": 2}, {"beta": 2, "m": 2}, {"chi": 1}]
 
         # scipy is continually adding names just test a subset
-        # scipy_continuous_var_names = [
-        #     n for n in stats._continuous_distns._distn_names]
-        # for name in scipy_continuous_var_names:
-        #     assert name in continuous_var_names
+        scipy_continuous_var_names = [
+            n for n in stats._continuous_distns._distn_names]
 
         # do not support :
         #    levy_stable as there is a bug when interval is called
@@ -143,6 +142,18 @@ class TestRecursionFactory(unittest.TestCase):
         unsupported_continuous_var_names += [
             "f", "levy", "levy_l", "loglaplace", "ncf", "crystalball"]
 
+        # interface not backward compatible
+        unsupported_continuous_var_names += ["pearson3", "powerlaw"]
+
+        unsupported_continuous_var_names += [
+            n for n in continuous_var_names
+            if n not in scipy_continuous_var_names]
+
+        for name in unsupported_continuous_var_names:
+            ii = continuous_var_names.index(name)
+            del continuous_var_names[ii]
+            del continuous_var_shapes[ii]
+
         # The following variables have fat tails and cause
         # scipy.integrate.quad to fail. Use custom integrator for these
         fat_tail_continuous_var_names = [
@@ -150,10 +161,6 @@ class TestRecursionFactory(unittest.TestCase):
             "foldcauchy", "f", "genpareto", "halfcauchy", "invgamma",
             "invweibull", "levy", "levy_l", "loglaplace", "mielke",
             "kappa3", "ncf", "pareto", "lomax", "pearson3"]
-        for name in unsupported_continuous_var_names:
-            ii = continuous_var_names.index(name)
-            del continuous_var_names[ii]
-            del continuous_var_shapes[ii]
 
         # start at a midpoint in the list
         # name = "argus"

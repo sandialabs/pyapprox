@@ -169,6 +169,11 @@ class TestVariables(unittest.TestCase):
                 warn(f"variable {name} is not tested", UserWarning)
 
         unsupported_continuous_var_names = ["ncf"]
+
+        unsupported_continuous_var_names += [
+            n for n in continuous_var_names
+            if n not in scipy_continuous_var_names]
+        
         for name in unsupported_continuous_var_names:
             ii = continuous_var_names.index(name)
             del continuous_var_names[ii]

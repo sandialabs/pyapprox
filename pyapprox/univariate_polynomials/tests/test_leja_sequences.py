@@ -211,7 +211,7 @@ class TestLeja1DSequences(unittest.TestCase):
         assert np.allclose((leja_sequence**2).dot(weights[-1]), 1/3)
 
     def test_hermite_christoffel_leja_sequence_1d(self):
-        warnings.filterwarnings('error')
+        # warnings.filterwarnings('error')
         # for unbounded variables can get overflow warnings because when
         # optimizing interval with one side unbounded and no local minima
         # exists then optimization will move towards inifinity
