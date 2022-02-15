@@ -1,10 +1,10 @@
 name: pyapprox-base
 channels:
   - defaults
-#  - conda-forge #using conda-forge delays solving environment step significanty
+  - conda-forge
 dependencies:
   - python >=3.6,<3.9 # numba does requires <=3.8
-  - numpy
+  - numpy=1.20.0 # numba requires numpy >1.17, <=1.20 but pandas requires >= 1.20
   - matplotlib
   - scipy
   - numba
