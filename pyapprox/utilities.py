@@ -1910,6 +1910,24 @@ def equality_constrained_linear_least_squares(A, B, y, z):
     return lapack.dgglse(A, B, y, z)[3]
 
 
+def piecewise_univariate_linear_quad_rule(range_1d, npoints):
+    xx = np.linspace(range_1d[0], range_1d[1], npoints)
+    ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
+    ww[0] *= 0.5
+    ww[-1] *= 0.5
+    return xx, ww
+
+
+def piecewise_univariate_quadratic_quad_rule(range_1d, npoints):
+    xx = np.linspace(range_1d[0], range_1d[1], npoints)
+    dx = 4/(3*(npoints-1))
+    ww = dx*np.ones((npoints))*(range_1d[1]-range_1d[0])
+    ww[0::2] *= 0.5
+    ww[0] *= 0.5
+    ww[-1] *= 0.5
+    return xx, ww
+
+
 def get_tensor_product_piecewise_polynomial_quadrature_rule(
         nsamples_1d, ranges, degree=1):
     """
@@ -1918,22 +1936,6 @@ def get_tensor_product_piecewise_polynomial_quadrature_rule(
     """
     nrandom_vars = len(ranges)//2
     assert isinstance(nsamples_1d, int) or nrandom_vars == len(nsamples_1d)
-
-    def piecewise_univariate_linear_quad_rule(range_1d, npoints):
-        xx = np.linspace(range_1d[0], range_1d[1], npoints)
-        ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
-        ww[0] *= 0.5
-        ww[-1] *= 0.5
-        return xx, ww
-
-    def piecewise_univariate_quadratic_quad_rule(range_1d, npoints):
-        xx = np.linspace(range_1d[0], range_1d[1], npoints)
-        dx = 4/(3*(npoints-1))
-        ww = dx*np.ones((npoints))*(range_1d[1]-range_1d[0])
-        ww[0::2] *= 0.5
-        ww[0] *= 0.5
-        ww[-1] *= 0.5
-        return xx, ww
 
     if degree == 1:
         piecewise_univariate_quad_rule = piecewise_univariate_linear_quad_rule

@@ -250,3 +250,31 @@ def halton_sequence_pyx(int64_t[:] primes, int_t index1, int_t index2):
                 summand += ff[jj]
         kk+=1
     return sequence
+
+
+@cython.cdivision(True)     # Deactivate division by zero checking
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+cpdef sq_dists_3d_pyx(
+    double [:,:,:] XX, double [:,:,:] YY,
+    np.int64_t [:] active_indices, double [:] a, double b):
+    
+    cdef:
+        int ii, jj, kk, L, M, N, P
+
+    L = YY.shape[0]
+    M = YY.shape[1]
+    N = YY.shape[2]
+    P = active_indices.shape[0]
+    ss = np.zeros((L, M), dtype=np.double)
+    cdef double [:,:] ss_view = ss
+    for ii in range(L):
+        for jj in range(M):
+            ss_view[ii, jj] = 0.0
+            for kk in range(P):
+                ss_view[ii, jj] += a[active_indices[kk]]*(
+                    XX[ii, 0, active_indices[kk]] -
+                    YY[ii, jj, active_indices[kk]])**2
+            ss_view[ii, jj] = ss_view[ii, jj]+b
+    return ss
+	    

@@ -1,8 +1,11 @@
+import os
 import numpy as np
 from scipy.spatial.distance import cdist
 from numba import njit
 from functools import partial
+from multiprocessing import Pool
 
+from pyapprox.sys_utilities import trace_error_with_msg
 from pyapprox.risk_measures import conditional_value_at_risk
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
@@ -77,7 +80,7 @@ def gaussian_loglike_fun_broadcast(
 
 
 @njit(cache=True)
-def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
+def sq_dists_numba_3d(XX, YY, a, b, active_indices):
     """
     Compute the scaled l2-norm distance between two sets of samples
     E.g. for one point
@@ -98,7 +101,7 @@ def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
     a : float or np.ndarray (NN, 1)
         scalar multiplying l2 distance
 
-    a : float or np.ndarray (NN, 1)
+    b : float
         scalar added to l2 distance
 
     Returns
@@ -107,13 +110,7 @@ def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
         The scaled distances
     """
     Yshape = YY.shape
-    assert XX.shape[0] == YY.shape[0]
-    assert XX.shape[1] == 1
-    assert a.shape[0] == XX.shape[2]
-    assert a.shape[0] == YY.shape[2]
     ss = np.empty(Yshape[:2])
-    if active_indices is None:
-        active_indices = np.arange(Yshape[2])
     nactive_indices = active_indices.shape[0]
     for ii in range(Yshape[0]):
         for jj in range(Yshape[1]):
@@ -126,6 +123,26 @@ def sq_dists_numba_3d(XX, YY, a=1, b=0, active_indices=None):
                     YY[ii, jj, active_indices[kk]])**2
             ss[ii, jj] = ss[ii, jj]+b
     return ss
+
+
+def sq_dists_3d(XX, YY, a=1, b=0, active_indices=None):
+    assert XX.shape[0] == YY.shape[0]
+    assert XX.shape[1] == 1
+    assert a.shape[0] == XX.shape[2]
+    assert a.shape[0] == YY.shape[2]
+    if active_indices is None:
+        active_indices = np.arange(YY.shape[2])
+    if np.isscalar(a):
+        a = np.ones(active_indices.shape[0])
+
+    try:
+        from pyapprox.cython.utilities import sq_dists_3d_pyx
+        return sq_dists_3d_pyx(XX, YY, active_indices, a, b)
+    except(ImportError, ModuleNotFoundError) as e:
+        msg = 'sq_dists_3d extension failed'
+        trace_error_with_msg(msg, e)
+
+    return sq_dists_numba_3d(XX, YY, a, b, active_indices)
 
 
 def gaussian_loglike_fun_economial_3D(
@@ -143,7 +160,7 @@ def gaussian_loglike_fun_economial_3D(
         tmp2 = 0.5*np.sum(np.log(-tmp1/np.pi))
     else:
         tmp2 = 0.5*np.sum(np.log(-tmp1[active_indices]/np.pi))
-    llike = sq_dists_numba_3d(obs, pred_obs, tmp1, tmp2, active_indices)
+    llike = sq_dists_3d(obs, pred_obs, tmp1, tmp2, active_indices)
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
@@ -243,7 +260,9 @@ def __compute_expected_kl_utility_monte_carlo(
     if not return_all:
         return utility_val
     weights = np.exp(inner_log_likelihood_vals)*inner_loop_weights/evidences
-    return utility_val, evidences, weights
+    data_structures = {"utility_val": utility_val, "evidences": evidences,
+                       "weights": weights}
+    return utility_val, data_structures
 
 
 def precompute_compute_expected_kl_utility_data(
@@ -490,11 +509,16 @@ def __compute_negative_expected_deviation_monte_carlo(
     deviations = deviation_fun(
         inner_loop_pred_qois.reshape(nouter_loop_samples, ninner_loop_samples),
         weights)
-    expected_deviation = np.sum(deviations*outer_loop_weights)
+    # expected_deviation = np.sum(deviations*outer_loop_weights)
+    # utility_val = -expected_deviation
+    utility_val = -np.sum(deviations*outer_loop_weights)
     if not return_all:
-        return -expected_deviation
+        return utility_val
     else:
-        return -expected_deviation, evidences, weights, deviations
+        data_structures = {
+            'utility_val': utility_val, 'evidences': evidences,
+            'weights': weights, 'deviations': deviations}
+        return utility_val, data_structures
 
 
 def compute_negative_expected_deviation_monte_carlo(
@@ -516,7 +540,7 @@ def compute_negative_expected_deviation_monte_carlo(
 
 
 def select_design(design_candidates, collected_design_indices,
-                  compute_expected_utility):
+                  compute_expected_utility, max_eval_concurrency=1):
     """
     Update an experimental design.
 
@@ -538,19 +562,50 @@ def select_design(design_candidates, collected_design_indices,
 
     selected_index : integer
         The index of the best design, i.e. the largest utility
+
+    results : dict
+        Dictionary of useful data used to compute expected utility
+        At a minimum it has the keys ["utilties", "evidences", "weights"]
     """
     ncandidates = design_candidates.shape[1]
-    utility_vals = -np.ones(ncandidates)*np.inf
-    for ii in range(ncandidates):
-        if ii not in collected_design_indices:
-            # print(f'Candidate {ii}')
-            utility_vals[ii] = compute_expected_utility(
-                collected_design_indices, np.array([ii]))
-            print(ii, utility_vals[ii])
-    selected_index = np.argmax(utility_vals)
-    print(selected_index)
 
-    return utility_vals, selected_index
+    if max_eval_concurrency > 1:
+        pool = Pool(max_eval_concurrency)
+        pool_results = pool.map(
+            partial(compute_expected_utility, collected_design_indices,
+                    return_all=True),
+            [np.array([ii]) for ii in range(ncandidates)
+             if ii not in collected_design_indices])
+        pool.close()
+        utility_vals = -np.ones(ncandidates)*np.inf
+        results = []
+        cnt = 0
+        for ii in range(ncandidates):
+            if ii not in collected_design_indices:
+                utility_vals[ii] = pool_results[cnt][0]
+                results.append(pool_results[cnt][1])
+                cnt += 1
+            else:
+                results.append(None)
+    else:
+        results = []
+        utility_vals = -np.ones(ncandidates)*np.inf
+        for ii in range(ncandidates):
+            if ii not in collected_design_indices:
+                # print(f'Candidate {ii}')
+                result_ii = compute_expected_utility(
+                    collected_design_indices, np.array([ii]), return_all=True)
+                # note results_ii[0] is repeated in results_ii[1] intentionally
+                utility_vals[ii] = result_ii[0]
+                results.append(result_ii[1])
+            else:
+                results.append(None)
+                # print(ii, utility_vals[ii])
+    
+    selected_index = np.argmax(utility_vals)
+    # print(selected_index)
+
+    return utility_vals, selected_index, results
 
 
 def update_observations(design_candidates, collected_design_indices,
@@ -645,7 +700,7 @@ class BayesianBatchKLOED(object):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False):
+                 econ=False, max_eval_concurrency=1):
         self.design_candidates = design_candidates
         self.obs_fun = obs_fun
         self.noise_std = noise_std
@@ -661,6 +716,19 @@ class BayesianBatchKLOED(object):
         self.inner_loop_pred_obs = None
         self.inner_loop_weights = None
         self.outer_loop_prior_samples = None
+        self.max_eval_concurrency = None
+
+        self.set_max_eval_concurrency(max_eval_concurrency)
+
+    def set_max_eval_concurrency(self, max_eval_concurrency):
+        self.max_eval_concurrency = max_eval_concurrency
+        if (max_eval_concurrency > 1 and (
+                'OMP_NUM_THREADS' not in os.environ or
+                not int(os.environ['OMP_NUM_THREADS']) == 1)):
+            msg = 'User set assert_omp=True but OMP_NUM_THREADS has not been '
+            msg += 'set to 1. Run script with '
+            msg += 'OMP_NUM_THREADS=1 python script.py'
+            raise Exception(msg)
 
     def noise_fun(self, values):
         return np.random.normal(0, self.noise_std, (values.shape))
@@ -708,19 +776,21 @@ class BayesianBatchKLOED(object):
     def set_collected_design_indices(self, indices):
         self.collected_design_indices = indices.copy()
 
-    def update_design(self):
+    def update_design(self, return_all=False):
         if not hasattr(self, "outer_loop_obs"):
             raise ValueError("Must call self.populate before creating designs")
         if self.collected_design_indices is None:
             self.collected_design_indices = np.zeros((0), dtype=int)
-        utility_vals, selected_index = select_design(
+        utility_vals, selected_index, results = select_design(
             self.design_candidates, self.collected_design_indices,
-            self.compute_expected_utility)
+            self.compute_expected_utility, self.max_eval_concurrency)
 
         new_design_indices = np.array([selected_index])
         self.collected_design_indices = np.hstack(
             (self.collected_design_indices, new_design_indices))
-        return utility_vals, new_design_indices
+        if return_all is False:
+            return utility_vals, new_design_indices
+        return utility_vals, new_design_indices, results
 
 
 def oed_variance_deviation(samples, weights):
@@ -729,6 +799,13 @@ def oed_variance_deviation(samples, weights):
     variances = np.einsum(
         "ij,ij->i", samples**2, weights)[:, None]-means**2
     return variances
+
+
+def oed_standard_deviation(samples, weights):
+    variance = oed_variance_deviation(samples, weights)
+    # rouding error can cause slightly negative values
+    variance[np.absolute(variance) < np.finfo(float).eps] = 0
+    return np.sqrt(variance)
 
 
 def oed_conditional_value_at_risk_deviation(beta, samples, weights,
@@ -751,7 +828,8 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, deviation_fun=oed_variance_deviation):
+                 econ=False, deviation_fun=oed_standard_deviation,
+                 max_eval_concurrency=1):
         r"""
         qoi_fun : callable
         Function with the signature
@@ -765,7 +843,7 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
         super().__init__(design_candidates, obs_fun, noise_std,
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
-                         econ=econ)
+                         econ=econ, max_eval_concurrency=max_eval_concurrency)
         self.qoi_fun = qoi_fun
         self.deviation_fun = deviation_fun
 
@@ -853,11 +931,11 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, obs_process, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False):
+                 econ=False, max_eval_concurrency=1):
         super().__init__(design_candidates, obs_fun, noise_std,
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
-                         econ=econ)
+                         econ=econ, max_eval_concurrency=max_eval_concurrency)
         self.obs_process = obs_process
         self.collected_obs = None
         self.inner_importance_weights = None
@@ -1049,9 +1127,33 @@ def get_posterior_vals_at_inner_loop_samples(
     # plot posterior for one realization of the data
     # nn : number of data used to form posterior
     # outer_loop_idx : the outer loop iteration used to generate the data
-    assert prior_variable.num_vars() == 2
-    evidences, weights = oed.compute_expected_utility(
-        oed.collected_design_indices[:nn], np.zeros(0, dtype=int), True)[1:3]
+    assert nn > 0
+    results = oed.compute_expected_utility(
+        oed.collected_design_indices[:nn-1],
+        oed.collected_design_indices[nn-1:nn], True)[1]
+    weights = results["weights"]
+    return get_posterior_vals_at_inner_loop_samples_base(
+        oed, prior_variable, outer_loop_idx, weights)
+
+
+def get_posterior_vals_at_inner_loop_samples_from_oed_results(
+        oed, prior_variable, nn, outer_loop_idx, oed_results):
+    """
+    oed_results : list(list(dict))
+         axis 0: each experimental design step
+         axis 1: each design candidate
+         dict: the data structures returned by the compute expected utility
+              function used. Assumes that weights is returned as the
+              is a key, i.e. index [ii][jj]["weights"] exists
+    """
+    assert nn > 0
+    weights = oed_results[nn-1][oed.collected_design_indices[nn-1]]["weights"]
+    return get_posterior_vals_at_inner_loop_samples_base(
+        oed, prior_variable, outer_loop_idx, weights)
+
+
+def get_posterior_vals_at_inner_loop_samples_base(
+        oed, prior_variable, outer_loop_idx, weights):
     ninner_loop_samples = weights.shape[1]
     vals = (
         weights[outer_loop_idx, :] /
@@ -1063,13 +1165,18 @@ def get_posterior_vals_at_inner_loop_samples(
 
 
 def get_posterior_2d_interpolant_from_oed_data(
-        oed, prior_variable, nn, outer_loop_idx, quad_method):
+        oed, prior_variable, nn, outer_loop_idx, quad_method,
+        oed_results=None):
     # plot posterior for one realization of the data
     # nn : number of data used to form posterior
     # outer_loop_idx : the outer loop iteration used to generate the data
-    vals = get_posterior_vals_at_inner_loop_samples(
-        oed, prior_variable, nn, outer_loop_idx)
-    print(vals.min(), vals.max())
+    assert prior_variable.num_vars() == 2
+    if oed_results is None:
+        vals = get_posterior_vals_at_inner_loop_samples(
+            oed, prior_variable, nn, outer_loop_idx)
+    else:
+        vals = get_posterior_vals_at_inner_loop_samples_from_oed_results(
+            oed, prior_variable, nn, outer_loop_idx, oed_results)
     ninner_loop_samples = vals.shape[0]
 
     if quad_method == "gauss":
@@ -1097,7 +1204,12 @@ def get_posterior_2d_interpolant_from_oed_data(
 
 
 def plot_2d_posterior_from_oed_data(
-        oed, prior_variable, nn, outer_loop_idx, method):
+        oed, prior_variable, nn, outer_loop_idx, method, ax=None,
+        oed_results=None):
+
+    from pyapprox import plt, get_meshgrid_function_data
+    if ax is None:
+        fig, axs = plt.subplots(1, 1, figsize=(8, 6))
 
     if prior_variable.is_bounded_continuous_variable():
         alpha = 1
@@ -1107,13 +1219,11 @@ def plot_2d_posterior_from_oed_data(
         "interval", alpha=alpha).flatten()
 
     fun = get_posterior_2d_interpolant_from_oed_data(
-        oed, prior_variable, nn, outer_loop_idx, method)
-    from pyapprox import plt, get_meshgrid_function_data
-    X, Y, Z = get_meshgrid_function_data(fun, plot_limits, 30)
-    p = plt.contourf(
+        oed, prior_variable, nn, outer_loop_idx, method, oed_results)
+    X, Y, Z = get_meshgrid_function_data(fun, plot_limits, 100)
+    p = ax.contourf(
         X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 21))
-    plt.colorbar(p)
-    plt.show()
+    plt.colorbar(p, ax=ax)
 
 
 def tensor_product_barycentric_interpolation(abscissa_1d, values, samples):

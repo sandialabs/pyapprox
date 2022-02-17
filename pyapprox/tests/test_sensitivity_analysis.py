@@ -227,7 +227,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         values = function(samples)
         elem_effects = get_morris_elementary_effects(samples, values)
         mu, sigma = get_morris_sensitivity_indices(elem_effects)
-        print_morris_sensitivity_indices(mu, sigma)
+        # print_morris_sensitivity_indices(mu, sigma)
         # ix1 = 0
         # for ii in range(ntrajectories):
         #     ix2 = ix1+nvars+1

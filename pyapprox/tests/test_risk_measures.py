@@ -13,9 +13,12 @@ from pyapprox.risk_measures import (
     value_at_risk, conditional_value_at_risk,
     univariate_quantile_continuous_variable,
     compute_conditional_expectations,
-    univariate_cvar_continuous_variable
+    univariate_cvar_continuous_variable, weighted_quantiles
     )
 from pyapprox.variables import get_distribution_info
+from pyapprox.univariate_polynomials.quadrature import (
+    gauss_hermite_pts_wts_1D
+)
 
 
 def cvar_univariate_integrand(f, pdf, t, x):
@@ -679,6 +682,25 @@ class TestRiskMeasures(unittest.TestCase):
         cvar = univariate_cvar_continuous_variable(
             var.pdf, var.support(), beta, 1e-8, {"epsabs": 1e-10})
         assert np.allclose(cvar, cvar_beta_variable(var, beta))
+
+    def test_weighted_quantiles(self):
+        qq = np.linspace(0.1, 0.9, 9)
+        mean, var = 0, 1
+        rv = stats.lognorm(scale=np.exp(mean), s=np.sqrt(var))
+        xx = np.random.normal(mean, var, (100000))
+        weights = np.ones(xx.shape)/xx.shape[0]
+        samples = np.exp(xx)
+        quantile_vals = weighted_quantiles(
+            samples, weights, qq, samples_sorted=False)
+        # print((rv.ppf(qq)-quantile_vals)/quantile_vals)
+        assert np.allclose(rv.ppf(qq), quantile_vals, rtol=2e-2)
+
+        xx, weights = gauss_hermite_pts_wts_1D(400)
+        samples = np.exp(xx)
+        quantile_vals = weighted_quantiles(
+            samples, weights, qq, samples_sorted=False)
+        # print((rv.ppf(qq)-quantile_vals)/quantile_vals)
+        assert np.allclose(rv.ppf(qq), quantile_vals, rtol=2e-2)
 
 
 if __name__ == "__main__":

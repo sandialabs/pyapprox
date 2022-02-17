@@ -5,6 +5,21 @@ import scipy
 from pyapprox.random_variable_algebra import invert_monotone_function
 
 
+def weighted_quantiles(samples, weights, qq, samples_sorted=False, prob=True):
+    """Compute a set of quantiles"""
+    assert samples.shape == weights.shape
+    assert samples.ndim == 1 and weights.ndim == 1
+    if prob:
+        assert np.allclose(weights.sum(), 1), weights.sum()
+    if not samples_sorted:
+        II = np.argsort(samples)
+        xx, ww = samples[II], weights[II]
+    else:
+        xx, ww = samples, weights
+    ecdf = ww.cumsum()-0.5*weights
+    return np.interp(qq, ecdf, xx)
+
+
 def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
     """
     Compute the value at risk of a variable Y using a set of samples.

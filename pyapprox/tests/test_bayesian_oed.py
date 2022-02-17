@@ -515,8 +515,9 @@ class TestBayesianOED(unittest.TestCase):
             # Re-compute the evidences that were used to update the design
             # above. This will be used for testing later
             # print('D', oed_copy.evidence)
-            evidences = oed_copy.compute_expected_utility(
+            results = oed_copy.compute_expected_utility(
                 oed_copy.collected_design_indices, selected_indices, True)[1]
+            evidences = results["evidences"]
 
             # print('Collected plus selected indices',
             #       oed.collected_design_indices,
@@ -841,9 +842,9 @@ class TestBayesianOED(unittest.TestCase):
             # Update the design
             utility_vals, selected_indices = oed.update_design()
 
-            utility, evidences, weights, deviations  = \
-                oed_copy.compute_expected_utility(
-                    oed_copy.collected_design_indices, selected_indices, True)
+            utility, results = oed_copy.compute_expected_utility(
+                oed_copy.collected_design_indices, selected_indices, True)
+            deviations = results["deviations"]
 
             exact_deviations = np.empty(nouter_loop_samples)
             for jj in range(nouter_loop_samples):
@@ -860,8 +861,8 @@ class TestBayesianOED(unittest.TestCase):
 
                 exact_deviations[jj] = gauss_deviation_fun(
                     exact_post_mean_jj, exact_post_cov_jj)
-            print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
-                  tol)
+            # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
+            #       tol)
             # print(exact_deviations, deviations[:, 0])
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(

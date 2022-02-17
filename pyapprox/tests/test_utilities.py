@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from scipy.linalg import lu_factor, lu as scipy_lu, qr as qr_factorization
+from scipy.linalg import lu_factor, qr as qr_factorization
 
 from pyapprox.utilities import *
 from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
