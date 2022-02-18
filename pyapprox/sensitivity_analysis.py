@@ -467,15 +467,11 @@ def get_morris_sensitivity_indices(elem_effects):
 
 
 def print_morris_sensitivity_indices(mu, sigma, qoi=0):
-    # string = "Morris sensitivity indices\n"
-    try:
-        from pandas import DataFrame
-        df = DataFrame({"mu*": mu[:, qoi], "sigma": sigma[:, qoi]})
-        df.index = [f'Z_{ii+1}' for ii in range(mu.shape[0])]
-        print(df)
-    except:
-        print("mu", mu[:, qoi])
-        print("sigma", sigma[:, qoi])
+    str_format = "{:<3} {:>10} {:>10}"
+    print(str_format.format(" ", "mu*", "sigma"))
+    str_format = "{:<3} {:10.5f} {:10.5f}"
+    for ii in range(mu.shape[0]):
+        print(str_format.format(f'Z_{ii+1}', mu[ii, qoi], sigma[ii, qoi]))
 
 
 def downselect_morris_trajectories(samples, ntrajectories):

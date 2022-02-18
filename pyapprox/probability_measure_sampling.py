@@ -1,7 +1,9 @@
 import numpy as np
 
 from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
+from pyapprox.variable_transformations import (
+    AffineRandomVariableTransformation
+)
 
 
 def print_statistics(samples, values, sample_labels=None, value_labels=None):
@@ -11,7 +13,7 @@ def print_statistics(samples, values, sample_labels=None, value_labels=None):
     Parameters
     ----------
     samples : np.ndarray (num_vars,num_samples)
-        Random samples 
+        Random samples
 
     values : np.ndarray (num_samples,num_qoi)
        Function values at samples
@@ -23,19 +25,15 @@ def print_statistics(samples, values, sample_labels=None, value_labels=None):
     >>> samples = np.random.normal(0,1,(num_vars,100))
     >>> values = np.array([np.sum(samples**2,axis=0),2*np.sum(samples**2,axis=0)]).T
     >>> print_statistics(samples,values)
-                   z0          z1          y0          y1
-    count  100.000000  100.000000  100.000000  100.000000
-    mean     0.060583    0.152795    1.679132    3.358265
-    std      0.889615    0.936690    1.714470    3.428941
-    min     -2.301539   -2.434838    0.031229    0.062458
-    25%     -0.613818   -0.300010    0.437509    0.875019
-    50%      0.064074    0.236616    1.073139    2.146279
-    75%      0.637410    0.743020    2.397208    4.794417
-    max      2.185575    2.528326    9.575905   19.151810
+               z0         z1         y0         y1    
+    count  100.000000 100.000000 100.000000 100.000000
+    mean     0.060583   0.152795   1.679132   3.358265
+    std      0.885156   0.931995   1.705877   3.411753
+    min     -2.301539  -2.434838   0.031229   0.062458
+    max      2.185575   2.528326   9.575905  19.151810
     """
     if values.ndim == 1:
         values = values[:, np.newaxis]
-    from pandas import DataFrame
     num_vars, nsamples = samples.shape
     num_qoi = values.shape[1]
     assert nsamples == values.shape[0]
@@ -43,12 +41,24 @@ def print_statistics(samples, values, sample_labels=None, value_labels=None):
         sample_labels = ['z%d' % ii for ii in range(num_vars)]
     if value_labels is None:
         value_labels = ['y%d' % ii for ii in range(num_qoi)]
-
     data = [(label, s) for s, label in zip(samples, sample_labels)]
     data += [(label, s) for s, label in zip(values.T, value_labels)]
-    data = dict(data)
-    df = DataFrame(index=np.arange(nsamples), data=data)
-    print(df.describe())
+
+    # data = [(label, s) for s, label in zip(samples, sample_labels)]
+    # data += [(label, s) for s, label in zip(values.T, value_labels)]
+    # data = dict(data)
+    # df = DataFrame(index=np.arange(nsamples), data=data)
+    # print(df.describe())
+
+    str_format = ' '.join(["{:<6}"]+["{:^10}"]*(len(data)))
+    print(str_format.format(*([" "]+[dat[0] for dat in data])))
+    stat_funs = [lambda x: x.shape[0], lambda x: x.mean(), lambda x: x.std(),
+                 lambda x: x.min(), lambda x: x.max()]
+    stat_labels = ["count", "mean", "std", "min", "max"]
+    str_format = ' '.join(["{:<6}"]+["{:10.6f}"]*(len(data)))
+    for stat_fun, stat_label in zip(stat_funs, stat_labels):
+        print(str_format.format(
+            *([stat_label]+[stat_fun(dat[1]) for dat in data])))
 
 
 def generate_canonical_univariate_random_samples(
@@ -67,7 +77,7 @@ def generate_canonical_univariate_random_samples(
     ----------
 
     var_type : string
-        The variable type 
+        The variable type
 
     variable_parameters : dict
         The parameters that define the distribution
@@ -139,7 +149,6 @@ def generate_independent_random_samples_deprecated(var_trans, num_samples):
 
     canonical_samples = np.empty((num_vars, num_samples), dtype=float)
     variables = var_trans.variables
-    num_unique_var_types = len(variables.unique_var_types)
     for var_type in list(variables.unique_var_types.keys()):
         type_index = variables.unique_var_types[var_type]
         num_vars_of_type = len(variables.unique_var_indices[type_index])
@@ -187,7 +196,7 @@ def rejection_sampling(target_density, proposal_density,
                        num_vars, num_samples, verbose=False,
                        batch_size=None):
     """
-    Obtain samples from a density f(x) using samples from a proposal 
+    Obtain samples from a density f(x) using samples from a proposal
     distribution g(x).
 
     Parameters
@@ -202,7 +211,7 @@ def rejection_sampling(target_density, proposal_density,
         Generate samples from the proposal density
 
     envelope_factor : double
-        Factor M that satifies f(x)<=Mg(x). Set M such that inequality is as 
+        Factor M that satifies f(x)<=Mg(x). Set M such that inequality is as
         close to equality as possible
 
     num_vars : integer

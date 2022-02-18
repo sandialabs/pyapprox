@@ -79,3 +79,9 @@ setuptools.setup(
 
 # to run all tests use
 # python -m unittest discover pyapprox
+
+# run a doctest of a single module
+# pytest -v --doctest-modules path/to/module.py
+
+# run a doctest of a single function in a module
+# pytest -v --doctest-modules path/to/module.py::path.to.module.Class.method
