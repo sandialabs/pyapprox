@@ -284,7 +284,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         errors = pya.check_gradients(
             model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
         errors = errors[np.isfinite(errors)]
-        assert errors.max() > 0.1 and errors.min() <= 6e-7
+        assert errors.max() > 0.1 and errors.min() <= 8e-7
 
     @unittest.skip("Gradient does not work when advection is turned on")
     def test_evaluate_advection_gradient_1d(self):
