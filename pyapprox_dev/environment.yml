@@ -7,7 +7,7 @@ dependencies:
   - numpy
   - matplotlib
   - scipy
-  - numba
+#  - numba
   - jupyter
   - pytest
   - pytest-cov
@@ -15,7 +15,7 @@ dependencies:
   - setuptools
   - scikit-learn
   - Cython
-  - seaborn
+#  - seaborn
   - sympy
   - networkx
   - sphinx
