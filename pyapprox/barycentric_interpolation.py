@@ -1,8 +1,8 @@
 import numpy as np
-from numba import njit
-
 from scipy.special import comb as nchoosek
+
 from pyapprox.utilities import cartesian_product
+from pyapprox.pya_numba import njit
 from .sys_utilities import trace_error_with_msg
 
 

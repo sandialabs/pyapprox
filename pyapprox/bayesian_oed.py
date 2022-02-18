@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from scipy.spatial.distance import cdist
-from numba import njit
+from pyapprox.pya_numba import njit
 from functools import partial
 from multiprocessing import Pool
 

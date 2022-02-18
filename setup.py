@@ -56,7 +56,7 @@ setuptools.setup(
         'Cython',
         'sympy',
         # 'seaborn',
-        'numba',
+        # 'numba',
         'scikit-learn',
         'pytest-cov',
         'pytest>=4.6',

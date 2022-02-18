@@ -119,8 +119,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         z_cdf_vals_perturbed = get_cdf_from_monomial_expansion(
             coef, lb, ub, x_cdf, zz+fd_eps)
         # fig,axs=plt.subplots(1,2,figsize=(2*8,6))
-        critical_points = get_all_local_extrema_of_monomial_expansion_1d(
-            poly, lb, ub)
+        # critical_points = get_all_local_extrema_of_monomial_expansion_1d(
+        #     poly, lb, ub)
         # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));
         # axs[0].plot(critical_points,poly(critical_points),'o')
         # zz_rand = np.sort(function(np.random.uniform(lb,ub,10001)))
@@ -131,8 +131,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,
         #    label='PDF approx')
         # plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
-        # print(np.linalg.norm(
-        #    (z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps)))
+        print((z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps))
         assert np.allclose(
             z_pdf_vals, (z_cdf_vals_perturbed-z_cdf_vals)/fd_eps, atol=1e-5)
 

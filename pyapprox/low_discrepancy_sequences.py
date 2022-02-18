@@ -1,6 +1,6 @@
 import numpy as np
-from numba import njit
 
+from pyapprox.pya_numba import njit
 from pyapprox.utilities import get_first_n_primes
 from pyapprox.sys_utilities import trace_error_with_msg
 

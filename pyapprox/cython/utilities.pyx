@@ -277,4 +277,3 @@ cpdef sq_dists_3d_pyx(
                     YY[ii, jj, active_indices[kk]])**2
             ss_view[ii, jj] = ss_view[ii, jj]+b
     return ss
-	    

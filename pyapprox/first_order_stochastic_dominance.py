@@ -1,8 +1,9 @@
 import numpy as np
-from numba import jit
 from functools import partial
-from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
 from scipy.optimize import NonlinearConstraint, Bounds
+
+from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
+from pyapprox.pya_numba import njit
 
 
 def smooth_max_function_log(eps, shift, x):
@@ -71,7 +72,7 @@ def smooth_left_heaviside_function_second_derivative_log(eps, shift, x):
     return smooth_max_function_third_derivative_log(eps, -shift, -x)
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
@@ -86,7 +87,7 @@ def numba_smooth_left_heaviside_function_quartic(eps, shift, x):
     return vals
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_first_derivative_quartic(
         eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
@@ -99,7 +100,7 @@ def numba_smooth_left_heaviside_function_first_derivative_quartic(
     return vals
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_second_derivative_quartic(
         eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
@@ -113,7 +114,7 @@ def numba_smooth_left_heaviside_function_second_derivative_quartic(
     return vals
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
     x = x+shift
@@ -129,7 +130,7 @@ def numba_smooth_left_heaviside_function_quintic(eps, shift, x):
     return vals
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_first_derivative_quintic(
         eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift
@@ -144,7 +145,7 @@ def numba_smooth_left_heaviside_function_first_derivative_quintic(
     return vals
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def numba_smooth_left_heaviside_function_second_derivative_quintic(
         eps, shift, x):
     assert shift == 0  # need to employ chain rule to accound for shift

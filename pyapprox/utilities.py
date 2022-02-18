@@ -9,7 +9,7 @@ from scipy.special import erf, beta as beta_fn, gammaln
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
 
-from numba import njit
+from pyapprox.pya_numba import njit
 
 from .sys_utilities import hash_array
 

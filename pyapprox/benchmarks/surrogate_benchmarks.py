@@ -2,8 +2,8 @@ from scipy import stats
 import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
-from numba import njit
 
+from pyapprox.pya_numba import njit
 from pyapprox.variables import (
     IndependentMultivariateRandomVariable,
     DesignVariable

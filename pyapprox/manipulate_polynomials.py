@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import factorial
 from pyapprox.indexing import hash_array, argsort_indices_leixographically
 from pyapprox.indexing import compute_hyperbolic_level_indices
-from numba import njit
+from pyapprox.pya_numba import njit
 
 
 @njit(cache=True)

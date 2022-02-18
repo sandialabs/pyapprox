@@ -1,6 +1,6 @@
 import numpy as np
 from pyapprox.utilities import cartesian_product, hash_array
-from numba import njit
+from pyapprox.pya_numba import njit
 from itertools import combinations, combinations_with_replacement
 
 

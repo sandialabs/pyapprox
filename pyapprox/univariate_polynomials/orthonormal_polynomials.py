@@ -1,6 +1,4 @@
-from numba import jit, njit
-from numba.extending import get_cython_function_address
-import ctypes
+from pyapprox.pya_numba import njit
 import numpy as np
 # from scipy import special as sp
 
@@ -50,21 +48,12 @@ def evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     return __evaluate_orthonormal_polynomial_deriv_1d
 
 
-_PTR = ctypes.POINTER
-_dble = ctypes.c_double
-_ptr_dble = _PTR(_dble)
-
-addr = get_cython_function_address("scipy.special.cython_special", "gammaln")
-functype = ctypes.CFUNCTYPE(_dble, _dble)
-gammaln_float64 = functype(addr)
-
-
-@njit
+@njit(cache=True)
 def numba_gammaln(x):
     return gammaln_float64(x)
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def __evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     r"""
     Evaluate univariate orthonormal polynomials using their
@@ -115,7 +104,7 @@ def __evaluate_orthonormal_polynomial_1d(x, nmax, ab):
     return p
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def __evaluate_orthonormal_polynomial_deriv_1d(x, nmax, ab, deriv_order):
     r"""
     Evaluate the univariate orthonormal polynomials and its s-derivatives
