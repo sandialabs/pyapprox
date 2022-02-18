@@ -3,7 +3,7 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python >=3.6,<3.9 # numba does requires <=3.8
+  - python >3.6,<3.9 # numba does requires <=3.8
   - numpy>=1.20 # numba requires numpy >1.17, <=1.20 but pandas requires >= 1.20
   - matplotlib
   - scipy
