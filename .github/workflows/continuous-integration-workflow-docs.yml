@@ -20,10 +20,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-#        os: [ubuntu-latest]
+        # os: [ubuntu-latest]
         python-version: [3.7]
         os: [ubuntu-latest, macos-latest]
-#        python-version: [3.7, 3.8] #3.8 currently fails due to numpy error solely experienced when using github actions ValueError: numpy.ndarray size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
+        # python-version: [3.7, 3.8] #3.8 currently fails due to numpy error
+        # solely experienced when using github actions ValueError:
+        # numpy.ndarray size changed, may indicate binary incompatibility.
+        # Expected 96 from C header, got 88 from PyObject
 
     steps:
     - uses: actions/checkout@v2
@@ -32,14 +35,14 @@ jobs:
       with:
         activate-environment: pyapprox-base
         python-version: ${{ matrix.python-version }}
-#        channels: defaults,conda-forge
+        # channels: defaults,conda-forge
         channels: defaults
         environment-file: environment.yml
-#        use-only-tar-bz2: true
+        # use-only-tar-bz2: true
         auto-update-conda: true
         auto-activate-base: false
     - name: Conda list
-      shell: bash -l {0} # - l {0} is needed to activate created env
+      shell: bash -l {0}  # - l {0} is needed to activate created env
       run: |
         conda list
         conda env list
@@ -56,5 +59,3 @@ jobs:
       run: |
         cd docs
         make html SPHINXOPTS=-vvv
-      
-      
