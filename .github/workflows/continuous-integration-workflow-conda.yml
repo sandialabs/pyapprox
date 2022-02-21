@@ -21,9 +21,9 @@ jobs:
       fail-fast: false
       matrix:
 #        os: [ubuntu-latest]
-#        python-version: [3.7]
+	python-version: [3.7]
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.7, 3.8]
+#       python-version: [3.7, 3.8] #3.8 currently fails due to numpy error solely experienced when using github actions ValueError: numpy.ndarray size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
 
     steps:
     - uses: actions/checkout@v2

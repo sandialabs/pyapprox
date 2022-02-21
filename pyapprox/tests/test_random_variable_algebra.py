@@ -131,9 +131,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.plot(zz,(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps,
         #    label='PDF approx')
         # plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
-        print((z_pdf_vals-(z_cdf_vals_perturbed-z_cdf_vals)/fd_eps))
+        fd_z_pdf_vals = (z_cdf_vals_perturbed-z_cdf_vals)/fd_eps
         assert np.allclose(
-            z_pdf_vals, (z_cdf_vals_perturbed-z_cdf_vals)/fd_eps, atol=1e-5)
+            z_pdf_vals, fd_z_pdf_vals, atol=1e-5), (z_pdf_vals-fd_z_pdf_vals)
 
     def test_variable_transformation_uniform_postive_poly(self):
         coef = [3.22667072e-02, 0.0,  8.10965258e-02,  0.0,
