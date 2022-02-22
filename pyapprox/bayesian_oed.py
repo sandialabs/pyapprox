@@ -807,16 +807,23 @@ class BayesianBatchKLOED(object):
 
 
 def oed_variance_deviation(samples, weights):
-    if samples.ndim == 3:
-        return oed_variance_deviation_3d(samples, weights)
-    means = np.einsum(
-        "ij,ij->i", samples, weights)[:, None]
-    variances = np.einsum(
-        "ij,ij->i", samples**2, weights)[:, None]-means**2
-    return variances
+    """
+    Compute the variance deviation for each outer loop sample using the
+    corresponding inner loop samples
 
+    Parameters
+    ----------
+    samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         The samples
 
-def oed_variance_deviation_3d(samples, weights):
+    weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+        Weights associated with each innner loop sample
+
+    Returns
+    -------
+    deviation_vals : np.ndarray (nouter_loop_samples, nqois)
+        The deviation vals
+    """
     means = np.einsum(
         "ijk,ij->ik", samples, weights)
     variances = np.einsum(
@@ -824,10 +831,50 @@ def oed_variance_deviation_3d(samples, weights):
     return variances
 
 
+def oed_entropic_deviation(samples, weights):
+    """
+    Compute the entropic risk deviation for each outer loop sample using the
+    corresponding inner loop samples
+
+    Parameters
+    ----------
+    samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         The samples
+
+    weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+        Weights associated with each innner loop sample
+
+    Returns
+    -------
+    deviation_vals : np.ndarray (nouter_loop_samples, nqois)
+        The deviation vals
+    """
+    means = np.einsum(
+        "ijk,ij->ik", samples, weights)
+    risks = np.log(np.einsum(
+        "ijk,ij->ik", np.exp(samples), weights))
+    return risks-means
+
+
 def oed_standard_deviation(samples, weights):
+    """
+    Compute the standard deviation for each outer loop sample using the
+    corresponding inner loop samples
+
+    Parameters
+    ----------
+    samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         The samples
+
+    weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+        Weights associated with each innner loop sample
+
+    Returns
+    -------
+    deviation_vals : np.ndarray (nouter_loop_samples, nqois)
+        The deviation vals
+    """
     variance = oed_variance_deviation(samples, weights)
-    print('a')
-    assert False
     # rouding error can cause slightly negative values
     variance[np.absolute(variance) < np.finfo(float).eps] = 0
     return np.sqrt(variance)
@@ -835,19 +882,23 @@ def oed_standard_deviation(samples, weights):
 
 def oed_conditional_value_at_risk_deviation(beta, samples, weights,
                                             samples_sorted=True):
-    if samples.ndim == 3:
-        return oed_conditional_value_at_risk_deviation_3d(
-            beta, samples, weights, samples_sorted)
-    cvars = np.empty(samples.shape[0])
-    for ii in range(samples.shape[0]):
-        mean = np.sum(samples[ii, :]*weights[ii, :])
-        cvars[ii] = conditional_value_at_risk(
-            samples[ii, :], beta, weights[ii, :], samples_sorted)-mean
-    return cvars[:, None]
+    """
+    Compute the conditional value at risk deviation for each outer loop
+    sample using the corresponding inner loop samples
 
+    Parameters
+    ----------
+    samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         The samples
 
-def oed_conditional_value_at_risk_deviation_3d(beta, samples, weights,
-                                               samples_sorted=True):
+    weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+        Weights associated with each innner loop sample
+
+    Returns
+    -------
+    deviation_vals : np.ndarray (nouter_loop_samples, nqois)
+        The deviation vals
+    """
     cvars = np.empty((samples.shape[0], samples.shape[2]))
     for ii in range(samples.shape[0]):
         for qq in range(samples.shape[2]):

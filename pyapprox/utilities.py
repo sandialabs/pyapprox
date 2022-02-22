@@ -133,7 +133,7 @@ def cartesian_product(input_sets, elem_size=1):
 
     The sets can consist of numbers or themselves be lists or vectors. All
     the lists or vectors of a given set must have the same number of entries
-    (elem_size). However each set can have a different number of scalars, 
+    (elem_size). However each set can have a different number of scalars,
     lists, or vectors.
 
     Parameters
@@ -455,7 +455,7 @@ def total_degree_subspace_dimension(dimension, degree):
     Returns
     -------
     num_terms : integer
-        The number of basis functions in the total degree space of a given 
+        The number of basis functions in the total degree space of a given
         degree
     """
     # subspace_dimension = nchoosek(nvars+degree-1, degree)
@@ -1893,24 +1893,79 @@ def integrate_using_univariate_gauss_legendre_quadrature_unbounded(
     return result
 
 
-def unique_elements_from_2D_list(list_2d):
-    return list(set(flatten_2D_list(list_2d)))
-
-
-def flatten_2D_list(list_2d):
-    return [item for sub in list_2d for item in sub]
-
-
 def qr_solve(Q, R, rhs):
+    """
+    Find the least squares solution Ax = rhs given a QR factorization of the
+    matrix A
+
+    Parameters
+    ----------
+    Q : np.ndarray (nrows, nrows)
+        The unitary/upper triangular Q factor
+
+    R : np.ndarray (nrows, ncols)
+        The upper triangular R matrix
+
+    rhs : np.ndarray (nrows, nqoi)
+        The right hand side vectors
+
+    Returns
+    -------
+    x : np.ndarray (nrows, nqoi)
+        The solution
+    """
     tmp = np.dot(Q.T, rhs)
     return solve_triangular(R, tmp, lower=False)
 
 
 def equality_constrained_linear_least_squares(A, B, y, z):
+    """
+    Solve equality constrained least squares regression
+
+    minimize || y - A*x ||_2   subject to   B*x = z
+
+    It is assumed that
+
+    Parameters
+    ----------
+    A : np.ndarray (M, N)
+        P <= N <= M+P, and
+
+    B : np.ndarray (N, P)
+        P <= N <= M+P, and
+
+    y : np.ndarray (M, 1)
+        P <= N <= M+P, and
+
+    z : np.ndarray (P, 1)
+        P <= N <= M+P, and
+
+    Returns
+    -------
+    x : np.ndarray (N, 1)
+        The solution
+    """
     return lapack.dgglse(A, B, y, z)[3]
 
 
 def piecewise_univariate_linear_quad_rule(range_1d, npoints):
+    """
+    Compute the points and weights of a piecewise-linear quadrature
+    rule that can be used to compute a definite integral
+
+    Parameters
+    ----------
+    range_1d : iterable (2)
+       The lower and upper bound of the definite integral
+
+    Returns
+    -------
+    xx : np.ndarray (npoints)
+        The points of the quadrature rule
+
+    ww : np.ndarray (npoints)
+        The weights of the quadrature rule
+    """
     xx = np.linspace(range_1d[0], range_1d[1], npoints)
     ww = np.ones((npoints))/(npoints-1)*(range_1d[1]-range_1d[0])
     ww[0] *= 0.5
@@ -1919,6 +1974,23 @@ def piecewise_univariate_linear_quad_rule(range_1d, npoints):
 
 
 def piecewise_univariate_quadratic_quad_rule(range_1d, npoints):
+    """
+    Compute the points and weights of a piecewise-quadratic quadrature
+    rule that can be used to compute a definite integral
+
+    Parameters
+    ----------
+    range_1d : iterable (2)
+       The lower and upper bound of the definite integral
+
+    Returns
+    -------
+    xx : np.ndarray (npoints)
+        The points of the quadrature rule
+
+    ww : np.ndarray (npoints)
+        The weights of the quadrature rule
+    """
     xx = np.linspace(range_1d[0], range_1d[1], npoints)
     dx = 4/(3*(npoints-1))
     ww = dx*np.ones((npoints))*(range_1d[1]-range_1d[0])
@@ -1953,3 +2025,57 @@ def get_tensor_product_piecewise_polynomial_quadrature_rule(
         univariate_quad_rules)
 
     return x_quad, w_quad
+
+
+def extract_sub_list(mylist, indices):
+    """
+    Extract a subset of items from a list
+
+    Parameters
+    ----------
+    mylist : list(nitems)
+        The list containing all items
+
+    indices : iterable (nindices)
+        The indices of the desired items
+
+    Returns
+    -------
+    subset :  list (nindices)
+        The extracted items
+    """
+    return [mylist[ii] for ii in indices]
+
+
+def unique_elements_from_2D_list(list_2d):
+    """
+    Extract the unique elements from a list of lists
+
+    Parameters
+    ----------
+    list_2d : list(list)
+        The list of lists
+
+    Returns
+    -------
+    unique_items :  list (nunique_items)
+        The unique items
+    """
+    return list(set(flatten_2D_list(list_2d)))
+
+
+def flatten_2D_list(list_2d):
+    """
+    Flatten a list of lists into a single list
+
+    Parameters
+    ----------
+    list_2d : list(list)
+        The list of lists
+
+    Returns
+    -------
+    flattened_list :  list (nitems)
+        The unique items
+    """
+    return [item for sub in list_2d for item in sub]

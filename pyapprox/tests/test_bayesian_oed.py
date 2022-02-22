@@ -12,7 +12,7 @@ from pyapprox.bayesian_oed import (
     BayesianBatchKLOED, BayesianSequentialKLOED, d_optimal_utility,
     BayesianBatchDeviationOED, oed_variance_deviation,
     oed_conditional_value_at_risk_deviation, get_oed_inner_quadrature_rule,
-    get_posterior_2d_interpolant_from_oed_data
+    get_posterior_2d_interpolant_from_oed_data, oed_entropic_deviation
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -889,9 +889,9 @@ class TestBayesianOED(unittest.TestCase):
 
     def test_oed_variance_deviation(self):
         MM, NN = 2, 3
-        samples = np.random.normal(0, 1, (MM, NN))
+        samples = np.random.normal(0, 1, (MM, NN, 1))
         weights = np.ones((MM, NN))/NN
-        variances = oed_variance_deviation(samples, weights)[:, 0]
+        variances = oed_variance_deviation(samples, weights)
         print(variances, samples.var(axis=1))
         assert np.allclose(variances, samples.var(axis=1))
 
@@ -1138,9 +1138,22 @@ class TestBayesianOED(unittest.TestCase):
         self.check_get_posterior_2d_interpolant_from_oed_data(
             method, rtol, ninner_loop_samples_1d)
 
+    def test_oed_entropic_risk_deviation(self):
+        ninner_samples = int(1e4)
+        vals = np.vstack((
+            np.random.normal(0, 1, (1, ninner_samples)),
+            np.random.normal(-1, 2, (1, ninner_samples)))
+                         )[:, :, None]
+        weights = np.ones((2, ninner_samples))/ninner_samples
+        true_risk_measures = [
+            np.log(np.exp(1/2))-0, np.log(np.exp(-1+4/2))--1]
+        assert np.allclose(
+            oed_entropic_deviation(vals, weights)[:, 0], true_risk_measures,
+            atol=1e-2)
 
 
 if __name__ == "__main__":
     bayesian_oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestBayesianOED)
     unittest.TextTestRunner(verbosity=2).run(bayesian_oed_test_suite)
+    

@@ -13,7 +13,8 @@ from pyapprox.risk_measures import (
     value_at_risk, conditional_value_at_risk,
     univariate_quantile_continuous_variable,
     compute_conditional_expectations,
-    univariate_cvar_continuous_variable, weighted_quantiles
+    univariate_cvar_continuous_variable, weighted_quantiles,
+    entropic_risk_measure
     )
 from pyapprox.variables import get_distribution_info
 from pyapprox.univariate_polynomials.quadrature import (
@@ -701,6 +702,18 @@ class TestRiskMeasures(unittest.TestCase):
             samples, weights, qq, samples_sorted=False)
         # print((rv.ppf(qq)-quantile_vals)/quantile_vals)
         assert np.allclose(rv.ppf(qq), quantile_vals, rtol=2e-2)
+
+    def test_entropic_risk_measure(self):
+        nsamples = int(1e7)
+        vals = np.hstack((
+            np.random.normal(0, 1, (nsamples, 1)),
+            np.random.normal(-1, 2, (nsamples, 1))))
+        weights = np.ones((nsamples, 1))/nsamples
+        true_risk_measures = [
+            np.log(np.exp(1/2)), np.log(np.exp(-1+4/2))]
+        assert np.allclose(
+            entropic_risk_measure(vals, weights)[:, 0], true_risk_measures,
+            atol=1e-2)
 
 
 if __name__ == "__main__":

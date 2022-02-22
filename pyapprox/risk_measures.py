@@ -5,8 +5,80 @@ import scipy
 from pyapprox.random_variable_algebra import invert_monotone_function
 
 
+def entropic_risk_measure(samples, weights=None):
+    """
+    Compute the entropic risk measure
+    from univariate samples of multiple quantities of interest
+
+    Parameters
+    ----------
+    samples : np.ndarray (nsamples, nqoi)
+
+    weights : np.ndarray (nsamples, 1)
+        Weights associated with each sample
+
+    Returns
+    -------
+    risk_measure_vals : np.ndarray (nqoi, 1)
+    """
+    assert weights.ndim == 2 and weights.shape[1] == 1
+    assert weights.shape[0] == samples.shape[0]
+    risk_measure_vals = np.log(
+        np.sum(np.exp(samples)*weights, axis=0))[:, None]
+    return risk_measure_vals
+
+
+def deviation_measure(risk_measure_fun, samples):
+    """
+    Compute the deviation measure associated with a risk measure
+    from univariate samples of multiple quantities of interest
+
+    Parameters
+    ----------
+    risk_measure_fun : callable
+        Callable function with signature
+
+        `risk_measure_fun(samples) -> np.ndarray (nqoi, 1)`
+
+        where samples : np.ndarray (nsamples, nqoi)
+
+    samples : np.ndarray (nsamples, nqoi)
+        Realizations of a univariate random variable
+
+    Returns
+    -------
+    deviation_measure_vals : np.ndarray (nqoi, 1)
+    """
+    return risk_measure_fun(samples) - np.mean(samples)
+
+
 def weighted_quantiles(samples, weights, qq, samples_sorted=False, prob=True):
-    """Compute a set of quantiles"""
+    """
+    Compute a set of quantiles from a weighted set of samples
+    Parameters
+    ----------
+    samples : np.ndarray (nsamples, 1)
+        Realizations of a univariate random variable
+
+    weights : np.ndarray (nsamples, 1)
+        Weights associated with each sample
+
+    qq : np.ndarray (nquantiles, 1)
+        The quantiles in [0,1]
+
+    samples_sorted : boolean
+        True - samples are already sorted which reduces computational cost
+        False - samples are sorted internally
+
+    prob : boolean
+        True - weights must sum to 1
+        False - no constraint on the weights
+
+    Returns
+    -------
+    quantile_vals : np.ndarray (nquantiles, 1)
+        The values of the random variable at each quantile
+    """
     assert samples.shape == weights.shape
     assert samples.ndim == 1 and weights.ndim == 1
     if prob:
