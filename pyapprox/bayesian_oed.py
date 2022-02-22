@@ -258,11 +258,11 @@ def __compute_expected_kl_utility_monte_carlo(
     utility_val = np.sum((outer_log_likelihood_vals - np.log(evidences)) *
                          outer_loop_weights)
     if not return_all:
-        return utility_val
+        return {"utility_val": utility_val}
     weights = np.exp(inner_log_likelihood_vals)*inner_loop_weights/evidences
-    data_structures = {"utility_val": utility_val, "evidences": evidences,
-                       "weights": weights}
-    return utility_val, data_structures
+    result = {"utility_val": utility_val, "evidences": evidences,
+              "weights": weights}
+    return result
 
 
 def precompute_compute_expected_kl_utility_data(
@@ -406,6 +406,13 @@ def precompute_compute_expected_deviation_data(
         shared_inner_loop_pred_qois = qoi_fun(in_samples)
         inner_loop_pred_qois = np.tile(
             shared_inner_loop_pred_qois, (nouter_loop_samples, 1))
+
+    nqois = inner_loop_pred_qois.shape[1]
+    tmp = np.empty((nouter_loop_samples, ninner_loop_samples, nqois))
+    for kk in range(nqois):
+        tmp[:, :, kk] = inner_loop_pred_qois[:, kk].reshape(
+            (nouter_loop_samples, ninner_loop_samples))
+    inner_loop_pred_qois = tmp
     return (outer_loop_obs, outer_loop_pred_obs, inner_loop_pred_obs,
             inner_loop_weights, outer_loop_prior_samples,
             inner_loop_prior_samples, inner_loop_pred_qois)
@@ -482,7 +489,10 @@ def compute_expected_kl_utility_monte_carlo(
 def __compute_negative_expected_deviation_monte_carlo(
         outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        inner_loop_pred_qois, deviation_fun, active_indices, return_all):
+        inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
+        return_all):
+    """
+    """
 
     nouter_loop_samples = outer_loop_pred_obs.shape[0]
     ninner_loop_samples = int(
@@ -506,26 +516,28 @@ def __compute_negative_expected_deviation_monte_carlo(
 
     # make deviation_fun operate on columns of samples
     # so that it returns a vector of deviations one for each column
-    deviations = deviation_fun(
-        inner_loop_pred_qois.reshape(nouter_loop_samples, ninner_loop_samples),
-        weights)
-    # expected_deviation = np.sum(deviations*outer_loop_weights)
-    # utility_val = -expected_deviation
-    utility_val = -np.sum(deviations*outer_loop_weights)
+    deviations = deviation_fun(inner_loop_pred_qois, weights)
+
+    # expectation taken with respect to observations
+    # assume always want deviation here, but this can be changed
+    expected_obs_deviations = np.sum(deviations*outer_loop_weights, axis=0)
+
+    disutility_val = risk_fun(expected_obs_deviations[:, None])
+
+    utility_val = -disutility_val
     if not return_all:
-        return utility_val
-    else:
-        data_structures = {
-            'utility_val': utility_val, 'evidences': evidences,
-            'weights': weights, 'deviations': deviations}
-        return utility_val, data_structures
+        return {'utility_val': utility_val}
+    result = {
+        'utility_val': utility_val, 'evidences': evidences,
+        'weights': weights, 'deviations': deviations}
+    return result
 
 
 def compute_negative_expected_deviation_monte_carlo(
         log_likelihood_fun, outer_loop_obs, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, collected_design_indices,
-        new_design_indices, return_all):
+        new_design_indices, risk_fun, return_all):
     if collected_design_indices is not None:
         active_indices = np.hstack(
             (collected_design_indices, new_design_indices))
@@ -536,11 +548,13 @@ def compute_negative_expected_deviation_monte_carlo(
     return __compute_negative_expected_deviation_monte_carlo(
         outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-        inner_loop_pred_qois, deviation_fun, active_indices, return_all)
+        inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
+        return_all)
 
 
 def select_design(design_candidates, collected_design_indices,
-                  compute_expected_utility, max_eval_concurrency=1):
+                  compute_expected_utility, max_eval_concurrency=1,
+                  return_all=False):
     """
     Update an experimental design.
 
@@ -573,38 +587,34 @@ def select_design(design_candidates, collected_design_indices,
         pool = Pool(max_eval_concurrency)
         pool_results = pool.map(
             partial(compute_expected_utility, collected_design_indices,
-                    return_all=True),
+                    return_all=return_all),
             [np.array([ii]) for ii in range(ncandidates)
              if ii not in collected_design_indices])
         pool.close()
         utility_vals = -np.ones(ncandidates)*np.inf
-        results = []
+        results = [None for ii in range(ncandidates)]
         cnt = 0
         for ii in range(ncandidates):
             if ii not in collected_design_indices:
-                utility_vals[ii] = pool_results[cnt][0]
-                results.append(pool_results[cnt][1])
+                utility_vals[ii] = pool_results[cnt]['utility_val']
+                results[ii] = pool_results[cnt]
                 cnt += 1
-            else:
-                results.append(None)
     else:
         results = []
         utility_vals = -np.ones(ncandidates)*np.inf
+        results = [None for ii in range(ncandidates)]
         for ii in range(ncandidates):
             if ii not in collected_design_indices:
-                # print(f'Candidate {ii}')
-                result_ii = compute_expected_utility(
-                    collected_design_indices, np.array([ii]), return_all=True)
-                # note results_ii[0] is repeated in results_ii[1] intentionally
-                utility_vals[ii] = result_ii[0]
-                results.append(result_ii[1])
-            else:
-                results.append(None)
-                # print(ii, utility_vals[ii])
-    
-    selected_index = np.argmax(utility_vals)
-    # print(selected_index)
+                results[ii] = compute_expected_utility(
+                    collected_design_indices, np.array([ii]),
+                    return_all=return_all)
+                utility_vals[ii] = results[ii]["utility_val"]
+                # print(f'Candidate {ii}:', utility_vals[ii])
 
+    selected_index = np.argmax(utility_vals)
+
+    if not return_all:
+        results = None
     return utility_vals, selected_index, results
 
 
@@ -702,6 +712,8 @@ class BayesianBatchKLOED(object):
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, max_eval_concurrency=1):
         self.design_candidates = design_candidates
+        if not callable(obs_fun):
+            raise ValueError("obs_fun must be a callable function")
         self.obs_fun = obs_fun
         self.noise_std = noise_std
         self.prior_variable = prior_variable
@@ -783,7 +795,8 @@ class BayesianBatchKLOED(object):
             self.collected_design_indices = np.zeros((0), dtype=int)
         utility_vals, selected_index, results = select_design(
             self.design_candidates, self.collected_design_indices,
-            self.compute_expected_utility, self.max_eval_concurrency)
+            self.compute_expected_utility, self.max_eval_concurrency,
+            return_all)
 
         new_design_indices = np.array([selected_index])
         self.collected_design_indices = np.hstack(
@@ -794,6 +807,8 @@ class BayesianBatchKLOED(object):
 
 
 def oed_variance_deviation(samples, weights):
+    if samples.ndim == 3:
+        return oed_variance_deviation_3d(samples, weights)
     means = np.einsum(
         "ij,ij->i", samples, weights)[:, None]
     variances = np.einsum(
@@ -801,8 +816,18 @@ def oed_variance_deviation(samples, weights):
     return variances
 
 
+def oed_variance_deviation_3d(samples, weights):
+    means = np.einsum(
+        "ijk,ij->ik", samples, weights)
+    variances = np.einsum(
+        "ijk,ij->ik", samples**2, weights)-means**2
+    return variances
+
+
 def oed_standard_deviation(samples, weights):
     variance = oed_variance_deviation(samples, weights)
+    print('a')
+    assert False
     # rouding error can cause slightly negative values
     variance[np.absolute(variance) < np.finfo(float).eps] = 0
     return np.sqrt(variance)
@@ -810,6 +835,9 @@ def oed_standard_deviation(samples, weights):
 
 def oed_conditional_value_at_risk_deviation(beta, samples, weights,
                                             samples_sorted=True):
+    if samples.ndim == 3:
+        return oed_conditional_value_at_risk_deviation_3d(
+            beta, samples, weights, samples_sorted)
     cvars = np.empty(samples.shape[0])
     for ii in range(samples.shape[0]):
         mean = np.sum(samples[ii, :]*weights[ii, :])
@@ -818,18 +846,24 @@ def oed_conditional_value_at_risk_deviation(beta, samples, weights,
     return cvars[:, None]
 
 
+def oed_conditional_value_at_risk_deviation_3d(beta, samples, weights,
+                                               samples_sorted=True):
+    cvars = np.empty((samples.shape[0], samples.shape[2]))
+    for ii in range(samples.shape[0]):
+        for qq in range(samples.shape[2]):
+            mean = np.sum(samples[ii, :, qq]*weights[ii, :])
+            cvars[ii, qq] = (conditional_value_at_risk(
+                samples[ii, :, qq], beta, weights[ii, :], samples_sorted) -
+                             mean)
+    return cvars
+
+
 class BayesianBatchDeviationOED(BayesianBatchKLOED):
-    """
-    A class to compute batch optimal experimental designs for which data
-    is not used to inform the choice of subsequent design locations.
-    The utility function measures the reduction in the standard deviation of
-    predicitions.
-    """
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_standard_deviation,
-                 max_eval_concurrency=1):
+                 max_eval_concurrency=1, risk_fun=None):
         r"""
         qoi_fun : callable
         Function with the signature
@@ -844,13 +878,31 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
                          econ=econ, max_eval_concurrency=max_eval_concurrency)
+        if not callable(qoi_fun):
+            raise ValueError("qoi_fun must be a callable function")
+        if not callable(deviation_fun):
+            raise ValueError("deviation_fun must be a callable function")
         self.qoi_fun = qoi_fun
         self.deviation_fun = deviation_fun
+        self.risk_fun = None
+        self.set_risk_fun(risk_fun)
 
-    def populate(self):
+    def set_risk_fun(self, risk_fun):
+        if risk_fun is not None:
+            self.risk_fun = risk_fun
+        else:
+            self.risk_fun = self.__average_prediction_deviation
+
+    def __average_prediction_deviation(self, qoi_vals):
+        assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
+        return qoi_vals.mean()
+
+    def __populate(self):
         """
         Compute the data needed to initialize the OED algorithm.
         """
+        print("Num iterations",
+              self.ninner_loop_samples*self.nouter_loop_samples)
         (self.outer_loop_obs, self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
          self.outer_loop_prior_samples, self.inner_loop_prior_samples,
@@ -862,15 +914,22 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
              generate_inner_prior_samples=self.generate_inner_prior_samples,
              econ=self.econ)
 
+        self.outer_loop_weights = np.ones(
+            (self.inner_loop_weights.shape[0], 1)) / \
+            self.inner_loop_weights.shape[0]
+
+    def __sort_qoi(self):
         # Sort inner_loop_pred_qois and use this order to sort
         # inner_loop_prior_samples so that cvar deviation does not have to
         # constantly sort samples
+        if self.inner_loop_pred_qois.shape[2] != 1:
+            raise ValueError("Sorting can only be used for a single QoI")
         idx1 = 0
         for ii in range(self.nouter_loop_samples):
             idx2 = idx1 + self.ninner_loop_samples
-            qoi_indices = np.argsort(self.inner_loop_pred_qois[idx1:idx2, 0])
-            self.inner_loop_pred_qois[idx1:idx2] = \
-                self.inner_loop_pred_qois[idx1:idx2][qoi_indices]
+            qoi_indices = np.argsort(self.inner_loop_pred_qois[ii, :, 0])
+            self.inner_loop_pred_qois[ii] = \
+                self.inner_loop_pred_qois[ii, qoi_indices]
             self.inner_loop_prior_samples[:, idx1:idx2] = \
                 self.inner_loop_prior_samples[:, idx1:idx2][:, qoi_indices]
             self.inner_loop_pred_obs[idx1:idx2] = \
@@ -879,9 +938,14 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
                 self.inner_loop_weights[ii, qoi_indices]
             idx1 = idx2
 
-        self.outer_loop_weights = np.ones(
-            (self.inner_loop_weights.shape[0], 1)) / \
-            self.inner_loop_weights.shape[0]
+    def populate(self):
+        """
+        Compute the data needed to initialize the OED algorithm.
+        """
+        self.__populate()
+        if self.inner_loop_pred_qois.shape[2] == 1:
+            # speeds up calcualtion of avar
+            self.__sort_qoi()
 
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
@@ -920,7 +984,7 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, self.inner_loop_pred_qois,
             self.deviation_fun, collected_design_indices, new_design_indices,
-            return_all)
+            self.risk_fun, return_all)
 
 
 class BayesianSequentialKLOED(BayesianBatchKLOED):
@@ -1070,7 +1134,7 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
             collected observations
 
         new_design_indices : np.ndarray (nnew_obs)
-            The indices into the qoi vector associated with new design 
+            The indices into the qoi vector associated with new design
             locations under consideration
 
         Notes
@@ -1130,7 +1194,7 @@ def get_posterior_vals_at_inner_loop_samples(
     assert nn > 0
     results = oed.compute_expected_utility(
         oed.collected_design_indices[:nn-1],
-        oed.collected_design_indices[nn-1:nn], True)[1]
+        oed.collected_design_indices[nn-1:nn], True)
     weights = results["weights"]
     return get_posterior_vals_at_inner_loop_samples_base(
         oed, prior_variable, outer_loop_idx, weights)

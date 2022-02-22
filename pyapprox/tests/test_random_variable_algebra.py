@@ -21,7 +21,7 @@ from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 class TestRandomVariableAlgebra(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
-    
+
     def test_scalar_multiple_of_random_variable(self):
         lb, ub = 0, 1
         coef = 2
@@ -94,8 +94,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
                             for n in range(1, N+1)]
         coef = np.zeros(2*N+2)
         coef[1::2] = nonzero_coef
-        poly = np.poly1d(coef[::-1])
         x_pdf = stats.uniform(lb, ub-lb).pdf
+        # poly = np.poly1d(coef[::-1])
         # xx = np.linspace(lb,ub,101);plt.plot(xx,x_pdf(xx));plt.show()
         # xx = np.linspace(lb,ub,101);plt.plot(xx,function(xx));
         # plt.plot(xx,xx*np.cos(xx));plt.plot(xx,poly(xx),'--');plt.show()
@@ -108,9 +108,9 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         zz_bounds = [function(3.42561846)+1e-3, function(6.439062046)-1e-3]
         zz = np.linspace(zz_bounds[0], zz_bounds[1], 101)
         z_pdf_vals = get_pdf_from_monomial_expansion(coef, lb, ub, x_pdf, zz)
-        from matplotlib import pyplot as plt
-        plt.hist(
-            function(np.random.uniform(lb, ub, 10001)), density=True, bins=100)
+        # from matplotlib import pyplot as plt
+        # plt.hist(
+        #     function(np.random.uniform(lb, ub, 10001)), density=True, bins=100)
         # plt.plot(zz,z_pdf_vals); plt.show()
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
@@ -133,7 +133,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # plt.plot(zz,z_pdf_vals,label='PDF Exact');plt.legend();plt.show()
         fd_z_pdf_vals = (z_cdf_vals_perturbed-z_cdf_vals)/fd_eps
         assert np.allclose(
-            z_pdf_vals, fd_z_pdf_vals, atol=1e-5), (z_pdf_vals-fd_z_pdf_vals)
+            z_pdf_vals, fd_z_pdf_vals, atol=6e-5), (z_pdf_vals-fd_z_pdf_vals)
 
     def test_variable_transformation_uniform_postive_poly(self):
         coef = [3.22667072e-02, 0.0,  8.10965258e-02,  0.0,

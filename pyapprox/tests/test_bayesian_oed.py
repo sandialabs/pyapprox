@@ -283,7 +283,7 @@ class TestBayesianOED(unittest.TestCase):
         utility = compute_expected_kl_utility_monte_carlo(
             log_likelihood_fun, outer_loop_obs, outer_loop_pred_obs,
             inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
-            collected_design_indices, new_design_indices, False)
+            collected_design_indices, new_design_indices, False)['utility_val']
 
         kl_divs = []
         # overwrite subset of obs with previously collected data
@@ -369,6 +369,134 @@ class TestBayesianOED(unittest.TestCase):
             print((np.absolute(
                 d_utility_vals[II]-utility_vals[II])/d_utility_vals[II]).max())
             assert np.allclose(d_utility_vals[II], utility_vals[II], rtol=4e-2)
+
+    def test_batch_prediction_oed(self):
+        """
+        No observations collected to inform subsequent designs
+        """
+        np.random.seed(1)
+        noise_std = 1
+        ndesign = 5
+        nouter_loop_samples = 2
+        # outerloop samples does not effect this problem
+        # because variance is independent of noise only on design
+        ninner_loop_samples_1d = 41
+        degree = 2
+        nrandom_vars = degree+1
+        quad_method = "quadratic"
+        risk_fun = None
+        from pyapprox import conditional_value_at_risk
+        quantile = 0.8
+        risk_fun = partial(conditional_value_at_risk, alpha=quantile)
+
+        ncandidates = 21
+        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        # design_candidates = np.hstack(
+        #    (design_candidates, np.array([[-1/np.sqrt(5), 1/np.sqrt(5)]])))
+        nprediction_samples = 201
+        prediction_candidates = np.linspace(
+            -1, 1, nprediction_samples)[None, :]
+
+        def basis_matrix(degree, samples):
+            return samples.T**np.arange(degree+1)[None, :]
+
+        def obs_fun(samples):
+            assert design_candidates.ndim == 2
+            assert samples.ndim == 2
+            Amat = basis_matrix(degree, design_candidates)
+            return Amat.dot(samples).T
+
+        def qoi_fun(samples):
+            Amat = basis_matrix(degree, prediction_candidates)
+            return Amat.dot(samples).T
+
+        prior_variable = IndependentMultivariateRandomVariable(
+            [stats.norm(0, 1)]*nrandom_vars)
+
+        x_quad, w_quad = get_oed_inner_quadrature_rule(
+            ninner_loop_samples_1d, prior_variable, quad_method)
+        ninner_loop_samples = x_quad.shape[1]
+
+        def generate_inner_prior_samples_gauss(n):
+            # use precomputed samples so to avoid cost of regenerating
+            assert n == x_quad.shape[1]
+            return x_quad, w_quad
+        print(x_quad.shape)
+
+        generate_inner_prior_samples = generate_inner_prior_samples_gauss
+
+        # Define initial design
+        # init_design_indices = np.array([0])
+        init_design_indices = np.empty((0), dtype=int)
+        oed = BayesianBatchDeviationOED(
+            design_candidates, obs_fun, noise_std, prior_variable,
+            qoi_fun, nouter_loop_samples, ninner_loop_samples,
+            generate_inner_prior_samples, deviation_fun=oed_variance_deviation,
+            risk_fun=risk_fun)
+        oed.populate()
+        oed.set_collected_design_indices(init_design_indices)
+
+        for ii in range(len(init_design_indices), ndesign):
+            utility_vals, selected_indices = oed.update_design(False)
+
+        prior_mean = prior_variable.get_statistics("mean")
+        prior_cov = np.diag(prior_variable.get_statistics("var")[:, 0])
+        prior_cov_inv = np.linalg.inv(prior_cov)
+        obs_matrix = basis_matrix(degree, design_candidates)
+        noise_cov_inv = np.eye(design_candidates.shape[1])/(noise_std**2)
+        pred_matrix = basis_matrix(degree, prediction_candidates)
+
+        # print(oed.collected_design_indices)
+        # print(design_candidates[0, oed.collected_design_indices])
+
+        # Check expected variance when choosing the final design
+        # point. Compare with exact value computed using Laplace formula
+        # Note variance is independent of data so no need to generate
+        # realizations of data
+        ii = 0
+        data = []
+        for jj in range(design_candidates.shape[1]):
+            if jj not in oed.collected_design_indices[:-1]:
+                idx = np.hstack((
+                    oed.collected_design_indices[:-1], jj))
+                # realization of data does not matter
+                obs_ii = oed.outer_loop_obs[ii:ii+1, idx]
+                exact_post_mean, exact_post_cov = \
+                    laplace_posterior_approximation_for_linear_models(
+                        obs_matrix[idx, :], prior_mean, prior_cov_inv,
+                        noise_cov_inv[np.ix_(idx, idx)], obs_ii.T)
+                pointwise_post_variance = np.diag(
+                    pred_matrix.dot(exact_post_cov.dot(pred_matrix.T))
+                )[:, None]
+                exact_variance_risk = oed.risk_fun(pointwise_post_variance)
+                data.append([pointwise_post_variance, -exact_variance_risk])
+                # print(f"Candidate {jj}", exact_variance_risk)
+            else:
+                data.append([None, -np.inf])
+        jdx = np.argmax([d[1] for d in data])
+        # print(np.mean(pointwise_post_variance))
+        # print(np.mean(
+        #     conditional_value_at_risk(pointwise_post_variance, quantile)))
+        # print(jdx, oed.collected_design_indices)
+        assert jdx == oed.collected_design_indices[-1]
+        # print(utility_vals[oed.collected_design_indices[-1]]-data[jdx][1])
+        assert np.allclose(
+            utility_vals[oed.collected_design_indices[-1]],
+            data[jdx][1], rtol=1e-4)
+        # from matplotlib import pyplot as plt
+        # pointwise_prior_variance = np.diag(
+        #     pred_matrix.dot(prior_cov.dot(pred_matrix.T)))
+        # plt.plot(
+        #     prediction_candidates[0, :], pointwise_prior_variance, '-')
+        # plt.plot(
+        #     prediction_candidates[0, :], data[jdx][0], '--')
+        # collected_design_indices = np.hstack(
+        #     (oed.collected_design_indices[:-1], jdx))
+        # print(collected_design_indices)
+        # print(design_candidates[0, oed.collected_design_indices])
+        # for idx in collected_design_indices:
+        #     plt.axvline(x=design_candidates[0, idx], ls='--', c='k')
+        # plt.show()
 
     def test_sequential_kl_oed(self):
         """
@@ -516,7 +644,7 @@ class TestBayesianOED(unittest.TestCase):
             # above. This will be used for testing later
             # print('D', oed_copy.evidence)
             results = oed_copy.compute_expected_utility(
-                oed_copy.collected_design_indices, selected_indices, True)[1]
+                oed_copy.collected_design_indices, selected_indices, True)
             evidences = results["evidences"]
 
             # print('Collected plus selected indices',
@@ -842,8 +970,9 @@ class TestBayesianOED(unittest.TestCase):
             # Update the design
             utility_vals, selected_indices = oed.update_design()
 
-            utility, results = oed_copy.compute_expected_utility(
+            results = oed_copy.compute_expected_utility(
                 oed_copy.collected_design_indices, selected_indices, True)
+            # utility = results["utility_val"]
             deviations = results["deviations"]
 
             exact_deviations = np.empty(nouter_loop_samples)
@@ -863,7 +992,7 @@ class TestBayesianOED(unittest.TestCase):
                     exact_post_mean_jj, exact_post_cov_jj)
             # print('d', np.absolute(exact_deviations-deviations[:, 0]).max(),
             #       tol)
-            # print(exact_deviations, deviations[:, 0])
+            # print('eee', exact_deviations, deviations[:, 0])
             assert np.allclose(exact_deviations, deviations[:, 0], atol=tol)
             assert np.allclose(
                 utility_vals[selected_indices], -np.mean(exact_deviations),
@@ -904,6 +1033,10 @@ class TestBayesianOED(unittest.TestCase):
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
             True, 301, ndesign_vars, 3e-3)
 
+        # Warning can only use samples_sorted=True for a single QoI
+        # it will return an incorrect answer when more QoI are present
+        # but this is difficult to catch if we continue to allow the user
+        # to specify custom deviation functions
         beta = 0.5
         ndesign_vars = 1
         self.help_compare_prediction_based_oed(
