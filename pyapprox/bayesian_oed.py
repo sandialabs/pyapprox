@@ -377,8 +377,10 @@ def precompute_compute_expected_kl_utility_data(
         idx1 = idx2
 
     if not econ:
+        print(f"Running {inner_loop_prior_samples.shape[1]} model evaluations")
         inner_loop_pred_obs = obs_fun(inner_loop_prior_samples)
     else:
+        print(f"Running {in_samples.shape[1]} model evaluations")
         shared_inner_loop_pred_obs = obs_fun(in_samples)
         inner_loop_pred_obs = np.tile(
             shared_inner_loop_pred_obs, (nouter_loop_samples, 1))
@@ -408,11 +410,15 @@ def precompute_compute_expected_deviation_data(
             shared_inner_loop_pred_qois, (nouter_loop_samples, 1))
 
     nqois = inner_loop_pred_qois.shape[1]
-    tmp = np.empty((nouter_loop_samples, ninner_loop_samples, nqois))
-    for kk in range(nqois):
-        tmp[:, :, kk] = inner_loop_pred_qois[:, kk].reshape(
-            (nouter_loop_samples, ninner_loop_samples))
-    inner_loop_pred_qois = tmp
+    # tmp = np.empty((nouter_loop_samples, ninner_loop_samples, nqois))
+    # for kk in range(nqois):
+    #     tmp[:, :, kk] = inner_loop_pred_qois[:, kk].reshape(
+    #         (nouter_loop_samples, ninner_loop_samples))
+    # inner_loop_pred_qois = tmp
+    inner_loop_pred_qois = inner_loop_pred_qois.reshape(
+            (nouter_loop_samples, ninner_loop_samples, nqois))
+    # assert np.allclose(tmp, inner_loop_pred_qois.reshape(
+    #         (nouter_loop_samples, ninner_loop_samples, nqois)))
     return (outer_loop_obs, outer_loop_pred_obs, inner_loop_pred_obs,
             inner_loop_weights, outer_loop_prior_samples,
             inner_loop_prior_samples, inner_loop_pred_qois)
@@ -609,7 +615,7 @@ def select_design(design_candidates, collected_design_indices,
                     collected_design_indices, np.array([ii]),
                     return_all=return_all)
                 utility_vals[ii] = results[ii]["utility_val"]
-                # print(f'Candidate {ii}:', utility_vals[ii])
+                print(f'Candidate {ii}:', utility_vals[ii])
 
     selected_index = np.argmax(utility_vals)
 
@@ -806,6 +812,11 @@ class BayesianBatchKLOED(object):
         return utility_vals, new_design_indices, results
 
 
+def oed_average_prediction_deviation(qoi_vals):
+    assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
+    return qoi_vals.mean()
+
+
 def oed_variance_deviation(samples, weights):
     """
     Compute the variance deviation for each outer loop sample using the
@@ -914,7 +925,8 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_standard_deviation,
-                 max_eval_concurrency=1, risk_fun=None):
+                 max_eval_concurrency=1,
+                 risk_fun=oed_average_prediction_deviation):
         r"""
         qoi_fun : callable
         Function with the signature
@@ -935,18 +947,7 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
             raise ValueError("deviation_fun must be a callable function")
         self.qoi_fun = qoi_fun
         self.deviation_fun = deviation_fun
-        self.risk_fun = None
-        self.set_risk_fun(risk_fun)
-
-    def set_risk_fun(self, risk_fun):
-        if risk_fun is not None:
-            self.risk_fun = risk_fun
-        else:
-            self.risk_fun = self.__average_prediction_deviation
-
-    def __average_prediction_deviation(self, qoi_vals):
-        assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
-        return qoi_vals.mean()
+        self.risk_fun = risk_fun
 
     def __populate(self):
         """

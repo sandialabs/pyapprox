@@ -5,13 +5,15 @@ import os
 import glob
 from functools import partial
 from multiprocessing import Pool
+import sys
 
 from pyapprox.utilities import get_all_sample_combinations
 from pyapprox.utilities import hash_array
 from pyapprox.sys_utilities import get_num_args
 
 
-def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
+def evaluate_1darray_function_on_2d_array(
+        function, samples, opts=None, statusbar=False):
     """
     Evaluate a function at a set of samples using a function that only takes
     one sample at a time
@@ -32,6 +34,10 @@ def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
 
     opts : dictionary
         A set of options that are needed to evaluate the model
+
+    statusbar : boolean
+        True - print status bar showing progress to stdout
+        False - do not print
 
     Returns
     -------
@@ -55,6 +61,14 @@ def evaluate_1darray_function_on_2d_array(function, samples, opts=None):
             values[i, :] = function(samples[:, i], opts)
         else:
             values[i, :] = function(samples[:, i])
+        if statusbar:
+            sys.stdout.write('\r')
+            sys.stdout.write("[{:{}}] {:.1f}%".format(
+                "="*int(i/(num_samples-1)*10), 10, (100/(num_samples-1)*i)))
+            sys.stdout.flush()
+    if statusbar:
+        sys.stdout.write('\n')
+        sys.stdout.flush()
 
     return values
 
@@ -64,7 +78,8 @@ class PyFunction(object):
         self.function = function
 
     def __call__(self, samples, opts=dict()):
-        return evaluate_1darray_function_on_2d_array(self.function, samples, opts)
+        return evaluate_1darray_function_on_2d_array(
+            self.function, samples, opts)
 
 
 def run_shell_command(shell_command, opts={}):
@@ -157,7 +172,8 @@ class DataFunctionModel(object):
             if self.use_hash:
                 key = self.hash_sample(samples[:, ii])
                 if key in self.data:
-                    if not np.allclose(self.values[self.data[key]], values[ii]):
+                    if not np.allclose(
+                            self.values[self.data[key]], values[ii]):
                         msg = 'Duplicate samples found but values do not match'
                         raise Exception(msg)
                     found = True
@@ -577,7 +593,7 @@ class PoolModel(object):
         """
         self.max_eval_concurrency = max_eval_concurrency
 
-    def __call__(self, samples):
+    def __call__(self, samples, verbose=True):
         """
         Evaluate a function at multiple samples in parallel using
         multiprocessing.Pool
@@ -587,9 +603,14 @@ class PoolModel(object):
         samples : np.ndarray (nvars,nsamples)
             Samples used to evaluate self.function
         """
+        t0 = time.time()
         vals = run_model_samples_in_parallel(
             self.pool_function, self.max_eval_concurrency, samples,
             pool=None, assert_omp=self.assert_omp)
+        if verbose:
+            msg = f"Evaluating all {samples.shape[1]} samples took "
+            msg += f"{time.time()-t0} seconds"
+            print(msg)
         return vals
 
 

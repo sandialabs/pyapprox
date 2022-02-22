@@ -1156,4 +1156,3 @@ if __name__ == "__main__":
     bayesian_oed_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestBayesianOED)
     unittest.TextTestRunner(verbosity=2).run(bayesian_oed_test_suite)
-    

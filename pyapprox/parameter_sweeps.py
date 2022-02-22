@@ -143,7 +143,7 @@ def get_parameter_sweeps_samples(
         rot_mats.append(sweep_rotation_matrix_ii)
         ii += 1
 
-    return np.hstack(samples), np.hstack(active_samples), rot_mats
+    return np.hstack(samples), np.vstack(active_samples), rot_mats
 
 
 def get_hypercube_sweep_bounds(W):
@@ -316,6 +316,7 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
                           qoi_indices=None, show=False, axs=None,
                           axes_label_opts=None, markers='o', colors=None,
                           alpha=1):
+    print(active_samples.shape, vals.shape)
     num_sweeps, num_samples_per_sweep = active_samples.shape
     assert vals.shape[0] == num_sweeps*num_samples_per_sweep
     if qoi_indices is None:
@@ -324,7 +325,7 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
 
     if axs is None:
         fig, axs = plt.subplots(1, len(qoi_indices),
-                                figsize=(8*len(qoi_indices), 6))
+                                figsize=(8*len(qoi_indices), 6), sharey=True)
     if len(qoi_indices) == 1:
         axs = [axs]
 

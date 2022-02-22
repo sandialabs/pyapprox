@@ -17,6 +17,11 @@ from pyapprox.utilities import qr_solve
 from pyapprox.sys_utilities import get_num_args
 
 
+
+def zeros_fun(x):
+    return np.zeros((x.shape[1], 1))
+
+
 def kronecker_product_2d(matrix1, matrix2):
     """
     TODO: I can store kroneker as a sparse matrix see ( scipy.kron )
@@ -158,8 +163,7 @@ class SteadyStateAdvectionDiffusionEquation1D(object):
             else:
                 raise ValueError("Incorrect boundary type")
             # adjoint boundary conditions are always dirichlet zero
-            self.adjoint_bndry_conds.append(
-                [lambda x: np.zeros((x.shape[1], 1)), "D"])
+            self.adjoint_bndry_conds.append([zeros_fun, "D"])
 
         if len(self.dirichlet_bndry_indices) > 0:
             self.dirichlet_bndry_indices = np.concatenate(
