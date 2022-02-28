@@ -526,7 +526,10 @@ def __compute_negative_expected_deviation_monte_carlo(
 
     # expectation taken with respect to observations
     # assume always want deviation here, but this can be changed
-    expected_obs_deviations = np.sum(deviations*outer_loop_weights, axis=0)
+    # expected_obs_deviations = np.sum(deviations*outer_loop_weights, axis=0)
+    # use einsum because it does not create intermediate arrays
+    expected_obs_deviations = np.einsum(
+        "ij,i->j", deviations, outer_loop_weights[:, 0])
 
     disutility_val = risk_fun(expected_obs_deviations[:, None])
 
@@ -615,7 +618,7 @@ def select_design(design_candidates, collected_design_indices,
                     collected_design_indices, np.array([ii]),
                     return_all=return_all)
                 utility_vals[ii] = results[ii]["utility_val"]
-                print(f'Candidate {ii}:', utility_vals[ii])
+                # print(f'Candidate {ii}:', utility_vals[ii])
 
     selected_index = np.argmax(utility_vals)
 
@@ -835,6 +838,12 @@ def oed_variance_deviation(samples, weights):
     deviation_vals : np.ndarray (nouter_loop_samples, nqois)
         The deviation vals
     """
+    try:
+        from pyapprox.cython.utilities import variance_3D_pyx
+        return variance_3D_pyx(samples, weights)
+    except:
+        pass
+
     means = np.einsum(
         "ijk,ij->ik", samples, weights)
     variances = np.einsum(

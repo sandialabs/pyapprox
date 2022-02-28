@@ -277,3 +277,32 @@ cpdef sq_dists_3d_pyx(
                     YY[ii, jj, active_indices[kk]])**2
             ss_view[ii, jj] = ss_view[ii, jj]+b
     return ss
+
+
+@cython.cdivision(True)     # Deactivate division by zero checking
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+cpdef variance_3D_pyx(double [:,:,:] samples, double [:,:] weights):
+    
+    cdef:
+        int ii, jj, kk, L, M, N
+        double mean_ii_kk
+
+    L = samples.shape[0]
+    M = samples.shape[1]
+    N = samples.shape[2]
+    variances= np.zeros((L, N), dtype=np.double)
+    cdef double [:,:] variances_view = variances
+    for ii in range(L):
+        for kk in range(P):
+            variances_view[ii, kk] = 0.0
+            mean_ii_kk = 0.0
+            for jj in range(M):
+                mean_i_kk += samples_view[ii, jj, kk]*weights_view[ii, jj])
+                variances_view[ii, kk] += (
+                    samples_view[ii, jj, kk]*samples_view[ii, jj, kk]*
+                    weights_view[ii, jj])
+            variances_view[ii, kk] = (
+                variances_view[ii, kk]/double(M) -
+                mean_ii_kk*mean_ii_kk/double(M*M))
+    return ss
