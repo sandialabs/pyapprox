@@ -504,10 +504,6 @@ def __compute_negative_expected_deviation_monte_carlo(
     ninner_loop_samples = int(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
 
-    # TODO remove outer_loop obs and outerloop pred obs from function
-    # arguments
-    # outer_log_likelihood_vals = log_likelihood_fun(
-    #     outer_loop_obs, outer_loop_pred_obs, active_indices)
     nobs = outer_loop_obs.shape[1]
     tmp = inner_loop_pred_obs.reshape(
         nouter_loop_samples, ninner_loop_samples, nobs)
@@ -815,9 +811,13 @@ class BayesianBatchKLOED(object):
         return utility_vals, new_design_indices, results
 
 
-def oed_average_prediction_deviation(qoi_vals):
+def oed_average_prediction_deviation(qoi_vals, weights=None):
     assert qoi_vals.ndim == 2 and qoi_vals.shape[1] == 1
-    return qoi_vals.mean()
+    if weights is None:
+        return qoi_vals.mean()
+
+    assert weights.shape[1] == 1
+    return np.sum(qoi_vals*weights, axis=0)
 
 
 def oed_variance_deviation(samples, weights):
@@ -838,14 +838,15 @@ def oed_variance_deviation(samples, weights):
     deviation_vals : np.ndarray (nouter_loop_samples, nqois)
         The deviation vals
     """
-    try:
-        from pyapprox.cython.utilities import variance_3D_pyx
-        return variance_3D_pyx(samples, weights)
-    except:
-        pass
-
+    # For large arrays variance_3D_pyx is the same speed as einsum
+    # implementation below
+    # try:
+    #     from pyapprox.cython.utilities import variance_3D_pyx
+    #     return variance_3D_pyx(samples, weights)
+    # except:
+    #     pass
     means = np.einsum(
-        "ijk,ij->ik", samples, weights)
+         "ijk,ij->ik", samples, weights)
     variances = np.einsum(
         "ijk,ij->ik", samples**2, weights)-means**2
     return variances

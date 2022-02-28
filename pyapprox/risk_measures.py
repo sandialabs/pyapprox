@@ -21,6 +21,8 @@ def entropic_risk_measure(samples, weights=None):
     -------
     risk_measure_vals : np.ndarray (nqoi, 1)
     """
+    if weights is None:
+        weights = np.ones((samples.shape[0], 1))/samples.shape[0]
     assert weights.ndim == 2 and weights.shape[1] == 1
     assert weights.shape[0] == samples.shape[0]
     risk_measure_vals = np.log(
@@ -92,7 +94,8 @@ def weighted_quantiles(samples, weights, qq, samples_sorted=False, prob=True):
     return np.interp(qq, ecdf, xx)
 
 
-def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
+def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
+                  prob=True):
     """
     Compute the value at risk of a variable Y using a set of samples.
 
@@ -120,7 +123,8 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)/num_samples
-    assert np.allclose(weights.sum(), 1)
+    if prob:
+        assert np.allclose(weights.sum(), 1)
     assert weights.ndim == 1 or weights.shape[1] == 1
     assert samples.ndim == 1 or samples.shape[1] == 1
     if not samples_sorted:
@@ -140,7 +144,8 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False):
 
 
 def conditional_value_at_risk(samples, alpha, weights=None,
-                              samples_sorted=False, return_var=False):
+                              samples_sorted=False, return_var=False,
+                              prob=True):
     """
     Compute conditional value at risk of a variable Y using a set of samples.
 
@@ -172,14 +177,15 @@ def conditional_value_at_risk(samples, alpha, weights=None,
     num_samples = samples.shape[0]
     if weights is None:
         weights = np.ones(num_samples)/num_samples
-    assert np.allclose(weights.sum(), 1), (weights.sum())
+    if prob:
+        assert np.allclose(weights.sum(), 1), (weights.sum())
     assert weights.ndim == 1 or weights.shape[1] == 1
     if not samples_sorted:
         II = np.argsort(samples)
         xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
-    VaR, index = value_at_risk(xx, alpha, ww, samples_sorted=True)
+    VaR, index = value_at_risk(xx, alpha, ww, samples_sorted=True, prob=prob)
     CVaR = VaR+1/((1-alpha))*np.sum((xx[index+1:]-VaR)*ww[index+1:])
     # The above one line can be used instead of the following
     # # number of support points above VaR

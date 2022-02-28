@@ -291,18 +291,19 @@ cpdef variance_3D_pyx(double [:,:,:] samples, double [:,:] weights):
     L = samples.shape[0]
     M = samples.shape[1]
     N = samples.shape[2]
-    variances= np.zeros((L, N), dtype=np.double)
+    variances = np.zeros((L, N), dtype=np.double)
     cdef double [:,:] variances_view = variances
+    cdef double [:,:,:] samples_view = samples
+    cdef double [:,:] weights_view = weights
     for ii in range(L):
-        for kk in range(P):
+        for kk in range(N):
             variances_view[ii, kk] = 0.0
             mean_ii_kk = 0.0
             for jj in range(M):
-                mean_i_kk += samples_view[ii, jj, kk]*weights_view[ii, jj])
+                mean_ii_kk += samples_view[ii, jj, kk]*weights_view[ii, jj]
                 variances_view[ii, kk] += (
                     samples_view[ii, jj, kk]*samples_view[ii, jj, kk]*
                     weights_view[ii, jj])
             variances_view[ii, kk] = (
-                variances_view[ii, kk]/double(M) -
-                mean_ii_kk*mean_ii_kk/double(M*M))
-    return ss
+                variances_view[ii, kk]-mean_ii_kk*mean_ii_kk)
+    return variances
