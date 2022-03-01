@@ -364,7 +364,7 @@ def sum_two_uniform_variables(ranges, zz):
 def weighted_sum_dependent_gaussian_variables(mean, covariance, weights):
     """
     Compute the Gaussian density of the weighted sum of dependent
-    Gaussian variables
+    Gaussian variables.
 
     Parameters
     ----------
@@ -374,22 +374,23 @@ def weighted_sum_dependent_gaussian_variables(mean, covariance, weights):
     covariance : np.ndarray (nvars, nvars)
         The joint covariance of the Gaussian variables
 
-    weights : np.ndarray (nvars, 1)
-        The scalar weights applied to each variable
+    weights : np.ndarray (nvars, nqoi)
+        The scalar weights applied to each variable. Multiple weight
+        vectors are supported.
 
     Returns
     -------
-    sum_mean : float
-        Mean of the weighted sum
+    sum_mean : np.ndarray (nqoi, 1)
+        Mean of each weighted sum
 
-    sum_variance : float
-        Variance of the weighted sum
+    sum_variance : np.ndarray (nqoi, 1)
+        Variance of each weighted sum
     """
     assert mean.ndim == 2
     assert weights.ndim == 2
     assert mean.shape[0] == weights.shape[0]
     assert covariance.shape[0] == weights.shape[0]
-    sum_mean = mean.T.dot(weights)
-    tmp = weights*covariance*weights.T
-    sum_variance = np.sum(tmp)
+    sum_mean = weights.T.dot(mean)
+    WCsq = weights.T.dot(np.linalg.cholesky(covariance))
+    sum_variance = np.sum(WCsq*WCsq, axis=1)
     return sum_mean, sum_variance

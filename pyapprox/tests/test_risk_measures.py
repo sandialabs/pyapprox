@@ -3,7 +3,7 @@ import unittest
 from scipy import stats
 from scipy.special import (
     erf, erfinv, betainc, beta as beta_fn,
-    gamma as gamma_fn
+    gamma as gamma_fn, gammainc
 )
 from scipy import integrate
 from functools import partial
@@ -14,7 +14,8 @@ from pyapprox.risk_measures import (
     univariate_quantile_continuous_variable,
     compute_conditional_expectations,
     univariate_cvar_continuous_variable, weighted_quantiles,
-    entropic_risk_measure
+    entropic_risk_measure, lognormal_mean, lognormal_cvar, chi_squared_cvar,
+    gaussian_cvar
     )
 from pyapprox.variables import get_distribution_info
 from pyapprox.univariate_polynomials.quadrature import (
@@ -130,32 +131,35 @@ def triangle_superquantile(u, c, loc, scale):
 
 
 def get_lognormal_example_exact_quantities(mu, sigma):
-    # print('mu,sigma',mu,sigma)
     def f(x): return np.exp(x).T
 
-    mean = np.exp(mu+sigma**2/2)
+    mean = lognormal_mean(mu, sigma**2)  # np.exp(mu+sigma**2/2)
 
-    def f_cdf(y):
-        y = np.atleast_1d(y)
-        vals = np.zeros_like(y)
-        II = np.where(y > 0)[0]
-        vals[II] = stats.norm.cdf((np.log(y[II])-mu)/sigma)
-        return vals
+    variable = stats.lognorm(scale=np.exp(mu), s=sigma)
+    f_cdf = variable.cdf
+    f_pdf = variable.pdf
+    VaR = variable.ppf
+    CVaR = partial(lognormal_cvar, mu=mu, sigma_sq=sigma**2)
 
-    # PDF of output variable (lognormal PDF)
-    def f_pdf(y):
-        vals = np.zeros_like(y, dtype=float)
-        II = np.where(y > 0)[0]
-        vals[II] = np.exp(-(np.log(y[II])-mu)**2/(2*sigma**2))/(
-            sigma*np.sqrt(2*np.pi)*y[II])
-        return vals
+    # def f_cdf(y):
+    #     y = np.atleast_1d(y)
+    #     vals = np.zeros_like(y)
+    #     II = np.where(y > 0)[0]
+    #     vals[II] = stats.norm.cdf((np.log(y[II])-mu)/sigma)
+    #     return vals
+    # # PDF of output variable (lognormal PDF)
+    # def f_pdf(y):
+    #     vals = np.zeros_like(y, dtype=float)
+    #     II = np.where(y > 0)[0]
+    #     vals[II] = np.exp(-(np.log(y[II])-mu)**2/(2*sigma**2))/(
+    #         sigma*np.sqrt(2*np.pi)*y[II])
+    #     return vals
+    # Analytic VaR of model output
+    # def VaR(p): return np.exp(mu+sigma*np.sqrt(2)*erfinv(2*p-1))
 
     # Analytic VaR of model output
-    def VaR(p): return np.exp(mu+sigma*np.sqrt(2)*erfinv(2*p-1))
-
-    # Analytic VaR of model output
-    def CVaR(p): return mean*stats.norm.cdf(
-        (mu+sigma**2-np.log(VaR(p)))/sigma)/(1-p)
+    # def CVaR(p): return mean*stats.norm.cdf(
+    #     (mu+sigma**2-np.log(VaR(p)))/sigma)/(1-p)
 
     def cond_exp_le_eta(y):
         vals = np.zeros_like(y, dtype=float)
@@ -714,6 +718,37 @@ class TestRiskMeasures(unittest.TestCase):
         assert np.allclose(
             entropic_risk_measure(vals, weights)[:, 0], true_risk_measures,
             atol=1e-2)
+
+    def test_chi_squared_cvar(self):
+        quantile = 0.8
+        mu, sigma = 0, 1
+        gx = np.random.normal(mu, sigma, (2, 1000000))
+        vals = np.sum(gx.T**2, axis=1)
+        # print(chi_squared_cvar(gx.shape[0], quantile),
+        #     conditional_value_at_risk(vals, quantile))
+        assert np.allclose(
+            chi_squared_cvar(gx.shape[0], quantile),
+            conditional_value_at_risk(vals, quantile), rtol=2e-3)
+
+    def test_gaussian_cvar(self):
+        quantile = 0.8
+        mu, sigma = 1, 2
+        samples = np.random.normal(mu, sigma, (1, 1000000))
+        vals = samples.T
+        # print(gaussian_cvar(mu, sigma, quantile),
+        #       conditional_value_at_risk(vals, quantile))
+        assert np.allclose(
+            gaussian_cvar(mu, sigma, quantile),
+            conditional_value_at_risk(vals, quantile), rtol=2e-3)
+
+        samples = np.vstack(
+            (np.random.normal(mu, sigma, (1, 1000000)),
+             np.random.normal(mu, sigma*2, (1, 1000000))))
+        vals = samples.T
+        assert np.allclose(
+            gaussian_cvar(mu, sigma*np.arange(1, 3), quantile),
+            [conditional_value_at_risk(vals[:, 0], quantile),
+             conditional_value_at_risk(vals[:, 1], quantile)], rtol=2e-3)
 
 
 if __name__ == "__main__":

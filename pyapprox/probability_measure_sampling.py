@@ -61,111 +61,12 @@ def print_statistics(samples, values, sample_labels=None, value_labels=None):
             *([stat_label]+[stat_fun(dat[1]) for dat in data])))
 
 
-def generate_canonical_univariate_random_samples(
-        var_type, variable_parameters, num_samples, num_vars):
-    """
-    Generate samples from a one-dimensional probability measure.
-
-    This function only supports common variables types.
-    uniform, beta, gaussian, exponential
-
-    Note to developers: The canonical domain here must be consistent with
-    the probability domain of AffineRandomVariableTransformation
-    which is used to map canonical samples to the user space.
-
-    Parameters
-    ----------
-
-    var_type : string
-        The variable type
-
-    variable_parameters : dict
-        The parameters that define the distribution
-
-    num_samples : integer
-        The number of samples to generate
-
-    Returns
-    -------
-    samples : np.ndarray (num_samples)
-        Independent samples from the target distribution
-    """
-    if var_type == 'uniform':
-        samples = np.random.uniform(-1., 1., (num_vars, num_samples))
-    elif var_type == 'beta':
-        alpha_stat = variable_parameters['alpha_stat']
-        beta_stat = variable_parameters['beta_stat']
-        samples = 2.*np.random.beta(alpha_stat,
-                                    beta_stat, (num_vars, num_samples))-1.
-    elif var_type == 'gaussian':
-        samples = np.random.normal(0., 1., (num_vars, num_samples))
-    elif var_type == 'exponential':
-        samples = np.random.exponential(1., (num_vars, num_samples))
-    elif var_type == 'uniform_discrete':
-        # samples = np.random.randint(0,variable_parameters['num_trials']+1,
-        #                             (num_vars,num_samples))
-        samples = np.random.randint(
-            variable_parameters['range'][0], variable_parameters['range'][1]+1,
-            (num_vars, num_samples))
-    elif var_type == 'binomial_discrete':
-        samples = np.random.binomial(
-            variable_parameters['num_trials'],
-            variable_parameters['prob_success'], (num_vars, num_samples))
-    elif var_type == 'hypergeometric_discrete':
-        samples = np.random.hypergeometric(
-            variable_parameters['num_type1'], variable_parameters['num_type2'],
-            variable_parameters['num_trials'], (num_vars, num_samples))
-    elif var_type == 'arbitrary_discrete':
-        masses = variable_parameters['prob_masses']
-        mass_locations = variable_parameters['prob_mass_locations']
-        samples = np.random.choice(mass_locations, size=(num_vars, num_samples),
-                                   p=masses)
-    else:
-        raise TypeError('var_type %s not supported' % var_type)
-    return samples
-
-
-def generate_independent_random_samples_deprecated(var_trans, num_samples):
-    """
-    Generate samples from a tensor-product probability measure.
-
-    Parameters
-    ----------
-    var_trans : AffineRandomVariableTransformation
-        Object that maps samples from a canonical domain into
-        the space required by the user
-
-    num_samples : integer
-        The number of samples to generate
-
-    Returns
-    -------
-    samples : np.ndarray (num_vars, num_samples)
-        Independent samples from the target distribution
-    """
-    assert type(var_trans) == AffineRandomVariableTransformation, \
-        "`var_trans` must be of AffineRandomVariableTransformation type"
-    num_vars = var_trans.num_vars()
-
-    canonical_samples = np.empty((num_vars, num_samples), dtype=float)
-    variables = var_trans.variables
-    for var_type in list(variables.unique_var_types.keys()):
-        type_index = variables.unique_var_types[var_type]
-        num_vars_of_type = len(variables.unique_var_indices[type_index])
-        for jj in range(num_vars_of_type):
-            var_index = variables.unique_var_indices[type_index][jj]
-            canonical_samples[var_index, :] = \
-                generate_canonical_univariate_random_samples(
-                var_type, variables.unique_var_parameters[type_index][jj],
-                num_samples, 1)[0, :]
-
-    return var_trans.map_from_canonical_space(canonical_samples)
-
-
 def generate_independent_random_samples(variable, num_samples,
                                         random_state=None):
     """
-    Generate samples from a tensor-product probability measure.
+    Generate samples from a tensor-product probability measure. This function
+    still exists to maintain backwards compatability. Please use
+    variable.rvs() instead
 
     Parameters
     ----------
@@ -179,16 +80,7 @@ def generate_independent_random_samples(variable, num_samples,
     """
     assert type(variable) == IndependentMultivariateRandomVariable, \
         "`variable` must be of IndependentMultivariateRandomVariable type"
-    num_vars = variable.num_vars()
-    num_samples = int(num_samples)
-    samples = np.empty((num_vars, num_samples), dtype=float)
-    for ii in range(variable.nunique_vars):
-        var = variable.unique_variables[ii]
-        indices = variable.unique_variable_indices[ii]
-        samples[indices, :] = var.rvs(
-            size=(indices.shape[0], num_samples), random_state=random_state)
-
-    return samples
+    return variable.rvs(num_samples, random_state)
 
 
 def rejection_sampling(target_density, proposal_density,

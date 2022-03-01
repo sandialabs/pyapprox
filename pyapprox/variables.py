@@ -364,6 +364,30 @@ class IndependentMultivariateRandomVariable(object):
                 return False
         return True
 
+    def rvs(self, num_samples, random_state=None):
+        """
+        Generate samples from a tensor-product probability measure.
+
+        Parameters
+        ----------
+        num_samples : integer
+            The number of samples to generate
+
+        Returns
+        -------
+        samples : np.ndarray (num_vars, num_samples)
+            Independent samples from the target distribution
+        """
+        num_samples = int(num_samples)
+        samples = np.empty((self.num_vars(), num_samples), dtype=float)
+        for ii in range(self.nunique_vars):
+            var = self.unique_variables[ii]
+            indices = self.unique_variable_indices[ii]
+            samples[indices, :] = var.rvs(
+                size=(indices.shape[0], num_samples),
+                random_state=random_state)
+        return samples
+
 
 class float_rv_discrete(rv_sample):
     """Discrete distribution defined on locations represented as floats.

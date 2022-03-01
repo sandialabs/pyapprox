@@ -351,6 +351,11 @@ def precompute_compute_expected_kl_utility_data(
     outer_loop_prior_samples = generate_outer_prior_samples(
         nouter_loop_samples)[0]
     outer_loop_pred_obs = obs_fun(outer_loop_prior_samples)
+
+    if outer_loop_pred_obs.shape[0] != outer_loop_prior_samples.shape[1]:
+        msg = "obs_fun is not returning an array with the correct shape"
+        raise ValueError(msg)
+
     outer_loop_obs = outer_loop_pred_obs + noise_fun(outer_loop_pred_obs)
 
     # generate samples and values for all inner loops
@@ -403,13 +408,21 @@ def precompute_compute_expected_deviation_data(
 
     if not econ:
         inner_loop_pred_qois = qoi_fun(inner_loop_prior_samples)
+        if inner_loop_pred_qois.shape[0] != inner_loop_prior_samples.shape[1]:
+            msg = "qoi_fun is not returning an array with the correct shape"
+            raise ValueError(msg)
     else:
         in_samples = inner_loop_prior_samples[:, :ninner_loop_samples]
         shared_inner_loop_pred_qois = qoi_fun(in_samples)
+        if shared_inner_loop_pred_qois.shape[0] != in_samples.shape[1]:
+            msg = "qoi_fun is not returning an array with the correct shape"
+            raise ValueError(msg)
         inner_loop_pred_qois = np.tile(
             shared_inner_loop_pred_qois, (nouter_loop_samples, 1))
 
     nqois = inner_loop_pred_qois.shape[1]
+    # print(nqois, [nouter_loop_samples, ninner_loop_samples, nqois],
+    #       np.prod([nouter_loop_samples, ninner_loop_samples, nqois]))
     # tmp = np.empty((nouter_loop_samples, ninner_loop_samples, nqois))
     # for kk in range(nqois):
     #     tmp[:, :, kk] = inner_loop_pred_qois[:, kk].reshape(
@@ -1364,3 +1377,177 @@ def tensor_product_barycentric_interpolation(abscissa_1d, values, samples):
         samples, abscissa_1d, barycentric_weights_1d, values,
         np.arange(nvars))
     return poly_vals
+
+
+def generate_inner_prior_samples_fixed(x_quad, w_quad, nsamples):
+    """
+    Wrapper that can be used with functools.partial to create a
+    function with the signature generate_inner_samples(nsamples)
+    that always returns the same quadrature rule. This function
+    will be called many times and creating a quadrature each time
+    can be computationally expensive.
+    """
+    assert nsamples == x_quad.shape[1], (nsamples, x_quad.shape)
+    return x_quad, w_quad
+
+
+def run_bayesian_batch_deviation_oed(
+        prior_variable, obs_fun, qoi_fun, noise_std,
+        design_candidates, pre_collected_design_indices, deviation_fun,
+        risk_fun, nexperiments, nouter_loop_samples, ninner_loop_samples,
+        quad_method, max_eval_concurrency=1):
+    r"""
+    Parameters
+    ----------
+    prior_variable : pya.IndependentMultivariateRandomVariable
+        The prior variable consisting of independent univariate random
+        variables
+
+    obs_fun : callable
+        Function with the signature
+
+        `obs_fun(samples) -> np.ndarray(nsamples, nobs)`
+
+        which returns evaluations of the noiseless observation model.
+
+    qoi_fun : callable
+        Function with the signature
+
+        `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+        which returns evaluations of the prediction model.
+
+    noise_std : float or np.ndarray (nobs, 1)
+        The standard deviation of the mean zero Gaussian noise added to each
+        observation
+
+    design_candidates : np.ndarray (ndesign_vars, nsamples)
+        The location of all design sample candidates
+
+    pre_collected_indices : array_like
+        The indices of the experiments that must be in the final design
+
+    deviation_fun : callable
+        Function with the signature
+
+        `deviation_fun(inner_loop_pred_qois, weights) ->
+         np.ndarray(nouter_loop_samples, nqois)`
+
+         where
+
+         inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+
+    risk_fun : callable
+        Function with the signature
+
+         `risk_fun(deviations) -> float`
+
+        where deviations : np.ndarray (nqois, 1)
+
+    nexperiments : integer
+        The number of experiments to be collected
+
+    nouter_loop_samples : integer
+        The number of Monte Carlo samples used to compute the outer integral
+        over all possible observations
+
+    ninner_loop_samples : integer
+        The number of quadrature samples used for the inner integral that
+        computes the evidence for each realiaztion of the predicted
+        observations. If quad_method is a tensor product rule
+        then this parameter actually specifies the number of points in each
+        univariate rule so the total number of inner loop samples is
+        ninner_loop_samples**nvars
+
+    quad_method : string
+        The method used to compute the inner loop integral needed to
+        evaluate the evidence for an outer loop sample. Options are
+        ["linear", "quadratic", "gaussian", "monte_carlo"]
+        The first 3 construct tensor product quadrature rules from univariate
+        rules that are respectively piecewise linear, piecewise quadratic
+        or Gauss-quadrature.
+
+    max_eval_concurrency : integer
+        The number of threads used to compute OED design. Warning:
+        this uses multiprocessing.Pool and seems to provide very little benefit
+        and in many cases increases the CPU time.
+    """
+
+    # Define OED options
+    if quad_method != "monte_carlo":
+        x_quad, w_quad = get_oed_inner_quadrature_rule(
+            ninner_loop_samples, prior_variable, quad_method)
+        ninner_loop_samples = x_quad.shape[1]
+        generate_inner_prior_samples = partial(
+            generate_inner_prior_samples_fixed, x_quad, w_quad)
+        econ = True
+    else:
+        # use default Monte Carlo sampling
+        generate_inner_prior_samples = None
+        econ = False
+
+    # Setup OED problem
+    oed = BayesianBatchDeviationOED(
+        design_candidates, obs_fun, noise_std, prior_variable,
+        qoi_fun, nouter_loop_samples, ninner_loop_samples,
+        generate_inner_prior_samples=generate_inner_prior_samples,
+        econ=econ, deviation_fun=deviation_fun, risk_fun=risk_fun,
+        max_eval_concurrency=max_eval_concurrency)
+    oed.populate()
+    if pre_collected_design_indices is not None:
+        oed.set_collected_design_indices(pre_collected_design_indices)
+
+    # Generate experimental design
+    if pre_collected_design_indices is None:
+        npre_collected_design_indices = 0
+    else:
+        npre_collected_design_indices = len(pre_collected_design_indices)
+
+    results = []
+    for step in range(npre_collected_design_indices, nexperiments):
+        results_step = oed.update_design(True)[2]
+        results.append(results_step)
+
+    return oed, results
+
+
+def get_deviation_fun(name, opts={}):
+    """
+    Get the deviation function used to compute the deviation of themselves
+    posterior push-forward for a realization of the observational data
+
+    name : string
+        Name of the deviation function.
+        Must be one of ["std", "cvar", "entropic"]
+
+    opts : dict
+         Any options needed by the desired deviation function. cvar requires
+         {"quantile", p} where 0<=p<1. No options are needed for the other
+         deviation functions
+
+    Returns
+    -------
+    deviation_fun : callable
+        Function with the signature
+
+        `deviation_fun(inner_loop_pred_qois, weights) ->
+         np.ndarray(nouter_loop_samples, nqois)`
+
+         where
+
+         inner_loop_pred_qois : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
+         weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+    """
+    deviation_funs = {
+        "std": oed_standard_deviation,
+        "cvar": partial(
+            oed_conditional_value_at_risk_deviation),
+        "entropic": oed_entropic_deviation}
+
+    if name not in deviation_funs:
+        msg = f"{name} not in {deviation_funs.keys()}"
+        raise ValueError(msg)
+
+    fun = partial(deviation_funs[name], **opts)
+    return fun

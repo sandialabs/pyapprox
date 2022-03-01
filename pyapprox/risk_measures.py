@@ -1,6 +1,8 @@
 import numpy as np
 from functools import partial
 import scipy
+from scipy import stats
+from scipy.special import erfinv, erf, gamma as gamma_fn, gammainc
 
 from pyapprox.random_variable_algebra import invert_monotone_function
 
@@ -404,3 +406,49 @@ def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
     def integrand(x): return x*pdf(x)
     return 1/(1-beta)*scipy.integrate.quad(
         integrand, quantile, bounds[1], **quad_opts)[0]
+
+
+def lognormal_mean(mu, sigma_sq):
+    return np.exp(mu+sigma_sq/2)
+
+
+def lognormal_cvar(p, mu, sigma_sq):
+    mean = lognormal_mean(mu, sigma_sq)
+    if p == 0:
+        return mean
+    sigma = np.sqrt(sigma_sq)
+    quantile = np.exp(mu+sigma*np.sqrt(2)*erfinv(2*p-1))
+    if sigma == 0:
+        print("Warning: sigma is zero", quantile)
+        return quantile
+    cvar = mean*stats.norm.cdf(
+        (mu+sigma_sq-np.log(quantile))/sigma)/(1-p)
+    return cvar
+
+
+def lognormal_cvar_deviation(p, mu, sigma_sq):
+    mean = lognormal_mean(mu, sigma_sq)
+    cvar = lognormal_cvar(p, mu, sigma_sq)
+    return cvar-mean
+
+
+def lognormal_variance(mu, sigma_sq):
+    return (np.exp(sigma_sq)-1)*np.exp(2*mu+sigma_sq)
+
+
+def chi_squared_cvar(k, quantile):
+    def upper_gammainc(a, b):
+        return gamma_fn(a)*(1 - gammainc(a, b))
+    VaR = stats.chi2.ppf(quantile, k)
+    cvar = 2*upper_gammainc(1+k/2, VaR/2)/gamma_fn(k/2)/(1-quantile)
+    return cvar
+
+
+def gaussian_cvar(mu, sigma, quantile):
+    print(mu, sigma)
+    val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
+    # variable = stats.norm(mu, sigma)
+    # VaR = variable.ppf(quantile)
+    # val = (mu + np.sqrt(2/np.pi)*sigma*np.exp(-(mu-VaR)**2/(2*sigma**2)) +
+    #        mu*erf((mu-VaR)/(np.sqrt(2)*sigma)))*0.5/(1-quantile)
+    return val

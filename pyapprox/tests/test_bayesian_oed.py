@@ -12,7 +12,9 @@ from pyapprox.bayesian_oed import (
     BayesianBatchKLOED, BayesianSequentialKLOED, d_optimal_utility,
     BayesianBatchDeviationOED, oed_variance_deviation,
     oed_conditional_value_at_risk_deviation, get_oed_inner_quadrature_rule,
-    get_posterior_2d_interpolant_from_oed_data, oed_entropic_deviation
+    get_posterior_2d_interpolant_from_oed_data, oed_entropic_deviation,
+    oed_average_prediction_deviation, run_bayesian_batch_deviation_oed,
+    get_deviation_fun
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -24,7 +26,10 @@ from pyapprox.univariate_polynomials.quadrature import (
 from pyapprox.bayesian_inference.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
-from pyapprox.risk_measures import conditional_value_at_risk
+from pyapprox.risk_measures import (
+    conditional_value_at_risk, lognormal_variance,
+    lognormal_cvar_deviation, gaussian_cvar
+)
 from pyapprox.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
@@ -32,12 +37,203 @@ from pyapprox.bayesian_inference.laplace import laplace_evidence
 from pyapprox.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.utilities import (
+    cartesian_product, outer_product, piecewise_univariate_linear_quad_rule
+)
+from pyapprox.random_variable_algebra import (
+    weighted_sum_dependent_gaussian_variables
+)
 from pyapprox.indexing import compute_hyperbolic_indices
 from pyapprox.monomial import monomial_basis_matrix
 
 import warnings
 warnings.filterwarnings('error')
+
+
+def setup_linear_gaussian_model_inference(prior_variable, noise_std, obs_mat):
+    # prior_variable = pya.IndependentMultivariateRandomVariable(
+    #     [stats.norm(0, 1)]*nrandom_vars)
+    nobs = obs_mat.shape[0]
+    prior_mean = prior_variable.get_statistics("mean")
+    prior_cov = np.diag(prior_variable.get_statistics("var")[:, 0])
+    if type(noise_std) == np.ndarray:
+        noise_cov = np.diag(noise_std**2)
+    else:
+        noise_cov = np.eye(nobs)*noise_std**2
+    prior_cov_inv = np.linalg.inv(prior_cov)
+    noise_cov_inv = np.linalg.inv(noise_cov)
+    return prior_mean, prior_cov, noise_cov, prior_cov_inv, noise_cov_inv
+
+
+def linear_gaussian_prediction_deviation_based_oed(
+        design_candidates, ndesign, prior_mean, prior_cov,
+        noise_cov, obs_mat, pred_mat, risk_fun,
+        pre_collected_design_indices=[], nonlinear=False, quantile=None):
+    """
+    Parameters
+    ----------
+    design_candidates : np.ndarray (nvars, nsamples)
+        The location of all design sample candidates
+
+    ndesign : integer
+
+
+    prior_mean : np.ndarray (nvars, 1)
+        The mean of the prior
+
+    prior_cov : np.ndarray (nvars, nvars)
+        The covariance of the prior
+
+    noise_cov : np.ndarray (nvars, nvars)
+        The covariance of the observational noise
+
+    obs_mat : np.ndaray (nobs, nvars)
+        The linear observational model
+
+    pred_mat : np.ndaray (nobs, nvars)
+        The linear prediction model
+
+    risk_fun : callable
+        Function to compute the risk measure of the predictions stats
+        over the prediction space
+
+    pre_collected_design_indices : array_like
+        The indices of the experiments that must be in the final design
+
+    nonlinear : boolean
+        False - The prediction model is pred_mat.dot(sample)
+        True - The prediction model is np.exp(pred_mat.dot(sample))
+
+    quantile : integer
+        The quantile of the conditional value at risk used to compute the
+        statistic summarizing the variability at each prediction point
+        If None then the statistic is standard deviation
+
+    Returns
+    -------
+    collected_design_indices : np.ndarray (nobs)
+        The indices into the qoi vector associated with the
+        collected observations
+
+    data_history : list
+        Each entry of the list contains the following for each design candidate
+
+    pointwise_post_stat : np.ndarray (nqoi, 1)
+        The pointwise statistic at each prediction location
+
+    risk_val : float
+        The scalar -risk_fun(pointwise_post_stat)
+    """
+    prior_sample = prior_mean + np.linalg.cholesky(prior_cov).dot(
+        np.random.normal(0, 1, (prior_mean.shape[0], 1)))
+    obs = obs_mat.dot(prior_sample) + np.linalg.cholesky(noise_cov).dot(
+        np.random.normal(0, 1, (obs_mat.shape[0], 1)))
+
+    prior_cov_inv = np.linalg.inv(prior_cov)
+    noise_cov_inv = np.linalg.inv(noise_cov)
+
+    data_history = []
+    assert len(pre_collected_design_indices) < ndesign
+    # make deep copy
+    collected_indices = [ii for ii in pre_collected_design_indices]
+    for jj in range(len(pre_collected_design_indices), ndesign):
+        data = []
+        for ii in range(design_candidates.shape[1]):
+            # realization of data does not matter so if location appears
+            # twice we can just use the same data
+            idx = np.hstack((collected_indices, [ii])).astype(int)
+            obs_ii = obs[idx]
+            omat = obs_mat[idx, :]
+            nmat_inv = noise_cov_inv[np.ix_(idx, idx)]
+            nmat = noise_cov[np.ix_(idx, idx)]
+            exact_post_cov = laplace_posterior_approximation_for_linear_models(
+                omat, prior_mean, prior_cov_inv, nmat_inv, obs_ii)[1]
+            pointwise_post_variance = np.diag(
+                pred_mat.dot(exact_post_cov.dot(pred_mat.T)))[:, None]
+            if nonlinear:
+                Rmat = np.linalg.multi_dot(
+                    (exact_post_cov, omat.T, nmat_inv))
+                ROmat = Rmat.dot(omat)
+                nu_vec = (
+                    np.linalg.multi_dot((ROmat.T, prior_mean)) +
+                    np.linalg.multi_dot((exact_post_cov, prior_cov_inv,
+                                         prior_mean)))
+                tau_hat = pred_mat.dot(nu_vec)
+                Cmat = (np.linalg.multi_dot((ROmat, prior_cov, ROmat.T)) +
+                        np.linalg.multi_dot((Rmat, nmat, Rmat.T)))
+                sigma_hat_sq = np.diag(
+                    np.linalg.multi_dot((pred_mat, Cmat, pred_mat.T)))[:, None]
+                tmp = np.exp(pointwise_post_variance)
+                if quantile is None:
+                    factor = np.sqrt((tmp-1)*tmp)
+                else:
+                    factor = np.sqrt(tmp)*(1/(1-quantile)*stats.norm.cdf(
+                        np.sqrt(pointwise_post_variance) -
+                        np.sqrt(2)*erfinv(2*quantile-1))-1)
+                pointwise_post_stat = factor*np.exp(tau_hat+sigma_hat_sq/2)
+            else:
+                if quantile is None:
+                    pointwise_post_stat = np.sqrt(pointwise_post_variance)
+                else:
+                    # stats is cvar deviation so mean which is not effected
+                    # by mean so just set mean in the following to zero
+                    pointwise_post_stat = gaussian_cvar(
+                        0, pointwise_post_variance, quantile)
+            exact_stat_risk = risk_fun(pointwise_post_stat)
+            data.append([pointwise_post_stat, -exact_stat_risk])
+        data_history.append(data)
+        # round to 13 digits to remove numerical noise
+        collected_indices.append(
+            np.argmax(np.round([d[1] for d in data_history[-1]], 13)))
+    return collected_indices, data_history
+
+
+def conditional_posterior_moments_gaussian_linear_model(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx):
+    assert xx.shape[1] == 1
+    nvars = obs_mat.shape[1]
+    obs = obs_mat[idx, :].dot(xx[:nvars, :])+xx[nvars:, :][idx, :]
+    mu_g, sigma_g_sq = \
+        laplace_posterior_approximation_for_linear_models(
+            obs_mat[idx, :],
+            prior_mean, prior_cov_inv, noise_cov_inv[np.ix_(idx, idx)], obs)
+    return mu_g, sigma_g_sq
+
+
+def conditional_posterior_prediction_moments_gaussian_linear_model(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, pred_mat, idx, xx):
+    mu_g, sigma_g_sq = conditional_posterior_moments_gaussian_linear_model(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx)
+    # compute variance of polynomial
+    mu, sigma_sq = weighted_sum_dependent_gaussian_variables(
+        mu_g, sigma_g_sq, pred_mat.T)
+    return mu, sigma_sq
+
+
+def conditional_lognormal_stat(
+        p, obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, Bmat,
+        idx, xx):
+    mu, sigma_sq = \
+        conditional_posterior_prediction_moments_gaussian_linear_model(
+            obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, Bmat, idx, xx)
+    # compute statistic of exp(polynomial)
+    if p is None:
+        # return lognormal_variance(mu, sigma_sq)
+        return np.sqrt(lognormal_variance(mu, sigma_sq))
+    return lognormal_cvar_deviation(p, mu, sigma_sq)
+
+
+def conditional_gaussian_stat(
+        p, obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, Bmat,
+        idx, xx):
+    mu, sigma_sq = \
+        conditional_posterior_prediction_moments_gaussian_linear_model(
+            obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, Bmat, idx, xx)
+    # compute statistic of polynomial
+    if p is None:
+        # return lognormal_variance(mu, sigma_sq)
+        return np.sqrt(sigma_sq)[:, None]
+    return (gaussian_cvar(mu, sigma_sq, p)-mu)[:, None]
 
 
 def linear_obs_fun(Amat, samples):
@@ -1150,6 +1346,143 @@ class TestBayesianOED(unittest.TestCase):
         assert np.allclose(
             oed_entropic_deviation(vals, weights)[:, 0], true_risk_measures,
             atol=1e-2)
+
+    def check_analytical_gaussian_prediction_deviation_based_oed(
+            self, nonlinear, quantile, rtol):
+        np.random.seed(1)
+        ndesign = 3
+        degree = 2
+        ncandidates = 11
+        noise_std = 1
+        pre_collected_design_indices = []
+        nsamples = int(1e5)
+
+        def basis_matrix(degree, samples):
+            return samples.T**np.arange(degree+1)[None, :]
+
+        nprediction_samples = ncandidates
+        xx, ww = piecewise_univariate_linear_quad_rule(
+            [-1, 1], nprediction_samples)
+        ww /= 2.0  # assume uniform distribution over prediction space
+        prediction_candidates = xx[None, :]
+        prediction_candidates = xx[None, :1]
+        ww = ww[:1]*0+1
+
+        def risk_fun(x):
+            return oed_average_prediction_deviation(x, weights=ww[:, None])[0]
+
+        nrandom_vars = degree+1
+        prior_variable = IndependentMultivariateRandomVariable(
+            [stats.norm(0, 1)]*nrandom_vars)
+
+        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        obs_mat = basis_matrix(degree, design_candidates)
+        pred_mat = basis_matrix(degree, prediction_candidates)
+
+        (prior_mean, prior_cov, noise_cov, prior_cov_inv,
+         noise_cov_inv) = setup_linear_gaussian_model_inference(
+            prior_variable, noise_std, obs_mat)
+
+        collected_indices, data = \
+            linear_gaussian_prediction_deviation_based_oed(
+                design_candidates, ndesign, prior_mean, prior_cov,
+                noise_cov, obs_mat, pred_mat, risk_fun,
+                pre_collected_design_indices, nonlinear, quantile)
+
+        random_samples = prior_variable.rvs(nsamples)
+        noise_chol_factor = np.linalg.cholesky(noise_cov)
+        noise = noise_chol_factor.dot(
+            np.random.normal(0, 1, (obs_mat.shape[0], nsamples)))
+
+        if not nonlinear:
+            stat_fun = partial(
+                conditional_gaussian_stat, quantile, obs_mat, prior_mean,
+                prior_cov_inv, noise_cov_inv, pred_mat)
+        else:
+            stat_fun = partial(
+                conditional_lognormal_stat, quantile, obs_mat, prior_mean,
+                prior_cov_inv, noise_cov_inv, pred_mat)
+
+        xx = np.vstack((random_samples, noise))
+        metrics = []
+        for ii in range(nsamples):
+            metrics.append(stat_fun(collected_indices, xx[:, ii:ii+1])[0, 0])
+        metrics = np.array(metrics)
+        print(metrics.mean(axis=0), data[-1][collected_indices[-1]][1])
+        assert np.allclose(metrics.mean(axis=0),
+                           -data[-1][collected_indices[-1]][1], rtol=rtol)
+
+    def test_analytical_gaussian_prediction_deviation_based_oed(self):
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            False, None, 1e-2)
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            True, None, 1e-2)
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            True, 0.8, 2e-2)
+
+    def test_numerical_gaussian_prediction_deviation_based_oed(self):
+        ndesign = 3
+        degree = 2
+        ncandidates = 11
+        noise_std = 1
+        pre_collected_design_indices = []
+        nonlinear, deviation_quantile = False, None
+        risk_quantile = None
+        quad_method = "linear"
+        nouter_loop_samples, ninner_loop_samples_1d = 4, 3 #100, 20
+
+        if deviation_quantile is None:
+            deviation_fun = get_deviation_fun("std")
+        else:
+            deviation_fun = get_deviation_fun(
+                "cvar", {"quantile": deviation_quantile})
+
+        def basis_matrix(degree, samples):
+            return samples.T**np.arange(degree+1)[None, :]
+
+        nprediction_samples = ncandidates
+        xx, ww = piecewise_univariate_linear_quad_rule(
+            [-1, 1], nprediction_samples)
+        ww /= 2.0  # assume uniform distribution over prediction space
+        prediction_candidates = xx[None, :]
+
+        if risk_quantile is None:
+            risk_fun = oed_average_prediction_deviation
+        else:
+            risk_fun = partial(
+                conditional_value_at_risk, alpha=risk_quantile, weights=ww,
+                prob=False)
+
+        def risk_fun(x):
+            return oed_average_prediction_deviation(x, weights=ww[:, None])[0]
+
+        nrandom_vars = degree+1
+        prior_variable = IndependentMultivariateRandomVariable(
+            [stats.norm(0, 1)]*nrandom_vars)
+
+        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        obs_mat = basis_matrix(degree, design_candidates)
+        pred_mat = basis_matrix(degree, prediction_candidates)
+
+        (prior_mean, prior_cov, noise_cov, prior_cov_inv,
+         noise_cov_inv) = setup_linear_gaussian_model_inference(
+            prior_variable, noise_std, obs_mat)
+
+        collected_indices, data = \
+            linear_gaussian_prediction_deviation_based_oed(
+                design_candidates, ndesign, prior_mean, prior_cov,
+                noise_cov, obs_mat, pred_mat, risk_fun,
+                pre_collected_design_indices, nonlinear, deviation_quantile)
+
+        def obs_fun(x): return obs_mat.dot(x).T
+        def qoi_fun(x): return pred_mat.dot(x).T
+
+        oed, oed_results = run_bayesian_batch_deviation_oed(
+            prior_variable, obs_fun, qoi_fun, noise_std,
+            design_candidates, pre_collected_design_indices,
+            deviation_fun, risk_fun,
+            ndesign, nouter_loop_samples, ninner_loop_samples_1d,
+            quad_method)
 
 
 if __name__ == "__main__":

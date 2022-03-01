@@ -345,14 +345,26 @@ class TestRandomVariableAlgebra(unittest.TestCase):
 
     def test_weighted_sum_dependent_gaussian_variables(self):
         nvars = 2
-        mean = np.random.uniform(0, 1, (nvars, 1))
+        # mean = np.random.uniform(0, 1, (nvars, 1))
+        mean = np.ones((nvars, 1))
         covariance = np.diag(np.random.uniform(1, 2, nvars))
         weights = np.arange(1, nvars+1)[:, None]
         sum_mean, sum_var = weighted_sum_dependent_gaussian_variables(
             mean, covariance, weights)
         assert np.allclose(sum_mean, np.sum(mean*weights))
+        print(sum_var, (weights[:, 0]**2*np.diag(covariance)).sum())
         assert np.allclose(
             sum_var, (weights[:, 0]**2*np.diag(covariance)).sum())
+
+        weights = np.arange(1, 2*nvars+1).reshape((2, nvars), order="F")
+        sum_mean, sum_var = weighted_sum_dependent_gaussian_variables(
+            mean, covariance, weights)
+        assert np.allclose(
+            sum_mean[:, 0], [np.sum(mean[:, 0]*weights[:, 0]),
+                             np.sum(mean[:, 0]*weights[:, 1])])
+        assert np.allclose(
+            sum_var, [(weights[:, 0]**2*np.diag(covariance)).sum(),
+                      (weights[:, 1]**2*np.diag(covariance)).sum()])
 
         nvars = 2
         mean = np.random.uniform(0, 1, (nvars, 1))
