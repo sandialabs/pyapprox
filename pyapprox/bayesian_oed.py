@@ -547,7 +547,8 @@ def __compute_negative_expected_deviation_monte_carlo(
         return {'utility_val': utility_val}
     result = {
         'utility_val': utility_val, 'evidences': evidences,
-        'weights': weights, 'deviations': deviations}
+        'weights': weights, 'deviations': deviations,
+        'expected_deviations': expected_obs_deviations[:, None]}
     return result
 
 
@@ -558,11 +559,11 @@ def compute_negative_expected_deviation_monte_carlo(
         new_design_indices, risk_fun, return_all):
     if collected_design_indices is not None:
         active_indices = np.hstack(
-            (collected_design_indices, new_design_indices))
+            (collected_design_indices, new_design_indices)).astype(int)
     else:
         # assume the observations at the collected_design_indices are already
         # incorporated into the inner and outer loop weights
-        active_indices = np.asarray(new_design_indices)
+        active_indices = np.asarray(new_design_indices, dtype=int)
     return __compute_negative_expected_deviation_monte_carlo(
         outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
@@ -603,31 +604,31 @@ def select_design(design_candidates, collected_design_indices,
 
     if max_eval_concurrency > 1:
         pool = Pool(max_eval_concurrency)
-        pool_results = pool.map(
+        results = pool.map(
             partial(compute_expected_utility, collected_design_indices,
                     return_all=return_all),
-            [np.array([ii]) for ii in range(ncandidates)
-             if ii not in collected_design_indices])
+            [np.array([ii]) for ii in range(ncandidates)])
         pool.close()
-        utility_vals = -np.ones(ncandidates)*np.inf
-        results = [None for ii in range(ncandidates)]
-        cnt = 0
-        for ii in range(ncandidates):
-            if ii not in collected_design_indices:
-                utility_vals[ii] = pool_results[cnt]['utility_val']
-                results[ii] = pool_results[cnt]
-                cnt += 1
+        utility_vals = np.array(
+            [results[ii]['utility_val'] for ii in range(ncandidates)])
+        # utility_vals = -np.ones(ncandidates)*np.inf
+        # results = [None for ii in range(ncandidates)]
+        # cnt = 0
+        # for ii in range(ncandidates):
+        #     if ii not in collected_design_indices:
+        #         utility_vals[ii] = pool_results[cnt]['utility_val']
+        #         results[ii] = pool_results[cnt]
+        #         cnt += 1
     else:
         results = []
         utility_vals = -np.ones(ncandidates)*np.inf
         results = [None for ii in range(ncandidates)]
         for ii in range(ncandidates):
-            if ii not in collected_design_indices:
-                results[ii] = compute_expected_utility(
-                    collected_design_indices, np.array([ii]),
-                    return_all=return_all)
-                utility_vals[ii] = results[ii]["utility_val"]
-                # print(f'Candidate {ii}:', utility_vals[ii])
+            results[ii] = compute_expected_utility(
+                collected_design_indices, np.array([ii], dtype=int),
+                return_all=return_all)
+            utility_vals[ii] = results[ii]["utility_val"]
+            # print(f'Candidate {ii}:', utility_vals[ii])
 
     selected_index = np.argmax(utility_vals)
 
@@ -682,7 +683,7 @@ def update_observations(design_candidates, collected_design_indices,
 
     updated_collected_obs = np.hstack((collected_obs, new_obs))
     updated_collected_design_indices = np.hstack(
-        (collected_design_indices, new_design_indices))
+        (collected_design_indices, new_design_indices)).astype(int)
     return updated_collected_obs, updated_collected_design_indices
 
 
@@ -816,11 +817,11 @@ class BayesianBatchKLOED(object):
             self.compute_expected_utility, self.max_eval_concurrency,
             return_all)
 
-        new_design_indices = np.array([selected_index])
+        new_design_indices = np.array([selected_index], dtype=int)
         self.collected_design_indices = np.hstack(
-            (self.collected_design_indices, new_design_indices))
+            (self.collected_design_indices, new_design_indices)).astype(int)
         if return_all is False:
-            return utility_vals, new_design_indices
+            return utility_vals, new_design_indices, None
         return utility_vals, new_design_indices, results
 
 
@@ -1395,7 +1396,7 @@ def run_bayesian_batch_deviation_oed(
         prior_variable, obs_fun, qoi_fun, noise_std,
         design_candidates, pre_collected_design_indices, deviation_fun,
         risk_fun, nexperiments, nouter_loop_samples, ninner_loop_samples,
-        quad_method, max_eval_concurrency=1):
+        quad_method, max_eval_concurrency=1, return_all=False):
     r"""
     Parameters
     ----------
@@ -1472,6 +1473,22 @@ def run_bayesian_batch_deviation_oed(
         The number of threads used to compute OED design. Warning:
         this uses multiprocessing.Pool and seems to provide very little benefit
         and in many cases increases the CPU time.
+
+    return_all : boolean
+        Return intermediate quantities used to compute experimental design.
+        This is primarily intended for testing purposes
+
+    Returns
+    -------
+    oed : BayesianBatchDeviationOED
+        OED object
+
+    oed_results : list
+        Contains the intermediate quantities used to compute experimental
+        design at each design iteration. If not return_all then it is a list of
+        None. If return_all then for each iteration entry is another list
+        containing intermediate quantities for each design candidate.
+
     """
 
     # Define OED options
@@ -1506,7 +1523,7 @@ def run_bayesian_batch_deviation_oed(
 
     results = []
     for step in range(npre_collected_design_indices, nexperiments):
-        results_step = oed.update_design(True)[2]
+        results_step = oed.update_design(return_all)[2]
         results.append(results_step)
 
     return oed, results
@@ -1551,3 +1568,16 @@ def get_deviation_fun(name, opts={}):
 
     fun = partial(deviation_funs[name], **opts)
     return fun
+
+
+def extract_independent_noise_cov(cov, indices):
+    """
+    When computing laplace approximations we need a covariance matrix that
+    treats each observation independent even when indices are the same,
+    that is we have two or more observations for the same observation matrix
+    """
+    nindices = len(indices)
+    if np.unique(indices).shape[0] == nindices:
+        return cov[np.ix_(indices, indices)]
+    new_cov = np.diag(np.diag(cov)[indices])
+    return new_cov

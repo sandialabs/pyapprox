@@ -445,7 +445,6 @@ def chi_squared_cvar(k, quantile):
 
 
 def gaussian_cvar(mu, sigma, quantile):
-    print(mu, sigma)
     val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
     # variable = stats.norm(mu, sigma)
     # VaR = variable.ppf(quantile)

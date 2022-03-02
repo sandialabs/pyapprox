@@ -29,7 +29,7 @@ class PriorConditionedHessianMatVecOperator(object):
 
         transpose : boolean (default=True)
             The prior-conditioned Hessian is Symmetric so transpose does
-            not matter. But randomized svd  assumes operator has a function 
+            not matter. But randomized svd  assumes operator has a function
             apply(x, transpose)
 
         Returns
@@ -391,8 +391,8 @@ def push_forward_gaussian_though_linear_model(A, b, mean, covariance):
 class MisfitHessianVecOperator(object):
     r"""
     Operator which computes the Hessian vector product. The Hessian
-    is the Hessian of a misfit function and if not available 
-    the action of the Hessian is computed using finite differences of 
+    is the Hessian of a misfit function and if not available
+    the action of the Hessian is computed using finite differences of
     gradients of the misfit of from function evaluations.
     """
 
@@ -412,7 +412,7 @@ class MisfitHessianVecOperator(object):
 
         fd_eps : float (default=2*mach_eps)
             The finite difference step size. If not None
-            Then action of hessian will be computed with finite 
+            Then action of hessian will be computed with finite
             difference even if model has a hessian attribute
         """
         self.model = model
@@ -462,7 +462,7 @@ class MisfitHessianVecOperator(object):
 
         transpose : boolean
             Hessian is symmetric so transpose is a needless parameter
-            But randomized svd  assumes operator has a function 
+            But randomized svd  assumes operator has a function
             apply(x, transpose)
 
         Returns
@@ -494,7 +494,7 @@ def directional_derivatives(function, sample, value_at_sample, vectors, fd_eps,
                             normalize_vectors=False,
                             use_central_finite_difference=False):
     r"""
-    Compute the first-order forward difference directional derivative of a 
+    Compute the first-order forward difference directional derivative of a
     vector valued function.
 
     Parameters
@@ -580,7 +580,7 @@ def sample_from_laplace_posterior(laplace_mean, laplace_covariance_sqrt,
        The number of random variables
 
     num_samples : integer
-       The desired number of posterior samples 
+       The desired number of posterior samples
 
     weights : vector (num_dims) (default=None)
        weights defining a weighted inner product
@@ -627,29 +627,33 @@ def generate_and_save_laplace_posterior(
 
     if os.path.exists(svd_history_filename):
         raise Exception(
-            'File %s already exists. Exiting so as not to overwrite' % svd_history_filename)
+            'File %s already exists. Exiting so as not to overwrite' %
+            svd_history_filename)
     if os.path.exists(Lpost_op_filename):
         raise Exception(
-            'File %s already exists. Exiting so as not to overwrite' % Lpost_op_filename)
+            'File %s already exists. Exiting so as not to overwrite' %
+            Lpost_op_filename)
 
     sample = misfit_model.map_point()
     misfit_hessian_operator = MisfitHessianVecOperator(
         misfit_model, sample, fd_eps=fd_eps)
     standard_svd_opts = {
-        'num_singular_values': num_singular_values, 'num_extra_samples': num_extra_svd_samples}
+        'num_singular_values': num_singular_values,
+        'num_extra_samples': num_extra_svd_samples}
     svd_opts = {'single_pass': True, 'standard_opts': standard_svd_opts,
                 'history_filename': svd_history_filename}
     L_post_op = get_laplace_covariance_sqrt_operator(
         prior.sqrt_covariance_operator, misfit_hessian_operator,
         svd_opts, weights=None, min_singular_value=0.0)
-    posterior = MultivariateGaussian(L_post_op, misfit_model.map_point())
+    # posterior = MultivariateGaussian(L_post_op, misfit_model.map_point())
 
     L_post_op.save(Lpost_op_filename)
     return L_post_op
 
 
 def generate_and_save_pointwise_variance(
-        prior, L_post_op, prior_variance_filename='prior_pointwise-variance.npz',
+        prior, L_post_op,
+        prior_variance_filename='prior_pointwise-variance.npz',
         posterior_variance_filename='posterior_pointwise-variance.npz'):
     if not os.path.exists(prior_variance_filename):
         posterior_pointwise_variance, prior_pointwise_variance =\

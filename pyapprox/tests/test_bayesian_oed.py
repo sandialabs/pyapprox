@@ -14,7 +14,7 @@ from pyapprox.bayesian_oed import (
     oed_conditional_value_at_risk_deviation, get_oed_inner_quadrature_rule,
     get_posterior_2d_interpolant_from_oed_data, oed_entropic_deviation,
     oed_average_prediction_deviation, run_bayesian_batch_deviation_oed,
-    get_deviation_fun
+    get_deviation_fun, extract_independent_noise_cov
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -68,7 +68,8 @@ def setup_linear_gaussian_model_inference(prior_variable, noise_std, obs_mat):
 def linear_gaussian_prediction_deviation_based_oed(
         design_candidates, ndesign, prior_mean, prior_cov,
         noise_cov, obs_mat, pred_mat, risk_fun,
-        pre_collected_design_indices=[], nonlinear=False, quantile=None):
+        pre_collected_design_indices=[], nonlinear=False, quantile=None,
+        round_decimals=16):
     """
     Parameters
     ----------
@@ -109,6 +110,13 @@ def linear_gaussian_prediction_deviation_based_oed(
         statistic summarizing the variability at each prediction point
         If None then the statistic is standard deviation
 
+    round_decimals : integer
+        The number of decimal places to round utility_vals to when choosing
+        the optimal design. This can be useful when comparing with
+        numerical solutions where 2 designs are equivalent analytically
+        but numerically there are slight differences that causes design to be
+        different
+
     Returns
     -------
     collected_design_indices : np.ndarray (nobs)
@@ -144,8 +152,8 @@ def linear_gaussian_prediction_deviation_based_oed(
             idx = np.hstack((collected_indices, [ii])).astype(int)
             obs_ii = obs[idx]
             omat = obs_mat[idx, :]
-            nmat_inv = noise_cov_inv[np.ix_(idx, idx)]
-            nmat = noise_cov[np.ix_(idx, idx)]
+            nmat_inv = extract_independent_noise_cov(noise_cov_inv, idx)
+            nmat = extract_independent_noise_cov(noise_cov, idx)
             exact_post_cov = laplace_posterior_approximation_for_linear_models(
                 omat, prior_mean, prior_cov_inv, nmat_inv, obs_ii)[1]
             pointwise_post_variance = np.diag(
@@ -180,11 +188,14 @@ def linear_gaussian_prediction_deviation_based_oed(
                     pointwise_post_stat = gaussian_cvar(
                         0, pointwise_post_variance, quantile)
             exact_stat_risk = risk_fun(pointwise_post_stat)
-            data.append([pointwise_post_stat, -exact_stat_risk])
+            utility_val = np.round(-exact_stat_risk, round_decimals)
+            data.append({"expected_deviations": pointwise_post_stat,
+                         "utility_val": utility_val})
         data_history.append(data)
-        # round to 13 digits to remove numerical noise
+        # round digits to remove numerical noise
+        # print([d["utility_val"] for d in data_history[-1]])
         collected_indices.append(
-            np.argmax(np.round([d[1] for d in data_history[-1]], 13)))
+            np.argmax([d["utility_val"] for d in data_history[-1]]))
     return collected_indices, data_history
 
 
@@ -192,11 +203,14 @@ def conditional_posterior_moments_gaussian_linear_model(
         obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx):
     assert xx.shape[1] == 1
     nvars = obs_mat.shape[1]
-    obs = obs_mat[idx, :].dot(xx[:nvars, :])+xx[nvars:, :][idx, :]
+    obs = obs_mat[idx, :].dot(xx[:nvars, :])
+    # need to add noise here instead of a priori so that if
+    # idx has unique elements the observational noises are still independent
+    obs += np.random.normal(0, 1, obs.shape)
     mu_g, sigma_g_sq = \
         laplace_posterior_approximation_for_linear_models(
-            obs_mat[idx, :],
-            prior_mean, prior_cov_inv, noise_cov_inv[np.ix_(idx, idx)], obs)
+            obs_mat[idx, :], prior_mean, prior_cov_inv,
+            extract_independent_noise_cov(noise_cov_inv, idx), obs)
     return mu_g, sigma_g_sq
 
 
@@ -257,19 +271,23 @@ class TestBayesianOED(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    def check_loglike_fun(self, noise_std, active_indices):
-        nvars = 1
+    def check_loglike_fun(self, noise_std, active_indices, design=None,
+                          degree=1):
+
+        nvars = degree+1
+        if design is None:
+            design = np.linspace(-1, 1, 4)[None, :]
+
+        obs_matrix = design.T**(np.arange(degree+1)[None, :])
 
         def fun(design, samples):
             assert design.ndim == 2
             assert samples.ndim == 2
-            Amat = design.T
-            return Amat.dot(samples).T
+            return obs_matrix.dot(samples).T
 
         prior_mean = np.zeros((nvars, 1))
         prior_cov = np.eye(nvars)
 
-        design = np.linspace(-1, 1, 4)[None, :]
         true_sample = np.ones((nvars, 1))*0.4
         obs = fun(design, true_sample)
 
@@ -280,7 +298,6 @@ class TestBayesianOED(unittest.TestCase):
             obs += np.random.normal(0, 1, obs.shape)*noise_std
 
         noise_cov_inv = np.eye(obs.shape[1])/(noise_std**2)
-        obs_matrix = design.T
 
         if active_indices is None:
             exact_post_mean, exact_post_cov = \
@@ -292,34 +309,44 @@ class TestBayesianOED(unittest.TestCase):
                 laplace_posterior_approximation_for_linear_models(
                     obs_matrix[active_indices, :], prior_mean,
                     np.linalg.inv(prior_cov),
-                    noise_cov_inv[np.ix_(active_indices, active_indices)],
+                    extract_independent_noise_cov(
+                        noise_cov_inv, active_indices),
                     obs[:, active_indices].T)
 
         n_xx = 100
         lb, ub = stats.norm(0, 1).interval(0.99)
-        xx = np.linspace(lb, ub, n_xx)
-        true_pdf_vals = stats.norm(
-            exact_post_mean[0], np.sqrt(exact_post_cov[0])).pdf(xx)[:, None]
+        xx = cartesian_product([np.linspace(lb, ub, n_xx)]*nvars)
+        true_pdf_vals = stats.multivariate_normal(
+            exact_post_mean[:, 0], cov=exact_post_cov).pdf(xx.T)[:, None]
 
-        prior_pdf = stats.norm(prior_mean[0], np.sqrt(prior_cov[0])).pdf
-        pred_obs = fun(design, xx[None, :])
+        def prior_pdf(x):
+            return np.atleast_1d(stats.multivariate_normal(
+                prior_mean[:, 0], cov=prior_cov).pdf(x.T))[:, None]
+        pred_obs = fun(design, xx)
         lvals = (np.exp(
             gaussian_loglike_fun(obs, pred_obs, noise_std, active_indices)) *
-                 prior_pdf(xx)[:, None])
-        assert lvals.shape == (n_xx, 1)
+                 prior_pdf(xx))
+        assert lvals.shape == (xx.shape[1], 1)
 
-        xx_gauss, ww_gauss = gauss_hermite_pts_wts_1D(300)
-        pred_obs = fun(design, xx_gauss[None, :])
-        evidence = np.exp(
-            gaussian_loglike_fun(
-                obs, pred_obs, noise_std, active_indices)[:, 0]).dot(ww_gauss)
+        xx_gauss, ww_gauss = gauss_hermite_pts_wts_1D(400)
+        xx_gauss = cartesian_product([xx_gauss]*nvars)
+        ww_gauss = outer_product([ww_gauss]*nvars)
+        pred_obs = fun(design, xx_gauss)
+        loglike_vals = gaussian_loglike_fun(
+            obs, pred_obs, noise_std, active_indices)[:, 0]
+        evidence = np.exp(loglike_vals).dot(ww_gauss)
         post_pdf_vals = lvals/evidence
+
+        post_cov = np.cov(
+            xx_gauss, aweights=ww_gauss*np.exp(loglike_vals), ddof=0)
+        # print((post_cov, exact_post_cov))
+        assert np.allclose(post_cov, exact_post_cov)
 
         gauss_evidence = laplace_evidence(
             lambda x: np.exp(gaussian_loglike_fun(
                 obs, fun(design, x), noise_std, active_indices)[:, 0]),
             prior_pdf, exact_post_cov, exact_post_mean)
-        print(evidence, gauss_evidence)
+        # print(evidence, gauss_evidence)
         assert np.allclose(evidence, gauss_evidence)
 
         # accuracy depends on quadrature rule and size of noise
@@ -348,6 +375,11 @@ class TestBayesianOED(unittest.TestCase):
         np.random.seed(1)
         self.check_loglike_fun(
             np.array([[0.25, 0.3, 0.35, 0.4]]).T, active_indices)
+        np.random.seed(1)
+        # repeated observations at the same design location
+        design = np.array([[-1, -1]])
+        self.check_loglike_fun(
+            np.array([[0.25, 0.25]]).T, [0, 0], design)
 
     def check_gaussian_loglike_fun_3d(self, noise_std, active_indices):
         nvars = 1
@@ -494,7 +526,8 @@ class TestBayesianOED(unittest.TestCase):
             exact_post_mean, exact_post_cov = \
                 laplace_posterior_approximation_for_linear_models(
                     Amat[idx, :], prior_mean, prior_cov_inv,
-                    noise_cov_inv[np.ix_(idx, idx)], obs_ii.T)
+                    extract_independent_noise_cov(noise_cov_inv, idx),
+                    obs_ii.T)
 
             kl_div = gaussian_kl_divergence(
                 exact_post_mean, exact_post_cov, prior_mean, prior_cov)
@@ -557,7 +590,7 @@ class TestBayesianOED(unittest.TestCase):
                     Amat = new_design.T
                     d_utility_vals[kk] = d_optimal_utility(Amat, noise_std)
 
-            utility_vals, selected_indices = oed.update_design()
+            utility_vals, selected_indices = oed.update_design()[:2]
             # ignore entries of previously collected data
             II = np.where(d_utility_vals > 0)[0]
             print(d_utility_vals[II])
@@ -617,7 +650,6 @@ class TestBayesianOED(unittest.TestCase):
             # use precomputed samples so to avoid cost of regenerating
             assert n == x_quad.shape[1]
             return x_quad, w_quad
-        print(x_quad.shape)
 
         generate_inner_prior_samples = generate_inner_prior_samples_gauss
 
@@ -633,7 +665,7 @@ class TestBayesianOED(unittest.TestCase):
         oed.set_collected_design_indices(init_design_indices)
 
         for ii in range(len(init_design_indices), ndesign):
-            utility_vals, selected_indices = oed.update_design(False)
+            utility_vals, selected_indices = oed.update_design(False)[:2]
 
         prior_mean = prior_variable.get_statistics("mean")
         prior_cov = np.diag(prior_variable.get_statistics("var")[:, 0])
@@ -660,7 +692,8 @@ class TestBayesianOED(unittest.TestCase):
                 exact_post_mean, exact_post_cov = \
                     laplace_posterior_approximation_for_linear_models(
                         obs_matrix[idx, :], prior_mean, prior_cov_inv,
-                        noise_cov_inv[np.ix_(idx, idx)], obs_ii.T)
+                        extract_independent_noise_cov(noise_cov_inv, idx),
+                        obs_ii.T)
                 pointwise_post_variance = np.diag(
                     pred_matrix.dot(exact_post_cov.dot(pred_matrix.T))
                 )[:, None]
@@ -754,7 +787,7 @@ class TestBayesianOED(unittest.TestCase):
         # Because of Monte Carlo error set step tols individually
         # It is too expensive to up the number of outer_loop samples to
         # reduce errors
-        step_tols = [7.3e-3, 6.5e-2, 3.3e-2, 1.6e-1]
+        step_tols = [7.3e-3, 6.5e-2, 7.5e-2, 1.7e-1]
 
         for step in range(len(init_design_indices), ndesign):
             current_design = design_candidates[:, oed.collected_design_indices]
@@ -831,7 +864,7 @@ class TestBayesianOED(unittest.TestCase):
             oed_copy = copy.deepcopy(oed)
 
             # Update the design
-            utility_vals, selected_indices = oed.update_design()
+            utility_vals, selected_indices = oed.update_design()[:2]
             new_obs = oed.obs_process(selected_indices)
             oed.update_observations(new_obs)
             utility = utility_vals[selected_indices]
@@ -934,7 +967,7 @@ class TestBayesianOED(unittest.TestCase):
                 oed.outer_loop_prior_samples.T)/post_var_prev.pdf(
                     oed.outer_loop_prior_samples.T)/oed.nouter_loop_samples
             laplace_utility = np.sum(exact_kl_divs*post_weights)
-            # print('u', (utility-laplace_utility)/laplace_utility, step)
+            # print('u', (utility-laplace_utility)/laplace_utility, step, step_tols[step-1])
             assert np.allclose(
                 utility, laplace_utility, rtol=step_tols[step-1])
 
@@ -1016,11 +1049,12 @@ class TestBayesianOED(unittest.TestCase):
         oed_econ.set_collected_design_indices(init_design_indices)
 
         for step in range(len(init_design_indices), ndesign):
-            utility_vals, selected_indices = oed.update_design()
+            utility_vals, selected_indices = oed.update_design()[:2]
             new_obs = oed.obs_process(selected_indices)
             oed.update_observations(new_obs)
 
-            econ_utility_vals, econ_selected_indices = oed_econ.update_design()
+            econ_utility_vals, econ_selected_indices = \
+                oed_econ.update_design()[:2]
             assert np.allclose(econ_utility_vals, utility_vals)
             assert np.allclose(econ_selected_indices, selected_indices)
             # use same data as non econ version do not call model
@@ -1164,7 +1198,7 @@ class TestBayesianOED(unittest.TestCase):
             oed_copy = copy.deepcopy(oed)
 
             # Update the design
-            utility_vals, selected_indices = oed.update_design()
+            utility_vals, selected_indices = oed.update_design()[:2]
 
             results = oed_copy.compute_expected_utility(
                 oed_copy.collected_design_indices, selected_indices, True)
@@ -1287,7 +1321,7 @@ class TestBayesianOED(unittest.TestCase):
         oed.set_collected_design_indices(init_design_indices)
 
         for ii in range(1, ndesign):
-            utility_vals, selected_indices = oed.update_design()
+            utility_vals, selected_indices = oed.update_design()[:2]
 
         nn, outer_loop_idx = 2, 0
         fun = get_posterior_2d_interpolant_from_oed_data(
@@ -1350,7 +1384,7 @@ class TestBayesianOED(unittest.TestCase):
     def check_analytical_gaussian_prediction_deviation_based_oed(
             self, nonlinear, quantile, rtol):
         np.random.seed(1)
-        ndesign = 3
+        ndesign = 2  # 3
         degree = 2
         ncandidates = 11
         noise_std = 1
@@ -1388,11 +1422,12 @@ class TestBayesianOED(unittest.TestCase):
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, risk_fun,
                 pre_collected_design_indices, nonlinear, quantile)
+        # print(collected_indices)
 
         random_samples = prior_variable.rvs(nsamples)
         noise_chol_factor = np.linalg.cholesky(noise_cov)
-        noise = noise_chol_factor.dot(
-            np.random.normal(0, 1, (obs_mat.shape[0], nsamples)))
+        # noise = noise_chol_factor.dot(
+        #     np.random.normal(0, 1, (obs_mat.shape[0], nsamples)))
 
         if not nonlinear:
             stat_fun = partial(
@@ -1403,33 +1438,39 @@ class TestBayesianOED(unittest.TestCase):
                 conditional_lognormal_stat, quantile, obs_mat, prior_mean,
                 prior_cov_inv, noise_cov_inv, pred_mat)
 
-        xx = np.vstack((random_samples, noise))
+        xx = random_samples
         metrics = []
         for ii in range(nsamples):
             metrics.append(stat_fun(collected_indices, xx[:, ii:ii+1])[0, 0])
+
         metrics = np.array(metrics)
-        print(metrics.mean(axis=0), data[-1][collected_indices[-1]][1])
-        assert np.allclose(metrics.mean(axis=0),
-                           -data[-1][collected_indices[-1]][1], rtol=rtol)
+        # print(metrics.mean(axis=0),
+        #       data[-1][collected_indices[-1]]['utility_val'])
+        assert np.allclose(
+            metrics.mean(axis=0),
+            -data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
 
     def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-            False, None, 1e-2)
+           False, None, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-            True, None, 1e-2)
+            False, 0.8, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-            True, 0.8, 2e-2)
+           True, None, 2e-2)
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+           True, 0.8, 2e-2)
 
     def test_numerical_gaussian_prediction_deviation_based_oed(self):
-        ndesign = 3
+        ndesign = 2
         degree = 2
-        ncandidates = 11
+        ncandidates = 3
         noise_std = 1
-        pre_collected_design_indices = []
+        pre_collected_design_indices = [1]
         nonlinear, deviation_quantile = False, None
         risk_quantile = None
         quad_method = "linear"
-        nouter_loop_samples, ninner_loop_samples_1d = 4, 3 #100, 20
+        nouter_loop_samples, ninner_loop_samples_1d = 2, 20
+        np.random.seed(23)
 
         if deviation_quantile is None:
             deviation_fun = get_deviation_fun("std")
@@ -1468,21 +1509,44 @@ class TestBayesianOED(unittest.TestCase):
          noise_cov_inv) = setup_linear_gaussian_model_inference(
             prior_variable, noise_std, obs_mat)
 
-        collected_indices, data = \
+        collected_indices, analytical_results = \
             linear_gaussian_prediction_deviation_based_oed(
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, risk_fun,
-                pre_collected_design_indices, nonlinear, deviation_quantile)
+                pre_collected_design_indices, nonlinear, deviation_quantile,
+                round_decimals=16)
 
         def obs_fun(x): return obs_mat.dot(x).T
-        def qoi_fun(x): return pred_mat.dot(x).T
+
+        def qoi_fun(x):
+            vals = pred_mat.dot(x).T
+            if nonlinear:
+                return np.exp(vals)
+            return vals
 
         oed, oed_results = run_bayesian_batch_deviation_oed(
             prior_variable, obs_fun, qoi_fun, noise_std,
             design_candidates, pre_collected_design_indices,
             deviation_fun, risk_fun,
             ndesign, nouter_loop_samples, ninner_loop_samples_1d,
-            quad_method)
+            quad_method, return_all=True)
+
+        print(collected_indices, oed.collected_design_indices)
+        for ii in range(len(oed_results)):
+            print(ii)
+            assert collected_indices[ii] == oed.collected_design_indices[ii]
+            anlyt_utility_vals = np.array(
+                [d["utility_val"] for d in analytical_results[ii]])
+            oed_utility_vals = np.array(
+                [d["utility_val"] for d in oed_results[ii]])
+            print(anlyt_utility_vals-oed_utility_vals)
+
+            assert np.allclose(anlyt_utility_vals, oed_utility_vals, atol=3e-5)
+
+        print(analytical_results[-1][collected_indices[-1]]["expected_deviations"])
+        print(oed_results[-1][collected_indices[-1]]["expected_deviations"])
+
+
 
 
 if __name__ == "__main__":
