@@ -186,16 +186,17 @@ def linear_gaussian_prediction_deviation_based_oed(
                     # stats is cvar deviation so mean which is not effected
                     # by mean so just set mean in the following to zero
                     pointwise_post_stat = gaussian_cvar(
-                        0, pointwise_post_variance, quantile)
+                        0, np.sqrt(pointwise_post_variance), quantile)
             exact_stat_risk = risk_fun(pointwise_post_stat)
-            utility_val = np.round(-exact_stat_risk, round_decimals)
+            utility_val = -exact_stat_risk
             data.append({"expected_deviations": pointwise_post_stat,
                          "utility_val": utility_val})
         data_history.append(data)
         # round digits to remove numerical noise
         # print([d["utility_val"] for d in data_history[-1]])
         collected_indices.append(
-            np.argmax([d["utility_val"] for d in data_history[-1]]))
+            np.argmax(np.round([d["utility_val"] for d in data_history[-1]],
+                               round_decimals)))
     return collected_indices, data_history
 
 
@@ -247,7 +248,7 @@ def conditional_gaussian_stat(
     if p is None:
         # return lognormal_variance(mu, sigma_sq)
         return np.sqrt(sigma_sq)[:, None]
-    return (gaussian_cvar(mu, sigma_sq, p)-mu)[:, None]
+    return (gaussian_cvar(mu, np.sqrt(sigma_sq), p)-mu)[:, None]
 
 
 def linear_obs_fun(Amat, samples):
@@ -1259,7 +1260,7 @@ class TestBayesianOED(unittest.TestCase):
         beta = 0.5
         ndesign_vars = 1
         self.help_compare_prediction_based_oed(
-            partial(oed_conditional_value_at_risk_deviation, beta,
+            partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
             True, 301, ndesign_vars, 3e-3)
 
@@ -1270,14 +1271,14 @@ class TestBayesianOED(unittest.TestCase):
         beta = 0.5
         ndesign_vars = 1
         self.help_compare_prediction_based_oed(
-            partial(oed_conditional_value_at_risk_deviation, beta,
+            partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
             False, 10000, ndesign_vars, 3e-2)
 
         beta = 0.5
         ndesign_vars = 2
         self.help_compare_prediction_based_oed(
-            partial(oed_conditional_value_at_risk_deviation, beta,
+            partial(oed_conditional_value_at_risk_deviation, quantile=beta,
                     samples_sorted=True), partial(gauss_cvar_fun, beta),
             False, 10000, ndesign_vars, 7e-2)
 
@@ -1425,7 +1426,7 @@ class TestBayesianOED(unittest.TestCase):
         # print(collected_indices)
 
         random_samples = prior_variable.rvs(nsamples)
-        noise_chol_factor = np.linalg.cholesky(noise_cov)
+        # noise_chol_factor = np.linalg.cholesky(noise_cov)
         # noise = noise_chol_factor.dot(
         #     np.random.normal(0, 1, (obs_mat.shape[0], nsamples)))
 
@@ -1444,8 +1445,8 @@ class TestBayesianOED(unittest.TestCase):
             metrics.append(stat_fun(collected_indices, xx[:, ii:ii+1])[0, 0])
 
         metrics = np.array(metrics)
-        # print(metrics.mean(axis=0),
-        #       data[-1][collected_indices[-1]]['utility_val'])
+        print(metrics.mean(axis=0),
+              data[-1][collected_indices[-1]]['utility_val'])
         assert np.allclose(
             metrics.mean(axis=0),
             -data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
@@ -1460,23 +1461,22 @@ class TestBayesianOED(unittest.TestCase):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
            True, 0.8, 2e-2)
 
-    def test_numerical_gaussian_prediction_deviation_based_oed(self):
+    def check_numerical_gaussian_prediction_deviation_based_oed(
+            self, nonlinear, deviation_quantile, risk_quantile,
+            nouter_loop_samples, ninner_loop_samples_1d, quad_method, tols):
         ndesign = 2
-        degree = 2
+        degree = 1
         ncandidates = 3
         noise_std = 1
         pre_collected_design_indices = [1]
-        nonlinear, deviation_quantile = False, None
         risk_quantile = None
-        quad_method = "linear"
-        nouter_loop_samples, ninner_loop_samples_1d = 2, 20
-        np.random.seed(23)
 
         if deviation_quantile is None:
             deviation_fun = get_deviation_fun("std")
         else:
             deviation_fun = get_deviation_fun(
-                "cvar", {"quantile": deviation_quantile})
+                "cvar", {"quantile": deviation_quantile,
+                         "samples_sorted": False})
 
         def basis_matrix(degree, samples):
             return samples.T**np.arange(degree+1)[None, :]
@@ -1494,59 +1494,75 @@ class TestBayesianOED(unittest.TestCase):
                 conditional_value_at_risk, alpha=risk_quantile, weights=ww,
                 prob=False)
 
-        def risk_fun(x):
-            return oed_average_prediction_deviation(x, weights=ww[:, None])[0]
-
         nrandom_vars = degree+1
         prior_variable = IndependentMultivariateRandomVariable(
-            [stats.norm(0, 1)]*nrandom_vars)
+            [stats.norm(0, .1)]*nrandom_vars)
 
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
         obs_mat = basis_matrix(degree, design_candidates)
         pred_mat = basis_matrix(degree, prediction_candidates)
+        pred_mat = pred_mat[:1, :] # this line is hack for debugging
 
         (prior_mean, prior_cov, noise_cov, prior_cov_inv,
          noise_cov_inv) = setup_linear_gaussian_model_inference(
             prior_variable, noise_std, obs_mat)
 
+        round_decimals = 3
         collected_indices, analytical_results = \
             linear_gaussian_prediction_deviation_based_oed(
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, risk_fun,
                 pre_collected_design_indices, nonlinear, deviation_quantile,
-                round_decimals=16)
+                round_decimals=round_decimals)
 
         def obs_fun(x): return obs_mat.dot(x).T
 
         def qoi_fun(x):
             vals = pred_mat.dot(x).T
-            if nonlinear:
-                return np.exp(vals)
-            return vals
+            if not nonlinear:
+                return vals
+            return np.exp(vals)
 
         oed, oed_results = run_bayesian_batch_deviation_oed(
             prior_variable, obs_fun, qoi_fun, noise_std,
             design_candidates, pre_collected_design_indices,
             deviation_fun, risk_fun,
             ndesign, nouter_loop_samples, ninner_loop_samples_1d,
-            quad_method, return_all=True)
+            quad_method, return_all=True, rounding_decimals=round_decimals)
 
         print(collected_indices, oed.collected_design_indices)
+        for jj in range(ncandidates):
+            print(analytical_results[0][jj]["expected_deviations"][:, 0],
+                  oed_results[0][jj]["expected_deviations"][:, 0])
+
         for ii in range(len(oed_results)):
-            print(ii)
-            assert collected_indices[ii] == oed.collected_design_indices[ii]
+            # print(ii)
+            kk = ii+len(pre_collected_design_indices)
+            assert (collected_indices[kk] == oed.collected_design_indices[kk])
             anlyt_utility_vals = np.array(
                 [d["utility_val"] for d in analytical_results[ii]])
             oed_utility_vals = np.array(
                 [d["utility_val"] for d in oed_results[ii]])
-            print(anlyt_utility_vals-oed_utility_vals)
+            print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
+            print(anlyt_utility_vals, '\n', oed_utility_vals)
+            assert np.allclose(
+                oed_utility_vals, anlyt_utility_vals, atol=tols[0])
 
-            assert np.allclose(anlyt_utility_vals, oed_utility_vals, atol=3e-5)
+        idx = collected_indices[-1]
+        assert np.allclose(
+            analytical_results[-1][idx]["expected_deviations"],
+            oed_results[-1][idx]["expected_deviations"],
+            rtol=tols[1])
 
-        print(analytical_results[-1][collected_indices[-1]]["expected_deviations"])
-        print(oed_results[-1][collected_indices[-1]]["expected_deviations"])
-
-
+    def test_numerical_gaussian_prediction_deviation_based_oed(self):
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            False, None, None, 2, 30, "gauss", [1e-15, 1e-15])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            True, None, None, int(1e4), 40, "gauss", [2e-4, 2e-4])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            False, 0.8, None, int(1e3), 50, "linear", [1e-3, 1e-3])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            True, 0.8, None, int(1e4), 50, "linear", [1e-3, 1e-3])
 
 
 if __name__ == "__main__":

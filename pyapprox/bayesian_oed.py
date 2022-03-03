@@ -573,7 +573,7 @@ def compute_negative_expected_deviation_monte_carlo(
 
 def select_design(design_candidates, collected_design_indices,
                   compute_expected_utility, max_eval_concurrency=1,
-                  return_all=False):
+                  return_all=False, rounding_decimals=16):
     """
     Update an experimental design.
 
@@ -630,7 +630,8 @@ def select_design(design_candidates, collected_design_indices,
             utility_vals[ii] = results[ii]["utility_val"]
             # print(f'Candidate {ii}:', utility_vals[ii])
 
-    selected_index = np.argmax(utility_vals)
+    selected_index = np.argmax(np.round(utility_vals, rounding_decimals))
+    print(np.round(utility_vals, rounding_decimals))
 
     if not return_all:
         results = None
@@ -807,7 +808,7 @@ class BayesianBatchKLOED(object):
     def set_collected_design_indices(self, indices):
         self.collected_design_indices = indices.copy()
 
-    def update_design(self, return_all=False):
+    def update_design(self, return_all=False, rounding_decimals=16):
         if not hasattr(self, "outer_loop_obs"):
             raise ValueError("Must call self.populate before creating designs")
         if self.collected_design_indices is None:
@@ -815,7 +816,7 @@ class BayesianBatchKLOED(object):
         utility_vals, selected_index, results = select_design(
             self.design_candidates, self.collected_design_indices,
             self.compute_expected_utility, self.max_eval_concurrency,
-            return_all)
+            return_all, rounding_decimals)
 
         new_design_indices = np.array([selected_index], dtype=int)
         self.collected_design_indices = np.hstack(
@@ -911,11 +912,11 @@ def oed_standard_deviation(samples, weights):
     """
     variance = oed_variance_deviation(samples, weights)
     # rouding error can cause slightly negative values
-    variance[np.absolute(variance) < np.finfo(float).eps] = 0
+    variance[variance < 0] = 0
     return np.sqrt(variance)
 
 
-def oed_conditional_value_at_risk_deviation(beta, samples, weights,
+def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
                                             samples_sorted=True):
     """
     Compute the conditional value at risk deviation for each outer loop
@@ -934,12 +935,15 @@ def oed_conditional_value_at_risk_deviation(beta, samples, weights,
     deviation_vals : np.ndarray (nouter_loop_samples, nqois)
         The deviation vals
     """
+    assert quantile is not None
+    if samples.shape[2] > 1 and samples_sorted:
+        raise ValueError("samples cannot be sorted if nqoi > 1")
     cvars = np.empty((samples.shape[0], samples.shape[2]))
     for ii in range(samples.shape[0]):
         for qq in range(samples.shape[2]):
             mean = np.sum(samples[ii, :, qq]*weights[ii, :])
             cvars[ii, qq] = (conditional_value_at_risk(
-                samples[ii, :, qq], beta, weights[ii, :], samples_sorted) -
+                samples[ii, :, qq], quantile, weights[ii, :], samples_sorted) -
                              mean)
     return cvars
 
@@ -1396,7 +1400,8 @@ def run_bayesian_batch_deviation_oed(
         prior_variable, obs_fun, qoi_fun, noise_std,
         design_candidates, pre_collected_design_indices, deviation_fun,
         risk_fun, nexperiments, nouter_loop_samples, ninner_loop_samples,
-        quad_method, max_eval_concurrency=1, return_all=False):
+        quad_method, max_eval_concurrency=1, return_all=False,
+        rounding_decimals=16):
     r"""
     Parameters
     ----------
@@ -1478,6 +1483,13 @@ def run_bayesian_batch_deviation_oed(
         Return intermediate quantities used to compute experimental design.
         This is primarily intended for testing purposes
 
+    rounding_decimals : integer
+        The number of decimal places to round utility_vals to when choosing
+        the optimal design. This can be useful when comparing with
+        numerical solutions where 2 designs are equivalent analytically
+        but numerically there are slight differences that causes design to be
+        different
+
     Returns
     -------
     oed : BayesianBatchDeviationOED
@@ -1523,7 +1535,7 @@ def run_bayesian_batch_deviation_oed(
 
     results = []
     for step in range(npre_collected_design_indices, nexperiments):
-        results_step = oed.update_design(return_all)[2]
+        results_step = oed.update_design(return_all, rounding_decimals)[2]
         results.append(results_step)
 
     return oed, results
