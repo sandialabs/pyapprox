@@ -4,7 +4,7 @@ from scipy.spatial.distance import cdist
 from pyapprox.pya_numba import njit
 from functools import partial
 from multiprocessing import Pool
-import copy
+from abc import ABC, abstractmethod
 
 from pyapprox.sys_utilities import trace_error_with_msg
 from pyapprox.risk_measures import conditional_value_at_risk
@@ -238,8 +238,6 @@ def gaussian_loglike_fun_3d_prereduced(
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
-
-
 
 
 def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
@@ -476,7 +474,9 @@ def precompute_expected_deviation_data(
     if not econ:
         inner_loop_pred_qois = qoi_fun(inner_loop_prior_samples)
         if inner_loop_pred_qois.shape[0] != inner_loop_prior_samples.shape[1]:
-            msg = "qoi_fun is not returning an array with the correct shape"
+            msg = "qoi_fun is not returning an array with the correct shape. "
+            msg += f"expected nrows to be {inner_loop_prior_samples.shape[1]}"
+            msg += f" but got {inner_loop_pred_qois.shape[0]}"
             raise ValueError(msg)
     else:
         in_samples = inner_loop_prior_samples[:, :ninner_loop_samples]
@@ -787,7 +787,8 @@ def gaussian_kl_divergence(mean1, sigma1, mean2, sigma2):
     return 0.5*val.item()
 
 
-class BayesianBatchKLOED(object):
+class BayesianBatchOED(ABC):
+    @abstractmethod
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -877,6 +878,46 @@ class BayesianBatchKLOED(object):
                 obs, pred_obs, self.noise_std, active_indices)
         return self.loglike_fun(obs, pred_obs[:, active_indices])
 
+    @abstractmethod
+    def populate(self):
+        pass
+
+    def update_design(self, return_all=False, rounding_decimals=16):
+        if not hasattr(self, "outer_loop_pred_obs"):
+            raise ValueError("Must call self.populate before creating designs")
+        if self.collected_design_indices is None:
+            self.collected_design_indices = np.zeros((0), dtype=int)
+        utility_vals, selected_index, results = select_design(
+            self.design_candidates, self.collected_design_indices,
+            self.compute_expected_utility, self.max_eval_concurrency,
+            return_all, rounding_decimals)
+
+        new_design_indices = np.array([selected_index], dtype=int)
+        self.collected_design_indices = np.hstack(
+            (self.collected_design_indices, new_design_indices)).astype(int)
+        if return_all is False:
+            return utility_vals, new_design_indices, None
+        return utility_vals, new_design_indices, results
+
+    def set_collected_design_indices(self, indices):
+        self.collected_design_indices = indices.copy()
+
+    @abstractmethod
+    def compute_expected_utility(collected_design_indices,
+                                 new_design_indices, return_all=False):
+        pass
+
+
+class BayesianBatchKLOED(BayesianBatchOED):
+    def __init__(self, design_candidates, obs_fun, noise_std,
+                 prior_variable, nouter_loop_samples=1000,
+                 ninner_loop_samples=1000, generate_inner_prior_samples=None,
+                 econ=False, max_eval_concurrency=1):
+        super().__init__(design_candidates, obs_fun, noise_std,
+                         prior_variable, nouter_loop_samples,
+                         ninner_loop_samples, generate_inner_prior_samples,
+                         econ, max_eval_concurrency)
+
     def populate(self):
         (self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
@@ -908,26 +949,6 @@ class BayesianBatchKLOED(object):
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, collected_design_indices,
             new_design_indices, return_all)
-
-    def set_collected_design_indices(self, indices):
-        self.collected_design_indices = indices.copy()
-
-    def update_design(self, return_all=False, rounding_decimals=16):
-        if not hasattr(self, "outer_loop_pred_obs"):
-            raise ValueError("Must call self.populate before creating designs")
-        if self.collected_design_indices is None:
-            self.collected_design_indices = np.zeros((0), dtype=int)
-        utility_vals, selected_index, results = select_design(
-            self.design_candidates, self.collected_design_indices,
-            self.compute_expected_utility, self.max_eval_concurrency,
-            return_all, rounding_decimals)
-
-        new_design_indices = np.array([selected_index], dtype=int)
-        self.collected_design_indices = np.hstack(
-            (self.collected_design_indices, new_design_indices)).astype(int)
-        if return_all is False:
-            return utility_vals, new_design_indices, None
-        return utility_vals, new_design_indices, results
 
 
 def oed_average_prediction_deviation(qoi_vals, weights=None):
@@ -1025,7 +1046,7 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
     """
     Compute the conditional value at risk deviation for each outer loop
     sample using the corresponding inner loop samples
-
+    
     Parameters
     ----------
     samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
@@ -1052,7 +1073,7 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
     return cvars
 
 
-class BayesianBatchDeviationOED(BayesianBatchKLOED):
+class BayesianBatchDeviationOED(BayesianBatchOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -1171,19 +1192,13 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
             self.risk_fun, return_all)
 
 
-class BayesianSequentialKLOED(BayesianBatchKLOED):
+class BayesianSequentialOED(BayesianBatchOED):
     """
     A class to compute sequential optimal experimental designs that collect
     data and use this to inform the choice of subsequent design locations.
     """
-    def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, obs_process, nouter_loop_samples=1000,
-                 ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, max_eval_concurrency=1):
-        super().__init__(design_candidates, obs_fun, noise_std,
-                         prior_variable, nouter_loop_samples,
-                         ninner_loop_samples, generate_inner_prior_samples,
-                         econ=econ, max_eval_concurrency=max_eval_concurrency)
+    @abstractmethod
+    def __init__(self, obs_process):
         self.obs_process = obs_process
         self.collected_obs = None
         self.inner_importance_weights = None
@@ -1203,7 +1218,7 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
         evidence calculation
 
         Always just use the first inner loop sample set to compute evidence.
-        To avoid numerical prevision problems recompute evidence with
+        To avoid numerical precision problems recompute evidence with
         all data as opposed to updating evidence just using new data
         """
         log_like_vals = self.loglike_fun(
@@ -1305,6 +1320,67 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
         new_obs = self.obs_process(self.collected_design_indices)
         self.update_observations(new_obs)
 
+    def update_design(self):
+        return super().update_design()
+
+
+class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
+    def __init__(self, design_candidates, obs_fun, noise_std,
+                 prior_variable, obs_process, nouter_loop_samples=1000,
+                 ninner_loop_samples=1000, generate_inner_prior_samples=None,
+                 econ=False, max_eval_concurrency=1):
+        BayesianBatchKLOED.__init__(
+            self, design_candidates, obs_fun, noise_std, prior_variable,
+            nouter_loop_samples, ninner_loop_samples,
+            generate_inner_prior_samples, econ, max_eval_concurrency)
+        BayesianSequentialOED.__init__(self, obs_process)
+
+    def compute_expected_utility(self, collected_design_indices,
+                                 new_design_indices, return_all=False):
+        """
+        Compute the expected utility. Using the current posterior as the new
+        prior.
+
+        Parameters
+        ----------
+        collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        new_design_indices : np.ndarray (nnew_obs)
+            The indices into the qoi vector associated with new design
+            locations under consideration
+
+        Notes
+        -----
+        Passing None for collected_design_indices will ensure
+        only obs at new_design indices is used to evaluate likelihood
+        the data at collected indices is incoroporated into the
+        inner and outer loop weights
+        """
+        return compute_expected_kl_utility_monte_carlo(
+            self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
+            self.inner_loop_pred_obs, self.inner_loop_weights_up,
+            self.outer_loop_weights_up, None, new_design_indices, return_all)
+
+
+class BayesianSequentialDeviationOED(
+        BayesianSequentialOED, BayesianBatchDeviationOED):
+    def __init__(self, design_candidates, obs_fun, noise_std,
+                 prior_variable, qoi_fun, obs_process,
+                 nouter_loop_samples=1000, ninner_loop_samples=1000,
+                 generate_inner_prior_samples=None, econ=False,
+                 deviation_fun=oed_standard_deviation,
+                 max_eval_concurrency=1,
+                 risk_fun=oed_average_prediction_deviation):
+
+        BayesianBatchDeviationOED.__init__(
+            self, design_candidates, obs_fun, noise_std,
+            prior_variable, qoi_fun, nouter_loop_samples,
+            ninner_loop_samples, generate_inner_prior_samples,
+            econ, deviation_fun, max_eval_concurrency, risk_fun)
+        BayesianSequentialOED.__init__(self, obs_process)
+
     def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
         """
@@ -1330,15 +1406,12 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
         """
         # TODO pass in these weights so do not have to do so much
         # multiplications
-        return compute_expected_kl_utility_monte_carlo(
+        return compute_negative_expected_deviation_monte_carlo(
             self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights_up,
-            self.outer_loop_weights_up,
-            None,  # collected_design_indices,
-            new_design_indices, return_all)
-
-    def update_design(self):
-        return super().update_design()
+            self.outer_loop_weights_up, self.inner_loop_pred_qois,
+            self.deviation_fun, None, new_design_indices,
+            self.risk_fun, return_all)
 
 
 def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,

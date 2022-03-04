@@ -607,18 +607,37 @@ class TestRiskMeasures(unittest.TestCase):
 
     def test_conditional_value_at_risk(self):
         N = 6
-        p = np.ones(N)/N
         X = np.random.normal(0, 1, N)
         # X = np.arange(1,N+1)
         X = np.sort(X)
-        beta = 7/12
+        quantile = 7/12
         i_beta_exact = 3
         VaR_exact = X[i_beta_exact]
         cvar_exact = 1/5*VaR_exact+2/5*(np.sort(X)[i_beta_exact+1:]).sum()
         ecvar, evar = conditional_value_at_risk(
-            X, beta, return_var=True)
+            X, quantile, return_var=True)
         # print(cvar_exact,ecvar)
         assert np.allclose(cvar_exact, ecvar)
+
+        # test importance sampling
+        N = int(1e6)
+        X = np.random.normal(0, 1, N)
+        sigma = 0.5
+        weights = np.ones(N)/N
+        weights *= stats.norm(0, sigma).pdf(X)/stats.norm(0, 1).pdf(X)
+        cvar_exact = gaussian_cvar(0, sigma, quantile)
+        ecvar = conditional_value_at_risk(
+            X, quantile, weights=weights, return_var=False, prob=False)
+        assert np.allclose(cvar_exact, ecvar, rtol=1e-3)
+
+        quantile = 0.8
+        print(stats.uniform(0, 2).ppf(quantile))
+        X = np.random.uniform(0, 2, N)
+        weights = None
+        var = stats.uniform(0, 2).ppf(quantile)
+        ecvar, evar = conditional_value_at_risk(
+            X, quantile, weights=weights, return_var=True, prob=False)
+        assert np.allclose(ecvar, (1-var**2/4)/(1-quantile))
 
     def test_conditional_value_at_risk_using_opitmization_formula(self):
         """

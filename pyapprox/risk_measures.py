@@ -126,7 +126,11 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
     if weights is None:
         weights = np.ones(num_samples)/num_samples
     if prob:
+        factor = 1
         assert np.allclose(weights.sum(), 1)
+    else:
+        factor = weights.sum()
+
     assert weights.ndim == 1 or weights.shape[1] == 1
     assert samples.ndim == 1 or samples.shape[1] == 1
     if not samples_sorted:
@@ -136,7 +140,7 @@ def value_at_risk(samples, alpha, weights=None, samples_sorted=False,
         xx, ww = samples[II], weights[II]
     else:
         xx, ww = samples, weights
-    ecdf = ww.cumsum()
+    ecdf = ww.cumsum()/factor
     index = np.arange(num_samples)[ecdf >= alpha][0]
     VaR = xx[index]
     if not samples_sorted:

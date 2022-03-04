@@ -16,7 +16,7 @@ from pyapprox.bayesian_oed import (
     oed_average_prediction_deviation, run_bayesian_batch_deviation_oed,
     get_deviation_fun, extract_independent_noise_cov,
     sequential_oed_synthetic_observation_process,
-    gaussian_noise_fun
+    gaussian_noise_fun, BayesianSequentialDeviationOED
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -733,23 +733,25 @@ class TestBayesianOED(unittest.TestCase):
         #     plt.axvline(x=design_candidates[0, idx], ls='--', c='k')
         # plt.show()
 
-    def test_sequential_kl_oed(self):
+    def check_sequential_kl_oed(self, oed_type, step_tols):
         """
         Observations collected ARE used to inform subsequent designs
         """
-        nrandom_vars = 1
+        degree = 0
+        nrandom_vars = degree+1
         noise_std = 1
         ndesign = 5
         nouter_loop_samples = int(1e4)
-        ninner_loop_samples = 31
+        ninner_loop_samples_1d = 51
 
         ncandidates = 6
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+        Amat = design_candidates.T**np.arange(degree+1)[None, :]
+        pred_mat = Amat[:1, :]
 
         def obs_fun(samples):
             assert design_candidates.ndim == 2
             assert samples.ndim == 2
-            Amat = design_candidates.T
             return Amat.dot(samples).T
 
         prior_variable = IndependentMultivariateRandomVariable(
@@ -760,23 +762,36 @@ class TestBayesianOED(unittest.TestCase):
             sequential_oed_synthetic_observation_process,
             obs_fun, true_sample, partial(gaussian_noise_fun, noise_std))
 
-        x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples)
+        x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples_1d)
+        x_quad = cartesian_product([x_quad]*nrandom_vars)
+        w_quad = outer_product([w_quad]*nrandom_vars)
+        ninner_loop_samples = x_quad.shape[1]
 
         def generate_inner_prior_samples_gauss(n):
             # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[0]
-            return x_quad[None, :], w_quad
+            assert n == x_quad.shape[1]
+            return x_quad, w_quad
 
         generate_inner_prior_samples = generate_inner_prior_samples_gauss
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
-        oed = BayesianSequentialKLOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            obs_process, nouter_loop_samples, ninner_loop_samples,
-            generate_inner_prior_samples)
+        if oed_type == "KL":
+            oed = BayesianSequentialKLOED(
+                design_candidates, obs_fun, noise_std, prior_variable,
+                obs_process, nouter_loop_samples, ninner_loop_samples,
+                generate_inner_prior_samples)
+        else:
+            risk_fun = oed_average_prediction_deviation
+            def qoi_fun(samples): return pred_mat.dot(samples).T
+            oed = BayesianSequentialDeviationOED(
+                design_candidates, obs_fun, noise_std, prior_variable,
+                qoi_fun, obs_process, nouter_loop_samples, ninner_loop_samples,
+                generate_inner_prior_samples,
+                deviation_fun=oed_variance_deviation, risk_fun=risk_fun)
         oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
+        if init_design_indices.shape[0] > 0:
+            oed.set_collected_design_indices(init_design_indices)
 
         prior_mean = oed.prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -791,7 +806,6 @@ class TestBayesianOED(unittest.TestCase):
         # Because of Monte Carlo error set step tols individually
         # It is too expensive to up the number of outer_loop samples to
         # reduce errors
-        step_tols = [7.3e-3, 6.5e-2, 7.5e-2, 1.7e-1]
         for step in range(len(init_design_indices), ndesign):
             current_design = design_candidates[:, oed.collected_design_indices]
             noise_cov_inv = np.eye(current_design.shape[1])/noise_std**2
@@ -802,18 +816,19 @@ class TestBayesianOED(unittest.TestCase):
                 selected_indices.shape[0])/noise_std**2
             exact_post_mean, exact_post_cov = \
                 laplace_posterior_approximation_for_linear_models(
-                    design_candidates[:, selected_indices].T,
+                    Amat[selected_indices, :],
                     exact_post_mean_prev, np.linalg.inv(exact_post_cov_prev),
                     noise_cov_inv_incr, oed.collected_obs[:, -1:].T)
 
-            # check using current posteior as prior and only using new
+            # check using current posterior as prior and only using new
             # data (above) produces the same posterior as using original prior
             # and all collected data (from_prior approach). The posteriors
             # should be the same but the evidences will be difference.
             # This is tested below
             exact_post_mean_from_prior, exact_post_cov_from_prior = \
                 laplace_posterior_approximation_for_linear_models(
-                    current_design.T, prior_mean, prior_cov_inv, noise_cov_inv,
+                    Amat[oed.collected_design_indices, :],
+                    prior_mean, prior_cov_inv, noise_cov_inv,
                     oed.collected_obs.T)
 
             assert np.allclose(exact_post_mean, exact_post_mean_from_prior)
@@ -838,13 +853,12 @@ class TestBayesianOED(unittest.TestCase):
             # is possible for this low-dimensional example.
             quad_loglike_vals = np.exp(gaussian_loglike_fun(
                 oed.collected_obs[:, -1:],
-                obs_fun(
-                    x_quad[None, :])[:, oed.collected_design_indices[-1:]],
+                obs_fun(x_quad)[:, oed.collected_design_indices[-1:]],
                 noise_std))[:, 0]
-            # we must divide integarnd by initial prior_pdf since it is
+            # we must divide integrand by initial prior_pdf since it is
             # already implicilty included via the quadrature weights
             integrand_vals = quad_loglike_vals*post_var_prev.pdf(
-                x_quad[:, None])/prior_variable.pdf(x_quad[None, :])[:, 0]
+                x_quad.T)/prior_variable.pdf(x_quad)[:, 0]
             quad_evidence = integrand_vals.dot(w_quad)
             # print(quad_evidence, gauss_evidence)
             assert np.allclose(gauss_evidence, quad_evidence), step
@@ -873,15 +887,12 @@ class TestBayesianOED(unittest.TestCase):
             utility = utility_vals[selected_indices]
             # ensure noise realizations are the same for both approaches
             oed_copy.noise_realizations = oed.noise_realizations
-            print(oed.collected_design_indices,'d', oed.noise_realizations.shape)
 
             # Re-compute the evidences that were used to update the design
             # above. This will be used for testing later
             # print('D', oed_copy.evidence)
-            print('####')
             results = oed_copy.compute_expected_utility(
                 oed_copy.collected_design_indices, selected_indices, True)
-            print('$$$')
             evidences = results["evidences"]
 
             # print('Collected plus selected indices',
@@ -894,7 +905,7 @@ class TestBayesianOED(unittest.TestCase):
             # Here we just test the one that was chosen last when
             # design was updated
             exact_evidences = np.empty(nouter_loop_samples)
-            exact_kl_divs = np.empty_like(exact_evidences)
+            exact_stats = np.empty_like(exact_evidences)
             for jj in range(nouter_loop_samples):
                 # Fill obs with those predicted by outer loop sample
                 idx = oed.collected_design_indices
@@ -914,7 +925,7 @@ class TestBayesianOED(unittest.TestCase):
                     selected_indices.shape[0])/noise_std**2
                 exact_post_mean_jj, exact_post_cov_jj = \
                     laplace_posterior_approximation_for_linear_models(
-                        design_candidates[:, selected_indices].T,
+                        Amat[selected_indices, :],
                         exact_post_mean, np.linalg.inv(exact_post_cov),
                         noise_cov_inv_jj, obs_jj[:, -1].T)
 
@@ -930,12 +941,10 @@ class TestBayesianOED(unittest.TestCase):
 
                 # Check quadrature gets the same answer
                 quad_loglike_vals = np.exp(gaussian_loglike_fun(
-                    obs_jj[:, -1:],
-                    obs_fun(
-                        x_quad[None, :])[:, selected_indices],
+                    obs_jj[:, -1:], obs_fun(x_quad)[:, selected_indices],
                     noise_std))[:, 0]
                 integrand_vals = quad_loglike_vals*post_var.pdf(
-                    x_quad[:, None])/prior_variable.pdf(x_quad[None, :])[:, 0]
+                    x_quad.T)/prior_variable.pdf(x_quad)[:, 0]
                 quad_evidence = integrand_vals.dot(w_quad)
                 # print(quad_evidence, gauss_evidence_jj)
                 assert np.allclose(gauss_evidence_jj, quad_evidence), step
@@ -957,12 +966,18 @@ class TestBayesianOED(unittest.TestCase):
                     gauss_evidence_jj_from_prior/gauss_evidence_from_prior,
                     gauss_evidence_jj)
 
-                gauss_kl_div = gaussian_kl_divergence(
-                    exact_post_mean_jj, exact_post_cov_jj,
-                    exact_post_mean, exact_post_cov)
-                exact_kl_divs[jj] = gauss_kl_div
+                if oed_type == "KL":
+                    gauss_kl_div = gaussian_kl_divergence(
+                        exact_post_mean_jj, exact_post_cov_jj,
+                        exact_post_mean, exact_post_cov)
+                    exact_stats[jj] = gauss_kl_div
+                else:
+                    exact_stats[jj] = -pred_mat.dot(
+                        exact_post_cov_jj.dot(pred_mat.T))[0, 0]
+                    assert np.allclose(
+                        results["deviations"][jj], -exact_stats[jj])
 
-            print(step, evidences[:, 0], exact_evidences)
+            print(step, evidences[:, 0]-exact_evidences)
             assert np.allclose(evidences[:, 0], exact_evidences)
 
             # Outer loop samples are from prior. Use importance reweighting
@@ -971,17 +986,28 @@ class TestBayesianOED(unittest.TestCase):
             # where observed data informs current estimate
             # of parameters. Closed loop design (not used here)
             # never collects data and so it always samples from the prior.
+            # post_weights = post_var.pdf(
+            #     oed.outer_loop_prior_samples.T)/post_var_prev.pdf(
+            #         oed.outer_loop_prior_samples.T)/oed.nouter_loop_samples
             post_weights = post_var.pdf(
-                oed.outer_loop_prior_samples.T)/post_var_prev.pdf(
-                    oed.outer_loop_prior_samples.T)/oed.nouter_loop_samples
-            laplace_utility = np.sum(exact_kl_divs*post_weights)
-            # print('u', (utility-laplace_utility)/laplace_utility, step, step_tols[step-1])
+                oed.outer_loop_prior_samples.T)/prior_variable.pdf(
+                    oed.outer_loop_prior_samples)[:, 0]/oed.nouter_loop_samples
+            # accuracy of expected KL depends on nouter_loop_samples because
+            # these sampels are used to compute the kl divergences
+            laplace_utility = np.sum(exact_stats*post_weights)
+            # print(utility, laplace_utility, exact_stats)
+            # print('u', (utility-laplace_utility)/laplace_utility, step,
+            #       step_tols[step-1])
             assert np.allclose(
                 utility, laplace_utility, rtol=step_tols[step-1])
 
             exact_post_mean_prev = exact_post_mean
             exact_post_cov_prev = exact_post_cov
             post_var_prev = post_var
+
+    def test_sequential_kl_oed(self):
+        # self.check_sequential_kl_oed("KL", [1.2e-2, 1.3e-2, 7e-3, 3e-3])
+        self.check_sequential_kl_oed("DEV", [2e-15, 3e-12, 3e-6, 9e-9])
 
     def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
         """
