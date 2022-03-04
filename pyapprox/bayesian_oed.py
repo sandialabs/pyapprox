@@ -4,6 +4,7 @@ from scipy.spatial.distance import cdist
 from pyapprox.pya_numba import njit
 from functools import partial
 from multiprocessing import Pool
+import copy
 
 from pyapprox.sys_utilities import trace_error_with_msg
 from pyapprox.risk_measures import conditional_value_at_risk
@@ -115,11 +116,9 @@ def sq_dists_numba_3d(XX, YY, a, b, active_indices):
     for ii in range(Yshape[0]):
         for jj in range(Yshape[1]):
             ss[ii, jj] = 0.0
-            # for kk in range(Yshape[2]):
-            #     ss[ii, jj] += (XX[ii, 0, kk] - YY[ii, jj, kk])**2
             for kk in range(nactive_indices):
                 ss[ii, jj] += a[active_indices[kk]]*(
-                    XX[ii, 0, active_indices[kk]] -
+                    XX[ii, active_indices[kk]] -
                     YY[ii, jj, active_indices[kk]])**2
             ss[ii, jj] = ss[ii, jj]+b
     return ss
@@ -127,8 +126,7 @@ def sq_dists_numba_3d(XX, YY, a, b, active_indices):
 
 def sq_dists_3d(XX, YY, a=1, b=0, active_indices=None):
     assert XX.shape[0] == YY.shape[0]
-    assert XX.shape[1] == 1
-    assert a.shape[0] == XX.shape[2]
+    assert a.shape[0] == XX.shape[1]
     assert a.shape[0] == YY.shape[2]
     if active_indices is None:
         active_indices = np.arange(YY.shape[2])
@@ -164,6 +162,84 @@ def gaussian_loglike_fun_economial_3D(
     if llike.ndim == 1:
         llike = llike[:, None]
     return llike
+
+
+@njit(cache=True)
+def sq_dists_numba_3d_XX_prereduced(XX, YY, a, b, active_indices):
+    """
+    Compute the scaled l2-norm distance between two sets of samples
+    E.g. for one point
+
+
+    a[ii]*(XX[ii]-YY[ii])+b
+
+
+    Parameters
+    ----------
+    XX : np.ndarray (LL, 1, NN)
+        The first set of samples
+
+    YY : np.ndarray (LL, MM, NN)
+        The second set of samples. The 3D arrays are useful when computing
+        squared distances for multiple sets of samples
+
+    a : float or np.ndarray (NN, 1)
+        scalar multiplying l2 distance
+
+    b : float
+        scalar added to l2 distance
+
+    Returns
+    -------
+    ss : np.ndarray (LL, MM)
+        The scaled distances
+    """
+    Yshape = YY.shape
+    ss = np.empty(Yshape[:2])
+    nactive_indices = active_indices.shape[0]
+    for ii in range(Yshape[0]):
+        for jj in range(Yshape[1]):
+            ss[ii, jj] = 0.0
+            for kk in range(nactive_indices):
+                ss[ii, jj] += a[active_indices[kk]]*(
+                    XX[ii, kk] - YY[ii, jj, active_indices[kk]])**2
+            ss[ii, jj] = ss[ii, jj]+b
+    return ss
+
+
+def sq_dists_3d_prereduced(XX, YY, a=1, b=0, active_indices=None):
+    assert XX.shape[0] == YY.shape[0]
+    assert a.shape[0] == XX.shape[1]
+    assert a.shape[0] == YY.shape[2]
+    if active_indices is None:
+        active_indices = np.arange(YY.shape[2])
+    if np.isscalar(a):
+        a = np.ones(active_indices.shape[0])
+
+    try:
+        from pyapprox.cython.utilities import sq_dists_3d_prereduced_pyx
+        return sq_dists_3d_prereduced_pyx(XX, YY, active_indices, a, b)
+    except(ImportError, ModuleNotFoundError) as e:
+        msg = 'sq_dists_3d_prereduced extension failed'
+        trace_error_with_msg(msg, e)
+
+    return sq_dists_numba_3d_XX_prereduced(XX, YY, a, b, active_indices)
+
+
+def gaussian_loglike_fun_3d_prereduced(
+        obs, pred_obs, noise_stdev, active_indices):
+    if type(noise_stdev) != np.ndarray:
+        noise_stdev = np.ones((pred_obs.shape[-1], 1), dtype=float)*noise_stdev
+
+    tmp1 = -1/(2*noise_stdev[:, 0]**2)
+    tmp2 = 0.5*np.sum(np.log(-tmp1[active_indices]/np.pi))
+    llike = sq_dists_numba_3d_XX_prereduced(
+        obs, pred_obs, tmp1, tmp2, active_indices)
+    if llike.ndim == 1:
+        llike = llike[:, None]
+    return llike
+
+
 
 
 def compute_weighted_sqeuclidian_distance(obs, pred_obs, noise_stdev,
@@ -211,10 +287,10 @@ def gaussian_loglike_fun_economial_2D(
 
 def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
     assert pred_obs.shape[-1] == obs.shape[-1]
-    if obs.ndim == 3 and obs.shape[0] != 1:
+    if pred_obs.ndim == 3 and obs.ndim == 2 and obs.shape[0] != 1:
         return gaussian_loglike_fun_economial_3D(
             obs, pred_obs, noise_stdev, active_indices)
-    elif obs.ndim == 2 and obs.shape != pred_obs.shape:
+    elif obs.ndim == 2 and pred_obs.ndim == 2 and obs.shape != pred_obs.shape:
         return gaussian_loglike_fun_economial_2D(
             obs, pred_obs, noise_stdev, active_indices)
     else:
@@ -223,7 +299,7 @@ def gaussian_loglike_fun(obs, pred_obs, noise_stdev, active_indices=None):
 
 
 def __compute_expected_kl_utility_monte_carlo(
-        outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         active_indices, return_all):
 
@@ -232,12 +308,12 @@ def __compute_expected_kl_utility_monte_carlo(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
 
     outer_log_likelihood_vals = log_likelihood_fun(
-        outer_loop_obs, outer_loop_pred_obs, active_indices)
-    nobs = outer_loop_obs.shape[1]
+        outer_loop_pred_obs, outer_loop_pred_obs, active_indices)
+    nobs = outer_loop_pred_obs.shape[1]
     tmp = inner_loop_pred_obs.reshape(
         nouter_loop_samples, ninner_loop_samples, nobs)
     inner_log_likelihood_vals = log_likelihood_fun(
-        outer_loop_obs[:, None, :], tmp, active_indices)
+        outer_loop_pred_obs, tmp, active_indices)
 
     # above is a faster version of loop below
     # outer_log_likelihood_vals = np.empty((nouter_loop_samples, 1))
@@ -265,7 +341,7 @@ def __compute_expected_kl_utility_monte_carlo(
     return result
 
 
-def precompute_compute_expected_kl_utility_data(
+def precompute_expected_kl_utility_data(
         generate_outer_prior_samples, nouter_loop_samples, obs_fun,
         noise_fun, ninner_loop_samples, generate_inner_prior_samples=None,
         econ=False):
@@ -291,9 +367,7 @@ def precompute_compute_expected_kl_utility_data(
 
         `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
 
-        That returns evaluations of the forward model. Observations are assumed
-        to be :math:`f(z)+\epsilon` where :math:`\epsilon` is additive noise
-        nsamples : np.ndarray (nvars, nsamples)
+        That returns noiseless evaluations of the forward model.
 
     noise_fun : callable
         Function with the signature
@@ -328,11 +402,6 @@ def precompute_compute_expected_kl_utility_data(
 
     Returns
     -------
-    outer_loop_obs : np.ndarray (nsamples, ncandidates)
-        Noisy observations predicted by the numerical model. That is
-        random samples from the density P(Y|\theta,X). These are generated by
-        randomly drawing a sample from the prior and then computing
-        obs_fun(sample)+noise
 
     outer_loop_pred_obs : np.ndarray (nouter_loop_samples, ncandidates)
         The noiseless values of outer_loop_obs with noise removed
@@ -355,8 +424,6 @@ def precompute_compute_expected_kl_utility_data(
     if outer_loop_pred_obs.shape[0] != outer_loop_prior_samples.shape[1]:
         msg = "obs_fun is not returning an array with the correct shape"
         raise ValueError(msg)
-
-    outer_loop_obs = outer_loop_pred_obs + noise_fun(outer_loop_pred_obs)
 
     # generate samples and values for all inner loops
     if generate_inner_prior_samples is None:
@@ -390,18 +457,18 @@ def precompute_compute_expected_kl_utility_data(
         inner_loop_pred_obs = np.tile(
             shared_inner_loop_pred_obs, (nouter_loop_samples, 1))
 
-    return (outer_loop_obs, outer_loop_pred_obs, inner_loop_pred_obs,
+    return (outer_loop_pred_obs, inner_loop_pred_obs,
             inner_loop_weights, outer_loop_prior_samples,
             inner_loop_prior_samples)
 
 
-def precompute_compute_expected_deviation_data(
+def precompute_expected_deviation_data(
         generate_outer_prior_samples, nouter_loop_samples, obs_fun,
         noise_fun, qoi_fun, ninner_loop_samples,
         generate_inner_prior_samples=None, econ=False):
-    (outer_loop_obs, outer_loop_pred_obs, inner_loop_pred_obs,
+    (outer_loop_pred_obs, inner_loop_pred_obs,
      inner_loop_weights, outer_loop_prior_samples,
-     inner_loop_prior_samples) = precompute_compute_expected_kl_utility_data(
+     inner_loop_prior_samples) = precompute_expected_kl_utility_data(
              generate_outer_prior_samples, nouter_loop_samples, obs_fun,
              noise_fun, ninner_loop_samples, generate_inner_prior_samples,
              econ)
@@ -432,13 +499,13 @@ def precompute_compute_expected_deviation_data(
             (nouter_loop_samples, ninner_loop_samples, nqois))
     # assert np.allclose(tmp, inner_loop_pred_qois.reshape(
     #         (nouter_loop_samples, ninner_loop_samples, nqois)))
-    return (outer_loop_obs, outer_loop_pred_obs, inner_loop_pred_obs,
+    return (outer_loop_pred_obs, inner_loop_pred_obs,
             inner_loop_weights, outer_loop_prior_samples,
             inner_loop_prior_samples, inner_loop_pred_qois)
 
 
 def compute_expected_kl_utility_monte_carlo(
-        log_likelihood_fun, outer_loop_obs, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         collected_design_indices, new_design_indices,
         return_all):
@@ -456,12 +523,6 @@ def compute_expected_kl_utility_monte_carlo(
         predictions.
         obs : np.ndarray(nsamples, nobs+nnew_obs)
         pred_obs : np.ndarray(nsamples, nobs+nnew_obs)
-
-    outer_loop_obs : np.ndarray (nsamples, ncandidates)
-        Noisy observations predicted by the numerical model. That is
-        random samples from the density P(Y|\theta,X). These are generated by
-        randomly drawing a sample from the prior and then computing
-        obs_fun(sample)+noise
 
     outer_loop_pred_obs : np.ndarray (nouter_loop_samples, ncandidates)
         The noiseless values of outer_loop_obs with noise removed
@@ -500,13 +561,13 @@ def compute_expected_kl_utility_monte_carlo(
         # incorporated into the inner and outer loop weights
         active_indices = np.asarray(new_design_indices)
     return __compute_expected_kl_utility_monte_carlo(
-        outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         active_indices, return_all)
 
 
 def __compute_negative_expected_deviation_monte_carlo(
-        outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
         return_all):
@@ -517,12 +578,12 @@ def __compute_negative_expected_deviation_monte_carlo(
     ninner_loop_samples = int(
         inner_loop_pred_obs.shape[0]//nouter_loop_samples)
 
-    nobs = outer_loop_obs.shape[1]
+    nobs = outer_loop_pred_obs.shape[1]
     tmp = inner_loop_pred_obs.reshape(
         nouter_loop_samples, ninner_loop_samples, nobs)
-    inner_log_likelihood_vals = log_likelihood_fun(
-        outer_loop_obs[:, None, :], tmp, active_indices)
 
+    inner_log_likelihood_vals = log_likelihood_fun(
+        outer_loop_pred_obs, tmp, active_indices)
     inner_likelihood_vals = np.exp(inner_log_likelihood_vals)
     evidences = np.einsum(
         "ij,ij->i", inner_likelihood_vals, inner_loop_weights)[:, None]
@@ -553,7 +614,7 @@ def __compute_negative_expected_deviation_monte_carlo(
 
 
 def compute_negative_expected_deviation_monte_carlo(
-        log_likelihood_fun, outer_loop_obs, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, collected_design_indices,
         new_design_indices, risk_fun, return_all):
@@ -565,7 +626,7 @@ def compute_negative_expected_deviation_monte_carlo(
         # incorporated into the inner and outer loop weights
         active_indices = np.asarray(new_design_indices, dtype=int)
     return __compute_negative_expected_deviation_monte_carlo(
-        outer_loop_obs, log_likelihood_fun, outer_loop_pred_obs,
+        log_likelihood_fun, outer_loop_pred_obs,
         inner_loop_pred_obs, inner_loop_weights, outer_loop_weights,
         inner_loop_pred_qois, deviation_fun, active_indices, risk_fun,
         return_all)
@@ -631,7 +692,7 @@ def select_design(design_candidates, collected_design_indices,
             # print(f'Candidate {ii}:', utility_vals[ii])
 
     selected_index = np.argmax(np.round(utility_vals, rounding_decimals))
-    print(np.round(utility_vals, rounding_decimals))
+    # print(np.round(utility_vals, rounding_decimals))
 
     if not return_all:
         results = None
@@ -661,9 +722,9 @@ def update_observations(design_candidates, collected_design_indices,
     obs_process : callable
         The true data generation model with the signature
 
-        `obs_process(design_samples) -> np.ndarray (1, ndesign_samples)`
+        `obs_process(design_indices) -> np.ndarray (1, ndesign_indices)`
 
-        where design_samples is np.ndarary (nvars, ndesign_samples)
+        where design_samples is np.ndarary (nvars, ndesign_indices)
 
     collected_obs : np.ndarray (1, nobs)
         The observations at the previously selected design samples
@@ -743,11 +804,11 @@ class BayesianBatchKLOED(object):
         self.econ = econ
 
         self.collected_design_indices = None
-        self.outer_loop_obs = None
         self.outer_loop_pred_obs = None
         self.inner_loop_pred_obs = None
         self.inner_loop_weights = None
         self.outer_loop_prior_samples = None
+        self.noise_realizations = None
         self.max_eval_concurrency = None
 
         self.set_max_eval_concurrency(max_eval_concurrency)
@@ -762,8 +823,27 @@ class BayesianBatchKLOED(object):
             msg += 'OMP_NUM_THREADS=1 python script.py'
             raise Exception(msg)
 
-    def noise_fun(self, values):
-        return np.random.normal(0, self.noise_std, (values.shape))
+    def noise_fun(self, values, active_indices=None):
+        return gaussian_noise_fun(self.noise_std, values, active_indices)
+
+    def reproducible_noise_fun(self, values, active_indices):
+        active_indices = np.atleast_1d(active_indices)
+        assert values.shape[0] == self.nouter_loop_samples
+        nunique_indices = np.unique(
+            active_indices, return_counts=True)[1].max()
+        if self.noise_realizations is None:
+            # make noise the same each time this funciton is called
+            self.noise_realizations = self.noise_fun(values)[:, :, None]
+        if self.noise_realizations.shape[2] < nunique_indices:
+            self.noise_realizations = np.dstack(
+                (self.noise_realizations, self.noise_fun(values)[:, :, None]))
+        counts = np.zeros(values.shape[1], dtype=int)
+        noise = np.empty((values.shape[0], active_indices.shape[0]))
+        for ii in range(active_indices.shape[0]):
+            idx = active_indices[ii]
+            noise[:, ii] = self.noise_realizations[:, idx, counts[idx]]
+            counts[idx] += 1
+        return noise
 
     def generate_prior_samples(self, nsamples):
         return generate_independent_random_samples(
@@ -773,11 +853,35 @@ class BayesianBatchKLOED(object):
         return gaussian_loglike_fun(
             obs, pred_obs, self.noise_std, active_indices)
 
+    def __get_outer_loop_obs(self, noiseless_obs, active_indices):
+        noise = self.reproducible_noise_fun(noiseless_obs, active_indices)
+        return noiseless_obs[:, active_indices] + noise
+
+    def get_outer_loop_obs(self, active_indices):
+        return self.__get_outer_loop_obs(
+            self.outer_loop_pred_obs, active_indices)
+
+    def loglike_fun_from_noiseless_obs(
+            self, noiseless_obs, pred_obs, active_indices):
+        # special indexing with active_indices causes a copy
+        # this is ok for small 2D noiseless_obs array but is too expensive
+        # for 3D pred_obs array so use loglike function that takes reduced
+        # 2D array and full 3D array and applied active_indices to 3D array
+        # internally. This wierdness is causd by the fact that when there
+        # are repeat entries in active_indices we need to generate different
+        # noise realization for the same noiseless obs. This is not possible
+        # with special indexing as it will just copy the same value twice.
+        obs = self.__get_outer_loop_obs(noiseless_obs, active_indices)
+        if pred_obs.ndim == 3:
+            return gaussian_loglike_fun_3d_prereduced(
+                obs, pred_obs, self.noise_std, active_indices)
+        return self.loglike_fun(obs, pred_obs[:, active_indices])
+
     def populate(self):
-        (self.outer_loop_obs, self.outer_loop_pred_obs,
+        (self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
          self.outer_loop_prior_samples, self.inner_loop_prior_samples) = \
-             precompute_compute_expected_kl_utility_data(
+             precompute_expected_kl_utility_data(
                  self.generate_prior_samples, self.nouter_loop_samples,
                  self.obs_fun, self.noise_fun, self.ninner_loop_samples,
                  generate_inner_prior_samples=self.generate_inner_prior_samples,
@@ -800,7 +904,7 @@ class BayesianBatchKLOED(object):
         # computed using
         # the associated outerloop data
         return compute_expected_kl_utility_monte_carlo(
-            self.loglike_fun, self.outer_loop_obs, self.outer_loop_pred_obs,
+            self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, collected_design_indices,
             new_design_indices, return_all)
@@ -809,7 +913,7 @@ class BayesianBatchKLOED(object):
         self.collected_design_indices = indices.copy()
 
     def update_design(self, return_all=False, rounding_decimals=16):
-        if not hasattr(self, "outer_loop_obs"):
+        if not hasattr(self, "outer_loop_pred_obs"):
             raise ValueError("Must call self.populate before creating designs")
         if self.collected_design_indices is None:
             self.collected_design_indices = np.zeros((0), dtype=int)
@@ -981,13 +1085,13 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
         """
         Compute the data needed to initialize the OED algorithm.
         """
-        print("Num iterations",
+        print("nouter_loop_samples * ninner_loop_samples: ",
               self.ninner_loop_samples*self.nouter_loop_samples)
-        (self.outer_loop_obs, self.outer_loop_pred_obs,
+        (self.outer_loop_pred_obs,
          self.inner_loop_pred_obs, self.inner_loop_weights,
          self.outer_loop_prior_samples, self.inner_loop_prior_samples,
          self.inner_loop_pred_qois
-         ) = precompute_compute_expected_deviation_data(
+         ) = precompute_expected_deviation_data(
              self.generate_prior_samples, self.nouter_loop_samples,
              self.obs_fun, self.noise_fun, self.qoi_fun,
              self.ninner_loop_samples,
@@ -1060,7 +1164,7 @@ class BayesianBatchDeviationOED(BayesianBatchKLOED):
         # computed using
         # the associated outerloop data
         return compute_negative_expected_deviation_monte_carlo(
-            self.loglike_fun, self.outer_loop_obs, self.outer_loop_pred_obs,
+            self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights,
             self.outer_loop_weights, self.inner_loop_pred_qois,
             self.deviation_fun, collected_design_indices, new_design_indices,
@@ -1128,7 +1232,7 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
                 self.nouter_loop_samples, self.ninner_loop_samples, nobs)
 
         self.inner_importance_weights = np.exp(self.loglike_fun(
-            self.collected_obs[:, None, :], tmp))/self.evidence_from_prior
+            self.collected_obs, tmp))/self.evidence_from_prior
 
         # # above is a faster version of loop below
 
@@ -1227,7 +1331,7 @@ class BayesianSequentialKLOED(BayesianBatchKLOED):
         # TODO pass in these weights so do not have to do so much
         # multiplications
         return compute_expected_kl_utility_monte_carlo(
-            self.loglike_fun, self.outer_loop_obs, self.outer_loop_pred_obs,
+            self.loglike_fun_from_noiseless_obs, self.outer_loop_pred_obs,
             self.inner_loop_pred_obs, self.inner_loop_weights_up,
             self.outer_loop_weights_up,
             None,  # collected_design_indices,
@@ -1593,3 +1697,72 @@ def extract_independent_noise_cov(cov, indices):
         return cov[np.ix_(indices, indices)]
     new_cov = np.diag(np.diag(cov)[indices])
     return new_cov
+
+
+def sequential_oed_synthetic_observation_process(
+        obs_fun, true_sample, noise_fun, new_design_indices):
+    r"""
+    Use obs_model to generate all observations then downselect. For true
+    observation processes this defeats the purpose of experimental design
+    In these cases a custom obs_model must takes design indices as an
+    argument.
+
+    Parameters
+    ----------
+    obs_fun : callable
+        Function with the signature
+
+        `obs_fun() -> np.ndarray(nsamples, nqoi)`
+
+        That returns the synethic truth for all design candidates.
+
+    true_sample : np.ndaray (nvars, 1)
+        The true sample used to generate the synthetic truth
+
+    new_design_indices : np.ndarray (nnew_obs)
+        The indices into the qoi vector associated with new design locations
+        under consideration
+
+    noise_fun : callable
+        Function with signature
+
+        `noise_fun(values, new_design_indices) -> np.ndarray (values.shape[0], new_design_indices.shape)`
+
+         that returns noise for the new observations. Here
+         values : np.ndarray (1, nobs) and
+         new_design_indices : np.ndarary (nindices) where nindices<=nobs
+    """
+    all_obs = obs_fun(true_sample)
+    noise = noise_fun(all_obs, new_design_indices)
+    obs = all_obs[:, new_design_indices]+noise
+    return obs
+
+
+def gaussian_noise_fun(noise_std, values, active_indices=None):
+    """
+    Generate gaussian possibly heteroscedastic random noise
+
+    Parameters
+    ----------
+    noise_std : float or np.ndarray (nobs)
+        The standard deviation of the noise at each observation
+
+    values : np.ndarray (nsamples, nobs)
+        The observations at variour realizations of the random parameters
+
+    active_indices :np.ndarray (nindices)
+        The indices of the active observations with nindices <= nobs
+
+    Returns
+    -------
+    noise : np.ndarray (nsamples, nindices)
+        The noise at the active observations nindices=nobs if
+        active_indices is None
+    """
+    if active_indices is None:
+        return np.random.normal(0, noise_std, (values.shape))
+    shape = (values.shape[0], active_indices.shape[0])
+    if type(noise_std) != np.ndarray:
+        return np.random.normal(0, noise_std, shape)
+    return np.random.normal(
+        0, noise_std[active_indices], shape)
