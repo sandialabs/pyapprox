@@ -240,29 +240,55 @@ SOFTWARE.\par
 # """
 
 # used when building html version
-mathjax_config = {
-    "TeX": {
-        "Macros": {
-            "V": [r'{\boldsymbol{#1}}', 1],
-            "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
-            "var": [r'{\mathbb{V}\left[#1\right]}', 1],
-            "rv": r'z',
-            "reals": r'\mathbb{R}',
-            "pdf": r'\rho',
-            "rvdom": r'\Gamma',
-            "coloneqq": r'\colon=',
-            "norm": [r'{\lVert #1 \rVert}', 1],
-            "argmax": [r'\operatorname{argmax}'],
-            "argmin": [r'\operatorname{argmin}'],
-            "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
-            "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
-            "ai": r'\alpha',
-            "bi": r'\beta',
-            "dx": [r'\;\mathrm{d}#1', 1],
-            },
-        'extensions': ["AMSmath.js", "AMSsymbols.js"]
-        }
-    }
+# mathjax 2
+# mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+# mathjax2_config = {
+#     "TeX": {
+#         "Macros": {
+#             "V": [r'{\boldsymbol{#1}}', 1],
+#             "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
+#             "var": [r'{\mathbb{V}\left[#1\right]}', 1],
+#             "rv": r'{z}',
+#             "reals": r'\mathbb{R}',
+#             "pdf": r'\rho',
+#             "rvdom": r'\Gamma',
+#             "coloneqq": r'\colon=',
+#             "norm": [r'{\lVert #1 \rVert}', 1],
+#             "argmax": [r'\operatorname{argmax}'],
+#             "argmin": [r'\operatorname{argmin}'],
+#             "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
+#             "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
+#             "ai": r'\alpha',
+#             "bi": r'\beta',
+#             "dx": [r'\;\mathrm{d}#1', 1],
+#             },
+#         'extensions': ["AMSmath.js", "AMSsymbols.js"]
+#         }
+#     }
+# mathjax 3
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax3_config = {
+  "tex": {
+    "macros": {
+      "V": [r'{\boldsymbol{#1}}', 1],
+      "mean": [r'{\mathbb{E}\left[#1\right]}', 1],
+      "var": [r'{\mathbb{V}\left[#1\right]}', 1],
+      "rv": r'{z}',
+      "reals": r'\mathbb{R}',
+      "pdf": r'\rho',
+      "rvdom": r'\Gamma',
+      "coloneqq": r'\colon=',
+      "norm": [r'{\lVert #1 \rVert}', 1],
+      "argmax": [r'\operatorname{argmax}'],
+      "argmin": [r'\operatorname{argmin}'],
+      "covar": [r'\mathbb{C}\text{ov}\left[#1,#2\right]', 2],
+      "corr": [r'\mathbb{C}\text{or}\left[#1,#2\right]', 2],
+      "ai": r'\alpha',
+      "bi": r'\beta',
+      "dx": [r'\;\mathrm{d}#1', 1]
+    },
+  },
+}
 
 # Supress all warnings so they do not appear in the documentation
 warnings.filterwarnings("ignore")
