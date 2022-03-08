@@ -22,9 +22,9 @@ To create a new environment use::
 
     conda env create -f environment.yml
 
-This will create an environment called pyapprox-dev. Activate this environment with::
+This will create an environment called pyapprox-base. Activate this environment with::
 
-    conda activate pyapprox-dev
+    conda activate pyapprox-base
 
 Once the new environment, or an existing environment, has been activated run the following in the PyApprox root directory to install PyApprox::
 

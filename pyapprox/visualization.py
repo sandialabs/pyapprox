@@ -261,6 +261,58 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
     return X, Y, Z
 
 
+def get_meshgrid_function_data_from_variable(
+        function, variable, num_pts_1d, qoi=0,
+        logspace=False, unbounded_alpha=.99):
+    """
+    Generate data from a function in the format needed for plotting.
+    Samples are generated between specified lower and upper bounds
+    and the function is evaluated on the tensor product of the 1d samples.
+
+    Parameters
+    ----------
+    function : callable function
+        The function must accept an np.ndarray of size (2, num_pts_1d**2)
+        and return a np.ndarray of size (num_pts_1d,num_qoi)
+
+    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+        Variable used to determine plotting ranges
+
+    num_pts_1d : integer
+        The number of samples in each dimension. The function is evaluated
+        on the tensor product of the 1d samples
+
+    qoi : integer
+        function returns a np.ndarray of size (num_pts_1d,num_qoi) qoi
+        specifies which column of the array to access.
+
+    unbouned_alpha : float
+        For any unbounded variable set the plot ranges to contain this fraction
+        of the distribution, e.g. 0.99 will contain 99% of the probability
+
+    Returns
+    -------
+    X : np.ndarray of size (num_pts_1d,num_pts_1d)
+        The 1st coordinate of the samples
+
+    Y : np.ndarray of size (num_pts_1d,num_pts_1d)
+        The 2nd coordinate of the samples
+
+    Z : np.ndarray of size (num_pts_1d,num_pts_1d)
+        The function values at each sample
+    """
+    plot_limits = variable.get_statistics("interval", alpha=1).flatten()
+    II = np.where(~np.isfinite(plot_limits))
+    plot_limits[II] = variable.get_statistics(
+        "interval", alpha=unbounded_alpha).flatten()[II]
+    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
+    Z = function(pts)
+    if (Z.ndim == 2):
+        Z = Z[:, qoi]
+    Z = np.reshape(Z, (X.shape[0], X.shape[1]))
+    return X, Y, Z
+
+
 def plot_contours(X, Y, Z, ax, num_contour_levels=10, offset=0,
                   cmap=mpl.cm.coolwarm, zorder=None):
     """

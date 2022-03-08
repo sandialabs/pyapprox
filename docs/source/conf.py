@@ -60,7 +60,6 @@ extensions += ['sphinx_automodapi.automodapi']
 extensions += ['sphinx_gallery.gen_gallery']
 
 example_filenames_in_order = [
-    'plot_setup_model.py',
     'plot_monte_carlo.py',
     'plot_push_forward_based_inference.py',
     'plot_tensor_product_interpolation.py',
@@ -77,8 +76,8 @@ example_filenames_in_order = [
     'plot_gaussian_mfnets.py'
 ]
 
-example_dirs = ['../../tutorials']  # , '../../examples']
-gallery_dirs = ['auto_tutorials']  # , 'auto_examples']
+example_dirs = ['../../tutorials', '../../examples']
+gallery_dirs = ['auto_tutorials', 'auto_examples']
 
 
 installed_pkgs = {pkg.key for pkg in pkg_resources.working_set}
@@ -91,7 +90,7 @@ if 'pyapprox-dev' in installed_pkgs:
     example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
 
 example_filenames_in_order += [
-    'plot_sparse_grid_uq.py', 'plot_design_under_uncertainty.py']
+    'plot_variables.py', 'plot_setup_model.py', 'plot_sparse_grid_uq.py']
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)
@@ -115,7 +114,7 @@ sphinx_gallery_conf = {
     'gallery_dirs': gallery_dirs,
     # 'first_notebook_cell' : "%matplotlib inline",
     'within_subsection_order': ExamplesExplicitOrder,
-    # 'ignore_pattern': r'plot_advection_diffusion_model\.py',
+    'ignore_pattern': r'plot_design_under_uncertainty\.py',
 }
 # If want to specify user latex macrors to jupyter using sphinx-gallery go to
 # /miniconda3/envs/pyapprox/lib/python3.6/site-packages/sphinx_gallery/notebook.py

@@ -38,7 +38,7 @@ print(variable)
 #%%
 #We can draw random samples from variable and evaluate the function using
 nsamples = 10
-samples = pya.generate_independent_random_samples(variable, nsamples)
+samples = variable.rvs(nsamples)
 values = benchmark.fun(samples)
 
 #%%
@@ -165,7 +165,7 @@ worktracking_fun_ensemble = WorkTrackingModel(
 
 # create more samples to notice improvement in wall time
 nsamples = 10
-samples = pya.generate_independent_random_samples(variable, nsamples)
+samples = variable.rvs(nsamples)
 fun_ids = np.ones(nsamples)
 fun_ids[:nsamples//2] = 0
 ensemble_samples = np.vstack([samples, fun_ids])
