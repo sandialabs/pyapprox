@@ -4,7 +4,7 @@ User Reference Guide
 :mod:`pyapprox` provides functions for surrogate modeling, sensitivity analysis, quadrature, inference, optimal experimental design and multi-fidelity modeling
 
 Surrogate modeling
------------------
+------------------
 Supervised learning 
 ^^^^^^^^^^^^^^^^^^^
 The :func:`pyapprox.approximate.approximate` function produces 
@@ -16,7 +16,7 @@ The `approximate` function supports the following methods
   - 'gaussian_process' See :func:`pyapprox.approximate.approximate_gaussian_process`
 
 Supervised active learning
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 The :func:`pyapprox.approximate.adaptive_approximate` function produces adaptive
 response surface approximations of a function ``fun``, As the approximation is built the function being approximated is sampled at locations that greedily minimize an estimate of error.
 

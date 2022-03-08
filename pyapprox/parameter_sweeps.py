@@ -2,6 +2,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
+from pyapprox.variables import get_truncated_ranges
 from pyapprox.variable_transformations import map_hypercube_samples
 from pyapprox.density import map_from_canonical_gaussian
 
@@ -293,7 +294,6 @@ def plot_parameter_sweep_single_qoi(active_samples, vals, num_sweeps,
         axs.plot(y, vals[i*num_samples_per_sweep:(i+1)*num_samples_per_sweep],
                  markers[i], lw=2, label=sweep_label+r' $%d$' % i,
                  color=colors[i], alpha=alpha)
-    print(label_opts)
     try:
         if 'title' in label_opts:
             axs.title(label_opts['title'])
@@ -316,7 +316,6 @@ def plot_parameter_sweeps(active_samples, vals, fig_basename=None,
                           qoi_indices=None, show=False, axs=None,
                           axes_label_opts=None, markers='o', colors=None,
                           alpha=1):
-    print(active_samples.shape, vals.shape)
     num_sweeps, num_samples_per_sweep = active_samples.shape
     assert vals.shape[0] == num_sweeps*num_samples_per_sweep
     if qoi_indices is None:
@@ -418,3 +417,51 @@ def generate_parameter_sweeps_and_plot(
     return plot_parameter_sweeps(
         active_samples, vals, figbasename, qoi_indices,
         show, axes_label_opts=axes_label_opts, axs=axs)
+
+
+def generate_parameter_sweeps_and_plot_from_variable(
+        model, variable, filename=None, num_samples_per_sweep=50,
+        num_sweeps=2, qoi_indices=None, show=False,
+        axes_label_opts=None, axs=None):
+    """
+    Plot parameter sweeps of a function.
+
+    Parameters
+    ----------
+    model : callable
+        Function with the signature
+       
+        `model(samples) -> np.ndarray(nsamples, nqoi)`
+
+        where samples : np.ndarray (nvars, nsamples)
+
+    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+        Random variable
+
+    filename : string
+        Name of file to store parameter sweeps. If None no file is written
+
+    num_samples_per_sweep : interger
+        The number of samples in a parameter sweep
+
+    num_samples : integer
+        The number of parameter sweeps
+
+    qoi_indices : iterable
+        The column indices in the values outputed by model which will be
+        plotted. A separate subplot will be used for each QoI
+
+    show : boolean
+        True - plt.show() is called
+
+    axes_label_opts : list of dict
+        Dictionary specifying plt kwargs for each axes
+
+    axs : list of :class:`matplotlib.pyplot.axes`
+        If provided will be used to plot each QoI
+        Otherwise axes will be created
+    """
+    opts = {"ranges": get_truncated_ranges(variable)}
+    return generate_parameter_sweeps_and_plot(
+        model, opts, filename, "hypercube", num_samples_per_sweep,
+        num_sweeps, qoi_indices, show, None, axes_label_opts, axs)

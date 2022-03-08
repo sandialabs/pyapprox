@@ -42,6 +42,11 @@ samples = variable.rvs(nsamples)
 values = benchmark.fun(samples)
 
 #%%
+#Summary statistics of the samples and values can be printed using
+from pyapprox import print_statistics
+print_statistics(samples, values)
+
+#%%
 #User defined functions
 #^^^^^^^^^^^^^^^^^^^^^^
 #PyApprox can be used with pretty much any function provided an appropriate interface is defined. Here will show how to setup a simple function.

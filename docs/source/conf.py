@@ -90,7 +90,8 @@ if 'pyapprox-dev' in installed_pkgs:
     example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
 
 example_filenames_in_order += [
-    'plot_variables.py', 'plot_setup_model.py', 'plot_sparse_grid_uq.py']
+    'plot_variables.py', 'plot_setup_model.py', 'plot_parameter_sweeps.py',
+    'plot_sparse_grid_uq.py']
 
 # print(installed_pkgs)
 # print(example_filenames_in_order)
@@ -291,3 +292,18 @@ mathjax3_config = {
 
 # Supress all warnings so they do not appear in the documentation
 warnings.filterwarnings("ignore")
+
+
+#-----
+# only document locally defined functios and classes and not imports
+def patch_automodapi(app):
+    """Monkey-patch the automodapi extension to exclude imported members"""
+    from sphinx_automodapi import automodsumm
+    from sphinx_automodapi.utils import find_mod_objs
+    automodsumm.find_mod_objs = lambda *args: find_mod_objs(
+        args[0], onlylocals=True)
+
+
+def setup(app):
+    app.connect("builder-inited", patch_automodapi)
+#------

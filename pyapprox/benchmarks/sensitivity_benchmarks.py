@@ -245,6 +245,7 @@ def sobol_g_function(coefficients, samples):
     """
     nvars, nsamples = samples.shape
     assert coefficients.shape[0] == nvars
+    print(samples.min(axis=1), samples.max(axis=1))
     vals = np.prod((np.absolute(4*samples-2)+coefficients[:, np.newaxis]) /
                    (1+coefficients[:, np.newaxis]), axis=0)[:, np.newaxis]
     assert vals.shape[0] == nsamples

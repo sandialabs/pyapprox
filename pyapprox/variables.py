@@ -7,6 +7,9 @@ from functools import partial
 
 
 def is_continuous_variable(rv):
+    """
+    Is variable continuous
+    """
     return bool((rv.dist.name in _continuous_distns._distn_names) or
                 rv.dist.name == "continuous_rv_sample" or
                 rv.dist.name == "continuous_monomial" or
@@ -15,6 +18,9 @@ def is_continuous_variable(rv):
 
 
 def is_bounded_continuous_variable(rv):
+    """
+    Is variable bounded and continuous
+    """
     interval = rv.interval(1)
     return bool(is_continuous_variable(rv) and
                 rv.dist.name != "continuous_rv_sample"
@@ -22,6 +28,9 @@ def is_bounded_continuous_variable(rv):
 
 
 def is_bounded_discrete_variable(rv):
+    """
+    Is variable bounded and discrete
+    """
     interval = rv.interval(1)
     return bool(((rv.dist.name in _discrete_distns._distn_names) or
                 (rv.dist.name == "float_rv_discrete") or
@@ -30,6 +39,15 @@ def is_bounded_discrete_variable(rv):
 
 
 def get_probability_masses(rv, tol=0):
+    """
+    Get the the locations and masses of a discrete random variable.
+
+    Parameters
+    ----------
+    tol : float
+        Fraction of total probability in (0, 1). Can be useful with
+        extracting masses when numerical precision becomes a problem
+    """
     # assert is_bounded_discrete_variable(rv)
     name, scales, shapes = get_distribution_info(rv)
     if (name == "float_rv_discrete" or name == "discrete_chebyshev" or
@@ -68,6 +86,10 @@ def get_probability_masses(rv, tol=0):
 
 def get_distribution_info(rv):
     """
+    Get important information from a scipy.stats variable.
+
+    Notes
+    -----
     Shapes and scales can appear in either args of kwargs depending on how
     user initializes frozen object.
     """
@@ -118,6 +140,12 @@ def get_distribution_info(rv):
 
 
 def scipy_raw_pdf(pdf, loc, scale, shapes, x):
+    """
+    Get the raw pdf of a scipy.stats variable.
+
+    Evaluating this function avoids error checking which can
+    slow evaluation significantly. Use with caution
+    """
     return pdf((x - loc)/scale, **shapes)/scale
 
 
@@ -162,6 +190,22 @@ def transform_scale_parameters(var):
 
 
 def define_iid_random_variables(rv, num_vars):
+    """
+    Create independent identically distributed variables
+
+    Parameters
+    ----------
+    rv : :class:`scipy.stats.dist`
+        A 1D random variable object
+
+    num_vars : integer
+        The number of 1D variables
+
+    Returns
+    -------
+    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+        The multivariate random variable
+    """
     unique_variables = [rv]
     unique_var_indices = [np.arange(num_vars)]
     return IndependentMultivariateRandomVariable(
@@ -189,6 +233,9 @@ def variables_equivalent(rv1, rv2):
 
 
 def get_unique_variables(variables):
+    """
+    Get the unique 1D variables from a list of variables.
+    """
     nvars = len(variables)
     unique_variables = [variables[0]]
     unique_var_indices = [[0]]
@@ -206,6 +253,9 @@ def get_unique_variables(variables):
 
 
 def variable_shapes_equivalent(rv1, rv2):
+    """
+    Are the variable shape parameters the same.
+    """
     name1, __, shapes1 = get_distribution_info(rv1)
     name2, __, shapes2 = get_distribution_info(rv2)
     if name1 != name2:
@@ -238,9 +288,11 @@ class IndependentMultivariateRandomVariable(object):
         norm(loc=0,scale=1): z0, z2
         beta(a=0,b=1,loc=0,scale=1): z1
     """
-
     def __init__(self, unique_variables, unique_variable_indices=None,
                  variable_labels=None):
+        """
+        Constructor method
+        """
         if unique_variable_indices is None:
             self.unique_variables, self.unique_variable_indices =\
                 get_unique_variables(unique_variables)
@@ -259,9 +311,25 @@ class IndependentMultivariateRandomVariable(object):
         self.variable_labels = variable_labels
 
     def num_vars(self):
+        """
+        Return The number of independent 1D variables
+
+        Returns
+        -------
+        nvars : integer
+            The number of independent 1D variables
+        """
         return self.nvars
 
     def all_variables(self):
+        """
+        Return a list of all the 1D scipy.stats random variables.
+
+        Returns
+        -------
+        variables : list
+            List of :class:`scipy.stats.dist` variables
+        """
         all_variables = [None for ii in range(self.nvars)]
         for ii in range(self.nunique_vars):
             for jj in self.unique_variable_indices[ii]:
@@ -311,6 +379,23 @@ class IndependentMultivariateRandomVariable(object):
         return stats
 
     def evaluate(self, function_name, x):
+        """
+        Evaluate a frunction for each univariate random variable.
+
+        Parameters
+        ----------
+        function_name : string
+            The function name of the scipy random variable statistic of
+            interest
+
+        x : np.ndarray (nsamples)
+            The input to the scipy statistic function
+
+        Returns
+        -------
+        stat : np.ndarray (nsamples, nqoi)
+            The outputs of the stat function for each variable
+        """
         stats = None
         for ii in range(self.nunique_vars):
             var = self.unique_variables[ii]
@@ -324,6 +409,23 @@ class IndependentMultivariateRandomVariable(object):
         return stats
 
     def pdf(self, x, log=False):
+        """
+        Evaluate the joint probability distribution function.
+
+        Parameters
+        ----------
+        x : np.ndarray (nvars, nsamples)
+            Values in the domain of the random variable X
+
+        log : boolean
+            True - return the natural logarithm of the PDF values
+            False - return the PDF values
+
+        Returns
+        -------
+        values : np.ndarray (nsamples, 1)
+            The values of the PDF at x
+        """
         assert x.shape[0] == self.num_vars()
         if log is False:
             marginal_vals = self.evaluate("pdf", x)
@@ -359,6 +461,15 @@ class IndependentMultivariateRandomVariable(object):
         return string
 
     def is_bounded_continuous_variable(self):
+        """
+        Are all 1D variables are continuous and bounded.
+
+        Returns
+        -------
+        is_bounded : boolean
+            True - all 1D variables are continuous and bounded
+            False - otherwise
+        """
         for rv in self.unique_variables:
             if not is_bounded_continuous_variable(rv):
                 return False
@@ -490,14 +601,39 @@ class float_rv_discrete(rv_sample):
 
 
 class DesignVariable(object):
+    """
+    Design variables with no probability information
+    """
     def __init__(self, bounds):
+        """
+        Constructor method
+
+        Parameters
+        ----------
+        bounds : array_like
+            Lower and upper bounds for each variable [lb0,ub0, lb1, ub1, ...]
+        """
         self.bounds = bounds
 
     def num_vars(self):
+        """
+        Return The number of independent 1D variables
+
+        Returns
+        -------
+        nvars : integer
+            The number of independent 1D variables
+        """
         return len(self.bounds.lb)
 
 
 class rv_function_indpndt_vars_gen(rv_continuous):
+    """
+    Custom variable representing the function of random variables.
+
+    Used to create 1D polynomial chaos basis orthogonal to the PDFs
+    of the scalar function of the 1D variables.
+    """
     def _argcheck(self, fun, init_variables, quad_rules):
         return True
 
@@ -548,6 +684,12 @@ rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
 
 
 class rv_product_indpndt_vars_gen(rv_continuous):
+    """
+    Custom variable representing the product of random variables.
+
+    Used to create 1D polynomial chaos basis orthogonal to the PDFs
+    of the scalar product of the 1D variables.
+    """
     def _argcheck(self, funs, init_variables, quad_rules):
         return True
 
@@ -558,3 +700,53 @@ class rv_product_indpndt_vars_gen(rv_continuous):
 rv_product_indpndt_vars = rv_product_indpndt_vars_gen(
     shapes="funs, initial_variables, quad_rules",
     name="rv_product_indpndt_vars")
+
+
+def get_truncated_range(var, unbounded_alpha=0.99):
+    """
+    Get the truncated range of a 1D variable
+
+    Parameters
+    ----------
+    var : `scipy.stats.dist`
+        A 1D variable
+
+    unbounded_alpha : float
+        fraction in (0, 1) of probability captured by ranges for unbounded
+        random variables
+
+    Returns
+    -------
+    range : iterable
+        The finite (possibly truncated) range of the random variable
+    """
+    if (is_bounded_continuous_variable(var) or
+            is_bounded_discrete_variable(var)):
+        return var.interval(1)
+
+    return var.interval(.99)
+
+
+def get_truncated_ranges(variable, unbounded_alpha=0.99):
+    r"""
+    Get truncated ranges for independent random variables
+
+    Parameters
+    ----------
+    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+        Variable
+
+    unbounded_alpha : float
+        fraction in (0, 1) of probability captured by ranges for unbounded
+        random variables
+
+    Returns
+    -------
+    ranges : np.ndarray (2*nvars)
+        The finite (possibly truncated) ranges of the random variables
+        [lb0, ub0, lb1, ub1, ...]
+    """
+    ranges = []
+    for rv in variable.all_variables():
+        ranges += get_truncated_range(rv, unbounded_alpha)
+    return np.array(ranges)
