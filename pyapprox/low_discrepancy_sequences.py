@@ -5,21 +5,6 @@ from pyapprox.utilities import get_first_n_primes
 from pyapprox.sys_utilities import trace_error_with_msg
 
 
-def halton_sequence(num_vars, index1, index2):
-    assert index1 < index2, "Index 1 must be < Index 2"
-    assert num_vars <= 100, "Number of variables must be <= 100"
-
-    primes = get_first_n_primes(num_vars)
-
-    try:
-        from pyapprox.cython.utilities import halton_sequence_pyx
-        return halton_sequence_pyx(primes, index1, index2)
-    except Exception as e:
-        trace_error_with_msg('halton_sequence extension failed', e)
-
-    return __halton_sequence(num_vars, index1, index2, primes)
-
-
 @njit(cache=True)
 def __halton_sequence(num_vars, index1, index2, primes):
     num_samples = index2-index1
@@ -43,10 +28,16 @@ def __halton_sequence(num_vars, index1, index2, primes):
 
 def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
                                 start_index=1):
+    """
+    Generate a Halton sequence using inverse transform sampling.
+
+    Deprecated: pass a variable argument to
+   :func:`pyapprox.low_discrepancy_sequences.halton_sequence`
+    """
     assert start_index > 0
     # sample with index 0 is [0,..0] this can cause problems for icdfs of
     # unbounded random variables so start with index 1 in halton sequence
-    samples = halton_sequence(num_vars, start_index, num_samples+start_index)
+    samples = halton_sequence(num_vars, num_samples, start_index)
     if marginal_icdfs is None:
         return samples
 
@@ -60,7 +51,7 @@ def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
     return samples
 
 
-def index_of_first_zero_bit_moving_right_to_left(ii):
+def __index_of_first_zero_bit_moving_right_to_left(ii):
     """
     Return the first the index of the first zero bit of the integer ii
     when moving right to left. Returns index in [0,...,nbits(ii)-1]
@@ -79,7 +70,7 @@ def index_of_first_zero_bit_moving_right_to_left(ii):
     return jj-1
 
 
-def load_direction_sequence(nvars):
+def __load_direction_sequence(nvars):
     """
     Read direction_numbers from
     https://web.maths.unsw.edu.au/~fkuo/sobol/
@@ -107,7 +98,7 @@ def load_direction_sequence(nvars):
     return a_vals, dir_seq
 
 
-def compute_direction_numbers(seq, max_nbits, power, a_val):
+def __compute_direction_numbers(seq, max_nbits, power, a_val):
     """Scale the direction sequence by 2**32
 
     x << y Returns x with the bits shifted to the left by y places.
@@ -153,11 +144,11 @@ def _sobol_sequence(nvars, nsamples):
         msg += f'Can only compute {max_nbits} samples.'
         raise Exception(msg)
 
-    a_vals, dir_seq = load_direction_sequence(nvars)
+    a_vals, dir_seq = __load_direction_sequence(nvars)
 
     # compute the first right zero bit of each sample index
     indices = np.array(
-        [index_of_first_zero_bit_moving_right_to_left(ii)
+        [__index_of_first_zero_bit_moving_right_to_left(ii)
          for ii in range(nsamples)])
 
     const = np.double(1 << power)  # 2**power
@@ -166,13 +157,13 @@ def _sobol_sequence(nvars, nsamples):
 
     tmp1 = 0
     # seq = np.ones((max_nbits), dtype=np.int64)
-    dir_nums = compute_direction_numbers(None, max_nbits, power, None)
+    dir_nums = __compute_direction_numbers(None, max_nbits, power, None)
     for ii in range(1, nsamples):
         tmp2 = tmp1 ^ dir_nums[indices[ii-1]]
         samples[0, ii] = tmp2/const
         tmp1 = tmp2
     for dd in range(1, nvars):
-        dir_nums = compute_direction_numbers(
+        dir_nums = __compute_direction_numbers(
             dir_seq[dd-1], max_nbits, power, a_vals[dd-1])
         tmp1 = 0
         for ii in range(1, nsamples):
@@ -184,8 +175,72 @@ def _sobol_sequence(nvars, nsamples):
 
 
 def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
+    """
+    Generate a multivariate Sobol sequence
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of dimensions
+
+    nsamples : integer
+        The number of samples needed
+
+    start_index : integer
+        The number of initial samples in the Sobol sequence to skip
+
+    variable : :class:pyapprox.variabels.IndependentMultivariateRandomVariable
+        If provided will be used for inverse transform sampling
+
+    Returns
+    -------
+    samples : np.ndarray (nvars, nsamples)
+        The low-discrepancy samples
+    """
     samples = _sobol_sequence(nvars, nsamples+start_index)[:, start_index:]
     if variable is None:
         return samples
     samples = variable.evaluate('ppf', samples)
     return samples
+
+
+def halton_sequence(num_vars, nsamples, start_index=0, variable=None):
+    """
+    Generate a multivariate Halton sequence
+
+        Parameters
+    ----------
+    nvars : integer
+        The number of dimensions
+
+    nsamples : integer
+        The number of samples needed
+
+    start_index : integer
+        The number of initial samples in the Sobol sequence to skip
+
+    variable : :class:pyapprox.variabels.IndependentMultivariateRandomVariable
+        If provided will be used for inverse transform sampling
+
+    Returns
+    -------
+    samples : np.ndarray (nvars, nsamples)
+        The low-discrepancy samples
+    """
+    index1, index2 = start_index, start_index + nsamples
+    assert index1 < index2, "Index 1 must be < Index 2"
+    assert num_vars <= 100, "Number of variables must be <= 100"
+
+    primes = get_first_n_primes(num_vars)
+
+    try:
+        from pyapprox.cython.utilities import halton_sequence_pyx
+        return halton_sequence_pyx(primes, index1, index2)
+    except Exception as e:
+        trace_error_with_msg('halton_sequence extension failed', e)
+
+    samples = __halton_sequence(num_vars, index1, index2, primes)
+    if variable is None:
+        return samples
+
+    return variable.evaluate('ppf', samples)

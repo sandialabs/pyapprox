@@ -60,7 +60,7 @@ class TestLowDiscrepancySequences(unittest.TestCase):
         assert np.allclose(true_samples, samples) 
 
     def test_halton_sequence(self):
-        samples = halton_sequence(3, 0, 10)
+        samples = halton_sequence(3, 10, 0)
         true_samples = np.asarray(
             [[0.0,  0.0,  0.0 ],
              [1/2,  1/3,  0.2 ],
@@ -75,7 +75,7 @@ class TestLowDiscrepancySequences(unittest.TestCase):
         assert np.allclose(true_samples, samples)
 
     def test_halton_sequence_nonzero_start_index(self):
-        samples = halton_sequence(3, 2, 10)
+        samples = halton_sequence(3, 8, 2)
         true_samples = np.asarray(
             [[0.0,  0.0,  0.0],
              [1/2,  1/3,  0.2],
