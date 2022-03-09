@@ -1084,3 +1084,19 @@ def plot_qoi_marginals(values):
         yy = np.linspace(values[:, ii].min(), values[:, ii].max(), 101)
         axs[ii].plot(yy, kde(yy))
     return axs
+
+
+def plot_2d_samples(samples, ax=None, **kwargs):
+    """
+    Plot 2D samples
+
+    samples : np.ndarray (2, nsamples)
+        The coordinates of the samples to plot
+
+    ax : :class:`pyplot.axes`
+        Use the axes object if provided
+    """
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    ax.plot(samples[0, :], samples[1, :], linestyle='None', **kwargs)
+    return ax

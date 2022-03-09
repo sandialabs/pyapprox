@@ -92,6 +92,7 @@ if 'pyapprox-dev' in installed_pkgs:
 example_filenames_in_order += [
     'plot_variables.py', 'plot_setup_model.py', 'plot_parameter_sweeps.py',
     'plot_low_discrepancy_quadrature.py', 'plot_gaussian_quadrature.py',
+    'plot_barycentric_interpolation.py',
     'plot_sparse_grid_uq.py']
 
 # print(installed_pkgs)

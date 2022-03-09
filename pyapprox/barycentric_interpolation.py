@@ -454,3 +454,41 @@ def tensor_product_lagrange_interpolation(
         samples, abscissa_1d, active_vars)
     return __tensor_product_lagrange_polynomial_basis(
         samples, basis_vals_1d, active_vars, values, active_indices)
+
+
+def tensor_product_barycentric_lagrange_interpolation(
+        grid_samples_1d, fun, samples):
+    """
+    Use tensor-product Barycentric Lagrange interpolation to approximate a
+    function.
+
+    Parameters
+    ----------
+    grid_samples_1d : list (nvars)
+        List containing 1D grid points defining the tensor product grid
+        The ith entry is a np.ndarray (nsamples_ii)
+
+    fun : callable
+        Function with the signature
+
+        `fun(samples) -> np.ndarray (nx, nqoi)`
+
+        where samples is np.ndarray (nvars, nx)
+
+    samples : np.ndarray (nvars, nsamples)
+        The samples at which to evaluate the basis functions
+
+    Returns
+    -------
+    interp_vals : np.ndarray(nsamples, nqoi)
+        Evaluations of the interpolant at the samples
+    """
+    barycentric_weights_1d = [
+        compute_barycentric_weights_1d(ss) for ss in grid_samples_1d]
+
+    grid_samples = cartesian_product(grid_samples_1d)
+    fn_vals = fun(grid_samples)
+    interp_vals = multivariate_barycentric_lagrange_interpolation(
+        samples, grid_samples_1d, barycentric_weights_1d, fn_vals,
+        np.arange(samples.shape[0]))
+    return interp_vals

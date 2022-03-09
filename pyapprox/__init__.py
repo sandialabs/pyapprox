@@ -39,6 +39,7 @@ from pyapprox.sensitivity_analysis import *
 from pyapprox.gaussian_network import *
 from pyapprox.gaussian_process import *
 from pyapprox.approximate import *
+from pyapprox.barycentric_interpolation import tensor_product_barycentric_lagrange_interpolation
 
 import sys
 from pyapprox.sys_utilities import package_available

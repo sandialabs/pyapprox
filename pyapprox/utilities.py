@@ -2259,7 +2259,7 @@ def tensor_product_piecewise_polynomial_interpolation_with_values(
 
     Returns
     -------
-    basis_vals : np.ndarray(nsamples, nbasis)
+    basis_vals : np.ndarray(nsamples, nqoi)
         Evaluations of the interpolant at the samples
     """
     basis_vals = tensor_product_piecewise_polynomial_basis(
@@ -2294,7 +2294,7 @@ def tensor_product_piecewise_polynomial_interpolation(
 
     Returns
     -------
-    basis_vals : np.ndarray(nsamples, nbasis)
+    basis_vals : np.ndarray(nsamples, nqoi)
         Evaluations of the interpolant at the samples
     """
     samples_1d = [dydactic_grid_1d(ll) for ll in levels]
