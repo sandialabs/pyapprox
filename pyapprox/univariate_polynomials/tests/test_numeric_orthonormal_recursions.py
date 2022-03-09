@@ -23,8 +23,6 @@ from pyapprox.univariate_polynomials.orthonormal_recursions import \
 from pyapprox.univariate_polynomials.quadrature import \
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D
 from pyapprox.variables import float_rv_discrete, transform_scale_parameters
-from pyapprox.utilities import \
-    integrate_using_univariate_gauss_legendre_quadrature_unbounded
 
 
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
@@ -284,6 +282,7 @@ class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):
         quad_rules = [(xx, ww)]*nvars
         ab = predictor_corrector_function_of_independent_variables(
             nterms, quad_rules, fun)
+        print(ab_full, ab)
         assert np.allclose(ab_full, ab)
 
     def test_predictor_corrector_product_of_functions_of_independent_variables(

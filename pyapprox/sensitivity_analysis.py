@@ -711,7 +711,7 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
         nvars = variables.num_vars()
         if method == 'halton':
             qmc_samples = halton_sequence(
-                2*nvars, qmc_start_index, qmc_start_index+nsamples)
+                2*nvars, nsamples, qmc_start_index)
         else:
             qmc_samples = sobol_sequence(2*nvars, nsamples, qmc_start_index)
         samplesA = qmc_samples[:nvars, :]

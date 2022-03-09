@@ -469,7 +469,9 @@ def predictor_corrector_function_of_independent_variables(
         The function mapping indendent variables into a scalar variable
     """
 
-    ab = np.zeros((nterms, 2))
+    # To get ab[nterms-1, 0] we must compute ab[nterms, 1]
+    # we will truncate ab at the end
+    ab = np.zeros((nterms+1, 2))
     x_1d = [rule[0] for rule in univariate_quad_rules]
     w_1d = [rule[1] for rule in univariate_quad_rules]
     quad_samples = cartesian_product(x_1d, 1)
@@ -479,7 +481,7 @@ def predictor_corrector_function_of_independent_variables(
     # this is not true for other measures
     ab[0, 1] = np.sqrt(quad_weights.sum())
 
-    for ii in range(1, nterms):
+    for ii in range(1, nterms+1):
         # predict
         ab[ii, 1] = ab[ii-1, 1]
         if ii > 1:
@@ -507,7 +509,7 @@ def predictor_corrector_function_of_independent_variables(
         G_ii_ii = integrand(quad_samples).dot(quad_weights)
         ab[ii, 1] *= np.sqrt(G_ii_ii)
 
-    return ab
+    return ab[:nterms, :]
 
 
 def predictor_corrector_product_of_functions_of_independent_variables(

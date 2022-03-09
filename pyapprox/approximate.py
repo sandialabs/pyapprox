@@ -261,7 +261,7 @@ def __initialize_leja_pce(
         # sampling
         # candidate samples must be in canonical domain
         candidate_samples = -np.cos(
-            np.pi*halton_sequence(nvars, 1, int(ncandidate_samples+1)))
+            np.pi*halton_sequence(nvars, int(ncandidate_samples), 1))
         # candidate_samples = -np.cos(
         #    np.random.uniform(0,np.pi,(nvars,int(ncandidate_samples))))
     else:
@@ -1839,8 +1839,8 @@ def increment_samples_using_condition_number(
         # generate a new increment of samples
         nsample_incr = ndesired_samples-(
             ncurrent_samples+new_train_samples.shape[1])
-        print(ncurrent_samples, nsample_incr, train_samples.shape,
-              ndesired_samples, indices.shape)
+        # print(ncurrent_samples, nsample_incr, train_samples.shape,
+        #       ndesired_samples, indices.shape)
         samples_incr = generate_samples(nsample_incr)
         # add increment to total set of new samples
         new_train_samples = np.hstack((
