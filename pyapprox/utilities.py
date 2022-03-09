@@ -160,51 +160,51 @@ def cartesian_product(input_sets, elem_size=1):
     out = np.asarray(out).T[::-1, :]
     return out
 
-    try:
-        from pyapprox.cython.utilities import cartesian_product_pyx
-        # # fused type does not work for np.in32, np.float32, np.int64
-        # # so envoke cython cast
-        # if np.issubdtype(input_sets[0][0],np.signedinteger):
-        #     return cartesian_product_pyx(input_sets,1,elem_size)
-        # if np.issubdtype(input_sets[0][0],np.floating):
-        #     return cartesian_product_pyx(input_sets,1.,elem_size)
-        # else:
-        #     return cartesian_product_pyx(
-        #         input_sets,input_sets[0][0],elem_size)
-        # always convert to float then cast back
-        cast_input_sets = [np.asarray(s, dtype=float) for s in input_sets]
-        out = cartesian_product_pyx(cast_input_sets, 1., elem_size)
-        out = np.asarray(out, dtype=input_sets[0].dtype)
-        return out
-    except:
-        print('cartesian_product extension failed')
-
-    num_elems = 1
-    num_sets = len(input_sets)
-    sizes = np.empty((num_sets), dtype=int)
-    for ii in range(num_sets):
-        sizes[ii] = input_sets[ii].shape[0]/elem_size
-        num_elems *= sizes[ii]
     # try:
-    #    from pyapprox.weave import c_cartesian_product
-    #    # note c_cartesian_product takes_num_elems as last arg and cython
-    #    # takes elem_size
-    #    return c_cartesian_product(input_sets, elem_size, sizes, num_elems)
+    #     from pyapprox.cython.utilities import cartesian_product_pyx
+    #     # # fused type does not work for np.in32, np.float32, np.int64
+    #     # # so envoke cython cast
+    #     # if np.issubdtype(input_sets[0][0],np.signedinteger):
+    #     #     return cartesian_product_pyx(input_sets,1,elem_size)
+    #     # if np.issubdtype(input_sets[0][0],np.floating):
+    #     #     return cartesian_product_pyx(input_sets,1.,elem_size)
+    #     # else:
+    #     #     return cartesian_product_pyx(
+    #     #         input_sets,input_sets[0][0],elem_size)
+    #     # always convert to float then cast back
+    #     cast_input_sets = [np.asarray(s, dtype=float) for s in input_sets]
+    #     out = cartesian_product_pyx(cast_input_sets, 1., elem_size)
+    #     out = np.asarray(out, dtype=input_sets[0].dtype)
+    #     return out
     # except:
-    #    print ('cartesian_product extension failed')
+    #     print('cartesian_product extension failed')
 
-    result = np.empty(
-        (num_sets*elem_size, num_elems), dtype=type(input_sets[0][0]))
-    for ii in range(num_elems):
-        multi_index = ind2sub(sizes, ii, num_elems)
-        for jj in range(num_sets):
-            for kk in range(elem_size):
-                result[jj*elem_size+kk, ii] =\
-                    input_sets[jj][multi_index[jj]*elem_size+kk]
-    return result
+    # num_elems = 1
+    # num_sets = len(input_sets)
+    # sizes = np.empty((num_sets), dtype=int)
+    # for ii in range(num_sets):
+    #     sizes[ii] = input_sets[ii].shape[0]/elem_size
+    #     num_elems *= sizes[ii]
+    # # try:
+    # #    from pyapprox.weave import c_cartesian_product
+    # #    # note c_cartesian_product takes_num_elems as last arg and cython
+    # #    # takes elem_size
+    # #    return c_cartesian_product(input_sets, elem_size, sizes, num_elems)
+    # # except:
+    # #    print ('cartesian_product extension failed')
+
+    # result = np.empty(
+    #     (num_sets*elem_size, num_elems), dtype=type(input_sets[0][0]))
+    # for ii in range(num_elems):
+    #     multi_index = ind2sub(sizes, ii, num_elems)
+    #     for jj in range(num_sets):
+    #         for kk in range(elem_size):
+    #             result[jj*elem_size+kk, ii] =\
+    #                 input_sets[jj][multi_index[jj]*elem_size+kk]
+    # return result
 
 
-def outer_product(input_sets):
+def outer_product(input_sets, axis=0):
     r"""
     Construct the outer product of an arbitary number of sets.
 
@@ -228,42 +228,43 @@ def outer_product(input_sets):
        result.dtype will be set to the first entry of the first input_set
     """
     out = cartesian_product(input_sets)
-    return np.prod(out, axis=0)
-
-    try:
-        from pyapprox.cython.utilities import outer_product_pyx
-        # fused type does not work for np.in32, np.float32, np.int64
-        # so envoke cython cast
-        if np.issubdtype(input_sets[0][0], np.signedinteger):
-            return outer_product_pyx(input_sets, 1)
-        if np.issubdtype(input_sets[0][0], np.floating):
-            return outer_product_pyx(input_sets, 1.)
-        else:
-            return outer_product_pyx(input_sets, input_sets[0][0])
-    except ImportError:
-        print('outer_product extension failed')
-
-    num_elems = 1
-    num_sets = len(input_sets)
-    sizes = np.empty((num_sets), dtype=int)
-    for ii in range(num_sets):
-        sizes[ii] = len(input_sets[ii])
-        num_elems *= sizes[ii]
+    print(out.shape)
+    return np.prod(out, axis=axis)
 
     # try:
-    #     from pyapprox.weave import c_outer_product
-    #     return c_outer_product(input_sets)
-    # except:
-    #     print ('outer_product extension failed')
+    #     from pyapprox.cython.utilities import outer_product_pyx
+    #     # fused type does not work for np.in32, np.float32, np.int64
+    #     # so envoke cython cast
+    #     if np.issubdtype(input_sets[0][0], np.signedinteger):
+    #         return outer_product_pyx(input_sets, 1)
+    #     if np.issubdtype(input_sets[0][0], np.floating):
+    #         return outer_product_pyx(input_sets, 1.)
+    #     else:
+    #         return outer_product_pyx(input_sets, input_sets[0][0])
+    # except ImportError:
+    #     print('outer_product extension failed')
 
-    result = np.empty((num_elems), dtype=type(input_sets[0][0]))
-    for ii in range(num_elems):
-        result[ii] = 1.0
-        multi_index = ind2sub(sizes, ii, num_elems)
-        for jj in range(num_sets):
-            result[ii] *= input_sets[jj][multi_index[jj]]
+    # num_elems = 1
+    # num_sets = len(input_sets)
+    # sizes = np.empty((num_sets), dtype=int)
+    # for ii in range(num_sets):
+    #     sizes[ii] = len(input_sets[ii])
+    #     num_elems *= sizes[ii]
 
-    return result
+    # # try:
+    # #     from pyapprox.weave import c_outer_product
+    # #     return c_outer_product(input_sets)
+    # # except:
+    # #     print ('outer_product extension failed')
+
+    # result = np.empty((num_elems), dtype=type(input_sets[0][0]))
+    # for ii in range(num_elems):
+    #     result[ii] = 1.0
+    #     multi_index = ind2sub(sizes, ii, num_elems)
+    #     for jj in range(num_sets):
+    #         result[ii] *= input_sets[jj][multi_index[jj]]
+
+    # return result
 
 
 def unique_matrix_rows(matrix):
@@ -2079,3 +2080,225 @@ def flatten_2D_list(list_2d):
         The unique items
     """
     return [item for sub in list_2d for item in sub]
+
+
+@njit(cache=True)
+def piecewise_quadratic_basis(level, xx):
+    """
+    Evaluate each piecewise quadratic basis on a dydatic grid of a specified
+    level.
+
+    Parameters
+    ----------
+    level : integer
+        The level of the dydadic grid. The number of points in the grid is
+        nbasis=2**level+1, except at level 0 when nbasis=1
+
+    xx : np.ndarary (nsamples)
+        The samples at which to evaluate the basis functions
+
+    Returns
+    -------
+    vals : np.ndarary (nsamples, nbasis)
+        Evaluations of each basis function
+    """
+    assert level > 0
+    h = 1/float(1 << level)
+    N = (1 << level)+1
+    vals = np.zeros((xx.shape[0], N))
+
+    for ii in range(N):
+        xl = (ii-1.0)*h
+        xr = xl+2.0*h
+        if ii % 2 == 1:
+            vals[:, ii] = np.maximum(-(xx-xl)*(xx-xr)/(h*h), 0.0)
+            continue
+        II = np.where((xx > xl-h) & (xx < xl+h))[0]
+        xx_II = xx[II]
+        vals[II, ii] = (xx_II**2-h*xx_II*(2*ii-3)+h*h*(ii-1)*(ii-2))/(2.*h*h)
+        JJ = np.where((xx >= xl+h) & (xx < xr+h))[0]
+        xx_JJ = xx[JJ]
+        vals[JJ, ii] = (xx_JJ**2-h*xx_JJ*(2*ii+3)+h*h*(ii+1)*(ii+2))/(2.*h*h)
+    return vals
+
+
+def piecewise_linear_basis(level, xx):
+    """
+    Evaluate each piecewise linear basis on a dydatic grid of a specified
+    level.
+
+    Parameters
+    ----------
+    level : integer
+        The level of the dydadic grid. The number of points in the grid is
+        nbasis=2**level+1, except at level 0 when nbasis=1
+
+    xx : np.ndarary (nsamples)
+        The samples at which to evaluate the basis functions
+
+    Returns
+    -------
+    vals : np.ndarary (nsamples, nbasis)
+        Evaluations of each basis function
+    """
+    assert level > 0
+    N = (1 << level)+1
+    vals = np.maximum(
+        0, 1-np.absolute((1 << level)*xx[:, None]-np.arange(N)[None, :]))
+    return vals
+
+
+def nsamples_dydactic_grid_1d(level):
+    """
+    The number of points in a dydactic grid.
+
+    Parameters
+    ----------
+    level : integer
+        The level of the dydadic grid.
+
+    Returns
+    -------
+    nsamples : integer
+        The number of points in the grid
+    """
+    if level == 0:
+        return 1
+    return (1 << level)+1
+
+
+def dydactic_grid_1d(level):
+    """
+    The points in a dydactic grid.
+
+    Parameters
+    ----------
+    level : integer
+        The level of the dydadic grid.
+
+    Returns
+    -------
+    samples : np.ndarray(nbasis)
+        The points in the grid
+    """
+    if level == 0:
+        return np.array([0.5])
+    return np.linspace(0, 1, nsamples_dydactic_grid_1d(level))
+
+
+def tensor_product_piecewise_polynomial_basis(
+        levels, samples, basis_type="linear"):
+    """
+    Evaluate each piecewise polynomial basis on a tensor product dydactic grid
+
+    Parameters
+    ----------
+    levels : array_like (nvars)
+        The levels of each 1D dydadic grid.
+
+    samples : np.ndarray (nvars, nsamples)
+        The samples at which to evaluate the basis functions
+
+    basis_type : string
+        The type of piecewise polynomial basis, i.e. 'linear' or 'quadratic'
+
+    Returns
+    -------
+    basis_vals : np.ndarray(nsamples, nbasis)
+        Evaluations of each basis function
+    """
+    nvars = samples.shape[0]
+    levels = np.asarray(levels)
+    if len(levels) != nvars:
+        raise ValueError("levels and samples are inconsistent")
+
+    basis_fun = {"linear": piecewise_linear_basis,
+                 "quadratic": piecewise_quadratic_basis}[basis_type]
+
+    active_vars = np.arange(nvars)[levels > 0]
+    nactive_vars = active_vars.shape[0]
+    nsamples = samples.shape[1]
+    N_active = [nsamples_dydactic_grid_1d(ll) for ll in levels[active_vars]]
+    N_max = np.max(N_active)
+    basis_vals_1d = np.empty((nactive_vars, N_max, nsamples),
+                             dtype=np.float64)
+    for dd in range(nactive_vars):
+        idx = active_vars[dd]
+        basis_vals_1d[dd, :N_active[dd], :] = basis_fun(
+            levels[idx], samples[idx, :]).T
+    temp1 = basis_vals_1d.reshape(
+        (nactive_vars*basis_vals_1d.shape[1], nsamples))
+    indices = cartesian_product([np.arange(N) for N in N_active])
+    nindices = indices.shape[1]
+    temp2 = temp1[indices.ravel()+np.repeat(
+        np.arange(nactive_vars)*basis_vals_1d.shape[1], nindices), :].reshape(
+            nactive_vars, nindices, nsamples)
+    basis_vals = np.prod(temp2, axis=0).T
+    return basis_vals
+
+
+def tensor_product_piecewise_polynomial_interpolation_with_values(
+        samples, fn_vals, levels, basis_type="linear"):
+    """
+    Use a piecewise polynomial basis to interpolate a function from values
+    defined on a tensor product dydactic grid.
+
+    Parameters
+    ----------
+    samples : np.ndarray (nvars, nsamples)
+        The samples at which to evaluate the basis functions
+
+    fn_vals : np.ndarary (nbasis, nqoi)
+        The values of the function on the dydactic grid
+
+    levels : array_like (nvars)
+        The levels of each 1D dydadic grid.
+
+    basis_type : string
+        The type of piecewise polynomial basis, i.e. 'linear' or 'quadratic'
+
+    Returns
+    -------
+    basis_vals : np.ndarray(nsamples, nbasis)
+        Evaluations of the interpolant at the samples
+    """
+    basis_vals = tensor_product_piecewise_polynomial_basis(
+        levels, samples, basis_type)
+    if fn_vals.shape[0] != basis_vals.shape[1]:
+        raise ValueError("The size of fn_vals is inconsistent with levels")
+    return basis_vals.dot(fn_vals)
+
+
+def tensor_product_piecewise_polynomial_interpolation(
+        samples, levels, fun, basis_type="linear"):
+    """
+    Use tensor-product piecewise polynomial basis to interpolate a function.
+
+    Parameters
+    ----------
+    samples : np.ndarray (nvars, nsamples)
+        The samples at which to evaluate the basis functions
+
+    levels : array_like (nvars)
+        The levels of each 1D dydadic grid.
+
+    fun : callable
+        Function with the signature
+
+        `fun(samples) -> np.ndarray (nx, nqoi)`
+
+        where samples is np.ndarray (nvars, nx)
+
+    basis_type : string
+        The type of piecewise polynomial basis, i.e. 'linear' or 'quadratic'
+
+    Returns
+    -------
+    basis_vals : np.ndarray(nsamples, nbasis)
+        Evaluations of the interpolant at the samples
+    """
+    samples_1d = [dydactic_grid_1d(ll) for ll in levels]
+    grid_samples = cartesian_product(samples_1d)
+    fn_vals = fun(grid_samples)
+    return tensor_product_piecewise_polynomial_interpolation_with_values(
+        samples, fn_vals, levels, basis_type)

@@ -32,7 +32,7 @@ def update_1d_samples_weights_economical(
     """
     Sometimes it is computationally time consuming to construct quadrature
     rules for each dimension, e.g. for numerically generated Leja rules.
-    So only update unique rules and store result in all variable dimensions 
+    So only update unique rules and store result in all variable dimensions
     which use that rule.
 
     This function will update samples_1d of all variables
@@ -40,11 +40,11 @@ def update_1d_samples_weights_economical(
     do not need to be updated (but it will only compute the rule
     once). This is in contrast to default update
     which computes the rule of every variable if and only if
-    the level for that variable is insufficient ie needs to be updated. 
+    the level for that variable is insufficient ie needs to be updated.
     The former is economical in computaiontal cost the later in memory.
 
     TODO: ideally this function should only store samples_1d for the unique
-    quadrature rules. But currently sparse grid assumes that there is a 
+    quadrature rules. But currently sparse grid assumes that there is a
     quadrature rule for each variable.
     """
     assert len(quad_rules) == len(growth_rules)
@@ -129,7 +129,7 @@ def update_1d_samples_weights(quad_rules, growth_rules,
 def get_hierarchical_sample_indices(subspace_index, poly_indices,
                                     samples_1d, config_variables_idx):
     """
-    This function is useful for obtaining the hierarhical function values of 
+    This function is useful for obtaining the hierarhical function values of
     a subspace
 
     Use this function in the following way
@@ -172,7 +172,7 @@ def get_hierarchical_sample_indices(subspace_index, poly_indices,
 def get_subspace_samples(subspace_index, poly_indices, samples_1d,
                          config_variables_idx=None, unique_samples_only=False):
     """
-    Compute the samples of a subspace. 
+    Compute the samples of a subspace.
 
     Parameters
     ----------
@@ -243,15 +243,15 @@ def get_subspace_weights(subspace_index, weights_1d, config_variables_idx=None):
 
     weights_1d : [[np.ndarray]*num_vars]
         List of quadrature weights for each level and each variable
-        Each element of inner list is np.ndarray with ndim=1. which meaans only 
+        Each element of inner list is np.ndarray with ndim=1. which meaans only
         homogenous sparse grids are supported, i.e grids with same quadrature
-        rule used in each dimension (level can be different per dimension 
+        rule used in each dimension (level can be different per dimension
         though).
 
     Return
     ------
     subspace_weights : np.ndarray (num_subspace_samples)
-        The quadrature weights of the tensor-product quadrature rule of the 
+        The quadrature weights of the tensor-product quadrature rule of the
         subspace.
     """
     assert subspace_index.ndim == 1
@@ -332,7 +332,7 @@ def get_sparse_grid_samples(poly_indices, samples_1d, config_variables_idx=None)
 
 def get_smolyak_coefficients(subspace_indices):
     """
-    Given an arbitrary set of downward close indices determine the  
+    Given an arbitrary set of downward close indices determine the
     smolyak coefficients.
     """
     num_vars, num_subspace_indices = subspace_indices.shape
@@ -410,7 +410,7 @@ def get_sparse_grid_samples_and_weights(num_vars, level,
         The level of the isotropic sparse grid.
 
     quad_rules : callable univariate quadrature_rule(ll) or list
-        Function used to compute univariate quadrature samples and weights 
+        Function used to compute univariate quadrature samples and weights
         for a given level (ll). The weights and samples must be returned
         with polynomial ordering. If list then argument is list of quadrature
         rules
@@ -646,7 +646,7 @@ def evaluate_sparse_grid_from_subspace_values(
     """
     Some times you may want to evaluate a sparse grid repeatedly at the
     same set of samples. If so use this function. It avoids recomputing the
-    subspace interpolants each time the sparse grid is interrogated. 
+    subspace interpolants each time the sparse grid is interrogated.
     Note the reduced time complexity requires more storage
     """
     assert sparse_grid_subspace_indices.shape[1] == \
@@ -667,14 +667,14 @@ def get_num_sparse_grid_samples(
         sparse_grid_subspace_poly_indices_list,
         smolyak_coefficients):
     """
-    This only works if there are no config variables. Specifically it 
-    will underestimate the number of model evaluations when config variables 
+    This only works if there are no config variables. Specifically it
+    will underestimate the number of model evaluations when config variables
     are present For example, if the smolyak coefficient of subspace is 1 and the
-    coefficient its backwards neighbor is -1 this function will subtract off 
-    the number of samples from the backward neighbor to avoid double counting. 
+    coefficient its backwards neighbor is -1 this function will subtract off
+    the number of samples from the backward neighbor to avoid double counting.
     But if config variables are present then the backward neighbour index may
-    only vary in the config variables and thus the samples in each of the 
-    two subspaces come from different models and thus we actually want to 
+    only vary in the config variables and thus the samples in each of the
+    two subspaces come from different models and thus we actually want to
     count the samples of both subspaces.
     """
     num_samples = 0
@@ -690,7 +690,7 @@ def plot_sparse_grid_2d(samples, weights, poly_indices=None, subspace_indices=No
                         axs=None, active_samples=None, active_subspace_indices=None,
                         config_variables_idx=None):
     """
-    Plot the sparse grid samples and color the samples by their quadrature 
+    Plot the sparse grid samples and color the samples by their quadrature
     weight.
 
     Parameters
@@ -864,8 +864,8 @@ def convert_univariate_lagrange_basis_to_orthonormal_polynomials(
     -------
     coeffs_1d : list [np.ndarray(num_terms_i,num_terms_i)]
         The coefficients of the orthonormal polynomial representation of
-        each Lagrange basis. The columns are the coefficients of each 
-        lagrange basis. The rows are the coefficient of the degree i 
+        each Lagrange basis. The columns are the coefficients of each
+        lagrange basis. The rows are the coefficient of the degree i
         orthonormalbasis
     """
     # Get the maximum number of terms in the orthonormal polynomial that
