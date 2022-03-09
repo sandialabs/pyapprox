@@ -146,7 +146,7 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
     if (var_name in askey_variable_names and
             opts.get("numeric", False) is False):
         return get_askey_recursion_coefficients_from_variable(var, num_coefs)
-
+    
     orthonormality_tol = opts.get("orthonormality_tol", 1e-8)
     truncated_probability_tol = opts.get("truncated_probability_tol", 0)
 

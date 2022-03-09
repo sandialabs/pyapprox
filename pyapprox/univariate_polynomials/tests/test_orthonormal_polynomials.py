@@ -11,7 +11,8 @@ from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     convert_orthonormal_expansion_to_monomial_expansion_1d
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
-    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence
+    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence, \
+    laguerre_recurrence
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
     convert_orthonormal_recurence_to_three_term_recurence
 from pyapprox.monomial import univariate_monomial_basis_matrix
@@ -357,6 +358,37 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
             ortho_coef, ab, mu, sigma)
         true_mono_coefs = np.array([-mu**3, 3*mu**2, -3*mu, 1])/sigma**3
         assert np.allclose(mono_coefs, true_mono_coefs)
+
+    def test_orthonormality_laguerre_polynomial(self):
+        a = 3
+        rho = a-1
+        degree = 2
+        probability_measure = True
+        ab = laguerre_recurrence(
+            rho, degree+1, probability=probability_measure)
+        print(ab)
+        from scipy import stats
+        x = stats.gamma(a).rvs(int(1e6))
+        w = np.ones(x.shape[0])/x.shape[0]
+        p = evaluate_orthonormal_polynomial_1d(x, degree, ab)
+
+        p_exact = np.asarray(
+            [1+0.*x, -(-x+rho+1),
+             0.5*x**2-x*(rho+2)+(rho+1)*(rho+2)/2]).T[:, :degree+1]
+        p_exact /= np.sqrt(sp.gamma(np.arange(degree+1)+rho+1)/sp.factorial(
+            np.arange(degree+1))/sp.gamma(rho+1))
+        #print(p_exact.T.dot(w), 'p')
+        #print(np.dot(p_exact.T*w, p_exact)-np.eye(degree+1))
+        assert np.allclose(p, p_exact)
+
+        # test orthogonality
+        exact_moments = np.zeros((degree+1))
+        exact_moments[0] = 1.0
+        #print(np.dot(p.T, w)-exact_moments)
+        assert np.allclose(np.dot(p.T, w), exact_moments, atol=2e-3)
+        # test orthonormality
+        # print(np.dot(p.T*w, p)-np.eye(degree+1))
+        assert np.allclose(np.dot(p.T*w, p), np.eye(degree+1), atol=2e-2)
 
 
 if __name__ == "__main__":

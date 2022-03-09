@@ -8,12 +8,14 @@ import warnings
 from pyapprox.univariate_polynomials.quadrature import \
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D, \
     clenshaw_curtis_pts_wts_1D, leja_growth_rule, \
-    constant_increment_growth_rule
+    constant_increment_growth_rule, gauss_quadrature
 from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
 from pyapprox.variables import float_rv_discrete, get_probability_masses
 from pyapprox.univariate_polynomials.leja_quadrature import \
     get_univariate_leja_quadrature_rule
 from pyapprox.variables import transform_scale_parameters
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    laguerre_recurrence
 
 
 class TestQuadrature(unittest.TestCase):
@@ -236,6 +238,25 @@ class TestQuadrature(unittest.TestCase):
 
         assert np.allclose(
             (quad_samples**2).dot(weights[-1]), (samples**2).mean())
+
+    def test_gauss_laguerre_quadrature(self):
+        a = 1
+        rho = a-1
+        N = 10
+
+        true_mean = a
+        true_variance = a
+
+        ab = laguerre_recurrence(rho, N)
+        print(ab)
+        x, w = gauss_quadrature(ab, N)
+
+        def function(x): return x**2
+        # print(stats.gamma(a).mean())
+        # print(x.dot(w), true_mean)
+        # print((function(x).dot(w)-true_mean**2, true_variance))
+        assert x.min() >= 0
+        assert np.allclose(function(x).dot(w)-true_mean**2, true_variance)
 
 
 if __name__ == "__main__":

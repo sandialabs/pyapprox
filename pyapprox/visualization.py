@@ -980,7 +980,20 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
         ax.contourf(
             X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
             cmap='jet')
+
     return fig, axs
+
+
+def plot_discrete_measure_1d(samples, weights, ax=None):
+    """
+    Plot a discrete measure
+    """
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    plt.plot(samples, weights, 'o')
+    for s, w in zip(samples, weights):
+        ax.vlines(x=s, ymin=0, ymax=w)
+    return ax
 
 
 def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):

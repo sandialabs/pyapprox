@@ -724,7 +724,7 @@ def get_truncated_range(var, unbounded_alpha=0.99):
             is_bounded_discrete_variable(var)):
         return var.interval(1)
 
-    return var.interval(.99)
+    return var.interval(unbounded_alpha)
 
 
 def get_truncated_ranges(variable, unbounded_alpha=0.99):

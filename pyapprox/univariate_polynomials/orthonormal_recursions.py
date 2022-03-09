@@ -360,3 +360,36 @@ def convert_orthonormal_recurence_to_three_term_recurence(recursion_coefs):
     abc[1:, 1] = recursion_coefs[:-1, 0]/recursion_coefs[1:, 1]
     abc[1:, 2] = recursion_coefs[:-1, 1]/recursion_coefs[1:, 1]
     return abc
+
+
+def laguerre_recurrence(rho, N, probability=True):
+    r"""
+    Compute the recursion coefficients of Laguerre polynomials which are
+    orthonormal with respect to the Gamma random variables with PDF
+    :math:`x^{\rho}\exp(-x)`
+
+    Parameters
+    ----------
+    rho : float
+        The first parameter of the Laguerre polynomials
+
+    Returns
+    -------
+    ab : np.ndarray (Nterms,2)
+        The recursion coefficients of the Nterms orthonormal polynomials
+    """
+    ab = np.zeros((N, 2))
+
+    nu = 1+rho
+    indices = np.arange(1, N)
+    ab[0, 1] = sp.gamma(nu)
+    ab[1:, 1] = (indices + rho)*indices
+    ab[:, 1] = np.sqrt(ab[:, 1])
+
+    ab[0, 0] = nu
+    ab[1:, 0] = 2 * indices + nu
+
+    if probability:
+        ab[0, 1] = 1.
+
+    return ab

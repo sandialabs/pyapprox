@@ -13,6 +13,8 @@ from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
     native_recursion_integrate_fun
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
+from pyapprox.univariate_polynomials.orthonormal_recursions import \
+    laguerre_recurrence
 
 
 class TestRecursionFactory(unittest.TestCase):
@@ -22,7 +24,7 @@ class TestRecursionFactory(unittest.TestCase):
     def test_get_recursion_coefficients_from_variable_discrete(self):
         degree = 4
         N = 10
-        
+
         discrete_var_names = [
             "binom", "bernoulli", "nbinom", "geom", "hypergeom", "logser",
             "poisson", "planck", "boltzmann", "randint", "zipf",
@@ -208,6 +210,30 @@ class TestRecursionFactory(unittest.TestCase):
             # import matplotlib.pyplot as plt
             # plt.semilogy(xx, var.pdf(xx))
             # plt.show()
+
+    def test_special_cases(self):
+        a = 3
+        rho = a-1
+        degree = 5
+        ab = laguerre_recurrence(rho, degree+1, probability=True)
+        print(ab)
+        var = stats.gamma(a)
+
+        tol = 1e-8
+        quad_opts = {"epsrel": tol, "epsabs": tol, "limit": 100}
+        opts = {"numeric": True, "quad_options": quad_opts}
+        ab_numeric = get_recursion_coefficients_from_variable(
+            var, degree+1, opts)
+
+        # The last coefficient of ab[:, 0] is never used so it is not computed
+        # by the numerical routine
+        assert np.allclose(ab_numeric, ab)
+
+        var = stats.expon()
+        ab = laguerre_recurrence(0, degree+1, probability=True)
+        ab_numeric = get_recursion_coefficients_from_variable(
+            var, degree+1, opts)
+        assert np.allclose(ab_numeric, ab)
 
 
 if __name__ == "__main__":

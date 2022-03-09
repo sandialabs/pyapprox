@@ -767,3 +767,36 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
 
     indices, coefs = add_polynomials(basis_indices, basis_coefs)
     return indices, coefs
+
+
+def get_univariate_gauss_quadrature_rule_from_variable(rv, nsamples):
+    """
+    Generate a Gaussian quadrature rule for a random variable
+
+    Parameters
+    ----------
+    rv : :class:`scipy.stats.dist`
+        The random variable defining the PDF for integration
+
+    nsamples : integer
+        The number of samples needed
+
+    Returns
+    -------
+    x_quad : np.ndarray (nsamples)
+        The samples of the quadrature rule
+
+    w_quad : np.ndarray (nsamples)
+        The weights of the quadrature rule
+    """
+    variable = IndependentMultivariateRandomVariable([rv])
+    pce = get_polynomial_from_variable(variable)
+    indices = np.arange(nsamples, dtype=int)[None, :]
+    pce.set_indices(indices)
+    ab = pce.recursion_coeffs[0]
+    print(ab)
+    x_quad, w_quad = gauss_quadrature(ab, nsamples)
+    print(x_quad)
+    x_quad = AffineRandomVariableTransformation(
+        variable).map_from_canonical_space(x_quad[None, :])[0, :]
+    return x_quad, w_quad
