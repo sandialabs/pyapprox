@@ -794,9 +794,7 @@ def get_univariate_gauss_quadrature_rule_from_variable(rv, nsamples):
     indices = np.arange(nsamples, dtype=int)[None, :]
     pce.set_indices(indices)
     ab = pce.recursion_coeffs[0]
-    print(ab)
     x_quad, w_quad = gauss_quadrature(ab, nsamples)
-    print(x_quad)
     x_quad = AffineRandomVariableTransformation(
         variable).map_from_canonical_space(x_quad[None, :])[0, :]
     return x_quad, w_quad

@@ -29,7 +29,8 @@ def fun(samples):
     return np.sum(samples**2, axis=0)[:, None]
 
 
-#We will then use partial to create a callable function that just takes
+##%
+#Now we will use partial to create a callable function that just takes
 #the samples at which we want to evaluate the interpolant
 #This function will evaluate fun on a tensor product grid internally
 interp_fun = partial(pya.tensor_product_barycentric_lagrange_interpolation,

@@ -365,7 +365,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     univariate_variables = [stats.uniform(0, 1)]*nvars
     variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
     if coefficients is None:
-        genz.set_coefficients(1, 'squared-exponential-decay', 0)
+        genz.set_coefficients(1, 'squared-exponential-decay', 0.25)
     else:
         genz.c, genz.w = coefficients
     attributes = {'fun': genz, 'mean': genz.integrate(), 'variable': variable}
