@@ -2,15 +2,18 @@ import unittest
 import numpy as np
 import copy
 
+#evaluate_function_train_deprecated as evaluate_function_train, \
 from pyapprox.function_train import \
     generate_additive_function_in_function_train_format, \
-    evaluate_function_train, generate_homogeneous_function_train, \
+    generate_homogeneous_function_train, \
     function_trains_equal, evaluate_function_train_grad, \
     ft_parameter_finite_difference_gradient, \
     ft_linear_least_squares_regression, num_univariate_functions, \
     ft_non_linear_least_squares_regression, \
     generate_random_sparse_function_train, \
-    compress_homogeneous_function_train
+    compress_homogeneous_function_train, \
+    evaluate_function_train
+    #evaluate_function_train_deprecated as evaluate_function_train
 from pyapprox.univariate_polynomials.orthonormal_polynomials import \
    evaluate_orthonormal_polynomial_1d
 from pyapprox.univariate_polynomials.orthonormal_recursions import \
@@ -36,6 +39,8 @@ def additive_polynomial(samples, univariate_function_params, recursion_coeffs,
 
 
 class TestFunctionTrain(unittest.TestCase):
+    def setUp(self):
+        np.random.seed(1)
 
     def test_evaluate_function_train_additive_function(self):
         """

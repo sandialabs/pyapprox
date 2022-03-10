@@ -776,6 +776,11 @@ def d_optimal_utility(Amat, noise_std):
 def gaussian_kl_divergence(mean1, sigma1, mean2, sigma2):
     r"""
     Compute KL( N(mean1, sigma1) || N(mean2, sigma2) )
+
+    :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
+
+    :math:`p_1(x)` must dominate  :math:`p_2(x)`, e.g. for Bayesian inference
+    the former is the posterior and the later the prior
     """
     if mean1.ndim != 2 or mean2.ndim != 2:
         raise ValueError("means must have shape (nvars, 1)")

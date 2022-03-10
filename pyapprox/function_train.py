@@ -11,8 +11,53 @@ from pyapprox.univariate_polynomials.orthonormal_recursions import \
     jacobi_recurrence
 
 
-def evaluate_core(sample, core_params, core_params_map, ranks,
+def core_params_per_function(core_params, core_params_map, ranks):
+    params, nparams = [], []
+    for kk in range(ranks[1]):
+        for jj in range(ranks[0]):
+            params.append(get_params_of_univariate_function(
+                jj, kk, ranks, core_params, core_params_map))
+            nparams.append(params[-1].shape[0])
+    max_nparams = np.max(nparams)
+    params_array = np.zeros((max_nparams, len(params)))
+    for ii in range(params_array.shape[1]):
+        params_array[:nparams[ii], ii] = params[ii]
+    return params_array
+
+
+def evaluate_core(samples, core_params, core_params_map, ranks,
                   recursion_coeffs):
+    assert samples.ndim == 2 and samples.shape[0] == 1
+    max_degree = recursion_coeffs.shape[0]-1
+    basis_matrix = evaluate_orthonormal_polynomial_1d(
+        samples[0, :], max_degree, recursion_coeffs)
+    params = core_params_per_function(core_params, core_params_map, ranks)
+    core_values = basis_matrix.dot(params)
+    core_values = core_values.reshape(
+        (samples.shape[1], ranks[0], ranks[1]), order="F")
+    return core_values
+
+
+def evaluate_function_train(samples, ft_data, recursion_coeffs):
+    ranks, ft_params, ft_params_map, ft_cores_map = ft_data
+    core_params, core_params_map = get_all_univariate_params_of_core(
+        ft_params, ft_params_map, ft_cores_map, 0)
+    values = evaluate_core(
+        samples[0:1, :], core_params, core_params_map, ranks[:2],
+        recursion_coeffs)
+    nvars = len(ranks)-1
+    for dd in range(1, nvars):
+        core_params, core_params_map = get_all_univariate_params_of_core(
+            ft_params, ft_params_map, ft_cores_map, dd)
+        core_values = evaluate_core(
+            samples[dd:dd+1, :], core_params, core_params_map, ranks[dd:dd+2],
+            recursion_coeffs)
+        values = np.einsum("ijk, ikm->ijm", values, core_values)
+    return values[:, :1, 0]
+
+
+def evaluate_core_deprecated(sample, core_params, core_params_map, ranks,
+                             recursion_coeffs):
     """
     Evaluate a core of the function train at a sample
 
@@ -156,7 +201,7 @@ def core_grad_left(sample, core_params, core_params_map, ranks,
     return core_values, core_derivs
 
 
-def evaluate_function_train(samples, ft_data, recursion_coeffs):
+def evaluate_function_train_deprecated(samples, ft_data, recursion_coeffs):
     """
     Evaluate the function train
 
@@ -192,15 +237,16 @@ def evaluate_function_train(samples, ft_data, recursion_coeffs):
     for ii in range(num_samples):
         core_params, core_params_map = get_all_univariate_params_of_core(
             ft_params, ft_params_map, ft_cores_map, 0)
-        core_values = evaluate_core(
+        core_values = evaluate_core_deprecated(
             samples[0, ii], core_params, core_params_map, ranks[:2],
             recursion_coeffs)
         for dd in range(1, num_vars):
             core_params, core_params_map = get_all_univariate_params_of_core(
                 ft_params, ft_params_map, ft_cores_map, dd)
-            core_values = np.dot(core_values, evaluate_core(
+            core_values_dd = evaluate_core_deprecated(
                 samples[dd, ii], core_params, core_params_map, ranks[dd:dd+2],
-                recursion_coeffs))
+                recursion_coeffs)
+            core_values = np.dot(core_values, core_values_dd)
         values[ii, 0] = core_values[0, 0]
     return values
 
@@ -600,14 +646,14 @@ def generate_additive_function_in_function_train_format(
 def ft_parameter_finite_difference_gradient(
         sample, ft_data, recursion_coeffs, eps=2*np.sqrt(np.finfo(float).eps)):
     ft_params = ft_data[1]
-    value = evaluate_function_train(sample, ft_data, recursion_coeffs)
+    value = evaluate_function_train_deprecated(sample, ft_data, recursion_coeffs)
     num_ft_parameters = ft_params.shape[0]
     gradient = np.empty_like(ft_params)
     for ii in range(num_ft_parameters):
         perturbed_params = ft_params.copy()
         perturbed_params[ii] += eps
         ft_data = (ft_data[0], perturbed_params, ft_data[2], ft_data[3])
-        perturbed_value = evaluate_function_train(
+        perturbed_value = evaluate_function_train_deprecated(
             sample, ft_data, recursion_coeffs)
         gradient[ii] = (perturbed_value-value)/eps
     return gradient
@@ -700,7 +746,7 @@ def modify_and_evaluate_function_train(samples, ft_data, recursion_coeffs,
     else:
         ft_data[1] = ft_params
 
-    ft_values = evaluate_function_train(samples, ft_data, recursion_coeffs)
+    ft_values = evaluate_function_train_deprecated(samples, ft_data, recursion_coeffs)
     return ft_values
 
 
@@ -963,7 +1009,7 @@ def sparsity_example_engine(num_params_1d, ranks, num_ft_parameters,
 
     num_samples = 1000
     samples = np.random.uniform(-1., 1., (num_vars, num_samples))
-    values = evaluate_function_train(samples, ft_data, recursion_coeffs)
+    values = evaluate_function_train_deprecated(samples, ft_data, recursion_coeffs)
 
     # sort parameters in descending order
     sorted_indices = np.argsort(np.absolute(ft_params))[::-1]
@@ -976,7 +1022,7 @@ def sparsity_example_engine(num_params_1d, ranks, num_ft_parameters,
         sparse_params[sorted_indices[sparsity:]] = 0.
         sparse_ft_data = generate_homogeneous_function_train(
             ranks, num_params_1d, sparse_params)
-        sparse_values = evaluate_function_train(
+        sparse_values = evaluate_function_train_deprecated(
             samples, sparse_ft_data, recursion_coeffs)
 
         l2_error = np.linalg.norm(sparse_values-values)/np.linalg.norm(values)

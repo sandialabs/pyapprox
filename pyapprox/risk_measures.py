@@ -413,10 +413,17 @@ def univariate_cvar_continuous_variable(pdf, bounds, beta, opt_tol=1e-8,
 
 
 def lognormal_mean(mu, sigma_sq):
+    """
+    Compute the mean of a univariate lognormal variable
+    """
     return np.exp(mu+sigma_sq/2)
 
 
 def lognormal_cvar(p, mu, sigma_sq):
+    """
+    Compute the conditional value at risk of a univariate lognormal
+    variable
+    """
     mean = lognormal_mean(mu, sigma_sq)
     if p == 0:
         return mean
@@ -431,16 +438,26 @@ def lognormal_cvar(p, mu, sigma_sq):
 
 
 def lognormal_cvar_deviation(p, mu, sigma_sq):
+    """
+    Compute the conditional value at risk deviation of a univariate lognormal
+    variable
+    """
     mean = lognormal_mean(mu, sigma_sq)
     cvar = lognormal_cvar(p, mu, sigma_sq)
     return cvar-mean
 
 
 def lognormal_variance(mu, sigma_sq):
+    """
+    Compute the variance of a univariate lognormal variable
+    """
     return (np.exp(sigma_sq)-1)*np.exp(2*mu+sigma_sq)
 
 
 def chi_squared_cvar(k, quantile):
+    """
+    Compute the conditional value at risk of a univariate Chi-squared variable
+    """
     def upper_gammainc(a, b):
         return gamma_fn(a)*(1 - gammainc(a, b))
     VaR = stats.chi2.ppf(quantile, k)
@@ -449,9 +466,23 @@ def chi_squared_cvar(k, quantile):
 
 
 def gaussian_cvar(mu, sigma, quantile):
+    """
+    Compute the conditional value at risk of a univariate Gaussian variable
+    """
     val = mu+sigma*stats.norm.pdf(stats.norm.ppf(quantile))/(1-quantile)
     # variable = stats.norm(mu, sigma)
     # VaR = variable.ppf(quantile)
     # val = (mu + np.sqrt(2/np.pi)*sigma*np.exp(-(mu-VaR)**2/(2*sigma**2)) +
     #        mu*erf((mu-VaR)/(np.sqrt(2)*sigma)))*0.5/(1-quantile)
     return val
+
+
+def lognormal_kl_divergence(mu1, sigma1, mu2, sigma2):
+    """Compute the KL divergence between two univariate lognormal variables
+
+    That is compute :math:`KL(LN(mu_1, sigma_1)||LN(mu_2, sigma_2))` where
+    :math:`mu_i,` :math:`sigma_i` are the mean and standard devition of their
+    Gaussian distribution associated with each lognormal variable
+    """
+    return (1/(2*sigma2**2)*((mu1-mu2)**2+sigma1**2-sigma2**2) +
+            np.log(sigma2/sigma1))

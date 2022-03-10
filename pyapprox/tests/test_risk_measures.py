@@ -15,7 +15,7 @@ from pyapprox.risk_measures import (
     compute_conditional_expectations,
     univariate_cvar_continuous_variable, weighted_quantiles,
     entropic_risk_measure, lognormal_mean, lognormal_cvar, chi_squared_cvar,
-    gaussian_cvar
+    gaussian_cvar, lognormal_kl_divergence
     )
 from pyapprox.variables import get_distribution_info
 from pyapprox.univariate_polynomials.quadrature import (
@@ -768,6 +768,18 @@ class TestRiskMeasures(unittest.TestCase):
             gaussian_cvar(mu, sigma*np.arange(1, 3), quantile),
             [conditional_value_at_risk(vals[:, 0], quantile),
              conditional_value_at_risk(vals[:, 1], quantile)], rtol=2e-3)
+
+    def test_lognormal_kl_divergence(self):
+        mu1, sigma1 = 0.5, 0.5
+        mu2, sigma2 = 0, 1
+        kl_div = lognormal_kl_divergence(mu1, sigma1, mu2, sigma2)
+
+        rv1 = stats.lognorm(scale=np.exp(mu1), s=sigma1)
+        rv2 = stats.lognorm(scale=np.exp(mu2), s=sigma2)
+        xx = rv1.rvs(int(1e6))
+        kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).mean()
+        # print(kl_div, kl_div_quad)
+        assert np.allclose(kl_div, kl_div_quad, rtol=2e-3)
 
 
 if __name__ == "__main__":
