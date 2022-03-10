@@ -646,14 +646,14 @@ def generate_additive_function_in_function_train_format(
 def ft_parameter_finite_difference_gradient(
         sample, ft_data, recursion_coeffs, eps=2*np.sqrt(np.finfo(float).eps)):
     ft_params = ft_data[1]
-    value = evaluate_function_train_deprecated(sample, ft_data, recursion_coeffs)
+    value = evaluate_function_train(sample, ft_data, recursion_coeffs)
     num_ft_parameters = ft_params.shape[0]
     gradient = np.empty_like(ft_params)
     for ii in range(num_ft_parameters):
         perturbed_params = ft_params.copy()
         perturbed_params[ii] += eps
         ft_data = (ft_data[0], perturbed_params, ft_data[2], ft_data[3])
-        perturbed_value = evaluate_function_train_deprecated(
+        perturbed_value = evaluate_function_train(
             sample, ft_data, recursion_coeffs)
         gradient[ii] = (perturbed_value-value)/eps
     return gradient
@@ -746,7 +746,7 @@ def modify_and_evaluate_function_train(samples, ft_data, recursion_coeffs,
     else:
         ft_data[1] = ft_params
 
-    ft_values = evaluate_function_train_deprecated(samples, ft_data, recursion_coeffs)
+    ft_values = evaluate_function_train(samples, ft_data, recursion_coeffs)
     return ft_values
 
 
@@ -1009,7 +1009,7 @@ def sparsity_example_engine(num_params_1d, ranks, num_ft_parameters,
 
     num_samples = 1000
     samples = np.random.uniform(-1., 1., (num_vars, num_samples))
-    values = evaluate_function_train_deprecated(samples, ft_data, recursion_coeffs)
+    values = evaluate_function_train(samples, ft_data, recursion_coeffs)
 
     # sort parameters in descending order
     sorted_indices = np.argsort(np.absolute(ft_params))[::-1]
@@ -1022,7 +1022,7 @@ def sparsity_example_engine(num_params_1d, ranks, num_ft_parameters,
         sparse_params[sorted_indices[sparsity:]] = 0.
         sparse_ft_data = generate_homogeneous_function_train(
             ranks, num_params_1d, sparse_params)
-        sparse_values = evaluate_function_train_deprecated(
+        sparse_values = evaluate_function_train(
             samples, sparse_ft_data, recursion_coeffs)
 
         l2_error = np.linalg.norm(sparse_values-values)/np.linalg.norm(values)
