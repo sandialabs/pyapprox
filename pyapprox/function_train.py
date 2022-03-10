@@ -12,6 +12,11 @@ from pyapprox.univariate_polynomials.orthonormal_recursions import \
 
 
 def core_params_per_function(core_params, core_params_map, ranks):
+    """
+    Copy the parameters of a core into a matrix. If somes functions
+    have smaller number of params then make missing params zero.
+    This speeds up evaluation of each univariate function within the core
+    """
     params, nparams = [], []
     for kk in range(ranks[1]):
         for jj in range(ranks[0]):
@@ -27,6 +32,40 @@ def core_params_per_function(core_params, core_params_map, ranks):
 
 def evaluate_core(samples, core_params, core_params_map, ranks,
                   recursion_coeffs):
+    """
+    Evaluate a core of the function train at a set of samples
+
+    Parameters
+    ----------
+    samples : np.ndarray(1, nsamples)
+        The sample at which to evaluate the function train
+
+    univariate_params : [ np.ndarray (num_coeffs_i) ] (ranks[0]*ranks[2])
+        The coeffs of each univariate function. May be of different size
+        i.e. num_coeffs_i can be different for i=0,...,ranks[0]*ranks[1]
+
+    ranks : np.ndarray (2)
+        The ranks of the core [r_{k-1},r_k]
+
+    recursion_coeffs : np.ndarray (max_degree+1)
+        The recursion coefficients used to evaluate the univariate functions
+        which are assumed to polynomials defined by the recursion coefficients
+
+    Returns
+    -------
+    core_values : np.ndarray (nsamples, ranks[0],ranks[1])
+        The values of each univariate function evaluated at each sample
+
+    Notes
+    -----
+    If we assume each univariate function for variable ii is fixed
+    we only need to compute basis matrix once. This is also true
+    if we compute basis matrix for max degree of the univariate functions
+    of the ii variable. If degree of a given univariate function is
+    smaller we can just use subset of matrix. This comes at the cost of
+    more storage but less computations than if vandermonde was computed
+    for each different degree. We build max_degree vandermonde here.
+    """
     assert samples.ndim == 2 and samples.shape[0] == 1
     max_degree = recursion_coeffs.shape[0]-1
     basis_matrix = evaluate_orthonormal_polynomial_1d(
@@ -39,6 +78,32 @@ def evaluate_core(samples, core_params, core_params_map, ranks,
 
 
 def evaluate_function_train(samples, ft_data, recursion_coeffs):
+    """
+    Evaluate the function train
+
+    Parameters
+    ----------
+    samples : np.ndarray (num_vars, num_samples)
+        The samples at which to evaluate the function train
+
+    cores : [[[] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
+        Parameters of the univariate function of each core.
+        ii is the variable index, jj is the univariate function index within
+        the ii-th core. jj=0,...,ranks[ii]*ranks[ii+1]. Univariate functions
+        are assumed to be stored in column major ordering.
+
+    ranks : np.ndarray (num_vars+1)
+        The ranks of the function train cores
+
+    recursion_coeffs : np.ndarray (max_degree+1)
+        The recursion coefficients used to evaluate the univariate functions
+        which are assumed to polynomials defined by the recursion coefficients
+
+    Returns
+    -------
+    values : np.ndarray (num_samples,1)
+        The values of the function train at the samples
+    """
     ranks, ft_params, ft_params_map, ft_cores_map = ft_data
     core_params, core_params_map = get_all_univariate_params_of_core(
         ft_params, ft_params_map, ft_cores_map, 0)
@@ -306,10 +371,10 @@ def evaluate_function_train_grad(sample, ft_data, recursion_coeffs):
     sample : np.ndarray (num_vars, )
         The sample1 at which to evaluate the function train gradient
 
-    cores :  [ [ [] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
+    cores : [[[] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
         Parameters of the univariate function of each core.
-        ii is the variable index, jj is the univariate function index within the
-        ii-th core. jj=0,...,ranks[ii]*ranks[ii+1]. Univariate functions
+        ii is the variable index, jj is the univariate function index within
+        the ii-th core. jj=0,...,ranks[ii]*ranks[ii+1]. Univariate functions
         are assumed to be stored in column major ordering.
 
     ranks : np.ndarray (num_vars+1)
@@ -330,8 +395,6 @@ def evaluate_function_train_grad(sample, ft_data, recursion_coeffs):
         The gradient is stored for each core from first to last.
         The gradient of each core is stored using column major ordering of
         the univariate functions.
-
-
     """
     value, values_of_cores, derivs_of_cores = \
         evaluate_ft_gradient_forward_pass(sample, ft_data, recursion_coeffs)
@@ -339,7 +402,7 @@ def evaluate_function_train_grad(sample, ft_data, recursion_coeffs):
     ranks, ft_params, ft_params_map, ft_cores_map = ft_data
 
     gradient = evaluate_ft_gradient_backward_pass(
-        ranks,values_of_cores,derivs_of_cores,ft_params_map,ft_cores_map)
+        ranks, values_of_cores, derivs_of_cores, ft_params_map, ft_cores_map)
 
     return value, gradient
 
@@ -373,8 +436,8 @@ def evaluate_ft_gradient_forward_pass(sample, ft_data, recursion_coeffs):
     return value, values_of_cores, derivs_of_cores
 
 
-def evaluate_ft_gradient_backward_pass(ranks,values_of_cores,derivs_of_cores,
-                                       ft_params_map,ft_cores_map):
+def evaluate_ft_gradient_backward_pass(ranks, values_of_cores, derivs_of_cores,
+                                       ft_params_map, ft_cores_map):
     num_vars = ranks.shape[0]-1
     num_ft_params = derivs_of_cores.shape[0]
     gradient = np.empty_like(derivs_of_cores)
@@ -459,7 +522,7 @@ def generate_homogeneous_function_train(ranks, num_params_1d, ft_params):
 
     Returns
     -------
-    cores : [ [ [] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
+    cores : [[[] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
         Parameters of the univariate function of each core.
         ii is the variable index, jj is the univariate function index within
         the ii-th core. jj=0,...,ranks[ii]*ranks[ii+1]. Univariate functions
@@ -598,7 +661,7 @@ def generate_additive_function_in_function_train_format(
     ranks : np.ndarray (num_vars+1)
         The ranks of the function train cores
 
-    cores : [ [ [] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
+    cores : [[[] univariate_params[ii][jj]] (ranks[ii]*ranks[ii+1]) ](num_vars)
         Parameters of the univariate function of each core.
         ii is the variable index, jj is the univariate function index within
         the ii-th core. jj=0,...,ranks[ii]*ranks[ii+1]. Univariate functions
@@ -1030,9 +1093,3 @@ def sparsity_example_engine(num_params_1d, ranks, num_ft_parameters,
         print(('l2 error', l2_error))
         l2_errors[jj] = l2_error
     return l2_errors
-
-
-# if __name__=='__main__':
-#     #compare_compressible_vectors()
-#     #plot_sparsity_example()
-#     pass
