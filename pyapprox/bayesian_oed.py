@@ -773,25 +773,6 @@ def d_optimal_utility(Amat, noise_std):
     return 0.5*np.linalg.slogdet(hess_misfit+ident)[1]
 
 
-def gaussian_kl_divergence(mean1, sigma1, mean2, sigma2):
-    r"""
-    Compute KL( N(mean1, sigma1) || N(mean2, sigma2) )
-
-    :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
-
-    :math:`p_2(x)` must dominate :math:`p_1(x)`, e.g. for Bayesian inference
-    the :math:`p_2(x)` is the posterior and :math:`p_1(x)` is the prior
-    """
-    if mean1.ndim != 2 or mean2.ndim != 2:
-        raise ValueError("means must have shape (nvars, 1)")
-    nvars = mean1.shape[0]
-    sigma2_inv = np.linalg.inv(sigma2)
-    val = np.log(np.linalg.det(sigma2)/np.linalg.det(sigma1))-float(nvars)
-    val += np.trace(sigma2_inv.dot(sigma1))
-    val += (mean2-mean1).T.dot(sigma2_inv.dot(mean2-mean1))
-    return 0.5*val.item()
-
-
 class BayesianBatchOED(ABC):
     @abstractmethod
     def __init__(self, design_candidates, obs_fun, noise_std,

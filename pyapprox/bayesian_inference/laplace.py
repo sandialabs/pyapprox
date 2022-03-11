@@ -361,7 +361,7 @@ def laplace_posterior_approximation_for_linear_models(
     residual = obs-np.dot(linear_matrix, prior_mean)
     if bvec is not None:
         residual -= bvec
-    temp = np.dot(np.dot(linear_matrix.T, noise_covariance_inv), residual)
+    temp = linear_matrix.T.dot(noise_covariance_inv.dot(residual))
     posterior_mean = np.dot(posterior_covariance, temp)+prior_mean
     return posterior_mean, posterior_covariance
 

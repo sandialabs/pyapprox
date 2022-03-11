@@ -15,7 +15,7 @@ from pyapprox.risk_measures import (
     compute_conditional_expectations,
     univariate_cvar_continuous_variable, weighted_quantiles,
     entropic_risk_measure, lognormal_mean, lognormal_cvar, chi_squared_cvar,
-    gaussian_cvar, lognormal_kl_divergence
+    gaussian_cvar, lognormal_kl_divergence, gaussian_kl_divergence
     )
 from pyapprox.variables import get_distribution_info
 from pyapprox.univariate_polynomials.quadrature import (
@@ -769,6 +769,26 @@ class TestRiskMeasures(unittest.TestCase):
             [conditional_value_at_risk(vals[:, 0], quantile),
              conditional_value_at_risk(vals[:, 1], quantile)], rtol=2e-3)
 
+    def test_gaussian_kl_divergence(self):
+        nvars = 1
+        mean1, sigma1 = np.zeros((nvars, 1)), np.eye(nvars)*2
+        mean2, sigma2 = np.ones((nvars, 1)), np.eye(nvars)*3
+
+        kl_div = gaussian_kl_divergence(mean1, sigma1, mean2, sigma2)
+
+        rv1 = stats.multivariate_normal(mean1, sigma1)
+        rv2 = stats.multivariate_normal(mean2, sigma2)
+
+        xx, ww = gauss_hermite_pts_wts_1D(300)
+        xx = xx*np.sqrt(sigma1[0, 0]) + mean1[0]
+        kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).dot(ww)
+        assert np.allclose(kl_div, kl_div_quad)
+
+        xx = np.random.normal(mean1[0], np.sqrt(sigma1[0, 0]), (int(1e6)))
+        ww = np.ones(xx.shape[0])/xx.shape[0]
+        kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).dot(ww)
+        assert np.allclose(kl_div, kl_div_quad, rtol=1e-2)
+
     def test_lognormal_kl_divergence(self):
         mu1, sigma1 = 0.5, 0.5
         mu2, sigma2 = 0, 1
@@ -780,6 +800,20 @@ class TestRiskMeasures(unittest.TestCase):
         kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).mean()
         # print(kl_div, kl_div_quad)
         assert np.allclose(kl_div, kl_div_quad, rtol=2e-3)
+
+        # The KL of a lognormal is the same as the KL of the corresponding
+        # Normals
+        rv1 = stats.norm(mu1, sigma1)
+        rv2 = stats.norm(mu2, sigma2)
+        xx = rv1.rvs(int(1e6))
+        gauss_kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).mean()
+        #print(kl_div, gauss_kl_div_quad)
+        assert np.allclose(kl_div, gauss_kl_div_quad, rtol=2e-3)
+
+        kl_div_gaussian = gaussian_kl_divergence(
+            np.atleast_2d(mu1), np.atleast_2d(sigma1**2),
+            np.atleast_2d(mu2), np.atleast_2d(sigma2**2))
+        assert np.allclose(kl_div_gaussian, kl_div)
 
 
 if __name__ == "__main__":

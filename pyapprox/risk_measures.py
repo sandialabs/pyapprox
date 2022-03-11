@@ -2,7 +2,7 @@ import numpy as np
 from functools import partial
 import scipy
 from scipy import stats
-from scipy.special import erfinv, erf, gamma as gamma_fn, gammainc
+from scipy.special import erfinv, gamma as gamma_fn, gammainc
 
 from pyapprox.random_variable_algebra import invert_monotone_function
 
@@ -482,7 +482,32 @@ def lognormal_kl_divergence(mu1, sigma1, mu2, sigma2):
 
     That is compute :math:`KL(LN(mu_1, sigma_1)||LN(mu_2, sigma_2))` where
     :math:`mu_i,` :math:`sigma_i` are the mean and standard devition of their
-    Gaussian distribution associated with each lognormal variable
+    Gaussian distribution associated with each lognormal variable.
+
+    Notes
+    -----
+    The Kullback-Leibler between two loggormals is the same as the pdf between
+    the corresponding Gaussians
     """
-    return (1/(2*sigma2**2)*((mu1-mu2)**2+sigma1**2-sigma2**2) +
-            np.log(sigma2/sigma1))
+    kl_div = (1/(2*sigma2**2)*((mu1-mu2)**2+sigma1**2-sigma2**2) +
+              np.log(sigma2/sigma1))
+    return kl_div
+
+
+def gaussian_kl_divergence(mean1, cov1, mean2, cov2):
+    r"""
+    Compute KL( N(mean1, cov1) || N(mean2, cov2) )
+
+    :math:`\int p_1(x)\log\left(\frac{p_1(x)}{p_2(x)}\right)dx`
+
+    :math:`p_2(x)` must dominate :math:`p_1(x)`, e.g. for Bayesian inference
+    the :math:`p_2(x)` is the posterior and :math:`p_1(x)` is the prior
+    """
+    if mean1.ndim != 2 or mean2.ndim != 2:
+        raise ValueError("means must have shape (nvars, 1)")
+    nvars = mean1.shape[0]
+    cov2_inv = np.linalg.inv(cov2)
+    val = np.log(np.linalg.det(cov2)/np.linalg.det(cov1))-float(nvars)
+    val += np.trace(cov2_inv.dot(cov1))
+    val += (mean2-mean1).T.dot(cov2_inv.dot(mean2-mean1))
+    return 0.5*val.item()

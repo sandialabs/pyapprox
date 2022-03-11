@@ -6,7 +6,7 @@ import copy
 from scipy.special import erfinv
 
 from pyapprox.bayesian_oed import (
-    gaussian_loglike_fun, gaussian_kl_divergence,
+    gaussian_loglike_fun,
     precompute_expected_kl_utility_data,
     compute_expected_kl_utility_monte_carlo,
     BayesianBatchKLOED, BayesianSequentialKLOED, d_optimal_utility,
@@ -30,7 +30,8 @@ from pyapprox.bayesian_inference.laplace import (
 )
 from pyapprox.risk_measures import (
     conditional_value_at_risk, lognormal_variance,
-    lognormal_cvar_deviation, gaussian_cvar
+    lognormal_cvar_deviation, gaussian_cvar, lognormal_kl_divergence,
+    gaussian_kl_divergence,
 )
 from pyapprox.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
@@ -67,11 +68,182 @@ def setup_linear_gaussian_model_inference(prior_variable, noise_std, obs_mat):
     return prior_mean, prior_cov, noise_cov, prior_cov_inv, noise_cov_inv
 
 
+def posterior_mean_data_stats(
+        prior_mean, prior_cov, prior_cov_inv, post_cov, omat, nmat, nmat_inv):
+    """
+    Compute the mean and variance of the posterior mean with respect to
+    uncertainty in the observation data. The posterior mean is a
+    Gaussian variable
+
+    Parameters
+    ----------
+    prior_mean : np.ndarray (nvars, 1)
+        The mean of the prior
+
+    prior_cov : np.ndarray (nvars, nvars)
+        The covariance of the prior
+
+    prior_cov_inv : np.ndarray (nvars, nvars)
+        The inverse of the covariance of the prior
+
+    post_cov : np.ndarray (nvars, nvars)
+        The covariance of the posterior
+
+    omat : np.ndaray (nobs, nvars)
+        The linear observational model
+
+    nmat : np.ndarray (nvars, nvars)
+        The covariance of the observational noise
+
+    nmat_inv : np.ndarray (nvars, nvars)
+        The inverse of the covariance of the observational noise
+
+    Returns
+    -------
+    nu_vec : np.ndarray (nvars, 1)
+        The mean of the posterior mean
+
+    Cmat : np.ndarray (nvars, nvars)
+        The covariance of the posterior mean
+    """
+    Rmat = np.linalg.multi_dot(
+        (post_cov, omat.T, nmat_inv))
+    ROmat = Rmat.dot(omat)
+    nu_vec = (
+        np.linalg.multi_dot((ROmat, prior_mean)) +
+        np.linalg.multi_dot((post_cov, prior_cov_inv,
+                             prior_mean)))
+    Cmat = (np.linalg.multi_dot((ROmat, prior_cov, ROmat.T)) +
+            np.linalg.multi_dot((Rmat, nmat, Rmat.T)))
+    return nu_vec, Cmat
+
+
+def expected_kl_divergence_gaussian_inference(
+        prior_mean, prior_cov, prior_cov_inv, post_cov, Cmat, nu_vec):
+    """
+    Compute the expected KL divergence between a Gaussian posterior and prior
+    where average is taken with respect to the data
+
+    prior_mean : np.ndarray (nvars, 1)
+        The mean of the prior
+
+    prior_cov : np.ndarray (nvars, nvars)
+        The covariance of the prior
+
+    prior_cov_inv : np.ndarray (nvars, nvars)
+        The inverse of the covariance of the prior
+
+    post_cov : np.ndarray (nvars, nvars)
+        The covariance of the posterior
+
+    nu_vec : np.ndarray (nvars, 1)
+        The mean of the posterior mean
+
+    Cmat : np.ndarray (nvars, nvars)
+        The covariance of the posterior mean
+
+    Returns
+    -------
+    kl_div : float
+        The KL divergence
+    """
+    nvars = prior_mean.shape[0]
+    kl_div = np.trace(prior_cov_inv.dot(post_cov))-nvars
+    kl_div += np.log(
+        np.linalg.det(prior_cov)/np.linalg.det(post_cov))
+    kl_div += np.trace(prior_cov_inv.dot(Cmat))
+    xi = prior_mean-nu_vec
+    kl_div += np.linalg.multi_dot((xi.T, prior_cov_inv, xi))
+    kl_div *= 0.5
+    return kl_div[0, 0]
+
+
+def compute_linear_gaussian_oed_prediction_stats(
+        nonlinear, quantile, post_cov, pred_mat, nu_vec, Cmat):
+    """
+    Compute the deviation of the posterior push-forward obtained from
+    a linear Gaussian model
+    """
+    push_forward_cov = pred_mat.dot(post_cov.dot(pred_mat.T))
+    pointwise_post_variance = np.diag(push_forward_cov)[:, None]
+    if not nonlinear:
+        if quantile is None:
+            pointwise_post_stat = np.sqrt(pointwise_post_variance)
+        else:
+            pointwise_post_stat = gaussian_cvar(
+                0, np.sqrt(pointwise_post_variance), quantile)
+    else:
+        tau_hat = pred_mat.dot(nu_vec)
+        sigma_hat_sq = np.diag(
+            np.linalg.multi_dot((pred_mat, Cmat, pred_mat.T)))[:, None]
+        tmp = np.exp(pointwise_post_variance)
+        if quantile is None:
+            factor = np.sqrt((tmp-1)*tmp)
+        else:
+            factor = np.sqrt(tmp)*(1/(1-quantile)*stats.norm.cdf(
+                np.sqrt(pointwise_post_variance) -
+                np.sqrt(2)*erfinv(2*quantile-1))-1)
+        pointwise_post_stat = factor*np.exp(tau_hat+sigma_hat_sq/2)
+    return pointwise_post_stat
+
+
+def compute_linear_gaussian_oed_utility(
+        oed_type, prior_mean, prior_cov, prior_cov_inv, post_cov, pred_mat,
+        nu_vec, Cmat, nonlinear, risk_fun, pointwise_post_stat):
+    """
+    Compute the expected utility for a linear Gaussian model
+    """
+    if oed_type == "KL-param":
+        kl_div = expected_kl_divergence_gaussian_inference(
+            prior_mean, prior_cov, prior_cov_inv, post_cov, Cmat,
+            nu_vec)
+        return kl_div
+
+    if oed_type == "KL-pred":
+        push_pr_mean = pred_mat.dot(prior_mean)
+        push_pr_cov = pred_mat.dot(prior_cov.dot(pred_mat.T))
+        push_post_cov = pred_mat.dot(post_cov.dot(pred_mat.T))
+        nu_push = pred_mat.dot(nu_vec)
+        C_push = pred_mat.dot(Cmat.dot(pred_mat.T))
+        push_pr_cov_inv = np.linalg.inv(push_pr_cov)
+        kl_div = expected_kl_divergence_gaussian_inference(
+            push_pr_mean, push_pr_cov, push_pr_cov_inv,
+            push_post_cov, C_push, nu_push)
+        return kl_div
+        # NOTE: The KL of two lognormals is the same as the KL of the
+        # two associated Normals so we don't need two cases
+        # if nolinear:
+        #     assert pred_mat.shape[0] == 1
+        #     kl_div = (
+        #         1/(2*push_pr_cov)*(
+        #             C_push+(push_pr_mean-nu_push)**2 +
+        #             push_post_cov-push_pr_cov) +
+        #         np.log(np.sqrt(push_pr_cov/push_post_cov)))
+        #     return kl_div
+
+    if oed_type != "dev-pred":
+        raise ValueError(f"Incorrect oed_type: {oed_type}")
+
+    utility_val = -risk_fun(pointwise_post_stat)
+    return utility_val
+
+
+def linear_gaussian_posterior_from_observation_subset(
+        obs, obs_mat, noise_cov_inv, prior_cov_inv, prior_mean, idx):
+    obs_ii = obs[idx]
+    omat = obs_mat[idx, :]
+    nmat_inv = extract_independent_noise_cov(noise_cov_inv, idx)
+    post_mean, post_cov = \
+        laplace_posterior_approximation_for_linear_models(
+            omat, prior_mean, prior_cov_inv, nmat_inv, obs_ii)
+    return post_mean, post_cov, obs_ii, omat, nmat_inv
+
+
 def linear_gaussian_prediction_deviation_based_oed(
         design_candidates, ndesign, prior_mean, prior_cov,
         noise_cov, obs_mat, pred_mat, risk_fun,
         pre_collected_design_indices=[], oed_type="linear-pred", quantile=None,
-        round_decimals=16):
+        round_decimals=16, nonlinear=True):
     """
     Parameters
     ----------
@@ -79,7 +251,7 @@ def linear_gaussian_prediction_deviation_based_oed(
         The location of all design sample candidates
 
     ndesign : integer
-
+        The number of experiments to select
 
     prior_mean : np.ndarray (nvars, 1)
         The mean of the prior
@@ -120,6 +292,10 @@ def linear_gaussian_prediction_deviation_based_oed(
         but numerically there are slight differences that causes design to be
         different
 
+    nonlinear : boolean
+        True - prediction is exp(pred_mat.dot(samples))
+        False - prediction is pred_mat.dot(samples)
+
     Returns
     -------
     collected_design_indices : np.ndarray (nobs)
@@ -146,74 +322,42 @@ def linear_gaussian_prediction_deviation_based_oed(
     data_history = []
     assert len(pre_collected_design_indices) < ndesign
     # make deep copy
-    collected_indices = [ii for ii in pre_collected_design_indices]
-    for jj in range(len(pre_collected_design_indices), ndesign):
+    # collected_indices = [ii for ii in pre_collected_design_indices]
+    # for jj in range(len(pre_collected_design_indices), ndesign):
+    # for testing purposes compute utlity even for pre collected design indices
+    # so we can plot this information
+    collected_indices = []
+    for jj in range(ndesign):
         data = []
         for ii in range(design_candidates.shape[1]):
             # realization of data does not matter so if location appears
             # twice we can just use the same data
             idx = np.hstack((collected_indices, [ii])).astype(int)
-            obs_ii = obs[idx]
-            omat = obs_mat[idx, :]
-            nmat_inv = extract_independent_noise_cov(noise_cov_inv, idx)
+            post_cov, obs_ii, omat, nmat_inv = \
+                linear_gaussian_posterior_from_observation_subset(
+                    obs, obs_mat, noise_cov_inv, prior_cov_inv, prior_mean,
+                    idx)[1:]
             nmat = extract_independent_noise_cov(noise_cov, idx)
-            exact_post_cov = laplace_posterior_approximation_for_linear_models(
-                omat, prior_mean, prior_cov_inv, nmat_inv, obs_ii)[1]
-            pointwise_post_variance = np.diag(
-                pred_mat.dot(exact_post_cov.dot(pred_mat.T)))[:, None]
-            Rmat = np.linalg.multi_dot(
-                (exact_post_cov, omat.T, nmat_inv))
-            ROmat = Rmat.dot(omat)
-            nu_vec = (
-                np.linalg.multi_dot((ROmat.T, prior_mean)) +
-                np.linalg.multi_dot((exact_post_cov, prior_cov_inv,
-                                     prior_mean)))
-            Cmat = (np.linalg.multi_dot((ROmat, prior_cov, ROmat.T)) +
-                    np.linalg.multi_dot((Rmat, nmat, Rmat.T)))
-            if oed_type == "nonlinear-pred":
-                tau_hat = pred_mat.dot(nu_vec)
-                sigma_hat_sq = np.diag(
-                    np.linalg.multi_dot((pred_mat, Cmat, pred_mat.T)))[:, None]
-                tmp = np.exp(pointwise_post_variance)
-                if quantile is None:
-                    factor = np.sqrt((tmp-1)*tmp)
-                else:
-                    factor = np.sqrt(tmp)*(1/(1-quantile)*stats.norm.cdf(
-                        np.sqrt(pointwise_post_variance) -
-                        np.sqrt(2)*erfinv(2*quantile-1))-1)
-                pointwise_post_stat = factor*np.exp(tau_hat+sigma_hat_sq/2)
-                exact_stat_risk = risk_fun(pointwise_post_stat)
-                utility_val = -exact_stat_risk
-            elif oed_type == "linear-pred":
-                if quantile is None:
-                    pointwise_post_stat = np.sqrt(pointwise_post_variance)
-                else:
-                    # stats is cvar deviation so mean which is not effected
-                    # by mean so just set mean in the following to zero
-                    pointwise_post_stat = gaussian_cvar(
-                        0, np.sqrt(pointwise_post_variance), quantile)
-                exact_stat_risk = risk_fun(pointwise_post_stat)
-                utility_val = -exact_stat_risk
-            else:
-                nvars = prior_mean.shape[0]
-                kl_div = np.trace(prior_cov_inv.dot(exact_post_cov))-nvars
-                kl_div += np.log(
-                    np.linalg.det(prior_cov)/np.linalg.det(exact_post_cov))
-                kl_div += np.trace(prior_cov_inv.dot(Cmat))
-                xi = prior_mean-nu_vec
-                kl_div += np.linalg.multi_dot((xi.T, prior_cov_inv, xi))
-                kl_div *= 0.5
-                utility_val = kl_div
-                pointwise_post_stat = None
-
+            nu_vec, Cmat = posterior_mean_data_stats(
+                prior_mean, prior_cov, prior_cov_inv, post_cov, omat, nmat,
+                nmat_inv)
+            pointwise_post_stat = compute_linear_gaussian_oed_prediction_stats(
+                nonlinear, quantile, post_cov, pred_mat, nu_vec, Cmat)
+            utility_val = compute_linear_gaussian_oed_utility(
+                oed_type, prior_mean, prior_cov, prior_cov_inv, post_cov,
+                pred_mat, nu_vec, Cmat, nonlinear, risk_fun,
+                pointwise_post_stat)
             data.append({"expected_deviations": pointwise_post_stat,
                          "utility_val": utility_val})
         data_history.append(data)
-        # round digits to remove numerical noise
-        # print([d["utility_val"] for d in data_history[-1]])
-        collected_indices.append(
-            np.argmax(np.round([d["utility_val"] for d in data_history[-1]],
-                               round_decimals)))
+        if jj < len(pre_collected_design_indices):
+            selected_index = pre_collected_design_indices[jj]
+        else:
+            # round digits to remove numerical noise
+            selected_index = np.argmax(
+                np.round([d["utility_val"] for d in data_history[-1]],
+                         round_decimals))
+        collected_indices.append(selected_index)
     return collected_indices, data_history
 
 
@@ -224,11 +368,14 @@ def conditional_posterior_moments_gaussian_linear_model(
     obs = obs_mat[idx, :].dot(xx[:nvars, :])
     # need to add noise here instead of a priori so that if
     # idx has unique elements the observational noises are still independent
-    obs += np.random.normal(0, 1, obs.shape)
+    nmat_inv = extract_independent_noise_cov(noise_cov_inv, idx)
+    nmat = np.linalg.inv(nmat_inv)
+    obs += np.linalg.cholesky(nmat).dot(
+        np.random.normal(0, 1, (nmat.shape[0], 1)))
     mu_g, sigma_g_sq = \
         laplace_posterior_approximation_for_linear_models(
             obs_mat[idx, :], prior_mean, prior_cov_inv,
-            extract_independent_noise_cov(noise_cov_inv, idx), obs)
+            nmat_inv, obs)
     return mu_g, sigma_g_sq
 
 
@@ -268,13 +415,41 @@ def conditional_gaussian_stat(
     return (gaussian_cvar(mu, np.sqrt(sigma_sq), p)-mu)[:, None]
 
 
-def conditional_gaussian_kl_stat(
+def conditional_gaussian_kl_param_stat(
         obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx):
     mu_g, sigma_g_sq = conditional_posterior_moments_gaussian_linear_model(
         obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx)
     kl_div = gaussian_kl_divergence(
         mu_g, sigma_g_sq, prior_mean, np.linalg.inv(prior_cov_inv))
     return np.array([[kl_div]])
+
+
+def conditional_gaussian_kl_pred_stat(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, pred_mat, prior_cov,
+        idx, xx):
+    post_mean, post_cov = conditional_posterior_moments_gaussian_linear_model(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx)
+    push_post_mean = pred_mat.dot(post_mean)
+    push_post_cov = pred_mat.dot(post_cov.dot(pred_mat.T))
+    push_pr_mean = pred_mat.dot(prior_mean)
+    push_pr_cov = pred_mat.dot(prior_cov.dot(pred_mat.T))
+    kl_div = gaussian_kl_divergence(
+        push_post_mean, push_post_cov, push_pr_mean, push_pr_cov)
+    return np.array([[kl_div]])
+
+
+def conditional_lognormal_kl_pred_stat(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, pred_mat, prior_cov,
+        idx, xx):
+    post_mean, post_cov = conditional_posterior_moments_gaussian_linear_model(
+        obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, idx, xx)
+    push_post_mean = pred_mat.dot(post_mean)
+    push_post_std = np.sqrt(pred_mat.dot(post_cov.dot(pred_mat.T)))
+    push_pr_mean = pred_mat.dot(prior_mean)
+    push_pr_std = np.sqrt(pred_mat.dot(prior_cov.dot(pred_mat.T)))
+    kl_div = lognormal_kl_divergence(
+        push_post_mean, push_post_std, push_pr_mean, push_pr_std)
+    return kl_div
 
 
 def linear_obs_fun(Amat, samples):
@@ -458,26 +633,6 @@ class TestBayesianOED(unittest.TestCase):
         self.check_gaussian_loglike_fun_3d(0.3, np.array([0, 2, 3]))
         self.check_gaussian_loglike_fun_3d(
             np.array([[0.25, 0.3, 0.35, 0.4]]).T, np.array([0, 2, 3]))
-
-    def test_gaussian_kl_divergence(self):
-        nvars = 1
-        mean1, sigma1 = np.zeros((nvars, 1)), np.eye(nvars)*2
-        mean2, sigma2 = np.ones((nvars, 1)), np.eye(nvars)*3
-
-        kl_div = gaussian_kl_divergence(mean1, sigma1, mean2, sigma2)
-
-        rv1 = stats.multivariate_normal(mean1, sigma1)
-        rv2 = stats.multivariate_normal(mean2, sigma2)
-
-        xx, ww = gauss_hermite_pts_wts_1D(300)
-        xx = xx*np.sqrt(sigma1[0, 0]) + mean1[0]
-        kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).dot(ww)
-        assert np.allclose(kl_div, kl_div_quad)
-        
-        xx = np.random.normal(mean1[0], np.sqrt(sigma1[0, 0]), (int(1e6)))
-        ww = np.ones(xx.shape[0])/xx.shape[0]
-        kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).dot(ww)
-        assert np.allclose(kl_div, kl_div_quad, rtol=1e-2)
 
     def test_compute_expected_kl_utility_monte_carlo(self):
         nrandom_vars = 1
@@ -1017,7 +1172,7 @@ class TestBayesianOED(unittest.TestCase):
                 oed.outer_loop_prior_samples.T)/prior_variable.pdf(
                     oed.outer_loop_prior_samples)[:, 0]/oed.nouter_loop_samples
             # accuracy of expected KL depends on nouter_loop_samples because
-            # these sampels are used to compute the kl divergences
+            # these samples are used to compute the kl divergences
             laplace_utility = np.sum(exact_stats*post_weights)
             # print(utility, laplace_utility, exact_stats)
             # print('u', (utility-laplace_utility)/laplace_utility, step,
@@ -1030,7 +1185,7 @@ class TestBayesianOED(unittest.TestCase):
             post_var_prev = post_var
 
     def test_sequential_kl_oed(self):
-        # self.check_sequential_kl_oed("KL", [1.2e-2, 1.3e-2, 7e-3, 3e-3])
+        self.check_sequential_kl_oed("KL", [2e-2, 1.3e-2, 7e-3, 3e-3])
         self.check_sequential_kl_oed("DEV", [2e-15, 3e-12, 3e-6, 9e-9])
 
     def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
@@ -1449,12 +1604,12 @@ class TestBayesianOED(unittest.TestCase):
             atol=1e-2)
 
     def check_analytical_gaussian_prediction_deviation_based_oed(
-            self, oed_type, quantile, rtol):
+            self, nonlinear, oed_type, quantile, rtol):
         np.random.seed(1)
         ndesign = 2  # 3
         degree = 2
         ncandidates = 11
-        noise_std = 1
+        noise_std = .5
         pre_collected_design_indices = []
         nsamples = int(1e5)
 
@@ -1474,7 +1629,7 @@ class TestBayesianOED(unittest.TestCase):
 
         nrandom_vars = degree+1
         prior_variable = IndependentMultivariateRandomVariable(
-            [stats.norm(0, 0.5)]*nrandom_vars)
+            [stats.norm(-0.25, .5)]*nrandom_vars)
 
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
         obs_mat = basis_matrix(degree, design_candidates)
@@ -1488,25 +1643,41 @@ class TestBayesianOED(unittest.TestCase):
             linear_gaussian_prediction_deviation_based_oed(
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, risk_fun,
-                pre_collected_design_indices, oed_type, quantile)
-        # print(collected_indices)
+                pre_collected_design_indices, oed_type, quantile,
+                nonlinear=nonlinear)
+        print(collected_indices)
 
         random_samples = prior_variable.rvs(nsamples)
 
-        if oed_type == "linear-pred":
+        if oed_type == "dev-pred" and not nonlinear:
             stat_fun = partial(
                 conditional_gaussian_stat, quantile, obs_mat, prior_mean,
                 prior_cov_inv, noise_cov_inv, pred_mat)
-        elif oed_type == "nonlinear-pred":
+        elif oed_type == "dev-pred" and nonlinear:
             stat_fun = partial(
                 conditional_lognormal_stat, quantile, obs_mat, prior_mean,
                 prior_cov_inv, noise_cov_inv, pred_mat)
-        elif oed_type == "linear-kl":
+        elif oed_type == "KL-param":
             stat_fun = partial(
-                conditional_gaussian_kl_stat,
+                conditional_gaussian_kl_param_stat,
                 obs_mat, prior_mean, prior_cov_inv, noise_cov_inv)
+        elif oed_type == "KL-pred" and not nonlinear:
+            stat_fun = partial(
+                conditional_gaussian_kl_pred_stat,
+                obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, pred_mat,
+                prior_cov)
+        elif oed_type == "KL-pred" and nonlinear:
+            # NOTE: The KL of two lognormals is the same as the KL of the
+            # two associated Normals so we don't need two cases, this
+            # test is making sure this is true
+            stat_fun = partial(
+                conditional_lognormal_kl_pred_stat,
+                obs_mat, prior_mean, prior_cov_inv, noise_cov_inv, pred_mat,
+                prior_cov)
         else:
-            raise ValueError("Incorrect oed_type")
+            raise ValueError(f"Incorrect oed_type {oed_type}")
+
+        print(data[-1][collected_indices[-1]]['utility_val'])
 
         xx = random_samples
         metrics = []
@@ -1516,24 +1687,33 @@ class TestBayesianOED(unittest.TestCase):
         metrics = np.array(metrics)
         print(metrics.mean(axis=0),
               data[-1][collected_indices[-1]]['utility_val'])
+        if oed_type == "KL-param" or oed_type == "KL-pred":
+            sign = 1
+        else:
+            sign = -1
         assert np.allclose(
             metrics.mean(axis=0),
-            -data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
+            sign*data[-1][collected_indices[-1]]['utility_val'], rtol=rtol)
 
     def test_analytical_gaussian_prediction_deviation_based_oed(self):
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-           "linear-pred", None, 1e-2)
+            False, "dev-pred", None, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-            "linear-pred", 0.8, 1e-2)
+            False, "dev-pred", 0.8, 1e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-           "nonlinear-pred", None, 2e-2)
+            True, "dev-pred", None, 2e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-           "nonlinear-pred", 0.8, 2e-2)
+            True, "dev-pred", 0.8, 2e-2)
         self.check_analytical_gaussian_prediction_deviation_based_oed(
-           "linear-kl", None, 2e-2)
+            False, "KL-param", None, 1e-2)
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            False, "KL-pred", None, 1e-2)
+        self.check_analytical_gaussian_prediction_deviation_based_oed(
+            True, "KL-pred", None, 1e-2)
+        # TODO test with heteroscedastic noise
 
     def check_numerical_gaussian_prediction_deviation_based_oed(
-            self, nonlinear, deviation_quantile, risk_quantile,
+            self, nonlinear, oed_type, deviation_quantile, risk_quantile,
             nouter_loop_samples, ninner_loop_samples_1d, quad_method, tols):
         ndesign = 2
         degree = 1
@@ -1583,8 +1763,8 @@ class TestBayesianOED(unittest.TestCase):
             linear_gaussian_prediction_deviation_based_oed(
                 design_candidates, ndesign, prior_mean, prior_cov,
                 noise_cov, obs_mat, pred_mat, risk_fun,
-                pre_collected_design_indices, nonlinear, deviation_quantile,
-                round_decimals=round_decimals)
+                pre_collected_design_indices, oed_type, deviation_quantile,
+                round_decimals=round_decimals, nonlinear=nonlinear)
 
         def obs_fun(x): return obs_mat.dot(x).T
 
@@ -1601,7 +1781,7 @@ class TestBayesianOED(unittest.TestCase):
             ndesign, nouter_loop_samples, ninner_loop_samples_1d,
             quad_method, return_all=True, rounding_decimals=round_decimals)
 
-        print(collected_indices, oed.collected_design_indices)
+        # print(collected_indices, oed.collected_design_indices)
         for jj in range(ncandidates):
             print(analytical_results[0][jj]["expected_deviations"][:, 0],
                   oed_results[0][jj]["expected_deviations"][:, 0])
@@ -1615,7 +1795,7 @@ class TestBayesianOED(unittest.TestCase):
             oed_utility_vals = np.array(
                 [d["utility_val"] for d in oed_results[ii]])
             print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
-            print(anlyt_utility_vals, '\n', oed_utility_vals)
+            # print(anlyt_utility_vals, '\n', oed_utility_vals)
             assert np.allclose(
                oed_utility_vals, anlyt_utility_vals, rtol=tols[0])
 
@@ -1629,14 +1809,62 @@ class TestBayesianOED(unittest.TestCase):
             rtol=tols[1])
 
     def test_numerical_gaussian_prediction_deviation_based_oed(self):
-        # self.check_numerical_gaussian_prediction_deviation_based_oed(
-        #     False, None, None, 2, 30, "gauss", [1e-15, 1e-15])
-        # self.check_numerical_gaussian_prediction_deviation_based_oed(
-        #     True, None, None, int(2e4), 40, "gauss", [4e-4, 2e-4])
-        # self.check_numerical_gaussian_prediction_deviation_based_oed(
-        #     False, 0.8, None, int(1e3), 80, "linear", [1e-3, 1e-3])
         self.check_numerical_gaussian_prediction_deviation_based_oed(
-            True, 0.8, None, int(1e3), 80, "linear", [1e-3, 1e-3])
+            False, "dev-pred", None, None, 2, 30, "gauss", [1e-15, 1e-15])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            True, "dev-pred", None, None, int(2e4), 40, "gauss", [4e-4, 2e-4])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            False, "dev-pred", 0.8, None, int(1e3), 80, "linear", [1e-3, 1e-3])
+        self.check_numerical_gaussian_prediction_deviation_based_oed(
+            True, "dev-pred", 0.8, None, int(1e3), 80, "linear", [2e-3, 2e-3])
+
+    def test_linear_gaussian_posterior_mean_moments(self):
+        degree = 2
+        noise_std = 0.5
+        nrandom_vars = degree+1
+        ncandidates = 11
+        prior_variable = IndependentMultivariateRandomVariable(
+            [stats.norm(1, 0.5)]*nrandom_vars)
+        design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
+
+        def basis_matrix(degree, samples):
+            return samples.T**np.arange(degree+1)[None, :]
+        obs_mat = basis_matrix(degree, design_candidates)
+        (prior_mean, prior_cov, noise_cov, prior_cov_inv,
+         noise_cov_inv) = setup_linear_gaussian_model_inference(
+             prior_variable, noise_std, obs_mat)
+
+        idx = np.array([0, 0])
+        nmat_inv = extract_independent_noise_cov(noise_cov_inv, idx)
+        nmat = extract_independent_noise_cov(noise_cov, idx)
+        omat = obs_mat[idx, :]
+
+        means = []
+        nsamples = int(1e5)
+        for ii in range(nsamples):
+            sample = prior_variable.rvs(1)
+            obs_ii = obs_mat.dot(sample)[idx] + np.linalg.cholesky(nmat).dot(
+                np.random.normal(0, 1, (nmat.shape[0], 1)))
+            post_mean, post_cov = \
+                laplace_posterior_approximation_for_linear_models(
+                    omat, prior_mean, prior_cov_inv, nmat_inv, obs_ii)
+            means.append(post_mean)
+
+        Rmat = np.linalg.multi_dot(
+                (post_cov, omat.T, nmat_inv))
+        ROmat = Rmat.dot(omat)
+        nu_vec = (
+            np.linalg.multi_dot((ROmat, prior_mean)) +
+            np.linalg.multi_dot((post_cov, prior_cov_inv,
+                                 prior_mean)))
+        Cmat = (np.linalg.multi_dot((ROmat, prior_cov, ROmat.T)) +
+                np.linalg.multi_dot((Rmat, nmat, Rmat.T)))
+        means = np.array(means)[:, :, 0]
+        print(np.mean(means, axis=0)-nu_vec)
+        assert np.allclose(np.mean(means, axis=0), nu_vec, rtol=1e-2)
+
+        print(np.cov(means, rowvar=False)-Cmat)
+        assert np.allclose(np.cov(means, rowvar=False), Cmat, rtol=1e-2)
 
 
 if __name__ == "__main__":
