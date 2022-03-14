@@ -1790,11 +1790,14 @@ class TestBayesianOED(unittest.TestCase):
             # print(ii)
             kk = ii+len(pre_collected_design_indices)
             assert (collected_indices[kk] == oed.collected_design_indices[kk])
+            # analytical_results stores data for pre_collected_design_indices
+            # and the subsequently collected indices, but the numerical code
+            # does not
             anlyt_utility_vals = np.array(
-                [d["utility_val"] for d in analytical_results[ii]])
+                [d["utility_val"] for d in analytical_results[kk]])
             oed_utility_vals = np.array(
                 [d["utility_val"] for d in oed_results[ii]])
-            print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
+            # print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
             # print(anlyt_utility_vals, '\n', oed_utility_vals)
             assert np.allclose(
                oed_utility_vals, anlyt_utility_vals, rtol=tols[0])

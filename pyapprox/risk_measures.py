@@ -511,3 +511,8 @@ def gaussian_kl_divergence(mean1, cov1, mean2, cov2):
     val += np.trace(cov2_inv.dot(cov1))
     val += (mean2-mean1).T.dot(cov2_inv.dot(mean2-mean1))
     return 0.5*val.item()
+
+# Useful thesis with derivations of KL and Renyi divergences for a number
+# of canonical distributions
+# Manuel Gil. 2011. ON RÉNYI DIVERGENCE MEASURES FOR CONTINUOUS ALPHABET
+# SOURCES. https://mast.queensu.ca/~communications/Papers/gil-msc11.pdf
