@@ -7,7 +7,7 @@ import pyapprox as pya
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.control_variate_monte_carlo import (
     generate_samples_and_values_acv_IS, get_discrepancy_covariances_IS,
-    get_approximate_control_variate_weights, estimate_variance_reduction,
+    get_approximate_control_variate_weights, estimate_variance,
     get_rsquared_mlmc, allocate_samples_mlmc,
     generate_samples_and_values_mlmc, get_rsquared_mfmc,
     get_mfmc_control_variate_weights, generate_samples_and_values_mfmc,
@@ -18,16 +18,29 @@ from pyapprox.control_variate_monte_carlo import (
     get_control_variate_rsquared, get_control_variate_weights,
     get_mfmc_control_variate_weights_pool_wrapper,
     compute_control_variate_mean_estimate, get_nsamples_per_model,
-    acv_sample_allocation_objective_all, _ndarray_to_pkg_format,
+    acv_sample_allocation_objective_all, _ndarray_as_pkg_format,
     compute_covariance_from_control_variate_samples, use_torch,
     mlmc_sample_allocation_objective_all_lagrange,
     mlmc_sample_allocation_jacobian_all_lagrange_torch,
-    acv_sample_allocation_sample_ratio_constraint, round_nsample_ratios,
-    acv_sample_allocation_sample_ratio_constraint_jac, pkg, get_nhf_samples
-
+    acv_sample_allocation_gmf_ratio_constraint, round_nsample_ratios,
+    acv_sample_allocation_gmf_ratio_constraint_jac, pkg, get_nhf_samples,
+    acv_sample_allocation_nhf_samples_constraint,
+    acv_sample_allocation_nhf_samples_constraint_jac,
+    get_sample_allocation_matrix_mfmc, get_sample_allocation_matrix_acvmf,
+    get_sample_allocation_matrix_acvis, get_sample_allocation_matrix_mlmc,
+    get_npartition_samples_mlmc, get_npartition_samples_mfmc,
+    get_npartition_samples_acvmf,
+    get_npartition_samples_acvis, get_nsamples_intersect, get_nsamples_subset,
+    get_acv_discrepancy_covariances_multipliers,
+    get_acv_discrepancy_covariances, get_acv_recursion_indices,
+    get_acv_initial_guess,
+    acv_sample_allocation_nlf_gt_nhf_ratio_constraint,
+    acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
+    reorder_allocation_matrix_acvgmf,
+    get_nsamples_interesect_from_z_subsets_acvgmf
 )
 from pyapprox.monte_carlo_estimators import (
-    get_estimator, monte_carlo_estimators
+    get_estimator
 )
 
 skiptest = unittest.skipIf(
@@ -236,7 +249,7 @@ class ShortColumnModelEnsemble(object):
         return vals.T.dot(w).squeeze()
 
 
-def setup_check_variance_reduction_model_ensemble_short_column(
+def setup_model_ensemble_short_column(
         nmodels=5, npilot_samples=None):
     example = ShortColumnModelEnsemble()
     model_ensemble = pya.ModelEnsemble(
@@ -270,7 +283,7 @@ def setup_check_variance_reduction_model_ensemble_short_column(
     return model_ensemble, cov, generate_samples
 
 
-def setup_check_variance_reduction_model_ensemble_tunable():
+def setup_model_ensemble_tunable():
     example = TunableModelEnsemble(np.pi/4)
     model_ensemble = pya.ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
@@ -278,36 +291,30 @@ def setup_check_variance_reduction_model_ensemble_tunable():
     return model_ensemble, cov, costs, example.variable
 
 
-def setup_check_variance_reduction_model_ensemble_polynomial():
+def setup_model_ensemble_polynomial():
     example = PolynomialModelEnsemble()
     model_ensemble = pya.ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
+    costs = np.asarray([100//2**ii for ii in range(example.nmodels)])
     # npilot_samples=int(1e6)
     # cov, samples, weights = pya.estimate_model_ensemble_covariance(
     #    npilot_samples,generate_samples,model_ensemble)
-    return model_ensemble, cov, example.generate_samples
-
-
-def check_variance_reduction(estimator_type, setup_model, target_cost,
-                             ntrials=1e3, max_eval_concurrency=1, rtol=1e-2):
-
-    model_ensemble, cov, costs, variable = setup_model()
-    estimator = get_estimator(estimator_type, cov, costs, variable)
-    means, numerical_var_reduction, true_var_reduction = \
-        estimate_variance_reduction(
-            model_ensemble, estimator, target_cost, ntrials,
-            max_eval_concurrency)
-    # print('true', true_var_reduction,'numerical', numerical_var_reduction)
-    # print(np.absolute(true_var_reduction-numerical_var_reduction),
-    #       rtol*np.absolute(true_var_reduction))
-    if rtol is not None:
-        assert np.allclose(numerical_var_reduction, true_var_reduction,
-                           rtol=rtol)
+    return model_ensemble, cov, costs, example.variable
 
 
 class TestCVMC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
+
+    def test_model_ensemble(self):
+        model = pya.ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
+        variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
+        samples_per_model = [variable.rvs(10), variable.rvs(5)]
+        values_per_model = model.evaluate_models(samples_per_model)
+        for ii in range(model.nmodels):
+            assert np.allclose(
+                values_per_model[ii], model.functions[ii](
+                    samples_per_model[ii]))
 
     def test_mlmc_sample_allocation(self):
         # The following will give mlmc with unit variance
@@ -340,12 +347,230 @@ class TestCVMC(unittest.TestCase):
 
     def test_round_nsample_ratios(self):
         target_cost, costs = 10, np.array([1, 0.5, 0.25])
-        nsample_ratios = [2.1, 5.6]
+        nsample_ratios = np.array([2.1, 5.6])
         rounded_nsample_ratios, rounded_target_cost = round_nsample_ratios(
             target_cost, costs, nsample_ratios)
         nsamples = get_nsamples_per_model(
             rounded_target_cost, costs, rounded_nsample_ratios)
         assert np.allclose(nsamples, nsamples.astype(int))
+
+    def test_get_sample_allocation_matrix_mlmc(self):
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        mat = get_sample_allocation_matrix_mlmc(
+            nsamples_per_model.shape[0])
+        assert np.allclose(mat, np.array([[0, 1, 1, 0, 0, 0, 0, 0],
+                                          [0, 0, 0, 1, 1, 0, 0, 0],
+                                          [0, 0, 0, 0, 0, 1, 1, 0],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_mlmc(nsamples_per_model)
+        assert np.allclose(npartition_samples, np.array([2, 2, 4, 4]))
+
+    def test_get_sample_allocation_matrix_mfmc(self):
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        mat = get_sample_allocation_matrix_mfmc(
+            nsamples_per_model.shape[0])
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_mfmc(nsamples_per_model)
+        assert np.allclose(npartition_samples, np.array([2, 2, 2, 2]))
+
+    def test_get_sample_allocation_matrix_acvmf(self):
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        recursion_index = np.array([0, 0, 0])
+        mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 1, 0, 1, 0, 1],
+                                          [0, 0, 0, 0, 0, 1, 0, 1],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
+        assert np.allclose(npartition_samples, np.array([2, 2, 2, 2]))
+
+        nsamples_per_model = np.array([2, 4, 8, 6])
+        reorder_mat = reorder_allocation_matrix_acvgmf(
+            mat, nsamples_per_model, recursion_index)
+        assert np.allclose(reorder_mat,
+                           [[0., 1., 1., 1., 1., 1., 1., 1.],
+                            [0., 0., 0., 1., 0., 1., 0., 1.],
+                            [0., 0., 0., 0., 0., 1., 0., 1.],
+                            [0., 0., 0., 0., 0., 1., 0., 0.]])
+
+        npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
+        nsamples_intersect = get_nsamples_intersect(
+            reorder_mat, npartition_samples)
+        nsamples_z_subsets = nsamples_per_model
+        nsamples_intersect_true = \
+            get_nsamples_interesect_from_z_subsets_acvgmf(
+                nsamples_z_subsets, recursion_index)
+        assert np.allclose(nsamples_intersect, nsamples_intersect_true)
+        assert np.allclose(
+            get_nsamples_subset(reorder_mat, npartition_samples),
+            [0, 2, 2, 4, 2, 8, 2, 6])
+
+        recursion_index = np.array([0, 1, 1, 3])
+        nsamples_per_model = np.array([2, 4, 5, 8, 5])
+        mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        reorder_mat = reorder_allocation_matrix_acvgmf(
+            mat, nsamples_per_model, recursion_index)
+        assert np.allclose(reorder_mat,
+                           [[0., 1., 1., 1., 1., 1., 1., 1., 1., 1.],
+                            [0., 0., 0., 1., 1., 1., 1., 1., 1., 1.],
+                            [0., 0., 0., 0., 0., 1., 0., 1., 1., 1.],
+                            [0., 0., 0., 0., 0., 0., 0., 1., 1., 0.],
+                            [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+
+        npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
+        nsamples_intersect = get_nsamples_intersect(
+            reorder_mat, npartition_samples)
+        nsamples_z_subsets = nsamples_per_model
+        nsamples_intersect_true = \
+            get_nsamples_interesect_from_z_subsets_acvgmf(
+                nsamples_z_subsets, recursion_index)
+        assert np.allclose(nsamples_intersect, nsamples_intersect_true)
+        assert np.allclose(get_nsamples_subset(reorder_mat, npartition_samples),
+                           [0, 2, 2, 4, 4, 5, 4, 8, 8, 5])
+
+        nsamples_per_model = np.array([2, 4, 5, 8, 5])
+        nmodels = len(nsamples_per_model)
+        for recursion_index in get_acv_recursion_indices(nmodels):
+            nsamples_per_model = np.array([2, 4, 5, 8, 5])
+            mat = get_sample_allocation_matrix_acvmf(recursion_index)
+            reorder_mat = reorder_allocation_matrix_acvgmf(
+                mat, nsamples_per_model, recursion_index)
+            npartition_samples = get_npartition_samples_acvmf(
+                nsamples_per_model)
+            nsamples_intersect = get_nsamples_intersect(
+                reorder_mat, npartition_samples)
+            nsamples_z_subsets = nsamples_per_model
+            nsamples_intersect_true = \
+                get_nsamples_interesect_from_z_subsets_acvgmf(
+                    nsamples_z_subsets, recursion_index)
+            assert np.allclose(nsamples_intersect, nsamples_intersect_true)
+
+        # recover mfmc
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        recursion_index = [0, 1, 2]
+        mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
+        assert np.allclose(npartition_samples, np.array([2, 2, 2, 2]))
+
+        recursion_index = [0, 0, 2]
+        mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 1, 0, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_acvmf(nsamples_per_model)
+        assert np.allclose(npartition_samples, np.array([2, 2, 2, 2]))
+
+    def test_get_sample_allocation_matrix_acvis(self):
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        recursion_index = [0, 0, 0]
+        mat = get_sample_allocation_matrix_acvis(recursion_index)
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 1, 0, 0, 0, 0],
+                                          [0, 0, 0, 0, 0, 1, 0, 0],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_acvis(nsamples_per_model)
+
+        recursion_index = [0, 1, 1]
+        mat = get_sample_allocation_matrix_acvis(recursion_index)
+        assert np.allclose(mat, np.array([[0, 1, 1, 1, 0, 0, 0, 0],
+                                          [0, 0, 0, 1, 1, 1, 1, 1],
+                                          [0, 0, 0, 0, 0, 1, 0, 0],
+                                          [0, 0, 0, 0, 0, 0, 0, 1]]))
+        npartition_samples = get_npartition_samples_acvis(nsamples_per_model)
+
+    def test_get_nsamples_intersect_and_subset(self):
+        nsamples_per_model = np.array([2, 4, 6, 8])
+        recursion_index = [0, 0, 0]
+        allocation_matrix = get_sample_allocation_matrix_acvmf(recursion_index)
+        npartition_samples = get_npartition_samples_mfmc(nsamples_per_model)
+        nsamples_intersect = get_nsamples_intersect(
+            allocation_matrix, npartition_samples)
+        print(nsamples_intersect)
+        nsamples_interesect_true = np.array(
+            [[0., 0., 0., 0., 0., 0., 0., 0.],
+             [0., 2., 2., 2., 2., 2., 2., 2.],
+             [0., 2., 2., 2., 2., 2., 2., 2.],
+             [0., 2., 2., 4., 2., 4., 2., 4.],
+             [0., 2., 2., 2., 2., 2., 2., 2.],
+             [0., 2., 2., 4., 2., 6., 2., 6.],
+             [0., 2., 2., 2., 2., 2., 2., 2.],
+             [0., 2., 2., 4., 2., 6., 2., 8.]])
+        assert np.allclose(nsamples_intersect, nsamples_interesect_true)
+        nsamples_subset = get_nsamples_subset(allocation_matrix, npartition_samples)
+        assert np.allclose(nsamples_subset, [0, 2, 2, 4, 2, 6, 2, 8])
+
+        allocation_matrix = get_sample_allocation_matrix_mlmc(
+            nsamples_per_model.shape[0])
+        npartition_samples = get_npartition_samples_mlmc(nsamples_per_model)
+        nsamples_intersect = get_nsamples_intersect(
+            allocation_matrix, npartition_samples)
+        print(nsamples_intersect)
+        nsamples_interesect_true = np.array(
+            [[0., 0., 0., 0., 0., 0., 0., 0.],
+             [0., 2., 2., 0., 0., 0., 0., 0.],
+             [0., 2., 2., 0., 0., 0., 0., 0.],
+             [0., 0., 0., 2., 2., 0., 0., 0.],
+             [0., 0., 0., 2., 2., 0., 0., 0.],
+             [0., 0., 0., 0., 0., 4., 4., 0.],
+             [0., 0., 0., 0., 0., 4., 4., 0.],
+             [0., 0., 0., 0., 0., 0., 0., 4.]])
+        assert np.allclose(nsamples_intersect, nsamples_interesect_true)
+        nsamples_subset = get_nsamples_subset(allocation_matrix, npartition_samples)
+        assert np.allclose(nsamples_subset, [0, 2, 2, 2, 2, 4, 4, 4])
+
+    def test_get_discrepancy_covariances_multipliers(self):
+        target_cost, costs = 100, [1, 1, 1, 1]
+        nsample_ratios = np.array([2, 3, 4])
+        recursion_index = np.array([0, 0, 0])
+        allocation_mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        nsamples_per_model = get_nsamples_per_model(
+            target_cost, costs, nsample_ratios)
+        Gmat, gvec = get_acv_discrepancy_covariances_multipliers(
+            allocation_mat, nsamples_per_model, get_npartition_samples_mfmc,
+            recursion_index)
+        Fmat, fvec = get_discrepancy_covariances_MF(
+            np.ones((len(costs), len(costs))), nsample_ratios)
+        nhf_samples = get_nhf_samples(target_cost, costs, nsample_ratios)
+        assert np.allclose(gvec*nhf_samples, fvec)
+        assert np.allclose(Gmat*nhf_samples, Fmat)
+
+        target_cost, costs = 100, [1, 1, 1, 1]
+        nsample_ratios = np.array([2, 3, 4])
+        recursion_index = np.array([0, 0, 0])
+        allocation_mat = get_sample_allocation_matrix_acvis(recursion_index)
+        nsamples_per_model = get_nsamples_per_model(
+            target_cost, costs, nsample_ratios)
+        Gmat, gvec = get_acv_discrepancy_covariances_multipliers(
+            allocation_mat, nsamples_per_model, get_npartition_samples_acvis,
+            recursion_index)
+        Fmat, fvec = get_discrepancy_covariances_IS(
+            np.ones((len(costs), len(costs))), nsample_ratios)
+        nhf_samples = get_nhf_samples(target_cost, costs, nsample_ratios)
+        assert np.allclose(gvec*nhf_samples, fvec)
+        assert np.allclose(Gmat*nhf_samples, Fmat)
+
+        target_cost, costs = 30, [1, 1, 1]
+        nsample_ratios = np.array([2, 3])
+        recursion_index = np.array([0, 1])
+        allocation_mat = get_sample_allocation_matrix_acvmf(recursion_index)
+        nsamples_per_model = get_nsamples_per_model(
+            target_cost, costs, nsample_ratios)
+        Gmat, gvec = get_acv_discrepancy_covariances_multipliers(
+            allocation_mat, nsamples_per_model, get_npartition_samples_acvmf,
+            recursion_index)
+        nhf_samples = get_nhf_samples(target_cost, costs, nsample_ratios)
+        fvec = np.array([1/10, 1/30.])*nhf_samples
+        Fmat = np.diag(fvec)
+        assert np.allclose(gvec*nhf_samples, fvec)
+        assert np.allclose(Gmat*nhf_samples, Fmat)
 
     def test_generate_samples_and_values_mfmc(self):
         functions = ShortColumnModelEnsemble()
@@ -361,21 +586,18 @@ class TestCVMC(unittest.TestCase):
 
         nhf_samples = 10
         costs = 10.**(-np.arange(3))
-        nsample_ratios = [2, 4]
+        nsample_ratios = np.array([2, 4])
         target_cost = nhf_samples*(costs[0]+np.dot(costs[1:], nsample_ratios))
         nsamples_per_model = get_nsamples_per_model(
-            target_cost, costs, nsample_ratios)
+            target_cost, costs, nsample_ratios).astype(int)
         samples, values =\
             pya.generate_samples_and_values_mfmc(
                 nsamples_per_model, model_ensemble, generate_samples)
 
         nhf_samples = nsamples_per_model[0]
         for jj in range(1, len(samples)):
-            assert samples[jj][1].shape[1] == nsample_ratios[jj-1]*nhf_samples
-            idx = 1
-            if jj == 1:
-                idx = 0
-            assert np.allclose(samples[jj][0], samples[jj-1][idx])
+            assert samples[jj][1].shape[1] == nsamples_per_model[jj]
+            assert np.allclose(samples[jj][0], samples[jj-1][1])
 
     def test_rsquared_mfmc(self):
         functions = ShortColumnModelEnsemble()
@@ -415,85 +637,141 @@ class TestCVMC(unittest.TestCase):
         assert np.allclose(var_mfmc/cov[0, 0]*nhf_samples,
                            1-pya.get_rsquared_mfmc(cov, nsample_ratios))
 
-    def check_variance_reduction(self, estimator_type, rtol, kwargs={}):
-        target_cost, ntrials, max_eval_concurrency = 1e2, 1e4, 1
-        setup_model = \
-            setup_check_variance_reduction_model_ensemble_tunable
+    def check_variance(self, estimator_type, setup_model,
+                       target_cost, ntrials, rtol, kwargs={}):
+        max_eval_concurrency = 1
 
         model_ensemble, cov, costs, variable = setup_model()
         estimator = get_estimator(
             estimator_type, cov, costs, variable, **kwargs)
-        means, numerical_var_reduction, true_var_reduction = \
-            estimate_variance_reduction(
+        means, numerical_var, true_var = \
+            estimate_variance(
                 model_ensemble, estimator, target_cost, ntrials,
                 max_eval_concurrency)
-        # print('true', true_var_reduction, 'numerical',
-        #       numerical_var_reduction)
-        # print(np.absolute(true_var_reduction-numerical_var_reduction),
-        #       rtol*np.absolute(true_var_reduction))
-        assert np.allclose(numerical_var_reduction, true_var_reduction,
-                           rtol=rtol)
+        print('true red', true_var, 'numerical red',
+              numerical_var)
+        print(np.absolute(true_var-numerical_var),
+              rtol*np.absolute(true_var))
+        assert np.allclose(numerical_var, true_var, rtol=rtol)
 
     def test_variance_reduction(self):
-        for estimator_type in ["acvmf", "mfmc"]:  # "acvis" not working
-            print(estimator_type)
-            self.check_variance_reduction(estimator_type, 1e-2)
-
-        estimator_type = "acvmfkl"
-        self.check_variance_reduction(
-            estimator_type, 2e-2, {"K": 2, "L": 1})
-
-    def test_variance_reduction_acv_KL(self):
+        ntrials = 1e4
         setup_model = \
-            setup_check_variance_reduction_model_ensemble_polynomial
-        model_ensemble, cov, generate_samples = setup_model()
+            setup_model_ensemble_tunable
+        for estimator_type in ["acvmf", "mfmc"]:
+            self.check_variance(
+                estimator_type, setup_model, 1e2, ntrials, 1e-2)
+
+    def test_variance_reduction_acvgmf(self):
+        estimator_type = "acvgmf"
+        target_cost = 1e3
+        ntrials = 1e4
+        setup_model = \
+            setup_model_ensemble_polynomial
+        model_ensemble, cov, costs, variable = setup_model()
         nmodels = cov.shape[0]
-        costs = np.asarray([100//2**ii for ii in range(nmodels)])
         KL_sets = [[4, 1], [3, 1], [3, 2], [3, 3], [2, 1], [2, 2]]
-        # Note K,L=[nmodels-1,i], for all i<=nmodels-1, e.g. [4,0],
-        # will give same result as acv_mf
         for K, L in KL_sets:
-            print(K, L)
-            allocate_samples = pya.ACVMFKLEstimator(
-                cov, costs, variable, K, L)#pya.allocate_samples_mfmc
-            generate_samples_and_values = partial(
-                generate_samples_and_values_acv_KL, K=K, L=L)
-            get_discrepancy_covariances = partial(
-                get_discrepancy_covariances_KL, K=K, L=L)
-            get_cv_weights = partial(
-                get_approximate_control_variate_weights,
-                get_discrepancy_covariances=get_discrepancy_covariances)
-            get_rsquared = partial(
-                get_rsquared_acv,
-                get_discrepancy_covariances=get_discrepancy_covariances)
+            if K == nmodels-1:
+                recursion_index = np.zeros(nmodels-1, dtype=int)
+            else:
+                recursion_index = np.hstack(
+                    (np.zeros(K), np.ones(nmodels-1-K)*L)).astype(int)
+            print(K, L, recursion_index)
+            estimator = get_estimator(
+                estimator_type, cov, costs, variable,
+                recursion_index=recursion_index)
+            nsample_ratios, variance, rounded_target_cost = \
+                estimator.allocate_samples(target_cost)
+            nsamples_per_model = estimator.get_nsamples_per_model(
+                rounded_target_cost, nsample_ratios)
+            print(variance, rounded_target_cost, nsamples_per_model)
 
+            samples, values = estimator.generate_data(model_ensemble)
             # Check sizes of samples allocated to each model are correct
-            target_cost = int(1e4)
-            print(costs)
-            nhf_samples, nsample_ratios = allocate_samples(
-                cov, costs, target_cost)[:2]
-
-            nsamples_per_model = get_nsamples_per_model(
-                nhf_samples, nsample_ratios)
-            samples, values = generate_samples_and_values(
-                nsamples_per_model, model_ensemble, generate_samples)
-            for ii in range(0, K+1):
-                assert samples[ii][0].shape[1] == nsamples_per_model[0]
+            for ii in range(1, K+1):
                 assert values[ii][0].shape[0] == nsamples_per_model[0]
             for ii in range(K+1, nmodels):
-                assert samples[ii][0].shape[1] == samples[L][1].shape[1]
-                assert values[ii][0].shape[0] == samples[L][1].shape[1]
+                assert values[ii][0].shape[0] == values[L][1].shape[0]
             for ii in range(1, K+1):
-                assert samples[ii][1].shape[1] == nsamples_per_model[ii]
                 assert values[ii][1].shape[0] == nsamples_per_model[ii]
             for ii in range(K+1, nmodels):
-                assert samples[ii][1].shape[1] == nsamples_per_model[ii]
-                assert values[ii][1].shape[0] == samples[ii][1].shape[1]
+                assert values[ii][1].shape[0] == values[ii][1].shape[0]
 
-            check_variance_reduction(
-                allocate_samples, generate_samples_and_values,
-                get_cv_weights, get_rsquared, setup_model, ntrials=int(3e4),
-                max_eval_concurrency=1)
+            self.check_variance(
+                estimator_type, setup_model, target_cost, ntrials, 3e-2,
+                {"recursion_index": recursion_index})
+
+    def test_acv_sample_allocation_nhf_samples_constraint_jac(self):
+        setup_model = \
+            setup_model_ensemble_polynomial
+        model_ensemble, cov, costs, variable = setup_model()
+        x0 = np.arange(2, model_ensemble.nmodels+1)
+        target_cost = 1e4
+
+        def obj(x):
+            val = np.atleast_2d(acv_sample_allocation_nhf_samples_constraint(
+                x[:, 0], target_cost, costs))
+            return val
+
+        def jac(x):
+            jac = acv_sample_allocation_nhf_samples_constraint_jac(
+                x[:, 0], target_cost, costs)[None, :]
+            return jac
+
+        errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+        assert errors.max() > 1e-2 and errors.min() < 1e-7
+
+    def test_acv_sample_allocation_gmf_ratio_constraint(self):
+        setup_model = \
+            setup_model_ensemble_polynomial
+        model_ensemble, cov, costs, variable = setup_model()
+        x0 = np.arange(2, model_ensemble.nmodels+1)
+        target_cost = 1e4
+
+        recursion_index = [0, 1, 0, 2]
+        for idx in range(1, model_ensemble.nmodels):
+            parent_idx = recursion_index[idx-1]
+            if parent_idx == 0:
+                continue
+
+            def obj(x):
+                val = np.atleast_2d(
+                    acv_sample_allocation_gmf_ratio_constraint(
+                        x[:, 0], idx, parent_idx, target_cost, costs))
+                return val
+
+            def jac(x):
+                jac = acv_sample_allocation_gmf_ratio_constraint_jac(
+                    x[:, 0], idx, parent_idx, target_cost, costs)[None, :]
+                return jac
+
+            errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+            print(errors.max(), errors.min())
+            assert errors.max() > 1e-3 and errors.min() < 1e-8
+
+    def test_acv_sample_allocation_nlf_gt_nhf_ratio_constraint(self):
+        setup_model = \
+            setup_model_ensemble_polynomial
+        model_ensemble, cov, costs, variable = setup_model()
+        x0 = np.arange(2, model_ensemble.nmodels+1)
+        target_cost = 1e3
+
+        for idx in range(1, model_ensemble.nmodels):
+            def obj(x):
+                val = np.atleast_2d(
+                    acv_sample_allocation_nlf_gt_nhf_ratio_constraint(
+                        x[:, 0], idx, target_cost, costs))
+                return val
+
+            def jac(x):
+                jac = acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac(
+                    x[:, 0], idx, target_cost, costs)[None, :]
+                return jac
+
+            errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+            print(errors.max(), errors.min())
+            assert errors.max() > 1e-3 and errors.min() < 3e-8
 
     def test_allocate_samples_mlmc_lagrange_formulation(self):
         cov = np.asarray([[1.00, 0.50, 0.25],
@@ -524,10 +802,10 @@ class TestCVMC(unittest.TestCase):
 
         lagrangian = partial(
             mlmc_sample_allocation_objective_all_lagrange, estimator,
-            variance, _ndarray_to_pkg_format(costs))
+            variance, _ndarray_as_pkg_format(costs))
         lagrangian_jac = partial(
             mlmc_sample_allocation_jacobian_all_lagrange_torch,
-            estimator, variance, _ndarray_to_pkg_format(costs))
+            estimator, variance, _ndarray_as_pkg_format(costs))
         assert np.allclose(
             pya.approx_jacobian(
                 lambda x: np.atleast_1d(lagrangian(x[:, 0])), x0[:, None]),
@@ -557,67 +835,6 @@ class TestCVMC(unittest.TestCase):
         # print(nsample_ratios_exact, ratios)
         assert np.allclose(nsample_ratios_exact, ratios)
         assert np.allclose(lagrange_mult_exact, lagrange_mult)
-
-    def test_MFMC_sample_allocation_regression_test(self):
-        np.random.seed(1)
-        cov = np.asarray([[1.00, 0.90, 0.85],
-                          [0.90, 1.00, 0.50],
-                          [0.85, 0.50, 4.00]])
-        costs = [4, 2, .5]
-        target_cost = 20
-
-        variable = IndependentMultivariateRandomVariable(
-            [stats.norm(0, 1)]*3)
-        mfmc_estimator = get_estimator("mfmc", cov, costs, variable)
-        nsample_ratios, variance, rounded_target_cost = \
-            mfmc_estimator.allocate_samples(target_cost)
-        nsamples_per_model = get_nsamples_per_model(
-            rounded_target_cost, costs, nsample_ratios)
-        print(nsamples_per_model)
-        assert np.allclose(nsamples_per_model, [1, 2, 2])
-
-    def test_MLMC_sample_allocation_regression_test(self):
-        np.random.seed(1)
-        cov = np.asarray([[1.00, 0.90, 0.85],
-                          [0.90, 1.00, 0.50],
-                          [0.85, 0.50, 4.00]])
-        costs = [4, 2, .5]
-        target_cost = 40
-
-        variable = IndependentMultivariateRandomVariable(
-            [stats.norm(0, 1)]*3)
-        mlmc_estimator = get_estimator("mlmc", cov, costs, variable)
-        nsample_ratios, variance, rounded_target_cost = \
-            mlmc_estimator.allocate_samples(target_cost)
-        nsamples_per_model = get_nsamples_per_model(
-            rounded_target_cost, costs, nsample_ratios)
-        print(nsamples_per_model)
-        assert np.allclose(nsamples_per_model, [1, 7, 22])
-
-    def test_ACVMF_sample_allocation(self):
-        np.random.seed(1)
-        cov = np.asarray([[1.00, 0.90, 0.85],
-                          [0.90, 1.00, 0.50],
-                          [0.85, 0.50, 4.00]])
-        costs = [4, 2, .5]
-        target_cost = 40
-
-        # from mxmc.optimizer import Optimizer
-        # optimizer = Optimizer(costs, cov)
-        # opt_result, opt = optimizer.optimize(algorithm="acvmf",
-        #                                      target_cost=target_cost)
-        # print(opt)
-        # print(opt_result)
-        # print(opt_result.allocation.get_number_of_samples_per_model())
-
-        variable = IndependentMultivariateRandomVariable(
-            [stats.norm(0, 1)]*3)
-        acvmf_estimator = get_estimator("acvmf", cov, costs, variable)
-        nsample_ratios, variance, rounded_target_cost = \
-            acvmf_estimator.allocate_samples(target_cost)
-        nsamples_per_model = get_nsamples_per_model(
-            rounded_target_cost, costs, nsample_ratios)
-        assert np.allclose(nsamples_per_model, [3, 9, 9])
 
     @skiptest
     def test_ACVMF_objective_jacobian(self):
@@ -697,30 +914,142 @@ class TestCVMC(unittest.TestCase):
         target_cost = 100
 
         cov_matrix = example.get_covariance_matrix()
-        est = get_estimator("acvmf", cov_matrix, model_costs, example.variable)
+        est = get_estimator("mlmc", cov_matrix, model_costs, example.variable)
 
-        nsample_ratios, variance, rounded_target_cost = est.allocate_samples(
-            target_cost)
-        print(nsample_ratios)
-        print(est.get_nsamples_per_model(rounded_target_cost, nsample_ratios), "A")
-        samples, values = est.generate_data(
-            rounded_target_cost, nsample_ratios, model_ensemble)
+        est.allocate_samples(target_cost)
+        samples, values = est.generate_data(model_ensemble)
 
         est_boot = est
-        weights = get_mfmc_control_variate_weights(est_boot.cov)
+        weights = est_boot._get_approximate_control_variate_weights()
         bootstrap_mean, bootstrap_variance = \
-            pya.bootstrap_mfmc_estimator(values, weights, 1000)#0)
+            pya.bootstrap_acv_estimator(values, weights, 10000)
 
         est_mean = est_boot(values)
-        print(est_mean)
-        est_variance = est_boot.get_variance(rounded_target_cost, nsample_ratios)
-        print(est.get_nsamples_per_model(rounded_target_cost, nsample_ratios))
+        print(est_mean, est.nsample_ratios)
+        est_variance = est_boot.get_variance(
+            est.rounded_target_cost, est.nsample_ratios)
         print(est_variance, bootstrap_variance, 'var')
         print(abs((est_variance-bootstrap_variance)/est_variance))
         assert abs((est_variance-bootstrap_variance)/est_variance) < 6e-2
+
+    def test_mfmc_estimator_optimization(self):
+        target_cost = 30
+        # Warning if target_cost = 20 then after rounding nsample_ratios will be
+        # [1, 5]. This will cause low-rank CF and cf matrices which means
+        # control variate weights cannot be computed.
+        cov = np.asarray([[1.00, 0.90, 0.85],
+                          [0.90, 1.00, 0.50],
+                          [0.85, 0.50, 1.10]])
+        costs = [4, 2, .5]
+        variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
+
+        # recursion_index = np.array([0, 1])
+        # estimator = get_estimator(
+        #     "acvgmf", cov, costs, variable, recursion_index=recursion_index)
+        # nsample_ratios, variance, rounded_target_cost = \
+        #     estimator.allocate_samples(target_cost)
+
+        # mfmc_estimator = get_estimator("mfmc", cov, costs, variable)
+        # # make sure mfmc estimator is not reordering models internally
+        # assert np.allclose(
+        #     mfmc_estimator.model_order, np.arange(mfmc_estimator.nmodels))
+        # (mfmc_nsample_ratios, mfmc_variance,
+        #  mfmc_rounded_target_cost) = mfmc_estimator.allocate_samples(
+        #      target_cost)
+        # assert np.allclose(
+        #     mfmc_estimator.get_variance(rounded_target_cost, nsample_ratios),
+        #     estimator.get_variance(rounded_target_cost, nsample_ratios))
+
+        recursion_index = np.array([0, 0])
+        estimator = get_estimator(
+            "acvgmf", cov, costs, variable, recursion_index=recursion_index)
+        nsample_ratios, variance, rounded_target_cost = \
+            estimator.allocate_samples(target_cost)
+        acvmf_estimator = get_estimator("acvmf", cov, costs, variable,)
+        (acvmf_nsample_ratios, acvmf_variance,
+         acvmf_rounded_target_cost) = acvmf_estimator.allocate_samples(
+             target_cost)
+        assert np.allclose(
+            acvmf_estimator.get_variance(rounded_target_cost, nsample_ratios),
+            estimator.get_variance(rounded_target_cost, nsample_ratios))
+
+    @skiptest
+    def test_estimator_objective_jacobian(self):
+        target_cost = 20
+        cov = np.asarray([[1.00, 0.90, 0.85],
+                          [0.90, 1.00, 0.50],
+                          [0.85, 0.50, 1.10]])
+        np.linalg.cholesky(cov)
+        costs = np.array([4, 2, .5])
+
+        recursion_index = np.array([0, 1])
+        variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
+        estimator = get_estimator("acvgmf", cov, costs, variable)
+        estimator.set_recursion_index(recursion_index)
+        x0 = get_acv_initial_guess(None, cov, costs, target_cost)
+
+        def obj(x):
+            val, jac = estimator.objective(target_cost, x[:, 0])
+            return np.atleast_2d(val), jac
+        errors = pya.check_gradients(obj, True, x0[:, None])
+        assert errors.min() < 3e-7 and errors.max() > 1e-1
+
+        target_cost = 1e3
+        setup_model = setup_model_ensemble_polynomial
+        model_ensemble, cov, costs, variable = setup_model()
+        recursion_index = np.zeros(len(costs)-1, dtype=int)
+        estimator = get_estimator(
+            "acvgmf", cov, costs, variable,
+            recursion_index=recursion_index)
+        x0 = get_acv_initial_guess(None, cov, costs, target_cost)
+
+        def obj(x):
+            val, jac = estimator.objective(target_cost, x[:, 0])
+            return np.atleast_2d(val), jac
+        errors = pya.check_gradients(obj, True, x0[:, None])
+        assert errors.min() < 3e-7 and errors.max() > 1e-1
+
+    def test_get_acvgmf_recusion_indices(self):
+        nmodels = 4
+        indices = []
+        for index in get_acv_recursion_indices(nmodels, 2):
+            indices.append(list(index))
+        assert len(indices) == 10
+
+        true_indices = [
+            [0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 1],
+            [2, 0, 0], [3, 3, 0], [0, 3, 0], [3, 0, 0],
+            [0, 1, 0], [2, 0, 2], [2, 3, 0], [0, 1, 2],
+            [3, 0, 2], [2, 0, 1], [3, 1, 0], [0, 3, 1]]
+        for tindex in true_indices[:10]:
+            assert tindex in indices
+
+        indices = []
+        for index in get_acv_recursion_indices(nmodels, nmodels-1):
+            indices.append(list(index))
+        assert len(indices) == 16
+        for tindex in true_indices:
+            assert tindex in indices
+
+        # from pyapprox.control_variate_monte_carlo import plot_model_recursion
+        # from pyapprox import plt
+        # ngraphs = len(indices)
+        # nrows = int(np.ceil(ngraphs/8))
+        # ncols = int(np.ceil(ngraphs/nrows))
+        # fig, axs = plt.subplots(nrows, ncols, figsize=(3*8, nrows*4))
+        # axs = axs.flatten()
+        # for ii, index in enumerate(indices):
+        #     plot_model_recursion(index, axs[ii])
+        # for ii in range(len(indices), len(axs)):
+        #     axs[ii].remove()
+        # plt.tight_layout()
+        # plt.savefig("graph.png")
+        # plt.show()
 
 
 if __name__ == "__main__":
     cvmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestCVMC)
     unittest.TextTestRunner(verbosity=2).run(cvmc_test_suite)
+    
+    

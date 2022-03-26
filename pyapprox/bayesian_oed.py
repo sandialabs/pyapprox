@@ -1818,6 +1818,8 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
         The noise at the active observations nindices=nobs if
         active_indices is None
     """
+    if type(noise_std) == np.ndarray:
+        noise_std = noise_std.flatten()
     if active_indices is None:
         return np.random.normal(0, noise_std, (values.shape))
     shape = (values.shape[0], active_indices.shape[0])
