@@ -640,6 +640,16 @@ class TestCVMC(unittest.TestCase):
             estimate_variance(
                 model_ensemble, estimator, target_cost, ntrials,
                 max_eval_concurrency)
+
+        # from pyapprox.control_variate_monte_carlo import plot_sample_allocation
+        # from pyapprox.configure_plots import plt
+        # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        # plot_sample_allocation(
+        #     estimator._get_reordered_sample_allocation_matrix(),
+        #     estimator._get_npartition_samples(estimator.nsamples_per_model),
+        #     ax)
+        # plt.show()
+
         print('true red', true_var, 'numerical red',
               numerical_var)
         print(np.absolute(true_var-numerical_var),
@@ -651,7 +661,7 @@ class TestCVMC(unittest.TestCase):
         setup_model = setup_model_ensemble_tunable
         for estimator_type in ["acvis", "acvmf", "mfmc"]:
             self.check_variance(
-                estimator_type, setup_model, 1e2, ntrials, 2e-2)
+                estimator_type, setup_model, 1e3, ntrials, 2e-2)
 
         setup_model = setup_model_ensemble_polynomial
         for estimator_type in ["mlmc"]:
@@ -921,6 +931,7 @@ class TestCVMC(unittest.TestCase):
         est.set_recursion_index(np.array([0, 1]))
         est.set_initial_guess(np.arange(2, est.nmodels + 1))
         est.allocate_samples(target_cost)
+
         samples_per_model, partition_indices_per_model = \
             est.generate_sample_allocations()
         values_per_model = []

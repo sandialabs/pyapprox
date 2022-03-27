@@ -2441,7 +2441,33 @@ def plot_model_recursion(recursion_index, ax):
             font_size=24)
 
 
+def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
+    from pyapprox.configure_plots import plt
+    nmodels = reorder_allocation_mat.shape[0]
+    active_partitions = []
+    for ii in range(nmodels):
+        active_partitions.append(np.where(
+            (reorder_allocation_mat[:, 2*ii] == 1) |
+            (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
+    index = np.arange(reorder_allocation_mat.shape[1])+0.3
+    y_offset = 0
+    colors = plt.cm.rainbow(np.linspace(0, 0.5, 2*nmodels))
+    for jj in range(len(npartition_samples)):
+        used_by = np.ones(reorder_allocation_mat.shape[1], dtype=bool)
+        used_by[reorder_allocation_mat[jj, :] != 1] = False
+        selected_colors = [
+            colors[jj] if uu else 'white' for uu in used_by]
+        ax.bar(index, npartition_samples[jj], 0.4, bottom=y_offset,
+               color=selected_colors)
+        y_offset += npartition_samples[jj]
+
+    xticklabels = []
+    for ii in range(nmodels):
+        xticklabels += [r"$z_%d^\star$" % ii, r"$z_%d$" % ii]
+    ax.set_xticks(index)
+    ax.set_xticklabels(xticklabels)
 
 # Notes
 # using pkg.double when ever creating a torch tensor is esssential.
-# Otherwise autograd will not work
+# Otherwise autograd will not work.
+
