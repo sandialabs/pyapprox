@@ -7,15 +7,12 @@ from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from pyapprox.control_variate_monte_carlo import (
     compute_approximate_control_variate_mean_estimate,
     get_rsquared_mlmc, allocate_samples_mlmc, get_mlmc_control_variate_weights,
-    generate_samples_and_values_mlmc, get_rsquared_mfmc, allocate_samples_mfmc,
-    get_mfmc_control_variate_weights, generate_samples_and_values_mfmc,
+    get_rsquared_mfmc, allocate_samples_mfmc, get_mfmc_control_variate_weights,
     acv_sample_allocation_objective_all, get_nsamples_per_model,
     allocate_samples_acv, get_approximate_control_variate_weights,
-    get_discrepancy_covariances_MF, get_discrepancy_covariances_KL,
-    get_rsquared_acv_KL_best, allocate_samples_acv_best_kl,
-    generate_samples_and_values_acv_KL, round_nsample_ratios,
+    get_discrepancy_covariances_MF, round_nsample_ratios,
     check_mfmc_model_costs_and_correlations, pkg, use_torch, get_nhf_samples,
-    generate_samples_and_values_acv_IS, get_discrepancy_covariances_IS,
+    get_discrepancy_covariances_IS,
     get_sample_allocation_matrix_acvmf, acv_estimator_variance,
     generate_samples_acv, separate_model_values_acv,
     get_npartition_samples_acvmf, get_rsquared_acv,
@@ -26,7 +23,12 @@ from pyapprox.control_variate_monte_carlo import (
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
     acv_sample_allocation_nhf_samples_constraint,
     acv_sample_allocation_nhf_samples_constraint_jac,
-    get_generalized_approximate_control_variate_weights
+    get_generalized_approximate_control_variate_weights,
+    get_sample_allocation_matrix_mlmc, get_npartition_samples_mlmc,
+    get_npartition_samples_mfmc, ModelEnsemble,
+    separate_samples_per_model_acv, get_sample_allocation_matrix_mfmc,
+    get_npartition_samples_acvis, get_sample_allocation_matrix_acvis,
+    bootstrap_acv_estimator
 )
 
 
@@ -109,6 +111,58 @@ class AbstractMonteCarloEstimator(ABC):
         """
         self.random_state = random_state
         self.set_sampling_method()
+
+    def _estimate(self, values):
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values : list (nmodels)
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+        Returns
+        -------
+        est : float
+            The estimate of the mean
+        """
+        eta = self._get_approximate_control_variate_weights()
+        return compute_approximate_control_variate_mean_estimate(eta, values)
+
+    def __call__(self, values):
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values : list (nmodels)
+        Each entry of the list contains
+
+        values0 : np.ndarray (num_samples_i0,num_qoi)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        values1: np.ndarray (num_samples_i1,num_qoi)
+            Evaluations used compute the approximate
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+
+        Returns
+        -------
+        est : float
+            The estimate of the mean
+        """
+        return self._estimate(values)
+
+
+class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
     def _variance_reduction(self, cov, nsample_ratios):
         """
@@ -305,55 +359,6 @@ class AbstractMonteCarloEstimator(ABC):
         # computing gradient and a np.ndarray in all other cases
         raise NotImplementedError()
 
-    def _estimate(self, values):
-        r"""
-        Return the value of the Monte Carlo like estimator
-
-        Parameters
-        ----------
-        values : list (nmodels)
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
-        Returns
-        -------
-        est : float
-            The estimate of the mean
-        """
-        eta = self._get_approximate_control_variate_weights()
-        return compute_approximate_control_variate_mean_estimate(eta, values)
-
-    def __call__(self, values):
-        r"""
-        Return the value of the Monte Carlo like estimator
-
-        Parameters
-        ----------
-        values : list (nmodels)
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
-        Returns
-        -------
-        est : float
-            The estimate of the mean
-        """
-        return self._estimate(values)
-
     @abstractmethod
     def _allocate_samples(self, target_cost):
         """
@@ -436,6 +441,62 @@ class AbstractMonteCarloEstimator(ABC):
             True).astype(int)
 
     @abstractmethod
+    def _get_npartition_samples(self, nsamples_per_model):
+        r"""
+        Get the size of the partitions combined to form
+        :math:`z_i, i=0\ldots, M-1`.
+
+        Parameters
+        ----------
+        nsamples_per_model : np.ndarray (nmodels)
+             The number of total samples allocated to each model. I.e.
+             :math:`|z_i\cup\z^\star_i|, i=0,\ldots,M-1`
+
+        Returns
+        -------
+        npartition_samples : np.ndarray (nmodels)
+            The size of the partitions that make up the subsets
+            :math:`z_i, i=0\ldots, M-1`. These are represented by different
+            color blocks in the ACV papers figures of sample allocation
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_reordered_sample_allocation_matrix(self):
+        r"""
+        Compute the reordered allocation matrix corresponding to
+        self.nsamples_per_model set by set_optimized_params
+
+        Returns
+        -------
+        mat : np.ndarray (nmodels, 2*nmodels)
+            For columns :math:`2j, j=0,\ldots,M-1` the ith row contains a
+            flag specifiying if :math:`z_i^\star\subseteq z_j^\star`
+            For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
+            flag specifiying if :math:`z_i\subseteq z_j`
+        """
+        raise NotImplementedError()
+
+    def generate_sample_allocations(self):
+        """
+        Returns
+        -------
+        samples_per_model : list (nmodels)
+                The ith entry contains the set of samples
+                np.narray(nvars, nsamples_ii) used to evaluate the ith model.
+
+        partition_indices_per_model : list (nmodels)
+                The ith entry contains the indices np.narray(nsamples_ii)
+                mapping each sample to a sample allocation partition
+        """
+        npartition_samples = self._get_npartition_samples(
+            self.nsamples_per_model)
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        samples_per_model, partition_indices_per_model = generate_samples_acv(
+            reorder_allocation_mat, self.nsamples_per_model,
+            npartition_samples, self.generate_samples)
+        return samples_per_model, partition_indices_per_model
+
     def generate_data(self, functions):
         r"""
         Generate the samples and values needed to compute the Monte Carlo like
@@ -455,14 +516,15 @@ class AbstractMonteCarloEstimator(ABC):
 
         Returns
         -------
-        samples : list (nmodels)
+        acv_samples : list (nmodels)
             List containing the samples :math:`\mathcal{Z}_{i,1}` and
             :math:`\mathcal{Z}_{i,2}` for each model :math:`i=0,\ldots,M-1`.
-            The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]],
+            The list is [[:math:`\mathcal{Z}_{0,1}`,:math:`\mathcal{Z}_{0,2}`],
+            ...,[:math:`\mathcal{Z}_{M-1,1}`,:math:`\mathcal{Z}_{M-1,2}`]],
             where :math:`M` is the number of models
 
-        values : list (nmodels)
-        Each entry of the list contains
+        acv_values : list (nmodels)
+            Each entry of the list contains
 
         values0 : np.ndarray (num_samples_i0,num_qoi)
            Evaluations  of each model
@@ -472,7 +534,19 @@ class AbstractMonteCarloEstimator(ABC):
             Evaluations used compute the approximate
             mean :math:`\mu_{i,r_iN}` of the low fidelity models.
         """
-        raise NotImplementedError()
+        samples_per_model, partition_indices_per_model = \
+            self.generate_sample_allocations()
+        if type(functions) == list:
+            functions = ModelEnsemble(functions)
+        values_per_model = functions.evaluate_models(samples_per_model)
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        acv_values = separate_model_values_acv(
+            reorder_allocation_mat, values_per_model,
+            partition_indices_per_model)
+        acv_samples = separate_samples_per_model_acv(
+            reorder_allocation_mat, samples_per_model,
+            partition_indices_per_model)
+        return acv_samples, acv_values
 
     @abstractmethod
     def _get_approximate_control_variate_weights(self):
@@ -486,39 +560,44 @@ class AbstractMonteCarloEstimator(ABC):
         """
         raise NotImplementedError()
 
+    def bootstrap(self, values_per_model, partition_indices_per_model, nbootstraps=1000):
+        return bootstrap_acv_estimator(
+            values_per_model, partition_indices_per_model,
+            self._get_npartition_samples(self.nsamples_per_model),
+            self._get_reordered_sample_allocation_matrix(),
+            self._get_approximate_control_variate_weights(), nbootstraps)
+
 
 class MCEstimator(AbstractMonteCarloEstimator):
-    def _get_rsquared(self, cov, nsample_ratios):
-        return 0
 
-    def _estimate(self, values):
+    def estimate(self, values):
         return values[0].mean()
 
-    def _allocate_samples(self, target_cost):
-        nhf_samples = np.floor(target_cost/self.costs[0])
+    def allocate_samples(self, target_cost):
+        nhf_samples = int(np.floor(target_cost/self.costs[0]))
         nsample_ratios = np.zeros(0)
         log10_variance = np.log10(self.get_variance(
-            nhf_samples, nsample_ratios))
-        rounded_target_cost = nhf_samples*self.costs[0]
-        self.set_optimized_params(nsample_ratios, rounded_target_cost)
+            nhf_samples))
+        self.nhf_samples = nhf_samples
+        self.rounded_target_cost = self.costs[0]*self.nhf_samples
         return nsample_ratios, log10_variance
 
+    def get_variance(self, nhf_samples):
+        return self.cov[0, 0]/nhf_samples
+
     def generate_data(self, functions):
-        samples = self.generate_samples(self.nsamples_per_model[0])
-        if not callable(functions[0]):
+        samples = self.generate_samples(self.nhf_samples)
+        if not callable(functions):
             values = functions[0](samples)
         else:
             samples_with_id = np.vstack(
                 [samples,
-                 np.zeros((1, self.nsamples_per_model[0]), dtype=np.double)])
+                 np.zeros((1, self.nhf_samples), dtype=np.double)])
             values = functions(samples_with_id)
         return samples, values
 
-    def _get_approximate_control_variate_weights(self):
-        return None
 
-
-class MLMCEstimator(AbstractMonteCarloEstimator):
+class MLMCEstimator(AbstractACVEstimator):
     def _get_rsquared(self, cov, nsample_ratios):
         rsquared = get_rsquared_mlmc(cov, nsample_ratios)
         return rsquared
@@ -526,15 +605,17 @@ class MLMCEstimator(AbstractMonteCarloEstimator):
     def _allocate_samples(self, target_cost):
         return allocate_samples_mlmc(self.cov, self.costs, target_cost)
 
-    def generate_data(self, functions):
-        return generate_samples_and_values_mlmc(
-            self.nsamples_per_model, functions, self.generate_samples)
+    def _get_npartition_samples(self, nsamples_per_model):
+        return get_npartition_samples_mlmc(nsamples_per_model)
+
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_mlmc(self.nmodels)
 
     def _get_approximate_control_variate_weights(self):
         return get_mlmc_control_variate_weights(self.get_covariance().shape[0])
 
 
-class MFMCEstimator(AbstractMonteCarloEstimator):
+class MFMCEstimator(AbstractACVEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random"):
         super().__init__(cov, costs, variable, sampling_method)
         self._check_model_costs_and_correlation(
@@ -560,16 +641,23 @@ class MFMCEstimator(AbstractMonteCarloEstimator):
     def _get_approximate_control_variate_weights(self):
         return get_mfmc_control_variate_weights(self.cov)
 
-    def generate_data(self, functions):
-        return generate_samples_and_values_mfmc(
-            self.nsamples_per_model, functions, self.generate_samples,
-            acv_modification=False)
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_mfmc(self.nmodels)
+
+    # def generate_data(self, functions):
+    #    return generate_samples_and_values_mfmc(
+    #        self.nsamples_per_model, functions, self.generate_samples,
+    #        acv_modification=False)
+
+    def _get_npartition_samples(self, nsamples_per_model):
+        return get_npartition_samples_mfmc(nsamples_per_model)
 
 
-class AbstractACVEstimator(AbstractMonteCarloEstimator):
+class AbstractNumericalACVEstimator(AbstractACVEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random"):
         super().__init__(cov, costs, variable, sampling_method)
         self.cons = []
+        self.set_initial_guess(None)
 
     def objective(self, target_cost, x, jac=True):
         # jac argument used for testing with finte difference
@@ -577,10 +665,14 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
             self, target_cost, x, (use_torch and jac))
         return out
 
+    def set_initial_guess(self, initial_guess):
+        self.initial_guess = initial_guess
+
     def _allocate_samples(self, target_cost, **kwargs):
         cons = self.get_constraints(target_cost)
         return allocate_samples_acv(
-            self.cov_opt, self.costs, target_cost, self,  cons, **kwargs)
+            self.cov_opt, self.costs, target_cost, self,  cons,
+            initial_guess=self.initial_guess)
 
     def get_constraints(self, target_cost):
         cons = [{'type': 'ineq',
@@ -599,7 +691,7 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
         raise NotImplementedError()
 
 
-class ACVGMFEstimator(AbstractACVEstimator):
+class ACVGMFEstimator(AbstractNumericalACVEstimator):
     def __init__(self, cov, costs, variable, sampling_method="random",
                  recursion_index=None):
         super().__init__(cov, costs, variable, sampling_method)
@@ -639,12 +731,10 @@ class ACVGMFEstimator(AbstractACVEstimator):
         self._create_allocation_matrix()
 
     def _create_allocation_matrix(self):
-        # TODO make this abstract in base class when acvgis is implemented
         self.allocation_mat = get_sample_allocation_matrix_acvmf(
             self.recursion_index)
 
     def _get_npartition_samples(self, nsamples_per_model):
-        # TODO make this abstract in base class when acvgis is implemented
         return get_npartition_samples_acvmf(nsamples_per_model)
 
     def _get_variance_for_optimizer(self, target_cost, nsample_ratios):
@@ -664,34 +754,25 @@ class ACVGMFEstimator(AbstractACVEstimator):
     def _get_rsquared(self, cov, nsample_ratios):
         raise NotImplementedError()
 
-    def generate_data(self, functions):
-        npartition_samples = self._get_npartition_samples(
-            self.nsamples_per_model)
-        reorder_allocation_mat = reorder_allocation_matrix_acvgmf(
-            self.allocation_mat, self.nsamples_per_model, self.recursion_index)
-        samples_per_model, subset_indices_per_model = generate_samples_acv(
-            reorder_allocation_mat, self.nsamples_per_model,
-            npartition_samples, self.generate_samples)
-        values_per_model = functions.evaluate_models(samples_per_model)
-        acv_values = separate_model_values_acv(
-            reorder_allocation_mat, values_per_model, subset_indices_per_model)
-        return None, acv_values  # TODO remove first return item
-
     def _get_approximate_control_variate_weights(self):
         return get_generalized_approximate_control_variate_weights(
             self.allocation_mat, self.nsamples_per_model,
             self._get_npartition_samples, self.cov, self.recursion_index)[0]
 
+    def _get_reordered_sample_allocation_matrix(self):
+        return reorder_allocation_matrix_acvgmf(
+            self.allocation_mat, self.nsamples_per_model, self.recursion_index)
 
-class ACVMFEstimator(AbstractACVEstimator):
+
+class ACVMFEstimator(AbstractNumericalACVEstimator):
     def _get_rsquared(self, cov, nsample_ratios):
         return get_rsquared_acv(
             cov, nsample_ratios, get_discrepancy_covariances_MF)
 
-    def generate_data(self, functions):
-        return generate_samples_and_values_mfmc(
-            self.nsamples_per_model, functions, self.generate_samples,
-            acv_modification=True)
+    # def generate_data(self, functions):
+    #     return generate_samples_and_values_mfmc(
+    #         self.nsamples_per_model, functions, self.generate_samples,
+    #         acv_modification=True)
 
     def _get_constraints(self, target_cost):
         cons = [
@@ -707,27 +788,55 @@ class ACVMFEstimator(AbstractACVEstimator):
         CF, cf = get_discrepancy_covariances_MF(self.cov, nsample_ratios)
         return get_approximate_control_variate_weights(CF, cf)
 
+    def _get_npartition_samples(self, nsamples_per_model):
+        return get_npartition_samples_acvmf(nsamples_per_model)
 
-class ACVISEstimator(AbstractACVEstimator):
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_acvmf(
+            np.zeros(self.nmodels-1, dtype=int))
+
+
+class ACVISEstimator(AbstractNumericalACVEstimator):
+    # recusion not currently supported
+
     def _get_rsquared(self, cov, nsample_ratios):
         return get_rsquared_acv(
             cov, nsample_ratios, get_discrepancy_covariances_IS)
 
-    def generate_data(self, functions):
-        return generate_samples_and_values_acv_IS(
-            self.nsamples_per_model, functions, self.generate_samples)
+    # def generate_data(self, functions):
+    #     return generate_samples_and_values_acv_IS(
+    #         self.nsamples_per_model, functions, self.generate_samples)
 
     def _get_approximate_control_variate_weights(self):
         nsample_ratios = self.nsamples_per_model[1:]/self.nsamples_per_model[0]
         CF, cf = get_discrepancy_covariances_IS(self.cov, nsample_ratios)
         return get_approximate_control_variate_weights(CF, cf)
 
+    def _get_npartition_samples(self, nsamples_per_model):
+        npartition_samples = get_npartition_samples_acvis(
+            nsamples_per_model)
+        return npartition_samples
+
+    def _get_reordered_sample_allocation_matrix(self):
+        return get_sample_allocation_matrix_acvis(
+            np.zeros(self.nmodels-1, dtype=int))
+
+    def _get_constraints(self, target_cost):
+        cons = [
+            {'type': 'ineq',
+             'fun': acv_sample_allocation_nlf_gt_nhf_ratio_constraint,
+             'jac': acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
+             'args': (ii, target_cost, self.costs)}
+            for ii in range(1, self.nmodels)]
+        return cons
+
 
 monte_carlo_estimators = {"acvmf": ACVMFEstimator,
                           "acvis": ACVISEstimator,
                           "mfmc": MFMCEstimator,
                           "mlmc": MLMCEstimator,
-                          "acvgmf": ACVGMFEstimator}
+                          "acvgmf": ACVGMFEstimator,
+                          "mc": MCEstimator}
 
 
 def get_estimator(estimator_type, cov, costs, variable, **kwargs):

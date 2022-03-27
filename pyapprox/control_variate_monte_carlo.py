@@ -85,8 +85,8 @@ def pkg_diff(array):
 
 
 def check_safe_cast_to_integers(array):
-    array_int = np.array(array, dtype=int)
-    if not np.allclose(array, array_int):
+    array_int = np.array(np.round(array), dtype=int)
+    if not np.allclose(array, array_int, 1e-15):
         raise ValueError("Arrays entries are not integers")
     return array_int
 
@@ -805,9 +805,6 @@ def generate_samples_and_values_acv_IS(nsamples_per_model,
     if not callable(functions):
         assert len(functions) == nmodels
     samples1 = [None]+[generate_samples(nhf_samples)]*nmodels
-    # samples2 = [None]+[np.hstack(
-    #     [samples1[ii+1], generate_samples(int(nhf_samples*r-nhf_samples))])
-    #     for ii, r in enumerate(nsample_ratios)]
     samples2 = [samples1[1]]+[np.hstack(
          [samples1[ii], generate_samples(
              int(nsamples_per_model[ii]-nhf_samples))])
@@ -864,38 +861,11 @@ def generate_samples_and_values_mlmc(nsamples_per_model, functions,
         samples2.append(generate_samples(nnew_samples))
         prev_samples = samples2[-1]
 
-    if not callable(functions):
-        values1 = [functions[0](samples1[0])]
-        values2 = [None]
-        for ii in range(1, nmodels):
-            values1.append(functions[ii](samples1[ii]))
-            values2.append(functions[ii](samples2[ii]))
-    else:
-        samples_with_id = np.vstack([samples2[0], np.zeros((1, nhf_samples),
-                                                           dtype=np.double)])
-        nsamples2 = [nhf_samples]
-        nsamples1 = [0]
-        for ii in range(1, nmodels):
-            samples1_ii = np.vstack(
-                [samples1[ii], ii*np.ones((1, samples1[ii].shape[1]),
-                                          dtype=np.double)])
-            samples2_ii = np.vstack(
-                [samples2[ii], ii*np.ones((1, samples2[ii].shape[1]),
-                                          dtype=np.double)])
-            nsamples1.append(samples1[ii].shape[1])
-            nsamples2.append(samples2[ii].shape[1])
-            samples_with_id = np.hstack([
-                samples_with_id, samples1_ii, samples2_ii])
-        values_flattened = functions(samples_with_id)
-        values2 = [values_flattened[:nsamples2[0]]]
-        values1 = [None]
-        cnt = nsamples1[0]
-        for ii in range(1, nmodels):
-            values1.append(values_flattened[cnt:cnt+nsamples1[ii]])
-            cnt += nsamples1[ii]
-            values2.append(values_flattened[cnt:cnt+nsamples2[ii]])
-            cnt += nsamples2[ii]
-
+    values2 = [functions[0](samples2[0])]
+    values1 = [None]
+    for ii in range(1, nmodels):
+        values1.append(functions[ii](samples1[ii]))
+        values2.append(functions[ii](samples2[ii]))
     samples = [[s1, s2] for s1, s2 in zip(samples1, samples2)]
     values = [[v1, v2] for v1, v2 in zip(values1, values2)]
 
@@ -942,42 +912,12 @@ def generate_samples_and_values_acv_KL(nsamples_per_model, functions,
             nprev_samples1 = nlf_samples[L]
         # nprev_samples_total = nlf_samples[ii-1]
 
-    if not callable(functions):
-        values2 = [functions[0](samples1[0])]
-        values1 = [None]
-        for ii in range(1, nmodels):
-            values_ii = functions[ii](samples2[ii])
-            values1.append(values_ii[:samples1[ii].shape[1]])
-            values2.append(values_ii)
-    else:
-        # collect all samples assign an id and then evaluate in one batch
-        # this can be faster if functions is something like a pool model
-        samples_with_id = np.vstack([samples2[0], np.zeros((1, nhf_samples),
-                                                           dtype=np.double)])
-        for ii in range(1, nmodels):
-            samples_with_id = np.hstack([
-                samples_with_id,
-                np.vstack(
-                    [samples2[ii], ii*np.ones((1, samples2[ii].shape[1]),
-                                              dtype=np.double)])])
-        assert samples_with_id.shape[1] == nhf_samples+np.sum(nlf_samples)
-
-        values_flattened = functions(samples_with_id)
-        values2 = [values_flattened[:nhf_samples]]
-        values1 = [None]
-        nprev_samples2 = nhf_samples
-        # nprev_samples_total = nhf_samples
-        cnt = nhf_samples
-        for ii in range(1, nmodels):
-            values1.append(values_flattened[cnt:cnt+nprev_samples1])
-            values2.append(values_flattened[cnt:cnt+nlf_samples[ii-1]])
-            cnt += nlf_samples[ii-1]
-            if (ii <= K):
-                nprev_samples2 = nhf_samples
-            else:
-                nprev_samples2 = nlf_samples[L]
-            # nprev_samples_total = nlf_samples[ii-1]
-        assert cnt == values_flattened.shape[0]
+    values2 = [functions[0](samples1[0])]
+    values1 = [None]
+    for ii in range(1, nmodels):
+        values_ii = functions[ii](samples2[ii])
+        values1.append(values_ii[:samples1[ii].shape[1]])
+        values2.append(values_ii)
 
     samples = [[s1, s2] for s1, s2 in zip(samples1, samples2)]
     values = [[v1, v2] for v1, v2 in zip(values1, values2)]
@@ -1011,7 +951,9 @@ def get_sample_allocation_matrix_mlmc(nmodels):
 
 def get_npartition_samples_mlmc(nsamples_per_model):
     r"""
-    Get the size of the subsets :math:`z_i, i=0\ldots, M-1`.
+    Get the size of the partitions combined to form
+        :math:`z_i, i=0\ldots, M-1`.
+
 
     Parameters
     ----------
@@ -1240,7 +1182,7 @@ def get_generalized_approximate_control_variate_weights(
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
     except RuntimeError:
-        weights = np.ones(cf.shape)*1e16
+        weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
 
 
@@ -1306,42 +1248,12 @@ def generate_samples_and_values_mfmc(nsamples_per_model, functions,
         else:
             nprev_samples = samples2[ii].shape[1]
 
-    if not callable(functions):
-        values2 = [functions[0](samples1[0])]
-        values1 = [None]
-        for ii in range(1, nmodels):
-            values_ii = functions[ii](samples2[ii])
-            values1.append(values_ii[:samples1[ii].shape[1]])
-            values2.append(values_ii)
-    else:
-        # collect all samples assign an id and then evaluate in one batch
-        # this can be faster if functions is something like a pool model
-        samples_with_id = np.vstack([samples2[0], np.zeros((1, nhf_samples),
-                                                           dtype=np.double)])
-        for ii in range(1, nmodels):
-            samples_with_id = np.hstack([
-                samples_with_id,
-                np.vstack(
-                    [samples2[ii], ii*np.ones((1, samples2[ii].shape[1]),
-                                              dtype=np.double)])])
-        values_flattened = functions(samples_with_id)
-        values2 = [values_flattened[:nhf_samples]]
-        values1 = [None]
-        nprev_samples = nhf_samples
-        cnt = nhf_samples
-        for ii in range(1, nmodels):
-            values1.append(values_flattened[cnt:cnt+nprev_samples])
-            # values2.append(values_flattened[cnt:cnt+nlf_samples[ii-1]])
-            # cnt += nlf_samples[ii-1]
-            values2.append(values_flattened[cnt:cnt+nsamples_per_model[ii]])
-            cnt += nsamples_per_model[ii]
-            if acv_modification:
-                nprev_samples = nhf_samples
-            else:
-                nprev_samples = samples2[ii].shape[1]
-    assert cnt == values_flattened.shape[0]
-    # assert cnt == nhf_samples + np.sum(nlf_samples)
-    assert cnt == nhf_samples + np.sum(nsamples_per_model[1:])
+    values2 = [functions[0](samples2[0])]
+    values1 = [None]
+    for ii in range(1, nmodels):
+        values_ii = functions[ii](samples2[ii])
+        values1.append(values_ii[:samples1[ii].shape[1]])
+        values2.append(values_ii)
 
     samples = [[s1, s2] for s1, s2 in zip(samples1, samples2)]
     values = [[v1, v2] for v1, v2 in zip(values1, values2)]
@@ -1370,12 +1282,7 @@ def acv_sample_allocation_objective_all(estimator, target_cost, x, jac=False):
 
 
 def mlmc_sample_allocation_objective_all_lagrange(
-        estimator, target_variance, costs, x):
-    if use_torch:
-        xrats = torch.tensor(x, dtype=pkg.double)
-        xrats.requires_grad = True
-    else:
-        xrats = x
+        estimator, target_variance, costs, xrats):
     nhf_samples, ratios, lagrange_mult = xrats[0], xrats[1:-1], xrats[-1]
     total_cost = nhf_samples*costs[0] + ((ratios*nhf_samples).dot(costs[1:]))
     var_red = estimator._variance_reduction(estimator.cov, ratios)
@@ -1394,7 +1301,8 @@ def mlmc_sample_allocation_jacobian_all_lagrange_torch(
     # xrats.requires_grad = True
     nhf_samples, ratios, lagrange_mult = xrats[0], xrats[1:-1], xrats[-1]
     total_cost = costs[0]*nhf_samples+costs[1:].dot(ratios*nhf_samples)
-    var_red = estimator._variance_reduction(estimator.cov, ratios)
+    var_red = estimator._variance_reduction(
+        _ndarray_as_pkg_format(estimator.cov), ratios)
     variance = var_red*estimator.cov[0, 0]/nhf_samples
     obj = total_cost+lagrange_mult**2*(variance-target_variance)
     obj = torch.log10(obj)
@@ -1405,24 +1313,28 @@ def mlmc_sample_allocation_jacobian_all_lagrange_torch(
 
 
 def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
-    if initial_guess is None:
-        nmodels = len(costs)
-        # initial_guess = np.arange(2, nmodels + 1)
-        # return initial_guess
-        nratios = np.empty(nmodels-1)
-        for ii in range(1, nmodels):
-            idx = np.array([0, ii])
-            nratio = allocate_samples_mfmc(
-                cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
-            nratios[ii-1] = nratio
+    if initial_guess is not None:
+        constraint_val = acv_sample_allocation_nhf_samples_constraint(
+            initial_guess, target_cost, costs)
+        if constraint_val < 0:
+            raise ValueError("Not a feasiable initial guess")
+        return initial_guess
 
-        # scale ratios so that nhf_samples is one
-        nhf_samples = 1
-        # use (1-1e-8) to avoid numerical precision problems so that
-        # acv_sample_allocation_nhf_samples_constraint is always positive
-        delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
-            costs[1:])
-        initial_guess = np.array(nratios)*delta
+    nmodels = len(costs)
+    nratios = np.empty(nmodels-1)
+    for ii in range(1, nmodels):
+        idx = np.array([0, ii])
+        nratio = allocate_samples_mfmc(
+            cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
+        nratios[ii-1] = nratio
+
+    # scale ratios so that nhf_samples is one
+    nhf_samples = 1
+    # use (1-1e-8) to avoid numerical precision problems so that
+    # acv_sample_allocation_nhf_samples_constraint is always positive
+    delta = (target_cost*(1-1e-8) - costs[0]*nhf_samples)/nratios.dot(
+        costs[1:])
+    initial_guess = np.array(nratios)*delta
 
     constraint_val = acv_sample_allocation_nhf_samples_constraint(
         initial_guess, target_cost, costs)
@@ -1436,7 +1348,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
         estimator, costs, target_cost, initial_guess, optim_options, cons):
     if optim_options is None:
         optim_options = {'disp': True, 'ftol': 1e-10,
-                         'maxiter': 1000, 'iprint': 1}
+                         'maxiter': 1000, 'iprint': 0}
         # set iprint=2 to printing iteration info
 
     if target_cost < costs.sum():
@@ -1455,8 +1367,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
         partial(estimator.objective, target_cost, jac=jac),
         initial_guess, method='SLSQP', jac=jac,
         bounds=bounds, constraints=cons, options=optim_options)
-    print(opt)
-    if not opt.success:
+    if not opt.success or opt.nit == 1:
         raise Exception('SLSQP optimizer failed'+f'{opt}')
     return opt
 
@@ -1497,7 +1408,7 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     nsample_ratios = opt.x
     var = estimator.get_variance(target_cost, nsample_ratios)
     log10_var = np.log10(var.item())
-    print('Optimized Variance', 10**opt.fun, 10**log10_var)
+    # print('Optimized Variance', 10**opt.fun, 10**log10_var)
     # assert np.allclose(log10_var, opt.fun)
     return nsample_ratios, log10_var
 
@@ -1519,29 +1430,6 @@ def get_rsquared_acv_KL_best(cov, nsample_ratios):
                 opt_rsquared = rsquared
                 # KL = (K, L)
     return opt_rsquared
-
-
-def allocate_samples_acv_best_kl(cov, costs, target_cost,
-                                 initial_guess=None, optim_options=None,
-                                 optim_method='SLSQP'):
-    nmodels = len(costs)
-    sol, opt_log10_var = None, np.inf
-    # KL = None
-
-    for K in range(1, nmodels):
-        for L in range(1, K+1):
-            estimator = ACVMFKL(cov, costs, target_cost, K, L)
-            nsample_ratios, log10_var = allocate_samples_acv(
-                cov, costs, target_cost, estimator,
-                initial_guess, optim_options, optim_method)
-            # print("K, L = ", K, L)
-            # print("\t ", log10_var)
-            if log10_var < opt_log10_var:
-                opt_log10_var = log10_var
-                sol = (nsample_ratios)
-                # KL = (K, L)
-
-    return sol[0], opt_log10_var
 
 
 class ModelEnsemble(object):
@@ -1780,7 +1668,6 @@ def estimate_variance(model_ensemble, estimator, target_cost,
         target_cost)
 
     ntrials = int(ntrials)
-    print(ntrials)
     from multiprocessing import Pool
     func = partial(
         compute_single_fidelity_and_approximate_control_variate_mean_estimates,
@@ -1799,24 +1686,6 @@ def estimate_variance(model_ensemble, estimator, target_cost,
     true_var = estimator.get_variance(
         estimator.rounded_target_cost, estimator.nsample_ratios)
     return means, numerical_var, true_var
-
-
-def get_mfmc_control_variate_weights_pool_wrapper(cov, nsamples):
-    r"""
-    Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with
-    multiprocessing pool because python cannot pickle such lambda functions
-    """
-    return get_mfmc_control_variate_weights(cov)
-
-
-def get_mlmc_control_variate_weights_pool_wrapper(cov, nsamples):
-    r"""
-    Create interface that adhears to assumed api for variance reduction check
-    cannot be defined as a lambda locally in a test when using with
-    multiprocessing pool because python cannot pickle such lambda functions
-    """
-    return get_mlmc_control_variate_weights(cov.shape[0])
 
 
 def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
@@ -1902,79 +1771,6 @@ def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
         print('Mean +/- 2 sigma', [bootstrap_mean-2*np.sqrt(
             bootstrap_variance), bootstrap_mean+2*np.sqrt(bootstrap_variance)])
 
-    return bootstrap_mean, bootstrap_variance
-
-
-def bootstrap_acv_estimator_deprecated(values, weights, nbootstraps=10,
-                                       verbose=True, acv_modification=True):
-    r"""
-    Boostrap the approximate ACV estimate of the mean of
-    high-fidelity data with low-fidelity models with unknown means
-
-    Parameters
-    ----------
-    values : list (nmodels)
-        The evaluations of each information source seperated in form
-        necessary for control variate estimators.
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
-    weights : np.ndarray (nmodels-1)
-        The control variate weights
-
-    nbootstraps : integer
-        The number of boostraps used to compute estimator variance
-
-    verbose:
-        If True print the estimator mean and +/- 2 standard deviation interval
-
-    Returns
-    -------
-    bootstrap_mean : float
-        The bootstrap estimate of the estimator mean
-
-    bootstrap_variance : float
-        The bootstrap estimate of the estimator variance
-    """
-    assert acv_modification
-    nmodels = len(values)
-    assert len(values) == nmodels
-    # high fidelity monte carlo estimate of mean
-    bootstrap_means = []
-    for jj in range(nbootstraps):
-        vals = values[0][1]
-        nhf_samples = vals.shape[0]
-        I1 = np.random.choice(
-            np.arange(nhf_samples), size=(nhf_samples), replace=True)
-        est = vals[I1].mean()
-        # nprev_samples = nhf_samples
-        for ii in range(nmodels-1):
-            vals1 = values[ii+1][0]
-            nsamples1 = vals1.shape[0]
-            vals2 = values[ii+1][1]
-            nsamples2 = vals2.shape[0]
-            I2 = np.random.choice(
-                np.arange(nhf_samples, nsamples2),
-                size=(nsamples2-nhf_samples),
-                replace=True)
-            # maks sure same shared samples are still used.
-            vals2_boot = np.vstack([vals2[I1], vals2[I2]])
-            est += weights[ii]*(vals1[I1].mean()-vals2_boot.mean())
-            # if acv_modification:
-            #     nprev_samples = nhf_samples
-            # else:
-            #     nprev_samples = nsamples2
-        bootstrap_means.append(est)
-    bootstrap_means = np.array(bootstrap_means)
-    bootstrap_mean = np.mean(bootstrap_means)
-    bootstrap_variance = np.var(bootstrap_means)
     return bootstrap_mean, bootstrap_variance
 
 
@@ -2219,8 +2015,7 @@ def get_nsamples_per_model(target_cost, costs, nsample_ratios, isinteger=True):
     nsamples_per_model = pkg_hstack(
         [nhf_samples, nsample_ratios*nhf_samples])
     if isinteger:
-        check_safe_cast_to_integers(nsamples_per_model)
-        return nsamples_per_model
+        return cast_to_integers(nsamples_per_model)
     return nsamples_per_model
 
 
@@ -2255,6 +2050,7 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
         target_cost, costs, nsample_ratios, False)
     nsamples_floor = nsamples_float.astype(int)
     if nsamples_floor[0] < 1:
+        print(nsamples_floor, nsamples_float, costs)
         raise Exception("Rounding likely caused nhf samples to be zero")
     nsample_ratios_floor = nsamples_floor[1:]/nsamples_floor[0]
     rounded_target_cost = nsamples_floor[0]*(costs[0]+np.dot(
@@ -2395,34 +2191,70 @@ def separate_model_values_acv(reorder_allocation_mat,
     return acv_values
 
 
-def bootstrap_acv_estimator(acv_values, acv_weights, nbootstraps=10):
+def separate_samples_per_model_acv(reorder_allocation_mat, samples_per_model,
+                                   subset_indices_per_model):
+    r"""
+    Separate a list of samples for each model into the separated
+    form necessary to evaluate the approximate the control variate estimator
+
+    Parameters
+    ----------
+    allocation_mat : np.ndarray (nmodels, 2*nmodels)
+        For columns :math:`2j, j=0,\ldots,M-1` the ith row contains a
+        flag specifiying if :math:`z_i^\star\subseteq z_j^\star`
+        For columns :math:`2j+1, j=0,\ldots,M-1` the ith row contains a
+        flag specifiying if :math:`z_i\subseteq z_j`
+
+    samples_per_model : list (nmodels)
+            The ith entry contains the set of evaluations
+            np.narray(nvars, nsamples_ii) of the ith model.
+
+    partition_indices_per_model : list (nmodels)
+            The ith entry contains the indices np.narray(nsamples_ii)
+            mapping each sample to a sample allocation partition
+
+    Returns
+    -------
+    acv_samples : list (nmodels)
+        The samples for each information source seperated in form
+        necessary for control variate estimators.
+        Each entry of the list contains
+
+        samples0 : np.ndarray (nvars, num_samples_i0)
+           Evaluations  of each model
+           used to compute the estimator :math:`Q_{i,N}` of
+
+        samples1: np.ndarray (nvars, num_samples_i1)
+            Evaluations used compute the approximate
+            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
+    """
+    nmodels = len(samples_per_model)
+    tmp = []
+    for ii in range(nmodels):
+        tmp.append(samples_per_model[ii].T)
+    acv_samples = separate_model_values_acv(
+        reorder_allocation_mat, tmp, subset_indices_per_model)
+    for ii in range(nmodels):
+        if ii > 0:
+            acv_samples[ii][0] = acv_samples[ii][0].T
+        acv_samples[ii][1] = acv_samples[ii][1].T
+    return acv_samples
+
+
+def bootstrap_acv_estimator(values_per_model, partition_indices_per_model,
+                            npartition_samples, reorder_allocation_mat,
+                            acv_weights, nbootstraps=10):
     r"""
     Approximate the variance of the Monte Carlo estimate of the mean using
     bootstraping
 
     Parameters
     ----------
-    acv_values : list (nmodels)
-        The evaluations of each information source seperated in form
-        necessary for control variate estimators.
-        Each entry of the list contains
-
-        values0 : np.ndarray (num_samples_i0,num_qoi)
-           Evaluations  of each model
-           used to compute the estimator :math:`Q_{i,N}` of
-
-        values1: np.ndarray (num_samples_i1,num_qoi)
-            Evaluations used compute the approximate
-            mean :math:`\mu_{i,r_iN}` of the low fidelity models.
-
     acv_weights : np.ndarray (nmodels-1)
         The control variate weights
 
     nbootstraps : integer
         The number of boostraps used to compute estimator variance
-
-    verbose:
-        If True print the estimator mean and +/- 2 standard deviation interval
 
     Returns
     -------
@@ -2432,26 +2264,38 @@ def bootstrap_acv_estimator(acv_values, acv_weights, nbootstraps=10):
     bootstrap_var : float
         The bootstrap estimate of the estimator variance
     """
-    nmodels = len(acv_values)
-    nsamples_1 = [None] + [vv[0].shape[0] for vv in acv_values[1:]]
-    nsamples_2 = [vv[1].shape[0] for vv in acv_values]
+    nmodels = len(values_per_model)
+    npartitions = len(npartition_samples)
+    npartition_samples = cast_to_integers(npartition_samples)
+    # preallocate memory so do not have to do it repeatedly
+    permuted_partition_indices = [
+        np.empty(npartition_samples[jj], dtype=int)
+        for jj in range(npartitions)]
+    permuted_values_per_model = [v.copy() for v in values_per_model]
+    active_partitions = []
+    for ii in range(nmodels):
+        active_partitions.append(np.where(
+            (reorder_allocation_mat[:, 2*ii] == 1) |
+            (reorder_allocation_mat[:, 2*ii+1] == 1))[0])
+
     estimator_vals = np.empty((nbootstraps, 1))
-    for jj in range(nbootstraps):
-        bs_values = []
+    for kk in range(nbootstraps):
+        for jj in range(npartitions):
+            n_jj = npartition_samples[jj]
+            permuted_partition_indices[jj][:] = (
+                np.random.choice(np.arange(n_jj, dtype=int), size=(n_jj),
+                                 replace=True))
         for ii in range(nmodels):
-            if ii > 0:
-                I1 = np.random.choice(
-                    np.arange(nsamples_1[ii]), size=(nsamples_1[ii]),
-                    replace=True)
-                bs_values_1 = acv_values[ii][0][I1]
-            else:
-                bs_values_1 = None
-            I2 = np.random.choice(
-                np.arange(nsamples_2[ii]), size=(nsamples_2[ii]), replace=True)
-            bs_values_2 = acv_values[ii][1][I2]
-            bs_values.append([bs_values_1, bs_values_2])
-        estimator_vals[jj] = compute_approximate_control_variate_mean_estimate(
-            acv_weights, bs_values)
+            for idx in active_partitions[ii]:
+                II = np.where(partition_indices_per_model[ii] == idx)[0]
+                permuted_values_per_model[ii][II] = values_per_model[ii][
+                    II[permuted_partition_indices[idx]]]
+        permuted_acv_values = separate_model_values_acv(
+            reorder_allocation_mat, permuted_values_per_model,
+            partition_indices_per_model)
+        estimator_vals[kk] = \
+            compute_approximate_control_variate_mean_estimate(
+                acv_weights, permuted_acv_values)
     bootstrap_mean = estimator_vals.mean()
     bootstrap_var = estimator_vals.var()
     return bootstrap_mean, bootstrap_var

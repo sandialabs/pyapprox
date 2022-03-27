@@ -6,24 +6,13 @@ from functools import partial
 import pyapprox as pya
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.control_variate_monte_carlo import (
-    generate_samples_and_values_acv_IS, get_discrepancy_covariances_IS,
-    get_approximate_control_variate_weights, estimate_variance,
-    get_rsquared_mlmc, allocate_samples_mlmc,
-    generate_samples_and_values_mlmc, get_rsquared_mfmc,
-    get_mfmc_control_variate_weights, generate_samples_and_values_mfmc,
-    get_rsquared_acv, allocate_samples_acv,
-    get_discrepancy_covariances_MF, get_discrepancy_covariances_KL,
-    generate_samples_and_values_acv_KL,
-    get_mlmc_control_variate_weights_pool_wrapper,
-    get_control_variate_rsquared, get_control_variate_weights,
-    get_mfmc_control_variate_weights_pool_wrapper,
-    compute_control_variate_mean_estimate, get_nsamples_per_model,
+    estimate_variance, allocate_samples_mlmc,
+    get_discrepancy_covariances_MF, get_nsamples_per_model,
     acv_sample_allocation_objective_all, _ndarray_as_pkg_format,
-    compute_covariance_from_control_variate_samples, use_torch,
-    mlmc_sample_allocation_objective_all_lagrange,
+    use_torch, mlmc_sample_allocation_objective_all_lagrange,
     mlmc_sample_allocation_jacobian_all_lagrange_torch,
     acv_sample_allocation_gmf_ratio_constraint, round_nsample_ratios,
-    acv_sample_allocation_gmf_ratio_constraint_jac, pkg, get_nhf_samples,
+    acv_sample_allocation_gmf_ratio_constraint_jac, get_nhf_samples,
     acv_sample_allocation_nhf_samples_constraint,
     acv_sample_allocation_nhf_samples_constraint_jac,
     get_sample_allocation_matrix_mfmc, get_sample_allocation_matrix_acvmf,
@@ -31,9 +20,8 @@ from pyapprox.control_variate_monte_carlo import (
     get_npartition_samples_mlmc, get_npartition_samples_mfmc,
     get_npartition_samples_acvmf,
     get_npartition_samples_acvis, get_nsamples_intersect, get_nsamples_subset,
-    get_acv_discrepancy_covariances_multipliers,
-    get_acv_discrepancy_covariances, get_acv_recursion_indices,
-    get_acv_initial_guess,
+    get_acv_discrepancy_covariances_multipliers, get_acv_recursion_indices,
+    get_acv_initial_guess, get_discrepancy_covariances_IS,
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint,
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
     reorder_allocation_matrix_acvgmf,
@@ -165,6 +153,9 @@ class TunableModelEnsemble(object):
                 self.theta1)*np.cos(self.theta2))
         cov[2, 1] = cov[1, 2]
         return cov
+
+    def get_means(self):
+        return np.array([0, self.shifts[0], self.shifts[1]])
 
 
 class ShortColumnModelEnsemble(object):
@@ -477,6 +468,7 @@ class TestCVMC(unittest.TestCase):
                                           [0, 0, 0, 0, 0, 1, 0, 0],
                                           [0, 0, 0, 0, 0, 0, 0, 1]]))
         npartition_samples = get_npartition_samples_acvis(nsamples_per_model)
+        assert np.allclose(npartition_samples, [2, 2, 4, 6])
 
         recursion_index = [0, 1, 1]
         mat = get_sample_allocation_matrix_acvis(recursion_index)
@@ -484,7 +476,6 @@ class TestCVMC(unittest.TestCase):
                                           [0, 0, 0, 1, 1, 1, 1, 1],
                                           [0, 0, 0, 0, 0, 1, 0, 0],
                                           [0, 0, 0, 0, 0, 0, 0, 1]]))
-        npartition_samples = get_npartition_samples_acvis(nsamples_per_model)
 
     def test_get_nsamples_intersect_and_subset(self):
         nsamples_per_model = np.array([2, 4, 6, 8])
@@ -592,7 +583,7 @@ class TestCVMC(unittest.TestCase):
             target_cost, costs, nsample_ratios).astype(int)
         samples, values =\
             pya.generate_samples_and_values_mfmc(
-                nsamples_per_model, model_ensemble, generate_samples)
+                nsamples_per_model, model_ensemble.functions, generate_samples)
 
         nhf_samples = nsamples_per_model[0]
         for jj in range(1, len(samples)):
@@ -644,6 +635,7 @@ class TestCVMC(unittest.TestCase):
         model_ensemble, cov, costs, variable = setup_model()
         estimator = get_estimator(
             estimator_type, cov, costs, variable, **kwargs)
+
         means, numerical_var, true_var = \
             estimate_variance(
                 model_ensemble, estimator, target_cost, ntrials,
@@ -656,18 +648,29 @@ class TestCVMC(unittest.TestCase):
 
     def test_variance_reduction(self):
         ntrials = 1e4
-        setup_model = \
-            setup_model_ensemble_tunable
-        for estimator_type in ["acvmf", "mfmc"]:
+        setup_model = setup_model_ensemble_tunable
+        for estimator_type in ["acvis", "acvmf", "mfmc"]:
             self.check_variance(
-                estimator_type, setup_model, 1e2, ntrials, 1e-2)
+                estimator_type, setup_model, 1e2, ntrials, 2e-2)
+
+        setup_model = setup_model_ensemble_polynomial
+        for estimator_type in ["mlmc"]:
+            self.check_variance(
+                estimator_type, setup_model, 1e3, ntrials, 1e-2)
+
+        setup_model = setup_model_ensemble_tunable
+        estimator_type = "acvgmf"
+        for index in list(get_acv_recursion_indices(3)):
+            print(index)
+            self.check_variance(
+                estimator_type, setup_model, 1e3, ntrials, 2e-2,
+                {"recursion_index": index})
 
     def test_variance_reduction_acvgmf(self):
         estimator_type = "acvgmf"
         target_cost = 1e3
         ntrials = 1e4
-        setup_model = \
-            setup_model_ensemble_polynomial
+        setup_model = setup_model_ensemble_polynomial
         model_ensemble, cov, costs, variable = setup_model()
         nmodels = cov.shape[0]
         KL_sets = [[4, 1], [3, 1], [3, 2], [3, 3], [2, 1], [2, 2]]
@@ -703,8 +706,7 @@ class TestCVMC(unittest.TestCase):
                 {"recursion_index": recursion_index})
 
     def test_acv_sample_allocation_nhf_samples_constraint_jac(self):
-        setup_model = \
-            setup_model_ensemble_polynomial
+        setup_model = setup_model_ensemble_polynomial
         model_ensemble, cov, costs, variable = setup_model()
         x0 = np.arange(2, model_ensemble.nmodels+1)
         target_cost = 1e4
@@ -723,8 +725,7 @@ class TestCVMC(unittest.TestCase):
         assert errors.max() > 1e-2 and errors.min() < 1e-7
 
     def test_acv_sample_allocation_gmf_ratio_constraint(self):
-        setup_model = \
-            setup_model_ensemble_polynomial
+        setup_model = setup_model_ensemble_polynomial
         model_ensemble, cov, costs, variable = setup_model()
         x0 = np.arange(2, model_ensemble.nmodels+1)
         target_cost = 1e4
@@ -751,8 +752,7 @@ class TestCVMC(unittest.TestCase):
             assert errors.max() > 1e-3 and errors.min() < 1e-8
 
     def test_acv_sample_allocation_nlf_gt_nhf_ratio_constraint(self):
-        setup_model = \
-            setup_model_ensemble_polynomial
+        setup_model = setup_model_ensemble_polynomial
         model_ensemble, cov, costs, variable = setup_model()
         x0 = np.arange(2, model_ensemble.nmodels+1)
         target_cost = 1e3
@@ -773,6 +773,7 @@ class TestCVMC(unittest.TestCase):
             print(errors.max(), errors.min())
             assert errors.max() > 1e-3 and errors.min() < 3e-8
 
+    @skiptest
     def test_allocate_samples_mlmc_lagrange_formulation(self):
         cov = np.asarray([[1.00, 0.50, 0.25],
                           [0.50, 1.00, 0.50],
@@ -905,28 +906,35 @@ class TestCVMC(unittest.TestCase):
         # print(abs(est_variance-bootstrap_variance)/est_variance)
         assert abs((est_variance-bootstrap_variance)/est_variance) < 1e-2
 
-    def test_bootstrap_control_variate_estimator(self):
-        # example = TunableModelEnsemble(np.pi/2)
-        # model_costs = [1, 0.5, 0.4]
-        example = PolynomialModelEnsemble()
+    def test_bootstrap_approximate_control_variate_estimator(self):
+        example = TunableModelEnsemble(np.pi/3)
+        model_costs = [1, 0.5, 0.4]
+        target_cost = 1000
+        # example = PolynomialModelEnsemble()
+        # model_costs = 10.**(-np.arange(example.nmodels))
+        # target_cost = 100
         model_ensemble = pya.ModelEnsemble(example.models)
-        model_costs = 10.**(-np.arange(example.nmodels))
-        target_cost = 100
 
         cov_matrix = example.get_covariance_matrix()
-        est = get_estimator("mlmc", cov_matrix, model_costs, example.variable)
-
+        est = get_estimator("acvgmf", cov_matrix, model_costs,
+                            example.variable)
+        est.set_recursion_index(np.array([0, 1]))
+        est.set_initial_guess(np.arange(2, est.nmodels + 1))
         est.allocate_samples(target_cost)
-        samples, values = est.generate_data(model_ensemble)
+        samples_per_model, partition_indices_per_model = \
+            est.generate_sample_allocations()
+        values_per_model = []
+        for ii in range(est.nmodels):
+            values_per_model.append(
+                model_ensemble.functions[ii](samples_per_model[ii]))
 
-        est_boot = est
-        weights = est_boot._get_approximate_control_variate_weights()
-        bootstrap_mean, bootstrap_variance = \
-            pya.bootstrap_acv_estimator(values, weights, 10000)
+        bootstrap_mean, bootstrap_variance = est.bootstrap(
+            values_per_model, partition_indices_per_model, 10000)
 
-        est_mean = est_boot(values)
-        print(est_mean, est.nsample_ratios)
-        est_variance = est_boot.get_variance(
+        print(example.get_means()[0], bootstrap_mean)
+        print(est.nsamples_per_model, est.rounded_target_cost,
+              est.nsample_ratios)
+        est_variance = est.get_variance(
             est.rounded_target_cost, est.nsample_ratios)
         print(est_variance, bootstrap_variance, 'var')
         print(abs((est_variance-bootstrap_variance)/est_variance))
@@ -934,31 +942,25 @@ class TestCVMC(unittest.TestCase):
 
     def test_mfmc_estimator_optimization(self):
         target_cost = 30
-        # Warning if target_cost = 20 then after rounding nsample_ratios will be
-        # [1, 5]. This will cause low-rank CF and cf matrices which means
-        # control variate weights cannot be computed.
         cov = np.asarray([[1.00, 0.90, 0.85],
                           [0.90, 1.00, 0.50],
                           [0.85, 0.50, 1.10]])
         costs = [4, 2, .5]
         variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
 
-        # recursion_index = np.array([0, 1])
-        # estimator = get_estimator(
-        #     "acvgmf", cov, costs, variable, recursion_index=recursion_index)
-        # nsample_ratios, variance, rounded_target_cost = \
-        #     estimator.allocate_samples(target_cost)
+        recursion_index = np.array([0, 1])
+        estimator = get_estimator(
+            "acvgmf", cov, costs, variable, recursion_index=recursion_index)
+        nsample_ratios, variance, rounded_target_cost = \
+            estimator.allocate_samples(target_cost)
 
-        # mfmc_estimator = get_estimator("mfmc", cov, costs, variable)
-        # # make sure mfmc estimator is not reordering models internally
-        # assert np.allclose(
-        #     mfmc_estimator.model_order, np.arange(mfmc_estimator.nmodels))
-        # (mfmc_nsample_ratios, mfmc_variance,
-        #  mfmc_rounded_target_cost) = mfmc_estimator.allocate_samples(
-        #      target_cost)
-        # assert np.allclose(
-        #     mfmc_estimator.get_variance(rounded_target_cost, nsample_ratios),
-        #     estimator.get_variance(rounded_target_cost, nsample_ratios))
+        mfmc_estimator = get_estimator("mfmc", cov, costs, variable)
+        (mfmc_nsample_ratios, mfmc_variance,
+         mfmc_rounded_target_cost) = mfmc_estimator.allocate_samples(
+             target_cost)
+        assert np.allclose(
+            mfmc_estimator.get_variance(rounded_target_cost, nsample_ratios),
+            estimator.get_variance(rounded_target_cost, nsample_ratios))
 
         recursion_index = np.array([0, 0])
         estimator = get_estimator(
@@ -1051,5 +1053,3 @@ if __name__ == "__main__":
     cvmc_test_suite = unittest.TestLoader().loadTestsFromTestCase(
         TestCVMC)
     unittest.TextTestRunner(verbosity=2).run(cvmc_test_suite)
-    
-    
