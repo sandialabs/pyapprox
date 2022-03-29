@@ -1044,20 +1044,20 @@ class TestCVMC(unittest.TestCase):
         for tindex in true_indices:
             assert tindex in indices
 
-        # from pyapprox.control_variate_monte_carlo import plot_model_recursion
-        # from pyapprox import plt
-        # ngraphs = len(indices)
-        # nrows = int(np.ceil(ngraphs/8))
-        # ncols = int(np.ceil(ngraphs/nrows))
-        # fig, axs = plt.subplots(nrows, ncols, figsize=(3*8, nrows*4))
-        # axs = axs.flatten()
-        # for ii, index in enumerate(indices):
-        #     plot_model_recursion(index, axs[ii])
-        # for ii in range(len(indices), len(axs)):
-        #     axs[ii].remove()
-        # plt.tight_layout()
-        # plt.savefig("graph.png")
-        # plt.show()
+        from pyapprox.control_variate_monte_carlo import plot_model_recursion
+        from pyapprox import plt
+        ngraphs = len(indices)
+        nrows = int(np.ceil(ngraphs/8))
+        ncols = int(np.ceil(ngraphs/nrows))
+        fig, axs = plt.subplots(nrows, ncols, figsize=(3*8, nrows*4))
+        axs = axs.flatten()
+        for ii, index in enumerate(indices):
+            plot_model_recursion(index, axs[ii])
+        for ii in range(len(indices), len(axs)):
+            axs[ii].remove()
+        plt.tight_layout()
+        plt.savefig("graph.png")
+        plt.show()
 
 
 if __name__ == "__main__":

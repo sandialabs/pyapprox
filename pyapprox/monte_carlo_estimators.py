@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from functools import partial
+from itertools import combinations
 
 from pyapprox.utilities import get_correlation_from_covariance
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
@@ -28,7 +29,7 @@ from pyapprox.control_variate_monte_carlo import (
     get_npartition_samples_mfmc, ModelEnsemble,
     separate_samples_per_model_acv, get_sample_allocation_matrix_mfmc,
     get_npartition_samples_acvis, get_sample_allocation_matrix_acvis,
-    bootstrap_acv_estimator
+    bootstrap_acv_estimator, get_acv_recursion_indices
 )
 
 
@@ -416,10 +417,12 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
         nsample_ratios, rounded_target_cost = round_nsample_ratios(
             target_cost, self.costs, nsample_ratios)
         variance = self.get_variance(rounded_target_cost, nsample_ratios)
-        self.set_optimized_params(nsample_ratios, rounded_target_cost)
-        return (nsample_ratios, variance, rounded_target_cost)
+        self.set_optimized_params(
+            nsample_ratios, rounded_target_cost, variance)
+        return nsample_ratios, variance, rounded_target_cost, variance
 
-    def set_optimized_params(self, nsample_ratios, rounded_target_cost):
+    def set_optimized_params(self, nsample_ratios, rounded_target_cost,
+                             optimized_variance):
         """
         Set the parameters needed to generate samples for evaluating the
         estimator
@@ -433,12 +436,16 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
 
         rounded_target_cost : float
             The cost of the new sample allocation
+
+        optimized_variance : float
+            The variance of the estimator using the integer sample allocations
         """
         self.nsample_ratios = nsample_ratios
         self.rounded_target_cost = rounded_target_cost
         self.nsamples_per_model = get_nsamples_per_model(
             self.rounded_target_cost, self.costs, self.nsample_ratios,
             True).astype(int)
+        self.optimized_variance = optimized_variance
 
     @abstractmethod
     def _get_npartition_samples(self, nsamples_per_model):
@@ -560,7 +567,8 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
         """
         raise NotImplementedError()
 
-    def bootstrap(self, values_per_model, partition_indices_per_model, nbootstraps=1000):
+    def bootstrap(self, values_per_model, partition_indices_per_model,
+                  nbootstraps=1000):
         return bootstrap_acv_estimator(
             values_per_model, partition_indices_per_model,
             self._get_npartition_samples(self.nsamples_per_model),
@@ -576,11 +584,11 @@ class MCEstimator(AbstractMonteCarloEstimator):
     def allocate_samples(self, target_cost):
         nhf_samples = int(np.floor(target_cost/self.costs[0]))
         nsample_ratios = np.zeros(0)
-        log10_variance = np.log10(self.get_variance(
-            nhf_samples))
-        self.nhf_samples = nhf_samples
-        self.rounded_target_cost = self.costs[0]*self.nhf_samples
-        return nsample_ratios, log10_variance
+        variance = self.get_variance(nhf_samples)
+        self.nsamples_per_model = np.array([nhf_samples])
+        self.rounded_target_cost = self.costs[0]*self.nsamples_per_model[0]
+        self.optimized_variance = variance
+        return nsample_ratios, variance, self.rounded_target_cost
 
     def get_variance(self, nhf_samples):
         return self.cov[0, 0]/nhf_samples
@@ -764,6 +772,29 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
             self.allocation_mat, self.nsamples_per_model, self.recursion_index)
 
 
+class ACVGMFBEstimator(ACVGMFEstimator):
+    def allocate_samples(self, target_cost):
+        best_variance = np.inf
+        best_result = None
+        for index in get_acv_recursion_indices(self.nmodels):
+            self.set_recursion_index(index)
+            print(index)
+            try:
+                super().allocate_samples(target_cost)
+            except:
+                # typically solver failes because trying to use uniformative model
+                # as a recursive control variate
+                self.optimized_variance = np.inf
+            print(self.optimized_variance, best_variance)
+            if self.optimized_variance < best_variance:
+                best_result = [self.nsample_ratios, self.rounded_target_cost,
+                               self.optimized_variance, index]
+                best_variance = self.optimized_variance
+        self.set_recursion_index(best_result[3])
+        self.set_optimized_params(*best_result[:3])
+        print("Best", self.recursion_index)
+
+
 class ACVMFEstimator(AbstractNumericalACVEstimator):
     def _get_rsquared(self, cov, nsample_ratios):
         return get_rsquared_acv(
@@ -836,6 +867,7 @@ monte_carlo_estimators = {"acvmf": ACVMFEstimator,
                           "mfmc": MFMCEstimator,
                           "mlmc": MLMCEstimator,
                           "acvgmf": ACVGMFEstimator,
+                          "acvgmfb": ACVGMFBEstimator,
                           "mc": MCEstimator}
 
 
@@ -846,3 +878,29 @@ def get_estimator(estimator_type, cov, costs, variable, **kwargs):
         raise ValueError(msg)
     return monte_carlo_estimators[estimator_type](
         cov, costs, variable, **kwargs)
+
+
+def get_best_models_for_acv_estimator(
+        estimator_type, cov, costs, variable, target_cost,
+        max_nmodels=None, **kwargs):
+    nmodels = cov.shape[0]
+    if max_nmodels is None:
+        max_nmodels = nmodels
+    lf_model_indices = np.arange(1, nmodels)
+    best_variance = np.inf
+    best_est, best_model_indices = None, None
+    for nsubset_lfmodels in range(1, max_nmodels):
+        for lf_model_subset_indices in combinations(
+                lf_model_indices, nsubset_lfmodels):
+            idx = np.hstack(([0], lf_model_subset_indices)).astype(int)
+            subset_cov, subset_costs = cov[np.ix_(idx, idx)], costs[idx]
+            print('####', idx)
+            est = get_estimator(
+                estimator_type, subset_cov, subset_costs, variable, **kwargs)
+            est.allocate_samples(target_cost)
+            print(idx, est.optimized_variance)
+            if est.optimized_variance < best_variance:
+                best_est = est
+                best_model_indices = idx
+                best_variance = est.optimized_variance
+    return best_est, best_model_indices

@@ -1827,3 +1827,49 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
         return np.random.normal(0, noise_std, shape)
     return np.random.normal(
         0, noise_std[active_indices], shape)
+
+
+def get_bayesian_oed_optimizer(oed_type, design_candidates, obs_fun, noise_std,
+                               prior_variable, nouter_loop_samples,
+                               ninner_loop_samples, quad_method,
+                               *args,
+                               pre_collected_design_indices=None,
+                               **kwargs):
+    oed_types = {"open_loop_kl_params": BayesianBatchKLOED,
+                 "closed_loop_kl_params": BayesianSequentialKLOED,
+                 "open_loop_dev_pred": BayesianBatchDeviationOED,
+                 "closed_loop_dev_pred": BayesianSequentialDeviationOED}
+
+    if oed_type not in oed_types:
+        msg = f"oed_type {oed_type} not supported."
+        msg += "Select from {oed_types.keys()}"
+        raise ValueError(msg)
+
+    if (type(noise_std) == np.ndarray and
+            noise_std.shape[0] != design_candidates.shape[1]):
+        msg = "noise_std must be specified for each design candiate"
+        raise ValueError(msg)
+
+    if quad_method in ["gauss", "linear", "quadratic"]:
+        x_quad, w_quad = get_oed_inner_quadrature_rule(
+            ninner_loop_samples, prior_variable, quad_method)
+        ninner_loop_samples = x_quad.shape[1]
+        generate_inner_prior_samples = partial(
+            generate_inner_prior_samples_fixed, x_quad, w_quad)
+    elif quad_method == "monte_carlo":
+        # use default Monte Carlo sampling
+        generate_inner_prior_samples = None
+    else:
+        raise ValueError(f"Incorrect quad_method {quad_method} specified")
+    econ = True
+
+    oed = oed_types[oed_type](
+        design_candidates, obs_fun, noise_std, prior_variable,
+        *args, nouter_loop_samples=nouter_loop_samples,
+        ninner_loop_samples=ninner_loop_samples, econ=econ,
+        generate_inner_prior_samples=generate_inner_prior_samples,
+        max_eval_concurrency=1, **kwargs)
+    oed.populate()
+    if pre_collected_design_indices is not None:
+        oed.set_collected_design_indices(pre_collected_design_indices)
+    return oed

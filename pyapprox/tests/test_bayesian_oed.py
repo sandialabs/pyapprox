@@ -16,7 +16,8 @@ from pyapprox.bayesian_oed import (
     oed_average_prediction_deviation, run_bayesian_batch_deviation_oed,
     get_deviation_fun, extract_independent_noise_cov,
     sequential_oed_synthetic_observation_process,
-    gaussian_noise_fun, BayesianSequentialDeviationOED
+    gaussian_noise_fun, BayesianSequentialDeviationOED,
+    get_bayesian_oed_optimizer
 )
 from pyapprox.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
@@ -754,12 +755,17 @@ class TestBayesianOED(unittest.TestCase):
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
-        oed = BayesianBatchKLOED(
-            design_candidates, obs_fun, noise_std, prior_variable,
-            nouter_loop_samples, ninner_loop_samples,
-            generate_inner_prior_samples)
-        oed.populate()
-        oed.set_collected_design_indices(init_design_indices)
+        # oed = BayesianBatchKLOED(
+        #     design_candidates, obs_fun, noise_std, prior_variable,
+        #     nouter_loop_samples, ninner_loop_samples,
+        #     generate_inner_prior_samples)
+        # oed.populate()
+        # oed.set_collected_design_indices(init_design_indices)
+        oed = get_bayesian_oed_optimizer(
+            "open_loop_kl_params", design_candidates, obs_fun, noise_std,
+            prior_variable, nouter_loop_samples,
+            ninner_loop_samples, "gauss",
+            pre_collected_design_indices=init_design_indices)
 
         for ii in range(len(init_design_indices), ndesign):
             # loop must be before oed.updated design because
@@ -941,36 +947,26 @@ class TestBayesianOED(unittest.TestCase):
             sequential_oed_synthetic_observation_process,
             obs_fun, true_sample, partial(gaussian_noise_fun, noise_std))
 
-        x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples_1d)
-        x_quad = cartesian_product([x_quad]*nrandom_vars)
-        w_quad = outer_product([w_quad]*nrandom_vars)
-        ninner_loop_samples = x_quad.shape[1]
-
-        def generate_inner_prior_samples_gauss(n):
-            # use precomputed samples so to avoid cost of regenerating
-            assert n == x_quad.shape[1]
-            return x_quad, w_quad
-
-        generate_inner_prior_samples = generate_inner_prior_samples_gauss
+        if "kl_params" not in oed_type:
+            risk_fun = oed_average_prediction_deviation
+            def qoi_fun(samples): return pred_mat.dot(samples).T
+            kwargs = {"risk_fun": risk_fun,
+                      "deviation_fun": oed_variance_deviation}
+            args = (qoi_fun, obs_process)
+        else:
+            kwargs = {}
+            args = (obs_process,)
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
-        if oed_type == "KL":
-            oed = BayesianSequentialKLOED(
-                design_candidates, obs_fun, noise_std, prior_variable,
-                obs_process, nouter_loop_samples, ninner_loop_samples,
-                generate_inner_prior_samples)
-        else:
-            risk_fun = oed_average_prediction_deviation
-            def qoi_fun(samples): return pred_mat.dot(samples).T
-            oed = BayesianSequentialDeviationOED(
-                design_candidates, obs_fun, noise_std, prior_variable,
-                qoi_fun, obs_process, nouter_loop_samples, ninner_loop_samples,
-                generate_inner_prior_samples,
-                deviation_fun=oed_variance_deviation, risk_fun=risk_fun)
-        oed.populate()
-        if init_design_indices.shape[0] > 0:
-            oed.set_collected_design_indices(init_design_indices)
+        oed = get_bayesian_oed_optimizer(
+            oed_type, design_candidates, obs_fun, noise_std,
+            prior_variable, nouter_loop_samples,
+            ninner_loop_samples_1d, "gauss", *args,
+            pre_collected_design_indices=init_design_indices, **kwargs)
+        # following assumes oed.econ = True
+        x_quad = oed.inner_loop_prior_samples[:, :oed.ninner_loop_samples]
+        w_quad = oed.inner_loop_weights[0, :oed.ninner_loop_samples]
 
         prior_mean = oed.prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -1145,7 +1141,7 @@ class TestBayesianOED(unittest.TestCase):
                     gauss_evidence_jj_from_prior/gauss_evidence_from_prior,
                     gauss_evidence_jj)
 
-                if oed_type == "KL":
+                if oed_type == "closed_loop_kl_params":
                     gauss_kl_div = gaussian_kl_divergence(
                         exact_post_mean_jj, exact_post_cov_jj,
                         exact_post_mean, exact_post_cov)
@@ -1185,8 +1181,8 @@ class TestBayesianOED(unittest.TestCase):
             post_var_prev = post_var
 
     def test_sequential_kl_oed(self):
-        self.check_sequential_kl_oed("KL", [2e-2, 1.3e-2, 7e-3, 3e-3])
-        self.check_sequential_kl_oed("DEV", [2e-15, 3e-12, 3e-6, 9e-9])
+        # self.check_sequential_kl_oed("closed_loop_kl_params", [2e-2, 1.3e-2, 7e-3, 3e-3])
+        self.check_sequential_kl_oed("closed_loop_dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
 
     def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
         """

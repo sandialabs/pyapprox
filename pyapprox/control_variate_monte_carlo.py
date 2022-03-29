@@ -8,6 +8,7 @@ import os
 from scipy.optimize import minimize
 from functools import partial, reduce
 from itertools import product
+import copy
 
 
 from pyapprox.probability_measure_sampling import (
@@ -439,6 +440,7 @@ def allocate_samples_mlmc(cov, costs, target_cost):
 
     II = np.argsort(var_deltas)
     if not np.allclose(II, np.arange(nmodels)):
+        print(var_deltas)
         raise ValueError("Models discrepancy variances do not decrease")
 
     # compute the cost of one sample of the discrepancy
@@ -739,7 +741,7 @@ def get_rsquared_acv(cov, nsample_ratios, get_discrepancy_covariances):
 def acv_sample_allocation_gmf_ratio_constraint(ratios, *args):
     model_idx, parent_idx, target_cost, costs = args
     assert parent_idx > 0 and model_idx > 0
-    eps = 1e-8
+    eps = 1e-12
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # ratios are only for low-fidelity models so use index-1
     return nhf_samples*(ratios[model_idx-1]-ratios[parent_idx-1])-(1+eps)
@@ -761,7 +763,7 @@ def acv_sample_allocation_gmf_ratio_constraint_jac(ratios, *args):
 def acv_sample_allocation_nlf_gt_nhf_ratio_constraint(ratios, *args):
     model_idx, target_cost, costs = args
     assert model_idx > 0
-    eps = 1e-8
+    eps = 1e-12
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # print(target_cost, nhf_samples)
     # ratios are only for low-fidelity models so use index-1
@@ -785,7 +787,7 @@ def acv_sample_allocation_nhf_samples_constraint(ratios, *args):
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # print(target_cost, nhf_samples)
-    eps = 1e-8
+    eps = 1e-12
     return nhf_samples-(1+eps)
 
 
@@ -1195,7 +1197,7 @@ def acv_estimator_variance(allocation_mat, target_cost, costs,
             allocation_mat, nsamples_per_model,
             get_npartition_samples, cov, recursion_index)
     rsquared = -cf.dot(weights)/cov[0, 0]
-    assert rsquared <= 1
+    # assert rsquared <= 1 or np.all(weights == 1e16), (rsquared, weights)
     variance_reduction = (1-rsquared)
     variance = variance_reduction*cov[0, 0]/nsamples_per_model[0]
     return variance
@@ -1321,6 +1323,8 @@ def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
         return initial_guess
 
     nmodels = len(costs)
+    return np.arange(2, nmodels+1)
+
     nratios = np.empty(nmodels-1)
     for ii in range(1, nmodels):
         idx = np.array([0, ii])
@@ -1367,8 +1371,6 @@ def solve_allocate_samples_acv_slsqp_optimization(
         partial(estimator.objective, target_cost, jac=jac),
         initial_guess, method='SLSQP', jac=jac,
         bounds=bounds, constraints=cons, options=optim_options)
-    if not opt.success or opt.nit == 1:
-        raise Exception('SLSQP optimizer failed'+f'{opt}')
     return opt
 
 
@@ -1405,9 +1407,17 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     assert optim_method == "SLSQP"
     opt = solve_allocate_samples_acv_slsqp_optimization(
         estimator, costs, target_cost, initial_guess, optim_options, cons)
+    print(opt)
     nsample_ratios = opt.x
-    var = estimator.get_variance(target_cost, nsample_ratios)
-    log10_var = np.log10(var.item())
+    if not opt.success:# or opt.nit == 1: nit will be 1 if using only two models
+        for con in cons:
+            print(con['fun'](opt.x, *con['args']))
+        raise Exception('SLSQP optimizer failed'+f'{opt}')
+        # var = 1e99
+        # log10_var = 99
+    else:
+        var = estimator.get_variance(target_cost, nsample_ratios)
+        log10_var = np.log10(var.item())
     # print('Optimized Variance', 10**opt.fun, 10**log10_var)
     # assert np.allclose(log10_var, opt.fun)
     return nsample_ratios, log10_var
@@ -1806,8 +1816,7 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def compare_estimator_variances(
-        target_costs, estimators, cov_matrix, model_costs):
+def compare_estimator_variances(target_costs, estimators):
     """
     Compute the variances of different Monte-Carlo like estimators.
 
@@ -1820,65 +1829,42 @@ def compare_estimator_variances(
         List of Monte Carlo estimator objects, e.g.
         :class:`pyapprox.control_variate_monte_carlo.MC`
 
-    cov_matrix :  np.ndarray (nmodels, nmodels)
-        The covariance between all models
-
-    model_costs : np.ndarray (nmodels)
-        The computational cost of running each model
-
     Returns
     -------
-    variances : np.ndarray (nestimators, ntarget_costs)
-        The variance of each estimator for each target cost
-
-    nsamples_history : np.ndarray (nestimators, ntarget_costs, nmodels)
-        The number of samples allocated to each model for each estimator
-        and target cost
+        optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
     """
-    variances, nsamples_history = [], []
-    for estimator in estimators:
-        est_variances, est_nsamples_history = [], []
+    optimized_estimators = []
+    for est in estimators:
+        est_copies = []
         for target_cost in target_costs:
-            est = estimator(cov_matrix, model_costs)
-            nsample_ratios, variance, rounded_target_cost = \
-                est.allocate_samples(target_cost)
-            est_variances.append(variance)
-            est_nsamples_history.append(
-                est.get_nsamples(rounded_target_cost, nsample_ratios))
-        variances.append(est_variances)
-        nsamples_history.append(est_nsamples_history)
-    variances = np.asarray(variances)
-    nsamples_history = np.asarray(nsamples_history)
-    return nsamples_history, variances
+            est_copy = copy.deepcopy(est)
+            est_copy.allocate_samples(target_cost)
+            est_copies.append(est_copy)
+        optimized_estimators.append(est_copies)
+    return optimized_estimators
 
 
-def plot_estimator_variances(nsamples_history, variances, model_costs,
+def plot_estimator_variances(optimized_estimators,
                              est_labels, ax, ylabel=None):
     """
     Plot variance as a function of the total cost for a set of estimators.
 
     Parameters
     ----------
-    variances : np.ndarray (nestimators, ntarget_costs)
-        The variance of each estimator for each target cost
-
-    nsamples_history : np.ndarray (nestimators, ntarget_costs, nmodels)
-        The number of samples allocated to each model for each estimator
-        and target cost
-
-    model_costs : np.ndarray (nmodels)
-        The computational cost of running each model
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
 
     est_labels : list (nestimators)
         String used to label each estimator
     """
     linestyles = ['-', '--', ':', '-.']
     nestimators = len(est_labels)
-    assert len(nsamples_history) == len(variances)
     for ii in range(nestimators):
-        est_total_costs = np.array(nsamples_history[ii, :, :]).dot(
-            model_costs)
-        est_variances = variances[ii, :]
+        est_total_costs = np.array(
+            [est.rounded_target_cost for est in optimized_estimators[ii]])
+        est_variances = np.array(
+            [est.optimized_variance for est in optimized_estimators[ii]])
         ax.loglog(est_total_costs, est_variances, label=est_labels[ii],
                   ls=linestyles[ii], marker='o')
     if ylabel is None:
@@ -1888,7 +1874,7 @@ def plot_estimator_variances(nsamples_history, variances, model_costs,
     ax.legend()
 
 
-def plot_correlation_matrix(corr_matrix, ax=None):
+def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
     """
     Plot a correlation matrix
 
@@ -1900,27 +1886,28 @@ def plot_correlation_matrix(corr_matrix, ax=None):
     from pyapprox.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    im = ax.matshow(corr_matrix, cmap="jet")
+    im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
     for (i, j), z in np.ndenumerate(corr_matrix):
-        ax.text(j, i, '{:1.2e}'.format(z), ha='center', va='center')
+        ax.text(j, i, '{:1.3f}'.format(z), ha='center', va='center',
+                fontsize=12)
     plt.colorbar(im, ax=ax)
+    if model_labels is not None:
+        ax.set_xticks(np.arange(len(model_labels)))
+        ax.set_yticks(np.arange(len(model_labels)))
+        ax.set_yticklabels(model_labels)
+        ax.set_xticklabels(model_labels, rotation=60)
     return ax
 
 
-def plot_acv_sample_allocation(
-        nsamples_history, model_costs, model_labels, ax):
+def plot_acv_sample_allocation_comparison(
+        estimators, model_labels, ax):
     """
-    Plot the number of samples allocated to each model for a single estimator
-    and multiple target costs
+    Plot the number of samples allocated to each model for a set of estimators
 
     Parameters
     ----------
-    nsamples_history : np.ndarray (nestimators, ntarget_costs, nmodels)
-        The number of samples allocated to each model for each estimator
-        and target cost
-
-    model_costs : np.ndarray (nmodels)
-        The computational cost of running each model
+    estimators : list
+       Each entry is a MonteCarlo like estimator
 
     model_labels : list (nestimators)
         String used to label each estimator
@@ -1928,6 +1915,7 @@ def plot_acv_sample_allocation(
     def autolabel(ax, rects, model_labels):
         # Attach a text label in each bar in *rects*
         for rect, label in zip(rects, model_labels):
+            rect = rect[0]
             ax.annotate(label,
                         xy=(rect.get_x() + rect.get_width()/2,
                             rect.get_y() + rect.get_height()/2),
@@ -1935,22 +1923,30 @@ def plot_acv_sample_allocation(
                         textcoords="offset points",
                         ha='center', va='bottom')
 
-    nsamples_history = np.asarray(nsamples_history)
-    xlocs = np.arange(nsamples_history.shape[0])
-    nmodels = nsamples_history.shape[1]
+    nestimators = len(estimators)
+    xlocs = np.arange(nestimators)
 
-    cnt = 0
-    total_costs = nsamples_history.dot(model_costs)
-    for ii in range(nmodels):
-        rel_cost = nsamples_history[:, ii]*model_costs[ii]
-        rel_cost /= total_costs
-        rects = ax.bar(xlocs, rel_cost, bottom=cnt, edgecolor='white',
-                       label=model_labels[ii])
-        autolabel(ax, rects, ['$%d$' % int(n)
-                              for n in nsamples_history[:, ii]])
-        cnt += rel_cost
+    from matplotlib.pyplot import cm
+    for jj, est in enumerate(estimators):
+        cnt = 0
+        # warning currently colors will not match if estimators use different models
+        colors = cm.rainbow(np.linspace(0, 1, est.nmodels))
+        rects = []
+        for ii in range(est.nmodels):
+            if jj == 0:
+                label = model_labels[ii]
+            else:
+                label = None
+            rect = ax.bar(
+                xlocs[jj:jj+1], est.costs[ii], bottom=cnt, edgecolor='white',
+                label=label, color=colors[ii])
+            rects.append(rect)
+            cnt += est.costs[ii]
+        autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
+                              for ii in range(est.nmodels)])
     ax.set_xticks(xlocs)
-    ax.set_xticklabels(['$%d$' % t for t in total_costs])
+    ax.set_xticklabels(
+        ['$%f$' % est.rounded_target_cost for est in estimators])
     ax.set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
     # / $N_\alpha$')
     ax.set_ylabel(
@@ -2049,9 +2045,11 @@ def round_nsample_ratios(target_cost, costs, nsample_ratios):
     nsamples_float = get_nsamples_per_model(
         target_cost, costs, nsample_ratios, False)
     nsamples_floor = nsamples_float.astype(int)
-    if nsamples_floor[0] < 1:
-        print(nsamples_floor, nsamples_float, costs)
+    if nsamples_floor[0] < 1 and nsamples_float[0] < 1-1e-8:
+        print(nsamples_floor[0], nsamples_float[0], nsamples_float[0]-1, costs)
         raise Exception("Rounding likely caused nhf samples to be zero")
+    elif nsamples_floor[0] < 1:
+        nsamples_floor[0] = 1
     nsample_ratios_floor = nsamples_floor[1:]/nsamples_floor[0]
     rounded_target_cost = nsamples_floor[0]*(costs[0]+np.dot(
         nsample_ratios_floor, costs[1:]))
@@ -2303,6 +2301,8 @@ def bootstrap_acv_estimator(values_per_model, partition_indices_per_model,
 
 class ModelTree():
     def __init__(self, root, children=[]):
+        if type(children) == np.ndarray:
+            children = list(children)
         self.children = children
         for ii in range(len(self.children)):
             if type(self.children[ii]) != ModelTree:
@@ -2466,6 +2466,7 @@ def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
         xticklabels += [r"$z_%d^\star$" % ii, r"$z_%d$" % ii]
     ax.set_xticks(index)
     ax.set_xticklabels(xticklabels)
+
 
 # Notes
 # using pkg.double when ever creating a torch tensor is esssential.
