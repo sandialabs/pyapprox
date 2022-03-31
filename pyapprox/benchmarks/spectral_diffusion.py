@@ -768,17 +768,24 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
             self.derivative_matrices[1][self.bt_neumann_bndry_indices, :]
         return matrix
 
-    def plot(self, mesh_values, num_plot_pts_1d=100):
-        if num_plot_pts_1d is not None:
-            # interpolate values onto plot points
-            def fun(x): return self.interpolate(mesh_values, x)
-            from utilities.visualisation import plot_surface_from_function
-            plot_surface_from_function(
-                fun, self.domain, num_plot_pts_1d, False)
+    def plot(self, mesh_values, num_pts_1d=100, ncontour_levels=20, ax=None):
+        from pyapprox.visualization import get_meshgrid_function_data, plt
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        # interpolate values onto plot points
+        def fun(x): return self.interpolate(mesh_values, x)
+        X, Y, Z = get_meshgrid_function_data(
+            fun, self.domain, num_pts_1d, qoi=0)
+        return ax.contourf(
+            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontour_levels))
 
 
 # Wrappers to maintain backwards compatability
 class TransientAdvectionDiffusionEquation1D(TransientAdvectionDiffusion):
+    pass
+
+
+class TransientAdvectionDiffusionEquation2D(TransientAdvectionDiffusion):
     pass
 
 

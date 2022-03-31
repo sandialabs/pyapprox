@@ -4,7 +4,8 @@ import unittest
 from pyapprox.benchmarks.spectral_diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
     TransientAdvectionDiffusionEquation1D,
-    SteadyStateAdvectionDiffusionEquation2D
+    SteadyStateAdvectionDiffusionEquation2D,
+    TransientAdvectionDiffusionEquation2D
 )
 from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
 import pyapprox as pya
@@ -414,7 +415,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
-    def test_timestepping_with_time_independent_forcing(self):
+    def test_timestepping_with_time_independent_forcing_1d(self):
         r"""
         solve u_t(x,t) = u_xx(x,t)+sin(3\pi x), u(0,t) = 0, u(1,t) = 0,
         u(x,0) = 5\sin(2\pi x)+2\sin(3\pi x)
@@ -446,12 +447,13 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         for i, time in enumerate(model.times):
             exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
             model_sol_t = solution[:, i:i+1]
-            L2_error = np.sqrt(model.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            L2_error = np.sqrt(
+                model.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(model.mesh.integrate(exact_sol_t**2))
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-3*factor  # crank-nicholson
 
-    def test_timestepping_with_time_dependent_forcing(self):
+    def test_timestepping_with_time_dependent_forcing_1d(self):
         r"""
         solve
             u_t(x,t) = u_xx(x,t)-sin(t)sin(pi*x)+pi**2*cos(t)sin(pi*x),
@@ -483,25 +485,79 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         for i, time in enumerate(model.times):
             exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
             model_sol_t = solution[:, i:i+1]
-            L2_error = np.sqrt(model.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            L2_error = np.sqrt(
+                model.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
                 model.mesh.integrate(exact_sol_t**2))
             plot = False
             if plot and i == len(model.times)-1:
                 test_exact_sol_t = exact_sol(test_mesh_pts, time)
-                test_model_sol_t = model.interpolate(
+                test_model_sol_t = model.mesh.interpolate(
                     model_sol_t, test_mesh_pts)
                 pya.plt.plot(test_mesh_pts[0, :], test_model_sol_t, 'k',
                              label='collocation', linewidth=2)
                 pya.plt.plot(test_mesh_pts[0, :], test_exact_sol_t,
                              'r--', label='exact', linewidth=2)
-                pya.plt.plot(model.mesh.mesh_pts[0, :], model_sol_t[:, 0], 'ko')
+                pya.plt.plot(
+                    model.mesh.mesh_pts[0, :], model_sol_t[:, 0], 'ko')
                 pya.plt.plot(
                     model.mesh.mesh_pts[0, :], exact_sol_t[:, 0], 'rs')
                 pya.plt.legend(loc=0)
                 pya.plt.title('$t=%1.4f$' % time)
                 pya.plt.ylim(-1, 1)
                 # pya.plt.show()
+            assert L2_error < 1e-4*factor  # crank-nicholson
+
+    def test_timestepping_with_time_dependent_forcing_2d(self):
+        r"""
+        solve
+            u_t(x,t) = u_xx(x,t)-f(x,t)
+            u(0,t) = 0, u(1,t) = 0,
+        Exact_solution
+          u(x,t) = sin(pi*x)cos(pi*y)cos(t)
+        """
+        def exact_sol(x, t):
+            return np.sin(np.pi*x[:1].T)*np.cos(np.pi*x[1:2].T)*np.cos(t)
+
+        order = 32
+        model = TransientAdvectionDiffusionEquation2D()
+        bndry_conds = [[lambda x: exact_sol(x, 0), "D"],
+                       [lambda x: exact_sol(x, 0), "D"],
+                       [lambda x: exact_sol(x, 0), "D"],
+                       [lambda x: exact_sol(x, 0), "D"]]
+
+        final_time = 1.0
+        time_step_size = 1e-2
+        domain = [0, 1, 0.5, 1.5]
+        model.initialize(
+            bndry_conds, lambda x, z: 0*x[:1].T + 1.,
+            lambda x, z, t: (
+                -np.sin(t)*np.sin(np.pi*x[:1])*np.cos(np.pi*x[1:2]) +
+                2*np.pi**2*np.cos(t)*np.sin(np.pi*x[:1])*np.cos(np.pi*x[1:2])
+            ).T,
+            lambda x, z: 0*x.T, order, domain, final_time, time_step_size,
+            lambda x: exact_sol(x, 0))
+
+        sample = np.ones((1), float)  # dummy argument for this example
+
+        # model.set_time_step_method('backward-euler')
+        solution = model.solve(sample)
+        for i, time in enumerate(model.times):
+            exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
+            model_sol_t = solution[:, i:i+1]
+            L2_error = np.sqrt(
+                model.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(
+                model.mesh.integrate(exact_sol_t**2))
+            plot = False
+            if plot and (i == 0 or i == len(model.times)-1):
+                fig, axs = pya.plt.subplots(1, 2, figsize=(8, 6))
+                p1 = model.mesh.plot(model_sol_t, 100, 20, axs[0])
+                p2 = model.mesh.plot(exact_sol_t, 100, 20, axs[1])
+                pya.plt.colorbar(p1, ax=axs[0])
+                pya.plt.colorbar(p2, ax=axs[1])
+                pya.plt.show()
+            print(time, L2_error, 1e-4*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
     def test_convergence(self):
@@ -649,7 +705,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
         # pya.plt.colorbar(p, ax=axs[0])
         # X, Y, Z = pya.get_meshgrid_function_data(
-        #     partial(model.interpolate, solution), model.domain, 30)
+        #     partial(model.mesh.interpolate, solution), model.domain, 30)
         # p = axs[1].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
         # pya.plt.colorbar(p, ax=axs[1])
