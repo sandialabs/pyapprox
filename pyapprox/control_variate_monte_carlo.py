@@ -432,16 +432,16 @@ def allocate_samples_mlmc(cov, costs, target_cost):
     nmodels = cov.shape[0]
     costs = np.asarray(costs)
 
+    II = np.argsort(costs)[::-1]
+    if not np.allclose(II, np.arange(nmodels)):
+        print(costs)
+        raise ValueError("Models cost do not decrease monotonically")
+
     # compute the variance of the discrepancy
     var_deltas = np.empty(nmodels)
     for ii in range(nmodels-1):
         var_deltas[ii] = cov[ii, ii] + cov[ii+1, ii+1] - 2*cov[ii, ii+1]
     var_deltas[nmodels-1] = cov[nmodels-1, nmodels-1]
-
-    II = np.argsort(var_deltas)
-    if not np.allclose(II, np.arange(nmodels)):
-        print(var_deltas)
-        raise ValueError("Models discrepancy variances do not decrease")
 
     # compute the cost of one sample of the discrepancy
     cost_deltas = np.empty(nmodels)

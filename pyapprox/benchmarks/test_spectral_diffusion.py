@@ -42,7 +42,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         domain = [-1, 1]
         model.initialize(bndry_conds, lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
-        derivative_matrix = model.get_derivative_matrix()
+        derivative_matrix = model.get_derivative_matrices()[0]
         true_matrix = \
             [[5.5,        -6.82842712,  2.,         -1.17157288,  0.5],
              [1.70710678, -0.70710678, -1.41421356,  0.70710678, -0.29289322],
@@ -64,12 +64,13 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         domain = [-1, 1]
         model.initialize(bndry_conds, lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
-        cheb_grad = model.derivative_matrix.dot(fun(model.mesh_pts))
+        cheb_grad = model.mesh.derivative_matrices[0].dot(
+            fun(model.mesh.mesh_pts))
         # from pyapprox import plt
-        # plt.plot(model.mesh_pts, grad(model.mesh_pts))
-        # plt.plot(model.mesh_pts, cheb_grad)
+        # plt.plot(model.mesh.mesh_pts, grad(model.mesh.mesh_pts))
+        # plt.plot(model.mesh.mesh_pts, cheb_grad)
         # plt.show()
-        error = np.absolute(grad(model.mesh_pts) - cheb_grad)
+        error = np.absolute(grad(model.mesh.mesh_pts) - cheb_grad)
         # print(error)
         assert np.max(error) < 1e-9
 
@@ -213,8 +214,9 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0+1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
-        assert np.allclose(model.integrate(mesh_pts.T**2), 1./3.)
-        assert np.allclose(model.integrate(mesh_pts.T**3), 1./4.)
+        print(model.mesh.integrate(mesh_pts.T**2))
+        assert np.allclose(model.mesh.integrate(mesh_pts.T**2), 1./3.)
+        assert np.allclose(model.mesh.integrate(mesh_pts.T**3), 1./4.)
 
         order = 4
         model = SteadyStateAdvectionDiffusionEquation1D()
@@ -225,8 +227,9 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0-1,
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
-        assert np.allclose(model.integrate(mesh_pts.T**2), 2./3.)
-        assert np.allclose(model.integrate(mesh_pts.T**3), 0.)
+        print(model.mesh.integrate(mesh_pts.T**2))
+        assert np.allclose(model.mesh.integrate(mesh_pts.T**2), 2./3.)
+        assert np.allclose(model.mesh.integrate(mesh_pts.T**3), 0.)
 
     def test_evaluate(self):
         """
@@ -243,7 +246,8 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0, order, domain)
 
         qoi_coords = np.array([0.05, 0.5, 0.95])
-        model.qoi_functional = lambda x: model.interpolate(x, qoi_coords)[:, 0]
+        model.qoi_functional = lambda x: model.mesh.interpolate(
+            x, qoi_coords)[:, 0]
 
         sample = np.ones((1, 1), float)
         qoi = model(sample)
@@ -364,15 +368,15 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
         sample = 0.5*np.ones((1), float)
         qoi = model.evaluate(sample)
-        exact_solution = -(model.mesh_pts*np.log(9./4.) -
-                           2.*np.log(model.mesh_pts+2.) +
+        exact_solution = -(model.mesh.mesh_pts*np.log(9./4.) -
+                           2.*np.log(model.mesh.mesh_pts+2.) +
                            np.log(4.))/np.log(3./2.)
         exact_qoi = model.qoi_functional(exact_solution)
         error = abs(exact_qoi-qoi)
         error_estimate = model.compute_error_estimate(sample)
 
         # print(error_estimate, error)
-        # print model.integrate( (exact_solution - solution )**2 )
+        # print model.mesh.integrate( (exact_solution - solution )**2 )
         assert np.allclose(error_estimate, error)
 
     def test_timestepping_without_forcing(self):
@@ -398,14 +402,15 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             lambda x: exact_sol(x, 0))
 
         sample = np.ones((1), float)  # dummy argument for this example
-        solution = model.transient_solve(sample)
+        solution = model.solve(sample)
 
         for i, time in enumerate(model.times):
-            exact_sol_t = exact_sol(model.mesh_pts, time)
+            exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
             model_sol_t = solution[:, i:i+1]
-            L2_error = np.sqrt(model.integrate((exact_sol_t-model_sol_t)**2))
+            L2_error = np.sqrt(
+                model.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
-                model.integrate(exact_sol_t**2))
+                model.mesh.integrate(exact_sol_t**2))
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
@@ -437,12 +442,12 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
         sample = np.ones((1), float)  # dummy argument for this example
 
-        solution = model.transient_solve(sample)
+        solution = model.solve(sample)
         for i, time in enumerate(model.times):
-            exact_sol_t = exact_sol(model.mesh_pts, time)
+            exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
             model_sol_t = solution[:, i:i+1]
-            L2_error = np.sqrt(model.integrate((exact_sol_t-model_sol_t)**2))
-            factor = np.sqrt(model.integrate(exact_sol_t**2))
+            L2_error = np.sqrt(model.mesh.integrate((exact_sol_t-model_sol_t)**2))
+            factor = np.sqrt(model.mesh.integrate(exact_sol_t**2))
             # print(time, L2_error, 1e-3*factor)
             assert L2_error < 1e-3*factor  # crank-nicholson
 
@@ -473,14 +478,14 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.ones((1), float)  # dummy argument for this example
 
         # model.set_time_step_method('backward-euler')
-        solution = model.transient_solve(sample)
+        solution = model.solve(sample)
         test_mesh_pts = np.linspace(domain[0], domain[1], 100)[None, :]
         for i, time in enumerate(model.times):
-            exact_sol_t = exact_sol(model.mesh_pts, time)
+            exact_sol_t = exact_sol(model.mesh.mesh_pts, time)
             model_sol_t = solution[:, i:i+1]
-            L2_error = np.sqrt(model.integrate((exact_sol_t-model_sol_t)**2))
+            L2_error = np.sqrt(model.mesh.integrate((exact_sol_t-model_sol_t)**2))
             factor = np.sqrt(
-                model.integrate(exact_sol_t**2))
+                model.mesh.integrate(exact_sol_t**2))
             plot = False
             if plot and i == len(model.times)-1:
                 test_exact_sol_t = exact_sol(test_mesh_pts, time)
@@ -490,9 +495,9 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                              label='collocation', linewidth=2)
                 pya.plt.plot(test_mesh_pts[0, :], test_exact_sol_t,
                              'r--', label='exact', linewidth=2)
-                pya.plt.plot(model.mesh_pts[0, :], model_sol_t[:, 0], 'ko')
+                pya.plt.plot(model.mesh.mesh_pts[0, :], model_sol_t[:, 0], 'ko')
                 pya.plt.plot(
-                    model.mesh_pts[0, :], exact_sol_t[:, 0], 'rs')
+                    model.mesh.mesh_pts[0, :], exact_sol_t[:, 0], 'rs')
                 pya.plt.legend(loc=0)
                 pya.plt.title('$t=%1.4f$' % time)
                 pya.plt.ylim(-1, 1)
@@ -529,11 +534,11 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 lambda x, z: 0*x.T, order, domain, final_time, time_step_size,
                 lambda x: exact_sol(x, 0))
 
-            solution = model.transient_solve(sample)
+            solution = model.solve(sample)
             assert np.allclose(model.times[-1], final_time, atol=1e-15)
-            exact_sol_t = exact_sol(model.mesh_pts, final_time)
+            exact_sol_t = exact_sol(model.mesh.mesh_pts, final_time)
             model_sol_t = solution[:, -1:]
-            L2_error = np.sqrt(model.integrate((exact_sol_t-model_sol_t)**2))
+            L2_error = np.sqrt(model.mesh.integrate((exact_sol_t-model_sol_t)**2))
             errors[i] = L2_error
             # print(L2_error, solution.shape)
             time_step_sizes[i] = time_step_size
@@ -637,7 +642,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.run(sample)
 
-        # print(np.linalg.norm(exact_sol(model.mesh_pts)-solution))
+        # print(np.linalg.norm(exact_sol(model.mesh.mesh_pts)-solution))
         # fig, axs = pya.plt.subplots(1, 2, figsize=(2*8, 6))
         # X, Y, Z = pya.get_meshgrid_function_data(exact_sol, model.domain, 30)
         # p = axs[0].contourf(
@@ -651,7 +656,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # pya.plt.show()
 
         assert np.linalg.norm(
-            exact_sol(model.mesh_pts)-solution) < 1e-9
+            exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
 
     def test_2d_advection_diffusion_neumann_y_dim_bcs(self):
         sol_string = "y**2*sin(pi*x)"
@@ -682,7 +687,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         solution = model.run(sample)
 
         assert np.linalg.norm(
-            exact_sol(model.mesh_pts)-solution) < 1e-9
+            exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
 
     def test_integrate_2d(self):
         order = 4
@@ -698,7 +703,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             lambda x, z: np.zeros((x.shape[1], 2)), order, domain)
         mesh_pts = model.get_collocation_points()
         assert np.allclose(
-            model.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 2./3.)
+            model.mesh.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 2./3.)
 
         order = 4
         model = SteadyStateAdvectionDiffusionEquation2D()
@@ -713,7 +718,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             lambda x, z: np.zeros((x.shape[1], 1)), order, domain)
         mesh_pts = model.get_collocation_points()
         assert np.allclose(
-            model.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 8./3.)
+            model.mesh.integrate(np.sum(mesh_pts**2, axis=0)[:, None]), 8./3.)
 
     def test_evaluate_gradient_2d(self):
         """
