@@ -394,7 +394,8 @@ class WorkTracker(object):
         num_config_vars, nqueries = config_samples.shape
         costs = np.empty((nqueries))
         for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:, ii]])
+            # key = tuple([int(ll) for ll in config_samples[:, ii]])
+            key = tuple([ll for ll in config_samples[:, ii]])
             if key not in self.costs:
                 msg = 'Asking for cost before function cost has been provided'
                 raise Exception(msg)
@@ -414,14 +415,15 @@ class WorkTracker(object):
             The configuration indices
 
         costs : np.ndarray (nsamples)
-            The costs of evaluating the function index by each index in 
+            The costs of evaluating the function index by each index in
             ``config_samples``
         """
         num_config_vars, nqueries = config_samples.shape
         assert costs.shape[0] == nqueries
         assert costs.ndim == 1
         for ii in range(nqueries):
-            key = tuple([int(ll) for ll in config_samples[:, ii]])
+            # key = tuple([int(ll) for ll in config_samples[:, ii]])
+            key = tuple([ll for ll in config_samples[:, ii]])
             if key in self.costs:
                 self.costs[key].append(costs[ii])
             else:
@@ -435,8 +437,8 @@ class WorkTracker(object):
         return msg
 
 
-def eval(function, samples):
-    return function(samples)
+# def eval(function, samples):
+#     return function(samples)
 
 
 class WorkTrackingModel(object):
@@ -499,7 +501,8 @@ class WorkTrackingModel(object):
             is the cost of the simulation. This column is not included in
             values.
         """
-        data = eval(self.wt_function, samples)
+        # data = eval(self.wt_function, samples)
+        data = self.wt_function(samples)
         values = data[:, :-1]
         work = data[:, -1]
         if self.num_config_vars > 0:

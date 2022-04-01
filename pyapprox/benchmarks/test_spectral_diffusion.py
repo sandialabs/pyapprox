@@ -89,7 +89,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0, lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return 0.5*x.T
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
@@ -109,7 +109,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return (
             np.exp(4*x)-4*np.exp(-4)*(x-1)-np.exp(4)).T/16
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
@@ -131,7 +131,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return (0.5*(x-3.)*x).T
         print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
@@ -153,7 +153,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0+a, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return np.sin(x.T)
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
@@ -175,7 +175,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0-1, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return ((np.exp(-x/a)-1)/(np.exp(-1/a)-1)).T
         # pya.plt.plot(mesh_pts[0, :], exact_sol(mesh_pts)[:, 0])
         # pya.plt.plot(mesh_pts[0, :], solution[:, 0], '--')
@@ -199,7 +199,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                          lambda x, z: x.T*0, order, domain)
         mesh_pts = model.get_collocation_points()
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
         def exact_sol(x): return (np.log(x+1.) / np.log(2.) - x).T
         # print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
@@ -350,7 +350,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         qoi = model(sample)
         error_estimate = model.compute_error_estimate(sample)
 
-        # solution = model.run(sample[:, 0])
+        # solution = model.solve(sample[:, 0])
         def exact_solution(x): return np.log(x+1.)/np.log(2.)-x
         gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(50, 0, 0)
         x_range = model.xlim[1]-model.xlim[0]
@@ -519,7 +519,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         def exact_sol(x, t):
             return np.sin(np.pi*x[:1].T)*np.cos(np.pi*x[1:2].T)*np.cos(t)
 
-        order = 32
+        order = [40, 32]
         model = TransientAdvectionDiffusionEquation2D()
         bndry_conds = [[lambda x: exact_sol(x, 0), "D"],
                        [lambda x: exact_sol(x, 0), "D"],
@@ -557,7 +557,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 pya.plt.colorbar(p1, ax=axs[0])
                 pya.plt.colorbar(p2, ax=axs[1])
                 pya.plt.show()
-            print(time, L2_error, 1e-4*factor)
+            # print(time, L2_error, 1e-4*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
     def test_convergence(self):
@@ -666,7 +666,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         rng = np.random.RandomState(1)
         sample = rng.uniform(-np.sqrt(3), np.sqrt(3), (num_dims))
         mesh_pts = model.get_collocation_points()
-        solution = model.run(sample)
+        solution = model.solve(sample)
         # print (np.linalg.norm(exact_sol(mesh_pts, sample)-solution))
         assert np.linalg.norm(exact_sol(mesh_pts, sample) - solution) < 2.e-12
 
@@ -696,7 +696,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             order, domain)
 
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
 
         # print(np.linalg.norm(exact_sol(model.mesh.mesh_pts)-solution))
         # fig, axs = pya.plt.subplots(1, 2, figsize=(2*8, 6))
@@ -740,7 +740,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             order, domain)
 
         sample = np.zeros((0))  # dummy for this example
-        solution = model.run(sample)
+        solution = model.solve(sample)
 
         assert np.linalg.norm(
             exact_sol(model.mesh.mesh_pts)-solution) < 1e-9

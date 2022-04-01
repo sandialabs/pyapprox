@@ -94,6 +94,7 @@ example_filenames_in_order += [
     'plot_low_discrepancy_quadrature.py', 'plot_gaussian_quadrature.py',
     'plot_barycentric_interpolation.py',
     'plot_multivariate_piecewise_polynomial_interpolation.py',
+    'plot_pde_convergence.py',
     'plot_sparse_grid_uq.py']
 
 # print(installed_pkgs)

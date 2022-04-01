@@ -2,6 +2,7 @@ import numpy as np
 from scipy.linalg import qr as qr_factorization
 from abc import ABC, abstractmethod
 from functools import partial
+import copy
 
 from pyapprox.utilities import (
     cartesian_product, outer_product, get_tensor_product_quadrature_rule
@@ -17,10 +18,17 @@ from pyapprox.models.wrappers import (
 )
 from pyapprox.utilities import qr_solve
 from pyapprox.sys_utilities import get_num_args
+from pyapprox.variable_transformations import ConfigureVariableTransformation
 
 
-def zeros_fun(x):
+def zeros_fun_axis_1(x):
+    # axis_1 used when x is mesh points
     return np.zeros((x.shape[1], 1))
+
+
+def ones_fun_axis_0(x):
+    # axis_1 used when x is solution like quantity
+    return np.zeros((x.shape[0], 1))
 
 
 def kronecker_product_2d(matrix1, matrix2):
@@ -108,7 +116,8 @@ class AbstractAdvectionDiffusion(ABC):
         self.set_forcing_function(forcing_fun)
         self.set_advection_function(advection_fun)
         # default qoi functional is integral of solution over entire domain
-        self.set_qoi_functional(self.mesh.integrate, lambda sol: sol*0.+1.)
+        # at the final time-step or for steady-state problems the only solution
+        self.set_qoi_functional(self.mesh.integrate, ones_fun_axis_0)
 
     def set_diffusivity_function(self, fun):
         assert callable(fun)
@@ -153,16 +162,8 @@ class AbstractAdvectionDiffusion(ABC):
         return matrix, forcing
 
     @abstractmethod
-    def solve(self, diffusivity, forcing, advection):
+    def solve(self, sample):
         raise NotImplementedError()
-
-    def run(self, sample):
-        assert sample.ndim == 1
-        diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
-        forcing = self.forcing_fun(self.mesh.mesh_pts, sample[:, None])
-        advection = self.advection_fun(self.mesh.mesh_pts, sample[:, None])
-        solution = self.solve(diffusivity, forcing, advection)
-        return solution
 
     def get_collocation_points(self):
         return self.mesh.mesh_pts
@@ -172,8 +173,15 @@ class AbstractAdvectionDiffusion(ABC):
 
     def value(self, sample):
         assert sample.ndim == 1
-        solution = self.run(sample)
-        qoi = self.qoi_functional(solution)
+        solutions = self.solve(sample)
+        # from pyapprox.configure_plots import plt
+        # fig, axs = plt.subplots(1, 2)
+        # self.mesh.plot(self.initial_sol, ax=axs[0])
+        # self.mesh.plot(solutions[:, -1:], ax=axs[1])
+        # print(self.initial_sol.shape, solutions[:, -1:].shape)
+        # print(np.linalg.norm(self.initial_sol-solutions[:, -1:]))
+        # plt.show()
+        qoi = self.qoi_functional(solutions)
         if np.isscalar(qoi) or qoi.ndim == 0:
             qoi = np.array([qoi])
         return qoi
@@ -182,6 +190,10 @@ class AbstractAdvectionDiffusion(ABC):
         return evaluate_1darray_function_on_2d_array(
             self.value, samples, None)
 
+    @abstractmethod
+    def get_num_degrees_of_freedom(self, config_sample):
+        raise NotImplementedError()
+
 
 class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
     def __init__(self):
@@ -189,7 +201,12 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         self.adjoint_derivative_matrix = None
         self.adjoint_mesh_pts = None
 
-    def solve(self, diffusivity, forcing, advection):
+    def solve(self, sample):
+        assert sample.ndim == 1
+        diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
+        forcing = self.forcing_fun(self.mesh.mesh_pts, sample[:, None])
+        advection = self.advection_fun(self.mesh.mesh_pts, sample[:, None])
+
         assert diffusivity.ndim == 2 and diffusivity.shape[1] == 1
         assert forcing.ndim == 2 and forcing.shape[1] == 1
         assert advection.ndim == 2 and (
@@ -218,7 +235,7 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
         the ellipic diffusion equation is just Ay=z. That is the adjoint
         of A is A.
         """
-        if order == self.mesh.order:
+        if np.allclose(order, self.mesh.order):
             # used when computing gradient from adjoint solution
             matrix = self.collocation_matrix.copy()
         else:
@@ -317,6 +334,9 @@ class SteadyStateAdvectionDiffusion(AbstractAdvectionDiffusion):
             gradient[ii] = self.mesh.integrate(residual_deriv * adj_solution)
         return gradient
 
+    def get_num_degrees_of_freedom(self, config_sample):
+        return np.prod(config_sample)
+
 
 class TransientAdvectionDiffusion(
         SteadyStateAdvectionDiffusion):
@@ -342,7 +362,8 @@ class TransientAdvectionDiffusion(
         if get_num_args(initial_sol_fun) != 1:
             msg = "initial_sol_fun must be a callable function with 1 argument"
             raise ValueError(msg)
-        self.initial_sol = initial_sol_fun(self.mesh.mesh_pts)
+        self.initial_sol_fun = initial_sol_fun
+        self.initial_sol = self.initial_sol_fun(self.mesh.mesh_pts)
 
     def set_forcing_function(self, fun):
         """
@@ -449,21 +470,24 @@ class TransientAdvectionDiffusion(
         return current_sol
 
     def solve(self, sample):
+        assert sample.ndim == 1
         # in future consider supporting time varying diffusivity. This would
         # require updating collocation matrix at each time-step
         # for now make diffusivity time-independent
 
         # consider replacing time = 0 with time = self.initial_time
         time = 0.
-        diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample)
-        advection = self.advection_fun(self.mesh.mesh_pts, sample)
+        diffusivity = self.diffusivity_fun(self.mesh.mesh_pts, sample[:, None])
+        advection = self.advection_fun(self.mesh.mesh_pts, sample[:, None])
         # negate collocation matrix because it has moved from
         # lhs for steady state to rhs for transient
         self.collocation_matrix = -self.form_collocation_matrix(
             diffusivity, advection)
-
         assert (self.initial_sol is not None and
                 self.initial_sol.shape[1] == 1)
+        # make sure that if mesh has been updated initial sol has also been
+        # updated
+        assert self.initial_sol.shape[0] == self.collocation_matrix.shape[0]
         assert self.time_step_size is not None
         current_sol = self.initial_sol.copy()
         # num_time_steps is number of steps taken after initial time
@@ -491,6 +515,12 @@ class TransientAdvectionDiffusion(
             self.times[sol_cntr] = time
             sol_cntr += 1
         return sols[:, :sol_cntr]
+
+    def get_num_degrees_of_freedom(self, config_sample):
+        order = config_sample[:-1]
+        time_step_size = config_sample[-1]
+        ntime_steps = self.final_time/time_step_size+1
+        return np.prod(order)*ntime_steps
 
 
 def integrate_subdomain(mesh_values, subdomain, order, interpolate,
@@ -524,16 +554,31 @@ def get_2d_sub_domain_quadrature_rule(subdomain, order):
 
 class AbstractCartesianProductCollocationMesh(ABC):
     def __init__(self, domain, order):
+        self.bndry_conds = None
+        self.dirichlet_bndry_indices = []
+        self.neumann_bndry_indices = []
         self.set_domain(domain, order)
 
+    def _expand_order(self, order):
+        order = np.atleast_1d(order).astype(int)
+        assert order.ndim == 1
+        if order.shape[0] == 1 and self.nphys_vars > 1:
+            order = np.array([order[0]]*self.nphys_vars, dtype=int)
+        if order.shape[0] != self.nphys_vars:
+            msg = "order must be a scalar or an array_like with an entry for"
+            msg += " each physical dimension"
+            raise ValueError(msg)
+        return order
+
     def set_domain(self, domain, order):
-        self.order = order
         self.domain = np.asarray(domain)
         self.nphys_vars = self.domain.shape[0]//2
+        self.order = self._expand_order(order)
         self.canonical_domain = np.ones(2*self.nphys_vars)
         self.canonical_domain[::2] = -1.
         self.form_derivative_matrices()
-        self.form_quadrature_rule()
+        self.quad_pts, self.quad_wts = self.form_quadrature_rule(
+            self.order, self.domain)
         self._determine_boundary_indices()
 
     def map_samples_from_canonical_domain(self, canonical_pts):
@@ -541,21 +586,26 @@ class AbstractCartesianProductCollocationMesh(ABC):
             canonical_pts, self.canonical_domain, self.domain)
         return pts
 
-    def form_quadrature_rule(self):
+    def form_quadrature_rule(self, order, domain):
         univariate_quad_rules = [
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
         ]*self.nphys_vars
-        self.quad_pts, self.quad_wts = \
+        quad_pts, quad_wts = \
             get_tensor_product_quadrature_rule(
-                self.order, self.nphys_vars, univariate_quad_rules,
+                order, self.nphys_vars, univariate_quad_rules,
                 transform_samples=self.map_samples_from_canonical_domain)
-        self.quad_wts *= np.prod(self.domain[1::2]-self.domain[::2])
+        quad_wts *= np.prod(domain[1::2]-domain[::2])
+        return quad_pts, quad_wts
 
     def form_derivative_matrices(self):
-        self.mesh_pts_1d, self.derivative_matrix_1d = \
-            chebyshev_derivative_matrix(self.order)
+        self.mesh_pts_1d, self.derivative_matrices_1d = [], []
+        for ii in range(self.nphys_vars):
+            mpts, der_mat = chebyshev_derivative_matrix(self.order[ii])
+            self.mesh_pts_1d.append(mpts)
+            self.derivative_matrices_1d.append(der_mat)
+
         self.mesh_pts = self.map_samples_from_canonical_domain(
-            cartesian_product([self.mesh_pts_1d]*self.nphys_vars))
+            cartesian_product(self.mesh_pts_1d))
         self._form_derivative_matrices()
 
     @abstractmethod
@@ -566,12 +616,23 @@ class AbstractCartesianProductCollocationMesh(ABC):
     def _determine_boundary_indices(self):
         raise NotImplementedError()
 
-    def integrate(self, mesh_values, order=None):
+    def integrate(self, mesh_values, order=None, domain=None, qoi=None):
         if order is None:
             order = self.order
-        quad_vals = self.interpolate(mesh_values, self.quad_pts)
+            quad_pts, quad_wts = self.quad_pts, self.quad_wts
+        else:
+            order = self._expand_order(order, domain)
+            quad_pts, quad_wts = self.form_quadrature_rule(order)
+        if domain is None:
+            domain = self.domain
+            assert np.all(domain[::2] >= self.domain[::2])
+            assert np.all(domain[1::2] <= self.domain[1::2])
+        if qoi is None:
+            qoi = mesh_values.shape[1]-1
+
+        quad_vals = self.interpolate(mesh_values[:, qoi:qoi+1], quad_pts)
         # Compute and return integral
-        return np.dot(quad_vals[:, 0], self.quad_wts)
+        return np.dot(quad_vals[:, 0], quad_wts)
 
     def interpolate(self, mesh_values, eval_samples):
         if eval_samples.ndim == 1:
@@ -584,7 +645,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
         eval_samples = map_hypercube_samples(
             eval_samples, self.domain, self.canonical_domain)
         # mesh_pts_1d are in canonical domain
-        abscissa_1d = [self.mesh_pts_1d]*num_dims
+        abscissa_1d = self.mesh_pts_1d
         weights_1d = [compute_barycentric_weights_1d(xx) for xx in abscissa_1d]
         interp_vals = multivariate_barycentric_lagrange_interpolation(
             eval_samples,
@@ -628,7 +689,7 @@ class AbstractCartesianProductCollocationMesh(ABC):
             else:
                 raise ValueError("Incorrect boundary type")
             # adjoint boundary conditions are always dirichlet zero
-            self.adjoint_bndry_conds.append([zeros_fun, "D"])
+            self.adjoint_bndry_conds.append([zeros_fun_axis_1, "D"])
 
         if len(self.dirichlet_bndry_indices) > 0:
             self.dirichlet_bndry_indices = np.concatenate(
@@ -680,7 +741,7 @@ class OneDCollocationMesh(AbstractCartesianProductCollocationMesh):
         if self.domain.shape[0] != 2:
             raise ValueError("Domain must be 1D")
         self.derivative_matrices = [
-            self.derivative_matrix_1d*2./(self.domain[1]-self.domain[0])]
+            self.derivative_matrices_1d[0]*2./(self.domain[1]-self.domain[0])]
 
     def _determine_boundary_indices(self):
         self.boundary_indices = [
@@ -714,18 +775,19 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
     def _form_derivative_matrices(self):
         if self.domain.shape[0] != 4:
             raise ValueError("Domain must be 2D")
-        ident = np.eye(self.order+1)
+        ident1 = np.eye(self.order[1]+1)
+        ident2 = np.eye(self.order[0]+1)
         self.derivative_matrices = []
         self.derivative_matrices.append(np.kron(
-            ident,
-            self.derivative_matrix_1d*2./(self.domain[1]-self.domain[0])))
+            ident1,
+            self.derivative_matrices_1d[0]*2./(self.domain[1]-self.domain[0])))
         # form derivative (in x2-direction) matrix of a 2d polynomial
         # this assumes that 2d-mesh_pts varies in x1 faster than x2,
         # e.g. points are
         # [[x11,x21],[x12,x21],[x13,x12],[x11,x22],[x12,x22],...]
         self.derivative_matrices.append(np.kron(
-            self.derivative_matrix_1d,
-            ident*2./(self.domain[3]-self.domain[2])))
+            self.derivative_matrices_1d[1],
+            ident2*2./(self.domain[3]-self.domain[2])))
 
     def _determine_boundary_indices(self):
         # boundary edges are stored with the following order,
@@ -795,3 +857,214 @@ class SteadyStateAdvectionDiffusionEquation1D(SteadyStateAdvectionDiffusion):
 
 class SteadyStateAdvectionDiffusionEquation2D(SteadyStateAdvectionDiffusion):
     pass
+
+
+class NobileBenchmarkFunctions(object):
+    def __init__(self, nvars, corr_len):
+        self.bndry_conds = [[zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"]]
+
+        domain_len = 1
+        self.corr_len, self.nvars = corr_len, nvars
+        self.Lp = max(domain_len, 2*corr_len)
+        self.L = self.corr_len/self.Lp
+        self.II = np.arange(2, 2+nvars-1)//2
+        self.eigenvalues = np.sqrt(np.sqrt(np.pi)*self.L)*(
+            np.exp(-(self.II*np.pi*self.L)**2/8.0))
+
+    def diffusivity_fun(self, mesh_pts, sample):
+        assert sample.ndim == 2
+        values = np.ones((mesh_pts.shape[1], 1))
+        values += sample[0]*np.sqrt(np.sqrt(np.pi)*self.L/2.0)
+        basis_vals = np.sin(self.II[:, None]*np.pi*mesh_pts[:1, :]/self.Lp)
+        values += (self.eigenvalues[:, None]*basis_vals).T.dot(
+            sample[1:])
+        return np.exp(values)
+
+    def forcing_fun(self, mesh_pts, sample):
+        return self.time_dependent_forcing_fun(mesh_pts, sample, 0.0)
+
+    def time_dependent_forcing_fun(self, mesh_pts, sample, time):
+        return (1.5 + np.cos(2*np.pi*time))*np.cos(mesh_pts[0, :])[:, None]
+
+    def initial_condition_fun(self, mesh_pts):
+        # return np.zeros((mesh_pts.shape[1], 1))
+        return np.prod(1-(2*mesh_pts-1)**2, axis=0)[:, None]
+
+    def velocity_fun(self, mesh_pts, sample):
+        return np.zeros((mesh_pts.shape[1], 2))
+
+
+class SpectralPDEMultiIndexWrapper(object):
+    def __init__(self, model, nvars):
+        self.model = model
+        self.nvars = nvars
+        self.num_config_vars = model.mesh.nphys_vars
+        if hasattr(self.model, "time_step_size"):
+            self.num_config_vars += 1
+
+    def value(self, sample):
+        if sample.shape[0] != self.nvars+self.num_config_vars:
+            msg = f"sample has shape {sample.shape} but expected "
+            msg += f"{(self.nvars+self.num_config_vars, 1)}"
+            raise ValueError(msg)
+        if hasattr(self.model, "time_step_size"):
+            order = sample[self.nvars:-1]
+            time_step_size = sample[-1]
+        else:
+            order = sample[self.nvars:-1]
+            time_step_size = None
+        assert np.allclose(order.astype(int), order)
+        order = order.astype(int)
+        # must extract bndry_conds before set_domain which
+        # creates new mesh and thus does not know about bndry_conds
+        bndry_conds = self.model.mesh.bndry_conds
+        # must use mesh.set_domain and not model.set_subdomain or
+        # internal variables will sometimes be inconsistent
+        self.model.mesh.set_domain(self.model.mesh.domain, order)
+        self.model.mesh.set_boundary_conditions(bndry_conds)
+        if time_step_size is not None:
+            self.model.initial_sol = self.model.initial_sol_fun(
+                self.model.mesh.mesh_pts)
+            self.model.set_time_step_size(
+                self.model.final_time, time_step_size)
+        random_sample = sample[:self.nvars]
+        value = self.model.value(random_sample)
+        return value
+
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(
+            self.value, samples, None)
+
+
+def setup_multi_index_advection_diffusion_benchmark(
+        nvars, corr_len, degree, final_time=1, time_step_size=1e-2,
+        max_eval_concurrency=1):
+    r"""
+    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
+
+    .. math::
+
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
+
+    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
+
+    and we model the diffusivity :math:`k` as a random field represented by the
+    Karhunen-Loeve (like) expansion (KLE)
+
+    .. math::
+
+       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
+
+    with
+
+    .. math::
+
+       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
+       \begin{cases}
+       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
+       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
+       \end{cases}
+
+    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
+
+    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
+
+    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
+
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables of the KLE
+
+    corr_len : float
+        The correlation length :math:`L_c` of the covariance kernel
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
+
+    Examples
+    --------
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark = setup_benchmark('advection-diffusion', nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
+    """
+    from scipy import stats
+    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+        WorkTrackingModel
+    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.benchmarks.benchmarks import Benchmark
+    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    pde_funs = NobileBenchmarkFunctions(nvars, corr_len)
+    config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
+    if final_time is not None:
+        base_model = TransientAdvectionDiffusion()
+        base_model.initialize(
+            pde_funs.bndry_conds, pde_funs.diffusivity_fun,
+            pde_funs.time_dependent_forcing_fun, pde_funs.velocity_fun,
+            degree, [0, 1, 0, 1], final_time, time_step_size,
+            pde_funs.initial_condition_fun)
+        config_values.append(final_time/(2*(2*np.arange(1, 11))**2))
+    else:
+        base_model = SteadyStateAdvectionDiffusion()
+        base_model.initialize(pde_funs.bndry_conds, pde_funs.diffusivity_fun,
+                              pde_funs.forcing_fun, pde_funs.velocity_fun,
+                              degree, [0, 1, 0, 1])
+    multi_index_model = SpectralPDEMultiIndexWrapper(
+        base_model, variable.num_vars())
+    config_var_trans = ConfigureVariableTransformation(config_values)
+
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModelWrapper(multi_index_model, multi_index_model)
+    #pool_model = PoolModel(
+    #    timer_model, max_eval_concurrency, base_model=base_model)
+    pool_model = timer_model
+
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model, multi_index_model,
+                              multi_index_model.num_config_vars)
+    attributes = {
+        'fun': model, 'variable': variable,
+        "get_num_degrees_of_freedom": base_model.get_num_degrees_of_freedom,
+        "config_var_trans": config_var_trans}
+    return Benchmark(attributes)

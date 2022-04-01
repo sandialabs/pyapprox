@@ -228,7 +228,6 @@ def outer_product(input_sets, axis=0):
        result.dtype will be set to the first entry of the first input_set
     """
     out = cartesian_product(input_sets)
-    print(out.shape)
     return np.prod(out, axis=axis)
 
     # try:
@@ -2008,7 +2007,9 @@ def get_tensor_product_piecewise_polynomial_quadrature_rule(
     piecewise linear interpolation
     """
     nrandom_vars = len(ranges)//2
-    assert isinstance(nsamples_1d, int) or nrandom_vars == len(nsamples_1d)
+    if isinstance(nsamples_1d, int):
+        nsamples_1d = np.array([nsamples_1d]*nrandom_vars)
+    assert nrandom_vars == len(nsamples_1d)
 
     if degree == 1:
         piecewise_univariate_quad_rule = piecewise_univariate_linear_quad_rule
@@ -2022,7 +2023,7 @@ def get_tensor_product_piecewise_polynomial_quadrature_rule(
         partial(piecewise_univariate_quad_rule, ranges[2*ii:2*ii+2])
         for ii in range(nrandom_vars)]
     x_quad, w_quad = get_tensor_product_quadrature_rule(
-        [nsamples_1d]*nrandom_vars, nrandom_vars,
+        nsamples_1d, nrandom_vars,
         univariate_quad_rules)
 
     return x_quad, w_quad

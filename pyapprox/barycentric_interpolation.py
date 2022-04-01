@@ -171,6 +171,10 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
     result : np.ndarray (num_samples,num_qoi)
         The values of the interpolant at the samples x
     """
+    if (np.prod([xx.shape[0] for xx in abscissa_1d]) != fn_vals.shape[0]):
+        msg = "The shapes of fn_vals and abscissa_1d are inconsistent"
+        raise ValueError(msg)
+    
     num_act_dims = active_dims.shape[0]
     num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights, \
         active_abscissa_indices_1d = \

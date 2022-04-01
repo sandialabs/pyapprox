@@ -25,6 +25,9 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     )
 from pyapprox.models.genz import GenzFunction
 from scipy.optimize import OptimizeResult
+from pyapprox.benchmarks.spectral_diffusion import (
+    setup_multi_index_advection_diffusion_benchmark
+)
 
 
 class Benchmark(OptimizeResult):
@@ -384,18 +387,21 @@ if pya.PYA_DEV_AVAILABLE:
 
 
 def setup_benchmark(name, **kwargs):
-    benchmarks = {'sobol_g': setup_sobol_g_function,
-                  'ishigami': setup_ishigami_function,
-                  'oakley': setup_oakley_function,
-                  'rosenbrock': setup_rosenbrock_function,
-                  'genz': setup_genz_function,
-                  'cantilever_beam': setup_cantilever_beam_benchmark,
-                  'wing_weight': setup_wing_weight_benchmark,
-                  'piston': setup_piston_benchmark,
-                  'chemical_reaction': setup_chemical_reaction_benchmark,
-                  'random_oscillator': setup_random_oscillator_benchmark,
-                  'coupled_springs': setup_coupled_springs_benchmark,
-                  'hastings_ecology': setup_hastings_ecology_benchmark}
+    benchmarks = {
+        'sobol_g': setup_sobol_g_function,
+        'ishigami': setup_ishigami_function,
+        'oakley': setup_oakley_function,
+        'rosenbrock': setup_rosenbrock_function,
+        'genz': setup_genz_function,
+        'cantilever_beam': setup_cantilever_beam_benchmark,
+        'wing_weight': setup_wing_weight_benchmark,
+        'piston': setup_piston_benchmark,
+        'chemical_reaction': setup_chemical_reaction_benchmark,
+        'random_oscillator': setup_random_oscillator_benchmark,
+        'coupled_springs': setup_coupled_springs_benchmark,
+        'hastings_ecology': setup_hastings_ecology_benchmark,
+        'multi_index_advection_diffusion':
+        setup_multi_index_advection_diffusion_benchmark}
     if pya.PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
