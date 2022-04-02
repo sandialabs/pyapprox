@@ -538,9 +538,9 @@ def integrate_subdomain(mesh_values, subdomain, order, interpolate,
 
 
 def get_2d_sub_domain_quadrature_rule(subdomain, order):
-    gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order, 0, 0)
     pts_1d, wts_1d = [], []
     for ii in range(2):
+        gl_pts, gl_wts = gauss_jacobi_pts_wts_1D(order[ii], 0, 0)
         # Scale points from [-1,1] to to physical domain
         x_range = subdomain[2*ii+1]-subdomain[2*ii]
         # Remove factor of 0.5 from weights and shift to [a,b]

@@ -762,7 +762,7 @@ class TestBayesianOED(unittest.TestCase):
         # oed.populate()
         # oed.set_collected_design_indices(init_design_indices)
         oed = get_bayesian_oed_optimizer(
-            "open_loop_kl_params", design_candidates, obs_fun, noise_std,
+            "kl_params", design_candidates, obs_fun, noise_std,
             prior_variable, nouter_loop_samples,
             ninner_loop_samples, "gauss",
             pre_collected_design_indices=init_design_indices)
@@ -950,19 +950,19 @@ class TestBayesianOED(unittest.TestCase):
         if "kl_params" not in oed_type:
             risk_fun = oed_average_prediction_deviation
             def qoi_fun(samples): return pred_mat.dot(samples).T
-            kwargs = {"risk_fun": risk_fun,
-                      "deviation_fun": oed_variance_deviation}
-            args = (qoi_fun, obs_process)
+            kwargs = {
+                "qoi_fun": qoi_fun, "risk_fun": risk_fun,
+                "deviation_fun": oed_variance_deviation}
         else:
             kwargs = {}
-            args = (obs_process,)
+        kwargs["obs_process"] = obs_process
 
         # Define initial design
         init_design_indices = np.array([ncandidates//2])
         oed = get_bayesian_oed_optimizer(
             oed_type, design_candidates, obs_fun, noise_std,
             prior_variable, nouter_loop_samples,
-            ninner_loop_samples_1d, "gauss", *args,
+            ninner_loop_samples_1d, "gauss",
             pre_collected_design_indices=init_design_indices, **kwargs)
         # following assumes oed.econ = True
         x_quad = oed.inner_loop_prior_samples[:, :oed.ninner_loop_samples]
@@ -1141,7 +1141,7 @@ class TestBayesianOED(unittest.TestCase):
                     gauss_evidence_jj_from_prior/gauss_evidence_from_prior,
                     gauss_evidence_jj)
 
-                if oed_type == "closed_loop_kl_params":
+                if oed_type == "kl_params":
                     gauss_kl_div = gaussian_kl_divergence(
                         exact_post_mean_jj, exact_post_cov_jj,
                         exact_post_mean, exact_post_cov)
@@ -1181,8 +1181,8 @@ class TestBayesianOED(unittest.TestCase):
             post_var_prev = post_var
 
     def test_sequential_kl_oed(self):
-        # self.check_sequential_kl_oed("closed_loop_kl_params", [2e-2, 1.3e-2, 7e-3, 3e-3])
-        self.check_sequential_kl_oed("closed_loop_dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
+        self.check_sequential_kl_oed("kl_params", [2e-2, 1.3e-2, 7e-3, 3e-3])
+        self.check_sequential_kl_oed("dev_pred", [2e-15, 3e-12, 3e-6, 9e-9])
 
     def help_compare_sequential_kl_oed_econ(self, use_gauss_quadrature):
         """

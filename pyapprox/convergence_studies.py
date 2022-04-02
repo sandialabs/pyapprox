@@ -36,7 +36,6 @@ def run_convergence_study(model, variable, validation_levels,
     reference_samples[-config_var_trans.num_vars():, :] =\
         config_var_trans.map_from_canonical_space(
             validation_levels[:, np.newaxis])
-    print(reference_samples.T)
 
     reference_values = model(reference_samples)
     if reference_model is None:
@@ -68,7 +67,6 @@ def run_convergence_study(model, variable, validation_levels,
         ndofs.append(ndof)
         means.append(np.mean(values[ii::config_samples.shape[1], 0]))
         errors.append(abs(means[-1]-reference_mean)/abs(reference_mean))
-        print(errors[-1], key)
 
     times = costs.copy()
     # make costs relative
@@ -103,7 +101,6 @@ def plot_convergence_data(data, cost_type='ndof'):
     errors, costs = data['errors'], data['costs']
     config_idx = data["canonical_config_samples_1d"]
 
-    print(data['ndofs'][0])
     if cost_type == 'ndof':
         costs = data['ndofs']/data['ndofs'].max()
     validation_levels = costs.shape
@@ -111,7 +108,6 @@ def plot_convergence_data(data, cost_type='ndof'):
     fig, axs = plt.subplots(1, nconfig_vars,
                             figsize=(nconfig_vars*8, 6),
                             sharey=True)
-    print(config_idx)
     if nconfig_vars == 1:
         label = r'$(\cdot)$'
         axs.loglog(costs, errors, 'o-', label=label)

@@ -1061,7 +1061,7 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
 
 class BayesianBatchDeviationOED(BayesianBatchOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, qoi_fun, nouter_loop_samples=1000,
+                 prior_variable, qoi_fun=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
@@ -1080,6 +1080,8 @@ class BayesianBatchDeviationOED(BayesianBatchOED):
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
                          econ=econ, max_eval_concurrency=max_eval_concurrency)
+        # qoi fun deafult is None so that same api can be used for KL based OED
+        # which does not require qoi_fun
         if not callable(qoi_fun):
             raise ValueError("qoi_fun must be a callable function")
         if not callable(deviation_fun):
@@ -1185,6 +1187,8 @@ class BayesianSequentialOED(BayesianBatchOED):
     """
     @abstractmethod
     def __init__(self, obs_process):
+        if not callable(obs_process):
+            raise ValueError("obs_process must be a callable function")
         self.obs_process = obs_process
         self.collected_obs = None
         self.inner_importance_weights = None
@@ -1312,9 +1316,11 @@ class BayesianSequentialOED(BayesianBatchOED):
 
 class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, obs_process, nouter_loop_samples=1000,
+                 prior_variable, obs_process=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, max_eval_concurrency=1):
+        # obs_process default is None so same API can be used as
+        # open loop design
         BayesianBatchKLOED.__init__(
             self, design_candidates, obs_fun, noise_std, prior_variable,
             nouter_loop_samples, ninner_loop_samples,
@@ -1353,13 +1359,14 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
 class BayesianSequentialDeviationOED(
         BayesianSequentialOED, BayesianBatchDeviationOED):
     def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, qoi_fun, obs_process,
+                 prior_variable, qoi_fun=None, obs_process=None,
                  nouter_loop_samples=1000, ninner_loop_samples=1000,
                  generate_inner_prior_samples=None, econ=False,
                  deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
                  risk_fun=oed_average_prediction_deviation):
-
+        # obs_process default is None so same API can be used as
+        # open loop design
         BayesianBatchDeviationOED.__init__(
             self, design_candidates, obs_fun, noise_std,
             prior_variable, qoi_fun, nouter_loop_samples,
@@ -1829,20 +1836,26 @@ def gaussian_noise_fun(noise_std, values, active_indices=None):
         0, noise_std[active_indices], shape)
 
 
-def get_bayesian_oed_optimizer(oed_type, design_candidates, obs_fun, noise_std,
-                               prior_variable, nouter_loop_samples,
-                               ninner_loop_samples, quad_method,
-                               *args,
-                               pre_collected_design_indices=None,
-                               **kwargs):
+def get_bayesian_oed_optimizer(
+        short_oed_type, design_candidates, obs_fun, noise_std,
+        prior_variable, nouter_loop_samples,
+        ninner_loop_samples, quad_method,
+        pre_collected_design_indices=None,
+        **kwargs):
+
+    if "obs_process" in kwargs:
+        oed_type = "closed_loop_" + short_oed_type
+    else:
+        oed_type = "open_loop_" + short_oed_type
+
     oed_types = {"open_loop_kl_params": BayesianBatchKLOED,
                  "closed_loop_kl_params": BayesianSequentialKLOED,
                  "open_loop_dev_pred": BayesianBatchDeviationOED,
                  "closed_loop_dev_pred": BayesianSequentialDeviationOED}
 
     if oed_type not in oed_types:
-        msg = f"oed_type {oed_type} not supported."
-        msg += "Select from {oed_types.keys()}"
+        msg = f"oed_type {short_oed_type} not supported."
+        msg += "Select from [kl_params, dev_pred]"
         raise ValueError(msg)
 
     if (type(noise_std) == np.ndarray and
@@ -1865,7 +1878,7 @@ def get_bayesian_oed_optimizer(oed_type, design_candidates, obs_fun, noise_std,
 
     oed = oed_types[oed_type](
         design_candidates, obs_fun, noise_std, prior_variable,
-        *args, nouter_loop_samples=nouter_loop_samples,
+        nouter_loop_samples=nouter_loop_samples,
         ninner_loop_samples=ninner_loop_samples, econ=econ,
         generate_inner_prior_samples=generate_inner_prior_samples,
         max_eval_concurrency=1, **kwargs)
