@@ -25,14 +25,13 @@ The following sets up a :class:`pyapprox.benchmarks.benchmarks.Benchmark` object
 The various attributes of the benchmark can be accessed easily. For example
 above we evaluated the Hessian at the point :math:`z=(0,0,0)^T`.
 
-The following tabulates the benchmarks provided in :mod:`pyapprox.benchmarks.benchmarks`. Each benchmark can be instantiated with using `setup_benchmark(name,**kwargs)` Follow the links to find details on the options available for each benchmark which are specified via `kwargs`.
+The following tabulates the benchmarks provided in :mod:`pyapprox.benchmarks`. Each benchmark can be instantiated with using `setup_benchmark(name,**kwargs)` Follow the links to find details on the options available for each benchmark which are specified via `kwargs`.
 
 Sensitivity Analysis
 --------------------
-
-:func:`pyapprox.benchmarks.benchmarks.setup_ishigami_function`
-:func:`pyapprox.benchmarks.benchmarks.setup_sobol_g_function`
-:func:`pyapprox.benchmarks.benchmarks.setup_oakley_function`
+:func:`pyapprox.benchmarks.setup_ishigami_function`
+:func:`pyapprox.benchmarks.setup_sobol_g_function`
+:func:`pyapprox.benchmarks.setup_oakley_function`
 
 Quadrature
 ----------
@@ -44,9 +43,11 @@ Inference
 
 Multi-fidelity Modeling
 -----------------------
-:func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark`
-:func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark`
-:func:`pyapprox_dev.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark`
+
+.. Do not document dev tutorials
+   :func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark`
+   :func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark`
+   :func:`pyapprox_dev.fenics_models.helmholtz_benchmarks.setup_mfnets_helmholtz_benchmark`
 
 
 

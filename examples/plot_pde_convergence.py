@@ -48,7 +48,7 @@ class Integrator(object):
         return np.prod(config_sample)
 
 #%%
-#To assess convergence we will use the function `run_convergence_study`.  This routine requires a function that takes samples that consist of realizations of the random variables concatenated with any configuration variables which define the numerical resolution of the quadrature rule, in this case the number of quadrature points used in the first and second dimension.
+#To assess convergence we will use the function `run_convergence_study`. This routine requires a function that takes samples that consist of realizations of the random variables concatenated with any configuration variables which define the numerical resolution of the quadrature rule, in this case the number of quadrature points used in the first and second dimension.
 #
 #To demonstrate its usage lets integrate the function
 #
@@ -100,7 +100,7 @@ plot_convergence_data(convergence_data)
 plt.show()
 
 #%%
-# The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
+#The left plots depicts the convergence of the estimated integral as :math:`n_1` is increased for varying values of :math:`n_1` and vice-versa for the right plot. These plots confirm that the Integrator converges as the expected linear rate. Until the error introduced by fixing the other configuration variables dominates.
 #
 #We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.
 
@@ -127,7 +127,8 @@ plt.show()
 
 
 #%%
-# Note when because the benchmark fun is run using multiprocessing.Pool
-# The .py script of this tutorial cannot be run with
-# python plot_pde_convergence.py because Pool must be called inside
-# if __name__ == "__main__": block
+#Note when because the benchmark fun is run using multiprocessing.Pool
+#The .py script of this tutorial cannot be run with
+#python plot_pde_convergence.py because Pool must be called inside
+#
+#`if __name__ == "__main__":

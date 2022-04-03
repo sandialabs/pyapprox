@@ -13,13 +13,9 @@ Developer Reference Guide
    :no-inheritance-diagram:
    
 
-.. automodapi:: pyapprox.benchmarks.benchmarks
+.. automodapi:: pyapprox.benchmarks
    :no-inheritance-diagram:
-   
 
-.. automodapi:: pyapprox.benchmarks.sensitivity_benchmarks
-   :no-inheritance-diagram:
-   		   
 
 .. automodapi:: pyapprox.multivariate_polynomials
    :no-inheritance-diagram:
@@ -52,4 +48,4 @@ Developer Reference Guide
 .. automodapi:: pyapprox.variables
    :no-inheritance-diagram:
 
-   
+
