@@ -3,23 +3,25 @@ import unittest
 from scipy import stats
 from scipy.special import (
     erf, erfinv, betainc, beta as beta_fn,
-    gamma as gamma_fn, gammainc
+    gamma as gamma_fn
 )
 from scipy import integrate
 from functools import partial
 from scipy.optimize import minimize
 
-from pyapprox.risk_measures import (
+from pyapprox.variables.risk_measures import (
     value_at_risk, conditional_value_at_risk,
     univariate_quantile_continuous_variable,
     compute_conditional_expectations,
     univariate_cvar_continuous_variable, weighted_quantiles,
     entropic_risk_measure, lognormal_mean, lognormal_cvar, chi_squared_cvar,
-    gaussian_cvar, lognormal_kl_divergence, gaussian_kl_divergence
+    gaussian_cvar, lognormal_kl_divergence, gaussian_kl_divergence,
+    compute_f_divergence
     )
-from pyapprox.variables import get_distribution_info
-from pyapprox.univariate_polynomials.quadrature import (
-    gauss_hermite_pts_wts_1D
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.variables.variables import get_distribution_info
+from pyapprox.variables.nataf_transformation import (
+    scipy_gauss_hermite_pts_wts_1D
 )
 
 
@@ -719,7 +721,7 @@ class TestRiskMeasures(unittest.TestCase):
         # print((rv.ppf(qq)-quantile_vals)/quantile_vals)
         assert np.allclose(rv.ppf(qq), quantile_vals, rtol=2e-2)
 
-        xx, weights = gauss_hermite_pts_wts_1D(400)
+        xx, weights = scipy_gauss_hermite_pts_wts_1D(400)
         samples = np.exp(xx)
         quantile_vals = weighted_quantiles(
             samples, weights, qq, samples_sorted=False)
@@ -779,7 +781,7 @@ class TestRiskMeasures(unittest.TestCase):
         rv1 = stats.multivariate_normal(mean1, sigma1)
         rv2 = stats.multivariate_normal(mean2, sigma2)
 
-        xx, ww = gauss_hermite_pts_wts_1D(300)
+        xx, ww = scipy_gauss_hermite_pts_wts_1D(300)
         xx = xx*np.sqrt(sigma1[0, 0]) + mean1[0]
         kl_div_quad = np.log(rv1.pdf(xx)/rv2.pdf(xx)).dot(ww)
         assert np.allclose(kl_div, kl_div_quad)
@@ -828,7 +830,6 @@ class TestRiskMeasures(unittest.TestCase):
         # Integrate on [-radius,radius]
         # Note this induces small error by truncating domain
         radius = 10
-        from pyapprox import get_tensor_product_quadrature_rule
         x, w = get_tensor_product_quadrature_rule(
             400, nvars, np.polynomial.legendre.leggauss,
             transform_samples=lambda x: x*radius,

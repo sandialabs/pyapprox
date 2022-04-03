@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.optimize import bisect, newton
 
-from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.utilities.utilities import cartesian_product, outer_product
 
 
 def scalar_multiple_of_random_variable(pdf_func, coefficient, xx):

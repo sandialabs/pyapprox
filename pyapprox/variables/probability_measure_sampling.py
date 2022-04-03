@@ -1,9 +1,6 @@
 import numpy as np
 
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import (
-    AffineRandomVariableTransformation
-)
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 
 
 def print_statistics(samples, values, sample_labels=None, value_labels=None):

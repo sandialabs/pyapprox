@@ -1,7 +1,8 @@
 import numpy as np
-from pyapprox.utilities import cartesian_product, hash_array
-from pyapprox.pya_numba import njit
 from itertools import combinations, combinations_with_replacement
+
+from pyapprox.utilities.utilities import cartesian_product, hash_array
+from pyapprox.utilities.pya_numba import njit
 
 
 def get_total_degree(num_dims, num_pts):

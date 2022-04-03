@@ -2,13 +2,14 @@ import numpy as np
 from functools import partial
 from scipy import stats
 
-from pyapprox.sparse_grid import get_sparse_grid_samples_and_weights
-from pyapprox.utilities import get_tensor_product_quadrature_rule, beta_pdf
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule
-from pyapprox.univariate_polynomials.leja_quadrature import \
+from pyapprox.sparsegrid.sparse_grid import get_sparse_grid_samples_and_weights
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.orthopoly.quadrature import leja_growth_rule
+from pyapprox.polychaos.manipulate_polynomials import get_indices_double_set
+from pyapprox.variables.density import tensor_product_pdf, beta_pdf
+from pyapprox.univariate_polynomials.leja_quadrature import (
     get_univariate_leja_quadrature_rule
-from pyapprox.manipulate_polynomials import get_indices_double_set
-from pyapprox.density import tensor_product_pdf
+)
 
 
 def evaluate_mixture_model(mixtures, samples):

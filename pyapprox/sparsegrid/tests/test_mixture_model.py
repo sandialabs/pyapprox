@@ -3,7 +3,7 @@ from functools import partial
 from scipy import stats
 import numpy as np
 
-from pyapprox.mixture_model import \
+from pyapprox.variables.mixture_model import \
     get_leja_univariate_quadrature_rules_of_beta_mixture, sample_mixture, \
     get_mixture_sparse_grid_quadrature_rule, \
     get_mixture_tensor_product_gauss_quadrature, \

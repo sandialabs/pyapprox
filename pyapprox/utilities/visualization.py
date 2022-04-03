@@ -2,9 +2,12 @@ import numpy as np
 import subprocess
 from scipy.spatial import ConvexHull
 import os
-from pyapprox.indexing import hash_array, compute_hyperbolic_level_indices, \
+
+from pyapprox.polychaos.indexing import (
+    hash_array, compute_hyperbolic_level_indices,
     compute_anova_level_indices
-from pyapprox.configure_plots import plt, mpl
+)
+from pyapprox.utilities.configure_plots import plt, mpl
 
 
 def convert_plot_to_tikz(tikz_file, tikz_dir, show=False,

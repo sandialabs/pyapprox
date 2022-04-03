@@ -2,16 +2,25 @@ import unittest
 from scipy import stats
 import numpy as np
 
-from pyapprox.variable_transformations import map_hypercube_samples, \
-    AffineRandomVariableTransformation, RosenblattTransformation, \
-    NatafTransformation, define_iid_random_variable_transformation, \
+from pyapprox.variables.variable_transformations import (
+    map_hypercube_samples, AffineRandomVariableTransformation,
+    RosenblattTransformation,
+    NatafTransformation, define_iid_random_variable_transformation,
     TransformationComposition, UniformMarginalTransformation
-from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    float_rv_discrete
-from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
-from pyapprox.nataf_transformation import \
-    gaussian_copula_compute_x_correlation_from_z_correlation,\
+)
+from pyapprox.variables.variables import (
+    IndependentMultivariateRandomVariable, float_rv_discrete
+)
+from pyapprox.variables.tests.test_rosenblatt_transformation import (
+    rosenblatt_example_2d
+)
+from pyapprox.variables.nataf_transformation import (
+    gaussian_copula_compute_x_correlation_from_z_correlation,
     generate_x_samples_using_gaussian_copula, correlation_to_covariance
+)
+from pyapprox.variables.probability_measure_sampling import (
+    generate_independent_random_samples
+)
 
 
 class TestVariableTransformations(unittest.TestCase):
@@ -315,8 +324,6 @@ class TestVariableTransformations(unittest.TestCase):
         var_trans = AffineRandomVariableTransformation(univariate_variables)
         var_trans.set_identity_maps([4, 2])
 
-        from pyapprox.probability_measure_sampling import \
-            generate_independent_random_samples
         samples = generate_independent_random_samples(var_trans.variable, 10)
         canonical_samples = var_trans.map_to_canonical_space(samples)
         assert np.allclose(canonical_samples[[2, 4], :], samples[[2, 4], :])

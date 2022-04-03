@@ -1,12 +1,16 @@
-from pyapprox.variables import IndependentMultivariateRandomVariable, \
-    transform_scale_parameters
 import numpy as np
-from pyapprox.variables import define_iid_random_variables, \
-    is_bounded_continuous_variable
-from pyapprox.rosenblatt_transformation import rosenblatt_transformation,\
-    inverse_rosenblatt_transformation
-from pyapprox.nataf_transformation import covariance_to_correlation, \
-    trans_x_to_u, trans_u_to_x, transform_correlations, gauss_hermite_pts_wts_1D
+
+from pyapprox.variables.variables import (
+    define_iid_random_variables, is_bounded_continuous_variable,
+    IndependentMultivariateRandomVariable, transform_scale_parameters
+)
+from pyapprox.variables.rosenblatt_transformation import (
+    rosenblatt_transformation, inverse_rosenblatt_transformation
+)
+from pyapprox.variables.nataf_transformation import (
+    covariance_to_correlation, trans_x_to_u, trans_u_to_x,
+    transform_correlations, scipy_gauss_hermite_pts_wts_1D
+)
 
 
 def map_hypercube_samples(current_samples, current_ranges, new_ranges,
@@ -373,7 +377,7 @@ class NatafTransformation(object):
         self.x_correlation = covariance_to_correlation(x_covariance)
         self.x_marginal_stdevs = np.sqrt(np.diag(x_covariance))
 
-        quad_rule = gauss_hermite_pts_wts_1D(11)
+        quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
         self.z_correlation = transform_correlations(
             self.x_correlation, self.x_marginal_inv_cdfs,
             self.x_marginal_means, self.x_marginal_stdevs, quad_rule,

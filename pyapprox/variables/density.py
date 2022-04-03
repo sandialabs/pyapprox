@@ -4,7 +4,7 @@ from scipy import stats
 from scipy.linalg import cholesky, solve_triangular
 from scipy.special import erf, beta as beta_fn, gammaln
 
-from pyapprox.visualization import (
+from pyapprox.utilities.visualization import (
     get_meshgrid_function_data, plot_contours, plt
 )
 

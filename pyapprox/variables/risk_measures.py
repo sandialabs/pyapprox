@@ -4,7 +4,7 @@ import scipy
 from scipy import stats
 from scipy.special import erfinv, gamma as gamma_fn, gammainc
 
-from pyapprox.random_variable_algebra import invert_monotone_function
+from pyapprox.variables.random_variable_algebra import invert_monotone_function
 
 
 def entropic_risk_measure(samples, weights=None):

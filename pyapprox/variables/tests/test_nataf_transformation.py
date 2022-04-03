@@ -1,11 +1,16 @@
-from pyapprox.nataf_transformation import *
-from pyapprox.probability_measure_sampling import rejection_sampling
-from scipy.stats import norm as normal_rv
-from scipy.stats import beta as beta_rv
-from scipy.stats import gamma as gamma_rv
+import numpy as np
+from scipy import stats
 from functools import partial
 import unittest
-from pyapprox.utilities import get_tensor_product_quadrature_rule
+
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.variables.nataf_transformation import (
+    nataf_transformation, transform_correlations,
+    gaussian_copula_compute_x_correlation_from_z_correlation,
+    nataf_joint_density, correlation_to_covariance,
+    scipy_gauss_hermite_pts_wts_1D, inverse_nataf_transformation,
+    generate_x_samples_using_gaussian_copula
+)
 
 
 class TestNatafTransformation(unittest.TestCase):
@@ -14,10 +19,10 @@ class TestNatafTransformation(unittest.TestCase):
         num_vars = 2
         num_samples = 3
 
-        x_marginal_cdfs = [normal_rv.cdf]*num_vars
-        x_marginal_inv_cdfs = [normal_rv.ppf]*num_vars
-        x_marginal_means = np.asarray([normal_rv.mean()]*num_vars)
-        x_marginal_stdevs = np.asarray([normal_rv.std()]*num_vars)
+        x_marginal_cdfs = [stats.norm.cdf]*num_vars
+        x_marginal_inv_cdfs = [stats.norm.ppf]*num_vars
+        x_marginal_means = np.asarray([stats.norm.mean()]*num_vars)
+        x_marginal_stdevs = np.asarray([stats.norm.std()]*num_vars)
 
         x_covariance = np.eye(num_vars)
 
@@ -32,10 +37,10 @@ class TestNatafTransformation(unittest.TestCase):
         num_vars = 2
         num_samples = 10
 
-        x_marginal_cdfs = [normal_rv.cdf]*num_vars
-        x_marginal_inv_cdfs = [normal_rv.ppf]*num_vars
-        x_marginal_means = np.asarray([normal_rv.mean()]*num_vars)
-        x_marginal_stdevs = np.asarray([normal_rv.std()]*num_vars)
+        x_marginal_cdfs = [stats.norm.cdf]*num_vars
+        x_marginal_inv_cdfs = [stats.norm.ppf]*num_vars
+        x_marginal_means = np.asarray([stats.norm.mean()]*num_vars)
+        x_marginal_stdevs = np.asarray([stats.norm.std()]*num_vars)
 
         x_correlation = np.array([[1, 0.5], [0.5, 1]])
         x_covariance = x_correlation.copy()  # because variances are 1.0
@@ -52,16 +57,16 @@ class TestNatafTransformation(unittest.TestCase):
     def test_correlated_gamma(self):
         num_vars = 2
 
-        def gamma_cdf(x): return gamma_rv.cdf(x, a=2, scale=3)
-        def gamma_icdf(x): return gamma_rv.ppf(x, a=2, scale=3)
+        def gamma_cdf(x): return stats.gamma.cdf(x, a=2, scale=3)
+        def gamma_icdf(x): return stats.gamma.ppf(x, a=2, scale=3)
         x_marginal_cdfs = [gamma_cdf]*num_vars
         x_marginal_inv_cdfs = [gamma_icdf]*num_vars
-        x_marginal_means = np.asarray([gamma_rv.mean(a=2, scale=3)]*num_vars)
-        x_marginal_stdevs = np.asarray([gamma_rv.std(a=2, scale=3)]*num_vars)
+        x_marginal_means = np.asarray([stats.gamma.mean(a=2, scale=3)]*num_vars)
+        x_marginal_stdevs = np.asarray([stats.gamma.std(a=2, scale=3)]*num_vars)
 
         x_correlation = np.array([[1, 0.7], [0.7, 1]])
 
-        quad_rule = gauss_hermite_pts_wts_1D(11)
+        quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
         z_correlation = transform_correlations(
             x_correlation, x_marginal_inv_cdfs,
             x_marginal_means, x_marginal_stdevs, quad_rule)
@@ -77,21 +82,21 @@ class TestNatafTransformation(unittest.TestCase):
         beta_stat = 5
         bisection_opts = {'tol': 1e-10, 'max_iterations': 100}
 
-        def beta_cdf(x): return beta_rv.cdf(x, a=alpha_stat, b=beta_stat)
-        def beta_icdf(x): return beta_rv.ppf(x, a=alpha_stat, b=beta_stat)
+        def beta_cdf(x): return stats.beta.cdf(x, a=alpha_stat, b=beta_stat)
+        def beta_icdf(x): return stats.beta.ppf(x, a=alpha_stat, b=beta_stat)
         x_marginal_cdfs = [beta_cdf]*num_vars
         x_marginal_inv_cdfs = [beta_icdf]*num_vars
         x_marginal_means = np.asarray(
-            [beta_rv.mean(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.mean(a=alpha_stat, b=beta_stat)]*num_vars)
         x_marginal_stdevs = np.asarray(
-            [beta_rv.std(a=alpha_stat, b=beta_stat)]*num_vars)
+            [stats.beta.std(a=alpha_stat, b=beta_stat)]*num_vars)
 
-        def beta_pdf(x): return beta_rv.pdf(x, a=alpha_stat, b=beta_stat)
+        def beta_pdf(x): return stats.beta.pdf(x, a=alpha_stat, b=beta_stat)
         x_marginal_pdfs = [beta_pdf]*num_vars
 
         x_correlation = np.array([[1, 0.7], [0.7, 1]])
 
-        quad_rule = gauss_hermite_pts_wts_1D(11)
+        quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
         z_correlation = transform_correlations(
             x_correlation, x_marginal_inv_cdfs, x_marginal_means,
             x_marginal_stdevs, quad_rule, bisection_opts)
@@ -103,7 +108,7 @@ class TestNatafTransformation(unittest.TestCase):
                 z_correlation)
         assert np.allclose(x_correlation, x_correlation_recovered)
 
-        z_variable = multivariate_normal(
+        z_variable = stats.multivariate_normal(
             mean=np.zeros((num_vars)), cov=z_correlation)
 
         def z_joint_density(x): return z_variable.pdf(x.T)

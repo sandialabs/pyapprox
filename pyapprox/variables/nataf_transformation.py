@@ -1,14 +1,12 @@
 import numpy as np
-from scipy.stats import norm as normal_rv
+from scipy import stats
 from scipy.linalg import solve_triangular
-from scipy.stats import multivariate_normal
-
 # from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
 # avoid making nataf dependent on univariate_polynomials
 from scipy.special import roots_hermitenorm
 
 
-def gauss_hermite_pts_wts_1D(nn):
+def scipy_gauss_hermite_pts_wts_1D(nn):
     x, w = roots_hermitenorm(nn)
     w /= np.sqrt(2*np.pi)
     return x, w
@@ -41,9 +39,9 @@ def corrcoeffij(corrij, x_inv_cdfs,  x_means, x_stdevs, quad_rule):
             z = np.dot(chol_factor, u)  # equation (18)
             # do the nataf transformation: x = F^-1(Phi(z))
             # idim: z -> u -> x
-            x[0] = x_inv_cdfs[0](normal_rv.cdf(z[0]))  # equation (19)
+            x[0] = x_inv_cdfs[0](stats.norm.cdf(z[0]))  # equation (19)
             # jdim: z -> u -> x
-            x[1] = x_inv_cdfs[1](normal_rv.cdf(z[1]))  # equation (19)
+            x[1] = x_inv_cdfs[1](stats.norm.cdf(z[1]))  # equation (19)
 
             # normalize the values to obtain the correlation coefficient
             x[0] = (x[0] - x_means[0]) / x_stdevs[0]
@@ -136,7 +134,7 @@ def trans_x_to_z(x_samples, x_marginal_cdfs):
     z_samples = np.empty_like(x_samples)
     for ii in range(num_vars):
         x_marginal_cdf_vals = x_marginal_cdfs[ii](x_samples[ii, :])
-        z_samples[ii, :] = normal_rv.ppf(x_marginal_cdf_vals)
+        z_samples[ii, :] = stats.norm.ppf(x_marginal_cdf_vals)
     return z_samples
 
 
@@ -154,7 +152,7 @@ def trans_z_to_x(z_samples, x_inv_cdfs):
     num_vars = z_samples.shape[0]
     x_samples = np.empty_like(z_samples)
     for ii in range(num_vars):
-        z_marginal_cdf_vals = normal_rv.cdf(z_samples[ii, :])
+        z_marginal_cdf_vals = stats.norm.cdf(z_samples[ii, :])
         x_samples[ii, :] = x_inv_cdfs[ii](z_marginal_cdf_vals)
     return x_samples
 
@@ -191,7 +189,7 @@ def correlation_to_covariance(correlation, stdevs):
 def nataf_transformation(x_samples, x_covariance, x_marginal_cdfs,
                          x_marginal_inv_cdfs, x_marginal_means,
                          x_marginal_stdevs, bisection_opts=dict()):
-    quad_rule = gauss_hermite_pts_wts_1D(11)
+    quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     x_correlation = covariance_to_correlation(x_covariance)
     z_correlation = transform_correlations(
         x_correlation, x_marginal_inv_cdfs, x_marginal_means,
@@ -205,7 +203,7 @@ def nataf_transformation(x_samples, x_covariance, x_marginal_cdfs,
 def inverse_nataf_transformation(u_samples, x_covariance, x_marginal_cdfs,
                                  x_marginal_inv_cdfs, x_marginal_means,
                                  x_marginal_stdevs, bisection_opts=dict()):
-    quad_rule = gauss_hermite_pts_wts_1D(11)
+    quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     x_correlation = covariance_to_correlation(x_covariance)
     z_correlation = transform_correlations(
         x_correlation, x_marginal_inv_cdfs, x_marginal_means,
@@ -223,7 +221,7 @@ def nataf_joint_density(x_samples, x_marginal_cdfs, x_marginal_pdfs,
     vals = z_joint_density(z_samples)
     for ii in range(num_vars):
         vals *= x_marginal_pdfs[ii](x_samples[ii, :])
-        normal_pdf_vals = normal_rv.pdf(z_samples[ii, :])
+        normal_pdf_vals = stats.norm.pdf(z_samples[ii, :])
         vals /= normal_pdf_vals
     return vals
 
@@ -237,7 +235,7 @@ def plot_nataf_joint_density(x_marginal_cdfs, x_marginal_pdfs, z_correlation,
     from PyDakota.plot_3d import get_meshgrid_function_data
 
     num_vars = len(x_marginal_cdfs)
-    z_variable = multivariate_normal(
+    z_variable = stats.multivariate_normal(
         mean=np.zeros((num_vars)), cov=z_correlation)
 
     def z_joint_density(x): return z_variable.pdf(x.T)
@@ -262,7 +260,7 @@ def generate_x_samples_using_gaussian_copula(num_vars, z_correlation,
     u_samples = np.random.normal(0., 1., (num_vars, num_samples))
     z_correlation_sqrt = np.linalg.cholesky(z_correlation)
     correlated_samples = np.dot(z_correlation_sqrt, u_samples)
-    z_samples = normal_rv.cdf(correlated_samples)
+    z_samples = stats.norm.cdf(correlated_samples)
     x_samples = np.empty_like(u_samples)
     for ii in range(num_vars):
         x_samples[ii, :] = univariate_inv_cdfs[ii](z_samples[ii, :])
@@ -276,7 +274,7 @@ def gaussian_copula_compute_x_correlation_from_z_correlation(
         x_marginal_inv_cdfs, x_marginal_means, x_marginal_stdevs,
         z_correlation):
     num_vars = z_correlation.shape[0]
-    quad_rule = gauss_hermite_pts_wts_1D(11)
+    quad_rule = scipy_gauss_hermite_pts_wts_1D(11)
     x_correlation = np.empty_like(z_correlation)
     for ii in range(num_vars):
         x_correlation[ii, ii] = 1.0

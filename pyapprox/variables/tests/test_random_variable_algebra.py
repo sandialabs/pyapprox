@@ -1,10 +1,10 @@
 import unittest
 from functools import partial
 from scipy import stats
-from scipy.special import factorial
+from scipy.special import factorial, kn as modified_bessel_2nd_kind
 import numpy as np
 
-from pyapprox.random_variable_algebra import (
+from pyapprox.variables.random_variable_algebra import (
     sum_of_independent_random_variables_pdf, get_inverse_derivatives,
     scalar_multiple_of_random_variable, power_of_random_variable_pdf,
     get_global_maxima_and_minima_of_monomial_expansion,
@@ -14,8 +14,11 @@ from pyapprox.random_variable_algebra import (
     product_of_independent_random_variables_pdf,
     weighted_sum_dependent_gaussian_variables
 )
+from pyapprox.variables.nataf_transformation import (
+    scipy_gauss_hermite_pts_wts_1D
+)
 
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+# from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
 
 
 class TestRandomVariableAlgebra(unittest.TestCase):
@@ -207,25 +210,25 @@ class TestRandomVariableAlgebra(unittest.TestCase):
     def test_sum_of_independent_uniform_and_gaussian_variables(self):
         lb, ub = 1, 3
         mu, sigma = 0., 0.25
-        uniform_dist = stats.uniform(loc=lb, scale=ub-lb)
         normal_dist = stats.norm(loc=mu, scale=sigma)
-
-        pdf1 = uniform_dist.pdf
-        pdf2 = normal_dist.pdf
 
         zz = np.linspace(-3, 3, 100)
         # using gauss hermite quadrature does not work because it is
         # using polynomial quadrature to integrate a discontinous function
         # i.e. uniform PDF
-        # x,w = gauss_hermite_pts_wts_1D(100)
+        # uniform_dist = stats.uniform(loc=lb, scale=ub-lb)
+        # pdf1 = uniform_dist.pdf
+        # x,w = scipy_gauss_hermite_pts_wts_1D(100)
         # x = x*sigma+mu #scale from standard normal
         # conv_pdf = sum_of_independent_random_variables_pdf(
         #    pdf1,[[x,w]],zz)
 
         # but since normal PDF is smooth integration in reverse order works
         # well
-        x, w = gauss_jacobi_pts_wts_1D(100, 0, 0)
+        x, w = np.polynomial.legendre.leggauss(100)
+        w *= 0.5
         x = x+2  # scale from [-1,1] to [1,3]
+        pdf2 = normal_dist.pdf
         conv_pdf = sum_of_independent_random_variables_pdf(
             pdf2, [[x, w]], zz)
 
@@ -244,8 +247,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
                 for ii in range(nvars)]
 
         zz = np.linspace(-3, 3, 60)
-        from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
-        x, w = gauss_hermite_pts_wts_1D(100)
+        x, w = scipy_gauss_hermite_pts_wts_1D(100)
         quad_rules = [[x*np.sqrt(variances[ii])+means[ii], w]
                       for ii in range(1, nvars)]
         conv_pdf = sum_of_independent_random_variables_pdf(
@@ -270,14 +272,11 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         eps = 0.2
         zz = np.linspace(-3, -eps, 100)
         zz = np.concatenate((zz, -zz[::-1]))
-        from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
-        x, w = gauss_hermite_pts_wts_1D(200)
+        x, w = scipy_gauss_hermite_pts_wts_1D(200)
         quad_rules = [[x*np.sqrt(variances[ii])+means[ii], w]
                       for ii in range(1, nvars)]
         product_pdf = product_of_independent_random_variables_pdf(
             pdfs[0], quad_rules, zz)
-
-        from scipy.special import kn as modified_bessel_2nd_kind
 
         def exact_product_two_zero_mean_independent_gaussians(var1, var2, zz):
             tmp = np.sqrt(var1*var2)
@@ -300,7 +299,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
 
         # transfomation not defined at 0
         zz = np.linspace(1e-1, 1, 100)
-        x, w = gauss_jacobi_pts_wts_1D(200, 0, 0)
+        x, w = np.polynomial.legendre.leggauss(200)
+        w *= 0.5
         x = (x+1)/2  # map to [0,1]
         quad_rules = [[x, w]]*(nvars-1)
         product_pdf = product_of_independent_random_variables_pdf(
@@ -326,7 +326,8 @@ class TestRandomVariableAlgebra(unittest.TestCase):
 
         # transfomation not defined at 0
         zz = np.linspace(lb1+lb2, ub1+ub2, 100)
-        x, w = gauss_jacobi_pts_wts_1D(200, 0, 0)
+        x, w = np.polynomial.legendre.leggauss(200)
+        w *= 0.5
         x = (x+1)/2*(ub2-lb2)+lb2  # map to [lb2,ub2]
         quad_rules = [[x, w]]
         product_pdf = sum_of_independent_random_variables_pdf(
