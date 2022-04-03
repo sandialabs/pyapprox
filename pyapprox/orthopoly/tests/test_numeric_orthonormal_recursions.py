@@ -7,22 +7,28 @@ from scipy.special import factorial
 
 from functools import partial
 
-from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
-    lanczos, stieltjes, modified_chebyshev_orthonormal, predictor_corrector,\
-    predictor_corrector_function_of_independent_variables, \
-    arbitrary_polynomial_chaos_recursion_coefficients, \
-    predictor_corrector_product_of_functions_of_independent_variables, \
-    ortho_polynomial_grammian_bounded_continuous_variable, native_recursion_integrate_fun
-from pyapprox.univariate_polynomials.recursion_factory import \
-    predictor_corrector_known_pdf
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.orthopoly.numeric_orthonormal_recursions import (
+    lanczos, stieltjes, modified_chebyshev_orthonormal, predictor_corrector,
+    predictor_corrector_function_of_independent_variables,
+    arbitrary_polynomial_chaos_recursion_coefficients,
+    predictor_corrector_product_of_functions_of_independent_variables,
+    ortho_polynomial_grammian_bounded_continuous_variable,
+    native_recursion_integrate_fun
+    )
+from pyapprox.orthopoly.recursion_factory import predictor_corrector_known_pdf
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    krawtchouk_recurrence, jacobi_recurrence, discrete_chebyshev_recurrence,\
+)
+from pyapprox.orthopoly.orthonormal_recursions import (
+    krawtchouk_recurrence, jacobi_recurrence, discrete_chebyshev_recurrence,
     hermite_recurrence
-from pyapprox.univariate_polynomials.quadrature import \
+)
+from pyapprox.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D
-from pyapprox.variables import float_rv_discrete, transform_scale_parameters
+)
+from pyapprox.variables.variables import (
+    float_rv_discrete, transform_scale_parameters
+)
 
 
 class TestNumericallyGenerateOrthonormalPolynomials1D(unittest.TestCase):

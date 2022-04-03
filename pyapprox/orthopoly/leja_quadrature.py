@@ -2,27 +2,33 @@ import numpy as np
 from functools import partial
 
 # from pyapprox.polynomial_sampling import christoffel_weights
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule, \
-    gauss_quadrature
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.orthopoly.quadrature import (
+    leja_growth_rule, gauss_quadrature
+)
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_deriv_1d
-from pyapprox.univariate_polynomials.leja_sequences import \
-    get_candidate_based_christoffel_leja_sequence_1d, \
+)
+from pyapprox.orthopoly.leja_sequences import (
+    get_candidate_based_christoffel_leja_sequence_1d,
     get_leja_sequence_quadrature_weights
-from pyapprox.univariate_polynomials.recursion_factory import \
+)
+from pyapprox.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
-
-from pyapprox.univariate_polynomials.leja_sequences import \
-    get_christoffel_leja_sequence_1d, \
-    get_christoffel_leja_quadrature_weights_1d, \
-    get_pdf_weighted_leja_sequence_1d, \
+)
+from pyapprox.orthopoly.leja_sequences import (
+    get_christoffel_leja_sequence_1d,
+    get_christoffel_leja_quadrature_weights_1d,
+    get_pdf_weighted_leja_sequence_1d,
     get_pdf_weighted_leja_quadrature_weights_1d
-from pyapprox.utilities import beta_pdf, beta_pdf_derivative, \
-    gaussian_pdf, gaussian_pdf_derivative
-
-# TODO remove dependence on these packages if possible
-from pyapprox.variables import is_bounded_continuous_variable, \
-    is_continuous_variable, get_distribution_info, transform_scale_parameters
+)
+from pyapprox.variables.density import (
+    beta_pdf, beta_pdf_derivative, gaussian_pdf, gaussian_pdf_derivative
+    )
+from pyapprox.variables.variables import (
+    is_bounded_continuous_variable, is_continuous_variable,
+    get_distribution_info, transform_scale_parameters, get_probability_masses,
+    is_bounded_discrete_variable
+)
 
 
 def candidate_based_christoffel_leja_rule_1d(
@@ -272,8 +278,6 @@ def get_discrete_univariate_leja_quadrature_rule(
         variable, growth_rule, initial_points=None,
         orthonormality_tol=1e-12, return_weights_for_all_levels=True,
         recursion_opts=None):
-    from pyapprox.variables import get_probability_masses, \
-        is_bounded_discrete_variable
     var_name = get_distribution_info(variable)[0]
     if is_bounded_discrete_variable(variable):
         xk, pk = get_probability_masses(variable)

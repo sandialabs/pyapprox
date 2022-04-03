@@ -3,20 +3,22 @@ import numpy as np
 from scipy.stats import binom, hypergeom, poisson
 import scipy.special as sp
 
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.orthopoly.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d, gauss_quadrature, \
     evaluate_orthonormal_polynomial_deriv_1d, \
     evaluate_three_term_recurrence_polynomial_1d, \
     convert_orthonormal_polynomials_to_monomials_1d, \
     convert_orthonormal_expansion_to_monomial_expansion_1d
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+from pyapprox.orthopoly.orthonormal_recursions import \
     jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
     discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence, \
     laguerre_recurrence
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+from pyapprox.orthopoly.orthonormal_recursions import \
     convert_orthonormal_recurence_to_three_term_recurence
-from pyapprox.monomial import univariate_monomial_basis_matrix
-from pyapprox.variables import float_rv_discrete
+from pyapprox.polychaos.monomial import (
+    univariate_monomial_basis_matrix, evaluate_monomial
+)
+from pyapprox.variables.variables import float_rv_discrete
 
 
 class TestOrthonormalPolynomials1D(unittest.TestCase):
@@ -316,7 +318,6 @@ class TestOrthonormalPolynomials1D(unittest.TestCase):
         p_ortho = evaluate_orthonormal_polynomial_1d(x, degree, ab)
         ortho_vals = p_ortho.dot(coefs)
 
-        from pyapprox.monomial import evaluate_monomial
         mono_vals = evaluate_monomial(
             np.arange(degree+1)[np.newaxis, :], mono_coefs,
             x[np.newaxis, :])[:, 0]

@@ -3,19 +3,20 @@ import numpy as np
 from functools import partial
 from scipy import stats
 import sympy as sp
-import warnings
 
-from pyapprox.univariate_polynomials.quadrature import \
-    gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D, \
-    clenshaw_curtis_pts_wts_1D, leja_growth_rule, \
+from pyapprox.orthopoly.quadrature import (
+    gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D,
+    clenshaw_curtis_pts_wts_1D, leja_growth_rule,
     constant_increment_growth_rule, gauss_quadrature
-from pyapprox.utilities import beta_pdf_on_ab, gaussian_pdf
-from pyapprox.variables import float_rv_discrete, get_probability_masses
-from pyapprox.univariate_polynomials.leja_quadrature import \
+)
+from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
+from pyapprox.variables.variables import (
+    float_rv_discrete, get_probability_masses, transform_scale_parameters
+)
+from pyapprox.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
-from pyapprox.variables import transform_scale_parameters
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    laguerre_recurrence
+    )
+from pyapprox.orthopoly.orthonormal_recursions import laguerre_recurrence
 
 
 class TestQuadrature(unittest.TestCase):

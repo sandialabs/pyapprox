@@ -2,31 +2,36 @@ import unittest
 from functools import partial
 from scipy import stats
 import numpy as np
-import warnings
 
-from pyapprox.univariate_polynomials.leja_sequences import \
-    compute_coefficients_of_christoffel_leja_interpolant_1d, \
-    christoffel_leja_objective_fun_1d, christoffel_leja_objective_jac_1d, \
-    christoffel_leja_objective_hess_1d, pdf_weighted_leja_objective_fun_1d, \
-    pdf_weighted_leja_objective_jac_1d, \
-    compute_coefficients_of_pdf_weighted_leja_interpolant_1d, \
-    get_christoffel_leja_sequence_1d, \
-    get_christoffel_leja_quadrature_weights_1d, \
-    get_pdf_weighted_leja_sequence_1d, \
-    get_candidate_based_pdf_weighted_leja_sequence_1d, \
-    sqrt_christoffel_function_inv_1d, \
-    sqrt_christoffel_function_inv_jac_1d, \
-    sqrt_christoffel_function_inv_hess_1d, christoffel_function_inv_1d, \
+from pyapprox.orthopoly.leja_sequences import (
+    compute_coefficients_of_christoffel_leja_interpolant_1d,
+    christoffel_leja_objective_fun_1d, christoffel_leja_objective_jac_1d,
+    christoffel_leja_objective_hess_1d, pdf_weighted_leja_objective_fun_1d,
+    pdf_weighted_leja_objective_jac_1d,
+    compute_coefficients_of_pdf_weighted_leja_interpolant_1d,
+    get_christoffel_leja_sequence_1d,
+    get_christoffel_leja_quadrature_weights_1d,
+    get_pdf_weighted_leja_sequence_1d,
+    get_candidate_based_pdf_weighted_leja_sequence_1d,
+    sqrt_christoffel_function_inv_1d,
+    sqrt_christoffel_function_inv_jac_1d,
+    sqrt_christoffel_function_inv_hess_1d, christoffel_function_inv_1d,
     christoffel_function_inv_jac_1d, christoffel_function_inv_hess_1d
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-    evaluate_orthonormal_polynomial_1d, \
+)
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    evaluate_orthonormal_polynomial_1d,
     evaluate_orthonormal_polynomial_deriv_1d
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+)
+from pyapprox.orthopoly.orthonormal_recursions import (
     jacobi_recurrence, hermite_recurrence
-from pyapprox.optimization import check_gradients
-from pyapprox.utilities import beta_pdf, gaussian_pdf, beta_pdf_derivative, \
-    gaussian_pdf_derivative, truncated_pivoted_lu_factorization
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule
+)
+from pyapprox.utilities.utilities import check_gradients
+from pyapprox.variables.density import (
+    beta_pdf, gaussian_pdf, beta_pdf_derivative,
+    gaussian_pdf_derivative
+)
+from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
+from pyapprox.orthopoly.quadrature import leja_growth_rule
 
 
 class TestLeja1DSequences(unittest.TestCase):

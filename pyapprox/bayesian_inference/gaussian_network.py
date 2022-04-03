@@ -18,7 +18,8 @@ from pyapprox.variables.multivariate_gaussian import (
 
 
 def get_var_ids_to_eliminate_from_node_query(
-        network_node_var_ids, network_labels, query_labels, evidence_node_ids=None):
+        network_node_var_ids, network_labels, query_labels,
+        evidence_node_ids=None):
     r"""
     Get the ids of all variables in a network not associated with nodes being
     queried. A given node can consist of multiple variables.

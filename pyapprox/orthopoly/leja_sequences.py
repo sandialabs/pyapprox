@@ -8,13 +8,15 @@ from scipy.optimize import Bounds
 from functools import partial
 from warnings import warn
 
-from pyapprox.rol_minimize import pyapprox_minimize
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-        evaluate_orthonormal_polynomial_1d
-
+from pyapprox.optimization.rol_minimize import pyapprox_minimize
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    evaluate_orthonormal_polynomial_1d
+)
 # ideally no files in this directory should rely on more complicated
 # algorithms in lower directories
-from pyapprox.polynomial_sampling import get_lu_leja_samples
+from pyapprox.polychaos.polynomial_sampling import (
+    get_lu_leja_samples, christoffel_preconditioner
+)
 
 
 def sqrt_christoffel_function_inv_1d(basis_fun, samples, normalize=False):
@@ -860,7 +862,6 @@ def get_candidate_based_christoffel_leja_sequence_1d(
         num_leja_samples, recursion_coeffs, generate_candidate_samples,
         num_candidate_samples, initial_points=None,
         samples_filename=None):
-    from pyapprox.polynomial_sampling import christoffel_preconditioner
     weight_function = christoffel_preconditioner
     return get_candidate_based_leja_sequence_1d(
         num_leja_samples, recursion_coeffs, generate_candidate_samples,

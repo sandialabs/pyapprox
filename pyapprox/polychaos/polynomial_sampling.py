@@ -2,11 +2,14 @@ import numpy as np
 from scipy.linalg import qr as qr_factorization
 from scipy.linalg import solve_triangular
 
-from pyapprox.utilities import truncated_pivoted_lu_factorization
-from pyapprox.orthogonal_least_interpolation import LeastInterpolationSolver, \
-    pre_multiply_block_diagonal_matrix
-from pyapprox.indexing import get_total_degree, compute_hyperbolic_indices, \
+from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
+from pyapprox.polychaos.orthogonal_least_interpolation import (
+    LeastInterpolationSolver, pre_multiply_block_diagonal_matrix
+)
+from pyapprox.polychaos.indexing import (
+    get_total_degree, compute_hyperbolic_indices,
     compute_hyperbolic_level_indices
+)
 
 
 def christoffel_function(samples, basis_matrix_generator, normalize=False):
