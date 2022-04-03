@@ -164,3 +164,31 @@ def rejection_sampling(target_density, proposal_density,
         print(('acceptance probability', float(
             num_samples)/float(num_proposal_samples)))
     return samples
+
+
+def discrete_sampling(N, probs, states=None):
+    r"""
+    discrete_sampling -- samples iid from a discrete probability measure
+
+    x = discrete_sampling(N, prob, states)
+
+    Generates N iid samples from a random variable X whose probability mass
+    function is
+
+    prob(X = states[j]) = prob[j],    1 <= j <= length(prob).
+
+    If states is not given, the states are gives by 1 <= state <= length(prob)
+    """
+
+    p = probs.squeeze()/np.sum(probs)
+
+    bins = np.digitize(
+        np.random.uniform(0., 1., (N, 1)), np.hstack((0, np.cumsum(p))))-1
+
+    if states is None:
+        x = bins
+    else:
+        assert(states.shape[0] == probs.shape[0])
+        x = states[bins]
+
+    return x.squeeze()

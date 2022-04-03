@@ -516,3 +516,86 @@ def gaussian_kl_divergence(mean1, cov1, mean2, cov2):
 # of canonical distributions
 # Manuel Gil. 2011. ON RÉNYI DIVERGENCE MEASURES FOR CONTINUOUS ALPHABET
 # SOURCES. https://mast.queensu.ca/~communications/Papers/gil-msc11.pdf
+
+
+def compute_f_divergence(density1, density2, quad_rule, div_type,
+                         normalize=False):
+    r"""
+    Compute f divergence between two densities
+
+    .. math:: \int_\Gamma f\left(\frac{p(z)}{q(z)}\right)q(x)\,dx
+
+    Parameters
+    ----------
+    density1 : callable
+        The density p(z)
+
+    density2 : callable
+        The density q(z)
+
+    normalize : boolean
+        True  - normalize the densities
+        False - Check that densities are normalized, i.e. integrate to 1
+
+    quad_rule : tuple
+        x,w - quadrature points and weights
+        x : np.ndarray (num_vars,num_samples)
+        w : np.ndarray (num_samples)
+
+    div_type : string
+        The type of f divergence (KL,TV,hellinger).
+        KL - Kullback-Leibler :math:`f(t)=t\log t`
+        TV - total variation  :math:`f(t)=\frac{1}{2}\lvert t-1\rvert`
+        hellinger - squared Hellinger :math:`f(t)=(\sqrt(t)-1)^2`
+    """
+    x, w = quad_rule
+    assert w.ndim == 1
+
+    density1_vals = density1(x).squeeze()
+    const1 = density1_vals.dot(w)
+    density2_vals = density2(x).squeeze()
+    const2 = density2_vals.dot(w)
+    if normalize:
+        density1_vals /= const1
+        density2_vals /= const2
+    else:
+        tol = 1e-14
+        # print(const1)
+        # print(const2)
+        assert np.allclose(const1, 1.0, atol=tol)
+        assert np.allclose(const2, 1.0, atol=tol)
+        const1, const2 = 1.0, 1.0
+
+    # normalize densities. May be needed if density is
+    # Unnormalized Bayesian Posterior
+    def d1(x): return density1(x)/const1
+    def d2(x): return density2(x)/const2
+
+    if div_type == 'KL':
+        # Kullback-Leibler
+        def f(t): return t*np.log(t)
+    elif div_type == 'TV':
+        # Total variation
+        def f(t): return 0.5*np.absolute(t-1)
+    elif div_type == 'hellinger':
+        # Squared hellinger int (p(z)**0.5-q(z)**0.5)**2 dz
+        # Note some formulations use 0.5 times above integral. We do not
+        # do that here
+        def f(t): return (np.sqrt(t)-1)**2
+    else:
+        raise Exception(f'Divergence type {div_type} not supported')
+
+    d1_vals, d2_vals = d1(x), d2(x)
+    II = np.where(d2_vals > 1e-15)[0]
+    ratios = np.zeros_like(d2_vals)+1e-15
+    ratios[II] = d1_vals[II]/d2_vals[II]
+    if not np.all(np.isfinite(ratios)):
+        print(d1_vals[II], d2_vals[II])
+        msg = 'Densities are not absolutely continuous. '
+        msg += 'Ensure that density2(z)=0 implies density1(z)=0'
+        raise Exception(msg)
+
+    divergence_integrand = f(ratios)*d2_vals
+
+    return divergence_integrand.dot(w)
+

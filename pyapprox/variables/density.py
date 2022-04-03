@@ -4,8 +4,9 @@ from scipy.stats import gaussian_kde as kde, norm as normal_rv
 from scipy.linalg import cholesky
 from scipy.linalg import solve_triangular
 from scipy.special import gammaln
+from scipy.special import erf, beta as beta_fn
 
-from pyapprox.configure_plots import *
+from pyapprox.configure_plots import plt
 from pyapprox.visualization import *
 
 
@@ -747,3 +748,64 @@ class EmpiricalCDF(object):
     def integrate_cdf(self):
         vals = np.cumsum(np.diff(self.sorted_samples)*self.ecdf[:-1])
         return np.append(0, vals)
+
+
+
+def beta_pdf(alpha_stat, beta_stat, x):
+    # scipy implementation is slow
+    const = 1./beta_fn(alpha_stat, beta_stat)
+    return const*(x**(alpha_stat-1)*(1-x)**(beta_stat-1))
+
+
+def pdf_under_affine_map(pdf, loc, scale, y):
+    return pdf((y-loc)/scale)/scale
+
+
+def beta_pdf_on_ab(alpha_stat, beta_stat, a, b, x):
+    # const = 1./beta_fn(alpha_stat,beta_stat)
+    # const /= (b-a)**(alpha_stat+beta_stat-1)
+    # return const*((x-a)**(alpha_stat-1)*(b-x)**(beta_stat-1))
+    from functools import partial
+    pdf = partial(beta_pdf, alpha_stat, beta_stat)
+    return pdf_under_affine_map(pdf, a, (b-a), x)
+
+
+def beta_pdf_derivative(alpha_stat, beta_stat, x):
+    r"""
+    x in [0,1]
+    """
+    # beta_const = gamma_fn(alpha_stat+beta_stat)/(
+    # gamma_fn(alpha_stat)*gamma_fn(beta_stat))
+
+    beta_const = 1./beta_fn(alpha_stat, beta_stat)
+    deriv = 0
+    if alpha_stat > 1:
+        deriv += (alpha_stat-1)*(x**(alpha_stat-2)*(1-x)**(beta_stat-1))
+    if beta_stat > 1:
+        deriv -= (beta_stat - 1)*(x**(alpha_stat-1)*(1-x)**(beta_stat-2))
+    deriv *= beta_const
+    return deriv
+
+
+def gaussian_cdf(mean, var, x):
+    return 0.5*(1+erf((x-mean)/(np.sqrt(var*2))))
+
+
+def gaussian_pdf(mean, var, x, package=np):
+    r"""
+    set package=sympy if want to use for symbolic calculations
+    """
+    return package.exp(-(x-mean)**2/(2*var)) / (2*package.pi*var)**.5
+
+
+def gaussian_pdf_derivative(mean, var, x):
+    return -gaussian_pdf(mean, var, x)*(x-mean)/var
+
+
+def pdf_derivative_under_affine_map(pdf_deriv, loc, scale, y):
+    r"""
+    Let y=g(x)=x*scale+loc and x = g^{-1}(y) = v(y) = (y-loc)/scale, scale>0
+    p_Y(y)=p_X(v(y))*|dv/dy(y)|=p_X((y-loc)/scale))/scale
+    dp_Y(y)/dy = dv/dy(y)*dp_X/dx(v(y))/scale = dp_X/dx(v(y))/scale**2
+    """
+    return pdf_deriv((y-loc)/scale)/scale**2
