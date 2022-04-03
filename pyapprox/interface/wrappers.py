@@ -7,9 +7,10 @@ from functools import partial
 from multiprocessing import Pool
 import sys
 
-from pyapprox.utilities import get_all_sample_combinations
-from pyapprox.utilities import hash_array
-from pyapprox.sys_utilities import get_num_args
+from pyapprox.utilities.utilities import (
+    get_all_sample_combinations, hash_array
+)
+from pyapprox.utilities.sys_utilities import get_num_args
 
 
 def evaluate_1darray_function_on_2d_array(

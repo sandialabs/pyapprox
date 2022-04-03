@@ -3,7 +3,7 @@ from scipy.spatial.distance import pdist, squareform
 import numpy as np
 from scipy.optimize import brenth
 
-from pyapprox.utilities import adjust_sign_eig
+from pyapprox.utilities.linalg import adjust_sign_eig
 
 
 def exponential_kle_eigenvalues(sigma2, corr_len, omega):

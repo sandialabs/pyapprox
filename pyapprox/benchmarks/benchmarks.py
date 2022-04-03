@@ -1,14 +1,14 @@
 import numpy as np
 from scipy import stats
 from functools import partial
+from scipy.optimize import OptimizeResult
 
-import pyapprox as pya
+from pyapprox import PYA_DEV_AVAILABLE
 from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, get_ishigami_funciton_statistics,
     oakley_function, oakley_function_statistics, sobol_g_function,
     ishigami_function, ishigami_function_jacobian, ishigami_function_hessian
     )
-
 from pyapprox.benchmarks.surrogate_benchmarks import (
     rosenbrock_function,
     rosenbrock_function_jacobian, rosenbrock_function_hessian_prod,
@@ -23,10 +23,18 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     define_coupled_springs_random_variables, HastingsEcology,
     define_nondim_hastings_ecology_random_variables
     )
-from pyapprox.models.genz import GenzFunction
-from scipy.optimize import OptimizeResult
-from pyapprox.benchmarks.spectral_diffusion import (
-    setup_multi_index_advection_diffusion_benchmark
+from pyapprox.benchmarks.genz import GenzFunction
+from pyapprox.variables.variables import (
+    IndependentMultivariateRandomVariable
+)
+from pyapprox.variables.variable_transformations import (
+    ConfigureVariableTransformation
+)
+from pyapprox.interface.wrappers import (
+    TimerModelWrapper, PoolModel, WorkTrackingModel
+)
+from pyapprox.pde.spectral_diffusion import (
+    TransientAdvectionDiffusion, SteadyStateAdvectionDiffusion
 )
 
 
@@ -288,7 +296,7 @@ def setup_rosenbrock_function(nvars):
     dict_keys(['fun', 'jac', 'hessp', 'variable', 'mean', 'loglike', 'loglike_grad'])
     """
     univariate_variables = [stats.uniform(-2, 4)]*nvars
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
 
     benchmark = Benchmark(
         {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
@@ -366,7 +374,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     """
     genz = GenzFunction(test_name, nvars)
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
     if coefficients is None:
         genz.set_coefficients(1, 'squared-exponential-decay', 0.25)
     else:
@@ -377,7 +385,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     return Benchmark(attributes)
 
 
-if pya.PYA_DEV_AVAILABLE:
+if PYA_DEV_AVAILABLE:
     from pyapprox_dev.fenics_models.advection_diffusion_wrappers import \
         setup_advection_diffusion_benchmark,\
         setup_advection_diffusion_source_inversion_benchmark,\
@@ -557,4 +565,130 @@ def setup_hastings_ecology_benchmark(qoi_functional=None, time=None):
     model = HastingsEcology(qoi_functional, True, time)
     attributes = {'fun': model,
                   'variable': variable}
+    return Benchmark(attributes)
+
+
+def setup_multi_index_advection_diffusion_benchmark(
+        nvars, corr_len, degree, final_time=1, time_step_size=1e-2,
+        max_eval_concurrency=1):
+    r"""
+    Compute functionals of the following model of transient advection-diffusion (with 3 configure variables which control the two spatial mesh resolutions and the timestep)
+
+    .. math::
+
+       \frac{\partial u}{\partial t}(x,t,\rv) + \nabla u(x,t,\rv)-\nabla\cdot\left[k(x,\rv) \nabla u(x,t,\rv)\right] &=g(x,t) \qquad (x,t,\rv)\in D\times [0,1]\times\rvdom\\
+       \mathcal{B}(x,t,\rv)&=0 \qquad\qquad (x,t,\rv)\in \partial D\times[0,1]\times\rvdom\\
+       u(x,t,\rv)&=u_0(x,\rv) \qquad (x,t,\rv)\in D\times\{t=0\}\times\rvdom
+
+    Following [NTWSIAMNA2008]_, [JEGGIJNME2020]_ we set
+
+    .. math:: g(x,t)=(1.5+\cos(2\pi t))\cos(x_1),
+
+    the initial condition as :math:`u(x,z)=0`, :math:`B(x,t,z)` to be zero dirichlet boundary conditions.
+
+    and we model the diffusivity :math:`k` as a random field represented by the
+    Karhunen-Loeve (like) expansion (KLE)
+
+    .. math::
+
+       \log(k(x,\rv)-0.5)=1+\rv_1\left(\frac{\sqrt{\pi L}}{2}\right)^{1/2}+\sum_{k=2}^d \lambda_k\phi(x)\rv_k,
+
+    with
+
+    .. math::
+
+       \lambda_k=\left(\sqrt{\pi L}\right)^{1/2}\exp\left(-\frac{(\lfloor\frac{k}{2}\rfloor\pi L)^2}{4}\right) k>1,  \qquad\qquad  \phi(x)=
+       \begin{cases}
+       \sin\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ even}\,,\\
+       \cos\left(\frac{(\lfloor\frac{k}{2}\rfloor\pi x_1)}{L_p}\right) & k \text{ odd}\,.
+       \end{cases}
+
+    where :math:`L_p=\max(1,2L_c)`, :math:`L=\frac{L_c}{L_p}`.
+
+    The quantity of interest :math:`f(z)` is the measurement of the solution at a location :math:`x_k` at the final time :math:`T=1` obtained via the linear functional
+
+    .. math:: f(z)=\int_D u(x,T,z)\frac{1}{2\pi\sigma^2}\exp\left(-\frac{\lVert x-x_k \rVert^2_2}{\sigma^2}\right) dx
+
+
+    Parameters
+    ----------
+    nvars : integer
+        The number of variables of the KLE
+
+    corr_len : float
+        The correlation length :math:`L_c` of the covariance kernel
+
+    max_eval_concurrency : integer
+        The maximum number of simulations that can be run in parallel. Should be         no more than the maximum number of cores on the computer being used
+
+    Returns
+    -------
+    benchmark : pya.Benchmark
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The quantity of interest :math:`f(w)` with signature
+
+        ``fun(w) -> np.ndarray``
+
+        where ``w`` is a 2D np.ndarray with shape (nvars+3,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1). The first ``nvars``
+        rows of ``w`` are realizations of the random variables. The last 3 rows
+        are configuration variables specifying the numerical discretization of
+        the PDE model. Specifically the first and second configuration variables
+        specify the levels :math:`l_{x_1}` and :math:`l_{x_2}` which dictate
+        the resolution of the FEM mesh in the directions :math:`{x_1}` and
+        :math:`{x_2}` respectively. The number of cells in the :math:`{x_i}`
+        direction is given by :math:`2^{l_{x_i}+2}`. The third configuration
+        variable specifies the level :math:`l_t` of the temporal discretization.
+        The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
+        size is and :math:`T/2^{l_{t}+2}`.
+
+    variable : pya.IndependentMultivariateRandomVariable
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
+
+    Examples
+    --------
+    >>> from pyapprox_dev.benchmarks.benchmarks import setup_benchmark
+    >>> benchmark = setup_benchmark('advection-diffusion', nvars=2)
+    >>> print(benchmark.keys())
+    dict_keys(['fun', 'variable'])
+    """
+    univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    pde_funs = NobileBenchmarkFunctions(nvars, corr_len)
+    config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
+    if final_time is not None:
+        base_model = TransientAdvectionDiffusion()
+        base_model.initialize(
+            pde_funs.bndry_conds, pde_funs.diffusivity_fun,
+            pde_funs.time_dependent_forcing_fun, pde_funs.velocity_fun,
+            degree, [0, 1, 0, 1], final_time, time_step_size,
+            pde_funs.initial_condition_fun)
+        config_values.append(final_time/(2*(2*np.arange(1, 11))**2))
+    else:
+        base_model = SteadyStateAdvectionDiffusion()
+        base_model.initialize(pde_funs.bndry_conds, pde_funs.diffusivity_fun,
+                              pde_funs.forcing_fun, pde_funs.velocity_fun,
+                              degree, [0, 1, 0, 1])
+    multi_index_model = SpectralPDEMultiIndexWrapper(
+        base_model, variable.num_vars())
+    config_var_trans = ConfigureVariableTransformation(config_values)
+
+    # add wrapper to allow execution times to be captured
+    timer_model = TimerModelWrapper(multi_index_model, multi_index_model)
+    pool_model = PoolModel(
+       timer_model, max_eval_concurrency, base_model=base_model)
+    # pool_model = timer_model
+    
+    # add wrapper that tracks execution times.
+    model = WorkTrackingModel(pool_model, multi_index_model,
+                              multi_index_model.num_config_vars)
+    attributes = {
+        'fun': model, 'variable': variable,
+        "get_num_degrees_of_freedom": base_model.get_num_degrees_of_freedom,
+        "config_var_trans": config_var_trans}
     return Benchmark(attributes)

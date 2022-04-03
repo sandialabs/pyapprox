@@ -1,13 +1,12 @@
-from pyapprox.random_variable_algebra import \
-    sum_of_independent_random_variables_pdf
-import matplotlib.pyplot as plt
-from pyapprox.random_variable_algebra import get_pdf_from_monomial_expansion, get_all_local_extrema_of_monomial_expansion_1d
 from scipy.special import factorial
 from functools import partial
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from scipy.stats import uniform
 import numpy as np
-from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+from scipy import stats
+
+from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.variables.random_variable_algebra import (
+    get_pdf_from_monomial_expansion, sum_of_independent_random_variables_pdf
+)
 
 
 class GenzFunction(object):
@@ -284,9 +283,10 @@ class GenzFunction(object):
 
 def oscillatory_genz_pdf(c, w1, values):
     nvars = c.shape[0]
-    x, w = gauss_jacobi_pts_wts_1D(100, 0, 0)
+    x, w = np.polynomial.legendre.leggauss(100)
+    w *= 0.5
     x = (x+1)/2  # scale from [-1,1] to [0,1]
-    pdf1 = partial(uniform.pdf, loc=0+2*np.pi*w1, scale=c[0])
+    pdf1 = partial(stats.uniform.pdf, loc=0+2*np.pi*w1, scale=c[0])
     quad_rules = [[c[ii]*x, w] for ii in range(1, nvars)]
     conv_pdf = partial(sum_of_independent_random_variables_pdf,
                        pdf1, [[x, w]]*(nvars-1))

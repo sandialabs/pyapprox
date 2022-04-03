@@ -3,12 +3,11 @@ import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
 
-from pyapprox.pya_numba import njit
-from pyapprox.variables import (
-    IndependentMultivariateRandomVariable,
-    DesignVariable
+from pyapprox.utilities.pya_numba import njit
+from pyapprox.variables.variables import (
+    IndependentMultivariateRandomVariable, DesignVariable
 )
-from pyapprox.models.wrappers import (
+from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
 
@@ -647,6 +646,86 @@ class HastingsEcology(object):
         assert z.ndim == 1
         sol = self.run(z)
         return self.qoi_functional(sol)
+
+    def __call__(self, samples):
+        return evaluate_1darray_function_on_2d_array(
+            self.value, samples, None)
+
+
+class NobileBenchmarkFunctions(object):
+    def __init__(self, nvars, corr_len):
+        self.bndry_conds = [[zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"],
+                            [zeros_fun_axis_1, "D"]]
+
+        domain_len = 1
+        self.corr_len, self.nvars = corr_len, nvars
+        self.Lp = max(domain_len, 2*corr_len)
+        self.L = self.corr_len/self.Lp
+        self.II = np.arange(2, 2+nvars-1)//2
+        self.eigenvalues = np.sqrt(np.sqrt(np.pi)*self.L)*(
+            np.exp(-(self.II*np.pi*self.L)**2/8.0))
+
+    def diffusivity_fun(self, mesh_pts, sample):
+        assert sample.ndim == 2
+        values = np.ones((mesh_pts.shape[1], 1))
+        values += sample[0]*np.sqrt(np.sqrt(np.pi)*self.L/2.0)
+        basis_vals = np.sin(self.II[:, None]*np.pi*mesh_pts[:1, :]/self.Lp)
+        values += (self.eigenvalues[:, None]*basis_vals).T.dot(
+            sample[1:])
+        return np.exp(values)
+
+    def forcing_fun(self, mesh_pts, sample):
+        return self.time_dependent_forcing_fun(mesh_pts, sample, 0.0)
+
+    def time_dependent_forcing_fun(self, mesh_pts, sample, time):
+        return (1.5 + np.cos(2*np.pi*time))*np.cos(mesh_pts[0, :])[:, None]
+
+    def initial_condition_fun(self, mesh_pts):
+        # return np.zeros((mesh_pts.shape[1], 1))
+        return np.prod(1-(2*mesh_pts-1)**2, axis=0)[:, None]
+
+    def velocity_fun(self, mesh_pts, sample):
+        return np.zeros((mesh_pts.shape[1], 2))
+
+
+class SpectralPDEMultiIndexWrapper(object):
+    def __init__(self, model, nvars):
+        self.model = model
+        self.nvars = nvars
+        self.num_config_vars = model.mesh.nphys_vars
+        if hasattr(self.model, "time_step_size"):
+            self.num_config_vars += 1
+
+    def value(self, sample):
+        if sample.shape[0] != self.nvars+self.num_config_vars:
+            msg = f"sample has shape {sample.shape} but expected "
+            msg += f"{(self.nvars+self.num_config_vars, 1)}"
+            raise ValueError(msg)
+        if hasattr(self.model, "time_step_size"):
+            order = sample[self.nvars:-1]
+            time_step_size = sample[-1]
+        else:
+            order = sample[self.nvars:-1]
+            time_step_size = None
+        assert np.allclose(order.astype(int), order)
+        order = order.astype(int)
+        # must extract bndry_conds before set_domain which
+        # creates new mesh and thus does not know about bndry_conds
+        bndry_conds = self.model.mesh.bndry_conds
+        # must use mesh.set_domain and not model.set_subdomain or
+        # internal variables will sometimes be inconsistent
+        self.model.mesh.set_domain(self.model.mesh.domain, order)
+        self.model.mesh.set_boundary_conditions(bndry_conds)
+        if time_step_size is not None:
+            self.model.initial_sol = self.model.initial_sol_fun(
+                self.model.mesh.mesh_pts)
+            self.model.set_time_step_size(
+                self.model.final_time, time_step_size)
+        random_sample = sample[:self.nvars]
+        value = self.model.value(random_sample)
+        return value
 
     def __call__(self, samples):
         return evaluate_1darray_function_on_2d_array(

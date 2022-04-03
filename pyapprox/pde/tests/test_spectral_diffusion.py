@@ -1,21 +1,21 @@
 import numpy as np
 import unittest
+import sympy as sp
+import matplotlib.pyplot as plt
 
-from pyapprox.benchmarks.spectral_diffusion import (
+from pyapprox.pde.spectral_diffusion import (
     SteadyStateAdvectionDiffusionEquation1D,
     TransientAdvectionDiffusionEquation1D,
     SteadyStateAdvectionDiffusionEquation2D,
     TransientAdvectionDiffusionEquation2D
 )
-from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
-import pyapprox as pya
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.utilities.utilities import check_gradients
 
 
 def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
         sol_string, diffusivity, advection_1, advection_2):
-    import sympy as sp
     # from sympy.abc import t as sp_t
-    from sympy import lambdify
     sp_x, sp_y = sp.symbols(['x', 'y'])
     # u = sp.sin(sp.pi*sp_x)*sp.cos(sp_t)
     u = sp.sympify(sol_string)
@@ -25,8 +25,8 @@ def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(
     # sp_forcing = dtu-(diffusivity*dxu2+advection*dxu)
     sp_forcing = -(diffusivity*dxu2-dxu)
     print(sp_forcing)
-    # forcing_fun = lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
-    forcing_fun = lambdify((sp_x, sp_y), sp_forcing, "numpy")
+    # forcing_fun = sp.lambdify((sp_x, sp_y, sp_t), sp_forcing, "numpy")
+    forcing_fun = sp.lambdify((sp_x, sp_y), sp_forcing, "numpy")
     return forcing_fun
 
 
@@ -177,9 +177,9 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         sample = np.zeros((0))  # dummy for this example
         solution = model.solve(sample)
         def exact_sol(x): return ((np.exp(-x/a)-1)/(np.exp(-1/a)-1)).T
-        # pya.plt.plot(mesh_pts[0, :], exact_sol(mesh_pts)[:, 0])
-        # pya.plt.plot(mesh_pts[0, :], solution[:, 0], '--')
-        # pya.plt.show()
+        # plt.plot(mesh_pts[0, :], exact_sol(mesh_pts)[:, 0])
+        # plt.plot(mesh_pts[0, :], solution[:, 0], '--')
+        # plt.show()
         print(np.linalg.norm(exact_sol(mesh_pts)-solution))
         assert np.linalg.norm(
             exact_sol(mesh_pts)-solution) < 2e-13
@@ -286,7 +286,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # evaluate_gradient has to be called before any more calls to
         # model.solve with different parameters, because we need to
         # access self.fwd_solution, which will change with any subsuquent calls
-        errors = pya.check_gradients(
+        errors = check_gradients(
             model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 8e-7
@@ -323,7 +323,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # evaluate_gradient has to be called before any more calls to
         # model.solve with different parameters, because we need to
         # access self.fwd_solution, which will change with any subsuquent calls
-        errors = pya.check_gradients(
+        errors = check_gradients(
             model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
@@ -494,18 +494,18 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 test_exact_sol_t = exact_sol(test_mesh_pts, time)
                 test_model_sol_t = model.mesh.interpolate(
                     model_sol_t, test_mesh_pts)
-                pya.plt.plot(test_mesh_pts[0, :], test_model_sol_t, 'k',
+                plt.plot(test_mesh_pts[0, :], test_model_sol_t, 'k',
                              label='collocation', linewidth=2)
-                pya.plt.plot(test_mesh_pts[0, :], test_exact_sol_t,
+                plt.plot(test_mesh_pts[0, :], test_exact_sol_t,
                              'r--', label='exact', linewidth=2)
-                pya.plt.plot(
+                plt.plot(
                     model.mesh.mesh_pts[0, :], model_sol_t[:, 0], 'ko')
-                pya.plt.plot(
+                plt.plot(
                     model.mesh.mesh_pts[0, :], exact_sol_t[:, 0], 'rs')
-                pya.plt.legend(loc=0)
-                pya.plt.title('$t=%1.4f$' % time)
-                pya.plt.ylim(-1, 1)
-                # pya.plt.show()
+                plt.legend(loc=0)
+                plt.title('$t=%1.4f$' % time)
+                plt.ylim(-1, 1)
+                # plt.show()
             assert L2_error < 1e-4*factor  # crank-nicholson
 
     def test_timestepping_with_time_dependent_forcing_2d(self):
@@ -551,12 +551,12 @@ class TestSpectralDiffusion2D(unittest.TestCase):
                 model.mesh.integrate(exact_sol_t**2))
             plot = False
             if plot and (i == 0 or i == len(model.times)-1):
-                fig, axs = pya.plt.subplots(1, 2, figsize=(8, 6))
+                fig, axs = plt.subplots(1, 2, figsize=(8, 6))
                 p1 = model.mesh.plot(model_sol_t, 100, 20, axs[0])
                 p2 = model.mesh.plot(exact_sol_t, 100, 20, axs[1])
-                pya.plt.colorbar(p1, ax=axs[0])
-                pya.plt.colorbar(p2, ax=axs[1])
-                pya.plt.show()
+                plt.colorbar(p1, ax=axs[0])
+                plt.colorbar(p2, ax=axs[1])
+                plt.show()
             # print(time, L2_error, 1e-4*factor)
             assert L2_error < 1e-4*factor  # crank-nicholson
 
@@ -605,23 +605,23 @@ class TestSpectralDiffusion2D(unittest.TestCase):
             num_time_steps[-1]/num_time_steps[0])
         # print(conv_rate)
         assert np.allclose(conv_rate, 2, atol=1e-4)
-        # pya.plt.loglog(
+        # plt.loglog(
         #     num_time_steps, errors, 'o-r',
         #     label=r'$\lVert u(x,T)-\hat{u}(x,T)\\rVert_{\ell_2(D)}$',
         #     linewidth=2)
         # # print errors[0]*num_time_steps[0]/num_time_steps
         # order = 1
-        # pya.plt.loglog(
+        # plt.loglog(
         #     num_time_steps,
         #     errors[0]*num_time_steps[0]**order/num_time_steps**order,
         #     'o--', label=r'$(\Delta t)^{-%d}$' % order, linewidth=2)
         # order = 2
-        # pya.plt.loglog(
+        # plt.loglog(
         #     num_time_steps,
         #     errors[0]*num_time_steps[0]**order/num_time_steps**order,
         #     'o--', label=r'$(\Delta t)^{-%d}$' % order, linewidth=2)
-        # pya.plt.legend(loc=0)
-        # pya.plt.show()
+        # plt.legend(loc=0)
+        # plt.show()
 
     def test_inhomogeneous_diffusion_equation_2d_variable_coefficient(self):
         """
@@ -699,17 +699,17 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         solution = model.solve(sample)
 
         # print(np.linalg.norm(exact_sol(model.mesh.mesh_pts)-solution))
-        # fig, axs = pya.plt.subplots(1, 2, figsize=(2*8, 6))
+        # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
         # X, Y, Z = pya.get_meshgrid_function_data(exact_sol, model.domain, 30)
         # p = axs[0].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
-        # pya.plt.colorbar(p, ax=axs[0])
+        # plt.colorbar(p, ax=axs[0])
         # X, Y, Z = pya.get_meshgrid_function_data(
         #     partial(model.mesh.interpolate, solution), model.domain, 30)
         # p = axs[1].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
-        # pya.plt.colorbar(p, ax=axs[1])
-        # pya.plt.show()
+        # plt.colorbar(p, ax=axs[1])
+        # plt.show()
 
         assert np.linalg.norm(
             exact_sol(model.mesh.mesh_pts)-solution) < 1e-9
@@ -808,7 +808,7 @@ class TestSpectralDiffusion2D(unittest.TestCase):
         # evaluate_gradient has to be called before any more calls to
         # model.solve with different parameters, because we need to
         # access self.fwd_solution, which will change with any subsuquent calls
-        errors = pya.check_gradients(
+        errors = check_gradients(
             model, lambda x: model.evaluate_gradient(x[:, 0]), sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 4e-6

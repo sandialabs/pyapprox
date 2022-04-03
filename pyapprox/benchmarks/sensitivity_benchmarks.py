@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.utilities import evaluate_quadratic_form
+from pyapprox.utilities.utilities import evaluate_quadratic_form
 
 
 def variance_linear_combination_of_indendent_variables(coef, variances):

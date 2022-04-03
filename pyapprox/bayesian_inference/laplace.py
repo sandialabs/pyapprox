@@ -1,4 +1,3 @@
-from pyapprox.multivariate_gaussian import MultivariateGaussian
 import numpy as np
 import os
 from pyapprox.randomized_svd import randomized_svd
@@ -645,7 +644,6 @@ def generate_and_save_laplace_posterior(
     L_post_op = get_laplace_covariance_sqrt_operator(
         prior.sqrt_covariance_operator, misfit_hessian_operator,
         svd_opts, weights=None, min_singular_value=0.0)
-    # posterior = MultivariateGaussian(L_post_op, misfit_model.map_point())
 
     L_post_op.save(Lpost_op_filename)
     return L_post_op

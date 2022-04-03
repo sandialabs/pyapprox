@@ -1,6 +1,5 @@
-from pyapprox.pya_numba import njit
+from pyapprox.utilities.pya_numba import njit
 import numpy as np
-# from scipy import special as sp
 
 
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab):

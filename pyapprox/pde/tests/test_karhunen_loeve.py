@@ -1,5 +1,10 @@
 import unittest
-from pyapprox.karhunen_loeve_expansion import *
+import numpy as np
+
+from pyapprox.pde.karhunen_loeve_expansion import (
+    multivariate_chain_rule, MeshKLE, compute_kle_gradient_from_mesh_gradient
+)
+from pyapprox.utilities.utilities import approx_jacobian
 
 
 class TestKLE(unittest.TestCase):
@@ -59,7 +64,6 @@ class TestKLE(unittest.TestCase):
             sample = np.random.normal(0. ,1., (nvars, 1))
             kle_vals = kle(sample)
 
-            from pyapprox.optimization import approx_jacobian
             mesh_gradient = kle_vals.T*2
             assert np.allclose(
                 mesh_gradient,

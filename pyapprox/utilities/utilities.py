@@ -8,6 +8,8 @@ from numpy.polynomial.legendre import leggauss
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
 
+import matplotlib.pyplot as plt
+
 from pyapprox.utilities.pya_numba import njit
 from pyapprox.utilities.sys_utilities import hash_array
 
@@ -1307,3 +1309,241 @@ def tensor_product_piecewise_polynomial_interpolation(
     fn_vals = fun(grid_samples)
     return tensor_product_piecewise_polynomial_interpolation_with_values(
         samples, fn_vals, levels, basis_type)
+
+
+def approx_jacobian(func, x, *args, epsilon=np.sqrt(np.finfo(float).eps)):
+    x0 = np.asfarray(x)
+    assert x0.ndim == 1 or x0.shape[1] == 1
+    f0 = np.atleast_1d(func(*((x0,)+args)))
+    if f0.ndim == 2:
+        assert f0.shape[1] == 1
+        f0 = f0[:, 0]
+    jac = np.zeros([len(x0), len(f0)])
+    dx = np.zeros(x0.shape)
+    for i in range(len(x0)):
+        dx[i] = epsilon
+        f1 = func(*((x0+dx,)+args))
+        if f1.ndim == 2:
+            assert f1.shape[1] == 1
+            f1 = f1[:, 0]
+        jac[i] = (f1 - f0)/epsilon
+        dx[i] = 0.0
+
+    return jac.transpose()
+
+
+def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
+                    direction=None, jacp=None):
+    """
+    Compare a user specified jacobian with the jacobian computed with finite
+    difference with multiple step sizes.
+
+    Parameters
+    ---------
+    fun : callable
+
+        A function with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        output is a 2D np.ndarray with shape (nqoi, 1)
+
+    jac : callable
+        The jacobian of ``fun`` with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars, 1) and the
+        output is a 2D np.ndarray with shape (nqoi, nvars)
+
+    zz : np.ndarray (nvars, 1)
+        A sample of ``z`` at which to compute the gradient
+
+    plot : boolean
+        Plot the errors as a function of the finite difference step size
+
+    disp : boolean
+        True - print the errors
+        False - do not print
+
+    rel : boolean
+        True - compute the relative error in the directional derivative,
+        i.e. the absolute error divided by the directional derivative using
+        ``jac``.
+        False - compute the absolute error in the directional derivative
+
+    direction : np.ndarray (nvars, 1)
+        Direction to which Jacobian is applied. Default is None in which
+        case random direction is chosen.
+
+    Returns
+    -------
+    errors : np.ndarray (14, nqoi)
+        The errors in the directional derivative of ``fun`` at 14 different
+        values of finite difference tolerance for each quantity of interest
+    """
+    assert zz.ndim == 2
+    assert zz.shape[1] == 1
+
+    if direction is None:
+        direction = np.random.normal(0, 1, (zz.shape[0], 1))
+        direction /= np.linalg.norm(direction)
+    assert direction.ndim == 2 and direction.shape[1] == 1
+
+    if ((jacp is None and jac is None) or
+            (jac is not None and jacp is not None)):
+        raise Exception('Must specify jac or jacp')
+
+    if callable(jac):
+        function_val = fun(zz)
+        grad_val = jac(zz)  # .squeeze()
+        directional_derivative = grad_val.dot(direction).squeeze()
+    elif callable(jacp):
+        directional_derivative = jacp(zz, direction)
+    elif jac is True:
+        function_val, grad_val = fun(zz)
+        directional_derivative = grad_val.dot(direction).squeeze()
+    else:
+        raise Exception
+
+    fd_eps = np.logspace(-13, 0, 14)[::-1]
+    errors = []
+    row_format = "{:<12} {:<25} {:<25} {:<25}"
+    if disp:
+        if rel:
+            print(
+                row_format.format(
+                    "Eps", "norm(jv)", "norm(jv_fd)",
+                    "Rel. Errors"))
+        else:
+            print(row_format.format(
+                "Eps", "norm(jv)", "norm(jv_fd)",
+                "Abs. Errors"))
+    for ii in range(fd_eps.shape[0]):
+        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        perturbed_function_val = fun(zz_perturbed)
+        if jac == True:
+            perturbed_function_val = perturbed_function_val[0].squeeze()
+        fd_directional_derivative = (
+            perturbed_function_val-function_val).squeeze()/fd_eps[ii]
+        errors.append(np.linalg.norm(
+            fd_directional_derivative.reshape(directional_derivative.shape) -
+            directional_derivative))
+        if rel:
+            errors[-1] /= np.linalg.norm(directional_derivative)
+
+        if disp:
+            print(row_format.format(
+                fd_eps[ii],
+                np.linalg.norm(directional_derivative),
+                np.linalg.norm(fd_directional_derivative),
+                errors[ii]))
+
+    if plot:
+        plt.loglog(fd_eps, errors, 'o-')
+        plt.ylabel(r'$\lvert\nabla_\epsilon f\cdot p-\nabla f\cdot p\rvert$')
+        plt.xlabel(r'$\epsilon$')
+        plt.show()
+
+    return np.asarray(errors)
+
+
+def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
+                  direction=None):
+    """
+    Compare a user specified Hessian matrix-vector product with the
+    Hessian matrix vector produced computed with finite
+    difference with multiple step sizes using a user specified jacobian.
+
+    Parameters
+    ---------
+    jac : callable
+        The jacobian  with signature
+
+        ``jac(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,1) and the
+        output is a 2D np.ndarray with shape (nqoi,nvars)
+
+    hessian_matvec : callable
+        A function implementing the hessian matrix-vector product with 
+        signature
+
+        ``hessian_matvec(z,p) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,1), ``p`` is
+        an arbitrary vector with shape (nvars,1) and the
+        output is a 2D np.ndarray with shape (nqoi,nvars)
+
+    zz : np.ndarray (nvars,1)
+        A sample of ``z`` at which to compute the gradient
+
+    plot : boolean
+        Plot the errors as a function of the finite difference step size
+
+    disp : boolean
+        True - print the errors
+        False - do not print
+
+    rel : boolean
+        True - compute the relative error in the directional derivative,
+        i.e. the absolute error divided by the directional derivative using
+        ``jac``.
+        False - compute the absolute error in the directional derivative
+
+    direction : np.ndarray (nvars, 1)
+        Direction to which Hessian is applied. Default is None in which
+        case random direction is chosen.
+
+    Returns
+    -------
+    errors : np.ndarray (14, nqoi)
+        The errors in the directional derivative of ``jac`` at 14 different
+        values of finite difference tolerance for each quantity of interest
+    """
+    assert zz.ndim == 2
+    assert zz.shape[1] == 1
+    grad = jac(zz)
+    if direction is None:
+        direction = np.random.normal(0, 1, (zz.shape[0], 1))
+        direction /= np.linalg.norm(direction)
+    directional_derivative = hessian_matvec(zz, direction)
+    fd_eps = np.logspace(-13, 0, 14)[::-1]
+    errors = []
+    row_format = "{:<12} {:<25} {:<25} {:<25}"
+    if disp:
+        if rel:
+            print(
+                row_format.format(
+                    "Eps", "norm(jv)", "norm(jv_fd)",
+                    "Rel. Errors"))
+        else:
+            print(row_format.format(
+                "Eps", "norm(jv)", "norm(jv_fd)",
+                "Abs. Errors"))
+    for ii in range(fd_eps.shape[0]):
+        zz_perturbed = zz.copy()+fd_eps[ii]*direction
+        perturbed_grad = jac(zz_perturbed)
+        fd_directional_derivative = (perturbed_grad-grad)/fd_eps[ii]
+        # print(directional_derivative, fd_directional_derivative)
+        errors.append(np.linalg.norm(
+            fd_directional_derivative.reshape(directional_derivative.shape) -
+            directional_derivative))
+        if rel:
+            errors[-1] /= np.linalg.norm(directional_derivative)
+        if disp:
+            print(row_format.format(fd_eps[ii],
+                                    np.linalg.norm(directional_derivative),
+                                    np.linalg.norm(fd_directional_derivative),
+                                    errors[ii]))
+            # print(fd_directional_derivative,directional_derivative)
+
+    if plot:
+        plt.loglog(fd_eps, errors, 'o-')
+        label = r'$\lvert\nabla^2_\epsilon \cdot p f-\nabla^2 f\cdot p\rvert$'
+        plt.ylabel(label)
+        plt.xlabel(r'$\epsilon$')
+        plt.show()
+
+    return np.asarray(errors)

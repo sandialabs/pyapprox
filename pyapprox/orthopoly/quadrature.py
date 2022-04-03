@@ -1,9 +1,9 @@
 import numpy as np
 
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-    gauss_quadrature
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+from pyapprox.orthopoly.orthonormal_polynomials import gauss_quadrature
+from pyapprox.orthopoly.orthonormal_recursions import (
     jacobi_recurrence, hermite_recurrence
+)
 
 
 def clenshaw_curtis_rule_growth(level):
