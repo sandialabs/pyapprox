@@ -3,10 +3,12 @@ import numpy as np
 from scipy import stats
 from warnings import warn
 
-from pyapprox.variables import get_distribution_info, \
-    define_iid_random_variables, IndependentMultivariateRandomVariable, \
+from pyapprox.variables.variables import (
+    get_distribution_info,
+    define_iid_random_variables, IndependentMultivariateRandomVariable,
     float_rv_discrete, variables_equivalent, get_pdf
-from pyapprox.utilities import lists_of_arrays_equal
+)
+from pyapprox.utilities.utilities import lists_of_arrays_equal
 
 
 class TestVariables(unittest.TestCase):

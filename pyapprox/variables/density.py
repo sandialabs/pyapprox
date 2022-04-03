@@ -4,9 +4,9 @@ from scipy import stats
 from scipy.linalg import cholesky, solve_triangular
 from scipy.special import erf, beta as beta_fn, gammaln
 
-# from pyapprox.visualization import (
-
-#     )
+from pyapprox.visualization import (
+    get_meshgrid_function_data, plot_contours, plt
+)
 
 
 class Density:
@@ -32,8 +32,9 @@ class Density:
         if len(plot_limits) == 4:
             X, Y, Z = get_meshgrid_function_data(
                 self.pdf, plot_limits, num_samples_1d)
-            ax = plot_contours(X, Y, Z, ax, num_contour_levels=num_contour_levels,
-                               offset=0, cmap=cmap, zorder=None)
+            ax = plot_contours(
+                X, Y, Z, ax, num_contour_levels=num_contour_levels,
+                offset=0, cmap=cmap, zorder=None)
         else:
             plot_grid = np.linspace(
                 plot_limits[0], plot_limits[1], num_samples_1d)
@@ -93,10 +94,10 @@ class UniformDensity(Density):
         num_samples = samples.shape[1]
         density_vals = 1. / self.volume * np.ones(num_samples)
         for i in range(self.num_dims):
-            I = np.where(
+            II = np.where(
                 (samples[i, :] < self.ranges[2*i]) |
                 (samples[i, :] > self.ranges[2*i+1]))[0]
-            density_vals[I] = 0.
+            density_vals[II] = 0.
         return density_vals
 
     def generate_samples(self, num_samples):
@@ -199,10 +200,10 @@ def map_from_canonical_gaussian(stdnormal_samples, mean,
                                 covariance_chol_factor=None,
                                 covariance_sqrt=None):
     """
-    Transform independent stanard Normal to samples drawn from a correlated 
+    Transform independent stanard Normal to samples drawn from a correlated
     multivariate Gaussian distribution.
 
-    One and only one of covariance_chol_factor and covariance_sqrt must be 
+    One and only one of covariance_chol_factor and covariance_sqrt must be
     not None.
 
     Parameters
@@ -219,7 +220,7 @@ def map_from_canonical_gaussian(stdnormal_samples, mean,
 
     covariance_sqrt : callable
         correlated_samples = covariance_sqrt(stdnormal_samples)
-        An operator that applies the sqrt of the Gaussian covariance to a set 
+        An operator that applies the sqrt of the Gaussian covariance to a set
         of vectors. Useful for large scale applications.
 
     Returns
@@ -259,9 +260,9 @@ def map_to_canonical_gaussian(correlated_samples, mean, covariance_chol_factor):
         The mean of the multivariate Gaussian
 
     covariance_chol_factor : np.ndarray (num_vars,num_vars)
-        The cholesky factorization of the Gaussian covariance. 
+        The cholesky factorization of the Gaussian covariance.
         If argument is a 1D array then covariance_chol_factor is the diagonal
-        of the cholesky factorization. This is useful for independent 
+        of the cholesky factorization. This is useful for independent
         multivarite Gaussians.
 
     Returns
@@ -281,7 +282,8 @@ def map_to_canonical_gaussian(correlated_samples, mean, covariance_chol_factor):
 
 
 class NormalDensity(Density):
-    def __init__(self, mean=None, covariance=None, covariance_chol_factor=None):
+    def __init__(self, mean=None, covariance=None,
+                 covariance_chol_factor=None):
         Density.__init__(self, None, None)
 
         # allow for density to be initialized empty
@@ -553,7 +555,6 @@ class ObsDataDensity(Density):
         where d is the number of random variables
         """
         data_all = np.loadtxt(filename)
-        samples = data_all[:, :num_skip_columns]
         data = data_all[:, num_skip_columns:]
         if trans:
             data = data.T
@@ -632,7 +633,7 @@ class TensorProductDensity(Density):
 def tensor_product_pdf(samples, univariate_pdfs):
     """
     It is assumed that samples are within the bounds on the univariate PDFs.
-    Can run into trouble when mapping a Beta pdf on [0,1] to a 
+    Can run into trouble when mapping a Beta pdf on [0,1] to a
     jacobi polynomial  on [-1,1] if beta_pdf is not mapped to [-1,1]
     by user.
     """
@@ -656,7 +657,7 @@ def multivariate_student_t_density(samples, mean, covariance, df, log=False):
     Parameters:
     -----------
     samples : np.ndarray (num_vars, num_samples)
-        The samples at which to evaluate the PDF      
+        The samples at which to evaluate the PDF
 
     mean : np.ndarray (num_vars)
         The mean of the distribution
@@ -667,7 +668,7 @@ def multivariate_student_t_density(samples, mean, covariance, df, log=False):
     df : integer
         The degrees of freedom of the distribution
 
-    log : boolean  
+    log : boolean
         True  - return log of density
         False - return density
     '''
@@ -747,7 +748,6 @@ class EmpiricalCDF(object):
     def integrate_cdf(self):
         vals = np.cumsum(np.diff(self.sorted_samples)*self.ecdf[:-1])
         return np.append(0, vals)
-
 
 
 def beta_pdf(alpha_stat, beta_stat, x):
