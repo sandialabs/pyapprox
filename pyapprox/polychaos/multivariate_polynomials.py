@@ -1,23 +1,28 @@
 import copy
-from pyapprox.variable_transformations import \
-    AffineRandomVariableTransformation
-from pyapprox.variables import get_distribution_info, \
-    IndependentMultivariateRandomVariable
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.univariate_polynomials.recursion_factory import \
-    get_recursion_coefficients_from_variable
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-    gauss_quadrature
 from functools import partial
 import numpy as np
-from pyapprox.utilities import cartesian_product, outer_product
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-    evaluate_orthonormal_polynomial_deriv_1d, \
+
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.variables.variables import (
+    get_distribution_info, IndependentMultivariateRandomVariable
+)
+from pyapprox.utilities.utilities import (
+    get_tensor_product_quadrature_rule, cartesian_product, outer_product
+)
+from pyapprox.orthopoly.recursion_factory import (
+    get_recursion_coefficients_from_variable
+)
+from pyapprox.orthopoly.orthonormal_polynomials import gauss_quadrature
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    evaluate_orthonormal_polynomial_deriv_1d,
     evaluate_orthonormal_polynomial_1d
-from pyapprox.monomial import monomial_basis_matrix
-from pyapprox.utilities import \
+)
+from pyapprox.polychaos.monomial import monomial_basis_matrix
+from pyapprox.utilities.linalg import \
     flattened_rectangular_lower_triangular_matrix_index
-from pyapprox.manipulate_polynomials import add_polynomials
+from pyapprox.polychaos.manipulate_polynomials import add_polynomials
 
 
 def make_2D_array(lis):

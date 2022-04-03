@@ -1,10 +1,22 @@
-#from work.multi_fidelity.latent_variable_networks import *
-from pyapprox.gaussian_network import *
-from functools import partial
-from pyapprox.bayesian_inference.laplace import \
-    laplace_posterior_approximation_for_linear_models
 import scipy
 import unittest
+import numpy as np
+import networkx as nx
+
+from pyapprox.bayesian_inference.laplace import (
+    laplace_posterior_approximation_for_linear_models
+)
+from pyapprox.variables.multivariate_gaussian import (
+    joint_density_from_linear_conditional_relationship,
+    convert_gaussian_to_canonical_form,
+    convert_conditional_probability_density_to_canonical_form,
+    multiply_gaussian_densities_in_compact_canonical_form,
+    convert_gaussian_from_canonical_form
+)
+from pyapprox.bayesian_inference.gaussian_network import (
+    get_var_ids_to_eliminate_from_node_query, get_var_ids_to_eliminate,
+    GaussianNetwork, cond_prob_variable_elimination
+)
 
 
 class TestGaussianNetwork(unittest.TestCase):
@@ -14,9 +26,10 @@ class TestGaussianNetwork(unittest.TestCase):
     def test_get_var_ids_to_eliminate_from_node_query(self):
         nmodels, nvars_per_model = 4, 2
         network_labels = ['M%d' % ii for ii in range(nmodels)]
-        network_ids = np.arange(len(network_labels))
+        # network_ids = np.arange(len(network_labels))
         network_node_var_ids = [
-            list(range(nvars_per_model*ii, nvars_per_model*(ii+1))) for ii in range(nmodels)]
+            list(range(nvars_per_model*ii, nvars_per_model*(ii+1)))
+            for ii in range(nmodels)]
         query_labels_idx = [1]
 
         query_labels = [network_labels[idx] for idx in query_labels_idx]
@@ -29,7 +42,7 @@ class TestGaussianNetwork(unittest.TestCase):
         assert np.allclose(var_ids_to_eliminate, true_var_ids_to_eliminate)
 
     def test_get_var_ids_to_eliminate(self):
-        nmodels, nvars_per_model = 4, 2
+        nmodels = 4
         network_labels = ['M%d' % ii for ii in range(nmodels)]
         network_ids = np.arange(len(network_labels))
         query_labels_idx = [1]
@@ -42,7 +55,7 @@ class TestGaussianNetwork(unittest.TestCase):
         true_var_ids_to_eliminate = network_ids[~mask]
         assert np.allclose(var_ids_to_eliminate, true_var_ids_to_eliminate)
 
-        nmodels, nvars_per_model = 4, 2
+        nmodels = 4
         network_labels = ['M%d' % ii for ii in range(nmodels)]
         network_ids = np.arange(len(network_labels))
         query_labels_idx = [1, 3]
@@ -55,7 +68,7 @@ class TestGaussianNetwork(unittest.TestCase):
         true_var_ids_to_eliminate = network_ids[~mask]
         assert np.allclose(var_ids_to_eliminate, true_var_ids_to_eliminate)
 
-        nmodels, nvars_per_model, ndata_per_model = 4, 2, 2
+        nmodels, ndata_per_model = 4, 2
         network_labels = ['M%d' % ii for ii in range(nmodels)]
         query_labels_idx = [1]
         evidence_labels = []
@@ -67,7 +80,8 @@ class TestGaussianNetwork(unittest.TestCase):
 
         query_labels = [network_labels[idx] for idx in query_labels_idx]
         var_ids_to_eliminate = get_var_ids_to_eliminate(
-            network_ids, network_labels, query_labels, evidence_ids=evidence_ids)
+            network_ids, network_labels, query_labels,
+            evidence_ids=evidence_ids)
         # variable labels must not contain any labels associated with evidence
         # thus the slicing in the following loop
         mask = np.zeros(len(network_labels), dtype=bool)
@@ -81,7 +95,6 @@ class TestGaussianNetwork(unittest.TestCase):
         Amat = np.random.normal(0., 1., (nvars2, nvars1))
         bvec = np.random.normal(0, 1, (nvars2))
         mean1 = np.random.normal(0, 1, nvars1)
-        true_joint_mean = np.concatenate([mean1, Amat.dot(mean1)+bvec])
         temp1 = np.random.normal(0., 1., (nvars1, nvars1))
         cov1 = temp1.T.dot(temp1)
         temp2g1 = np.random.normal(0., 1., (nvars2, nvars2))
@@ -103,11 +116,12 @@ class TestGaussianNetwork(unittest.TestCase):
                 Amat, bvec, cov2g1, var1_ids, nvars_per_var1,
                 var2_ids, nvars_per_var2)
 
-        precision_matrix, shift, normalization, all_var_ids, nvars_per_all_vars = \
-            multiply_gaussian_densities_in_compact_canonical_form(
-                precision_matrix1, shift1, normalization1, var1_ids, nvars_per_var1,
-                precision_matrix2g1, shift2g1, normalization2g1, var2g1_ids,
-                nvars_per_var2g1)
+        (precision_matrix, shift, normalization, all_var_ids,
+         nvars_per_all_vars) = \
+             multiply_gaussian_densities_in_compact_canonical_form(
+                 precision_matrix1, shift1, normalization1, var1_ids,
+                 nvars_per_var1, precision_matrix2g1, shift2g1,
+                 normalization2g1, var2g1_ids, nvars_per_var2g1)
         mean, covariance = convert_gaussian_from_canonical_form(
             precision_matrix, shift)
 
@@ -137,8 +151,9 @@ class TestGaussianNetwork(unittest.TestCase):
             nparams=nparams[ii], cpd_mat=cpd_mats[ii],
             cpd_mean=prior_means[ii]*np.ones((nparams[ii], 1)))
         for ii in range(1, nnodes):
-            cpd_mean = np.ones((nparams[ii], 1))*prior_means[ii]-cpd_mats[ii].dot(
-                np.ones((nparams[ii-1], 1))*prior_means[ii-1])
+            cpd_mean = np.ones(
+                (nparams[ii], 1))*prior_means[ii]-cpd_mats[ii].dot(
+                    np.ones((nparams[ii-1], 1))*prior_means[ii-1])
             cpd_cov = prior_covs[ii]*np.eye(nparams[ii])-cpd_mats[ii].dot(
                 prior_covs[ii-1]*np.eye(nparams[ii-1])).dot(cpd_mats[ii].T)
             graph.add_node(ii, label=node_labels[ii], cpd_cov=cpd_cov,
@@ -149,7 +164,7 @@ class TestGaussianNetwork(unittest.TestCase):
 
         network = GaussianNetwork(graph)
         network.convert_to_compact_factors()
-        labels = [l[1] for l in network.graph.nodes.data('label')]
+        labels = [ll[1] for ll in network.graph.nodes.data('label')]
         factor_prior = cond_prob_variable_elimination(network, labels, None)
         prior_mean, prior_cov = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix, factor_prior.shift)
@@ -200,7 +215,8 @@ class TestGaussianNetwork(unittest.TestCase):
             nparams=nparams[ii], cpd_mat=cpd_mats[ii],
             cpd_mean=prior_means[ii]*np.ones((nparams[ii], 1)))
         for ii in range(1, nnodes):
-            cpd_mean = np.ones((nparams[ii], 1))*prior_means[ii]-cpd_mats[ii].dot(
+            cpd_mean = np.ones(
+                (nparams[ii], 1))*prior_means[ii]-cpd_mats[ii].dot(
                 np.ones((nparams[ii-1], 1))*prior_means[ii-1])
             cpd_cov = prior_covs[ii]*np.eye(nparams[ii])-cpd_mats[ii].dot(
                 prior_covs[ii-1]*np.eye(nparams[ii-1])).dot(cpd_mats[ii].T)
@@ -212,16 +228,13 @@ class TestGaussianNetwork(unittest.TestCase):
 
         network = GaussianNetwork(graph)
         network.convert_to_compact_factors()
-        labels = [l[1] for l in network.graph.nodes.data('label')]
+        labels = [ll[1] for ll in network.graph.nodes.data('label')]
         factor_prior = cond_prob_variable_elimination(network, labels, None)
         prior_mean, prior_cov = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix, factor_prior.shift)
-        #print('Prior Covariance\n',prior_cov)
-        #print('Prior Mean\n',prior_mean)
 
         true_prior_mean = np.hstack(
             [[prior_means[ii]]*nparams[ii] for ii in range(nnodes)])
-        # print(true_prior_mean)
         assert np.allclose(true_prior_mean, prior_mean)
         true_prior_var = np.hstack(
             [[prior_covs[ii]]*nparams[ii] for ii in range(nnodes)])
@@ -272,7 +285,8 @@ class TestGaussianNetwork(unittest.TestCase):
         graph.add_node(
             ii, label=node_labels[ii], cpd_cov=cov, nparams=nparams[ii],
             cpd_mat=cpd_mats[ii],
-            cpd_mean=(prior_means[ii]-np.dot(cpd_scales[:ii], prior_means[:ii])) *
+            cpd_mean=(prior_means[ii]-np.dot(cpd_scales[:ii],
+                                             prior_means[:ii])) *
             np.ones((nparams[ii], 1)))
 
         graph.add_edges_from(
@@ -281,7 +295,7 @@ class TestGaussianNetwork(unittest.TestCase):
 
         network = GaussianNetwork(graph)
         network.convert_to_compact_factors()
-        labels = [l[1] for l in network.graph.nodes.data('label')]
+        labels = [ll[1] for ll in network.graph.nodes.data('label')]
         factor_prior = cond_prob_variable_elimination(network, labels, None)
         prior_mean, prior_cov = convert_gaussian_from_canonical_form(
             factor_prior.precision_matrix, factor_prior.shift)
@@ -305,7 +319,6 @@ class TestGaussianNetwork(unittest.TestCase):
         nnodes = 1
         prior_covs = [1]
         prior_means = [-1]
-        cpd_scales = []
         node_labels = [f'Node_{ii}' for ii in range(nnodes)]
         nparams = np.array([2]*3)
         cpd_mats = [None]
@@ -323,8 +336,9 @@ class TestGaussianNetwork(unittest.TestCase):
         data_cpd_mats = [np.random.normal(0, 1, (nsamples[ii], nparams[ii]))
                          for ii in range(nnodes)]
         data_cpd_vecs = [np.ones((nsamples[ii], 1)) for ii in range(nnodes)]
-        true_coefs = [np.random.normal(0, np.sqrt(prior_covs[ii]), (nparams[ii], 1))
-                      for ii in range(nnodes)]
+        true_coefs = [
+            np.random.normal(0, np.sqrt(prior_covs[ii]), (nparams[ii], 1))
+            for ii in range(nnodes)]
         noise_covs = [np.eye(nsamples[ii])*noise_std[ii]**2
                       for ii in range(nnodes)]
 
@@ -349,10 +363,6 @@ class TestGaussianNetwork(unittest.TestCase):
             data_cpd_mats[0], prior_means[ii]*np.ones((nparams[0], 1)),
             np.linalg.inv(prior_covs[ii]*np.eye(nparams[0])),
             np.linalg.inv(noise_covs[0]), values_train[0], data_cpd_vecs[0])
-        #print('True post mean\n',true_post[0])
-        #print('Graph post mean\n',gauss_post[0])
-        #print('True post covar\n',true_post[1])
-        #print('Graph post covar\n',gauss_post[1])
 
         assert np.allclose(gauss_post[1], true_post[1])
         assert np.allclose(gauss_post[0], true_post[0].squeeze())
@@ -390,8 +400,9 @@ class TestGaussianNetwork(unittest.TestCase):
         data_cpd_mats = [np.random.normal(0, 1, (nsamples[ii], nparams[ii]))
                          for ii in range(nnodes)]
         data_cpd_vecs = [np.ones((nsamples[ii], 1)) for ii in range(nnodes)]
-        true_coefs = [np.random.normal(0, np.sqrt(prior_covs[ii]), (nparams[ii], 1))
-                      for ii in range(nnodes)]
+        true_coefs = [
+            np.random.normal(0, np.sqrt(prior_covs[ii]), (nparams[ii], 1))
+            for ii in range(nnodes)]
         noise_covs = [np.eye(nsamples[ii])*noise_std[ii]**2
                       for ii in range(nnodes)]
 
@@ -408,10 +419,10 @@ class TestGaussianNetwork(unittest.TestCase):
 
         network.convert_to_compact_factors()
 
-        #query_labels = [node_labels[2]]
         query_labels = node_labels[:nnodes]
         factor_post = cond_prob_variable_elimination(
-            network, query_labels, evidence_ids=evidence_ids, evidence=evidence)
+            network, query_labels, evidence_ids=evidence_ids,
+            evidence=evidence)
         gauss_post = convert_gaussian_from_canonical_form(
             factor_post.precision_matrix, factor_post.shift)
 
@@ -428,8 +439,6 @@ class TestGaussianNetwork(unittest.TestCase):
              np.hstack([A21.dot(S11), S22, S22.dot(A32.T)]),
              np.hstack([A32.dot(A21).dot(S11), A32.dot(S22),
                         S33])])
-        #print('Prior Covariance\n',prior_cov)
-        #print('Prior Mean\n',prior_mean)
 
         # dataless_network = GaussianNetwork(graph)
         # dataless_network.convert_to_compact_factors()

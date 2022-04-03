@@ -2,16 +2,18 @@ import unittest
 from scipy.linalg import cholesky
 import numpy as np
 import os
+import glob
+import tempfile
 
 from pyapprox.variables.density import NormalDensity, ObsDataDensity
 from pyapprox.utilities.linalg import get_low_rank_matrix
 from pyapprox.utilities.randomized_svd import (
-    randomized_svd, MatVecOperator, adjust_sign_svd
+    randomized_svd, MatVecOperator, adjust_sign_svd, svd_using_orthogonal_basis
 )
-from pyapprox.variables.tests.test_density import helper_gradient
-from pyapprox.multivariate_gaussian import MultivariateGaussian,\
+from pyapprox.variables.tests.test_density import check_gradient
+from pyapprox.variables.multivariate_gaussian import MultivariateGaussian,\
     CholeskySqrtCovarianceOperator, CovarianceOperator, get_operator_diagonal
-from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 from pyapprox.bayesian_inference.laplace import (
     get_laplace_covariance_sqrt_operator,
     get_pointwise_laplace_variance_using_prior_variance,
@@ -24,6 +26,7 @@ from pyapprox.bayesian_inference.laplace import (
     generate_and_save_pointwise_variance,
     compute_posterior_mean_covar_optimal_for_prediction
 )
+from pyapprox.utilities.visualization import plot_multiple_2d_gaussian_slices
 
 
 class QuadraticMisfitModel(object):
@@ -337,7 +340,6 @@ def posterior_covariance_helper(prior, rank, comparison_tol,
 
     if plot:
         # plot marginals of posterior using orginal ordering
-        from pyapprox.visualization import plot_multiple_2d_gaussian_slices
         texfilename = 'slices.tex'
         plot_multiple_2d_gaussian_slices(
             exact_laplace_mean[:10], np.diag(exact_laplace_covariance)[:10],
@@ -367,7 +369,6 @@ class TestLaplace(unittest.TestCase):
 
     @unittest.skip(reason="only shows how to plot")
     def test_plot_multiple_2d_gaussian_slices(self):
-        from pyapprox.visualization import plot_multiple_2d_gaussian_slices
 
         mean = np.array([0, 1, -1])
         covariance = np.diag(np.array([1, 0.5, 0.025]))
@@ -376,8 +377,6 @@ class TestLaplace(unittest.TestCase):
         plot_multiple_2d_gaussian_slices(
             mean[:10], np.diag(covariance)[:10], texfilename,
             reference_gaussian_data=(0., 1.), show=False)
-        import glob
-        import os
         filenames = glob.glob(texfilename[:-4]+'*')
         for filename in filenames:
             os.remove(filename)
@@ -520,7 +519,7 @@ class TestLaplace(unittest.TestCase):
         model = QuadraticMisfitModel(num_dims, rank, num_qoi, obs)
 
         sample = np.random.normal(0., 1., (num_dims))
-        helper_gradient(model.value, model.gradient, sample)
+        check_gradient(model.value, model.gradient, sample)
 
     def test_neg_log_posterior(self):
         num_dims = 10
@@ -539,7 +538,7 @@ class TestLaplace(unittest.TestCase):
         #     prior_density.log_pdf, prior_density.log_pdf_gradient)
 
         sample = np.random.normal(0., 1., (num_dims))
-        helper_gradient(misfit_model.value, misfit_model.gradient, sample)
+        check_gradient(misfit_model.value, misfit_model.gradient, sample)
 
     def test_directional_derivative_using_finite_difference(self):
 
@@ -704,7 +703,6 @@ class TestLaplace(unittest.TestCase):
 
     @unittest.skip("I need to implement this test using my new kle class")
     def test_prior_covariance_operator_based_kle(self):
-        from pyapprox.karhunen_loeve_expansion import correlation_function
         mesh = np.linspace(0., 1., 10)
         C = correlation_function(mesh[np.newaxis, :], 0.1, 'exp')
         #U,S,V = np.linalg.svd(C)
@@ -776,7 +774,6 @@ class TestLaplace(unittest.TestCase):
             X = X[:, I]
             Y = Y[:, I]
             Q, R = np.linalg.qr(Y)
-            from pyapprox.randomized_svd import svd_using_orthogonal_basis
             U, S, V = svd_using_orthogonal_basis(None, Q, X, Y, True)
             U = U[:, :num_singular_values]
             S = S[:num_singular_values]
@@ -821,7 +818,6 @@ class TestLaplace(unittest.TestCase):
     def test_generate_and_save_laplace_posterior(self):
         # files will be created so move to temporary directory
         curdir = os.getcwd()
-        import tempfile
         with tempfile.TemporaryDirectory() as temp_dirname:
             os.chdir(temp_dirname)
 

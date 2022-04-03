@@ -1,17 +1,22 @@
 import numpy as np
 from warnings import warn
 
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
+from pyapprox.orthopoly.orthonormal_recursions import (
+    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence,
     hahn_recurrence, charlier_recurrence
-from pyapprox.univariate_polynomials.numeric_orthonormal_recursions import \
-    predictor_corrector, get_function_independent_vars_recursion_coefficients,\
+)
+from pyapprox.orthopoly.numeric_orthonormal_recursions import (
+    predictor_corrector, get_function_independent_vars_recursion_coefficients,
     get_product_independent_vars_recursion_coefficients, lanczos
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+)
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
-from pyapprox.variables import get_distribution_info, is_continuous_variable, \
-    transform_scale_parameters, is_bounded_continuous_variable, \
+)
+from pyapprox.variables.variables import (
+    get_distribution_info, is_continuous_variable,
+    transform_scale_parameters, is_bounded_continuous_variable,
     is_bounded_discrete_variable, get_probability_masses, get_pdf
+)
 
 
 # There is a one-to-one correspondence in these two lists
@@ -146,7 +151,7 @@ def get_recursion_coefficients_from_variable(var, num_coefs, opts):
     if (var_name in askey_variable_names and
             opts.get("numeric", False) is False):
         return get_askey_recursion_coefficients_from_variable(var, num_coefs)
-    
+
     orthonormality_tol = opts.get("orthonormality_tol", 1e-8)
     truncated_probability_tol = opts.get("truncated_probability_tol", 0)
 

@@ -1,27 +1,34 @@
-import itertools
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
-from functools import partial
-from pyapprox.indexing import compute_hyperbolic_indices
-from pyapprox.variable_transformations import \
-    AffineRandomVariableTransformation
 import numpy as np
 import networkx as nx
 import copy
-from pyapprox.multivariate_gaussian import *
+import itertools
+
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.variables.multivariate_gaussian import (
+    convert_conditional_probability_density_to_canonical_form, GaussianFactor,
+    compute_gaussian_pdf_canonical_form_normalization,
+    convert_gaussian_from_canonical_form
+)
 
 
-def get_var_ids_to_eliminate_from_node_query(network_node_var_ids, network_labels, query_labels, evidence_node_ids=None):
+def get_var_ids_to_eliminate_from_node_query(
+        network_node_var_ids, network_labels, query_labels, evidence_node_ids=None):
     r"""
     Get the ids of all variables in a network not associated with nodes being
     queried. A given node can consist of multiple variables.
-    This function will always exclude from elimination any ids which are in 
+    This function will always exclude from elimination any ids which are in
     evidence_ids.
 
     Parameters
     ----------
     network_node_var_ids: list
-        List with entries containing  containing the integer ids 
+        List with entries containing  containing the integer ids
         np.ndarray (nnetwork_vars) of all variables of a node.
 
     network_labels: list (nnodes)
@@ -30,7 +37,7 @@ def get_var_ids_to_eliminate_from_node_query(network_node_var_ids, network_label
        ordering matters.
 
     query_labels : list (nqueries)
-        A list of strings containing the node labels which must remain 
+        A list of strings containing the node labels which must remain
         after elimination. nqueries<=nnodes. The network labels not in this
         list will be identified for elimination from the scope of the network.
         This list must not contain nodes associated with data.
@@ -80,7 +87,7 @@ def get_var_ids_to_eliminate(network_ids, network_labels, query_labels,
                              evidence_ids=None):
     r"""
     Get the ids of variables in a network which are not being queried.
-    This function will always exclude from elimination any ids which are in 
+    This function will always exclude from elimination any ids which are in
     evidence_ids.
 
     Parameters
@@ -92,13 +99,13 @@ def get_var_ids_to_eliminate(network_ids, network_labels, query_labels,
        A list of strings containing the names of each node in the network
 
     query_labels : list (nqueries)
-        A list of strings containing the variable labels which must remain 
+        A list of strings containing the variable labels which must remain
         after elimination. nqueries<=nnodes. The network labels not in this
         list will be identified for elimination from the scope of the network.
         This list must not contain nodes associated with data.
 
     evidence_ids : np.ndarray (ndata)
-       The variable ids of the data in the network. Note the variable ids 
+       The variable ids of the data in the network. Note the variable ids
        are not the same as the node ids. Each node can have multiple variables.
 
 
@@ -153,7 +160,7 @@ def get_cpd_block_diagonal_linear_matrix(graph, node_index):
     .. math:: \mathbb{P}(\theta_i\mid \mathrm{pa}(theta_i))\sim\mathcal{A\theta+b,\Sigma_v}
 
     The graph must have edges with the attribute ``cpd_scale`` which is
-    either a constant or a np.ndarray (nparams) or a 
+    either a constant or a np.ndarray (nparams) or a
     np.ndarray(nparams,nchild_params)
 
     if ``cpd_scale`` is a constant or 1D array
@@ -164,14 +171,14 @@ def get_cpd_block_diagonal_linear_matrix(graph, node_index):
     graph : nx.DiGraph
         A networkx directed acyclic graph
 
-    node_index : integer 
-        The index of the node in the graph corresponding to the variable 
+    node_index : integer
+        The index of the node in the graph corresponding to the variable
         :math:`\theta_i`
 
     Returns
     -------
     Amat : np.ndarray (nparams,nchild_params)
-        A matrix relating the 
+        A matrix relating the
     """
     assert len(nx.get_edge_attributes(graph, 'cpd_scale')) > 0
     child_indices = list(graph.predecessors(node_index))
@@ -243,16 +250,17 @@ def get_gaussian_factor_in_canonical_form(Amat, bvec, cov2g1,
         precision_matrix, shift, normalization, var_ids, nvars_per_var)
 
 
-def build_hierarchical_polynomial_network(prior_covs, cpd_scales, basis_matrix_funcs,
-                                          nparams, model_labels=None):
+def build_hierarchical_polynomial_network(
+        prior_covs, cpd_scales, basis_matrix_funcs,
+        nparams, model_labels=None):
     r"""
     prior_scales : list
-        List of diagonal matrices (represented by either a scalar for a constant
-        diagonal or a vector)
+        List of diagonal matrices (represented by either a scalar for a
+        constant diagonal or a vector)
 
     cpd_scales : list
-        List of diagonal matrices (represented by either a scalar for a constant
-        diagonal or a vector)
+        List of diagonal matrices (represented by either a scalar for a
+        constant diagonal or a vector)
 
     """
     nmodels = len(nparams)
@@ -289,9 +297,9 @@ class GaussianNetwork(object):
     Notes
     -----
     Currently only entire (dataless) nodes can be marginalized.
-    self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number 
-    of nodes (variable indexing starts at 0). k<= number of vars associated 
-    with dataless nodes. For example if k=2 and each node has two 
+    self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number
+    of nodes (variable indexing starts at 0). k<= number of vars associated
+    with dataless nodes. For example if k=2 and each node has two
     vars number of dataless variables is 4, yet self.evidence_ids starts at 2.
     """
 
@@ -314,7 +322,7 @@ class GaussianNetwork(object):
         self.nnetwork_vars = 0
         for ii in self.graph.nodes:
             # Extract node information from graph
-            nparams = self.graph.nodes[ii]['nparams']
+            # nparams = self.graph.nodes[ii]['nparams']
             self.Amats[ii] = self.graph.nodes[ii]['cpd_mat']
             self.bvecs[ii] = self.graph.nodes[ii]['cpd_mean'].squeeze()
             self.node_childs[ii] = list(self.graph.predecessors(ii))
@@ -330,8 +338,6 @@ class GaussianNetwork(object):
             if self.node_childs[ii] is not None:
                 for child in self.node_childs[ii]:
                     assert child < ii
-
-        #self.node_var_ids=[[ii] for ii in range(nnodes)]
 
     def num_vars(self):
         r"""
@@ -367,14 +373,16 @@ class GaussianNetwork(object):
                 precision_matrix = np.linalg.inv(self.cpd_covs[ii])
                 mean = self.bvecs[ii]
                 shift = precision_matrix.dot(mean)
-                normalization = compute_gaussian_pdf_canonical_form_normalization(
-                    self.bvecs[ii], shift, precision_matrix)
+                normalization = \
+                    compute_gaussian_pdf_canonical_form_normalization(
+                        self.bvecs[ii], shift, precision_matrix)
                 nvars_per_var = [1 for kk in range(self.node_nvars[ii])]
                 self.factors.append(GaussianFactor(
-                    precision_matrix, shift, normalization, self.node_var_ids[ii],
-                    nvars_per_var))
+                    precision_matrix, shift, normalization,
+                    self.node_var_ids[ii], nvars_per_var))
 
-    def add_data_to_network(self, data_cpd_mats, data_cpd_vecs, noise_covariances):
+    def add_data_to_network(self, data_cpd_mats, data_cpd_vecs,
+                            noise_covariances):
         r"""
         Todo pass in argument containing nodes which have data for situations
         when not all nodes have data
@@ -382,7 +390,7 @@ class GaussianNetwork(object):
         nnodes = len(self.graph.nodes)
         assert len(data_cpd_mats) == nnodes
         assert len(noise_covariances) == nnodes
-        #self.build_matrix_functions = build_matrix_functions
+        # self.build_matrix_functions = build_matrix_functions
         self.ndata = [data_cpd_mats[ii].shape[0] for ii in range(nnodes)]
 
         # retain copy of old dataless graph
@@ -392,7 +400,8 @@ class GaussianNetwork(object):
         jj = dataless_nodes_nvars
         for ii in dataless_graph.nodes:
             # Note: this assumes that every node has data. This can be relaxed
-            assert data_cpd_mats[ii].shape[1] == self.graph.nodes[ii]['nparams']
+            assert data_cpd_mats[ii].shape[1] == \
+                self.graph.nodes[ii]['nparams']
             assert data_cpd_vecs[ii].shape[0] == self.ndata[ii]
             assert noise_covariances[ii].shape[0] == self.ndata[ii]
             self.node_ids.append(kk)
@@ -426,7 +435,7 @@ class GaussianNetwork(object):
 
         Notes
         -----
-        Relies on order vandermondes are added in network.add_data_to_network 
+        Relies on order vandermondes are added in network.add_data_to_network
         """
         assert len(data) == len(self.ndata)
         nevidence = np.sum([d.shape[0] for d in data])
@@ -444,7 +453,7 @@ class GaussianNetwork(object):
 
 def sum_product_eliminate_variable(factors, var_id_to_eliminate):
     r"""
-    Marginalize out a variable from a multivariate Gaussian defined by 
+    Marginalize out a variable from a multivariate Gaussian defined by
     the product of the gaussian variables in factors.
 
     Algorithm 9.1 in Koller
@@ -460,11 +469,11 @@ def sum_product_eliminate_variable(factors, var_id_to_eliminate):
     Returns
     -------
     fpp_tau : list
-        List of gaussian variables in CanonicalForm. The first entries are 
-        all the factors that did not contain the variable_to_eliminate on 
-        entry to this function. The last entry is the multivariate gaussian 
+        List of gaussian variables in CanonicalForm. The first entries are
+        all the factors that did not contain the variable_to_eliminate on
+        entry to this function. The last entry is the multivariate gaussian
         which is based upon the product of all factors that did contain the
-        elimination variable for which the elimination var is then marginalized 
+        elimination variable for which the elimination var is then marginalized
         out
     """
 
@@ -503,25 +512,19 @@ def sum_product_variable_elimination(factors, var_ids_to_eliminate):
     Marginalize out a list of variables from the multivariate Gaussian variable
     which is the product of all factors.
     """
-    nvars_to_eliminate = len(var_ids_to_eliminate)
+    # nvars_to_eliminate = len(var_ids_to_eliminate)
 
     fup = copy.deepcopy(factors)
     for var_id in var_ids_to_eliminate:
-        #print("eliminating ", var_id)
         fup = sum_product_eliminate_variable(fup, var_id)
-        # print("factors left K= ",
-        #      [np.linalg.pinv(f.precision_matrix) for f in fup])
 
     assert len(fup) > 0, "no factors left after elimination"
     assert len(fup[0].var_ids) != 0, "factor k = {0}".format(
         fup[0].precision_matrix)
 
     factor_ret = fup[0]
-    # print('f[0].K\n',factor_ret.precision_matrix,factor_ret.var_ids)
     for jj in range(1, len(fup)):
-        # print(f'f[{jj}].K\n',fup[jj].precision_matrix,fup[jj].var_ids)
         factor_ret *= fup[jj]
-        # print(f'f_ret[{jj}].K\n',factor_ret.precision_matrix)
     return factor_ret
 
 
@@ -580,29 +583,6 @@ def build_peer_polynomial_network(prior_covs, cpd_scales, basis_matrix_funcs,
     graph.add_edges_from(
         [(ii, nnodes-1, {'cpd_cov': np.eye(nparams[ii])*cpd_scales[ii]})
          for ii in range(nnodes-1)])
-
-    # # construct graph
-    # graph = nx.DiGraph()
-    # nmodels = len(nparams)
-    # assert len(cpd_scales)==nmodels-1
-    # assert len(basis_matrix_funcs)==nmodels
-
-    # if model_labels is None:
-    #     model_labels = ['M_%d'%ii for ii in range(nmodels)]
-
-    # for ii in range(nmodels-1):
-    #     graph.add_node(
-    #         ii,label=model_labels[ii],prior_scale=np.sqrt(prior_covs[ii]),
-    #         nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
-
-    # ii = nmodels-1
-    # hf_cpd_cov=prior_covs[ii]-np.dot(np.asarray(cpd_scales)**2,prior_covs[:ii])
-    # hf_cpd_cov = max(1e-8, hf_cpd_cov)
-    # graph.add_node(ii, label=model_labels[ii], prior_scale=np.sqrt(hf_cpd_cov),
-    #                nparams=nparams[ii],basis_matrix_func=basis_matrix_funcs[ii])
-
-    # for ii in range(nmodels-1):
-    #     graph.add_edge(ii, nmodels-1, cpd_scale=cpd_scales[ii])
 
     network = GaussianNetwork(graph)
     return network
@@ -713,8 +693,8 @@ def regression(noise_std, data_train, samples_train, build_network,
         Each entry of the list is a np.ndarray (num_vars,num_samples)
 
     data_train : list
-        List of the values of each information source at each sample in 
-        ``samples_train``. Each entry of the list is a 
+        List of the values of each information source at each sample in
+        ``samples_train``. Each entry of the list is a
         np.ndarray (num_samples,1)
 
     noise_std : np.narray (nmodels)
@@ -722,11 +702,11 @@ def regression(noise_std, data_train, samples_train, build_network,
         ``data_train``
 
     build_network : callable
-        A function used to build the network with signature 
+        A function used to build the network with signature
 
         ``build_network(scales) - > GaussianNetwork
 
-    where scales is a np.ndarray (nscales) matrix of CPD scales which will be 
+    where scales is a np.ndarray (nscales) matrix of CPD scales which will be
     treated as hyper-parameters and optimized.
 
     init_scales : np.ndarray (nscales)
@@ -757,13 +737,13 @@ def regression(noise_std, data_train, samples_train, build_network,
         The Bayesian network built using ``scales``
 
     gauss_post : tuple
-        The tuple (mean, cov) where mean is a np.ndarray (nparams) and 
-        cov is a np.ndarray (nparams,nparams) contain the posterior mean and 
+        The tuple (mean, cov) where mean is a np.ndarray (nparams) and
+        cov is a np.ndarray (nparams,nparams) contain the posterior mean and
         covariance of the latent variables of the network, respectively.
 
     gauss_prior : tuple
-        The tuple (mean, cov) where mean is a np.ndarray (nparams) and 
-        cov is a np.ndarray (nparams,nparams) contain the prior mean and 
+        The tuple (mean, cov) where mean is a np.ndarray (nparams) and
+        cov is a np.ndarray (nparams,nparams) contain the prior mean and
         covariance of the latent variables of the network, respectively.
     """
     nmodels = len(samples_train)
@@ -783,16 +763,6 @@ def regression(noise_std, data_train, samples_train, build_network,
     result = {"scales": final_scales, 'network': network,
               "gauss_post": gauss_post, "gauss_prior": gauss_prior}
     return result
-
-
-def get_regression_data(result):
-    gauss_prior = ret['gauss_prior']
-    gauss_post = ret['gauss_post']
-    gauss_mean = gauss_post.get_mean()
-    vand = vand_funcs[-1](held_hf_samples)
-    ypred = np.dot(vand, gauss_mean)
-    mean = ypred.mean()
-    return vand_funcs[-1], gauss_post, gauss_prior, mean
 
 
 def get_heterogeneous_data(ndata, noise_std):
@@ -862,13 +832,13 @@ def plot_1d_lvn_approx(xx, nmodels, hf_vandermonde, gauss_post, gauss_prior,
     approx_post_std = np.sqrt(np.diag(approx_post_covariance))
     axs.plot(xx, approx_post_mean, '--g', label=mean_label)
     axs.fill_between(xx, approx_post_mean-2*approx_post_std,
-                     approx_post_mean+2*approx_post_std, color='green', alpha=0.5)
+                     approx_post_mean+2*approx_post_std, color='green',
+                     alpha=0.5)
 
     approx_prior_std = np.sqrt(np.diag(approx_prior_covariance))
     axs.fill_between(xx, approx_prior_mean-2*approx_prior_std,
                      approx_prior_mean+2*approx_prior_std, color='black',
                      alpha=0.2)
-    #print('max prior var', (approx_prior_mean+2*approx_prior_std).max())
 
     if labels is None:
         labels = [None]*len(samples)

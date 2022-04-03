@@ -542,7 +542,7 @@ class ObsDataDensity(Density):
 
         # data is num_samples x num_qoi, kde needs num_qoi x num_samples
         # print 'building kde...',
-        self.kde = kde(self.data, 'silverman')
+        self.kde = stats.gaussian_kde(self.data, 'silverman')
         # print 'kde built'
 
         num_dims = self.data.shape[0]
@@ -692,7 +692,6 @@ def plot_gaussian_contours(mean, chol_factor, show=False,
 
     if ax is None:
         f, ax = plt.subplots(1, 1)
-    import scipy
     if mean.ndim == 1:
         mean = mean[:, None]
     if mean.shape[0] != 2:
@@ -702,7 +701,7 @@ def plot_gaussian_contours(mean, chol_factor, show=False,
     for i in range(min(len(alpha), num_contours)):
         # Get endpoints of the range that contains
         # alpha percent of the distribution
-        interval = scipy.stats.norm.interval(alpha[i], 0., 1.)
+        interval = stats.norm.interval(alpha[i], 0., 1.)
         radius = (interval[1]-interval[0])/2.
         x = np.linspace(-radius, +radius, 200)
         y = np.hstack((np.sqrt(radius**2-x**2), -np.sqrt(radius**2-x**2)))

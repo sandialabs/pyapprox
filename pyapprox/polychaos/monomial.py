@@ -1,6 +1,8 @@
 import numpy as np
-from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.polychaos.manipulate_polynomials import (
+    multiply_multivariate_polynomials
+)
+from pyapprox.orthopoly.orthonormal_polynomials import \
     univariate_monomial_basis_matrix
 
 

@@ -4,12 +4,16 @@ import scipy
 
 from functools import partial
 
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
-from pyapprox.utilities import cartesian_product, outer_product, \
+)
+from pyapprox.utilities.utilities import (
+    cartesian_product, outer_product,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
-from pyapprox.variables import transform_scale_parameters, \
-    is_bounded_continuous_variable
+)
+from pyapprox.variables.variables import (
+    transform_scale_parameters, is_bounded_continuous_variable
+)
 
 
 def stieltjes(nodes, weights, N):
