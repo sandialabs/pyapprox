@@ -1,16 +1,29 @@
 import unittest
-from scipy.stats import gaussian_kde
 from scipy.linalg import cholesky
 import numpy as np
-from pyapprox.bayesian_inference.laplace import *
-from pyapprox.density import NormalDensity, ObsDataDensity
-from pyapprox.utilities import get_low_rank_matrix
-from pyapprox.randomized_svd import randomized_svd, MatVecOperator, \
-    adjust_sign_svd
-from pyapprox.tests.test_density import helper_gradient
+import os
+
+from pyapprox.variables.density import NormalDensity, ObsDataDensity
+from pyapprox.utilities.linalg import get_low_rank_matrix
+from pyapprox.utilities.randomized_svd import (
+    randomized_svd, MatVecOperator, adjust_sign_svd
+)
+from pyapprox.variables.tests.test_density import helper_gradient
 from pyapprox.multivariate_gaussian import MultivariateGaussian,\
     CholeskySqrtCovarianceOperator, CovarianceOperator, get_operator_diagonal
 from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.bayesian_inference.laplace import (
+    get_laplace_covariance_sqrt_operator,
+    get_pointwise_laplace_variance_using_prior_variance,
+    sample_from_laplace_posterior,
+    laplace_posterior_approximation_for_linear_models,
+    MisfitHessianVecOperator, PriorConditionedHessianMatVecOperator,
+    directional_derivatives, find_map_point,
+    push_forward_gaussian_though_linear_model,
+    generate_and_save_laplace_posterior, LaplaceSqrtMatVecOperator,
+    generate_and_save_pointwise_variance,
+    compute_posterior_mean_covar_optimal_for_prediction
+)
 
 
 class QuadraticMisfitModel(object):
@@ -39,12 +52,14 @@ class QuadraticMisfitModel(object):
         assert sample.ndim == 1
         residual = np.dot(self.Amatrix, sample)-self.obs
         return np.asarray(
-            [0.5*np.dot(residual.T, np.dot(self.noise_covariance_inv, residual))])
+            [0.5*np.dot(residual.T, np.dot(
+                self.noise_covariance_inv, residual))])
 
     def gradient(self, sample):
         assert sample.ndim == 1
-        grad = np.dot(self.Amatrix.T, np.dot(self.noise_covariance_inv,
-                                             np.dot(self.Amatrix, sample)-self.obs))
+        grad = np.dot(self.Amatrix.T,
+                      np.dot(self.noise_covariance_inv,
+                             np.dot(self.Amatrix, sample)-self.obs))
         return grad
 
     def gradient_set(self, samples):
@@ -175,7 +190,7 @@ def assert_ndarray_allclose(matrix1, matrix2, atol=1e-8, rtol=1e-5, msg=None):
 def setup_quadratic_misfit_problem(prior, rank, noise_sigma2=1):
     # Define observations
     num_qoi = 2*rank
-    #assert num_qoi>=rank
+    # assert num_qoi>=rank
 
     noise_covariance = np.eye(num_qoi)*noise_sigma2
     noise_covariance_inv = np.linalg.inv(noise_covariance)
@@ -210,7 +225,7 @@ def posterior_covariance_helper(prior, rank, comparison_tol,
     rank : integer
         The rank of the linear model used to generate the observations
 
-    comparision_tol : 
+    comparision_tol :
         tolerances for each of the internal comparisons. This allows different
         accuracy for PDE based operators
     """
@@ -257,8 +272,9 @@ def posterior_covariance_helper(prior, rank, comparison_tol,
     assert np.allclose(H, np.dot(np.dot(
         misfit_model.Amatrix.T, noise_covariance_inv), misfit_model.Amatrix))
     LHL_mat = np.dot(L_T, np.dot(H, L))
-    assert_ndarray_allclose(LHL_mat, LHL_op, rtol=comparison_tol,
-                            msg='Comparing prior matrix and operator based LHL')
+    assert_ndarray_allclose(
+        LHL_mat, LHL_op, rtol=comparison_tol,
+        msg='Comparing prior matrix and operator based LHL')
 
     # Test singular values obtained by randomized svd using operator
     # are the same as those obtained using singular decomposition
@@ -399,9 +415,9 @@ class TestLaplace(unittest.TestCase):
         obs = np.random.normal(0., 1., (num_qoi))
         prior_mean = np.zeros((num_dims), float)
         prior_covariance = np.eye(num_dims)*0.25
-        prior_covariance_chol_factor = np.linalg.cholesky(prior_covariance)
+        # prior_covariance_chol_factor = np.linalg.cholesky(prior_covariance)
         noise_covariance = np.eye(num_qoi)*0.1
-        noise_covariance_inv = np.linalg.inv(noise_covariance)
+        # noise_covariance_inv = np.linalg.inv(noise_covariance)
         misfit_model = QuadraticMisfitModel(
             num_dims, rank, num_qoi, obs, noise_covariance=noise_covariance)
 
@@ -491,9 +507,9 @@ class TestLaplace(unittest.TestCase):
 
         assert np.linalg.norm(kde_values-normal_values[:, 0]) < 4e-2
 
-        #plt = kde_density.plot_density(1000,show=False)
-        #import pylab
-        #pylab.setp(plt, linewidth=2, color='r')
+        # plt = kde_density.plot_density(1000,show=False)
+        # import pylab
+        # pylab.setp(plt, linewidth=2, color='r')
         # push_forward_density.plot_density(100,show=True)
 
     def test_quadratic_misfit_model(self):
@@ -515,12 +531,12 @@ class TestLaplace(unittest.TestCase):
         misfit_model = QuadraticMisfitModel(
             num_dims, rank, num_qoi, obs, noise_covariance=noise_covariance)
 
-        prior_mean = np.ones((num_dims), float)
-        prior_covariance = np.eye(num_dims)*0.25
-        prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
-        objective = LogUnormalizedPosterior(
-            misfit_model, misfit_model.gradient_set, prior_density.pdf,
-            prior_density.log_pdf, prior_density.log_pdf_gradient)
+        # prior_mean = np.ones((num_dims), float)
+        # prior_covariance = np.eye(num_dims)*0.25
+        # prior_density = NormalDensity(prior_mean, covariance=prior_covariance)
+        # objective = LogUnormalizedPosterior(
+        #     misfit_model, misfit_model.gradient_set, prior_density.pdf,
+        #     prior_density.log_pdf, prior_density.log_pdf_gradient)
 
         sample = np.random.normal(0., 1., (num_dims))
         helper_gradient(misfit_model.value, misfit_model.gradient, sample)
@@ -542,9 +558,10 @@ class TestLaplace(unittest.TestCase):
         value_at_sample = result[0:1]  # must be a vector
         gradient = result[1:]
         #gradient = model.gradient(sample)
-        assert np.allclose(np.dot(gradient, directions).squeeze(),
-                           directional_derivatives(model, sample,
-                                                   value_at_sample, directions, 1e-7).squeeze())
+        assert np.allclose(
+            np.dot(gradient, directions).squeeze(),
+            directional_derivatives(
+                model, sample, value_at_sample, directions, 1e-7).squeeze())
         # derivatives of gradients
         sample = np.random.normal(0., 1., (num_dims, 1))
         opts = {'eval_type': 'grad'}
@@ -554,10 +571,11 @@ class TestLaplace(unittest.TestCase):
         # np.ndarray with shape (num_samples,num_vars)
         # each gradient entry is considered a qoi of a function
         def grad_func(x): return model.gradient_set(x).T
-        assert np.allclose(np.dot(hessian, directions).squeeze(),
-                           directional_derivatives(grad_func, sample,
-                                                   gradient_at_sample, directions, 1e-7,
-                                                   use_central_finite_difference=False).T.squeeze())
+        assert np.allclose(
+            np.dot(hessian, directions).squeeze(),
+            directional_derivatives(
+                grad_func, sample, gradient_at_sample, directions, 1e-7,
+                use_central_finite_difference=False).T.squeeze())
 
         # If model has a __call__ which takes options to return values,
         # grads, hessians or combinations. It should also have
@@ -572,7 +590,7 @@ class TestLaplace(unittest.TestCase):
         num_qoi = 3
         model = QuadraticMisfitModel(num_dims, rank, num_qoi)
         map_point = np.zeros(num_dims)
-        #map_point_misfit_gradient = model.gradient(map_point)
+        # map_point_misfit_gradient = model.gradient(map_point)
         operator = MisfitHessianVecOperator(
             model, map_point)
         vectors = np.random.normal(0., 1., (num_dims, 2))
@@ -791,8 +809,8 @@ class TestLaplace(unittest.TestCase):
             np.diag(exact_laplace_covariance), posterior_pointwise_variance,
             rtol=3e-11, atol=0.)
 
-        prior_pointwise_variance =\
-            np.load(prior_variance_filename)['prior_pointwise_variance']
+        # prior_pointwise_variance =\
+        #     np.load(prior_variance_filename)['prior_pointwise_variance']
         posterior_pointwise_variance =\
             np.load(posterior_variance_filename)[
                 'posterior_pointwise_variance']
@@ -824,7 +842,7 @@ class TestGoalOrientedInference(unittest.TestCase):
             self, num_dims, num_obs_qoi, num_pred_qoi):
         # print num_dims,num_obs_qoi,num_pred_qoi
         obs_matrix = np.random.normal(0., 1., (num_obs_qoi, num_dims))
-        #prior_mean = np.zeros((num_dims),float)
+        # prior_mean = np.zeros((num_dims),float)
         prior_mean = np.ones((num_dims), float)
         prior_cov = np.eye(num_dims)
         noise_cov = np.eye(num_obs_qoi)
@@ -834,7 +852,7 @@ class TestGoalOrientedInference(unittest.TestCase):
         pred_matrix = np.random.normal(0., 1., (num_pred_qoi, num_dims))
         pred_offset = 0.  # *np.random.normal(0.,1.,(num_pred_qoi))
 
-        prior_chol_factor = np.linalg.cholesky(prior_cov)
+        # prior_chol_factor = np.linalg.cholesky(prior_cov)
         prior_hessian = np.linalg.inv(prior_cov)
         noise_cov_inv = np.linalg.inv(noise_cov)
 
@@ -860,7 +878,8 @@ class TestGoalOrientedInference(unittest.TestCase):
         assert np.allclose(opt_pf_mean, exact_pf_mean.squeeze())
         # check posterior mean pushed through prediction model is exact
         assert np.allclose(
-            np.dot(pred_matrix, posterior_mean), np.dot(pred_matrix, exact_post_mean.squeeze()))
+            np.dot(pred_matrix, posterior_mean),
+            np.dot(pred_matrix, exact_post_mean.squeeze()))
         # check prediction covariance is exact
         # print opt_pf_cov
         # print exact_pf_cov

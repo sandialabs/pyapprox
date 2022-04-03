@@ -1,13 +1,12 @@
 from scipy.interpolate import interp1d
 import numpy as np
-from scipy.stats import gaussian_kde as kde, norm as normal_rv
-from scipy.linalg import cholesky
-from scipy.linalg import solve_triangular
-from scipy.special import gammaln
-from scipy.special import erf, beta as beta_fn
+from scipy import stats
+from scipy.linalg import cholesky, solve_triangular
+from scipy.special import erf, beta as beta_fn, gammaln
 
-from pyapprox.configure_plots import plt
-from pyapprox.visualization import *
+# from pyapprox.visualization import (
+
+#     )
 
 
 class Density:
@@ -23,7 +22,7 @@ class Density:
 
     def plot_density(self, num_samples_1d=100, plot_limits=None, show=False,
                      figname=None, ls='-', label=None, color=None, ax=None,
-                     colorbar_lims=None, cmap=mpl.cm.coolwarm,
+                     colorbar_lims=None, cmap="coolwarm",
                      num_contour_levels=30):
         if plot_limits is None:
             plot_limits = self.plot_limits
@@ -330,7 +329,7 @@ class NormalDensity(Density):
 
         intervals = []
         for i in range(self.num_dims):
-            interval = normal_rv.interval(.999, 0., 1.)
+            interval = stats.norm.interval(.999, 0., 1.)
             intervals.append([interval[0], interval[1]])
         intervals = np.array(intervals)
 
