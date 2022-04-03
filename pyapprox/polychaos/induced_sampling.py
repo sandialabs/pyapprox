@@ -6,20 +6,21 @@ from functools import partial
 import numpy as np
 import os
 
-from pyapprox.polynomial_sampling import christoffel_weights
-from pyapprox.random_variable_algebra import invert_monotone_function
-from pyapprox.orthonormal_polynomials_1d import \
-    evaluate_orthonormal_polynomial_1d
-from pyapprox.variables import get_distribution_info, is_continuous_variable, \
-    is_bounded_discrete_variable, get_probability_masses, \
-    is_bounded_continuous_variable, transform_scale_parameters, get_pdf
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    jacobi_recurrence
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
-    gauss_quadrature
-from pyapprox.utilities import discrete_sampling
-from pyapprox.probability_measure_sampling import rejection_sampling
-from pyapprox.polynomial_sampling import christoffel_function
+from pyapprox.polychaos.polynomial_sampling import christoffel_weights
+from pyapprox.variables.random_variable_algebra import invert_monotone_function
+from pyapprox.variables.variables import (
+    is_continuous_variable, is_bounded_discrete_variable,
+    get_probability_masses, is_bounded_continuous_variable,
+    transform_scale_parameters, get_pdf
+)
+from pyapprox.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    gauss_quadrature,  evaluate_orthonormal_polynomial_1d
+)
+from pyapprox.variables.probability_measure_sampling import (
+    rejection_sampling, discrete_sampling
+)
+from pyapprox.polychaos.polynomial_sampling import christoffel_function
 
 
 def C_eval(a, b, x, N):

@@ -1,5 +1,6 @@
 import numpy as np
 from itertools import combinations, combinations_with_replacement
+from scipy.special import gammaln
 
 from pyapprox.utilities.utilities import cartesian_product, hash_array
 from pyapprox.utilities.pya_numba import njit

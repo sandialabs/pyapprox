@@ -2,21 +2,28 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.polynomial_sampling import christoffel_function, \
-    get_fekete_samples, christoffel_weights, interpolate_fekete_samples, \
-    get_lu_leja_samples, get_quadrature_weights_from_fekete_samples, \
-    interpolate_lu_leja_samples, get_quadrature_weights_from_lu_leja_samples, \
-    get_oli_leja_samples, get_quadrature_weights_from_oli_leja_samples
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation, \
+from pyapprox.polychaos.polynomial_sampling import (
+    christoffel_function,
+    get_fekete_samples, christoffel_weights, interpolate_fekete_samples,
+    get_lu_leja_samples, get_quadrature_weights_from_fekete_samples,
+    interpolate_lu_leja_samples, get_quadrature_weights_from_lu_leja_samples,
+    get_oli_leja_samples
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion,
+    define_poly_options_from_variable_transformation,
     define_poly_options_from_variable
-from pyapprox.variable_transformations import \
-    define_iid_random_variable_transformation, RosenblattTransformation, \
+)
+from pyapprox.variables.variable_transformations import (
+    define_iid_random_variable_transformation, RosenblattTransformation,
     TransformationComposition
-from pyapprox.indexing import compute_hyperbolic_indices
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.models.genz import GenzFunction
-from pyapprox.tests.test_rosenblatt_transformation import rosenblatt_example_2d
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.benchmarks.genz import GenzFunction
+from pyapprox.variables.tests.test_rosenblatt_transformation import (
+    rosenblatt_example_2d
+)
 
 
 class TestPolynomialSampling(unittest.TestCase):

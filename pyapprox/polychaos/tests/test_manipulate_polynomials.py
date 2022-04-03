@@ -1,9 +1,19 @@
 import unittest
-from pyapprox.manipulate_polynomials import *
-from pyapprox.indexing import compute_hyperbolic_indices, \
-    argsort_indices_leixographically
-from scipy.special import binom
-from pyapprox.monomial import monomial_basis_matrix
+import numpy as np
+from scipy.special import binom, factorial
+
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, argsort_indices_leixographically
+)
+from pyapprox.polychaos.monomial import monomial_basis_matrix
+from pyapprox.polychaos.manipulate_polynomials import (
+    multiply_multivariate_polynomials, compress_and_sort_polynomial,
+    multinomial_coefficient, multinomial_coeffs_of_power_of_nd_linear_monomial,
+    multinomial_coefficients, coeffs_of_power_of_nd_linear_monomial,
+    group_like_terms, add_polynomials, coeffs_of_power_of_monomial,
+    substitute_polynomials_for_variables_in_single_basis_term,
+    substitute_polynomials_for_variables_in_another_polynomial
+)
 
 
 class TestManipulatePolynomials(unittest.TestCase):
@@ -25,9 +35,9 @@ class TestManipulatePolynomials(unittest.TestCase):
             indices1, coeffs1, indices2, coeffs2)
 
         samples = np.random.uniform(-1, 1, (num_vars, indices.shape[1]*3))
-        values = monomial_basis_matrix(indices1, samples).dot(coeffs1)* \
+        values = monomial_basis_matrix(indices1, samples).dot(coeffs1) * \
             monomial_basis_matrix(indices2, samples).dot(coeffs2)
-        
+
         true_indices = compute_hyperbolic_indices(
             num_vars, degree1+degree2, 1.0)
         basis_mat = monomial_basis_matrix(true_indices, samples)
@@ -75,10 +85,11 @@ class TestManipulatePolynomials(unittest.TestCase):
         coeffs, indices = coeffs_of_power_of_nd_linear_monomial(
             num_vars, degree, linear_coeffs)
         sorted_idx = argsort_indices_leixographically(indices)
-        true_coeffs = [linear_coeffs[2]**2, 2*linear_coeffs[1]*linear_coeffs[2],
-                       linear_coeffs[1]**2, 2 *
-                       linear_coeffs[0]*linear_coeffs[2],
-                       2*linear_coeffs[0]*linear_coeffs[1], linear_coeffs[0]**2]
+        true_coeffs = [
+            linear_coeffs[2]**2, 2*linear_coeffs[1]*linear_coeffs[2],
+            linear_coeffs[1]**2, 2 *
+            linear_coeffs[0]*linear_coeffs[2],
+            2*linear_coeffs[0]*linear_coeffs[1], linear_coeffs[0]**2]
         assert np.allclose(true_coeffs, coeffs[sorted_idx])
 
     def test_group_like_terms(self):
@@ -151,7 +162,8 @@ class TestManipulatePolynomials(unittest.TestCase):
         # check that the coefficients of the new polynomial are the union
         # of the original polynomials
         true_indices = np.asarray(
-            [[0, 0], [0, 1], [1, 0], [0, 2], [1, 1], [2, 0], [0, 3], [1, 2], [2, 1], [3, 0]]).T
+            [[0, 0], [0, 1], [1, 0], [0, 2], [1, 1], [2, 0], [0, 3],
+             [1, 2], [2, 1], [3, 0]]).T
         sorted_idx = argsort_indices_leixographically(indices)
         assert np.allclose(true_indices, indices[:, sorted_idx])
 
@@ -178,7 +190,7 @@ class TestManipulatePolynomials(unittest.TestCase):
         # true_sorted_idx = argsort_indices_leixographically(
         #    np.hstack([true_indices.T,true_coeffs]).T)
         # alternatively just group like terms before sort
-        new_indices, new_coeffs  = group_like_terms(new_coeffs, new_indices)
+        new_indices, new_coeffs = group_like_terms(new_coeffs, new_indices)
         true_indices, true_coeffs = group_like_terms(true_coeffs, true_indices)
         new_sorted_idx = argsort_indices_leixographically(new_indices)
         true_sorted_idx = argsort_indices_leixographically(true_indices)
@@ -216,8 +228,8 @@ class TestManipulatePolynomials(unittest.TestCase):
             [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [1, 1], [2, 1], [0, 2],
              [1, 2], [2, 2]]).T
         true_coeffs = np.asarray([[1, 2, 2, 2, 1, 2, 2, 1, 2, 1]]).T
-        new_indices, new_coeffs  = group_like_terms(new_coeffs, new_indices)
-        true_indices, true_coeffs  = group_like_terms(true_coeffs, true_indices)
+        new_indices, new_coeffs = group_like_terms(new_coeffs, new_indices)
+        true_indices, true_coeffs = group_like_terms(true_coeffs, true_indices)
         new_sorted_idx = argsort_indices_leixographically(new_indices)
         true_sorted_idx = argsort_indices_leixographically(true_indices)
         assert np.allclose(
@@ -230,10 +242,10 @@ class TestManipulatePolynomials(unittest.TestCase):
 
     def test_substitute_polynomial_for_variables_in_single_basis_term(self):
         """
-        Substitute 
+        Substitute
           y1 = (1+x1+x2+x1*x2)
           y2 = (2+2*x1+2*x1*x3)
-        into 
+        into
           y3 = y1*x4**3*y2    (test1)
 
         Global ordering of variables in y3
@@ -253,7 +265,7 @@ class TestManipulatePolynomials(unittest.TestCase):
             x4 = x[3, :]
             y1, y2 = x[4:, :]
             return y1**2*x4**3*y2
-        
+
         global_var_idx = [np.array([0, 1]), np.array([0, 2])]
         indices_in = [np.array([[0, 0], [1, 0], [0, 1], [1, 1]]).T,
                       np.array([[0, 0], [1, 0], [1, 1]]).T]
@@ -291,11 +303,11 @@ class TestManipulatePolynomials(unittest.TestCase):
 
     def test_substitute_polynomials_for_variables_in_another_polynomial(self):
         """
-        Substitute 
+        Substitute
           y1 = (1+x1+x2+x1*x2)
           y2 = (2+2*x1+2*x1*x3)
-        into 
-          y3 = 1+y1+y2+x4+y1*y2+y2*x4+y1*y2*x4 
+        into
+          y3 = 1+y1+y2+x4+y1*y2+y2*x4+y1*y2*x4
         """
         def y1(x):
             x1, x2 = x[:2, :]
@@ -317,7 +329,7 @@ class TestManipulatePolynomials(unittest.TestCase):
         values1 = y1(samples)
         values2 = y2(samples)
         values = y3(np.vstack([samples, values1[None, :], values2[None, :]]))
-        
+
         true_indices = compute_hyperbolic_indices(nvars, degree, 1)
         basis_mat = monomial_basis_matrix(true_indices, samples)
         true_coef = np.linalg.lstsq(basis_mat, values[:, None], rcond=None)[0]
@@ -340,7 +352,7 @@ class TestManipulatePolynomials(unittest.TestCase):
                       np.array([[0, 0], [1, 0], [1, 1]]).T]
         coeffs_in = [np.ones((indices_in[0].shape[1], 1)),
                      2*np.ones((indices_in[1].shape[1], 1))]
-        var_idx = np.array([0, 1]) # must be related to how variables
+        var_idx = np.array([0, 1])  # must be related to how variables
         # enter indices below
         indices = np.array(
             [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0],
@@ -350,7 +362,8 @@ class TestManipulatePolynomials(unittest.TestCase):
         coeffs[6] = 5
         new_indices, new_coef = \
             substitute_polynomials_for_variables_in_another_polynomial(
-                indices_in, coeffs_in, indices, coeffs, var_idx, global_var_idx)
+                indices_in, coeffs_in, indices, coeffs, var_idx,
+                global_var_idx)
 
         true_indices, true_coef = compress_and_sort_polynomial(
             true_coef, true_indices)
@@ -361,27 +374,27 @@ class TestManipulatePolynomials(unittest.TestCase):
         # print(true_coef)
         assert np.allclose(new_coef, true_coef)
 
-    def test_substitute_polynomials_for_variables_in_another_polynomial_II(self):
+    def test_substitute_polynomials_for_variables_in_another_polynomial_II(
+            self):
         global_var_idx = [np.array([0, 1, 2, 3, 4, 5]), np.array([0, 1, 2])]
         indices_in = [
             compute_hyperbolic_indices(global_var_idx[0].shape[0], 2, 1),
             compute_hyperbolic_indices(global_var_idx[1].shape[0], 3, 1)]
         coeffs_in = [np.ones((indices_in[0].shape[1], 1)),
                      2*np.ones((indices_in[1].shape[1], 1))]
-        var_idx = np.array([0, 1]) # must be related to how variables
+        var_idx = np.array([0, 1])  # must be related to how variables
         # enter indices below
         indices = compute_hyperbolic_indices(3, 5, 1)
         coeffs = np.ones((indices.shape[1], 1))
         new_indices, new_coef = \
             substitute_polynomials_for_variables_in_another_polynomial(
-                indices_in, coeffs_in, indices, coeffs, var_idx, global_var_idx)
+                indices_in, coeffs_in, indices, coeffs, var_idx,
+                global_var_idx)
 
-        nsamples = 100
         nvars = np.unique(np.concatenate(global_var_idx)).shape[0] + (
             indices.shape[0] - var_idx.shape[0])
-        samples = np.random.uniform(-1, 1, (nvars, nsamples))
         validation_samples = np.random.uniform(-1, 1, (nvars, 1000))
-        validation_values1 =  monomial_basis_matrix(
+        validation_values1 = monomial_basis_matrix(
             indices_in[0], validation_samples[global_var_idx[0], :]).dot(
                 coeffs_in[0])
         validation_values2 = monomial_basis_matrix(
@@ -416,29 +429,29 @@ TODO
           y3 = (3+3*x1+3*x3)
         where y1 and y2 but not y3
         are functions of the same variables. The first example above
-        arises when two separate scalar output models are inputs to a 
-        downstream model C, e.g. 
+        arises when two separate scalar output models are inputs to a
+        downstream model C, e.g.
 
         A(x1,x2) \
                   C
         A(x1,x2) /
 
-        This second model arises when two outputs of the same vector output 
-        model A are inputs to a downstream model C as is one output of another 
+        This second model arises when two outputs of the same vector output
+        model A are inputs to a downstream model C as is one output of another
         upstream scalar output model B, e.g.
 
         A(x1,x2) \
                   C
         B(x1,x3) /
 
-        In later case set 
+        In later case set
         indices_in = [np.array([[0,0],[1,0],[0,1],[1,1]]).T,
                       np.array([[0,0],[1,0],[0,1]]).T]
         coeffs_in = [np.ones((indices_in[0].shape[1],2)),
                      np.ones((indices_in[1].shape[1],1))]
         coeffs_in[0][:,1]*=2; coeffs_in[0][2,1]=0
 
-        Actually may be better to treat all inputs as if from three seperate 
+        Actually may be better to treat all inputs as if from three seperate
         models
         indices_in = [np.array([[0,0],[1,0],[0,1],[1,1]]).T,
                       np.array([[0,0],[1,0],[0,1],[1,1]]).T

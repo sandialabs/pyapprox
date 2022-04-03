@@ -1,13 +1,21 @@
-from pyapprox.orthonormal_polynomials_1d import gauss_quadrature,\
-    evaluate_orthonormal_polynomial_1d
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.utilities import cartesian_product, outer_product, hash_array
-from pyapprox.indexing import nchoosek, compute_hyperbolic_level_indices, \
+
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    gauss_quadrature, evaluate_orthonormal_polynomial_1d
+)
+from pyapprox.utilities.utilities import (
+    cartesian_product, outer_product, hash_array
+)
+from pyapprox.polychaos.indexing import (
+    nchoosek, compute_hyperbolic_level_indices,
     argsort_indices_lexiographically_by_row
-from pyapprox.barycentric_interpolation import compute_barycentric_weights_1d,\
-    multivariate_barycentric_lagrange_interpolation, \
+)
+from pyapprox.sparsegrid.barycentric_interpolation import (
+    compute_barycentric_weights_1d,
+    multivariate_barycentric_lagrange_interpolation,
     multivariate_hierarchical_barycentric_lagrange_interpolation
+)
 
 
 def get_1d_samples_weights(quad_rules, growth_rules,

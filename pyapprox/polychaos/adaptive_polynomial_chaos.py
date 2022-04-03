@@ -5,27 +5,27 @@ from sklearn.linear_model import (
     OrthogonalMatchingPursuitCV
 )
 
-from pyapprox.multivariate_polynomials import (
+from pyapprox.polychaos.multivariate_polynomials import (
     PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
 )
-from pyapprox.induced_sampling import (
+from pyapprox.polychaos.induced_sampling import (
     increment_induced_samples_migliorati,
     generate_induced_samples_migliorati_tolerance,
     christoffel_weights,
     compute_preconditioned_canonical_basis_matrix_condition_number
 )
-from pyapprox.utilities import (
+from pyapprox.utilities.utilities import hash_array
+from pyapprox.utilities.linalg import (
     add_columns_to_pivoted_lu_factorization,
     continue_pivoted_lu_factorization,
     get_final_pivots_from_sequential_pivots,
     split_lu_factorization_matrix,
     pivot_rows,
-    hash_array,
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
 )
-from pyapprox.adaptive_sparse_grid import SubSpaceRefinementManager
-from pyapprox.probability_measure_sampling import (
+from pyapprox.sparsegrid.adaptive_sparse_grid import SubSpaceRefinementManager
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
 

@@ -3,31 +3,37 @@ from functools import partial
 import numpy as np
 from scipy import stats
 
-
-from pyapprox.arbitrary_polynomial_chaos import \
-    compute_moment_matrix_from_samples, APC, FPC, \
-    compute_moment_matrix_using_tensor_product_quadrature, \
-    compute_grammian_matrix_using_combination_sparse_grid, \
-    compute_coefficients_of_unrotated_basis, \
-    compute_polynomial_moments_using_tensor_product_quadrature, \
-    compute_rotation_from_moments_gram_schmidt, \
+from pyapprox.polychaos.arbitrary_polynomial_chaos import (
+    compute_moment_matrix_from_samples, APC, FPC,
+    compute_moment_matrix_using_tensor_product_quadrature,
+    compute_grammian_matrix_using_combination_sparse_grid,
+    compute_coefficients_of_unrotated_basis,
+    compute_polynomial_moments_using_tensor_product_quadrature,
+    compute_rotation_from_moments_gram_schmidt,
     compute_rotation_from_moments_linear_system
-from pyapprox.multivariate_polynomials import \
-    define_poly_options_from_variable_transformation, \
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    define_poly_options_from_variable_transformation,
     PolynomialChaosExpansion
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.probability_measure_sampling import \
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.indexing import compute_hyperbolic_indices
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.density import tensor_product_pdf
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.mixture_model import \
-    get_leja_univariate_quadrature_rules_of_beta_mixture,\
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.variables.density import tensor_product_pdf
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.sparsegrid.mixture_model import (
+    get_leja_univariate_quadrature_rules_of_beta_mixture,
     compute_grammian_of_mixture_models_using_sparse_grid_quadrature
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule
-
+)
+from pyapprox.orthopoly.quadrature import (
+    leja_growth_rule, clenshaw_curtis_in_polynomial_order,
+    clenshaw_curtis_rule_growth
+)
 
 class TestArbitraryPolynomialChaos(unittest.TestCase):
 
@@ -210,8 +216,6 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
             gauss_jacobi_pts_wts_1D, alpha_poly=beta_stat-1,
             beta_poly=alpha_stat-1)
 
-        from pyapprox.univariate_quadrature import \
-            clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth
         quad_rule_opts = {'quad_rules': clenshaw_curtis_in_polynomial_order,
                           'growth_rules': clenshaw_curtis_rule_growth,
                           'unique_quadrule_indices': None}

@@ -3,18 +3,21 @@ import numpy as np
 from scipy.stats import binom, hypergeom, poisson
 import scipy.special as sp
 
-from pyapprox.orthopoly.orthonormal_polynomials import \
-    evaluate_orthonormal_polynomial_1d, gauss_quadrature, \
-    evaluate_orthonormal_polynomial_deriv_1d, \
-    evaluate_three_term_recurrence_polynomial_1d, \
-    convert_orthonormal_polynomials_to_monomials_1d, \
+from pyapprox.orthopoly.orthonormal_polynomials import (
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature,
+    evaluate_orthonormal_polynomial_deriv_1d,
+    evaluate_three_term_recurrence_polynomial_1d,
+    convert_orthonormal_polynomials_to_monomials_1d,
     convert_orthonormal_expansion_to_monomial_expansion_1d
-from pyapprox.orthopoly.orthonormal_recursions import \
-    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence, \
-    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence, \
+)
+from pyapprox.orthopoly.orthonormal_recursions import (
+    jacobi_recurrence, hermite_recurrence, krawtchouk_recurrence,
+    discrete_chebyshev_recurrence, hahn_recurrence, charlier_recurrence,
     laguerre_recurrence
-from pyapprox.orthopoly.orthonormal_recursions import \
+)
+from pyapprox.orthopoly.orthonormal_recursions import (
     convert_orthonormal_recurence_to_three_term_recurence
+)
 from pyapprox.polychaos.monomial import (
     univariate_monomial_basis_matrix, evaluate_monomial
 )

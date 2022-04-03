@@ -1,13 +1,18 @@
 import unittest
-from pyapprox.monomial import *
-from pyapprox.indexing import compute_hyperbolic_indices, \
-    argsort_indices_leixographically
+import numpy as np
+
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, argsort_indices_leixographically
+)
+from pyapprox.polychaos.monomial import (
+    monomial_mean_uniform_variables, monomial_variance_uniform_variables,
+    evaluate_monomial, monomial_basis_matrix, multiply_multivariate_polynomials
+)
 
 
 class TestMonomial(unittest.TestCase):
 
     def test_monomial_mean_uniform_variables(self):
-        num_vars = 2
         indices = np.array([[0, 0], [1, 0], [0, 1], [1, 1], [2, 0]]).T
         coeffs = np.ones((indices.shape[1], 1))
         assert np.allclose(
@@ -24,10 +29,10 @@ class TestMonomial(unittest.TestCase):
             squared_indices, squared_coeffs)-monomial_mean_uniform_variables(
                 indices, coeffs)**2
         assert np.allclose(
-            monomial_variance_uniform_variables(indices, coeffs), true_variance)
+            monomial_variance_uniform_variables(indices, coeffs),
+            true_variance)
 
     def test_evaluate_monomial(self):
-        num_vars = 2
         indices = np.array([[0, 0], [1, 0], [0, 1], [1, 1], [2, 0]]).T
         coeffs = np.ones((indices.shape[1]))
         samples = np.array([[0.0, 0.0], [1.0, 1.0]]).T

@@ -1,10 +1,6 @@
 from scipy.optimize import fmin_l_bfgs_b
 import numpy as np
 
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
-from pyapprox.utilities import evaluate_tensor_product_function,\
-    gradient_of_tensor_product_function
-
 
 def get_quadrature_weights_from_samples(compute_basis_matrix, indices, samples):
     """

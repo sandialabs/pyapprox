@@ -2,27 +2,35 @@ import unittest
 from functools import partial
 from scipy.stats import beta as beta, uniform
 import numpy as np
-from numpy import sqrt, dot, sum, array, zeros
 from numpy.linalg import norm
 
-from pyapprox.orthogonal_least_interpolation import \
-    get_block_diagonal_matrix_num_cols, get_block_diagonal_matrix_num_rows, \
+from pyapprox.polychaos.orthogonal_least_interpolation import (
+    get_block_diagonal_matrix_num_cols, get_block_diagonal_matrix_num_rows,
     pre_multiply_block_diagonal_matrix,  LeastInterpolationSolver
-from pyapprox.utilities import cartesian_product
-from pyapprox.indexing import compute_hyperbolic_level_indices,\
-    compute_hyperbolic_indices
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
-from pyapprox.univariate_polynomials.quadrature import \
+)
+from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_level_indices, compute_hyperbolic_indices,
+    compute_tensor_product_level_indices, get_total_degree
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+)
+from pyapprox.orthopoly.quadrature import (
     clenshaw_curtis_pts_wts_1D, gauss_hermite_pts_wts_1D
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.utilities import remove_common_rows, \
-    allclose_unsorted_matrix_rows
-from pyapprox.indexing import compute_tensor_product_level_indices
-from pyapprox.probability_measure_sampling import \
+)
+from pyapprox.utilities.utilities import (
+    remove_common_rows, allclose_unsorted_matrix_rows
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.density import tensor_product_pdf
+)
+from pyapprox.variables.density import tensor_product_pdf
+from pyapprox.polychaos.polynomial_sampling import christoffel_function
+from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
 
 
 class TestBlockDiagonalOperations(unittest.TestCase):
@@ -528,8 +536,9 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
                     'assume_non_degeneracy': False}
 
         basis_generator = \
-            lambda num_vars, degree: (degree+1, compute_hyperbolic_level_indices(
-                num_vars, degree, 1.0))
+            lambda num_vars, degree: (
+                degree+1, compute_hyperbolic_level_indices(
+                    num_vars, degree, 1.0))
 
         oli_solver = LeastInterpolationSolver()
         oli_solver.configure(oli_opts)
@@ -537,8 +546,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         oli_solver.set_basis_generator(basis_generator)
 
         # Define 4 candidate points so no pivoting is necessary
-        candidate_pts = array([[-1., 1./sqrt(2.), -1./sqrt(2.), 0.],
-                               [-1., -1./sqrt(2.), 0., 0.]])
+        candidate_pts = np.array([[-1., 1./np.sqrt(2.), -1./np.sqrt(2.), 0.],
+                                  [-1., -1./np.sqrt(2.), 0., 0.]])
 
         U = np.zeros((4, 4))
 
@@ -557,24 +566,24 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         # print 'V\n',V
 
         # print '################################'
-        U1 = array([[V[0, 1], V[0, 2]],
+        U1 = np.array([[V[0, 1], V[0, 2]],
                     [V[1, 1]-V[0, 1], V[1, 2]-V[0, 2]],
                     [V[2, 1]-V[0, 1], V[2, 2]-V[0, 2]],
                     [V[3, 1]-V[0, 1], V[3, 2]-V[0, 2]]])
 
-        norms = [sqrt((V[1, 1]-V[0, 1])**2+(V[1, 2]-V[0, 2])**2),
-                 sqrt((V[2, 1]-V[0, 1])**2+(V[2, 2]-V[0, 2])**2),
-                 sqrt((V[3, 1]-V[0, 1])**2+(V[3, 2]-V[0, 2])**2)]
+        norms = [np.sqrt((V[1, 1]-V[0, 1])**2+(V[1, 2]-V[0, 2])**2),
+                 np.sqrt((V[2, 1]-V[0, 1])**2+(V[2, 2]-V[0, 2])**2),
+                 np.sqrt((V[3, 1]-V[0, 1])**2+(V[3, 2]-V[0, 2])**2)]
         U1[1, :] /= norms[0]
         # print 'U1\n',U1
 
         # print 'norms\n', norms
 
-        magic_row = array(
+        magic_row = np.array(
             [[(V[1, 1]-V[0, 1])/norms[0], (V[1, 2]-V[0, 2])/norms[0]]])
         # print 'magic_row\n',magic_row
 
-        inner_products = array([(V[1, 1]-V[0, 1])*(V[1, 1]-V[0, 1])/norms[0] +
+        inner_products = np.array([(V[1, 1]-V[0, 1])*(V[1, 1]-V[0, 1])/norms[0] +
                                 (V[1, 2]-V[0, 2])*(V[1, 2]-V[0, 2])/norms[0],
                                 (V[2, 1]-V[0, 1])*(V[1, 1]-V[0, 1])/norms[0] +
                                 (V[2, 2]-V[0, 2])*(V[1, 2]-V[0, 2])/norms[0],
@@ -586,11 +595,11 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         L = np.array([[1, 0, 0, 0], [0, v1[0], v1[1], v1[2]]]).T
         # print 'L\n',L
 
-        Z = array([[V[0, 1]*(V[1, 1]-V[0, 1])/norms[0] +
+        Z = np.array([[V[0, 1]*(V[1, 1]-V[0, 1])/norms[0] +
                     V[0, 2]*(V[1, 2]-V[0, 2])/norms[0]]])
         # print 'Z\n',Z
 
-        U = array([[1, Z[0, 0]], [0, 1]])
+        U = np.array([[1, Z[0, 0]], [0, 1]])
         # print 'U\n',U
 
         factor_history.append((L, U))
@@ -600,26 +609,28 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         ##--------------------- ##
 
         # print '################################'
-        U2 = array([[V[0, 1], V[0, 2]],
-                    [(V[1, 1]-V[0, 1])/L[1, 1], (V[1, 2]-V[0, 2])/L[1, 1]],
-                    [(V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
-                     (V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1]],
-                    [(V[3, 1]-V[0, 1])-L[3, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
-                     (V[3, 2]-V[0, 2])-L[3, 1]*(V[1, 2]-V[0, 2])/L[1, 1]]])
+        U2 = np.array([[V[0, 1], V[0, 2]],
+                       [(V[1, 1]-V[0, 1])/L[1, 1], (V[1, 2]-V[0, 2])/L[1, 1]],
+                       [(V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
+                        (V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1]],
+                       [(V[3, 1]-V[0, 1])-L[3, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
+                        (V[3, 2]-V[0, 2])-L[3, 1]*(V[1, 2]-V[0, 2])/L[1, 1]]])
 
         # print 'U2\n',U2
 
-        norms = [sqrt(((V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1])**2 +
-                      ((V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1])**2),
-                 sqrt(((V[3, 1]-V[0, 1])-L[3, 1]*(V[1, 1]-V[0, 1])/L[1, 1])**2 +
-                      ((V[3, 2]-V[0, 2])-L[3, 1]*(V[1, 2]-V[0, 2])/L[1, 1])**2)]
+        norms = [
+            np.sqrt(((V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1])**2 +
+                    ((V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1])**2),
+            np.sqrt(((V[3, 1]-V[0, 1])-L[3, 1]*(V[1, 1]-V[0, 1])/L[1, 1])**2 +
+                    ((V[3, 2]-V[0, 2])-L[3, 1]*(V[1, 2]-V[0, 2])/L[1, 1])**2)]
         U2[2, :] /= norms[0]
         # print 'U2\n',U2
 
         # print 'norms\n', norms
 
-        magic_row = array([(V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
-                           (V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1]])/norms[0]
+        magic_row = np.array(
+            [(V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1],
+             (V[2, 2]-V[0, 2])-L[2, 1]*(V[1, 2]-V[0, 2])/L[1, 1]])/norms[0]
         # print 'magic_row', magic_row
 
         inner_products = [norms[0], ((V[2, 1]-V[0, 1])-L[2, 1]*(V[1, 1]-V[0, 1])/L[1, 1])*((V[3, 1]-V[0, 1])-L[3, 1]*(V[1, 1]-V[0, 1])/L[1, 1])/norms[0]+(
@@ -639,7 +650,7 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         # print 'Z\n',Z
 
         U_prev = U.copy()
-        U = zeros((3, 3))
+        U = np.zeros((3, 3))
         U[:2, :2] = U_prev
         U[:2, 2] = Z
         U[2, 2] = 1
@@ -652,7 +663,7 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         ##--------------------- ##
 
         # print '################################'
-        U3 = array([[V[0, 3], V[0, 4], V[0, 5]],
+        U3 = np.array([[V[0, 3], V[0, 4], V[0, 5]],
                     [(V[1, 3]-V[0, 3])/L[1, 1], (V[1, 4]-V[0, 4]) /
                      L[1, 1], (V[1, 5]-V[0, 5])/L[1, 1]],
                     [((V[2, 3]-V[0, 3])-L[2, 1]*(V[1, 3]-V[0, 3])/L[1, 1])/L[2, 2], ((V[2, 4]-V[0, 4])-L[2, 1] *
@@ -666,23 +677,23 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
 
         # print 'norms\n', norms
 
-        magic_row = array([U3[3, :]])
+        magic_row = np.array([U3[3, :]])
         # print 'magic_row', magic_row
 
         inner_products = [norms[0]]
         # print 'inner_products\n', inner_products
 
         L_prev = L.copy()
-        L = zeros((4, 4))
+        L = np.zeros((4, 4))
         L[:, :3] = L_prev
         L[3, 3] = inner_products[0]
         # print 'L\n', L
 
-        Z = dot(U3[:3, :3], magic_row.T)
+        Z = np.dot(U3[:3, :3], magic_row.T)
         # print 'Z\n',Z
 
         U_prev = U.copy()
-        U = zeros((4, 4))
+        U = np.zeros((4, 4))
         U[:3, :3] = U_prev
         U[:3, 3] = Z.squeeze()
         U[3, 3] = 1
@@ -691,8 +702,8 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
 
         factor_history.append((L, U))
 
-        candidate_pts = array([[-1., 1./sqrt(2.), -1./sqrt(2.), 0.],
-                               [-1., -1./sqrt(2.), 0., 0.]])
+        candidate_pts = np.array([[-1., 1./np.sqrt(2.), -1./np.sqrt(2.), 0.],
+                                  [-1., -1./np.sqrt(2.), 0., 0.]])
 
         # define target function
         def model(x): return np.asarray([x[0]**2 + x[1]**2 + x[0]*x[1]]).T
@@ -779,12 +790,9 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
         # univariate_pdf = lambda x: univariate_beta_pdf(x)
         # preconditioning_function = partial(
         #     tensor_product_pdf,univariate_pdfs=univariate_pdf)
-        from pyapprox.indexing import get_total_degree
         max_degree = get_total_degree(num_vars, max_num_pts)
         indices = compute_hyperbolic_indices(num_vars, max_degree, 1.)
         pce.set_indices(indices)
-
-        from pyapprox.polynomial_sampling import christoffel_function
 
         def preconditioning_function(samples): return 1./christoffel_function(
             samples, pce.basis_matrix)
@@ -801,7 +809,6 @@ class TestOrthogonalLeastInterpolationFactorization(unittest.TestCase):
 
         oli_samples = oli_solver.get_current_points()
 
-        from pyapprox.utilities import truncated_pivoted_lu_factorization
         pce.set_indices(oli_solver.selected_basis_indices)
         basis_matrix = pce.basis_matrix(candidate_samples)
         weights = np.sqrt(preconditioning_function(candidate_samples))

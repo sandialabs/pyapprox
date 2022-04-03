@@ -1,18 +1,23 @@
 import unittest
 import numpy as np
 from functools import partial
+from scipy import stats
 
-from pyapprox.adaptive_polynomial_chaos import \
-    variance_pce_refinement_indicator, AdaptiveLejaPCE, \
+from pyapprox.polychaos.adaptive_polynomial_chaos import (
+    variance_pce_refinement_indicator, AdaptiveLejaPCE,
     AdaptiveInducedPCE
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from scipy.stats import beta
-from pyapprox.probability_measure_sampling import \
+)
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.adaptive_sparse_grid import max_level_admissibility_function
-from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth
+)
+from pyapprox.sparsegrid.adaptive_sparse_grid import (
+    max_level_admissibility_function
+)
+from pyapprox.orthopoly.quadrature import clenshaw_curtis_rule_growth
 
 
 class TestAdaptivePCE(unittest.TestCase):
@@ -63,7 +68,7 @@ class TestAdaptivePCE(unittest.TestCase):
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(
-                [beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
+                [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         candidate_samples = -np.cos(
             np.random.uniform(0, np.pi, (num_vars, int(1e4))))
@@ -107,7 +112,7 @@ class TestAdaptivePCE(unittest.TestCase):
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(
-                [beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
+                [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         candidate_samples = -np.cos(
             np.random.uniform(0, np.pi, (num_vars, int(1e4))))
@@ -143,7 +148,7 @@ class TestAdaptivePCE(unittest.TestCase):
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(
-                [beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
+                [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(num_vars, cond_tol=1e2)
         error, pce = self.helper(function, var_trans, pce, 4, 0.)
@@ -164,7 +169,7 @@ class TestAdaptivePCE(unittest.TestCase):
 
         var_trans = AffineRandomVariableTransformation(
             IndependentMultivariateRandomVariable(
-                [beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
+                [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(
             num_vars, cond_tol=1e2, induced_sampling=False)

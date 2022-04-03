@@ -5,37 +5,45 @@ from functools import partial
 from scipy import stats
 from scipy.stats._continuous_distns import rv_continuous
 
-from pyapprox.optimization import approx_jacobian
-from pyapprox.polynomial_chaos.multivariate_polynomials import \
-    PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial, \
-    define_poly_options_from_variable_transformation, \
-    get_polynomial_from_variable, \
-    compute_product_coeffs_1d_for_each_variable, \
-    multiply_multivariate_orthonormal_polynomial_expansions, \
-    compute_multivariate_orthonormal_basis_product, \
-    compute_univariate_orthonormal_basis_products, \
-    conditional_moments_of_polynomial_chaos_expansion
-from pyapprox.indexing import compute_hyperbolic_indices, \
-    tensor_product_indices, sort_indices_lexiographically
-from pyapprox.univariate_polynomials.quadrature import \
-    gauss_hermite_pts_wts_1D, gauss_jacobi_pts_wts_1D
-from pyapprox.utilities import get_tensor_product_quadrature_rule, \
-    approx_fprime, cartesian_product, outer_product, \
-    get_all_sample_combinations, \
+from pyapprox.utilities.utilities import (
+    approx_jacobian, get_tensor_product_quadrature_rule,
+    approx_fprime, cartesian_product, outer_product,
+    get_all_sample_combinations,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
-from pyapprox.variable_transformations import \
-    define_iid_random_variable_transformation, \
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial,
+    define_poly_options_from_variable_transformation,
+    get_polynomial_from_variable,
+    compute_product_coeffs_1d_for_each_variable,
+    multiply_multivariate_orthonormal_polynomial_expansions,
+    compute_multivariate_orthonormal_basis_product,
+    compute_univariate_orthonormal_basis_products,
+    conditional_moments_of_polynomial_chaos_expansion
+)
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, tensor_product_indices,
+    sort_indices_lexiographically
+)
+from pyapprox.orthopoly.quadrature import (
+    gauss_hermite_pts_wts_1D, gauss_jacobi_pts_wts_1D
+)
+from pyapprox.variables.variable_transformations import (
+    define_iid_random_variable_transformation,
     AffineRandomVariableTransformation
-from pyapprox.variables import IndependentMultivariateRandomVariable,\
+)
+from pyapprox.variables.variables import (
+    IndependentMultivariateRandomVariable,
     float_rv_discrete, rv_function_indpndt_vars, rv_product_indpndt_vars
-from pyapprox.probability_measure_sampling import \
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    jacobi_recurrence
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+)
+from pyapprox.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
-from pyapprox.quantile_regression import (
-    # solve_quantile_regression,
+)
+from pyapprox.optimization.quantile_regression import (
     solve_least_squares_regression
 )
 

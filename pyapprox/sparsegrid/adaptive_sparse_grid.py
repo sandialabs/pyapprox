@@ -3,16 +3,33 @@ from functools import partial
 import heapq
 import numpy as np
 
-from pyapprox.variables import variable_shapes_equivalent, \
-    is_bounded_discrete_variable, get_probability_masses
-from pyapprox.sparse_grid import *
-from pyapprox.utilities import lists_of_lists_of_arrays_equal, \
+from pyapprox.variables.variables import (
+    variable_shapes_equivalent, is_bounded_discrete_variable,
+    get_probability_masses
+)
+from pyapprox.utilities.utilities import (
+    lists_of_lists_of_arrays_equal,
     lists_of_arrays_equal, partial_functions_equal
-from pyapprox.indexing import get_forward_neighbor, get_backward_neighbor
-from pyapprox.univariate_polynomials.quadrature import \
+)
+from pyapprox.polychaos.indexing import (
+    get_forward_neighbor, get_backward_neighbor
+)
+from pyapprox.orthopoly.quadrature import (
     clenshaw_curtis_rule_growth, constant_increment_growth_rule
-from pyapprox.univariate_polynomials.leja_quadrature import \
+)
+from pyapprox.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
+)
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.utilities.visualization import plot_2d_indices, plot_3d_indices
+from matplotlib.pyplot import MaxNLocator
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion
+)
+from pyapprox.polychaos.manipulate_polynomials import add_polynomials
+from pyapprox.sparsegrid.sparse_grid import *
 
 
 class mypriorityqueue():
@@ -236,7 +253,6 @@ def partition_sparse_grid_samples(sparse_grid):
 def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
                                  samples_marker=('k', 'o', None),
                                  active_samples_marker=('r', 'o', None)):
-    from pyapprox.visualization import plot_2d_indices
     active_subspace_indices, active_subspace_idx = get_active_subspace_indices(
         sparse_grid.active_subspace_indices_dict,
         sparse_grid.subspace_indices)
@@ -287,7 +303,6 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
                             active_samples_marker[1],
                             color=active_samples_marker[0],
                             ms=active_samples_marker[2])
-            from matplotlib.pyplot import MaxNLocator
             ya = axs[1].get_yaxis()
             ya.set_major_locator(MaxNLocator(integer=True))
             # axs[1].set_ylabel(r'$\alpha_1$',rotation=0)
@@ -572,8 +587,6 @@ def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
 
 def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
                                                       debug=False):
-    from pyapprox.multivariate_polynomials import PolynomialChaosExpansion
-    from pyapprox.manipulate_polynomials import add_polynomials
     pce = PolynomialChaosExpansion()
     pce.configure(pce_opts)
     if sparse_grid.config_variables_idx is not None:
@@ -1532,7 +1545,6 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
 
 def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):
-    from pyapprox.visualization import plot_3d_indices
     fig = plt.figure(figsize=plt.figaspect(0.5))
     active_subspace_indices, active_subspace_idx = get_active_subspace_indices(
         sparse_grid.active_subspace_indices_dict,
@@ -1569,7 +1581,6 @@ def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):
         ax.set_zticks([])
 
 
-from pyapprox.variable_transformations import AffineRandomVariableTransformation
 def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
                                               quadrule_variables,
                                               method='pdf'):

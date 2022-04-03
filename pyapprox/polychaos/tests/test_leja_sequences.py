@@ -3,18 +3,24 @@ from functools import partial
 from scipy import stats
 import numpy as np
 
-from pyapprox.leja_sequences import \
-    leja_objective_and_gradient, compute_finite_difference_derivative, \
-    leja_objective, compute_coefficients_of_leja_interpolant, \
-    evaluate_tensor_product_function, gradient_of_tensor_product_function, \
+from pyapprox.polychaos.leja_sequences import (
+    leja_objective_and_gradient, compute_finite_difference_derivative,
+    leja_objective, compute_coefficients_of_leja_interpolant,
     get_leja_sequence_1d
-from pyapprox.utilities import beta_pdf_derivative
-from pyapprox.indexing import compute_hyperbolic_indices
-from pyapprox.variable_transformations import \
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.utilities import beta_pdf_on_ab
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
+)
+from pyapprox.variables.density import (
+    beta_pdf_on_ab, beta_pdf_derivative
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+)
+from pyapprox.utilities.utilities import (
+    evaluate_tensor_product_function, gradient_of_tensor_product_function
+)
 
 
 class TestLejaSequences(unittest.TestCase):

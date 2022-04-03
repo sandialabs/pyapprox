@@ -3,31 +3,40 @@ import numpy as np
 from scipy import stats
 from functools import partial
 
-from pyapprox.induced_sampling import continuous_induced_measure_cdf, \
-    continuous_induced_measure_ppf, generate_induced_samples, \
-    discrete_induced_sampling, basis_matrix_generator_1d, \
-    random_induced_measure_sampling, idistinv_jacobi, \
-    inverse_transform_sampling_1d, \
-    generate_induced_samples_migliorati_tolerance, \
-    compute_preconditioned_basis_matrix_condition_number, \
+from pyapprox.polychaos.induced_sampling import (
+    continuous_induced_measure_cdf,
+    continuous_induced_measure_ppf, generate_induced_samples,
+    discrete_induced_sampling, basis_matrix_generator_1d,
+    random_induced_measure_sampling, idistinv_jacobi,
+    inverse_transform_sampling_1d,
+    generate_induced_samples_migliorati_tolerance,
+    compute_preconditioned_basis_matrix_condition_number,
     increment_induced_samples_migliorati, christoffel_function
-from pyapprox.indexing import compute_hyperbolic_indices, \
-    compute_hyperbolic_level_indices
-from pyapprox.variables import float_rv_discrete, \
+)
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, compute_hyperbolic_level_indices
+)
+from pyapprox.variables.variables import (
+    float_rv_discrete,
     IndependentMultivariateRandomVariable, get_probability_masses
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
-from pyapprox.variable_transformations import \
+)
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+)
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.density import tensor_product_pdf
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.univariate_polynomials.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
-    jacobi_recurrence
-from pyapprox.univariate_polynomials.recursion_factory import \
+)
+from pyapprox.variables.density import tensor_product_pdf
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
+)
+from pyapprox.utilities.utilities import cartesian_product, outer_product
 
 
 class TestInducedSampling(unittest.TestCase):
@@ -152,8 +161,6 @@ class TestInducedSampling(unittest.TestCase):
                 x, pce.basis_matrix, True)
             return vals
 
-        from pyapprox.utilities import cartesian_product, outer_product
-        from pyapprox.polynomial_sampling import christoffel_function
         quad_samples = cartesian_product([xk[0], xk[1]])
         quad_weights = outer_product([pk[0], pk[1]])
 

@@ -1,6 +1,9 @@
 import unittest
 import numpy as np
-from pyapprox.indexing import (
+from functools import partial
+from scipy.special import binom
+
+from pyapprox.polychaos.indexing import (
     compute_hyperbolic_indices,
     nchoosek, get_upper_triangular_matrix_indices, set_difference,
     argsort_indices_leixographically, compute_downward_closed_indices,
@@ -10,8 +13,6 @@ from pyapprox.indexing import (
     compute_hyperbolic_indices_itertools, total_degree_space_dimension,
     total_degree_subspace_dimension
 )
-from functools import partial
-from scipy.special import binom
 
 
 class TestIndexing(unittest.TestCase):

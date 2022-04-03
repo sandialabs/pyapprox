@@ -1,14 +1,19 @@
-from pyapprox.adaptive_sparse_grid import CombinationSparseGrid, \
-    max_level_admissibility_function, variance_refinement_indicator, \
-    get_sparse_grid_univariate_leja_quadrature_rules_economical
 from functools import partial
 import numpy as np
 
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
-    evaluate_multivariate_orthonormal_polynomial
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.indexing import set_difference
-from pyapprox.monomial import monomial_basis_matrix
+from pyapprox.sparsegrid.sparse_grid import get_sparse_grid_samples_and_weights
+from pyapprox.sparsegrid.adaptive_sparse_grid import (
+    CombinationSparseGrid,
+    max_level_admissibility_function, variance_refinement_indicator,
+    get_sparse_grid_univariate_leja_quadrature_rules_economical
+)
+
+from pyapprox.polychaos.multivariate_polynomials import (
+    PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial
+)
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.polychaos.indexing import set_difference
+from pyapprox.polychaos.monomial import monomial_basis_matrix
 
 
 class APC(PolynomialChaosExpansion):
@@ -386,7 +391,6 @@ def compute_grammian_matrix_using_combination_sparse_grid(
     sparse_grid.build()
     # todo allow level to be passed in per dimension so I can base it on
     # sparse_grid.subspace_indices.max(axis=1)
-    from pyapprox.sparse_grid import get_sparse_grid_samples_and_weights
     samples, weights = get_sparse_grid_samples_and_weights(
         num_vars, sparse_grid.subspace_indices.max(),
         sparse_grid.univariate_quad_rule,
