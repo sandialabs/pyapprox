@@ -743,3 +743,118 @@ class MultiLevelWrapper(object):
     def num_evaluations(self, nn):
         self.__num_evaluations = nn
         self.model.num_evaluations = nn
+
+
+class ModelEnsemble(object):
+    r"""
+    Wrapper class to allow easy one-dimensional
+    indexing of models in an ensemble.
+    """
+
+    def __init__(self, functions, names=None):
+        r"""
+        Parameters
+        ----------
+        functions : list of callable
+            A list of functions defining the model ensemble. The functions must
+            have the call signature values=function(samples)
+        """
+        self.functions = functions
+        self.nmodels = len(self.functions)
+        if names is None:
+            names = ['f%d' % ii for ii in range(self.nmodels)]
+        self.names = names
+
+    def evaluate_at_separated_samples(self, samples_list, active_model_ids):
+        r"""
+        Evaluate a set of models at different sets of samples.
+        The models need not have the same parameters.
+
+        Parameters
+        ----------
+        samples_list : list[np.ndarray (nvars_ii, nsamples_ii)]
+            Realizations of the multivariate random variable model to evaluate
+            each model.
+
+        active_model_ids : iterable
+            The models to evaluate
+
+        Returns
+        -------
+        values_list : list[np.ndarray (nsamples, nqoi)]
+            The values of the models at the different sets of samples
+
+        """
+        values_0 = self.functions[active_model_ids[0]](samples_list[0])
+        assert values_0.ndim == 2
+        values_list = [values_0]
+        for ii in range(1, active_model_ids.shape[0]):
+            values_list.append(self.functions[active_model_ids[ii]](
+                samples_list[ii]))
+        return values_list
+
+    def evaluate_models(self, samples_per_model):
+        """
+        Evaluate a set of models at a set of samples.
+
+        Parameters
+        ----------
+        samples_per_model : list (nmodels)
+            The ith entry contains the set of samples
+            np.narray(nvars, nsamples_ii) used to evaluate the ith model.
+
+        Returns
+        -------
+        values_per_model : list (nmodels)
+            The ith entry contains the set of values
+            np.narray(nsamples_ii, nqoi) obtained from the ith model.
+        """
+        nmodels = len(samples_per_model)
+        if nmodels != self.nmodels:
+            raise ValueError("Samples must be provided for each model")
+        nvars = samples_per_model[0].shape[0]
+        nsamples = np.sum([ss.shape[1] for ss in samples_per_model])
+        samples = np.empty((nvars+1, nsamples))
+        cnt = 0
+        ubs = np.cumsum([ss.shape[1] for ss in samples_per_model])
+        lbs = np.hstack((0, ubs[:-1]))
+        for ii, samples_ii in enumerate(samples_per_model):
+            samples[:-1, lbs[ii]:ubs[ii]] = samples_ii
+            samples[-1, lbs[ii]:ubs[ii]] = ii
+            cnt += samples_ii.shape[1]
+        values = self(samples)
+        values_per_model = [values[lbs[ii]:ubs[ii]] for ii in range(nmodels)]
+        return values_per_model
+
+    def __call__(self, samples):
+        r"""
+        Evaluate a set of models at a set of samples. The models must have the
+        same parameters.
+
+        Parameters
+        ----------
+        samples : np.ndarray (nvars+1,nsamples)
+            Realizations of a multivariate random variable each with an
+            additional scalar model id indicating which model to evaluate.
+
+        Returns
+        -------
+        values : np.ndarray (nsamples,nqoi)
+            The values of the models at samples
+        """
+        model_ids = samples[-1, :]
+        # print(model_ids.max(),self.nmodels)
+        assert model_ids.max() < self.nmodels
+        active_model_ids = np.unique(model_ids).astype(int)
+        active_model_id = active_model_ids[0]
+        II = np.where(model_ids == active_model_id)[0]
+        values_0 = self.functions[active_model_id](samples[:-1, II])
+        assert values_0.ndim == 2
+        nqoi = values_0.shape[1]
+        values = np.empty((samples.shape[1], nqoi))
+        values[II, :] = values_0
+        for ii in range(1, active_model_ids.shape[0]):
+            active_model_id = active_model_ids[ii]
+            II = np.where(model_ids == active_model_id)[0]
+            values[II] = self.functions[active_model_id](samples[:-1, II])
+        return values

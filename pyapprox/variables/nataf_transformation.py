@@ -1,15 +1,8 @@
 import numpy as np
 from scipy import stats
 from scipy.linalg import solve_triangular
-# from pyapprox.orthopoly.quadrature import gauss_hermite_pts_wts_1D
-# avoid making nataf dependent on univariate_polynomials
-from scipy.special import roots_hermitenorm
 
-
-def scipy_gauss_hermite_pts_wts_1D(nn):
-    x, w = roots_hermitenorm(nn)
-    w /= np.sqrt(2*np.pi)
-    return x, w
+from pyapprox.util.utilities import scipy_gauss_hermite_pts_wts_1D
 
 
 def corrcoeffij(corrij, x_inv_cdfs,  x_means, x_stdevs, quad_rule):

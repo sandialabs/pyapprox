@@ -4,8 +4,10 @@ from functools import partial
 from itertools import combinations
 
 from pyapprox.util.utilities import get_correlation_from_covariance
-from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
-from pyapprox.control_variate_monte_carlo import (
+from pyapprox.expdesign.low_discrepancy_sequences import (
+    sobol_sequence, halton_sequence
+)
+from pyapprox.multifidelity.control_variate_monte_carlo import (
     compute_approximate_control_variate_mean_estimate,
     get_rsquared_mlmc, allocate_samples_mlmc, get_mlmc_control_variate_weights,
     get_rsquared_mfmc, allocate_samples_mfmc, get_mfmc_control_variate_weights,
@@ -26,11 +28,12 @@ from pyapprox.control_variate_monte_carlo import (
     acv_sample_allocation_nhf_samples_constraint_jac,
     get_generalized_approximate_control_variate_weights,
     get_sample_allocation_matrix_mlmc, get_npartition_samples_mlmc,
-    get_npartition_samples_mfmc, ModelEnsemble,
+    get_npartition_samples_mfmc,
     separate_samples_per_model_acv, get_sample_allocation_matrix_mfmc,
     get_npartition_samples_acvis, get_sample_allocation_matrix_acvis,
     bootstrap_acv_estimator, get_acv_recursion_indices
 )
+from pyapprox.interface.wrappers import ModelEnsemble
 
 
 class AbstractMonteCarloEstimator(ABC):
@@ -419,7 +422,7 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
         variance = self.get_variance(rounded_target_cost, nsample_ratios)
         self.set_optimized_params(
             nsample_ratios, rounded_target_cost, variance)
-        return nsample_ratios, variance, rounded_target_cost, variance
+        return nsample_ratios, variance, rounded_target_cost
 
     def set_optimized_params(self, nsample_ratios, rounded_target_cost,
                              optimized_variance):
@@ -781,9 +784,9 @@ class ACVGMFBEstimator(ACVGMFEstimator):
             print(index)
             try:
                 super().allocate_samples(target_cost)
-            except:
-                # typically solver failes because trying to use uniformative model
-                # as a recursive control variate
+            except RuntimeError:
+                # typically solver failes because trying to use
+                # uniformative model as a recursive control variate
                 self.optimized_variance = np.inf
             print(self.optimized_variance, best_variance)
             if self.optimized_variance < best_variance:

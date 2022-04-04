@@ -3,9 +3,8 @@ import numpy as np
 from scipy import stats
 from functools import partial
 
-import pyapprox as pya
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.control_variate_monte_carlo import (
+from pyapprox.multifidelity.control_variate_monte_carlo import (
     estimate_variance, allocate_samples_mlmc,
     get_discrepancy_covariances_MF, get_nsamples_per_model,
     acv_sample_allocation_objective_all, _ndarray_as_pkg_format,
@@ -25,10 +24,27 @@ from pyapprox.control_variate_monte_carlo import (
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint,
     acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
     reorder_allocation_matrix_acvgmf,
-    get_nsamples_interesect_from_z_subsets_acvgmf
+    get_nsamples_interesect_from_z_subsets_acvgmf,
+    estimate_model_ensemble_covariance, generate_samples_and_values_mfmc,
+    get_mfmc_control_variate_weights,
+    get_rsquared_mfmc, get_lagrange_multiplier_mlmc,
+    bootstrap_monte_carlo_estimator
 )
-from pyapprox.monte_carlo_estimators import (
+from pyapprox.multifidelity.monte_carlo_estimators import (
     get_estimator
+)
+from pyapprox.util.utilities import (
+    check_gradients, get_all_sample_combinations,
+    scipy_gauss_jacobi_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D,
+    get_tensor_product_quadrature_rule, approx_jacobian,
+    get_correlation_from_covariance
+)
+from pyapprox.variables.probability_measure_sampling import (
+    generate_independent_random_samples
+)
+from pyapprox.interface.wrappers import ModelEnsemble
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
 )
 
 skiptest = unittest.skipIf(
@@ -42,10 +58,10 @@ class PolynomialModelEnsemble(object):
         self.models = [self.m0, self.m1, self.m2, self.m3, self.m4]
 
         univariate_variables = [stats.uniform(0, 1)]
-        self.variable = pya.IndependentMultivariateRandomVariable(
+        self.variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         self.generate_samples = partial(
-            pya.generate_independent_random_samples, self.variable)
+            generate_independent_random_samples, self.variable)
 
     def m0(self, samples):
         return samples.T**5
@@ -64,7 +80,7 @@ class PolynomialModelEnsemble(object):
 
     def get_means(self):
         gauss_legendre = partial(
-            pya.gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
+            scipy_gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
         x, w = gauss_legendre(10)
         # scale to [0,1]
         x = (x[np.newaxis, :]+1)/2
@@ -77,9 +93,7 @@ class PolynomialModelEnsemble(object):
         return means
 
     def get_covariance_matrix(self):
-        gauss_legendre = partial(
-            pya.gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
-        x, w = gauss_legendre(10)
+        x, w = scipy_gauss_jacobi_pts_wts_1D(10)
         # scale to [0,1]
         x = (x[np.newaxis, :]+1)/2
         nsamples = x.shape[1]
@@ -118,7 +132,7 @@ class TunableModelEnsemble(object):
         self.models = [self.m0, self.m1, self.m2]
 
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
-        self.variable = pya.IndependentMultivariateRandomVariable(
+        self.variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         self.generate_samples = self.variable.rvs
 
@@ -168,10 +182,10 @@ class ShortColumnModelEnsemble(object):
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        self.variable = pya.IndependentMultivariateRandomVariable(
+        self.variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         self.generate_samples = partial(
-            pya.generate_independent_random_samples, self.variable)
+            generate_independent_random_samples, self.variable)
 
     def extract_variables(self, samples):
         assert samples.shape[0] == 5
@@ -208,13 +222,13 @@ class ShortColumnModelEnsemble(object):
     def get_quadrature_rule(self):
         nvars = self.variable.num_vars()
         degrees = [10]*nvars
-        var_trans = pya.AffineRandomVariableTransformation(self.variable)
+        var_trans = AffineRandomVariableTransformation(self.variable)
         gauss_legendre = partial(
-            pya.gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
+            scipy_gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)
         univariate_quadrature_rules = [
-            gauss_legendre, gauss_legendre, pya.gauss_hermite_pts_wts_1D,
-            pya.gauss_hermite_pts_wts_1D, pya.gauss_hermite_pts_wts_1D]
-        x, w = pya.get_tensor_product_quadrature_rule(
+            gauss_legendre, gauss_legendre, scipy_gauss_hermite_pts_wts_1D,
+            scipy_gauss_hermite_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D]
+        x, w = get_tensor_product_quadrature_rule(
             degrees, self.variable.num_vars(), univariate_quadrature_rules,
             var_trans.map_from_canonical_space)
         return x, w
@@ -243,19 +257,19 @@ class ShortColumnModelEnsemble(object):
 def setup_model_ensemble_short_column(
         nmodels=5, npilot_samples=None):
     example = ShortColumnModelEnsemble()
-    model_ensemble = pya.ModelEnsemble(
+    model_ensemble = ModelEnsemble(
         [example.models[ii] for ii in range(nmodels)])
     univariate_variables = [
         stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
         stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
     generate_samples = partial(
-        pya.generate_independent_random_samples, variable)
+        generate_independent_random_samples, variable)
 
     if npilot_samples is not None:
         # The number of pilot samples effects ability of numerical estimate
         # of variance reduction to match theoretical value
-        cov, samples, weights = pya.estimate_model_ensemble_covariance(
+        cov, samples, weights = estimate_model_ensemble_covariance(
             npilot_samples, generate_samples, model_ensemble)
     else:
         # it is difficult to create a quadrature rule for the lognormal
@@ -264,7 +278,7 @@ def setup_model_ensemble_short_column(
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.norm(loc=5, scale=0.5)]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
         example.apply_lognormal = True
@@ -276,7 +290,7 @@ def setup_model_ensemble_short_column(
 
 def setup_model_ensemble_tunable():
     example = TunableModelEnsemble(np.pi/4)
-    model_ensemble = pya.ModelEnsemble(example.models)
+    model_ensemble = ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
     costs = 10.**(-np.arange(cov.shape[0]))
     return model_ensemble, cov, costs, example.variable
@@ -284,11 +298,11 @@ def setup_model_ensemble_tunable():
 
 def setup_model_ensemble_polynomial():
     example = PolynomialModelEnsemble()
-    model_ensemble = pya.ModelEnsemble(example.models)
+    model_ensemble = ModelEnsemble(example.models)
     cov = example.get_covariance_matrix()
     costs = np.asarray([100//2**ii for ii in range(example.nmodels)])
     # npilot_samples=int(1e6)
-    # cov, samples, weights = pya.estimate_model_ensemble_covariance(
+    # cov, samples, weights = estimate_model_ensemble_covariance(
     #    npilot_samples,generate_samples,model_ensemble)
     return model_ensemble, cov, costs, example.variable
 
@@ -298,7 +312,7 @@ class TestCVMC(unittest.TestCase):
         np.random.seed(1)
 
     def test_model_ensemble(self):
-        model = pya.ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
+        model = ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
         variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
         samples_per_model = [variable.rvs(10), variable.rvs(5)]
         values_per_model = model.evaluate_models(samples_per_model)
@@ -318,7 +332,7 @@ class TestCVMC(unittest.TestCase):
         np.linalg.cholesky(cov)
         # print(np.linalg.inv(cov))
         costs = [6, 3, 1]
-        nsample_ratios, log10_var = pya.allocate_samples_mlmc(
+        nsample_ratios, log10_var = allocate_samples_mlmc(
             cov, costs, target_cost)
         assert np.allclose(10**log10_var, 1)
         nsamples = get_nsamples_per_model(
@@ -419,8 +433,9 @@ class TestCVMC(unittest.TestCase):
             get_nsamples_interesect_from_z_subsets_acvgmf(
                 nsamples_z_subsets, recursion_index)
         assert np.allclose(nsamples_intersect, nsamples_intersect_true)
-        assert np.allclose(get_nsamples_subset(reorder_mat, npartition_samples),
-                           [0, 2, 2, 4, 4, 5, 4, 8, 8, 5])
+        assert np.allclose(
+            get_nsamples_subset(reorder_mat, npartition_samples),
+            [0, 2, 2, 4, 4, 5, 4, 8, 8, 5])
 
         nsamples_per_model = np.array([2, 4, 5, 8, 5])
         nmodels = len(nsamples_per_model)
@@ -495,7 +510,8 @@ class TestCVMC(unittest.TestCase):
              [0., 2., 2., 2., 2., 2., 2., 2.],
              [0., 2., 2., 4., 2., 6., 2., 8.]])
         assert np.allclose(nsamples_intersect, nsamples_interesect_true)
-        nsamples_subset = get_nsamples_subset(allocation_matrix, npartition_samples)
+        nsamples_subset = get_nsamples_subset(
+            allocation_matrix, npartition_samples)
         assert np.allclose(nsamples_subset, [0, 2, 2, 4, 2, 6, 2, 8])
 
         allocation_matrix = get_sample_allocation_matrix_mlmc(
@@ -514,7 +530,8 @@ class TestCVMC(unittest.TestCase):
              [0., 0., 0., 0., 0., 4., 4., 0.],
              [0., 0., 0., 0., 0., 0., 0., 4.]])
         assert np.allclose(nsamples_intersect, nsamples_interesect_true)
-        nsamples_subset = get_nsamples_subset(allocation_matrix, npartition_samples)
+        nsamples_subset = get_nsamples_subset(
+            allocation_matrix, npartition_samples)
         assert np.allclose(nsamples_subset, [0, 2, 2, 2, 2, 4, 4, 4])
 
     def test_get_discrepancy_covariances_multipliers(self):
@@ -565,15 +582,15 @@ class TestCVMC(unittest.TestCase):
 
     def test_generate_samples_and_values_mfmc(self):
         functions = ShortColumnModelEnsemble()
-        model_ensemble = pya.ModelEnsemble(
+        model_ensemble = ModelEnsemble(
             [functions.m0, functions.m1, functions.m2])
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         generate_samples = partial(
-            pya.generate_independent_random_samples, variable)
+            generate_independent_random_samples, variable)
 
         nhf_samples = 10
         costs = 10.**(-np.arange(3))
@@ -582,7 +599,7 @@ class TestCVMC(unittest.TestCase):
         nsamples_per_model = get_nsamples_per_model(
             target_cost, costs, nsample_ratios).astype(int)
         samples, values =\
-            pya.generate_samples_and_values_mfmc(
+            generate_samples_and_values_mfmc(
                 nsamples_per_model, model_ensemble.functions, generate_samples)
 
         nhf_samples = nsamples_per_model[0]
@@ -592,19 +609,19 @@ class TestCVMC(unittest.TestCase):
 
     def test_rsquared_mfmc(self):
         functions = ShortColumnModelEnsemble()
-        model_ensemble = pya.ModelEnsemble(
+        model_ensemble = ModelEnsemble(
             [functions.m0, functions.m3, functions.m4])
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         generate_samples = partial(
-            pya.generate_independent_random_samples, variable)
+            generate_independent_random_samples, variable)
         npilot_samples = int(1e4)
         pilot_samples = generate_samples(npilot_samples)
         config_vars = np.arange(model_ensemble.nmodels)[np.newaxis, :]
-        pilot_samples = pya.get_all_sample_combinations(
+        pilot_samples = get_all_sample_combinations(
             pilot_samples, config_vars)
         pilot_values = model_ensemble(pilot_samples)
         pilot_values = np.reshape(
@@ -617,8 +634,8 @@ class TestCVMC(unittest.TestCase):
         nsamples_per_model = np.concatenate(
             [[nhf_samples], nsample_ratios*nhf_samples])
 
-        eta = pya.get_mfmc_control_variate_weights(cov)
-        cor = pya.get_correlation_from_covariance(cov)
+        eta = get_mfmc_control_variate_weights(cov)
+        cor = get_correlation_from_covariance(cov)
         var_mfmc = cov[0, 0]/nsamples_per_model[0]
         for k in range(1, model_ensemble.nmodels):
             var_mfmc += (1/nsamples_per_model[k-1]-1/nsamples_per_model[k])*(
@@ -626,7 +643,7 @@ class TestCVMC(unittest.TestCase):
                     cov[0, 0]*cov[k, k]))
 
         assert np.allclose(var_mfmc/cov[0, 0]*nhf_samples,
-                           1-pya.get_rsquared_mfmc(cov, nsample_ratios))
+                           1-get_rsquared_mfmc(cov, nsample_ratios))
 
     def check_variance(self, estimator_type, setup_model,
                        target_cost, ntrials, rtol, kwargs={}):
@@ -641,7 +658,7 @@ class TestCVMC(unittest.TestCase):
                 model_ensemble, estimator, target_cost, ntrials,
                 max_eval_concurrency)
 
-        # from pyapprox.control_variate_monte_carlo import plot_sample_allocation
+        # from pyapprox.multifidelity.control_variate_monte_carlo import plot_sample_allocation
         # from pyapprox.util.configure_plots import plt
         # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         # plot_sample_allocation(
@@ -731,7 +748,7 @@ class TestCVMC(unittest.TestCase):
                 x[:, 0], target_cost, costs)[None, :]
             return jac
 
-        errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+        errors = check_gradients(obj, jac, x0[:, None], disp=True)
         assert errors.max() > 1e-2 and errors.min() < 1e-7
 
     def test_acv_sample_allocation_gmf_ratio_constraint(self):
@@ -757,7 +774,7 @@ class TestCVMC(unittest.TestCase):
                     x[:, 0], idx, parent_idx, target_cost, costs)[None, :]
                 return jac
 
-            errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+            errors = check_gradients(obj, jac, x0[:, None], disp=True)
             print(errors.max(), errors.min())
             assert errors.max() > 1e-3 and errors.min() < 1e-8
 
@@ -779,7 +796,7 @@ class TestCVMC(unittest.TestCase):
                     x[:, 0], idx, target_cost, costs)[None, :]
                 return jac
 
-            errors = pya.check_gradients(obj, jac, x0[:, None], disp=True)
+            errors = check_gradients(obj, jac, x0[:, None], disp=True)
             print(errors.max(), errors.min())
             assert errors.max() > 1e-3 and errors.min() < 3e-8
 
@@ -802,7 +819,7 @@ class TestCVMC(unittest.TestCase):
         estimator_cost = nsamples_per_model.dot(estimator.costs)
         assert np.allclose(estimator_cost, target_cost, rtol=1e-12)
 
-        lagrange_mult_exact = pya.get_lagrange_multiplier_mlmc(
+        lagrange_mult_exact = get_lagrange_multiplier_mlmc(
             cov, costs, target_cost, variance)
         print('lagrange_mult', lagrange_mult_exact)
 
@@ -818,7 +835,7 @@ class TestCVMC(unittest.TestCase):
             mlmc_sample_allocation_jacobian_all_lagrange_torch,
             estimator, variance, _ndarray_as_pkg_format(costs))
         assert np.allclose(
-            pya.approx_jacobian(
+            approx_jacobian(
                 lambda x: np.atleast_1d(lagrangian(x[:, 0])), x0[:, None]),
             lagrangian_jac(x0))
 
@@ -858,7 +875,7 @@ class TestCVMC(unittest.TestCase):
 
         target_cost = 20
 
-        nsample_ratios = pya.allocate_samples_mlmc(
+        nsample_ratios = allocate_samples_mlmc(
             cov, costs, target_cost)[0]
 
         print(nsample_ratios)
@@ -873,7 +890,7 @@ class TestCVMC(unittest.TestCase):
             val, grad = acv_sample_allocation_objective_all(
                 estimator, target_cost, x, True)
             return np.atleast_2d(val), grad.T
-        errors = pya.check_gradients(obj, True, x0, disp=True)
+        errors = check_gradients(obj, True, x0, disp=True)
         # print(errors.min())
         assert errors.max() > 1e-2 and errors.min() < 9e-8
 
@@ -887,7 +904,7 @@ class TestCVMC(unittest.TestCase):
         costs = np.array([6., 3., 1.])
 
         target_cost = 81
-        nsample_ratios = pya.allocate_samples_mlmc(
+        nsample_ratios = allocate_samples_mlmc(
             cov, costs, target_cost)[0]
 
         variable = IndependentMultivariateRandomVariable(
@@ -902,7 +919,7 @@ class TestCVMC(unittest.TestCase):
             val, grad = acv_sample_allocation_objective_all(
                 estimator, target_cost, x, True)
             return np.atleast_2d(val), grad.T
-        errors = pya.check_gradients(obj, True, x0, disp=True)
+        errors = check_gradients(obj, True, x0, disp=True)
         # print(errors.min())
         assert errors.max() > 6e-1 and errors.min() < 3e-7
 
@@ -912,7 +929,7 @@ class TestCVMC(unittest.TestCase):
         values = np.random.normal(1., 1., (nsamples, 1))
         est_variance = np.var(values)/nsamples
         bootstrap_mean, bootstrap_variance = \
-            pya.bootstrap_monte_carlo_estimator(values, nbootstraps)
+            bootstrap_monte_carlo_estimator(values, nbootstraps)
         # print(abs(est_variance-bootstrap_variance)/est_variance)
         assert abs((est_variance-bootstrap_variance)/est_variance) < 1e-2
 
@@ -923,7 +940,7 @@ class TestCVMC(unittest.TestCase):
         # example = PolynomialModelEnsemble()
         # model_costs = 10.**(-np.arange(example.nmodels))
         # target_cost = 100
-        model_ensemble = pya.ModelEnsemble(example.models)
+        model_ensemble = ModelEnsemble(example.models)
 
         cov_matrix = example.get_covariance_matrix()
         est = get_estimator("acvgmf", cov_matrix, model_costs,
@@ -1004,7 +1021,7 @@ class TestCVMC(unittest.TestCase):
         def obj(x):
             val, jac = estimator.objective(target_cost, x[:, 0])
             return np.atleast_2d(val), jac
-        errors = pya.check_gradients(obj, True, x0[:, None])
+        errors = check_gradients(obj, True, x0[:, None])
         assert errors.min() < 3e-7 and errors.max() > 1e-1
 
         target_cost = 1e3
@@ -1019,7 +1036,7 @@ class TestCVMC(unittest.TestCase):
         def obj(x):
             val, jac = estimator.objective(target_cost, x[:, 0])
             return np.atleast_2d(val), jac
-        errors = pya.check_gradients(obj, True, x0[:, None])
+        errors = check_gradients(obj, True, x0[:, None])
         assert errors.min() < 3e-7 and errors.max() > 1e-1
 
     def test_get_acvgmf_recusion_indices(self):
@@ -1044,20 +1061,20 @@ class TestCVMC(unittest.TestCase):
         for tindex in true_indices:
             assert tindex in indices
 
-        from pyapprox.control_variate_monte_carlo import plot_model_recursion
-        from pyapprox import plt
-        ngraphs = len(indices)
-        nrows = int(np.ceil(ngraphs/8))
-        ncols = int(np.ceil(ngraphs/nrows))
-        fig, axs = plt.subplots(nrows, ncols, figsize=(3*8, nrows*4))
-        axs = axs.flatten()
-        for ii, index in enumerate(indices):
-            plot_model_recursion(index, axs[ii])
-        for ii in range(len(indices), len(axs)):
-            axs[ii].remove()
-        plt.tight_layout()
-        plt.savefig("graph.png")
-        plt.show()
+        # from pyapprox.multifidelity.control_variate_monte_carlo import plot_model_recursion
+        # from pyapprox import plt
+        # ngraphs = len(indices)
+        # nrows = int(np.ceil(ngraphs/8))
+        # ncols = int(np.ceil(ngraphs/nrows))
+        # fig, axs = plt.subplots(nrows, ncols, figsize=(3*8, nrows*4))
+        # axs = axs.flatten()
+        # for ii, index in enumerate(indices):
+        #     plot_model_recursion(index, axs[ii])
+        # for ii in range(len(indices), len(axs)):
+        #     axs[ii].remove()
+        # plt.tight_layout()
+        # plt.savefig("graph.png")
+        # plt.show()
 
 
 if __name__ == "__main__":

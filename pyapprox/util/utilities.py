@@ -4,6 +4,7 @@ from warnings import warn
 
 import numpy as np
 from numpy.polynomial.legendre import leggauss
+from scipy.special import roots_hermitenorm
 
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
@@ -1547,3 +1548,15 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
         plt.show()
 
     return np.asarray(errors)
+
+
+def scipy_gauss_hermite_pts_wts_1D(nn):
+    x, w = roots_hermitenorm(nn)
+    w /= np.sqrt(2*np.pi)
+    return x, w
+
+
+def scipy_gauss_jacobi_pts_wts_1D(nn):
+    x, w = np.polynomial.legendre.leggauss(nn)
+    w *= 0.5
+    return x, w

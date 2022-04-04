@@ -37,7 +37,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.control_variate_monte_carlo
+.. automodapi:: pyapprox.multifidelity.control_variate_monte_carlo
    :no-inheritance-diagram:
 
 
