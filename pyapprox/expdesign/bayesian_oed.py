@@ -6,9 +6,9 @@ from functools import partial
 from multiprocessing import Pool
 from abc import ABC, abstractmethod
 
-from pyapprox.sys_utilities import trace_error_with_msg
+from pyapprox.utilities.sys_utilities import trace_error_with_msg
 from pyapprox.variables.risk_measures import conditional_value_at_risk
-from pyapprox.probability_measure_sampling import (
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
 from pyapprox.variables.variable_transformations import (

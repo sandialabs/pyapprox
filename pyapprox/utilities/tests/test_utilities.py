@@ -142,7 +142,7 @@ class TestUtilities(unittest.TestCase):
 
         # from scipy.interpolate import griddata
         # def interp_fun(x): return griddata(xx.T, vals, x.T, method="linear")
-        # from pyapprox.visualization import plt, get_meshgrid_function_data
+        # from pyapprox.utilities.visualization import plt, get_meshgrid_function_data
         # X, Y, Z = get_meshgrid_function_data(interp_fun, [-1, 1, -1, 1], 201)
         # plt.contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 31))

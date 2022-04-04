@@ -642,7 +642,7 @@ class TestCVMC(unittest.TestCase):
                 max_eval_concurrency)
 
         # from pyapprox.control_variate_monte_carlo import plot_sample_allocation
-        # from pyapprox.configure_plots import plt
+        # from pyapprox.utilities.configure_plots import plt
         # fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         # plot_sample_allocation(
         #     estimator._get_reordered_sample_allocation_matrix(),

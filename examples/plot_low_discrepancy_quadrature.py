@@ -45,7 +45,7 @@ pya.print_statistics(sobol_samples, values)
 #
 #Low-discrepancy sequences are typically more evenly space over the parameter
 #space. This can be seen by comparing the Monte Carlo and Sobol sequence samples
-from pyapprox.configure_plots import plt
+from pyapprox.utilities.configure_plots import plt
 plt.plot(mc_samples[0, :], mc_samples[1, :], 'ko', label="MC")
 plt.plot(sobol_samples[0, :], sobol_samples[1, :], 'rs', label="Sobol")
 plt.legend()

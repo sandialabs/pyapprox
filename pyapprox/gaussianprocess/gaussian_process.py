@@ -8,21 +8,31 @@ from scipy.linalg import solve_triangular
 from scipy.special import kv, gamma
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
-    ConstantKernel, WhiteKernel
+from sklearn.gaussian_process.kernels import (
+    Matern, RBF, Product, Sum, ConstantKernel, WhiteKernel
+)
 
-from pyapprox import get_univariate_quadrature_rules_from_variable
-from pyapprox.utilities.utilities import cartesian_product, outer_product, \
-    cholesky_solve_linear_system
-from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
-from pyapprox.utilities.utilities import pivoted_cholesky_decomposition, \
-    continue_pivoted_cholesky_decomposition
+from pyapprox.utilities.utilities import (
+    cartesian_product, outer_product
+)
+from pyapprox.expdesign.low_discrepancy_sequences import (
+    transformed_halton_sequence
+)
+from pyapprox.utilities.linalg import (
+    pivoted_cholesky_decomposition,
+    continue_pivoted_cholesky_decomposition, cholesky_solve_linear_system
+)
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.variables.variable_transformations import \
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
+)
 from pyapprox.polychaos.indexing import argsort_indices_leixographically
-from pyapprox.probability_measure_sampling import \
+from pyapprox.polychaos.gpc import (
+    get_univariate_quadrature_rules_from_variable
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
+)
 
 
 class GaussianProcess(GaussianProcessRegressor):
@@ -198,7 +208,7 @@ class RandomGaussianProcessRealizations:
     def fit(self, candidate_samples, rand_noise=None,
             ninterpolation_samples=500, nvalidation_samples=100):
         """
-        Construct interpolants of random realizations evaluated at the 
+        Construct interpolants of random realizations evaluated at the
         training data and at a new set of additional points
         """
         assert (ninterpolation_samples <=
@@ -595,7 +605,7 @@ def integrate_u_lamda_Pi_nu(xx_1d, ww_1d, xtr, lscale_ii):
     lamda = np.exp(-.5*dists_2d_x1_x2.T-.5*dists_2d_x2_xtr.T).dot(ww_2d)
 
     dists_2d_x1_xtr = dist_func(xx_2d[0:1, :].T/lscale_ii, xtr.T/lscale_ii)
-    # ntrain_samples = xtr.shape[1]    
+    # ntrain_samples = xtr.shape[1]
     # Pi = np.empty((ntrain_samples, ntrain_samples))
     # for mm in range(ntrain_samples):
     #     dists1=dists_2d_x1_xtr[:, mm:mm+1]
@@ -2560,7 +2570,7 @@ def generate_gp_realizations(gp, ngp_realizations, ninterpolation_samples,
             generate_independent_random_samples, variable)
     else:
         generate_random_samples = None
-    from pyapprox.gaussian_process import generate_gp_candidate_samples
+    from pyapprox.gaussianprocess.gaussian_process import generate_gp_candidate_samples
     candidate_samples = generate_gp_candidate_samples(
         variable.num_vars(), ncandidate_samples, generate_random_samples,
         variable)

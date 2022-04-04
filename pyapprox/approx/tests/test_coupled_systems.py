@@ -9,7 +9,7 @@ from pyapprox.coupled_systems import (
     get_extraction_indices, get_extraction_matrices
 )
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.probability_measure_sampling import \
+from pyapprox.variables.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.utilities.utilities import flatten_2D_list
 

@@ -1,7 +1,7 @@
 import numpy as np
 from functools import partial
 
-# from pyapprox.polynomial_sampling import christoffel_weights
+# from pyapprox.polychaos.polynomial_sampling import christoffel_weights
 from pyapprox.orthopoly.quadrature import (
     leja_growth_rule, gauss_quadrature
 )

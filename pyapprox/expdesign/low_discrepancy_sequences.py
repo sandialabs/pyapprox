@@ -2,7 +2,7 @@ import numpy as np
 
 from pyapprox.utilities.pya_numba import njit
 from pyapprox.utilities.utilities import get_first_n_primes
-from pyapprox.sys_utilities import trace_error_with_msg
+from pyapprox.utilities.sys_utilities import trace_error_with_msg
 
 
 @njit(cache=True)
@@ -32,7 +32,7 @@ def transformed_halton_sequence(marginal_icdfs, num_vars, num_samples,
     Generate a Halton sequence using inverse transform sampling.
 
     Deprecated: pass a variable argument to
-   :func:`pyapprox.low_discrepancy_sequences.halton_sequence`
+   :func:`pyapprox.expdesign.low_discrepancy_sequences.halton_sequence`
     """
     assert start_index > 0
     # sample with index 0 is [0,..0] this can cause problems for icdfs of

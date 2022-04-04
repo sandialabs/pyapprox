@@ -1,8 +1,16 @@
 import numpy as np
 import unittest
-from sklearn.gaussian_process.kernels import _approx_fprime
+import matplotlib.pyplot as plt
 
-from pyapprox.gradient_enhanced_gp import *
+from sklearn.gaussian_process.kernels import _approx_fprime
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import WhiteKernel, RBF
+
+from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.gaussianprocess.gradient_enhanced_gp import (
+    GradientEnhancedGP, DerivGPKernel, kernel_ff, kernel_dd, kernel_fd,
+    plot_gp_1d, predict_gpr_gradient
+)
 
 
 def gradient_enhanced_gp_example(num_vars, plot=True):

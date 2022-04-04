@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
 
 
 class TestLowDiscrepancySequences(unittest.TestCase):

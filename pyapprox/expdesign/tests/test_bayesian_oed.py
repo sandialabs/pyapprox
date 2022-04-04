@@ -20,7 +20,7 @@ from pyapprox.bayesian_oed import (
     get_bayesian_oed_optimizer
 )
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.probability_measure_sampling import (
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
 from pyapprox.orthopoly.quadrature import (

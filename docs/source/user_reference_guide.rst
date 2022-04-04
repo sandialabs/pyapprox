@@ -31,21 +31,21 @@ Surrogate based global sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The following functions can be used to extract sensitivity metrics analytically from a surrogate. 
 
-  - 'sparse_grid'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_sparse_grid`
+  - 'sparse_grid'  See :func:`pyapprox.analysis.sensitivity_analysis.analyze_sensitivity_sparse_grid`
     
-  - 'polynomial_chaos'  See :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_polynomial_chaos`
+  - 'polynomial_chaos'  See :func:`pyapprox.analysis.sensitivity_analysis.analyze_sensitivity_polynomial_chaos`
 
 The following functions can be used to visualize variance based sensitivity measures
 
-  - :func:`pyapprox.sensitivity_analysis.plot_main_effects`
+  - :func:`pyapprox.analysis.sensitivity_analysis.plot_main_effects`
 
-  - :func:`pyapprox.sensitivity_analysis.plot_total_effects`
+  - :func:`pyapprox.analysis.sensitivity_analysis.plot_total_effects`
 
-  - :func:`pyapprox.sensitivity_analysis.plot_interaction_values`
+  - :func:`pyapprox.analysis.sensitivity_analysis.plot_interaction_values`
     
 Local sensitivity analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-The :func:`pyapprox.sensitivity_analysis.analyze_sensitivity_morris` computes
+The :func:`pyapprox.analysis.sensitivity_analysis.analyze_sensitivity_morris` computes
 morris sensitivity indices.
 
 Multivariate Quadrature

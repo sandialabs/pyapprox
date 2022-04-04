@@ -1,14 +1,13 @@
 from sklearn.gaussian_process import GaussianProcessRegressor
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats as stats
-from scipy.stats import norm
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel, StationaryKernelMixin, NormalizedKernelMixin, Kernel, _check_length_scale, Hyperparameter, _approx_fprime, Sum, Product
-from scipy.spatial.distance import pdist, cdist, squareform
-from functools import partial
-
-from pyapprox.visualization import get_meshgrid_function_data
-from pyapprox.utilities.utilities import cartesian_product
+from sklearn.gaussian_process.kernels import (
+    ConstantKernel,
+    StationaryKernelMixin, NormalizedKernelMixin, Kernel,
+    _check_length_scale, Hyperparameter, _approx_fprime, Product
+)
+from scipy.spatial.distance import cdist
+from pyapprox.utilities.visualization import get_meshgrid_function_data
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):

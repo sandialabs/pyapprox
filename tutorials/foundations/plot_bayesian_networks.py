@@ -15,7 +15,7 @@ from scipy import stats
 import pyapprox as pya
 from pyapprox.gaussian_network import *
 import copy
-from pyapprox.configure_plots import *
+from pyapprox.utilities.configure_plots import *
 np.random.seed(1)
 
 nnodes = 3

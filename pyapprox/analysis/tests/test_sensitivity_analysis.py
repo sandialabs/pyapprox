@@ -4,7 +4,7 @@ from scipy.stats import uniform, norm
 import numpy as np
 from functools import partial
 
-from pyapprox.sensitivity_analysis import get_sobol_indices, \
+from pyapprox.analysis.sensitivity_analysis import get_sobol_indices, \
     get_main_and_total_effect_indices_from_pce, \
     get_morris_samples, downselect_morris_trajectories, \
     get_morris_elementary_effects, get_morris_sensitivity_indices, \

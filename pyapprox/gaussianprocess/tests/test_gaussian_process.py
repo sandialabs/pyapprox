@@ -11,7 +11,7 @@ from sklearn.gaussian_process.kernels import (
     Matern, WhiteKernel, RBF, ConstantKernel
 )
 
-from pyapprox.gaussian_process import (
+from pyapprox.gaussianprocess.gaussian_process import (
     GaussianProcess,
     RandomGaussianProcessRealizations, gaussian_process_pointwise_variance,
     integrate_gaussian_process, extract_covariance_kernel, gaussian_tau,
@@ -29,20 +29,32 @@ from pyapprox.gaussian_process import (
     RBF_posterior_variance_jacobian_wrt_samples, matern_gradient_wrt_samples,
     AdaptiveGaussianProcess, AdaptiveCholeskyGaussianProcessFixedKernel
 )
-from pyapprox.low_discrepancy_sequences import (
+from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, transformed_halton_sequence
 )
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
 from pyapprox.polychaos.indexing import compute_hyperbolic_indices
-import pyapprox as pya
-from pyapprox.approximate import approximate
-from pyapprox.sensitivity_analysis import (
+from pyapprox.approx.approximate import approximate
+from pyapprox.analysis.sensitivity_analysis import (
     get_sobol_indices,
     get_main_and_total_effect_indices_from_pce
 )
-from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.utilities.utilities import (
+    cartesian_product, outer_product, get_all_sample_combinations,
+    approx_jacobian, check_gradients
+)
+from pyapprox.variables.variables import (
+    IndependentMultivariateRandomVariable
+)
+from pyapprox.variables.probability_measure_sampling import (
+    generate_independent_random_samples
+)
+from pyapprox.orthopoly.quadrature import (
+    gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D
+)
+from pyapprox.variables.density import tensor_product_pdf
 
 
 def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
@@ -58,9 +70,9 @@ def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
     gp_vals, gp_std = gp(quad_samples, return_std=True)
     gp_vals = gp_vals[:, 0]
     mean_of_mean = gp_vals.dot(quad_weights)
-    quad_samples_WWXX = pya.get_all_sample_combinations(
+    quad_samples_WWXX = get_all_sample_combinations(
         quad_samples, quad_samples)
-    quad_weights_WWXX = pya.outer_product([quad_weights]*2)
+    quad_weights_WWXX = outer_product([quad_weights]*2)
 
     L = np.linalg.cholesky(A_inv)
 
@@ -160,7 +172,7 @@ class TestGaussianProcess(unittest.TestCase):
         ntrain_samples = 5
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples)]*nvars)
         train_vals = func(train_samples)
 
@@ -207,7 +219,7 @@ class TestGaussianProcess(unittest.TestCase):
         ntrain_samples = 5
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples)]*nvars)
         train_vals = func(train_samples)
 
@@ -236,7 +248,7 @@ class TestGaussianProcess(unittest.TestCase):
         # mu_scalar, sigma_scalar = 0, 1
 
         univariate_variables = [stats.norm(mu_scalar, sigma_scalar)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
         lb, ub = univariate_variables[0].interval(0.99999)
@@ -244,7 +256,7 @@ class TestGaussianProcess(unittest.TestCase):
         ntrain_samples = 5
         # ntrain_samples = 20
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples)]*nvars)
         train_vals = func(train_samples)
 
@@ -369,10 +381,10 @@ class TestGaussianProcess(unittest.TestCase):
             nxx = 100
         else:
             nxx = 15
-            xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
+            xx, ww = gauss_hermite_pts_wts_1D(nxx)
             xx = xx*sigma_scalar + mu_scalar
-            quad_points = pya.cartesian_product([xx]*nvars)
-            quad_weights = pya.outer_product([ww]*nvars)
+            quad_points = cartesian_product([xx]*nvars)
+            quad_weights = outer_product([ww]*nvars)
             mean_of_mean_quad, variance_of_mean_quad, mean_of_variance_quad = \
                 compute_mean_and_variance_of_gaussian_process(
                     gp, length_scale, train_samples, A_inv, kernel_var,
@@ -384,10 +396,10 @@ class TestGaussianProcess(unittest.TestCase):
 
         nsamples = int(1e6)
         random_means, random_variances = [], []
-        xx, ww = pya.gauss_hermite_pts_wts_1D(nxx)
+        xx, ww = gauss_hermite_pts_wts_1D(nxx)
         xx = xx*sigma_scalar + mu_scalar
-        quad_points = pya.cartesian_product([xx]*nvars)
-        quad_weights = pya.outer_product([ww]*nvars)
+        quad_points = cartesian_product([xx]*nvars)
+        quad_weights = outer_product([ww]*nvars)
         vals = gp.predict_random_realization(quad_points, nsamples)
         # when quad_points.shape is less than 1000 just compute
         # realizations exactly
@@ -427,7 +439,7 @@ class TestGaussianProcess(unittest.TestCase):
         def func(x): return constant*np.sum((2*x-.5)**2, axis=0)[:, np.newaxis]
 
         univariate_variables = [stats.uniform(0, 1)]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -488,10 +500,10 @@ class TestGaussianProcess(unittest.TestCase):
 
         nsamples = int(1e6)
         random_means = []
-        xx, ww = pya.gauss_jacobi_pts_wts_1D(300, 0, 0)
+        xx, ww = gauss_jacobi_pts_wts_1D(300, 0, 0)
         xx = (xx+1)/2
-        quad_points = pya.cartesian_product([xx]*nvars)
-        quad_weights = pya.outer_product([ww]*nvars)
+        quad_points = cartesian_product([xx]*nvars)
+        quad_weights = outer_product([ww]*nvars)
         vals = gp.predict_random_realization(quad_points, nsamples)
         random_means = vals.T.dot(quad_weights)
         random_variances = ((vals)**2).T.dot(quad_weights)-random_means**2
@@ -535,7 +547,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -568,9 +580,9 @@ class TestGaussianProcess(unittest.TestCase):
 
         nsamples = int(1e4)
         random_means = []
-        xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
-        quad_points = pya.cartesian_product([xx, (xx+1)/2])
-        quad_weights = pya.outer_product([ww]*nvars)
+        xx, ww = gauss_jacobi_pts_wts_1D(20, 0, 0)
+        quad_points = cartesian_product([xx, (xx+1)/2])
+        quad_weights = outer_product([ww]*nvars)
         vals = gp.predict_random_realization(quad_points, nsamples)
         random_means = vals.T.dot(quad_weights)
 
@@ -595,7 +607,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -637,13 +649,13 @@ class TestGaussianProcess(unittest.TestCase):
             gp_ii = marginalized_gps[ii]
             if center is True:
                 assert np.allclose(gp_ii.mean, expected_random_mean)
-            # variable_ii = pya.IndependentMultivariateRandomVariable(
+            # variable_ii = IndependentMultivariateRandomVariable(
             #     [univariate_variables[ii]])
 
             # kernel must be evaluated in canonical space
             # gp must be evaluated in user space
             xx = np.linspace(0, 1, 11)
-            xx, ww = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
+            xx, ww = gauss_jacobi_pts_wts_1D(20, 0, 0)
             xx = (xx+1)/2
             A_inv = np.linalg.inv(gp.L_.dot(gp.L_.T))
             K_pred = gp_ii.kernel_(2*xx[:, None]-1, gp_ii.X_train_)
@@ -657,7 +669,7 @@ class TestGaussianProcess(unittest.TestCase):
             # print(stdev_ii-std_ii)
             # assert np.allclose(stdev_ii, std_ii, atol=5e-8)
 
-            xx_quad, ww_quad = pya.gauss_jacobi_pts_wts_1D(10, 0, 0)
+            xx_quad, ww_quad = gauss_jacobi_pts_wts_1D(10, 0, 0)
             xx_quad = (xx_quad+1)/2
 
             # gp_ii_mean = gp_ii(xx_quad[None, :])[:, 0].dot(ww_quad)+gp_ii.mean
@@ -729,12 +741,12 @@ class TestGaussianProcess(unittest.TestCase):
 
         ntrain_samples = 100
         # train_samples = np.random.uniform(0, 1, (nvars, ntrain_samples))
-        from pyapprox.low_discrepancy_sequences import sobol_sequence
+        from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
         train_samples = sobol_sequence(nvars, ntrain_samples)
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         # var_trans = AffineRandomVariableTransformation(variable)
 
@@ -800,7 +812,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         # var_trans = AffineRandomVariableTransformation(variable)
 
@@ -862,11 +874,11 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [
             stats.uniform(bounds[2*ii], bounds[2*ii+1]-bounds[2*ii])
             for ii in range(len(bounds)//2)]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         # lb, ub = 1e4, 1e5
         # # lb, ub = 1e0, 1e1
-        # variable =  pya.IndependentMultivariateRandomVariable(
+        # variable =  IndependentMultivariateRandomVariable(
         #     [stats.uniform(lb, ub-lb)])#, stats.uniform(1e4, 1e5-1e4)])
         # length_scale = (ub-lb)/10
 
@@ -877,7 +889,7 @@ class TestGaussianProcess(unittest.TestCase):
             constant_value=1e5, constant_value_bounds='fixed')*fkernel
 
         coef = np.random.normal(0, 1, (1000, 1))
-        kernel_samples = pya.generate_independent_random_samples(
+        kernel_samples = generate_independent_random_samples(
             variable, coef.shape[0])
 
         def fun(samples):
@@ -903,7 +915,7 @@ class TestGaussianProcess(unittest.TestCase):
         # normalize_y, constant_value = False, fkernel.k1.constant_value
 
         alpha = 1e-8
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variable)
         kernel = Matern(
             np.ones(nvars), length_scale_bounds=(1e-1, 1e1), nu=np.inf)
         kernel = ConstantKernel(
@@ -915,7 +927,7 @@ class TestGaussianProcess(unittest.TestCase):
         print(gp.kernel_)
         print(fkernel)
 
-        # X, Y, Z = pya.get_meshgrid_function_data(fun, bounds, 30)
+        # X, Y, Z = get_meshgrid_function_data(fun, bounds, 30)
         # cset = plt.contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(),Z.max(), 20))
         # plt.show()
@@ -933,7 +945,7 @@ class TestGaussianProcess(unittest.TestCase):
             lb, ub = variable.interval(1)
             validation_samples = np.linspace(lb, ub, 101)[None, :]
         else:
-            validation_samples = pya.generate_independent_random_samples(
+            validation_samples = generate_independent_random_samples(
                 variable, 10)
 
         mean_vals, std = gp(validation_samples, return_std=True)
@@ -977,10 +989,10 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_basic_restart(self):
         nvars = 1
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
         sampler = CholeskySampler(nvars, 100, variables)
-        kernel = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(1, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
 
         num_samples = 10
@@ -994,10 +1006,10 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_restart_with_changed_kernel(self):
         nvars = 1
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
-        kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
-        kernel2 = pya.Matern(0.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel1 = Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        kernel2 = Matern(0.1, length_scale_bounds='fixed', nu=np.inf)
 
         num_samples = 10
         sampler = CholeskySampler(nvars, 100, variables)
@@ -1019,9 +1031,9 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_restart_with_changed_weight_function(self):
         nvars = 1
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
-        kernel1 = pya.Matern(1, length_scale_bounds='fixed', nu=np.inf)
+        kernel1 = Matern(1, length_scale_bounds='fixed', nu=np.inf)
 
         def wfunction1(x): return np.ones(x.shape[1])
 
@@ -1047,7 +1059,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
-        # variables = pya.IndependentMultivariateRandomVariable(
+        # variables = IndependentMultivariateRandomVariable(
         #    [stats.uniform(-1, 2)]*nvars)
 
         def func(samples): return np.array(
@@ -1056,7 +1068,7 @@ class TestSamplers(unittest.TestCase):
         validation_samples = np.random.uniform(0, 1, (nvars, 100))
         nsamples = 3
 
-        kernel = pya.Matern(1, length_scale_bounds='fixed', nu=3.5)
+        kernel = Matern(1, length_scale_bounds='fixed', nu=3.5)
         sampler1 = CholeskySampler(nvars, 100, None)
         sampler1.set_kernel(copy.deepcopy(kernel))
         gp1 = AdaptiveCholeskyGaussianProcessFixedKernel(sampler1, func)
@@ -1099,14 +1111,14 @@ class TestSamplers(unittest.TestCase):
         ncandidate_samples = 1000
 
         alpha_stat, beta_stat = 20, 20
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
 
         generate_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         weight_function = partial(
-            pya.tensor_product_pdf,
+            tensor_product_pdf,
             univariate_pdfs=partial(stats.beta.pdf, a=alpha_stat, b=beta_stat))
 
         def gp_mean_function(kernel, samples, alpha, X):
@@ -1120,7 +1132,7 @@ class TestSamplers(unittest.TestCase):
         lb, ub = 0, 1
         func_length_scale = sampler_length_scale
         func_matern_nu = sampler_matern_nu
-        func_kernel = pya.Matern(
+        func_kernel = Matern(
             func_length_scale, length_scale_bounds='fixed', nu=func_matern_nu)
         funcs = [random_gaussian_process(func_kernel, np.random.uniform(
             lb, ub, (nvars, 1000))) for n in range(ntrials)]
@@ -1130,12 +1142,12 @@ class TestSamplers(unittest.TestCase):
 
         func = partial(multiple_qoi_function, funcs)
 
-        sampler_kernel = pya.Matern(
+        sampler_kernel = Matern(
             sampler_length_scale, length_scale_bounds='fixed',
             nu=sampler_matern_nu)
 
         weight_function = None
-        sampler = pya.CholeskySampler(
+        sampler = CholeskySampler(
             nvars, ncandidate_samples, variables,
             generate_random_samples=generate_samples)
         sampler.set_kernel(copy.deepcopy(sampler_kernel))
@@ -1165,7 +1177,7 @@ class TestSamplers(unittest.TestCase):
                 self.condition_numbers.append(approx.condition_number())
 
         callback = Callback(validation_samples, validation_values)
-        gp = pya.AdaptiveCholeskyGaussianProcessFixedKernel(sampler, func)
+        gp = AdaptiveCholeskyGaussianProcessFixedKernel(sampler, func)
 
         # checkpoints = [5, 10, 100, 500]
         checkpoints = [5, 10, 20, 50, 100, 200, 300, 500, 1000]
@@ -1184,7 +1196,7 @@ class TestSamplers(unittest.TestCase):
         lb, ub = 0, 1
         ntrain_samples_1d = 10
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
 
         length_scale = [0.1, 0.2][:nvars]
@@ -1195,10 +1207,10 @@ class TestSamplers(unittest.TestCase):
         grad = RBF_gradient_wrt_samples(
             x0, pred_samples, length_scale)
 
-        fd_grad = pya.approx_jacobian(
+        fd_grad = approx_jacobian(
             lambda x: kernel(x, pred_samples.T)[0, :], x0[:, 0])
         assert np.allclose(grad, fd_grad, atol=1e-6)
-        errors = pya.check_gradients(
+        errors = check_gradients(
             lambda x: kernel(x.T, pred_samples.T)[0, :],
             lambda x: RBF_gradient_wrt_samples(
                 x, pred_samples, length_scale), x0)
@@ -1215,13 +1227,13 @@ class TestSamplers(unittest.TestCase):
             return gaussian_process_pointwise_variance(
                 kernel, pred_samples, x_flat.reshape(
                     train_samples.shape, order='F'))
-        fd_jac = pya.approx_jacobian(func, x0)
+        fd_jac = approx_jacobian(func, x0)
 
         # print(jac, '\n\n',f d_jac)
         # print('\n', np.absolute(jac-fd_jac).max())
         assert np.allclose(jac, fd_jac, atol=1e-5)
 
-        errors = pya.check_gradients(
+        errors = check_gradients(
             func,
             lambda x: RBF_posterior_variance_jacobian_wrt_samples(
                 x.reshape(nvars, x.shape[0]//nvars, order='F'),
@@ -1233,7 +1245,7 @@ class TestSamplers(unittest.TestCase):
         lb, ub = 0, 1
         ntrain_samples_1d = 3
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
 
         length_scale = [0.1, 0.2][:nvars]
@@ -1245,10 +1257,10 @@ class TestSamplers(unittest.TestCase):
             nu, x0, pred_samples, length_scale)
         # K = kernel(x0.T, pred_samples.T)
 
-        fd_grad = pya.approx_jacobian(
+        fd_grad = approx_jacobian(
             lambda x: kernel(x, pred_samples.T)[0, :], x0[:, 0])
         assert np.allclose(grad, fd_grad, atol=1e-6)
-        errors = pya.check_gradients(
+        errors = check_gradients(
             lambda x: kernel(x.T, pred_samples.T)[0, :],
             lambda x: matern_gradient_wrt_samples(
                 nu, x, pred_samples, length_scale), x0)
@@ -1266,7 +1278,7 @@ class TestSamplers(unittest.TestCase):
         ntrain_samples_1d = 10
         def func(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
         # train_vals = func(train_samples)
 
@@ -1287,7 +1299,7 @@ class TestSamplers(unittest.TestCase):
             return gaussian_process_pointwise_variance(
                 kernel, pred_samples, x_flat.reshape(
                     train_samples.shape, order='F'))
-        fd_jac = pya.approx_jacobian(func, x0)[:, new_samples_index*nvars:]
+        fd_jac = approx_jacobian(func, x0)[:, new_samples_index*nvars:]
 
         # print(jac, '\n\n',f d_jac)
         # print('\n', np.absolute(jac-fd_jac).max())
@@ -1301,7 +1313,7 @@ class TestSamplers(unittest.TestCase):
 
         ntrain_samples_1d = 2
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
 
         length_scale = [0.5, 0.4][:nvars]
@@ -1309,7 +1321,7 @@ class TestSamplers(unittest.TestCase):
 
         # the shorter the length scale the larger the number of quadrature
         # points is needed
-        xx_1d, ww_1d = pya.gauss_hermite_pts_wts_1D(100)
+        xx_1d, ww_1d = gauss_hermite_pts_wts_1D(100)
         grad_P = integrate_grad_P(
             [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)[0]
 
@@ -1334,8 +1346,8 @@ class TestSamplers(unittest.TestCase):
             term2,
             (np.exp(-(xx_1d-b)**2/(2*length_scale[1]**2))**2).dot(ww_1d))
 
-        pred_samples = pya.cartesian_product([xx_1d]*nvars)
-        weights = pya.outer_product([ww_1d]*nvars)
+        pred_samples = cartesian_product([xx_1d]*nvars)
+        weights = outer_product([ww_1d]*nvars)
         for ii in range(train_samples.shape[1]):
             x0 = train_samples[:, ii:ii+1]
             grad = RBF_gradient_wrt_samples(
@@ -1368,7 +1380,7 @@ class TestSamplers(unittest.TestCase):
 
         ntrain_samples_1d = 4
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
 
         length_scale = [0.5, 0.4, 0.6][:nvars]
@@ -1376,7 +1388,7 @@ class TestSamplers(unittest.TestCase):
 
         # the shorter the length scale the larger the number of quadrature
         # points is needed
-        xx_1d, ww_1d = pya.gauss_hermite_pts_wts_1D(100)
+        xx_1d, ww_1d = gauss_hermite_pts_wts_1D(100)
         grad_P, P = integrate_grad_P(
             [xx_1d]*nvars, [ww_1d]*nvars, train_samples, length_scale)
 
@@ -1393,7 +1405,7 @@ class TestSamplers(unittest.TestCase):
             return vals
 
         x0 = train_samples.flatten(order='F')
-        P_fd_jac = pya.approx_jacobian(func1, x0)
+        P_fd_jac = approx_jacobian(func1, x0)
         ntrain_samples = train_samples.shape[1]
         assert np.allclose(
             P_fd_jac.shape, (ntrain_samples**2, nvars*ntrain_samples))
@@ -1438,7 +1450,7 @@ class TestSamplers(unittest.TestCase):
             val = np.sum(A_inv*P)
             return -val
 
-        A_fd_jac = pya.approx_jacobian(func2, x0).reshape((
+        A_fd_jac = approx_jacobian(func2, x0).reshape((
             ntrain_samples, ntrain_samples, nvars*ntrain_samples), order='F')
         assert np.allclose(_approx_fprime(x0, lambda x: func2(x).reshape(
             ntrain_samples, ntrain_samples, order='F'),
@@ -1450,7 +1462,7 @@ class TestSamplers(unittest.TestCase):
             np.sum(A_fd_jac*P[:, :, np.newaxis] +
                    P_fd_jac_res*A_inv[:, :, np.newaxis], axis=(0, 1))
 
-        obj_fd_jac = pya.approx_jacobian(func3, x0)[0, :]
+        obj_fd_jac = approx_jacobian(func3, x0)[0, :]
         assert np.allclose(obj_fd_split, obj_fd_jac)
 
         assert np.allclose(
@@ -1505,7 +1517,7 @@ class TestSamplers(unittest.TestCase):
         ntrain_samples_1d = 10
         def func1(x): return np.sum(x**2, axis=0)[:, np.newaxis]
 
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(lb, ub, ntrain_samples_1d)]*nvars)
         # train_vals = func1(train_samples)
 
@@ -1514,7 +1526,7 @@ class TestSamplers(unittest.TestCase):
         length_scale = [0.1, 0.2][:nvars]
         kernel = RBF(length_scale, length_scale_bounds='fixed')
 
-        xx_1d, ww_1d = pya.gauss_jacobi_pts_wts_1D(100, 0, 0)
+        xx_1d, ww_1d = gauss_jacobi_pts_wts_1D(100, 0, 0)
         t0 = time.time()
         jac = RBF_integrated_posterior_variance_gradient_wrt_samples(
             train_samples, [xx_1d]*nvars, [ww_1d]*nvars, kernel,
@@ -1536,7 +1548,7 @@ class TestSamplers(unittest.TestCase):
             return -val
 
         t0 = time.time()
-        fd_jac = pya.approx_jacobian(func, x0)[0, new_samples_index*nvars:]
+        fd_jac = approx_jacobian(func, x0)[0, new_samples_index*nvars:]
         print(time.time()-t0)
 
         print(jac, '\n\n', fd_jac)
@@ -1545,17 +1557,17 @@ class TestSamplers(unittest.TestCase):
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         # correlation length affects ability to check gradient.
         # As kernel matrix gets more ill conditioned then gradients get worse
         greedy_method = 'ivar'
         # greedy_method = 'chol'
         use_gauss_quadrature = False
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables,
             greedy_method, use_gauss_quadrature=use_gauss_quadrature,
@@ -1573,12 +1585,12 @@ class TestSamplers(unittest.TestCase):
         # training samples makes kernel matrix more ill conditioned then
         # gradients get worse
         ntrain_samples_1d = 10
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
         if not use_gauss_quadrature:
             # gradients not currently implemented when using quadrature
-            errors = pya.check_gradients(
+            errors = check_gradients(
                 sampler.objective, sampler.objective_gradient,
                 x0[:, np.newaxis], disp=False)
             assert errors.min() < 4e-6
@@ -1642,17 +1654,17 @@ class TestSamplers(unittest.TestCase):
 
     def test_quadrature_gradient_based_ivar_sampler(self):
         nvars = 2
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         # correlation length affects ability to check gradient.
         # As kerenl matrix gets more ill conditioned then gradients get worse
         greedy_method = 'ivar'
         # greedy_method = 'chol'
         use_gauss_quadrature = True
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables,
             greedy_method, use_gauss_quadrature=use_gauss_quadrature,
@@ -1670,12 +1682,12 @@ class TestSamplers(unittest.TestCase):
         # training samples makes kernel matrix more ill conditioned then
         # gradients get worse
         ntrain_samples_1d = 10
-        train_samples = pya.cartesian_product(
+        train_samples = cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
         if not use_gauss_quadrature:
             # gradients not currently implemented when using quadrature
-            errors = pya.check_gradients(
+            errors = check_gradients(
                 sampler.objective, sampler.objective_gradient,
                 x0[:, np.newaxis], disp=False)
             assert errors.min() < 4e-6
@@ -1739,12 +1751,12 @@ class TestSamplers(unittest.TestCase):
 
     def test_greedy_gauss_quadrature_ivar_sampler_I(self):
         nvars = 2
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         np.random.seed(1)
         sampler1 = GreedyIntegratedVarianceSampler(
             nvars, 100, 10, generate_random_samples,
@@ -1773,7 +1785,7 @@ class TestSamplers(unittest.TestCase):
             sampler2 = GreedyIntegratedVarianceSampler(
                 nvars, 50, 1000, generate_random_samples,
                 variables, use_gauss_quadrature=True, econ=False)
-            kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+            kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
             sampler1.set_kernel(kernel)
             sampler2.set_kernel(kernel)
             # print('nsamples',nsamples)
@@ -1794,10 +1806,10 @@ class TestSamplers(unittest.TestCase):
 
     def check_greedy_monte_carlo_ivar_sampler(
             self, nvars, kernel, kernels_1d):
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         use_gauss_quadrature = False
         np.random.seed(1)
@@ -1852,25 +1864,25 @@ class TestSamplers(unittest.TestCase):
     def test_greedy_monte_carlo_ivar_sampler_II(self):
         # TODO Add check to IVAR and VarofMean samplers to make sure
         # kernel and 1d_kernels are consistent
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         kernels_1d = None
         self.check_greedy_monte_carlo_ivar_sampler(2, kernel, kernels_1d)
 
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=2.5)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=2.5)
         kernels_1d = None
         self.check_greedy_monte_carlo_ivar_sampler(2, kernel, kernels_1d)
 
     def test_greedy_variance_of_mean_sampler(self):
         nvars = 2
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         sampler = GreedyVarianceOfMeanSampler(
             nvars, 1000, 10, generate_random_samples,
             variables, use_gauss_quadrature=True, econ=True)
-        kernel = pya.Matern(.4, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.4, length_scale_bounds='fixed', nu=np.inf)
         sampler.set_kernel(kernel)
 
         sampler.nmonte_carlo_samples = 100000
@@ -1882,7 +1894,7 @@ class TestSamplers(unittest.TestCase):
         # print((tau_mc-tau_gq)/tau_mc)
         assert np.allclose(tau_mc, tau_gq, rtol=1e-2)
 
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
 
         use_gauss_quadrature = False
         nquad_samples = 10000
@@ -1927,14 +1939,14 @@ class TestSamplers(unittest.TestCase):
 
     def compare_ivar_samplers(self):
         nvars = 2
-        variables = pya.IndependentMultivariateRandomVariable(
+        variables = IndependentMultivariateRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
-            pya.generate_independent_random_samples, variables)
+            generate_independent_random_samples, variables)
 
         # correlation length affects ability to check gradient.
         # As kerenl matrix gets more ill conditioned then gradients get worse
-        kernel = pya.Matern(.1, length_scale_bounds='fixed', nu=np.inf)
+        kernel = Matern(.1, length_scale_bounds='fixed', nu=np.inf)
         sampler = IVARSampler(
             nvars, 1000, 1000, generate_random_samples, variables, 'ivar')
         sampler.set_kernel(kernel)

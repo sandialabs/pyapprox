@@ -14,7 +14,7 @@ be the cartesian product of the centered truncated intervals of each
 PDF. For bounded variables the true bounds are used (i.e. are not truncated)
 """
 import pyapprox as pya
-from pyapprox.configure_plots import plt
+from pyapprox.utilities.configure_plots import plt
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 import numpy as np
 np.random.seed(1)

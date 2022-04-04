@@ -147,7 +147,7 @@ def get_uniform_samples_on_polygon(num_samples, vertices, batch_size=100):
         num_accepted_samples += num_batch_samples_accepted
 
     assert accepted_samples.shape[1] == num_samples
-    # from pyapprox.visualization import plot_2d_polygon
+    # from pyapprox.utilities.visualization import plot_2d_polygon
     # plot_2d_polygon(vertices)
     # import matplotlib.pyplot as plt
     # plt.plot(accepted_samples[0,:],accepted_samples[1,:],'ro')
@@ -319,7 +319,7 @@ def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
             #     indices, coeffs = multiply_multivariate_polynomials_pyx(
             #         indices, coeffs, indices_dd, coeffs_dd)
             # except (ImportError, TypeError) as e:
-            #     from pyapprox.sys_utilities import trace_error_with_msg
+            #     from pyapprox.utilities.sys_utilities import trace_error_with_msg
             #     trace_error_with_msg('multiply_multivariate_polynomials extension failed', e)
 
             #     print(coeffs.shape, coeffs_dd.shape)
@@ -653,7 +653,7 @@ def evaluate_active_subspace_density_1d(W, density_fn, points_for_eval=None,
 
 
 def evaluate_active_subspace_density_1d_example(density_fn, tol, test=False):
-    from pyapprox.visualization import plot_2d_polygon, \
+    from pyapprox.utilities.visualization import plot_2d_polygon, \
         get_meshgrid_function_data
 
     num_quad_samples = 100

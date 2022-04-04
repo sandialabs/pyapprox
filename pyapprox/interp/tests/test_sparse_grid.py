@@ -840,7 +840,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             smolyak_coeffs = update_smolyak_coefficients(
                 new_indices[:, ii], subspace_indices, smolyak_coeffs)
 
-        # from pyapprox.visualization import plot_2d_indices
+        # from pyapprox.utilities.visualization import plot_2d_indices
         # import matplotlib.pyplot as plt
         # plot_2d_indices(subspace_indices,smolyak_coeffs)
         # plt.figure()
@@ -1686,7 +1686,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         # for integrals of indices multiplied by themselves
         assert np.allclose(II, np.tile(np.arange(indices.shape[1]), (2, 1)))
 
-        # from pyapprox.visualization import plot_2d_indices, plot_3d_indices
+        # from pyapprox.utilities.visualization import plot_2d_indices, plot_3d_indices
         # plot_2d_indices(
         #     indices,other_indices=[sparse_grid.poly_indices,
         #                            double_set_indices])

@@ -5,7 +5,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
    
 
-.. automodapi:: pyapprox.sensitivity_analysis
+.. automodapi:: pyapprox.analysis.sensitivity_analysis
    :no-inheritance-diagram:
    
 
@@ -41,7 +41,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.visualization
+.. automodapi:: pyapprox.utilities.visualization
    :no-inheritance-diagram:
 
 

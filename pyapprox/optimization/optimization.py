@@ -290,7 +290,7 @@ def plot_optimization_history(obj_function, constraints, uq_samples, opt_history
 
 def plot_optimization_objective_and_constraints_2D(
         constraints, objective, plot_limits):
-    from pyapprox.visualization import get_meshgrid_function_data
+    from pyapprox.utilities.visualization import get_meshgrid_function_data
     num_pts_1d = 100
     num_contour_levels = 30
     fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))

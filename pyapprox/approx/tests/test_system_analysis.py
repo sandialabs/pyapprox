@@ -15,7 +15,7 @@ from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator
 from pyapprox.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth
 )
-from pyapprox.probability_measure_sampling import (
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
 

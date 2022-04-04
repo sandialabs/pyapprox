@@ -10,13 +10,13 @@ First lets import necessary modules and define a function useful for estimating 
    :context:
 
    import numpy as np
-   from pyapprox.configure_plots import *
-   from pyapprox.adaptive_polynomial_chaos import *
+   from pyapprox.utilities.configure_plots import *
+   from pyapprox.polychaos.adaptive_polynomial_chaos import *
    from pyapprox.variables.variable_transformations import \
    AffineBoundedVariableTransformation, AffineRandomVariableTransformation
    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
    from scipy.stats import beta
-   from pyapprox.probability_measure_sampling import \
+   from pyapprox.variables.probability_measure_sampling import \
        generate_independent_random_samples
    from pyapprox.interp.adaptive_sparse_grid import max_level_admissibility_function, \
        isotropic_refinement_indicator

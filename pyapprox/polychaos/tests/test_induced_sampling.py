@@ -317,7 +317,7 @@ class TestInducedSampling(unittest.TestCase):
             # new_samples = samples[:, num_prev_samples:]
             # prev_samples = samples[:, :num_prev_samples]
             # fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-            # from pyapprox.visualization import plot_2d_indices
+            # from pyapprox.utilities.visualization import plot_2d_indices
             # axs[0].plot(prev_samples[0,:],prev_samples[1,:],'ko');
             # axs[0].plot(new_samples[0,:],new_samples[1,:],'ro');
             # plot_2d_indices(indices,other_indices=new_indices,ax=axs[1]);
@@ -375,7 +375,7 @@ class TestInducedSampling(unittest.TestCase):
             christoffel_function(x, poly.basis_matrix, True).dot(w), 1.0)
         assert np.allclose(x.dot(w), samples.mean(axis=1), atol=1e-2)
 
-        # from pyapprox.visualization import get_meshgrid_function_data
+        # from pyapprox.utilities.visualization import get_meshgrid_function_data
         # def induced_density(x):
         #     vals=christoffel_function(x,poly.basis_matrix)*probability_density(
         #         x)/np.sqrt(poly.indices.shape[1])

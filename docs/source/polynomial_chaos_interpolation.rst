@@ -18,7 +18,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    AffineRandomVariableTransformation
    from pyapprox.polychaos.gpc import PolynomialChaosExpansion,\
    define_poly_options_from_variable_transformation
-   from pyapprox.probability_measure_sampling import \
+   from pyapprox.variables.probability_measure_sampling import \
    generate_independent_random_samples
    from scipy.stats import uniform, beta
    from pyapprox.polychaos.indexing import compute_hyperbolic_indices, tensor_product_indices
@@ -27,7 +27,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
    from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
-   from pyapprox.polynomial_sampling import christoffel_weights
+   from pyapprox.polychaos.polynomial_sampling import christoffel_weights
    
    np.random.seed(1)
 
@@ -189,8 +189,8 @@ Now lets plot the Genz function and the error in the PCE approximation
 
    plot_limits = [0,1,0,1]
    num_pts_1d = 30
-   from pyapprox.configure_plots import *
-   from pyapprox.visualization import plot_surface, get_meshgrid_function_data
+   from pyapprox.utilities.configure_plots import *
+   from pyapprox.utilities.visualization import plot_surface, get_meshgrid_function_data
 
    fig = plt.figure(figsize=(2*8,6))
    ax=fig.add_subplot(1,2,1,projection='3d')

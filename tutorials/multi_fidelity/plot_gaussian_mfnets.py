@@ -25,7 +25,7 @@ As our first example we will consider the following ensemble of three univariate
 
 Let's first import the necessary functions and modules and set the seed for reproducibility
 """
-from pyapprox.configure_plots import *
+from pyapprox.utilities.configure_plots import *
 import numpy as np
 from scipy import stats
 import scipy

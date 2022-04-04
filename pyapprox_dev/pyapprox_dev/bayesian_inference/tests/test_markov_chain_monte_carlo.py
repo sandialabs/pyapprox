@@ -163,7 +163,7 @@ class TestMCMC(unittest.TestCase):
                 algorithm=algorithm,get_map=True,print_summary=True,
                 loglike_grad = loglike.gradient, seed=2)
 
-        # from pyapprox.visualization import get_meshgrid_function_data
+        # from pyapprox.utilities.visualization import get_meshgrid_function_data
         # import matplotlib
         # X,Y,Z = get_meshgrid_function_data(
         #     lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)

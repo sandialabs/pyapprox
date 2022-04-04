@@ -9,7 +9,7 @@ This tutorial describes how to construct a polynomial chaos expansion (PCE) of a
 from pyapprox.interp.sparse_grid import plot_sparse_grid_2d
 import numpy as np
 import pyapprox as pya
-from pyapprox.configure_plots import *
+from pyapprox.utilities.configure_plots import *
 from functools import partial
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 

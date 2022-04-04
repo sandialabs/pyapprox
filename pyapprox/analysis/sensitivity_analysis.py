@@ -5,10 +5,10 @@ from itertools import combinations
 
 from pyapprox.polychaos.indexing import hash_array, argsort_indices_leixographically
 from pyapprox.utilities.utilities import nchoosek
-from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
-from pyapprox.probability_measure_sampling import \
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
+from pyapprox.variables.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.gaussian_process import \
+from pyapprox.gaussianprocess.gaussian_process import \
     _compute_expected_sobol_indices, generate_gp_realizations, \
     extract_gaussian_process_attributes_for_integration
 from pyapprox.polychaos.gpc import \
@@ -538,7 +538,7 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories,
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
+    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     mu : np.ndarray (nvars,nqoi)
@@ -591,7 +591,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
+    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     main_effects : np.ndarray (nvars)
@@ -649,7 +649,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
 
     Returns
     -------
-    result : :class:`pyapprox.sensitivity_analysis.SensitivityResult`
+    result : :class:`pyapprox.analysis.sensitivity_analysis.SensitivityResult`
          Result object with the following attributes
 
     main_effects : np.ndarray (nvars)

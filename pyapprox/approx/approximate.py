@@ -4,35 +4,46 @@ from functools import partial
 from scipy.optimize import OptimizeResult
 from scipy.linalg import LinAlgWarning
 
-from sklearn.linear_model import LassoCV, LassoLarsCV, LarsCV, \
-    OrthogonalMatchingPursuitCV, Lasso, LassoLars, Lars, \
-    OrthogonalMatchingPursuit
+from sklearn.linear_model import (
+    LassoCV, LassoLarsCV, LarsCV, OrthogonalMatchingPursuitCV, Lasso,
+    LassoLars, Lars, OrthogonalMatchingPursuit
+)
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils._testing import ignore_warnings
 from sklearn.linear_model._base import LinearModel
 
-from pyapprox import hash_array, get_forward_neighbor, get_backward_neighbor
-from pyapprox.probability_measure_sampling import \
+from pyapprox.utilities.utilities import hash_array
+from pyapprox.polychaos.indexing import (
+    get_forward_neighbor, get_backward_neighbor,
+    compute_hyperbolic_indices
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
-    variance_pce_refinement_indicator, AdaptiveInducedPCE
-from pyapprox.polynomial_sampling import christoffel_weights
-from pyapprox import compute_hyperbolic_indices
+)
+from pyapprox.polychaos.adaptive_polynomial_chaos import (
+    AdaptiveLejaPCE, variance_pce_refinement_indicator, AdaptiveInducedPCE
+)
+from pyapprox.polychaos.polynomial_sampling import christoffel_weights
 from pyapprox.variables.variables import is_bounded_continuous_variable
-from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator, \
-    CombinationSparseGrid, constant_increment_growth_rule, \
-    get_sparse_grid_univariate_leja_quadrature_rules_economical, \
-    max_level_admissibility_function, get_unique_max_level_1d, \
+from pyapprox.interp.adaptive_sparse_grid import (
+    variance_refinement_indicator,
+    CombinationSparseGrid, constant_increment_growth_rule,
+    get_sparse_grid_univariate_leja_quadrature_rules_economical,
+    max_level_admissibility_function, get_unique_max_level_1d,
     get_unique_quadrule_variables
+)
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.variables.variable_transformations import \
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
-from pyapprox.low_discrepancy_sequences import halton_sequence
-from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
-    CholeskySampler, GaussianProcess
-from pyapprox.polychaos.gpc import PolynomialChaosExpansion, \
-    define_poly_options_from_variable_transformation
-from pyapprox.neural_networks import NeuralNetwork
+)
+from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
+from pyapprox.gaussianprocess.gaussian_process import (
+    AdaptiveGaussianProcess, CholeskySampler, GaussianProcess
+)
+from pyapprox.polychaos.gpc import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation
+)
+from pyapprox.approx.neural_networks import NeuralNetwork
 
 
 class ApproximateResult(OptimizeResult):
@@ -652,7 +663,7 @@ def adaptive_approximate_gaussian_process(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.gaussian_process.AdaptiveGaussianProcess`
+    approx : :class:`pyapprox.gaussianprocess.gaussian_process.AdaptiveGaussianProcess`
         The Gaussian process
     """
     assert max_nsamples <= ncandidate_samples
@@ -1753,7 +1764,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx : :class:`pyapprox.gaussian_process.GaussianProcess`
+    approx : :class:`pyapprox.gaussianprocess.gaussian_process.GaussianProcess`
         The Gaussian process
     """
     nvars = train_samples.shape[0]

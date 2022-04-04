@@ -713,7 +713,7 @@ def plot_sparse_grid_2d(samples, weights, poly_indices=None, subspace_indices=No
         The unique polynomial indices of the sparse grid.
 
     """
-    from pyapprox.visualization import plot_2d_indices
+    from pyapprox.utilities.visualization import plot_2d_indices
     if samples.shape[0] != 2:
         return
 
@@ -756,7 +756,7 @@ def plot_sparse_grid_2d(samples, weights, poly_indices=None, subspace_indices=No
 
 def plot_sparse_grid_3d(samples, weights, poly_indices=None, subspace_indices=None,
                         active_samples=None, active_subspace_indices=None):
-    from pyapprox.visualization import plot_3d_indices
+    from pyapprox.utilities.visualization import plot_3d_indices
     if samples.shape[0] != 3:
         return
 

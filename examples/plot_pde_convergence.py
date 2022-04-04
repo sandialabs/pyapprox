@@ -10,7 +10,7 @@ First lets define a Integrator class which can be used to integrate multivariate
 import numpy as np
 from pyapprox.convergence_studies import \
     run_convergence_study, plot_convergence_data
-from pyapprox.configure_plots import plt
+from pyapprox.utilities.configure_plots import plt
 from pyapprox.utilities.utilities import (
     get_tensor_product_piecewise_polynomial_quadrature_rule,
 )

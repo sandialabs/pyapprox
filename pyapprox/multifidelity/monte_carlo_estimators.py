@@ -4,7 +4,7 @@ from functools import partial
 from itertools import combinations
 
 from pyapprox.utilities.utilities import get_correlation_from_covariance
-from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from pyapprox.control_variate_monte_carlo import (
     compute_approximate_control_variate_mean_estimate,
     get_rsquared_mlmc, allocate_samples_mlmc, get_mlmc_control_variate_weights,
