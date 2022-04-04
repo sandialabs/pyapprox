@@ -14,7 +14,7 @@ from pyapprox.interp.barycentric_interpolation import \
     clenshaw_curtis_barycentric_weights, \
     multivariate_hierarchical_barycentric_lagrange_interpolation, \
     tensor_product_lagrange_interpolation
-from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.util.utilities import cartesian_product
 from pyapprox.orthopoly.quadrature import clenshaw_curtis_in_polynomial_order
 from pyapprox.polychaos.gpc import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
@@ -23,7 +23,7 @@ from pyapprox.orthopoly.quadrature import \
     clenshaw_curtis_pts_wts_1D
 from pyapprox.orthopoly.leja_quadrature import \
     get_univariate_leja_quadrature_rule
-from pyapprox.utilities.utilities import nchoosek
+from pyapprox.util.utilities import nchoosek
 
 
 def preconditioned_barycentric_weights():

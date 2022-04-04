@@ -11,7 +11,7 @@ from pyapprox.optimization.l1_minimization import (
     iterative_hard_thresholding, s_sparse_projection,
     orthogonal_matching_pursuit
 )
-from pyapprox.utilities.utilities import check_gradients, approx_jacobian
+from pyapprox.util.utilities import check_gradients, approx_jacobian
 from pyapprox.optimization.optimization import (
     PyapproxFunctionAsScipyMinimizeObjective,
     ScipyMinimizeObjectiveAsPyapproxFunction,

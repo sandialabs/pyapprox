@@ -1,7 +1,7 @@
 import numpy as np
 from functools import partial
 from scipy import stats
-from pyapprox.utilities.utilities import get_all_sample_combinations
+from pyapprox.util.utilities import get_all_sample_combinations
 from pyapprox.interface.wrappers import ActiveSetVariableModel
 from pyapprox.optimization.cvar_regression import smooth_max_function_first_derivative,\
     smooth_max_function_second_derivative
@@ -290,7 +290,7 @@ def plot_optimization_history(obj_function, constraints, uq_samples, opt_history
 
 def plot_optimization_objective_and_constraints_2D(
         constraints, objective, plot_limits):
-    from pyapprox.utilities.visualization import get_meshgrid_function_data
+    from pyapprox.util.visualization import get_meshgrid_function_data
     num_pts_1d = 100
     num_contour_levels = 30
     fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))

@@ -8,7 +8,7 @@ from pyapprox.variables.variables import (
     define_iid_random_variables, IndependentMultivariateRandomVariable,
     float_rv_discrete, variables_equivalent, get_pdf
 )
-from pyapprox.utilities.utilities import lists_of_arrays_equal
+from pyapprox.util.utilities import lists_of_arrays_equal
 
 
 class TestVariables(unittest.TestCase):

@@ -10,7 +10,7 @@ from pyapprox.pde.spectral_diffusion import (
     TransientAdvectionDiffusionEquation2D
 )
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.utilities.utilities import check_gradients
+from pyapprox.util.utilities import check_gradients
 
 
 def get_forcing_for_steady_state_constant_advection_diffusion_2d_sympy(

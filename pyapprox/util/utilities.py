@@ -10,8 +10,8 @@ from scipy.linalg import lapack
 
 import matplotlib.pyplot as plt
 
-from pyapprox.utilities.pya_numba import njit
-from pyapprox.utilities.sys_utilities import hash_array
+from pyapprox.util.pya_numba import njit
+from pyapprox.util.sys_utilities import hash_array
 
 
 def sub2ind(sizes, multi_index):
@@ -36,7 +36,7 @@ def sub2ind(sizes, multi_index):
        2 & 5 & 8
        \end{bmatrix}
 
-    >>> from pyapprox.utilities.utilities import sub2ind
+    >>> from pyapprox.util.utilities import sub2ind
     >>> sizes = [3,3]
     >>> ind = sub2ind(sizes,[1,0])
     >>> print(ind)
@@ -58,7 +58,7 @@ def sub2ind(sizes, multi_index):
 
     See Also
     --------
-    pyapprox.utilities.sub2ind
+    pyapprox.util.sub2ind
     """
     num_sets = len(sizes)
     scalar_index = 0
@@ -90,7 +90,7 @@ def ind2sub(sizes, scalar_index, num_elems):
         2,0 & 2,1 & 2,2
         \end{bmatrix}
 
-    >>> from pyapprox.utilities.utilities import ind2sub
+    >>> from pyapprox.util.utilities import ind2sub
     >>> sizes = [3,3]
     >>> sub = ind2sub(sizes,1,9)
     >>> print(sub)
@@ -115,7 +115,7 @@ def ind2sub(sizes, scalar_index, num_elems):
 
     See Also
     --------
-    pyapprox.utilities.sub2ind
+    pyapprox.util.sub2ind
     """
     denom = num_elems
     num_sets = len(sizes)

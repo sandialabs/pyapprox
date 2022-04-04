@@ -3,7 +3,7 @@ import numpy as np
 from pyapprox.polychaos.indexing import (
     argsort_indices_leixographically, compute_hyperbolic_level_indices
 )
-from pyapprox.utilities.pya_numba import njit
+from pyapprox.util.pya_numba import njit
 
 
 @njit(cache=True)

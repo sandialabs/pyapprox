@@ -1,12 +1,12 @@
 import os
 import numpy as np
 from scipy.spatial.distance import cdist
-from pyapprox.utilities.pya_numba import njit
+from pyapprox.util.pya_numba import njit
 from functools import partial
 from multiprocessing import Pool
 from abc import ABC, abstractmethod
 
-from pyapprox.utilities.sys_utilities import trace_error_with_msg
+from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.variables.risk_measures import conditional_value_at_risk
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
@@ -14,7 +14,7 @@ from pyapprox.variables.probability_measure_sampling import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     get_tensor_product_quadrature_rule,
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )

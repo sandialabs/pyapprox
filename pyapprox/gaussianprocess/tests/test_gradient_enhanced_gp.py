@@ -6,7 +6,7 @@ from sklearn.gaussian_process.kernels import _approx_fprime
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import WhiteKernel, RBF
 
-from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.util.utilities import cartesian_product
 from pyapprox.gaussianprocess.gradient_enhanced_gp import (
     GradientEnhancedGP, DerivGPKernel, kernel_ff, kernel_dd, kernel_fd,
     plot_gp_1d, predict_gpr_gradient

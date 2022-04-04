@@ -1,4 +1,4 @@
-from pyapprox.utilities.pya_numba import njit
+from pyapprox.util.pya_numba import njit
 import numpy as np
 
 

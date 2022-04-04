@@ -96,7 +96,7 @@ class TestModelwrappers(unittest.TestCase):
         assert np.allclose(values,exact_values)
         assert model_1.num_evaluations==samples_1.shape[1]
 
-        from pyapprox.utilities.utilities import unique_matrix_rows
+        from pyapprox.util.utilities import unique_matrix_rows
         data=combine_saved_model_data(data_basename)
         assert data[0].shape[1]==num_samples*2
         assert unique_matrix_rows(data[0].T).T.shape[1]==2*num_samples

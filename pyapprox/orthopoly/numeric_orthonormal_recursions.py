@@ -7,7 +7,7 @@ from functools import partial
 from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d, gauss_quadrature
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     cartesian_product, outer_product,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
 )

@@ -14,7 +14,7 @@ import copy
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.utilities.utilities import get_all_sample_combinations
+from pyapprox.util.utilities import get_all_sample_combinations
 
 try:
     # use torch to compute gradients for sample allocation optimization
@@ -1883,7 +1883,7 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
     corr_matrix : np.ndarray (nvars, nvars)
          The correlation between a set of random variabels
     """
-    from pyapprox.utilities.configure_plots import plt
+    from pyapprox.util.configure_plots import plt
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     im = ax.matshow(corr_matrix, cmap="jet", aspect="auto")
@@ -2442,7 +2442,7 @@ def plot_model_recursion(recursion_index, ax):
 
 
 def plot_sample_allocation(reorder_allocation_mat, npartition_samples, ax):
-    from pyapprox.utilities.configure_plots import plt
+    from pyapprox.util.configure_plots import plt
     nmodels = reorder_allocation_mat.shape[0]
     active_partitions = []
     for ii in range(nmodels):

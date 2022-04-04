@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from pyapprox.utilities.utilities import approx_jacobian
+from pyapprox.util.utilities import approx_jacobian
 from pyapprox.optimization.optimization import (
     eval_function_at_multiple_design_and_random_samples,
     eval_mc_based_jacobian_at_multiple_design_samples,

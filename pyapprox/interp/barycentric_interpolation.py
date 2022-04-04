@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.special import comb as nchoosek
 
-from pyapprox.utilities.utilities import cartesian_product
-from pyapprox.utilities.pya_numba import njit
-from pyapprox.utilities.sys_utilities import trace_error_with_msg
+from pyapprox.util.utilities import cartesian_product
+from pyapprox.util.pya_numba import njit
+from pyapprox.util.sys_utilities import trace_error_with_msg
 
 
 def compute_barycentric_weights_1d(samples, interval_length=None,

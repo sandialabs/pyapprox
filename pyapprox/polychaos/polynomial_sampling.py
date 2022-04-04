@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import qr as qr_factorization
 from scipy.linalg import solve_triangular
 
-from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
+from pyapprox.util.linalg import truncated_pivoted_lu_factorization
 from pyapprox.polychaos.orthogonal_least_interpolation import (
     LeastInterpolationSolver, pre_multiply_block_diagonal_matrix
 )

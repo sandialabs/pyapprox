@@ -11,7 +11,7 @@ from pyapprox.coupled_systems import (
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.variables.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.utilities.utilities import flatten_2D_list
+from pyapprox.util.utilities import flatten_2D_list
 
 
 def get_3_peer_polynomial_components():

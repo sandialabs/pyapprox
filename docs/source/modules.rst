@@ -41,7 +41,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.utilities.visualization
+.. automodapi:: pyapprox.util.visualization
    :no-inheritance-diagram:
 
 

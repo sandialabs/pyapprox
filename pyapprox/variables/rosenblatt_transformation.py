@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 
 
 def invert_cdf(F, cdffun, x_limits, tol=1e-12, num_bins=101, plot=False):

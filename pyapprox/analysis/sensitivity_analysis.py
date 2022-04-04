@@ -4,7 +4,7 @@ from scipy.spatial.distance import cdist
 from itertools import combinations
 
 from pyapprox.polychaos.indexing import hash_array, argsort_indices_leixographically
-from pyapprox.utilities.utilities import nchoosek
+from pyapprox.util.utilities import nchoosek
 from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from pyapprox.variables.probability_measure_sampling import \
     generate_independent_random_samples

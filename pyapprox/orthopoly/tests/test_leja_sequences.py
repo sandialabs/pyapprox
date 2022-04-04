@@ -25,12 +25,12 @@ from pyapprox.orthopoly.orthonormal_polynomials import (
 from pyapprox.orthopoly.orthonormal_recursions import (
     jacobi_recurrence, hermite_recurrence
 )
-from pyapprox.utilities.utilities import check_gradients
+from pyapprox.util.utilities import check_gradients
 from pyapprox.variables.density import (
     beta_pdf, gaussian_pdf, beta_pdf_derivative,
     gaussian_pdf_derivative
 )
-from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
+from pyapprox.util.linalg import truncated_pivoted_lu_factorization
 from pyapprox.orthopoly.quadrature import leja_growth_rule
 
 

@@ -12,7 +12,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils._testing import ignore_warnings
 from sklearn.linear_model._base import LinearModel
 
-from pyapprox.utilities.utilities import hash_array
+from pyapprox.util.utilities import hash_array
 from pyapprox.polychaos.indexing import (
     get_forward_neighbor, get_backward_neighbor,
     compute_hyperbolic_indices
@@ -1782,7 +1782,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     return ApproximateResult({'approx': gp})
 
 
-from pyapprox.utilities.utilities import get_random_k_fold_sample_indices, \
+from pyapprox.util.utilities import get_random_k_fold_sample_indices, \
     leave_many_out_lsq_cross_validation, leave_one_out_lsq_cross_validation
 def cross_validate_approximation(
         train_samples, train_vals, options, nfolds, method, random_folds=True):

@@ -8,7 +8,7 @@ from pyapprox.polychaos.orthogonal_least_interpolation import (
     get_block_diagonal_matrix_num_cols, get_block_diagonal_matrix_num_rows,
     pre_multiply_block_diagonal_matrix,  LeastInterpolationSolver
 )
-from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.util.utilities import cartesian_product
 from pyapprox.polychaos.indexing import (
     compute_hyperbolic_level_indices, compute_hyperbolic_indices,
     compute_tensor_product_level_indices, get_total_degree
@@ -22,7 +22,7 @@ from pyapprox.orthopoly.quadrature import (
 from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     remove_common_rows, allclose_unsorted_matrix_rows
 )
 from pyapprox.variables.probability_measure_sampling import (
@@ -30,7 +30,7 @@ from pyapprox.variables.probability_measure_sampling import (
 )
 from pyapprox.variables.density import tensor_product_pdf
 from pyapprox.polychaos.polynomial_sampling import christoffel_function
-from pyapprox.utilities.linalg import truncated_pivoted_lu_factorization
+from pyapprox.util.linalg import truncated_pivoted_lu_factorization
 
 
 class TestBlockDiagonalOperations(unittest.TestCase):

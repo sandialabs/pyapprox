@@ -3,7 +3,7 @@ import networkx as nx
 from scipy import sparse as scipy_sparse
 import copy
 
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     flatten_2D_list, equality_constrained_linear_least_squares
 )
 

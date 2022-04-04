@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
 
-from pyapprox.utilities.pya_numba import njit
+from pyapprox.util.pya_numba import njit
 from pyapprox.variables.variables import (
     IndependentMultivariateRandomVariable, DesignVariable
 )

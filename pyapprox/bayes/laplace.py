@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from pyapprox.utilities.randomized_svd import randomized_svd
+from pyapprox.util.randomized_svd import randomized_svd
 from scipy.linalg import eigh as generalized_eigevalue_decomp
 
 

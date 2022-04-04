@@ -7,7 +7,7 @@ from scipy.special import erf, beta as beta_fn
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
 
-from pyapprox.utilities.pya_numba import njit
+from pyapprox.util.pya_numba import njit
 
 
 def invert_permutation_vector(p, dtype=int):

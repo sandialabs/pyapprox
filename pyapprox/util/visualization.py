@@ -7,7 +7,7 @@ from pyapprox.polychaos.indexing import (
     hash_array, compute_hyperbolic_level_indices,
     compute_anova_level_indices
 )
-from pyapprox.utilities.configure_plots import plt, mpl
+from pyapprox.util.configure_plots import plt, mpl
 
 
 def convert_plot_to_tikz(tikz_file, tikz_dir, show=False,
@@ -1006,7 +1006,7 @@ def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     from matplotlib import cm
-    from pyapprox.utilities.utilities import cartesian_product, outer_product
+    from pyapprox.util.utilities import cartesian_product, outer_product
     from pyapprox.variables.variables import get_probability_masses
 
     if ax is None:
@@ -1040,7 +1040,7 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     import copy
-    from pyapprox.utilities.utilities import outer_product
+    from pyapprox.util.utilities import outer_product
     from pyapprox.variables.variables import get_probability_masses
 
     if ax is None:

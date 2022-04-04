@@ -1,6 +1,6 @@
 import numpy
 import hashlib
-from pyapprox.utilities.utilities import cholesky_solve_linear_system, \
+from pyapprox.util.utilities import cholesky_solve_linear_system, \
     pivoted_cholesky_decomposition
 
 

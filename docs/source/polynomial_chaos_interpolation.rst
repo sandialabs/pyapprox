@@ -26,7 +26,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    from functools import partial
    from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
-   from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+   from pyapprox.util.utilities import get_tensor_product_quadrature_rule
    from pyapprox.polychaos.polynomial_sampling import christoffel_weights
    
    np.random.seed(1)
@@ -189,8 +189,8 @@ Now lets plot the Genz function and the error in the PCE approximation
 
    plot_limits = [0,1,0,1]
    num_pts_1d = 30
-   from pyapprox.utilities.configure_plots import *
-   from pyapprox.utilities.visualization import plot_surface, get_meshgrid_function_data
+   from pyapprox.util.configure_plots import *
+   from pyapprox.util.visualization import plot_surface, get_meshgrid_function_data
 
    fig = plt.figure(figsize=(2*8,6))
    ax=fig.add_subplot(1,2,1,projection='3d')

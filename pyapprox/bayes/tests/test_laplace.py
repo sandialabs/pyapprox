@@ -6,15 +6,15 @@ import glob
 import tempfile
 
 from pyapprox.variables.density import NormalDensity, ObsDataDensity
-from pyapprox.utilities.linalg import get_low_rank_matrix
-from pyapprox.utilities.randomized_svd import (
+from pyapprox.util.linalg import get_low_rank_matrix
+from pyapprox.util.randomized_svd import (
     randomized_svd, MatVecOperator, adjust_sign_svd, svd_using_orthogonal_basis
 )
 from pyapprox.variables.tests.test_density import check_gradient
 from pyapprox.variables.multivariate_gaussian import MultivariateGaussian,\
     CholeskySqrtCovarianceOperator, CovarianceOperator, get_operator_diagonal
 from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
-from pyapprox.bayesian_inference.laplace import (
+from pyapprox.bayes.laplace import (
     get_laplace_covariance_sqrt_operator,
     get_pointwise_laplace_variance_using_prior_variance,
     sample_from_laplace_posterior,
@@ -26,7 +26,7 @@ from pyapprox.bayesian_inference.laplace import (
     generate_and_save_pointwise_variance,
     compute_posterior_mean_covar_optimal_for_prediction
 )
-from pyapprox.utilities.visualization import plot_multiple_2d_gaussian_slices
+from pyapprox.util.visualization import plot_multiple_2d_gaussian_slices
 
 
 class QuadraticMisfitModel(object):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.utilities.linalg import adjust_sign_svd
+from pyapprox.util.linalg import adjust_sign_svd
 
 
 def get_from_dict_or_apply_default(dictionary, key, default):

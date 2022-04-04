@@ -4,7 +4,7 @@ from pyapprox.polychaos.monomial import monomial_mean_uniform_variables, \
 from pyapprox.polychaos.indexing import compute_hyperbolic_indices,\
     argsort_indices_leixographically
 from scipy.stats import beta as beta_rv
-from pyapprox.utilities.utilities import cartesian_product, outer_product
+from pyapprox.util.utilities import cartesian_product, outer_product
 from scipy.linalg import lu_factor, lu as scipy_lu
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.active_subspace import *

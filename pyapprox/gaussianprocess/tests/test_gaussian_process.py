@@ -41,7 +41,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     get_sobol_indices,
     get_main_and_total_effect_indices_from_pce
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     cartesian_product, outer_product, get_all_sample_combinations,
     approx_jacobian, check_gradients
 )

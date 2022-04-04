@@ -30,13 +30,13 @@ from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
 )
 from pyapprox.variables.density import tensor_product_pdf
-from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.orthopoly.orthonormal_recursions import jacobi_recurrence
 from pyapprox.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
-from pyapprox.utilities.utilities import cartesian_product, outer_product
+from pyapprox.util.utilities import cartesian_product, outer_product
 
 
 class TestInducedSampling(unittest.TestCase):
@@ -317,7 +317,7 @@ class TestInducedSampling(unittest.TestCase):
             # new_samples = samples[:, num_prev_samples:]
             # prev_samples = samples[:, :num_prev_samples]
             # fig,axs = plt.subplots(1,2,figsize=(2*8,6))
-            # from pyapprox.utilities.visualization import plot_2d_indices
+            # from pyapprox.util.visualization import plot_2d_indices
             # axs[0].plot(prev_samples[0,:],prev_samples[1,:],'ko');
             # axs[0].plot(new_samples[0,:],new_samples[1,:],'ro');
             # plot_2d_indices(indices,other_indices=new_indices,ax=axs[1]);
@@ -375,7 +375,7 @@ class TestInducedSampling(unittest.TestCase):
             christoffel_function(x, poly.basis_matrix, True).dot(w), 1.0)
         assert np.allclose(x.dot(w), samples.mean(axis=1), atol=1e-2)
 
-        # from pyapprox.utilities.visualization import get_meshgrid_function_data
+        # from pyapprox.util.visualization import get_meshgrid_function_data
         # def induced_density(x):
         #     vals=christoffel_function(x,poly.basis_matrix)*probability_density(
         #         x)/np.sqrt(poly.indices.shape[1])

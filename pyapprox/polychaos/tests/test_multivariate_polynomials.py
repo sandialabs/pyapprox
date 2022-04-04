@@ -5,7 +5,7 @@ from functools import partial
 from scipy import stats
 from scipy.stats._continuous_distns import rv_continuous
 
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     approx_jacobian, get_tensor_product_quadrature_rule,
     approx_fprime, cartesian_product, outer_product,
     get_all_sample_combinations,

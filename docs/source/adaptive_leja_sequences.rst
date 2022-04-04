@@ -10,7 +10,7 @@ First lets import necessary modules and define a function useful for estimating 
    :context:
 
    import numpy as np
-   from pyapprox.utilities.configure_plots import *
+   from pyapprox.util.configure_plots import *
    from pyapprox.polychaos.adaptive_polynomial_chaos import *
    from pyapprox.variables.variable_transformations import \
    AffineBoundedVariableTransformation, AffineRandomVariableTransformation

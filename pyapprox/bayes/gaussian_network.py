@@ -149,7 +149,7 @@ def get_nparams_of_nodes(vands):
 
 
 def basis_matrix_cols(nvars, degree):
-    from pyapprox.utilities.utilities import total_degree_space_dimension
+    from pyapprox.util.utilities import total_degree_space_dimension
     ncols = total_degree_space_dimension(nvars, degree)
     return ncols
 

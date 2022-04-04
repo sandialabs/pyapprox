@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from functools import partial
 
 
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     cartesian_product, outer_product, get_tensor_product_quadrature_rule,
     qr_solve
 )
@@ -17,7 +17,7 @@ from pyapprox.variables.variable_transformations import map_hypercube_samples
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
-from pyapprox.utilities.sys_utilities import get_num_args
+from pyapprox.util.sys_utilities import get_num_args
 
 
 def zeros_fun_axis_1(x):
@@ -173,7 +173,7 @@ class AbstractAdvectionDiffusion(ABC):
     def value(self, sample):
         assert sample.ndim == 1
         solutions = self.solve(sample)
-        # from pyapprox.utilities.configure_plots import plt
+        # from pyapprox.util.configure_plots import plt
         # fig, axs = plt.subplots(1, 2)
         # self.mesh.plot(self.initial_sol, ax=axs[0])
         # self.mesh.plot(solutions[:, -1:], ax=axs[1])
@@ -832,7 +832,7 @@ class RectangularCollocationMesh(AbstractCartesianProductCollocationMesh):
         return matrix
 
     def plot(self, mesh_values, num_pts_1d=100, ncontour_levels=20, ax=None):
-        from pyapprox.utilities.visualization import get_meshgrid_function_data, plt
+        from pyapprox.util.visualization import get_meshgrid_function_data, plt
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         # interpolate values onto plot points

@@ -11,7 +11,7 @@ from pyapprox.interp.adaptive_sparse_grid import (
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial
 )
-from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.polychaos.indexing import set_difference
 from pyapprox.polychaos.monomial import monomial_basis_matrix
 

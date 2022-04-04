@@ -7,7 +7,7 @@ from pyapprox.variables.variables import (
     variable_shapes_equivalent, is_bounded_discrete_variable,
     get_probability_masses
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     lists_of_lists_of_arrays_equal,
     lists_of_arrays_equal, partial_functions_equal
 )
@@ -23,7 +23,7 @@ from pyapprox.orthopoly.leja_quadrature import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.utilities.visualization import plot_2d_indices, plot_3d_indices
+from pyapprox.util.visualization import plot_2d_indices, plot_3d_indices
 from matplotlib.pyplot import MaxNLocator
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion

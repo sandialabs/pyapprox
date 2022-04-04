@@ -7,7 +7,7 @@ from sklearn.gaussian_process.kernels import (
     _check_length_scale, Hyperparameter, _approx_fprime, Product
 )
 from scipy.spatial.distance import cdist
-from pyapprox.utilities.visualization import get_meshgrid_function_data
+from pyapprox.util.visualization import get_meshgrid_function_data
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):

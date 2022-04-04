@@ -52,7 +52,7 @@ print(integral)
 #For interest, we plot the quadrature rule against the PDF of the exponential
 #variable
 import numpy as np
-from pyapprox.utilities.configure_plots import plt
+from pyapprox.util.configure_plots import plt
 pya.plot_discrete_measure_1d(x_quad, w_quad)
 vrange = pya.get_truncated_range(scipy_var, 1-1e-6)
 xx = np.linspace(vrange[0], vrange[1], 101)

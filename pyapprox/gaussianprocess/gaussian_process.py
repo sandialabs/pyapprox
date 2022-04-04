@@ -12,13 +12,13 @@ from sklearn.gaussian_process.kernels import (
     Matern, RBF, Product, Sum, ConstantKernel, WhiteKernel
 )
 
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     cartesian_product, outer_product
 )
 from pyapprox.expdesign.low_discrepancy_sequences import (
     transformed_halton_sequence
 )
-from pyapprox.utilities.linalg import (
+from pyapprox.util.linalg import (
     pivoted_cholesky_decomposition,
     continue_pivoted_cholesky_decomposition, cholesky_solve_linear_system
 )

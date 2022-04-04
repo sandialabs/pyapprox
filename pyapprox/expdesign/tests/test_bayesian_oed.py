@@ -26,7 +26,7 @@ from pyapprox.variables.probability_measure_sampling import (
 from pyapprox.orthopoly.quadrature import (
     gauss_hermite_pts_wts_1D
 )
-from pyapprox.bayesian_inference.laplace import (
+from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
 from pyapprox.variables.risk_measures import (
@@ -37,11 +37,11 @@ from pyapprox.variables.risk_measures import (
 from pyapprox.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
-from pyapprox.bayesian_inference.laplace import laplace_evidence
+from pyapprox.bayes.laplace import laplace_evidence
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     cartesian_product, outer_product, piecewise_univariate_linear_quad_rule
 )
 from pyapprox.random_variable_algebra import (

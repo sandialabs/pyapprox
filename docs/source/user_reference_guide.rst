@@ -64,7 +64,7 @@ The following functions can be used to compute the mean and variance analyticall
 Inference
 ---------
 
-The function :func:`pyapprox.bayesian_inference.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model` can be used to draw samples from the posterior distribution of variables of a model conditioned on a set of observations with Gaussian noise.
+The function :func:`pyapprox.bayes.markov_chain_monte_carlo.run_bayesian_inference_gaussian_error_model` can be used to draw samples from the posterior distribution of variables of a model conditioned on a set of observations with Gaussian noise.
 
 Optimal experimental design
 ---------------------------

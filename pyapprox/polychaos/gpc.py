@@ -8,7 +8,7 @@ from pyapprox.variables.variable_transformations import (
 from pyapprox.variables.variables import (
     get_distribution_info, IndependentMultivariateRandomVariable
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     get_tensor_product_quadrature_rule, cartesian_product, outer_product
 )
 from pyapprox.orthopoly.recursion_factory import (
@@ -20,7 +20,7 @@ from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
 )
 from pyapprox.polychaos.monomial import monomial_basis_matrix
-from pyapprox.utilities.linalg import \
+from pyapprox.util.linalg import \
     flattened_rectangular_lower_triangular_matrix_index
 from pyapprox.polychaos.manipulate_polynomials import add_polynomials
 

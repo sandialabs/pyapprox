@@ -18,7 +18,7 @@ from pyapprox.variables.density import (
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
-from pyapprox.utilities.utilities import (
+from pyapprox.util.utilities import (
     evaluate_tensor_product_function, gradient_of_tensor_product_function
 )
 

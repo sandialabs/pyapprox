@@ -25,7 +25,7 @@ As our first example we will consider the following ensemble of three univariate
 
 Let's first import the necessary functions and modules and set the seed for reproducibility
 """
-from pyapprox.utilities.configure_plots import *
+from pyapprox.util.configure_plots import *
 import numpy as np
 from scipy import stats
 import scipy
@@ -33,7 +33,7 @@ import pyapprox as pya
 from pyapprox.gaussian_network import *
 import matplotlib.pyplot as plt
 import copy
-from pyapprox.bayesian_inference.laplace import \
+from pyapprox.bayes.laplace import \
     laplace_posterior_approximation_for_linear_models
 np.random.seed(2)
 

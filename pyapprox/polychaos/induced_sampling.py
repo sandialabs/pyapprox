@@ -702,9 +702,9 @@ def demo_multivariate_sampling_jacobi():
         plot_random_equlibrium_density_iid_beta
     from pyapprox.arbitrary_polynomial_chaos import \
         compute_coefficients_of_unrotated_basis
-    from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+    from pyapprox.util.utilities import get_tensor_product_quadrature_rule
     from pyapprox.polychaos.polynomial_sampling import christoffel_function
-    from pyapprox.utilities.visualization import get_meshgrid_function_data
+    from pyapprox.util.visualization import get_meshgrid_function_data
 
     num_vars = 2
     num_samples = 10000
@@ -1151,6 +1151,6 @@ def random_induced_measure_sampling(num_samples, num_vars,
 
 # if __name__=='__main__':
 #     from pyapprox.polychaos.indexing import compute_hyperbolic_indices
-#     from pyapprox.utilities.configure_plots import *
+#     from pyapprox.util.configure_plots import *
 #     demo_idist_jacobi()
 #     demo_multivariate_sampling_jacobi()

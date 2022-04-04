@@ -8,7 +8,7 @@ from pyapprox.optimization.first_order_stochastic_dominance import (
 from pyapprox.optimization.second_order_stochastic_dominance import (
     solve_SSD_constrained_least_squares_smooth
 )
-from pyapprox.utilities.utilities import check_gradients, check_hessian
+from pyapprox.util.utilities import check_gradients, check_hessian
 from pyapprox.optimization.rol_minimize import has_ROL
 from pyapprox.variables.risk_measures import compute_conditional_expectations
 

@@ -51,7 +51,7 @@ print("Variance", variance)
 #defined on the bounded ranges of the random variables. If some univariate
 #variables are unbounded then the range corresponding to a fraction of
 #the total probability will be used. See the documentation at
-#:func:`pyapprox.utilities.visualization.get_meshgrid_function_data_from_variable`
+#:func:`pyapprox.util.visualization.get_meshgrid_function_data_from_variable`
 from pyapprox import get_meshgrid_function_data_from_variable
 nplot_pts_1d = 50
 X, Y, Z = get_meshgrid_function_data_from_variable(
@@ -59,7 +59,7 @@ X, Y, Z = get_meshgrid_function_data_from_variable(
 
 #%%
 #Here we will create 2D subplots, a contour plot and a surface plot
-from pyapprox.utilities.configure_plots import plt
+from pyapprox.util.configure_plots import plt
 import numpy as np
 ncontours = 20
 fig = plt.figure(figsize=(2*8, 6))

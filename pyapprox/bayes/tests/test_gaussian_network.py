@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import networkx as nx
 
-from pyapprox.bayesian_inference.laplace import (
+from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
 from pyapprox.variables.multivariate_gaussian import (
@@ -13,7 +13,7 @@ from pyapprox.variables.multivariate_gaussian import (
     multiply_gaussian_densities_in_compact_canonical_form,
     convert_gaussian_from_canonical_form
 )
-from pyapprox.bayesian_inference.gaussian_network import (
+from pyapprox.bayes.gaussian_network import (
     get_var_ids_to_eliminate_from_node_query, get_var_ids_to_eliminate,
     GaussianNetwork, cond_prob_variable_elimination
 )

@@ -15,8 +15,8 @@ from pyapprox.polychaos.induced_sampling import (
     christoffel_weights,
     compute_preconditioned_canonical_basis_matrix_condition_number
 )
-from pyapprox.utilities.utilities import hash_array
-from pyapprox.utilities.linalg import (
+from pyapprox.util.utilities import hash_array
+from pyapprox.util.linalg import (
     add_columns_to_pivoted_lu_factorization,
     continue_pivoted_lu_factorization,
     get_final_pivots_from_sequential_pivots,

@@ -1,8 +1,8 @@
 import numpy as np
 
-from pyapprox.utilities.pya_numba import njit
-from pyapprox.utilities.utilities import get_first_n_primes
-from pyapprox.utilities.sys_utilities import trace_error_with_msg
+from pyapprox.util.pya_numba import njit
+from pyapprox.util.utilities import get_first_n_primes
+from pyapprox.util.sys_utilities import trace_error_with_msg
 
 
 @njit(cache=True)

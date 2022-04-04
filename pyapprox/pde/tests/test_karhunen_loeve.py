@@ -4,7 +4,7 @@ import numpy as np
 from pyapprox.pde.karhunen_loeve_expansion import (
     multivariate_chain_rule, MeshKLE, compute_kle_gradient_from_mesh_gradient
 )
-from pyapprox.utilities.utilities import approx_jacobian
+from pyapprox.util.utilities import approx_jacobian
 
 
 class TestKLE(unittest.TestCase):

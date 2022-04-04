@@ -4,9 +4,9 @@ from scipy.stats import norm, uniform
 
 import pyapprox as pya
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
-from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.bayesian_inference.laplace import \
+from pyapprox.bayes.laplace import \
     laplace_posterior_approximation_for_linear_models
 
 from pyapprox_dev.bayesian_inference.markov_chain_monte_carlo import *
@@ -163,7 +163,7 @@ class TestMCMC(unittest.TestCase):
                 algorithm=algorithm,get_map=True,print_summary=True,
                 loglike_grad = loglike.gradient, seed=2)
 
-        # from pyapprox.utilities.visualization import get_meshgrid_function_data
+        # from pyapprox.util.visualization import get_meshgrid_function_data
         # import matplotlib
         # X,Y,Z = get_meshgrid_function_data(
         #     lambda x: unnormalized_posterior(x)/evidence, plot_range, 50)

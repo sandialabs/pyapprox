@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from scipy.linalg import lu_factor, qr as qr_factorization
 
-from pyapprox.utilities.linalg import (
+from pyapprox.util.linalg import (
     get_final_pivots_from_sequential_pivots,
     truncated_pivoted_lu_factorization, get_pivot_matrix_from_vector,
     add_columns_to_pivoted_lu_factorization,
