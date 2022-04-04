@@ -5,9 +5,9 @@ import copy
 from multiprocessing import Pool
 from scipy.optimize import least_squares
 
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+from pyapprox.orthopoly.orthonormal_polynomials import \
     evaluate_orthonormal_polynomial_1d
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+from pyapprox.orthopoly.orthonormal_recursions import \
     jacobi_recurrence
 
 

@@ -2,15 +2,15 @@ import unittest
 import numpy as np
 from functools import partial
 
-from pyapprox.first_order_stochastic_dominance import (
+from pyapprox.optimization.first_order_stochastic_dominance import (
     linear_model_fun, linear_model_jac, FSDOptProblem
 )
-from pyapprox.second_order_stochastic_dominance import (
+from pyapprox.optimization.second_order_stochastic_dominance import (
     solve_SSD_constrained_least_squares_smooth
 )
-from pyapprox.optimization import check_gradients, check_hessian
-from pyapprox.rol_minimize import has_ROL
-from pyapprox.risk_measures import compute_conditional_expectations
+from pyapprox.utilities.utilities import check_gradients, check_hessian
+from pyapprox.optimization.rol_minimize import has_ROL
+from pyapprox.variables.risk_measures import compute_conditional_expectations
 
 
 skiptest_rol = unittest.skipIf(

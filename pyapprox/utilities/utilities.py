@@ -36,7 +36,7 @@ def sub2ind(sizes, multi_index):
        2 & 5 & 8
        \end{bmatrix}
 
-    >>> from pyapprox.utilities import sub2ind
+    >>> from pyapprox.utilities.utilities import sub2ind
     >>> sizes = [3,3]
     >>> ind = sub2ind(sizes,[1,0])
     >>> print(ind)
@@ -90,7 +90,7 @@ def ind2sub(sizes, scalar_index, num_elems):
         2,0 & 2,1 & 2,2
         \end{bmatrix}
 
-    >>> from pyapprox.utilities import ind2sub
+    >>> from pyapprox.utilities.utilities import ind2sub
     >>> sizes = [3,3]
     >>> sub = ind2sub(sizes,1,9)
     >>> print(sub)

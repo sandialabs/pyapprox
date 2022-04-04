@@ -200,7 +200,7 @@ class PolynomialChaosExpansion(object):
     Notes
     -----
     When pickling this class from a file that file must contain
-    from pyapprox.variable_transformations import AffineRandomVariableTransformation
+    from pyapprox.variables.variable_transformations import AffineRandomVariableTransformation
     Otherwise the following error will be thrown
 
     AttributeError: 'AffineRandomVariableTransformation' object has no
@@ -289,7 +289,7 @@ class PolynomialChaosExpansion(object):
         """
         Parameters
         ----------
-        var_trans : :class:`pyapprox.variable_transformations.AffineRandomVariableTransformation`
+        var_trans : :class:`pyapprox.variables.variable_transformations.AffineRandomVariableTransformation`
             Variable transformation mapping user samples into the canonical
             domain of the polynomial basis
 
@@ -305,7 +305,7 @@ class PolynomialChaosExpansion(object):
             List of variables dimension which use the ith unique basis
 
         The remaining options are specific to a given basis type. See
-             - :func:`pyapprox.univariate_quadrature.get_recursion_coefficients_from_variable`
+             - :func:`pyapprox.orthopoly.quadrature.get_recursion_coefficients_from_variable`
         """
         self.var_trans = opts["var_trans"]
         self.config_opts = opts

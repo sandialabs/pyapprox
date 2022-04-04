@@ -310,7 +310,7 @@ def get_meshgrid_function_data_from_variable(
     Z : np.ndarray of size (num_pts_1d,num_pts_1d)
         The function values at each sample
     """
-    from pyapprox.variables import get_truncated_ranges
+    from pyapprox.variables.variables import get_truncated_ranges
     plot_limits = get_truncated_ranges(variable, unbounded_alpha)
     X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
     Z = function(pts)
@@ -882,7 +882,7 @@ def plot_1d_cross_section(fun, var, var_idx, nominal_sample, nsamples_1d,
     """
     Plot a single 1D cross section of a multivariate function.
     """
-    from pyapprox.variables import get_truncated_range
+    from pyapprox.variables.variables import get_truncated_range
     lb, ub = get_truncated_range(var, 0.99)
     samples = np.tile(nominal_sample, (1, nsamples_1d))
     samples[var_idx, :] = np.linspace(lb, ub, nsamples_1d)
@@ -1006,8 +1006,8 @@ def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     from matplotlib import cm
-    from pyapprox.utilities import cartesian_product, outer_product
-    from pyapprox.variables import get_probability_masses
+    from pyapprox.utilities.utilities import cartesian_product, outer_product
+    from pyapprox.variables.variables import get_probability_masses
 
     if ax is None:
         fig = plt.figure(figsize=(8, 6))
@@ -1040,8 +1040,8 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     Only works if rv1 and rv2 are defined on consecutive integers
     """
     import copy
-    from pyapprox.utilities import outer_product
-    from pyapprox.variables import get_probability_masses
+    from pyapprox.utilities.utilities import outer_product
+    from pyapprox.variables.variables import get_probability_masses
 
     if ax is None:
         fig = plt.figure(figsize=(8, 6))

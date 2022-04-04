@@ -32,7 +32,7 @@ from pyapprox.optimization import *
 benchmark = setup_benchmark('cantilever_beam')
 np.random.seed(1)
 
-from pyapprox.models.wrappers import ActiveSetVariableModel
+from pyapprox.interface.wrappers import ActiveSetVariableModel
 nsamples = 10
 samples = pya.generate_independent_random_samples(benchmark.variable,nsamples)
 fun = ActiveSetVariableModel(
@@ -63,7 +63,7 @@ errors = pya.check_gradients(
 print(errors.min())
 assert errors.min()<6e-6
 
-from pyapprox.cvar_regression import \
+from pyapprox.optimization.cvar_regression import \
     smooth_conditional_value_at_risk_composition
 smoother_type,eps,alpha=0,1e-3,0.75
 #stat_fun = partial(smooth_conditional_value_at_risk,smoother_type,eps,alpha)

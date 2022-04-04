@@ -15,7 +15,7 @@ from pyapprox.variables.variable_transformations import (
 from pyapprox.variables.density import (
     beta_pdf_on_ab, beta_pdf_derivative
 )
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
 from pyapprox.utilities.utilities import (

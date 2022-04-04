@@ -1,9 +1,9 @@
 import numpy as np
 
-from pyapprox.utilities import (
+from pyapprox.utilities.utilities import (
     cartesian_product, get_all_sample_combinations
 )
-from pyapprox.models.wrappers import WorkTrackingModel
+from pyapprox.interface.wrappers import WorkTrackingModel
 from pyapprox.configure_plots import plt, mathrm_label
 
 

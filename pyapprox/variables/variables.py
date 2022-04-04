@@ -277,7 +277,7 @@ class IndependentMultivariateRandomVariable(object):
 
     Examples
     --------
-    >>> from pyapprox.variables import IndependentMultivariateRandomVariable
+    >>> from pyapprox.variables.variables import IndependentMultivariateRandomVariable
     >>> from scipy.stats import norm, beta
     >>> marginals = [norm(0,1),beta(0,1),norm()]
     >>> variable = IndependentMultivariateRandomVariable(marginals)

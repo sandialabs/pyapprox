@@ -13,7 +13,7 @@ from pyapprox.polychaos.indexing import (
     compute_hyperbolic_level_indices, compute_hyperbolic_indices,
     compute_tensor_product_level_indices, get_total_degree
 )
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
 from pyapprox.orthopoly.quadrature import (

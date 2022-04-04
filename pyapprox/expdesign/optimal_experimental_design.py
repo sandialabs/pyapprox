@@ -6,9 +6,9 @@ import copy
 from scipy.optimize import (
     Bounds, minimize, LinearConstraint, NonlinearConstraint
 )
-from pyapprox.risk_measures import conditional_value_at_risk
+from pyapprox.variables.risk_measures import conditional_value_at_risk
 
-from pyapprox.cvar_regression import (
+from pyapprox.optimization.cvar_regression import (
     conditional_value_at_risk_subgradient,
     smooth_conditional_value_at_risk_split,
     smooth_conditional_value_at_risk_gradient_split

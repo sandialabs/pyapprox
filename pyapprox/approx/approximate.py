@@ -18,19 +18,19 @@ from pyapprox.adaptive_polynomial_chaos import AdaptiveLejaPCE,\
     variance_pce_refinement_indicator, AdaptiveInducedPCE
 from pyapprox.polynomial_sampling import christoffel_weights
 from pyapprox import compute_hyperbolic_indices
-from pyapprox.variables import is_bounded_continuous_variable
-from pyapprox.adaptive_sparse_grid import variance_refinement_indicator, \
+from pyapprox.variables.variables import is_bounded_continuous_variable
+from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator, \
     CombinationSparseGrid, constant_increment_growth_rule, \
     get_sparse_grid_univariate_leja_quadrature_rules_economical, \
     max_level_admissibility_function, get_unique_max_level_1d, \
     get_unique_quadrule_variables
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import \
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variable_transformations import \
     AffineRandomVariableTransformation
 from pyapprox.low_discrepancy_sequences import halton_sequence
 from pyapprox.gaussian_process import AdaptiveGaussianProcess, \
     CholeskySampler, GaussianProcess
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+from pyapprox.polychaos.gpc import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
 from pyapprox.neural_networks import NeuralNetwork
 
@@ -402,7 +402,7 @@ def adaptive_approximate_polynomial_chaos_induced(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
     """
     var_trans = AffineRandomVariableTransformation(variables)
@@ -510,7 +510,7 @@ def adaptive_approximate_polynomial_chaos_leja(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
     """
     var_trans = AffineRandomVariableTransformation(variables)
@@ -845,7 +845,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     poly_opts : dictionary
         Dictionary definining the custom configuration of the polynomial
-        chaos expansion basis. See :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.configure`
+        chaos expansion basis. See :func:`pyapprox.polychaos.gpc.PolynomialChaosExpansion.configure`
 
     Returns
     -------
@@ -1161,7 +1161,7 @@ def cross_validate_pce_degree(
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
 
     scores : np.ndarray (nqoi)
@@ -1371,7 +1371,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
 
     scores : np.ndarray (nqoi)
@@ -1611,7 +1611,7 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
     result : :class:`pyapprox.approximate.ApproximateResult`
          Result object with the following attributes
 
-    approx: :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
 
     reg_params : np.ndarray (nqoi)
@@ -1771,7 +1771,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
     return ApproximateResult({'approx': gp})
 
 
-from pyapprox.utilities import get_random_k_fold_sample_indices, \
+from pyapprox.utilities.utilities import get_random_k_fold_sample_indices, \
     leave_many_out_lsq_cross_validation, leave_one_out_lsq_cross_validation
 def cross_validate_approximation(
         train_samples, train_vals, options, nfolds, method, random_folds=True):

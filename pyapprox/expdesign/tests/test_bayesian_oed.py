@@ -19,17 +19,17 @@ from pyapprox.bayesian_oed import (
     gaussian_noise_fun, BayesianSequentialDeviationOED,
     get_bayesian_oed_optimizer
 )
-from pyapprox.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.univariate_polynomials.quadrature import (
+from pyapprox.orthopoly.quadrature import (
     gauss_hermite_pts_wts_1D
 )
 from pyapprox.bayesian_inference.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
-from pyapprox.risk_measures import (
+from pyapprox.variables.risk_measures import (
     conditional_value_at_risk, lognormal_variance,
     lognormal_cvar_deviation, gaussian_cvar, lognormal_kl_divergence,
     gaussian_kl_divergence,
@@ -38,17 +38,17 @@ from pyapprox.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
 from pyapprox.bayesian_inference.laplace import laplace_evidence
-from pyapprox.variable_transformations import (
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.utilities import (
+from pyapprox.utilities.utilities import (
     cartesian_product, outer_product, piecewise_univariate_linear_quad_rule
 )
 from pyapprox.random_variable_algebra import (
     weighted_sum_dependent_gaussian_variables
 )
-from pyapprox.indexing import compute_hyperbolic_indices
-from pyapprox.monomial import monomial_basis_matrix
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.polychaos.monomial import monomial_basis_matrix
 
 import warnings
 warnings.filterwarnings('error')

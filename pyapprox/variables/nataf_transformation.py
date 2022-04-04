@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import stats
 from scipy.linalg import solve_triangular
-# from pyapprox.univariate_quadrature import gauss_hermite_pts_wts_1D
+# from pyapprox.orthopoly.quadrature import gauss_hermite_pts_wts_1D
 # avoid making nataf dependent on univariate_polynomials
 from scipy.special import roots_hermitenorm
 

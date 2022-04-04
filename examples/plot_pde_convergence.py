@@ -11,16 +11,16 @@ import numpy as np
 from pyapprox.convergence_studies import \
     run_convergence_study, plot_convergence_data
 from pyapprox.configure_plots import plt
-from pyapprox.utilities import (
+from pyapprox.utilities.utilities import (
     get_tensor_product_piecewise_polynomial_quadrature_rule,
 )
-from pyapprox.models.wrappers import (
+from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array, WorkTrackingModel,
     TimerModelWrapper
 )
 from scipy import stats
 from pyapprox import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import (
+from pyapprox.variables.variable_transformations import (
     ConfigureVariableTransformation
 )
 

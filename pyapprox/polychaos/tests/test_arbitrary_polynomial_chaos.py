@@ -12,7 +12,7 @@ from pyapprox.polychaos.arbitrary_polynomial_chaos import (
     compute_rotation_from_moments_gram_schmidt,
     compute_rotation_from_moments_linear_system
 )
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     define_poly_options_from_variable_transformation,
     PolynomialChaosExpansion
 )

@@ -2,8 +2,8 @@ import numpy as np
 from functools import partial
 from scipy.optimize import NonlinearConstraint, Bounds
 
-from pyapprox.rol_minimize import pyapprox_minimize, has_ROL
-from pyapprox.pya_numba import njit
+from pyapprox.optimization.rol_minimize import pyapprox_minimize, has_ROL
+from pyapprox.utilities.pya_numba import njit
 
 
 def smooth_max_function_log(eps, shift, x):

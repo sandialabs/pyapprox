@@ -3,7 +3,7 @@ import networkx as nx
 import copy
 import itertools
 
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
 from pyapprox.polychaos.indexing import compute_hyperbolic_indices
@@ -149,7 +149,7 @@ def get_nparams_of_nodes(vands):
 
 
 def basis_matrix_cols(nvars, degree):
-    from pyapprox.utilities import total_degree_space_dimension
+    from pyapprox.utilities.utilities import total_degree_space_dimension
     ncols = total_degree_space_dimension(nvars, degree)
     return ncols
 

@@ -128,7 +128,7 @@ class TestAdaptivePCE(unittest.TestCase):
             pce.subspace_indices, axis=0)
         assert np.where(subspace_num_active_vars > 1)[0].shape[0] == 1
 
-        # from pyapprox.sparse_grid import plot_sparse_grid_2d
+        # from pyapprox.interp.sparse_grid import plot_sparse_grid_2d
         # import matplotlib.pyplot as plt
         # plot_sparse_grid_2d(
         #    pce.samples,np.ones(pce.samples.shape[1]),

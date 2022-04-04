@@ -1,15 +1,13 @@
 import unittest
-from pyapprox.quantile_regression import *
-from pyapprox.risk_measures import value_at_risk
-from pyapprox.optimization import check_gradients
-from scipy.special import erf, erfinv, factorial
-from scipy import stats
+import numpy as np
+
+from pyapprox.optimization.quantile_regression import solve_quantile_regression
 
 
 try:
     import cvxopt
     cvxopt_missing = False
-except:
+except ImportError:
     cvxopt_missing = True
 skipcvxopttest = unittest.skipIf(
     cvxopt_missing, reason="cvxopt package missing")

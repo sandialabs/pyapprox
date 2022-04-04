@@ -4,7 +4,7 @@ import numpy as np
 import theano
 import theano.tensor as tt
 from scipy.optimize import approx_fprime
-from pyapprox.variables import get_distribution_info
+from pyapprox.variables.variables import get_distribution_info
 
 
 class GaussianLogLike(object):

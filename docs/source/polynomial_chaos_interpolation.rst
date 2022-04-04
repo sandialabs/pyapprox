@@ -13,20 +13,20 @@ Lets first import the necessary modules and set the random seed to ensure the ex
       close-figs
 
    import numpy as np
-   from pyapprox.variables import IndependentMultivariateRandomVariable
-   from pyapprox.variable_transformations import \
+   from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+   from pyapprox.variables.variable_transformations import \
    AffineRandomVariableTransformation
-   from pyapprox.multivariate_polynomials import PolynomialChaosExpansion,\
+   from pyapprox.polychaos.gpc import PolynomialChaosExpansion,\
    define_poly_options_from_variable_transformation
    from pyapprox.probability_measure_sampling import \
    generate_independent_random_samples
    from scipy.stats import uniform, beta
-   from pyapprox.indexing import compute_hyperbolic_indices, tensor_product_indices
-   from pyapprox.models.genz import GenzFunction
+   from pyapprox.polychaos.indexing import compute_hyperbolic_indices, tensor_product_indices
+   from pyapprox.interface.genz import GenzFunction
    from functools import partial
-   from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D, \
+   from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
-   from pyapprox.utilities import get_tensor_product_quadrature_rule
+   from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
    from pyapprox.polynomial_sampling import christoffel_weights
    
    np.random.seed(1)

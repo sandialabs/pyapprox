@@ -17,11 +17,11 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.multivariate_polynomials
+.. automodapi:: pyapprox.polychaos.gpc
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.univariate_quadrature
+.. automodapi:: pyapprox.orthopoly.quadrature
    :no-inheritance-diagram:
 
 
@@ -29,11 +29,11 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.models.wrappers
+.. automodapi:: pyapprox.interface.wrappers
    :no-inheritance-diagram:
    
 
-.. automodapi:: pyapprox.models.async_model
+.. automodapi:: pyapprox.interface.async_model
    :no-inheritance-diagram:
 
 

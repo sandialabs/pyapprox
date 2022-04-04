@@ -1,9 +1,9 @@
 import numpy as np
 from functools import partial
 from scipy import stats
-from pyapprox.utilities import get_all_sample_combinations
-from pyapprox.models.wrappers import ActiveSetVariableModel
-from pyapprox.cvar_regression import smooth_max_function_first_derivative,\
+from pyapprox.utilities.utilities import get_all_sample_combinations
+from pyapprox.interface.wrappers import ActiveSetVariableModel
+from pyapprox.optimization.cvar_regression import smooth_max_function_first_derivative,\
     smooth_max_function_second_derivative
 
 
@@ -127,7 +127,7 @@ def quantile_lower_bound_constraint(constraint_function, quantile, lower_bound,
     # to enforce lower bound
     return -val
 
-# from pyapprox.cvar_regression import smooth_conditional_value_at_risk, \
+# from pyapprox.optimization.cvar_regression import smooth_conditional_value_at_risk, \
 #     conditional_value_at_risk
 # def cvar_lower_bound_constraint(constraint_function,quantile,lower_bound,eps,
 #                                 uq_samples,design_samples):

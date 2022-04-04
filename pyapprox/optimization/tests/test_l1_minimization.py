@@ -2,12 +2,22 @@ import unittest
 import numpy as np
 from functools import partial
 import scipy.sparse as sp
-
-from pyapprox.l1_minimization import basis_pursuit, kouri_smooth_l1_norm, \
-    nonlinear_basis_pursuit, kouri_smooth_l1_norm_gradient, \
-    kouri_smooth_l1_norm_hessian, basis_pursuit_denoising, lasso
-from pyapprox.optimization import check_gradients, approx_jacobian
 from scipy.optimize import minimize
+
+from pyapprox.optimization.l1_minimization import (
+    basis_pursuit, kouri_smooth_l1_norm,
+    nonlinear_basis_pursuit, kouri_smooth_l1_norm_gradient,
+    kouri_smooth_l1_norm_hessian, basis_pursuit_denoising, lasso,
+    iterative_hard_thresholding, s_sparse_projection,
+    orthogonal_matching_pursuit
+)
+from pyapprox.utilities.utilities import check_gradients, approx_jacobian
+from pyapprox.optimization.optimization import (
+    PyapproxFunctionAsScipyMinimizeObjective,
+    ScipyMinimizeObjectiveAsPyapproxFunction,
+    ScipyMinimizeObjectiveJacAsPyapproxJac
+)
+
 
 
 class TestL1Minimization(unittest.TestCase):
@@ -65,8 +75,6 @@ class TestL1Minimization(unittest.TestCase):
         options = {'gtol': tol, 'verbose': 0,
                    'disp': True, 'xtol': tol, 'maxiter': 10000}
         constraints = []
-        from pyapprox.optimization import \
-            PyapproxFunctionAsScipyMinimizeObjective
 
         fun = PyapproxFunctionAsScipyMinimizeObjective(func)
         res = minimize(
@@ -195,9 +203,6 @@ class TestL1Minimization(unittest.TestCase):
         # r = 1e1
         # plt.plot(x,kouri_smooth_absolute_value(t,r,x))
         # plt.show()
-        from pyapprox.optimization import \
-            ScipyMinimizeObjectiveAsPyapproxFunction,\
-            ScipyMinimizeObjectiveJacAsPyapproxJac
 
         t = np.ones(5)
         r = 1
@@ -357,6 +362,91 @@ class TestL1Minimization(unittest.TestCase):
                 coef, False), np.linalg.norm(true_coef-coef))
             assert res.success == True
         assert False, 'test not finished'
+
+    def test_iterative_hard_thresholding_gaussian_matrix(self):
+        np.random.seed(3)
+        num_samples = 30
+        sparsity = 3
+        num_terms = 30
+        Amatrix = np.random.normal(
+            0., 1., (num_samples, num_terms))/np.sqrt(num_samples)
+        true_sol = np.zeros((num_terms))
+        II = np.random.permutation(num_terms)[:sparsity]
+        true_sol[II] = np.random.normal(0., 1., (sparsity))
+        true_sol /= np.linalg.norm(true_sol)
+        obs = np.dot(Amatrix, true_sol)
+
+        def approx_eval(x): return np.dot(Amatrix, x)
+        def apply_approx_adjoint_jacobian(x, y): return -np.dot(Amatrix.T, y)
+        project = partial(s_sparse_projection, sparsity=sparsity)
+
+        initial_guess = np.zeros_like(true_sol)
+        tol = 1e-5
+        max_iter = 100
+        result = iterative_hard_thresholding(
+            approx_eval, apply_approx_adjoint_jacobian, project,
+            obs, initial_guess, tol, max_iter)
+        sol = result[0]
+        assert np.allclose(true_sol, sol, atol=10*tol)
+
+    def test_omp_gaussian_matrix(self):
+        num_samples = 30
+        sparsity = 5
+        num_terms = 30
+        Amatrix = np.random.normal(
+            0., 1., (num_samples, num_terms))/np.sqrt(num_samples)
+        true_sol = np.zeros((num_terms))
+        II = np.random.permutation(num_terms)[:sparsity]
+        true_sol[II] = np.random.normal(0., 1., (sparsity))
+        true_sol /= np.linalg.norm(true_sol)
+        obs = np.dot(Amatrix, true_sol)
+
+        def least_squares_regression(indices, initial_guess):
+            return np.linalg.lstsq(
+                Amatrix[:, indices], obs, rcond=None)[0]
+
+        def approx_eval(x): return np.dot(Amatrix, x)
+        def apply_approx_adjoint_jacobian(x, y): return -np.dot(Amatrix.T, y)
+
+        tol = 1e-5
+        active_indices = None
+
+        result = orthogonal_matching_pursuit(
+            approx_eval, apply_approx_adjoint_jacobian,
+            least_squares_regression,
+            obs, active_indices, num_terms, tol, sparsity)
+        sol = result[0]
+        assert np.allclose(true_sol, sol, atol=10*tol)
+
+    def test_omp_gaussian_matrix_with_initial_active_indices(self):
+        num_samples = 30
+        sparsity = 5
+        num_terms = 30
+        Amatrix = np.random.normal(
+            0., 1., (num_samples, num_terms))/np.sqrt(num_samples)
+        true_sol = np.zeros((num_terms))
+        II = np.random.permutation(num_terms)[:sparsity]
+        true_sol[II] = np.random.normal(0., 1., (sparsity))
+        true_sol /= np.linalg.norm(true_sol)
+        obs = np.dot(Amatrix, true_sol)
+
+        def approx_eval(x): return np.dot(Amatrix, x)
+        def apply_approx_adjoint_jacobian(x, y): return -np.dot(Amatrix.T, y)
+
+        def least_squares_regression(indices, initial_guess):
+            return np.linalg.lstsq(
+                Amatrix[:, indices], obs, rcond=None)[0]
+
+        tol = 1e-5
+        # use first three sparse terms
+        active_indices = II[:3]
+
+        result = orthogonal_matching_pursuit(
+            approx_eval, apply_approx_adjoint_jacobian,
+            least_squares_regression,
+            obs, active_indices, num_terms, tol, sparsity)
+        sol = result[0]
+        assert np.allclose(true_sol, sol, atol=10*tol)
 
 
 if __name__ == '__main__':

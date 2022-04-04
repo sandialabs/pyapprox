@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from functools import partial
 
-from pyapprox.cvar_regression import (
+from pyapprox.optimization.cvar_regression import (
     smooth_conditional_value_at_risk,
     smooth_conditional_value_at_risk_gradient,
     smooth_conditional_value_at_risk, smooth_max_function,
@@ -11,9 +11,9 @@ from pyapprox.cvar_regression import (
     smooth_conditional_value_at_risk_composition
 )
 
-from pyapprox.risk_measures import value_at_risk
+from pyapprox.variables.risk_measures import value_at_risk
 
-from pyapprox.optimization import check_gradients
+from pyapprox.utilities.utilities import check_gradients
 
 
 class TestCVARRegression(unittest.TestCase):

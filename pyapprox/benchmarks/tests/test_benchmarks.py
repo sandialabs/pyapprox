@@ -43,7 +43,7 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_cantilever_beam_gradients(self):
         benchmark = setup_benchmark('cantilever_beam')
-        from pyapprox.models.wrappers import ActiveSetVariableModel
+        from pyapprox.interface.wrappers import ActiveSetVariableModel
         fun = ActiveSetVariableModel(
             benchmark.fun,
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),

@@ -7,9 +7,9 @@ To compute the samples and weights of an isotropic sparse grid quadrature simply
    :context:
    :include-source:
       
-   from pyapprox.sparse_grid import *
+   from pyapprox.interp.sparse_grid import *
    from pyapprox.visualization import plot_3d_indices
-   from pyapprox.univariate_quadrature import *
+   from pyapprox.orthopoly.quadrature import *
    num_vars = 2; level = 3
    quad_rule = clenshaw_curtis_in_polynomial_order
    growth_rule = clenshaw_curtis_rule_growth

@@ -6,55 +6,75 @@ from scipy import stats
 import pickle
 import os
 
-from pyapprox.sparse_grid import update_1d_samples_weights_economical, \
-    get_1d_samples_weights, get_hierarchical_sample_indices, \
-    get_subspace_polynomial_indices, get_sparse_grid_samples_and_weights, \
-    get_subspace_samples, evaluate_sparse_grid, get_smolyak_coefficients, \
-    get_num_model_evaluations_from_samples, get_equivalent_cost, \
-    get_num_sparse_grid_samples, integrate_sparse_grid, \
-    convert_univariate_lagrange_basis_to_orthonormal_polynomials, \
+from pyapprox.interp.sparse_grid import (
+update_1d_samples_weights_economical, 
+    get_1d_samples_weights, get_hierarchical_sample_indices,
+    get_subspace_polynomial_indices, get_sparse_grid_samples_and_weights,
+    get_subspace_samples, evaluate_sparse_grid, get_smolyak_coefficients,
+    get_num_model_evaluations_from_samples, get_equivalent_cost,
+    get_num_sparse_grid_samples, integrate_sparse_grid,
+    convert_univariate_lagrange_basis_to_orthonormal_polynomials,
     convert_multivariate_lagrange_polys_to_orthonormal_polys
-from pyapprox.adaptive_sparse_grid import CombinationSparseGrid, \
-    max_level_admissibility_function, mypriorityqueue, \
-    get_sparse_grid_univariate_leja_quadrature_rules_economical, \
-    variance_refinement_indicator, isotropic_refinement_indicator, \
-    update_smolyak_coefficients, surplus_refinement_indicator, \
-    insitu_update_sparse_grid_quadrature_rule, \
-    convert_sparse_grid_to_polynomial_chaos_expansion, \
-    get_active_subspace_indices, extract_items_from_priority_queue, \
-    compute_hierarchical_surpluses_direct, \
+)
+from pyapprox.interp.adaptive_sparse_grid import (
+    CombinationSparseGrid,
+    max_level_admissibility_function, mypriorityqueue,
+    get_sparse_grid_univariate_leja_quadrature_rules_economical,
+    variance_refinement_indicator, isotropic_refinement_indicator,
+    update_smolyak_coefficients, surplus_refinement_indicator,
+    insitu_update_sparse_grid_quadrature_rule,
+    convert_sparse_grid_to_polynomial_chaos_expansion,
+    get_active_subspace_indices, extract_items_from_priority_queue,
+    compute_hierarchical_surpluses_direct,
     extract_sparse_grid_quadrature_rule, compute_surpluses
-from pyapprox.barycentric_interpolation import \
-    compute_barycentric_weights_1d, \
+)
+from pyapprox.interp.barycentric_interpolation import (
+    compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
-from pyapprox.monomial import evaluate_monomial, \
+)
+from pyapprox.polychaos.monomial import (
+    evaluate_monomial,
     monomial_mean_uniform_variables, monomial_variance_uniform_variables
-from pyapprox.univariate_polynomials.orthonormal_recursions import \
+)
+from pyapprox.orthopoly.orthonormal_recursions import (
     jacobi_recurrence, krawtchouk_recurrence
-from pyapprox.univariate_polynomials.orthonormal_polynomials import \
+)
+from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
-from pyapprox.indexing import set_difference, sort_indices_lexiographically, \
+)
+from pyapprox.polychaos.indexing import (
+    set_difference, sort_indices_lexiographically,
     compute_hyperbolic_indices
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule, \
-    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth, \
+)
+from pyapprox.orthopoly.quadrature import (
+    leja_growth_rule,
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth,
     clenshaw_curtis_pts_wts_1D, gauss_quadrature
-from pyapprox.univariate_polynomials.leja_quadrature import \
-    get_univariate_leja_quadrature_rule, \
+)
+from pyapprox.orthopoly.leja_quadrature import (
+    get_univariate_leja_quadrature_rule,
     candidate_based_christoffel_leja_rule_1d
-from pyapprox.utilities import beta_pdf_on_ab, cartesian_product, hash_array, \
-    lists_of_arrays_equal, outer_product,  allclose_unsorted_matrix_rows, \
-    gaussian_pdf
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
+from pyapprox.utilities.utilities import (
+    cartesian_product, hash_array, lists_of_arrays_equal, outer_product,
+    allclose_unsorted_matrix_rows
+)
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.manipulate_polynomials import get_indices_double_set
-from pyapprox.variable_transformations import \
+    )
+from pyapprox.polychaos.manipulate_polynomials import get_indices_double_set
+from pyapprox.variables.variable_transformations import (
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.polynomial_chaos.multivariate_polynomials import \
+    )
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
-from pyapprox.models.wrappers import WorkTrackingModel
-from pyapprox.probability_measure_sampling import \
+)
+from pyapprox.interface.wrappers import WorkTrackingModel
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
+)
 
 
 class MultilevelPolynomialModel():

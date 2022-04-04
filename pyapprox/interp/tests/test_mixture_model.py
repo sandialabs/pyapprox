@@ -3,17 +3,21 @@ from functools import partial
 from scipy import stats
 import numpy as np
 
-from pyapprox.variables.mixture_model import \
-    get_leja_univariate_quadrature_rules_of_beta_mixture, sample_mixture, \
-    get_mixture_sparse_grid_quadrature_rule, \
-    get_mixture_tensor_product_gauss_quadrature, \
+from pyapprox.interp.mixture_model import (
+    get_leja_univariate_quadrature_rules_of_beta_mixture, sample_mixture,
+    get_mixture_sparse_grid_quadrature_rule,
+    get_mixture_tensor_product_gauss_quadrature,
     compute_grammian_of_mixture_models_using_sparse_grid_quadrature
-from pyapprox.univariate_polynomials.quadrature import leja_growth_rule
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+)
+from pyapprox.orthopoly.quadrature import leja_growth_rule
+from pyapprox.polychaos.gpc import (
+    PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
-from pyapprox.variable_transformations import \
+)
+from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
-from pyapprox.indexing import compute_hyperbolic_indices
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
 
 
 class TestMixtureModel(unittest.TestCase):

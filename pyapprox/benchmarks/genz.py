@@ -321,7 +321,7 @@ def oscillatory_genz_pdf(c, w1, values):
     #         benchmark.variable,int(1e3))
     #     values = benchmark.fun(samples)
     #     plt.hist(values[:,0],bins=20,density=True)
-    #     from pyapprox.models.genz import oscillatory_genz_pdf
+    #     from pyapprox.interface.genz import oscillatory_genz_pdf
     #     zz = np.linspace(values.min(),values.max(),100)[:,np.newaxis]
     #     pdf_vals = oscillatory_genz_pdf(benchmark.fun.c,benchmark.fun.w[0],zz)
     #     plt.plot(zz,pdf_vals)

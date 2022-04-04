@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 from itertools import combinations
 
-from pyapprox.utilities import get_correlation_from_covariance
+from pyapprox.utilities.utilities import get_correlation_from_covariance
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from pyapprox.control_variate_monte_carlo import (
     compute_approximate_control_variate_mean_estimate,

@@ -25,7 +25,7 @@ from pyapprox.variables.variable_transformations import (
 )
 from pyapprox.utilities.visualization import plot_2d_indices, plot_3d_indices
 from matplotlib.pyplot import MaxNLocator
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion
 )
 from pyapprox.polychaos.manipulate_polynomials import add_polynomials

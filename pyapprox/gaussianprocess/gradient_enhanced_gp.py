@@ -8,7 +8,7 @@ from scipy.spatial.distance import pdist, cdist, squareform
 from functools import partial
 
 from pyapprox.visualization import get_meshgrid_function_data
-from pyapprox.utilities import cartesian_product
+from pyapprox.utilities.utilities import cartesian_product
 
 
 def kernel_dd(XX1, XX2, length_scale, var_num1, var_num2):

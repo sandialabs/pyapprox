@@ -4,26 +4,26 @@ import numpy as np
 from functools import partial
 from scipy.special import factorial
 
-from pyapprox.variables import float_rv_discrete, \
+from pyapprox.variables.variables import float_rv_discrete, \
     IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import \
+from pyapprox.variables.variable_transformations import \
     AffineRandomVariableTransformation
-from pyapprox.barycentric_interpolation import \
+from pyapprox.interp.barycentric_interpolation import \
     compute_barycentric_weights_1d, equidistant_barycentric_weights, \
     multivariate_barycentric_lagrange_interpolation, \
     clenshaw_curtis_barycentric_weights, \
     multivariate_hierarchical_barycentric_lagrange_interpolation, \
     tensor_product_lagrange_interpolation
-from pyapprox.utilities import cartesian_product
-from pyapprox.univariate_quadrature import clenshaw_curtis_in_polynomial_order
-from pyapprox.multivariate_polynomials import PolynomialChaosExpansion, \
+from pyapprox.utilities.utilities import cartesian_product
+from pyapprox.orthopoly.quadrature import clenshaw_curtis_in_polynomial_order
+from pyapprox.polychaos.gpc import PolynomialChaosExpansion, \
     define_poly_options_from_variable_transformation
-from pyapprox.univariate_polynomials.quadrature import \
+from pyapprox.orthopoly.quadrature import \
     gauss_hermite_pts_wts_1D, constant_increment_growth_rule, \
     clenshaw_curtis_pts_wts_1D
-from pyapprox.univariate_polynomials.leja_quadrature import \
+from pyapprox.orthopoly.leja_quadrature import \
     get_univariate_leja_quadrature_rule
-from pyapprox.utilities import nchoosek
+from pyapprox.utilities.utilities import nchoosek
 
 
 def preconditioned_barycentric_weights():

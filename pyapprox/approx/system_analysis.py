@@ -8,10 +8,10 @@ import networkx as nx
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.variable_transformations import (
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.adaptive_sparse_grid import (
+from pyapprox.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
     variance_refinement_indicator, max_level_admissibility_function,
     get_sparse_grid_univariate_leja_quadrature_rules_economical,

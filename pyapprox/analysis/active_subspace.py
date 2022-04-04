@@ -2,11 +2,11 @@ import numpy as np
 import os
 from scipy.optimize import linprog as scipy_linprog
 from scipy.spatial import ConvexHull
-from pyapprox.variable_transformations import map_hypercube_samples
+from pyapprox.variables.variable_transformations import map_hypercube_samples
 from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials,\
     coeffs_of_power_of_nd_linear_monomial
 from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials
-from pyapprox.utilities import cartesian_product
+from pyapprox.utilities.utilities import cartesian_product
 
 
 def get_random_active_subspace_eigenvecs(num_vars, num_active_vars, filename=None):

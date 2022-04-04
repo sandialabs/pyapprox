@@ -8,7 +8,7 @@ from pyapprox.interp.adaptive_sparse_grid import (
     get_sparse_grid_univariate_leja_quadrature_rules_economical
 )
 
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial
 )
 from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule

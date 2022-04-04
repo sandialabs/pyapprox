@@ -1,7 +1,7 @@
 import numpy as np
 
-from pyapprox.pya_numba import njit
-from pyapprox.utilities import get_first_n_primes
+from pyapprox.utilities.pya_numba import njit
+from pyapprox.utilities.utilities import get_first_n_primes
 from pyapprox.sys_utilities import trace_error_with_msg
 
 

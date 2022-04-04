@@ -5,7 +5,7 @@ from sklearn.linear_model import (
     OrthogonalMatchingPursuitCV
 )
 
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
 )

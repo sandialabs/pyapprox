@@ -12,19 +12,19 @@ First lets import necessary modules and define a function useful for estimating 
    import numpy as np
    from pyapprox.configure_plots import *
    from pyapprox.adaptive_polynomial_chaos import *
-   from pyapprox.variable_transformations import \
+   from pyapprox.variables.variable_transformations import \
    AffineBoundedVariableTransformation, AffineRandomVariableTransformation
-   from pyapprox.variables import IndependentMultivariateRandomVariable
+   from pyapprox.variables.variables import IndependentMultivariateRandomVariable
    from scipy.stats import beta
    from pyapprox.probability_measure_sampling import \
        generate_independent_random_samples
-   from pyapprox.adaptive_sparse_grid import max_level_admissibility_function, \
+   from pyapprox.interp.adaptive_sparse_grid import max_level_admissibility_function, \
        isotropic_refinement_indicator
-   from pyapprox.univariate_quadrature import clenshaw_curtis_rule_growth, \
+   from pyapprox.orthopoly.quadrature import clenshaw_curtis_rule_growth, \
        constant_increment_growth_rule
    from functools import partial
    from scipy.stats import uniform,beta
-   from pyapprox.models.genz import GenzFunction
+   from pyapprox.interface.genz import GenzFunction
 
    def compute_l2_error(validation_samples,validation_values,pce,relative=True):
        pce_values = pce(validation_samples)
@@ -206,7 +206,7 @@ And finally we plot the final polynomial index set :math:`\Lambda` the subspace 
    :context:
    :align: center
 
-    from pyapprox.sparse_grid import plot_sparse_grid_2d
+    from pyapprox.interp.sparse_grid import plot_sparse_grid_2d
     plot_sparse_grid_2d(
         pce.samples,np.ones(pce.samples.shape[1]),
         pce.pce.indices, pce.subspace_indices)

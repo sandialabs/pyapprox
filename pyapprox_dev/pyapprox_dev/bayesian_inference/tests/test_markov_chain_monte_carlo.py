@@ -3,9 +3,9 @@ import unittest
 from scipy.stats import norm, uniform
 
 import pyapprox as pya
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.utilities import get_tensor_product_quadrature_rule
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayesian_inference.laplace import \
     laplace_posterior_approximation_for_linear_models
 
@@ -30,7 +30,7 @@ class LinearModel(object):
         vals = self.Amatrix.dot(samples).T
         return vals
 
-from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 class ExponentialQuarticLogLikelihoodModel(object):
     def __init__(self):
         self.a = 3.0

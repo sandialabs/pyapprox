@@ -3,7 +3,7 @@ import unittest
 from functools import partial
 from scipy import stats
 
-from pyapprox.variables import variables_equivalent
+from pyapprox.variables.variables import variables_equivalent
 from pyapprox.coupled_systems import SystemNetwork
 from pyapprox.system_analysis import (
     DecoupledSystemSurrogate, TerminateTest
@@ -11,8 +11,8 @@ from pyapprox.system_analysis import (
 from pyapprox.tests.test_coupled_systems import (
     get_3_recursive_polynomial_components, build_chain_graph
 )
-from pyapprox.adaptive_sparse_grid import variance_refinement_indicator
-from pyapprox.univariate_quadrature import (
+from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator
+from pyapprox.orthopoly.quadrature import (
     clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth
 )
 from pyapprox.probability_measure_sampling import (

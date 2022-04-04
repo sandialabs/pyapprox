@@ -1,12 +1,12 @@
 from pyapprox.manipulate_polynomials import group_like_terms
-from pyapprox.monomial import monomial_mean_uniform_variables, \
+from pyapprox.polychaos.monomial import monomial_mean_uniform_variables, \
     monomial_basis_matrix, univariate_monomial_basis_matrix
-from pyapprox.indexing import compute_hyperbolic_indices,\
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices,\
     argsort_indices_leixographically
 from scipy.stats import beta as beta_rv
-from pyapprox.utilities import cartesian_product, outer_product
+from pyapprox.utilities.utilities import cartesian_product, outer_product
 from scipy.linalg import lu_factor, lu as scipy_lu
-from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.active_subspace import *
 import unittest
 try:

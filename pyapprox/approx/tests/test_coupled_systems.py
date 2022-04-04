@@ -8,10 +8,10 @@ from pyapprox.coupled_systems import (
     gauss_jacobi_fixed_point_iteration, GaussJacobiSystemNetwork,
     get_extraction_indices, get_extraction_matrices
 )
-from pyapprox.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
-from pyapprox.utilities import flatten_2D_list
+from pyapprox.utilities.utilities import flatten_2D_list
 
 
 def get_3_peer_polynomial_components():

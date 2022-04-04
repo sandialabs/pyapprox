@@ -354,7 +354,7 @@ class TestShallowIceEquation(unittest.TestCase):
         print(val, grad)
 
         from pyapprox.optimization import check_gradients
-        from pyapprox.models.wrappers import SingleFidelityWrapper
+        from pyapprox.interface.wrappers import SingleFidelityWrapper
         fun = SingleFidelityWrapper(
             partial(model, jac=True), config_sample[:, 0])
         x0 = np.atleast_2d(model.Gamma)

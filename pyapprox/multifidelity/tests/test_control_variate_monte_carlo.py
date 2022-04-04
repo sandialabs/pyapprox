@@ -4,7 +4,7 @@ from scipy import stats
 from functools import partial
 
 import pyapprox as pya
-from pyapprox.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.control_variate_monte_carlo import (
     estimate_variance, allocate_samples_mlmc,
     get_discrepancy_covariances_MF, get_nsamples_per_model,

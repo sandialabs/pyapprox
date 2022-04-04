@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from pyapprox.models.wrappers import DataFunctionModel
+from pyapprox.interface.wrappers import DataFunctionModel
 
 class ModelWithCounter(object):
     def __init__(self):

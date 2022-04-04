@@ -13,7 +13,7 @@ from pyapprox.optimal_experimental_design import (
     ioptimality_criterion_more_design_pts_than_params,
     NonLinearAlphabetOptimalDesign
 )
-from pyapprox.monomial import univariate_monomial_basis_matrix
+from pyapprox.polychaos.monomial import univariate_monomial_basis_matrix
 import pyapprox as pya
 from pyapprox import cartesian_product
 

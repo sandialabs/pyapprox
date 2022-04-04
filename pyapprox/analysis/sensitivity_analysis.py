@@ -3,17 +3,17 @@ from scipy.optimize import OptimizeResult
 from scipy.spatial.distance import cdist
 from itertools import combinations
 
-from pyapprox.indexing import hash_array, argsort_indices_leixographically
-from pyapprox.utilities import nchoosek
+from pyapprox.polychaos.indexing import hash_array, argsort_indices_leixographically
+from pyapprox.utilities.utilities import nchoosek
 from pyapprox.low_discrepancy_sequences import sobol_sequence, halton_sequence
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.gaussian_process import \
     _compute_expected_sobol_indices, generate_gp_realizations, \
     extract_gaussian_process_attributes_for_integration
-from pyapprox.multivariate_polynomials import \
+from pyapprox.polychaos.gpc import \
     define_poly_options_from_variable_transformation
-from pyapprox.adaptive_sparse_grid import \
+from pyapprox.interp.adaptive_sparse_grid import \
     convert_sparse_grid_to_polynomial_chaos_expansion
 
 
@@ -636,7 +636,7 @@ def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
 
     Parameters
     ----------
-    pce :class:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion`
+    pce :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
        The polynomial chaos expansion
 
     max_order : integer

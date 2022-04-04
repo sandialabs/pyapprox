@@ -1,8 +1,8 @@
 import numpy as np
 from functools import partial
 
-from pyapprox.first_order_stochastic_dominance import *
-from pyapprox.risk_measures import compute_conditional_expectations
+from pyapprox.optimization.first_order_stochastic_dominance import *
+from pyapprox.variables.risk_measures import compute_conditional_expectations
 
 
 class SSDOptProblem(FSDOptProblem):

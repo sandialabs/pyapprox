@@ -11,7 +11,7 @@ from pyapprox.utilities.utilities import (
     get_all_sample_combinations,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
 )
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial,
     define_poly_options_from_variable_transformation,
     get_polynomial_from_variable,

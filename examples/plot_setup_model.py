@@ -5,10 +5,10 @@ This tutorial describes how to setup a function with random inputs. It also prov
 
 We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. See :func:`pyapprox.benchmarks.benchmarks.setup_rosenbrock_function`
 """
-from pyapprox.models.wrappers import TimerModelWrapper, WorkTrackingModel
-from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array
+from pyapprox.interface.wrappers import TimerModelWrapper, WorkTrackingModel
+from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 import os
-from pyapprox.models.wrappers import PoolModel
+from pyapprox.interface.wrappers import PoolModel
 from pyapprox.control_variate_monte_carlo import ModelEnsemble
 import time
 import numpy as np
@@ -68,7 +68,7 @@ from pyapprox.examples.setup_model_functions import pyapprox_fun_0, fun_0
 values = pyapprox_fun_0(samples)
 
 #%%
-#The function :func:`pyapprox.models.wrappers.evaluate_1darray_function_on_2d_array` avoids the need to write a for loop but we can do this also and does some checking to make sure values is the correct shape
+#The function :func:`pyapprox.interface.wrappers.evaluate_1darray_function_on_2d_array` avoids the need to write a for loop but we can do this also and does some checking to make sure values is the correct shape
 
 values_loop = np.array([np.atleast_1d(fun_0(s)) for s in samples.T])
 assert np.allclose(values, values_loop)
@@ -76,7 +76,7 @@ assert np.allclose(values, values_loop)
 #%%
 #Timing function evaluations
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.models.wrappers.TimerModelWrapper` and :class:`pyapprox.models.wrappers.WorkTrackingModel` objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.
+#It is often useful to be able to track the time needed to evaluate a function. We can track this using the :class:`pyapprox.interface.wrappers.TimerModelWrapper` and :class:`pyapprox.interface.wrappers.WorkTrackingModel` objects which are designed to work together. The former time each evaluation of a function that returns output of shape (nsampels,qoi) and appends the time to the quantities of interest returned by the function, i.e returns a 2D np.ndarray with shape (nsamples,qoi+1). The second extracts the time and removes it from the quantities of interest and returns output with the original shape  (nsmaples,nqoi) of the user function.
 #
 #Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions
 #
@@ -96,7 +96,7 @@ worktracking_fun = WorkTrackingModel(timer_fun)
 values = worktracking_fun(samples)
 
 #%%
-#The :class:`pyapprox.models.wrappers.WorkTrackingModel` has an attribute :class:`pyapprox.models.wrappers.WorkTracker` which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use
+#The :class:`pyapprox.interface.wrappers.WorkTrackingModel` has an attribute :class:`pyapprox.interface.wrappers.WorkTracker` which stores the execution time of each function evaluation as a dictionary. The key corresponds is the model id. For this example the id will always be the same, but the id can vary and this is useful when evaluating mutiple models, e.g. when using multi-fidelity methods. To print the dictionary use
 costs = worktracking_fun.work_tracker.costs
 print(costs)
 
@@ -155,7 +155,7 @@ print(worktracking_fun_ensemble.work_tracker(query_fun_ids))
 #%%
 #Evaluating functions at multiple samples in parallel
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using :class:`pyapprox.models.wrappers.PoolModel`. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See :class:`pyapprox.models.async_model.AsynchronousEvaluationModel` if you are interested in running multiple simulations in parallel on a distributed memory system.
+#For expensive models it is often useful to be able to evaluate each model concurrently. This can be achieved using :class:`pyapprox.interface.wrappers.PoolModel`. Note this function is not intended for use with distributed memory systems, but rather is intended to use all the threads of a personal computer or compute node. See :class:`pyapprox.interface.async_model.AsynchronousEvaluationModel` if you are interested in running multiple simulations in parallel on a distributed memory system.
 #
 #PoolModel cannot be used to wrap WorkTrackingModel. However it can still
 #be used with WorkTrackingModel using the sequence of wrappers below.

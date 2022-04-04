@@ -12,15 +12,15 @@ from sklearn.gaussian_process.kernels import Matern, RBF, Product, Sum, \
     ConstantKernel, WhiteKernel
 
 from pyapprox import get_univariate_quadrature_rules_from_variable
-from pyapprox.utilities import cartesian_product, outer_product, \
+from pyapprox.utilities.utilities import cartesian_product, outer_product, \
     cholesky_solve_linear_system
 from pyapprox.low_discrepancy_sequences import transformed_halton_sequence
-from pyapprox.utilities import pivoted_cholesky_decomposition, \
+from pyapprox.utilities.utilities import pivoted_cholesky_decomposition, \
     continue_pivoted_cholesky_decomposition
-from pyapprox.variables import IndependentMultivariateRandomVariable
-from pyapprox.variable_transformations import \
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variable_transformations import \
     AffineRandomVariableTransformation
-from pyapprox.indexing import argsort_indices_leixographically
+from pyapprox.polychaos.indexing import argsort_indices_leixographically
 from pyapprox.probability_measure_sampling import \
     generate_independent_random_samples
 

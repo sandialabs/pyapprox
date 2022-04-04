@@ -32,17 +32,17 @@ from pyapprox.gaussian_process import (
 from pyapprox.low_discrepancy_sequences import (
     sobol_sequence, transformed_halton_sequence
 )
-from pyapprox.variable_transformations import (
+from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.indexing import compute_hyperbolic_indices
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
 import pyapprox as pya
 from pyapprox.approximate import approximate
 from pyapprox.sensitivity_analysis import (
     get_sobol_indices,
     get_main_and_total_effect_indices_from_pce
 )
-from pyapprox.utilities import cartesian_product
+from pyapprox.utilities.utilities import cartesian_product
 
 
 def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
@@ -698,7 +698,7 @@ class TestGaussianProcess(unittest.TestCase):
             # plt.legend()
             # plt.show()
 
-        from pyapprox.multivariate_polynomials import \
+        from pyapprox.polychaos.gpc import \
             marginalize_polynomial_chaos_expansion
         pce = approximate(
             train_samples, train_vals, 'polynomial_chaos',

@@ -438,10 +438,10 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
     """
 
     from scipy import stats
-    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
-    from pyapprox.models.wrappers import PoolModel
-    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.interface.wrappers import PoolModel
+    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
     variable = IndependentMultivariateRandomVariable(univariate_variables)
@@ -470,12 +470,12 @@ def setup_multi_level_advection_diffusion_benchmark(
     See :func:`pyapprox_dev.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.
     """
     from scipy import stats
-    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
-    from pyapprox.models.wrappers import PoolModel
-    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.interface.wrappers import PoolModel
+    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
-    from pyapprox.models.wrappers import MultiLevelWrapper
+    from pyapprox.interface.wrappers import MultiLevelWrapper
     univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
     variable = IndependentMultivariateRandomVariable(univariate_variables)
     final_time, degree = 1.0, 1
@@ -616,10 +616,10 @@ def setup_advection_diffusion_source_inversion_benchmark(
     """
 
     from scipy import stats
-    from pyapprox.models.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
-    from pyapprox.models.wrappers import PoolModel
-    from pyapprox.variables import IndependentMultivariateRandomVariable
+    from pyapprox.interface.wrappers import PoolModel
+    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     univariate_variables = [stats.uniform(0, 1)]*2
     variable = IndependentMultivariateRandomVariable(univariate_variables)

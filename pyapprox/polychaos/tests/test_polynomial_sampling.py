@@ -9,7 +9,7 @@ from pyapprox.polychaos.polynomial_sampling import (
     interpolate_lu_leja_samples, get_quadrature_weights_from_lu_leja_samples,
     get_oli_leja_samples
 )
-from pyapprox.polychaos.multivariate_polynomials import (
+from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation,
     define_poly_options_from_variable

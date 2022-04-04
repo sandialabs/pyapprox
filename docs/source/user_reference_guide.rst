@@ -56,7 +56,7 @@ The following functions can be used to compute the mean and variance analyticall
 
   - 'sparse_grid'  See :func:`pyapprox.quadrature.compute_mean_and_variance_sparse_grid`
 
-  - 'polynomial_chaos' See :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.mean` and :func:`pyapprox.multivariate_polynomials.PolynomialChaosExpansion.variance`
+  - 'polynomial_chaos' See :func:`pyapprox.polychaos.gpc.PolynomialChaosExpansion.mean` and :func:`pyapprox.polychaos.gpc.PolynomialChaosExpansion.variance`
 
 .. Multi-fidelity Monte Carlo quadrature
 .. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

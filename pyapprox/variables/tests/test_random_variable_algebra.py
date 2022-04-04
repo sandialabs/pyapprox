@@ -18,7 +18,7 @@ from pyapprox.variables.nataf_transformation import (
     scipy_gauss_hermite_pts_wts_1D
 )
 
-# from pyapprox.univariate_quadrature import gauss_jacobi_pts_wts_1D
+# from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
 class TestRandomVariableAlgebra(unittest.TestCase):

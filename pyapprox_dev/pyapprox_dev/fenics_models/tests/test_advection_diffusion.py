@@ -605,7 +605,7 @@ class TestTransientAdvectionDiffusionEquation(unittest.TestCase):
         # this requires passing in entire kappa vector and not just variables
         # used to compute the KLE.
         from pyapprox.optimization import check_gradients
-        from pyapprox.models.wrappers import SingleFidelityWrapper
+        from pyapprox.interface.wrappers import SingleFidelityWrapper
         from functools import partial
 
         init_condition, boundary_conditions, function_space, beta, \

@@ -1,6 +1,6 @@
 import numpy as np
 import shutil, os
-from pyapprox.models.wrappers import evaluate_1darray_function_on_2d_array, \
+from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array, \
     run_shell_command
 class FileIOModel(object):
     """

@@ -14,7 +14,7 @@ import copy
 from pyapprox.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.utilities import get_all_sample_combinations
+from pyapprox.utilities.utilities import get_all_sample_combinations
 
 try:
     # use torch to compute gradients for sample allocation optimization

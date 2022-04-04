@@ -4,8 +4,8 @@ import unittest
 import os
 import glob
 import tempfile
-from pyapprox.models.async_model import AsynchronousEvaluationModel
-from pyapprox.models.file_io_model import FileIOModel
+from pyapprox.interface.async_model import AsynchronousEvaluationModel
+from pyapprox.interface.file_io_model import FileIOModel
 
 import multiprocessing
 max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
@@ -93,7 +93,7 @@ def get_file_io_model(delay=0., fault_percentage=0):
     Return a ShellIOModel that wrapts a call to the 2D target function
     [x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]) with two QoI.
     """
-    shell_command = """python -c "import numpy as np; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.models.test_async_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; import time; time.sleep(delay);" """ % (
+    shell_command = """python -c "import numpy as np; target_function = lambda x: np.array([x[0]**2 + 2*x[1]**3, x[0]**3 + x[0]*x[1]]); sample = np.loadtxt('params.in'); u=np.random.uniform(0.,1.); from pyapprox.interface.test_async_model import raise_exception; raise_exception(u<%f/100., 'fault occurred'); vals = target_function(sample); np.savetxt('results.out',vals); delay=%f; import time; time.sleep(delay);" """ % (
         fault_percentage, delay+np.random.uniform(-1., 1.)*delay*0.1)
 
     def target_function(x): return np.array(
