@@ -25,7 +25,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.optimal_experimental_design
+.. automodapi:: pyapprox.expdesign.optimal_experimental_design
    :no-inheritance-diagram:
 
 

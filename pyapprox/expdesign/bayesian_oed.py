@@ -18,7 +18,9 @@ from pyapprox.util.utilities import (
     get_tensor_product_quadrature_rule,
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )
-from pyapprox import get_univariate_quadrature_rules_from_variable
+from pyapprox.polychaos.gpc import (
+    get_univariate_quadrature_rules_from_variable
+)
 from pyapprox.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation

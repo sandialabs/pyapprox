@@ -1,8 +1,9 @@
 import unittest
 import numpy as np
 from functools import partial
+import copy
 
-from pyapprox.optimal_experimental_design import (
+from pyapprox.expdesign.optimal_experimental_design import (
     compute_homoscedastic_outer_products,
     compute_prediction_variance, goptimality_criterion,
     r_oed_objective, r_oed_objective_jacobian,
@@ -14,8 +15,12 @@ from pyapprox.optimal_experimental_design import (
     NonLinearAlphabetOptimalDesign
 )
 from pyapprox.polychaos.monomial import univariate_monomial_basis_matrix
-import pyapprox as pya
-from pyapprox import cartesian_product
+from pyapprox.orthopoly.quadrature import (
+    gauss_jacobi_pts_wts_1D
+)
+from pyapprox.util.utilities import (
+    cartesian_product, check_gradients, check_hessian, approx_jacobian
+)
 
 
 def exponential_growth_model(parameters, samples):
@@ -105,7 +110,7 @@ def emax_model_grad_parameters(parameters, samples):
 def check_derivative(function, num_design_pts, rel=True, plot=False):
     # design_prob_measure = np.ones((num_design_pts,1))/num_design_pts
     design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
-    return pya.check_gradients(
+    return check_gradients(
         function, True, design_prob_measure, rel=rel, plot=plot)
 
 
@@ -183,7 +188,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         r_oed_jac_wrapper = partial(
             r_oed_objective_jacobian, beta, pred_weights)
         x0 = np.concatenate([np.ones(num_design_pts+1), mu])[:, np.newaxis]
-        diffs = pya.check_gradients(
+        diffs = check_gradients(
             r_oed_objective_wrapper, r_oed_jac_wrapper, x0)
         assert diffs.min() < 6e-5, diffs
 
@@ -197,7 +202,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # from pyapprox import approx_jacobian
         # print(x0.shape)
         # print(approx_jacobian(r_oed_constraint_wrapper,x0[:,0]))
-        diffs = pya.check_gradients(
+        diffs = check_gradients(
             r_oed_constraint_wrapper, r_oed_constraint_jac_wrapper, x0)
         assert diffs.min() < 6e-5, diffs
 
@@ -207,7 +212,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         num_pred_pts = 11 #51
         #pred_samples = np.random.uniform(-1, 1, num_pred_pts)
         #pred_prob_measure = np.ones(num_pred_pts)/num_pred_pts
-        pred_samples, pred_prob_measure = pya.gauss_jacobi_pts_wts_1D(
+        pred_samples, pred_prob_measure = gauss_jacobi_pts_wts_1D(
            num_pred_pts, 0, 0)
 
         design_samples = np.linspace(-1, 1, num_design_pts)
@@ -450,7 +455,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
                 homog_outer_prods, design_factors, x,
                 return_hessian=True)[2]
             return mat.dot(p)
-        pya.check_hessian(jac, hess_matvec, mu[:, np.newaxis])
+        check_hessian(jac, hess_matvec, mu[:, np.newaxis])
 
     def test_heteroscedastic_doptimality_criterion(self):
         poly_degree = 10
@@ -756,7 +761,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
         tt = 0.1
         x0 = np.vstack((design_prob_measure, tt))
-        diffs = pya.check_gradients(
+        diffs = check_gradients(
             lambda xx: roptimality_criterion_wrapper(xx[:-1], tt=xx[-1]),
             True, x0, rel=True)
         assert diffs.min() < 6e-5, diffs
@@ -804,7 +809,7 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         design_prob_measure = np.random.uniform(0, 1, (num_design_pts, 1))
         tt = 0.1
         x0 = np.vstack((design_prob_measure, tt))
-        diffs = pya.check_gradients(
+        diffs = check_gradients(
             lambda xx: roptimality_criterion_wrapper(xx[:-1], tt=xx[-1]),
             True, x0, rel=True)
         assert diffs.min() < 6e-5, diffs
@@ -897,7 +902,6 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
 
     xx1 = np.linspace(0.9, 1.1, 3)[-1:]  # theta_1 does not effect optimum
     xx2 = np.linspace(0.2, 1, 5)
-    from pyapprox import cartesian_product
     parameter_samples = cartesian_product([xx1, xx2])
     # x0 = None
     minimax_opt_problem = NonLinearAlphabetOptimalDesign(
@@ -921,7 +925,6 @@ def help_check_michaelis_menten_model_minimax_optimal_design(
         constraint_vals_II.append(z0[0]-constraint[0].fun(z0))
     assert np.allclose(constraint_vals_I, constraint_vals_II)
 
-    import copy
     opts = copy.deepcopy(opts)
     mu_local_list = []
     for ii in range(parameter_samples.shape[1]):
@@ -964,7 +967,6 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         np.random.seed(1)
 
     def test_exponential_growth_model(self):
-        from pyapprox.optimization import approx_jacobian
         theta = np.ones(1)*2
         samples = np.random.uniform(0, 1, (1, 3))
         fd_jac = approx_jacobian(exponential_growth_model, theta, samples)
@@ -972,7 +974,6 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(jac.T, fd_jac)
 
     def test_michaelis_menten_model(self):
-        from pyapprox.optimization import approx_jacobian
         theta = np.ones(2)*0.5
         samples = np.random.uniform(1, 2, (1, 3))
         fd_jac = approx_jacobian(michaelis_menten_model, theta, samples)
@@ -980,7 +981,6 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         assert np.allclose(jac.T, fd_jac)
 
     def test_emax_model(self):
-        from pyapprox.optimization import approx_jacobian
         theta = np.ones(3)*0.5
         samples = np.random.uniform(1, 2, (1, 2))
         fd_jac = approx_jacobian(emax_model, theta, samples)
@@ -1043,7 +1043,6 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
             lambda p, x: michaelis_menten_model_grad_parameters(p, x).T
         xx1 = np.linspace(0.9, 1.1, 3)[-1:]  # theta_1 does not effect optimum
         xx2 = np.linspace(0.2, 1, 5)
-        from pyapprox import cartesian_product
         parameter_samples = cartesian_product([xx1, xx2])
         opt_problem = NonLinearAlphabetOptimalDesign('D', local_design_factors)
         mu = opt_problem.solve_nonlinear_minimax(
@@ -1080,7 +1079,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
         p_lb, p_ub = 100, 2000
         local_design_factors = \
             lambda p, x: michaelis_menten_model_grad_parameters(p, x).T
-        xx2, ww2 = pya.gauss_jacobi_pts_wts_1D(20, 0, 0)
+        xx2, ww2 = gauss_jacobi_pts_wts_1D(20, 0, 0)
         # transform from [-1,1] to [p_lb,p_ub]
         xx2 = (xx2+1)/2*(p_ub-p_lb)+p_lb
         parameter_samples = cartesian_product([xx1, xx2])
@@ -1158,7 +1157,7 @@ class TestNonLinearOptimalExeprimentalDesign(unittest.TestCase):
 
             local_design_factors = \
                 lambda p, x: exponential_growth_model_grad_parameters(p, x).T
-            xx2, ww2 = pya.gauss_jacobi_pts_wts_1D(40, 0, 0)
+            xx2, ww2 = gauss_jacobi_pts_wts_1D(40, 0, 0)
             xx2 = (xx2+1)/2*(ub2-lb2)+lb2  # transform from [-1,1] to [lb2,ub2]
             parameter_samples = xx2[np.newaxis, :]
 

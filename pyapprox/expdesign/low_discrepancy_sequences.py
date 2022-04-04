@@ -78,7 +78,7 @@ def __load_direction_sequence(nvars):
     import os
     dir_path = os.path.dirname(os.path.realpath(__file__))
     dir_seq_file = open(
-        os.path.join(dir_path, 'data', 'sobol_direction_sequence.txt'), 'r')
+        os.path.join(dir_path, 'sobol_direction_sequence.txt'), 'r')
     a_vals = np.empty(nvars-1, dtype=np.int64)
     dir_seq = []
     ii = 1  # file does not store values for 0th dimension

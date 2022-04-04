@@ -5,7 +5,7 @@ from functools import partial
 import copy
 from scipy.special import erfinv
 
-from pyapprox.bayesian_oed import (
+from pyapprox.expdesign.bayesian_oed import (
     gaussian_loglike_fun,
     precompute_expected_kl_utility_data,
     compute_expected_kl_utility_monte_carlo,
@@ -32,9 +32,9 @@ from pyapprox.bayes.laplace import (
 from pyapprox.variables.risk_measures import (
     conditional_value_at_risk, lognormal_variance,
     lognormal_cvar_deviation, gaussian_cvar, lognormal_kl_divergence,
-    gaussian_kl_divergence,
+    gaussian_kl_divergence
 )
-from pyapprox.tests.test_risk_measures import (
+from pyapprox.variables.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
 from pyapprox.bayes.laplace import laplace_evidence
@@ -44,7 +44,7 @@ from pyapprox.variables.variable_transformations import (
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, piecewise_univariate_linear_quad_rule
 )
-from pyapprox.random_variable_algebra import (
+from pyapprox.variables.random_variable_algebra import (
     weighted_sum_dependent_gaussian_variables
 )
 from pyapprox.polychaos.indexing import compute_hyperbolic_indices
@@ -804,7 +804,6 @@ class TestBayesianOED(unittest.TestCase):
         nrandom_vars = degree+1
         quad_method = "quadratic"
         risk_fun = None
-        from pyapprox import conditional_value_at_risk
         quantile = 0.8
         risk_fun = partial(conditional_value_at_risk, alpha=quantile)
 
