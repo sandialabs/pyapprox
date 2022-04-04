@@ -1,8 +1,8 @@
 from functools import partial
 import numpy as np
 
-from pyapprox.sparsegrid.sparse_grid import get_sparse_grid_samples_and_weights
-from pyapprox.sparsegrid.adaptive_sparse_grid import (
+from pyapprox.interp.sparse_grid import get_sparse_grid_samples_and_weights
+from pyapprox.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
     max_level_admissibility_function, variance_refinement_indicator,
     get_sparse_grid_univariate_leja_quadrature_rules_economical

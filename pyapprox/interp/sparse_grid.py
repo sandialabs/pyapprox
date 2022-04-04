@@ -11,7 +11,7 @@ from pyapprox.polychaos.indexing import (
     nchoosek, compute_hyperbolic_level_indices,
     argsort_indices_lexiographically_by_row
 )
-from pyapprox.sparsegrid.barycentric_interpolation import (
+from pyapprox.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation,
     multivariate_hierarchical_barycentric_lagrange_interpolation

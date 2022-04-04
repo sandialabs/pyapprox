@@ -9,7 +9,7 @@ from pyapprox.utilities.utilities import (
     qr_solve
 )
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.sparsegrid.barycentric_interpolation import (
+from pyapprox.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
 )

@@ -2,7 +2,7 @@ import numpy as np
 from functools import partial
 from scipy import stats
 
-from pyapprox.sparsegrid.sparse_grid import get_sparse_grid_samples_and_weights
+from pyapprox.interp.sparse_grid import get_sparse_grid_samples_and_weights
 from pyapprox.utilities.utilities import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.quadrature import leja_growth_rule
 from pyapprox.polychaos.manipulate_polynomials import get_indices_double_set

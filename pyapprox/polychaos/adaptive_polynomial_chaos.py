@@ -24,7 +24,7 @@ from pyapprox.utilities.linalg import (
     pivot_rows,
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
 )
-from pyapprox.sparsegrid.adaptive_sparse_grid import SubSpaceRefinementManager
+from pyapprox.interp.adaptive_sparse_grid import SubSpaceRefinementManager
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )

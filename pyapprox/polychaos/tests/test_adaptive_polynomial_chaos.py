@@ -14,7 +14,7 @@ from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.sparsegrid.adaptive_sparse_grid import (
+from pyapprox.interp.adaptive_sparse_grid import (
     max_level_admissibility_function
 )
 from pyapprox.orthopoly.quadrature import clenshaw_curtis_rule_growth

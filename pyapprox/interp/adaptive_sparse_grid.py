@@ -29,7 +29,7 @@ from pyapprox.polychaos.multivariate_polynomials import (
     PolynomialChaosExpansion
 )
 from pyapprox.polychaos.manipulate_polynomials import add_polynomials
-from pyapprox.sparsegrid.sparse_grid import *
+from pyapprox.interp.sparse_grid import *
 
 
 class mypriorityqueue():
