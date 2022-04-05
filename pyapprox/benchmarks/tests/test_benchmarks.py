@@ -1,6 +1,6 @@
 import unittest
-
 import numpy as np
+import pickle
 
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.benchmarks.surrogate_benchmarks import (
@@ -115,6 +115,13 @@ class TestBenchmarks(unittest.TestCase):
         errors = check_gradients(benchmark.fun, benchmark. jac, sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
+
+    def test_genz_pickle(self):
+        g = setup_benchmark("genz", nvars=2, test_name="oscillatory")
+        with open('function.pkl', 'wb') as f:
+            pickle.dump(g, f)
+        with open('function.pkl', 'rb') as f:
+            g1 = pickle.load(f)
 
 
 if __name__ == "__main__":

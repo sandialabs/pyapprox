@@ -624,7 +624,7 @@ class TestLinalg(unittest.TestCase):
         B = np.random.normal(0, 1, (n, n))
         A = B.T.dot(B)
         # pivots = [1,2,0] causes issues with
-        # pya.pivoted_cholesky_decomposition
+        # pyapprox.util.linalg.pivoted_cholesky_decomposition
 
         if n == 4:
             a1 = A[2, 2]

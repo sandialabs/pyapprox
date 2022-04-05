@@ -308,21 +308,3 @@ def oscillatory_genz_pdf(c, w1, values):
     z_pdf_vals = get_pdf_from_monomial_expansion(
         coef, lb, ub, conv_pdf, values[:, 0])
     return z_pdf_vals
-
-# add unit test like to test pickling
-# python -c "from PyDakota.models.genz import GenzFunction; g = GenzFunction('oscillatory',2); import pickle; pickle.dump(g,open('function.pkl','wb')); g1 = pickle.load(open('function.pkl','rb'))"
-
-    # def test_genz_function_pdf(self):
-    #     nvars=2
-    #     benchmark = setup_benchmark(
-    #         "genz",nvars=nvars,test_name='oscillatory',
-    #         coefficients=[np.ones(nvars),np.zeros(nvars)+1])
-    #     samples = pya.generate_independent_random_samples(
-    #         benchmark.variable,int(1e3))
-    #     values = benchmark.fun(samples)
-    #     plt.hist(values[:,0],bins=20,density=True)
-    #     from pyapprox.interface.genz import oscillatory_genz_pdf
-    #     zz = np.linspace(values.min(),values.max(),100)[:,np.newaxis]
-    #     pdf_vals = oscillatory_genz_pdf(benchmark.fun.c,benchmark.fun.w[0],zz)
-    #     plt.plot(zz,pdf_vals)
-    #     plt.show()

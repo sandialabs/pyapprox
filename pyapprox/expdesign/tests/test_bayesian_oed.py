@@ -55,7 +55,7 @@ warnings.filterwarnings('error')
 
 
 def setup_linear_gaussian_model_inference(prior_variable, noise_std, obs_mat):
-    # prior_variable = pya.IndependentRandomVariable(
+    # prior_variable = IndependentRandomVariable(
     #     [stats.norm(0, 1)]*nrandom_vars)
     nobs = obs_mat.shape[0]
     prior_mean = prior_variable.get_statistics("mean")
