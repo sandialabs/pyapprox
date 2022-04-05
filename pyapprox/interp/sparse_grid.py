@@ -793,11 +793,9 @@ def plot_sparse_grid_3d(samples, weights, poly_indices=None, subspace_indices=No
     return axs
 
 
-def evaluate_sparse_grid_subspace_hierarchically(samples, values, subspace_index,
-                                                 subspace_values_indices,
-                                                 samples_1d,
-                                                 subspace_poly_indices,
-                                                 config_variables_idx):
+def evaluate_sparse_grid_subspace_hierarchically(
+        samples, values, subspace_index, subspace_values_indices,
+        samples_1d, subspace_poly_indices, config_variables_idx):
     if config_variables_idx is None:
         config_variables_idx = samples.shape[0]
 

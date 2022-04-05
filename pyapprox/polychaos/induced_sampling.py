@@ -8,7 +8,9 @@ from multiprocessing import Pool
 
 from pyapprox.cython.orthonormal_polynomials_1d import\
     continuous_induced_measure_cdf_pyx
-from pyapprox.polychaos.polynomial_sampling import christoffel_weights
+from pyapprox.orthopoly.leja_sequences import (
+    christoffel_weights, christoffel_function
+)
 from pyapprox.variables.random_variable_algebra import invert_monotone_function
 from pyapprox.variables.variables import (
     is_continuous_variable, is_bounded_discrete_variable,
@@ -22,7 +24,6 @@ from pyapprox.orthopoly.orthonormal_polynomials import (
 from pyapprox.variables.probability_measure_sampling import (
     rejection_sampling, discrete_sampling
 )
-from pyapprox.polychaos.polynomial_sampling import christoffel_function
 
 
 def C_eval(a, b, x, N):

@@ -1504,7 +1504,7 @@ def get_posterior_2d_interpolant_from_oed_data(
                 np.unique(
                     oed.inner_loop_prior_samples[dd, :ninner_loop_samples]))
         fun = partial(tensor_product_barycentric_interpolation, abscissa_1d,
-                      vals[outer_loop_idx, :][:, None])
+                      vals)
         return fun
 
     quad_methods = ['linear', 'quadratic', 'gauss']

@@ -5,6 +5,7 @@ from sklearn.linear_model import (
     OrthogonalMatchingPursuitCV
 )
 
+from pyapprox.orthopoly.leja_sequences import christoffel_weights
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
@@ -12,7 +13,6 @@ from pyapprox.polychaos.gpc import (
 from pyapprox.polychaos.induced_sampling import (
     increment_induced_samples_migliorati,
     generate_induced_samples_migliorati_tolerance,
-    christoffel_weights,
     compute_preconditioned_canonical_basis_matrix_condition_number
 )
 from pyapprox.util.utilities import hash_array

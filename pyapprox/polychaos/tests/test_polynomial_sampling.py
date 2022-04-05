@@ -2,11 +2,14 @@ import unittest
 import numpy as np
 from scipy import stats
 
+from pyapprox.orthopoly.leja_sequences import (
+    christoffel_function, christoffel_weights, get_lu_leja_samples,
+    interpolate_lu_leja_samples,
+    get_quadrature_weights_from_lu_leja_samples,
+)
 from pyapprox.polychaos.polynomial_sampling import (
-    christoffel_function,
-    get_fekete_samples, christoffel_weights, interpolate_fekete_samples,
-    get_lu_leja_samples, get_quadrature_weights_from_fekete_samples,
-    interpolate_lu_leja_samples, get_quadrature_weights_from_lu_leja_samples,
+    get_fekete_samples, interpolate_fekete_samples,
+    get_quadrature_weights_from_fekete_samples,
     get_oli_leja_samples
 )
 from pyapprox.polychaos.gpc import (

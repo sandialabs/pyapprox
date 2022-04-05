@@ -391,8 +391,6 @@ class TestBarycentricInterpolation(unittest.TestCase):
         level = [1]
         nodes_0, tmp = clenshaw_curtis_pts_wts_1D(level[0])
         abscissa_1d = [nodes_0]
-        # barycentric_weights_1d = [barycentric_weights( np.array( [0.0] ) ),
-        #                          barycentric_weights( abscissa_1d[0] )]
         barycentric_weights_1d = [
             compute_barycentric_weights_1d(abscissa_1d[0])]
 

@@ -3,6 +3,7 @@ import numpy as np
 from scipy import stats
 from functools import partial
 
+from pyapprox.orthopoly.leja_sequences import christoffel_function
 from pyapprox.polychaos.induced_sampling import (
     continuous_induced_measure_cdf,
     continuous_induced_measure_ppf, generate_induced_samples,
@@ -11,7 +12,7 @@ from pyapprox.polychaos.induced_sampling import (
     inverse_transform_sampling_1d,
     generate_induced_samples_migliorati_tolerance,
     compute_preconditioned_basis_matrix_condition_number,
-    increment_induced_samples_migliorati, christoffel_function
+    increment_induced_samples_migliorati
 )
 from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, compute_hyperbolic_level_indices

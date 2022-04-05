@@ -23,7 +23,7 @@ from pyapprox.variables.probability_measure_sampling import (
 from pyapprox.polychaos.adaptive_polynomial_chaos import (
     AdaptiveLejaPCE, variance_pce_refinement_indicator, AdaptiveInducedPCE
 )
-from pyapprox.polychaos.polynomial_sampling import christoffel_weights
+from pyapprox.orthopoly.leja_sequences import christoffel_weights
 from pyapprox.variables.variables import is_bounded_continuous_variable
 from pyapprox.interp.adaptive_sparse_grid import (
     variance_refinement_indicator,

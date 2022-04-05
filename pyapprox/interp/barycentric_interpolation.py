@@ -117,8 +117,8 @@ def barycentric_lagrange_interpolation_precompute(
             abscissa_and_weights[2*ii, dd] = abscissa_1d[dd][ii]
             abscissa_and_weights[2*ii+1, dd] = barycentric_weights_1d[dd][ii]
 
-    return num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights,\
-        active_abscissa_indices_1d
+    return (num_abscissa_1d, num_active_abscissa_1d, shifts,
+            abscissa_and_weights, active_abscissa_indices_1d)
 
 
 def multivariate_hierarchical_barycentric_lagrange_interpolation(
@@ -139,7 +139,7 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
         has ndim==1
 
     barycentric_weights_1d : [np.ndarray]
-        List of barycentric weights in each active dimension, corresponding to 
+        List of barycentric weights in each active dimension, corresponding to
         each of the interpolation nodes. Each array has ndim==1
 
     fn_vals : np.ndarray (num_samples, num_qoi)
@@ -158,7 +158,7 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
 
     active_dims : np.ndarray (num_active_dims)
         The dimensions which have more than one interpolation node. TODO
-        check if this can be simply extracted in this function by looking 
+        check if this can be simply extracted in this function by looking
         at abscissa_1d.
 
     active_abscissa_indices_1d : [np.ndarray]
@@ -173,16 +173,18 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
     result : np.ndarray (num_samples,num_qoi)
         The values of the interpolant at the samples x
     """
-    if (np.prod([xx.shape[0] for xx in abscissa_1d]) != fn_vals.shape[0]):
+    num_act_dims = active_dims.shape[0]
+    (num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights,
+     active_abscissa_indices_1d) = \
+         barycentric_lagrange_interpolation_precompute(
+             num_act_dims, abscissa_1d, barycentric_weights_1d,
+             active_abscissa_indices_1d)
+
+    if (np.prod(num_active_abscissa_1d) != fn_vals.shape[0]):
+        print(np.prod(num_active_abscissa_1d), fn_vals.shape,
+              num_active_abscissa_1d)
         msg = "The shapes of fn_vals and abscissa_1d are inconsistent"
         raise ValueError(msg)
-    
-    num_act_dims = active_dims.shape[0]
-    num_abscissa_1d, num_active_abscissa_1d, shifts, abscissa_and_weights, \
-        active_abscissa_indices_1d = \
-            barycentric_lagrange_interpolation_precompute(
-                num_act_dims, abscissa_1d, barycentric_weights_1d,
-                active_abscissa_indices_1d)
 
     try:
         from pyapprox.cython.barycentric_interpolation import \
@@ -199,13 +201,15 @@ def multivariate_hierarchical_barycentric_lagrange_interpolation(
             raise ValueError('Error values not finite')
 
     except (ImportError, ModuleNotFoundError) as e:
-        msg = 'multivariate_hierarchical_barycentric_lagrange_interpolation extension failed'
+        msg = "multivariate_hierarchical_barycentric_lagrange_interpolation"
+        msg += " extension failed"
         trace_error_with_msg(msg, e)
 
-        result = __multivariate_hierarchical_barycentric_lagrange_interpolation(
-            x, abscissa_1d, fn_vals, active_dims, active_abscissa_indices_1d,
-            num_abscissa_1d, num_active_abscissa_1d, shifts,
-            abscissa_and_weights)
+        result = \
+            __multivariate_hierarchical_barycentric_lagrange_interpolation(
+                x, abscissa_1d, fn_vals, active_dims,
+                active_abscissa_indices_1d, num_abscissa_1d,
+                num_active_abscissa_1d, shifts, abscissa_and_weights)
 
     return result
 
@@ -219,7 +223,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
     eps = 2*np.finfo(np.double).eps
     num_pts = x.shape[1]
     num_act_dims = active_dims.shape[0]
-    
+
     max_num_abscissa_1d = abscissa_and_weights.shape[0]//2
     multi_index = np.empty((num_act_dims), dtype=np.int64)
 
@@ -251,7 +255,7 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                 if (abs(x_dim_k - abscissa_1d[act_dim_idx][ii]) < eps):
                     is_active_dim = False
                     if ((cnt > 0) and
-                        (active_abscissa_indices_1d[act_dim_idx][cnt-1] == ii)):
+                            (active_abscissa_indices_1d[act_dim_idx][cnt-1] == ii)):
                         multi_index[act_dim_idx] = cnt-1
                     else:
                         has_inactive_abscissa = True
@@ -284,23 +288,8 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
 
                 denom *= denom_d
 
-            # the raise Exception('Error values not finite') at the end
-            # should catch this problem, which sometimes is actually not a
-            # problem
-            # if ( abs(denom) < eps ):
-            #    print(x[:,kk])
-            #    print(denom)
-            #    msg = "the evaluation of x using the interpolation "
-            #    msg += "absacissa  has precision issues"
-            #    raise Exception(msg)
-
-            # end for dd in range(num_act_dims_pt):
-
             if (num_act_dims_pt == 0):
                 # if point is an abscissa return the fn value at that point
-                #fn_val_index = 0
-                # for act_dim_idx in range(num_act_dims):
-                #    fn_val_index+=multi_index[act_dim_idx]*shifts[act_dim_idx]
                 fn_val_index = np.sum(multi_index*shifts)
                 result[kk, :] = fn_vals[fn_val_index, :]
             else:
@@ -309,10 +298,6 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                 done = True
                 if (num_act_dims_pt > 1):
                     done = False
-                #fn_val_index = 0
-                # for act_dim_idx in range(num_act_dims):
-                #    fn_val_index += \
-                #        multi_index[act_dim_idx]*shifts[act_dim_idx]
                 fn_val_index = np.sum(multi_index*shifts)
                 while (True):
                     act_dim_idx = act_dim_indices_pt_persistent[0]
@@ -329,7 +314,8 @@ def __multivariate_hierarchical_barycentric_lagrange_interpolation(
                                       [multi_index[act_dim_idx]], dd]
                         c_persistent[:, dd] += basis * c_persistent[:, dd-1]
                         c_persistent[:, dd-1] = 0.
-                        if (multi_index[act_dim_idx] < num_active_abscissa_1d[act_dim_idx]-1):
+                        if (multi_index[act_dim_idx] <
+                                num_active_abscissa_1d[act_dim_idx]-1):
                             fn_val_index += shifts[act_dim_idx]
                             multi_index[act_dim_idx] += 1
                             break
@@ -409,7 +395,7 @@ def precompute_tensor_product_lagrange_polynomial_basis(
     for dd in range(nactive_vars):
         nabscissa[dd] = abscissa_1d[dd].shape[0]
     max_nabscissa = nabscissa.max()
-    
+
     basis_vals_1d = np.empty(
         (nactive_vars, max_nabscissa, nsamples), dtype=np.double)
     for dd in range(nactive_vars):
@@ -440,8 +426,8 @@ def __tensor_product_lagrange_polynomial_basis(
     #         nactive_vars, nindices, nsamples)
     # basis_matrix = np.prod(temp2, axis=0).T
     # approx_values = basis_matrix.dot(values)
-    
-    # prod with axis argument does not work with njit    
+
+    # prod with axis argument does not work with njit
     # approx_values = np.zeros((nsamples, values.shape[1]), dtype=np.double)
     # for jj in range(nindices):
     #     basis_vals = 1
