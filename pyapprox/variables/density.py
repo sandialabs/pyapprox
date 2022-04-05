@@ -732,15 +732,14 @@ class EmpiricalCDF(object):
                 for ii in range(self.sorted_samples.shape[0])]
         else:
             assert weights.ndim == 1
-            I = np.argsort(self.samples)
-            self.ecdf = np.cumsum(weights[I])
+            II = np.argsort(self.samples)
+            self.ecdf = np.cumsum(weights[II])
 
         self.interp = interp1d(
             self.sorted_samples, self.ecdf, kind="zero", fill_value=(0, 1),
             bounds_error=False)
 
     def __call__(self, samples):
-
         assert np.isscalar(samples) or samples.ndim == 1
         return self.interp(samples)
 

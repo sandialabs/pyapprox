@@ -1,7 +1,7 @@
 import unittest
 from functools import partial
 from scipy import stats
-from scipy.special import factorial, kn as modified_bessel_2nd_kind
+from scipy.special import factorial, kn as modified_bessel_2nd_kind, erf
 import numpy as np
 
 from pyapprox.variables.random_variable_algebra import (
@@ -149,25 +149,30 @@ class TestRandomVariableAlgebra(unittest.TestCase):
             poly, lb, ub)
 
         x_cdf = stats.uniform(lb, ub-lb).cdf
-        zz = np.linspace(min(poly([lb, ub]).min(), poly(critical_points).min(
-        ))*1.001, max(poly([lb, ub]).max(),
-                      poly(critical_points).max())*0.999, 101)
+        zz = np.linspace(
+            min(poly([lb, ub]).min(), poly(critical_points).min(
+            ))*1.001, max(poly([lb, ub]).max(),
+                          poly(critical_points).max())*0.999, 101)
         z_cdf_vals = get_cdf_from_monomial_expansion(coef, lb, ub, x_cdf, zz)
-        zz_rand = np.sort(function(np.random.uniform(lb, ub, 1001)))
-        ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
-        # fig,axs=plt.subplots(1,2,figsize=(2*8,6))
-        critical_points = get_all_local_extrema_of_monomial_expansion_1d(
-            poly, lb, ub)
-        # xx = np.linspace(lb,ub,101);axs[0].plot(xx,function(xx));
-        # axs[0].plot(critical_points,poly(critical_points),'o')
-
-        # axs[1].plot(zz_rand,ecdf,label='ECDF')
-        # axs[1].plot(zz,z_cdf_vals,label='Approx CDF')
-        # plt.legend();plt.show()
+        from pyapprox.variables.density import EmpiricalCDF
+        ecdf = EmpiricalCDF(function(np.random.uniform(lb, ub, 10001)))
+        # zz_rand = np.sort(function(np.random.uniform(lb, ub, 10001)))
+        # ecdf = np.cumsum(np.ones(zz_rand.shape[0])/zz_rand.shape[0])
+        assert np.allclose(ecdf(zz), z_cdf_vals, atol=1e-2)
+        # critical_points = get_all_local_extrema_of_monomial_expansion_1d(
+        #     poly, lb, ub)
+        # import matplotlib.pyplot as plt
+        # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
+        # xx = np.linspace(lb, ub, 101)
+        # axs[0].plot(xx, function(xx))
+        # axs[0].plot(critical_points, poly(critical_points), 'o')
+        # axs[1].plot(zz, ecdf(zz), label='ECDF')
+        # axs[1].plot(zz, z_cdf_vals, label='Approx CDF')
+        # plt.legend()
+        # plt.show()
 
     def test_get_inverse_derivatives_x_squared(self):
         lb, ub = -np.inf, np.inf
-        mean, var = [0, 1]
         def function(xx): return xx**2
         coef = [0, 0, 1]
         poly = np.poly1d(coef[::-1])
@@ -186,7 +191,7 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         x_pdf = stats.norm(mean, np.sqrt(var)).pdf
 
         coef = [0, 0, 1]
-        poly = np.poly1d(coef[::-1])
+        # poly = np.poly1d(coef[::-1])
         # due to singularities at 0 and 1 zz is only defined on 0<zz<1
         # so do not evaluate close to these bounds
         zz_bounds = stats.chi2.interval(0.9, df=1)
@@ -208,16 +213,16 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         assert np.allclose(z_cdf_vals, stats.chi2.cdf(zz, df=1), atol=1e-8)
 
     def test_sum_of_independent_uniform_and_gaussian_variables(self):
-        lb, ub = 1, 3
-        mu, sigma = 0., 0.25
+        mu, sigma = 0., 1
         normal_dist = stats.norm(loc=mu, scale=sigma)
 
         zz = np.linspace(-3, 3, 100)
+        a, b = 1, 3
+        uniform_dist = stats.uniform(loc=a, scale=b-a)
+        pdf1 = uniform_dist.pdf
         # using gauss hermite quadrature does not work because it is
         # using polynomial quadrature to integrate a discontinous function
         # i.e. uniform PDF
-        # uniform_dist = stats.uniform(loc=lb, scale=ub-lb)
-        # pdf1 = uniform_dist.pdf
         # x,w = scipy_gauss_hermite_pts_wts_1D(100)
         # x = x*sigma+mu #scale from standard normal
         # conv_pdf = sum_of_independent_random_variables_pdf(
@@ -227,14 +232,20 @@ class TestRandomVariableAlgebra(unittest.TestCase):
         # well
         x, w = np.polynomial.legendre.leggauss(100)
         w *= 0.5
-        x = x+2  # scale from [-1,1] to [1,3]
+        x = (x+1)/2*(b-a)+a  # scale from [-1,1] to [1,3]
         pdf2 = normal_dist.pdf
         conv_pdf = sum_of_independent_random_variables_pdf(
             pdf2, [[x, w]], zz)
 
+        def conv_pdf_exact(zz):
+            return 1/(2*(b-a))*(erf((b-zz)/np.sqrt(2))-erf((a-zz)/np.sqrt(2)))
+
+        assert np.allclose(conv_pdf, conv_pdf_exact(zz))
+        # import matplotlib.pyplot as plt
         # plt.plot(zz, pdf1(zz), label='Uniform')
         # plt.plot(zz, pdf2(zz), label='Gaussian')
-        # plt.plot(zz,conv_pdf, label='Sum')
+        # plt.plot(zz, conv_pdf, label='Sum')
+        # plt.plot(zz, conv_pdf_exact(zz), '--', label='Sum Exact')
         # plt.legend(loc='best'), plt.suptitle('PDFs')
         # plt.show()
 
