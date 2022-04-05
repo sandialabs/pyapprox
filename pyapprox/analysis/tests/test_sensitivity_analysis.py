@@ -1,4 +1,3 @@
-import sys
 import unittest
 from scipy.stats import uniform, norm
 import numpy as np

@@ -4,11 +4,11 @@ from functools import partial
 from scipy import stats
 
 from pyapprox.variables.variables import variables_equivalent
-from pyapprox.coupled_systems import SystemNetwork
-from pyapprox.system_analysis import (
+from pyapprox.approx.coupled_systems import SystemNetwork
+from pyapprox.approx.system_analysis import (
     DecoupledSystemSurrogate, TerminateTest
 )
-from pyapprox.tests.test_coupled_systems import (
+from pyapprox.approx.tests.test_coupled_systems import (
     get_3_recursive_polynomial_components, build_chain_graph
 )
 from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator

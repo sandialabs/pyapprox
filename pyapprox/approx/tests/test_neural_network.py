@@ -3,11 +3,11 @@ import numpy as np
 from functools import partial
 
 
-from pyapprox.neural_networks import (
+from pyapprox.approx.neural_networks import (
     NeuralNetwork, sigmoid_function, sigmoid_gradient,
     sigmoid_second_derivative, flatten_nn_parameters
 )
-from pyapprox.optimization import check_gradients, approx_jacobian
+from pyapprox.util.utilities import check_gradients, approx_jacobian
 
 
 def _approx_fprimeprime(xk, f, epsilon, args=()):

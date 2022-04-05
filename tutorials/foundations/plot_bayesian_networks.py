@@ -8,14 +8,19 @@ A Bayesian network (BN) structure is a directed acyclic graphs (DAG) whose nodes
 
 Lets import some necessary modules and then construct a DAG consisting of 3 groups of variables.
 """
+import networkx as nx
 from pyapprox.bayes.laplace import \
     laplace_posterior_approximation_for_linear_models
 import numpy as np
-from scipy import stats
-import pyapprox as pya
-from pyapprox.gaussian_network import *
-import copy
-from pyapprox.util.configure_plots import *
+from pyapprox.util.configure_plots import plt
+from pyapprox.gaussian_network import (
+    plot_hierarchical_network, plot_peer_network, plot_diverging_network,
+    GaussianNetwork, convert_gaussian_from_canonical_form,
+    plot_hierarchical_network_network_with_data,
+    get_var_ids_to_eliminate_from_node_query,
+    sum_product_variable_elimination
+)
+
 np.random.seed(1)
 
 nnodes = 3

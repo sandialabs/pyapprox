@@ -11,7 +11,21 @@ from pyapprox.approx.approximate import (
     adaptive_approximate_polynomial_chaos_increment_degree
 )
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-import pyapprox as pya
+from pyapprox.orthopoly.quadrature import (
+    clenshaw_curtis_in_polynomial_order, clenshaw_curtis_rule_growth
+)
+from pyapprox.interp.adaptive_sparse_grid import variance_refinement_indicator
+from pyapprox.polychaos.gpc import (
+    PolynomialChaosExpansion, define_poly_options_from_variable_transformation,
+    define_poly_options_from_variable
+)
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.util.utilities import nchoosek
+from pyapprox.variables.density import tensor_product_pdf
 
 
 class TestApproximate(unittest.TestCase):
@@ -64,16 +78,16 @@ class TestApproximate(unittest.TestCase):
                 nsamples)
             errors.append(error)
         univariate_quad_rule_info = [
-            pya.clenshaw_curtis_in_polynomial_order,
-            pya.clenshaw_curtis_rule_growth, None, None]
+            clenshaw_curtis_in_polynomial_order,
+            clenshaw_curtis_rule_growth, None, None]
         # ishigami has same value at first 3 points in clenshaw curtis rule
         # and so adaptivity will not work so use different rule
-        # growth_rule=partial(pya.constant_increment_growth_rule,4)
+        # growth_rule=partial(constant_increment_growth_rule,4)
         # univariate_quad_rule_info = [
-        #    pya.get_univariate_leja_quadrature_rule(
+        #    get_univariate_leja_quadrature_rule(
         #        univariate_variables[0],growth_rule),growth_rule]
         refinement_indicator = partial(
-            pya.variance_refinement_indicator, convex_param=0.5)
+            variance_refinement_indicator, convex_param=0.5)
         options = {"univariate_quad_rule_info": univariate_quad_rule_info,
                    "max_nsamples": 300, "tol": 0,
                    "callback": callback, "verbose": 0,
@@ -144,14 +158,14 @@ class TestApproximate(unittest.TestCase):
         # this test purposefully select wrong variable to make sure
         # poly_type overide is activated
         univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variable)
         # specify correct basis so it is not chosen from var_trans.variable
         poly_opts = {"var_trans": var_trans}
         # but rather from another variable which will invoke Legendre polys
-        basis_opts = pya.define_poly_options_from_variable(
-            pya.IndependentMultivariateRandomVariable([stats.uniform()]*nvars))
+        basis_opts = define_poly_options_from_variable(
+            IndependentMultivariateRandomVariable([stats.uniform()]*nvars))
         poly_opts["poly_types"] = basis_opts
         options = {"poly_opts": poly_opts, "variable": variable,
                    "options": {"max_num_step_increases": 1}}
@@ -174,25 +188,24 @@ class TestApproximate(unittest.TestCase):
         print(solver_type, solver_options)
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree = 3
-        poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree, 1.0))
+        poly.set_indices(compute_hyperbolic_indices(num_vars, degree, 1.0))
         # factor of 2 does not pass test but 2.2 does
         num_samples = int(poly.num_terms()*2.2)
         coef = np.random.normal(0, 1, (poly.indices.shape[1], 2))
-        coef[pya.nchoosek(num_vars+2, 2):, 0] = 0
+        coef[nchoosek(num_vars+2, 2):, 0] = 0
         # for first qoi make degree 2 the best degree
         poly.set_coefficients(coef)
 
-        train_samples = pya.generate_independent_random_samples(
-            variable, num_samples)
+        train_samples = variable.rvs(num_samples)
         train_vals = poly(train_samples)
         true_poly = poly
 
@@ -204,8 +217,7 @@ class TestApproximate(unittest.TestCase):
                          "linear_solver_options": solver_options}}).approx
 
         num_validation_samples = 10
-        validation_samples = pya.generate_independent_random_samples(
-            variable, num_validation_samples)
+        validation_samples = variable.rvs(num_validation_samples)
         assert np.allclose(
             poly(validation_samples), true_poly(validation_samples))
 
@@ -228,17 +240,17 @@ class TestApproximate(unittest.TestCase):
     def test_pce_basis_expansion(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree, hcross_strength = 7, 0.4
         poly.set_indices(
-            pya.compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+            compute_hyperbolic_indices(num_vars, degree, hcross_strength))
         num_samples = poly.num_terms()*2
         degrees = poly.indices.sum(axis=0)
         coef = np.random.normal(
@@ -250,8 +262,7 @@ class TestApproximate(unittest.TestCase):
         II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
         coef[II, 1] = 0
         poly.set_coefficients(coef)
-        train_samples = pya.generate_independent_random_samples(
-            variable, num_samples)
+        train_samples = variable.rvs(num_samples)
         train_vals = poly(train_samples)
         true_poly = poly
 
@@ -264,8 +275,7 @@ class TestApproximate(unittest.TestCase):
                          "max_num_init_terms": 33}}).approx
 
         num_validation_samples = 100
-        validation_samples = pya.generate_independent_random_samples(
-            variable, num_validation_samples)
+        validation_samples = variable.rvs(num_validation_samples)
         validation_samples = train_samples
         error = np.linalg.norm(poly(validation_samples)-true_poly(
             validation_samples))/np.sqrt(num_validation_samples)
@@ -277,11 +287,10 @@ class TestApproximate(unittest.TestCase):
         from sklearn.gaussian_process.kernels import Matern
         num_vars = 1
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
         num_samples = 100
-        train_samples = pya.generate_independent_random_samples(
-            variable, num_samples)
+        train_samples = variable.rvs(num_samples)
 
         # Generate random function
         nu = np.inf  # 2.5
@@ -357,9 +366,8 @@ class TestApproximate(unittest.TestCase):
             # return np.cos(2*np.pi*x.sum(axis=0)/num_vars)[:, np.newaxis]
 
         errors = []
-        validation_samples = pya.generate_independent_random_samples(
-            pya.IndependentMultivariateRandomVariable(univariate_variables),
-            100)
+        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        validation_samples = variable.rvs(100)
         validation_values = fun(validation_samples)
 
         def callback(gp):
@@ -371,7 +379,7 @@ class TestApproximate(unittest.TestCase):
             errors.append(error)
 
         weight_function = partial(
-            pya.tensor_product_pdf,
+            tensor_product_pdf,
             univariate_pdfs=[v.pdf for v in univariate_variables])
 
         gp = adaptive_approximate(
@@ -397,17 +405,17 @@ class TestApproximate(unittest.TestCase):
     def test_approximate_fixed_pce(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree, hcross_strength = 7, 0.4
         poly.set_indices(
-            pya.compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+            compute_hyperbolic_indices(num_vars, degree, hcross_strength))
         num_samples = poly.num_terms()*2
         degrees = poly.indices.sum(axis=0)
         coef = np.random.normal(
@@ -419,11 +427,10 @@ class TestApproximate(unittest.TestCase):
         II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
         coef[II, 1] = 0
         poly.set_coefficients(coef)
-        train_samples = pya.generate_independent_random_samples(
-            variable, num_samples)
+        train_samples = variable.rvs(num_samples)
         train_vals = poly(train_samples)
 
-        indices = pya.compute_hyperbolic_indices(num_vars, 1, 1)
+        indices = compute_hyperbolic_indices(num_vars, 1, 1)
         nfolds = 10
         method = "polynomial_chaos"
         options = {"basis_type": "fixed", "variable": variable,
@@ -457,17 +464,17 @@ class TestApproximate(unittest.TestCase):
         """
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree, hcross_strength = 7, 0.4
         poly.set_indices(
-            pya.compute_hyperbolic_indices(num_vars, degree, hcross_strength))
+            compute_hyperbolic_indices(num_vars, degree, hcross_strength))
         num_samples = poly.num_terms()*2
         degrees = poly.indices.sum(axis=0)
         coef = np.random.normal(
@@ -479,8 +486,7 @@ class TestApproximate(unittest.TestCase):
         II = np.random.permutation(coef.shape[0])[:coef.shape[0]//2]
         coef[II, 1] = 0
         poly.set_coefficients(coef)
-        train_samples = pya.generate_independent_random_samples(
-            variable, num_samples)
+        train_samples = variable.rvs(num_samples)
         train_vals = poly(train_samples)
         # true_poly = poly
 
@@ -514,9 +520,9 @@ class TestApproximate(unittest.TestCase):
         nqoi = 1
         maxiter = 30000
         print(benchmark.variable)
-        # var_trans = pya.AffineRandomVariableTransformation(
+        # var_trans = AffineRandomVariableTransformation(
         #      [stats.uniform(-2, 4)]*nvars)
-        var_trans = pya.AffineRandomVariableTransformation(benchmark.variable)
+        var_trans = AffineRandomVariableTransformation(benchmark.variable)
         network_opts = {"activation_func": "sigmoid",
                         "layers": [nvars, 75, nqoi],
                         "loss_func": "squared_loss",
@@ -527,8 +533,7 @@ class TestApproximate(unittest.TestCase):
         opts = {"network_opts": network_opts, "verbosity": 3,
                 "optimizer_opts": optimizer_opts}
         ntrain_samples = 500
-        train_samples = pya.generate_independent_random_samples(
-            var_trans.variable, ntrain_samples)
+        train_samples = benchmark.variable.rvs(ntrain_samples)
         train_samples = var_trans.map_from_canonical_space(
             np.cos(np.random.uniform(0, np.pi, (nvars, ntrain_samples))))
         train_vals = benchmark.fun(train_samples)
@@ -547,16 +552,16 @@ class TestApproximate(unittest.TestCase):
     def test_adaptive_approximate_increment_degree(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree = 3
-        poly.set_indices(pya.compute_hyperbolic_indices(num_vars, degree))
+        poly.set_indices(compute_hyperbolic_indices(num_vars, degree))
         poly.set_coefficients(
             np.random.normal(0, 1, (poly.indices.shape[1], 1)))
         fun = poly

@@ -1,21 +1,32 @@
-from pyapprox.polychaos.manipulate_polynomials import group_like_terms
-from pyapprox.polychaos.monomial import monomial_mean_uniform_variables, \
-    monomial_basis_matrix, univariate_monomial_basis_matrix
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices,\
-    argsort_indices_leixographically
-from scipy.stats import beta as beta_rv
-from pyapprox.util.utilities import cartesian_product, outer_product
-from scipy.linalg import lu_factor, lu as scipy_lu
-from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.analysis.active_subspace import *
+import numpy as np
+from scipy import stats
 import unittest
-try:
-    import active_subspaces as asub
-    active_subspace_package_missing = False
-except:
-    active_subspace_package_missing = True
+
+from pyapprox.polychaos.manipulate_polynomials import group_like_terms
+from pyapprox.polychaos.monomial import (
+    monomial_mean_uniform_variables,
+    monomial_basis_matrix, univariate_monomial_basis_matrix
+)
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, argsort_indices_leixographically
+)
+from pyapprox.util.sys_utilities import package_available
+from pyapprox.util.utilities import cartesian_product, outer_product
+from pyapprox.analysis.active_subspace import (
+    get_random_active_subspace_eigenvecs,
+    transform_active_subspace_samples_to_original_coordinates,
+    get_zonotope_vertices_and_bounds, get_uniform_samples_on_zonotope,
+    evaluate_active_subspace_density_1d_example,
+    coeffs_of_active_subspace_polynomial,
+    moments_of_active_subspace, evaluate_active_subspace_density_1d,
+    inner_products_on_active_subspace,
+    sample_based_inner_products_on_active_subspace
+)
+
+
 skiptest = unittest.skipIf(
-    active_subspace_package_missing, reason="active_subspace package missing")
+    not package_available("active_subspaces"),
+    reason="active_subspace package missing")
 
 
 class TestActiveSubspace(unittest.TestCase):
@@ -23,7 +34,6 @@ class TestActiveSubspace(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
-    @skiptest
     def test_get_chebyhsev_center_of_inactive_subspace(self):
         # Define an active subspace
         num_vars = 6
@@ -49,8 +59,9 @@ class TestActiveSubspace(unittest.TestCase):
             active_samples, W)
         # check the sample in the original space fits inside the
         # hypercube. Allow for slight machine precision error
+        print(samples.min(), samples.max())
         assert np.all(
-            np.absolute(samples) <= 1+4*np.finfo(float).eps)
+            np.absolute(samples) <= 1+1e-8)
 
     @skiptest
     def test_get_uniform_samples_on_zonotope(self):
@@ -74,7 +85,7 @@ class TestActiveSubspace(unittest.TestCase):
         beta = 5
 
         def beta_density_function_1d(x):
-            return beta_rv.pdf((x+1.)/2., alpha, beta)/2
+            return stats.beta.pdf((x+1.)/2., alpha, beta)/2
         def beta_density_fn(x): return beta_density_function_1d(
             x[0, :])*beta_density_function_1d(x[1, :])
 
@@ -191,8 +202,8 @@ class TestActiveSubspace(unittest.TestCase):
                                  (3*a**4+3*b**4+10*b**2*c**2+3*c**4+10*a**2*(b**2+c**2))/15.])
         moments = moments[sorted_idx]
         # ignore dummy values until I compute them analytically
-        I = np.where(true_moments != np.Inf)[0]
-        assert np.allclose(moments[I], true_moments[I])
+        II = np.where(true_moments != np.Inf)[0]
+        assert np.allclose(moments[II], true_moments[II])
 
     def test_moments_of_active_subspace_II(self):
         num_vars = 4
@@ -219,14 +230,12 @@ class TestActiveSubspace(unittest.TestCase):
             quad_poly_moments[ii] = np.dot(vandermonde[:, ii], gl_weights)
         assert np.allclose(moments, quad_poly_moments)
 
-    @skiptest
     def test_evaluate_active_subspace_density_1d_moments(self):
         num_vars = 2
         num_active_vars = 1
         degree = 3
         W, W1, W2 = get_random_active_subspace_eigenvecs(
             num_vars, num_active_vars)
-        vertices = get_zonotope_vertices_and_bounds(W1)[0]
 
         def density_fn(x): return np.ones(x.shape[1])*0.25
 
@@ -247,7 +256,6 @@ class TestActiveSubspace(unittest.TestCase):
     def test_inner_products_on_active_subspace(self):
         num_vars = 4
         num_active_vars = 2
-        degree = 3
         A = np.random.normal(0, 1, (num_vars, num_vars))
         Q, R = np.linalg.qr(A)
         W1 = Q[:, :num_active_vars]
@@ -293,7 +301,6 @@ class TestActiveSubspace(unittest.TestCase):
 
         num_vars = 4
         num_active_vars = 2
-        degree = 3
         A = np.random.normal(0, 1, (num_vars, num_vars))
         Q, R = np.linalg.qr(A)
         W1 = Q[:, :num_active_vars]

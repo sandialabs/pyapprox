@@ -9,7 +9,7 @@ from pyapprox.variables.variables import (
 )
 from pyapprox.util.utilities import (
     lists_of_lists_of_arrays_equal,
-    lists_of_arrays_equal, partial_functions_equal
+    lists_of_arrays_equal, partial_functions_equal, hash_array
 )
 from pyapprox.polychaos.indexing import (
     get_forward_neighbor, get_backward_neighbor
@@ -23,13 +23,25 @@ from pyapprox.orthopoly.leja_quadrature import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.util.visualization import plot_2d_indices, plot_3d_indices
+from pyapprox.util.visualization import plot_2d_indices, plot_3d_indices, plt
 from matplotlib.pyplot import MaxNLocator
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion
 )
 from pyapprox.polychaos.manipulate_polynomials import add_polynomials
-from pyapprox.interp.sparse_grid import *
+from pyapprox.interp.sparse_grid import (
+    get_sparse_grid_samples, integrate_sparse_grid,
+    evaluate_sparse_grid, get_subspace_samples,
+    get_hierarchical_sample_indices, get_subspace_values,
+    get_subspace_weights,
+    convert_univariate_lagrange_basis_to_orthonormal_polynomials,
+    convert_multivariate_lagrange_polys_to_orthonormal_polys,
+    get_subspace_polynomial_indices,
+    get_1d_samples_weights, update_1d_samples_weights,
+    integrate_sparse_grid_from_subspace_moments,
+    evaluate_sparse_grid_from_subspace_values,
+    integrate_sparse_grid_subspace, evaluate_sparse_grid_subspace
+ )
 
 
 class mypriorityqueue():
@@ -95,7 +107,7 @@ def update_smolyak_coefficients(new_index, subspace_indices, smolyak_coeffs):
         # # new_index.copy is needed
         # return c_update_smolyak_coefficients(
         #    new_index.copy(),subspace_indices,smolyak_coeffs)
-    except:
+    except ImportError:
         print('update_smolyak_coefficients extension failed')
 
     num_vars, num_subspace_indices = subspace_indices.shape
@@ -197,10 +209,10 @@ def default_combination_sparse_grid_cost_function(x):
 
 def get_active_subspace_indices(active_subspace_indices_dict,
                                 sparse_grid_subspace_indices):
-    I = []
+    II = []
     for key in active_subspace_indices_dict:
-        I.append(active_subspace_indices_dict[key])
-    return sparse_grid_subspace_indices[:, I], I
+        II.append(active_subspace_indices_dict[key])
+    return sparse_grid_subspace_indices[:, II], II
 
 
 def partition_sparse_grid_samples(sparse_grid):
@@ -219,10 +231,8 @@ def partition_sparse_grid_samples(sparse_grid):
     kk = 0
     for ii in np.arange(
             sparse_grid_subspace_idx.shape[0])[sparse_grid_subspace_idx]:
-        subspace_index = sparse_grid.subspace_indices[:, ii]
         subspace_poly_indices = \
             sparse_grid.subspace_poly_indices_list[ii]
-        subspace_max_level = subspace_index.max()
         subspace_samples = get_sparse_grid_samples(
             subspace_poly_indices,
             sparse_grid.samples_1d,
@@ -267,7 +277,7 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
         if axs is None:
             f, axs = plt.subplots(1, 2, sharey=False, figsize=(16, 6))
     else:
-        if axis is None:
+        if axs is None:
             f, axs = plt.subplots(1, 1, sharey=False, figsize=(8, 6))
             axs = [axs]
 
@@ -315,8 +325,8 @@ def isotropic_refinement_indicator(subspace_index,
     return float(subspace_index.sum()), np.inf
 
 
-def tensor_product_refinement_indicator(subspace_index, num_new_subspace_samples,
-                                        sparse_grid):
+def tensor_product_refinement_indicator(
+        subspace_index, num_new_subspace_samples, sparse_grid):
     return float(subspace_index.max()), np.inf
 
 
@@ -351,13 +361,14 @@ def variance_refinement_indicator_old(subspace_index, num_new_subspace_samples,
 
     indicator = error.copy()
 
-    # relative error will not work if value at first grid point is close to zero
+    # relative error will not work if value at first grid point is close to
+    # zero
     if normalize:
         assert np.all(np.absolute(sparse_grid.values[0, :]) > 1e-6)
         indicator /= np.absolute(sparse_grid.values[0, :])**2
 
     qoi_chosen = np.argmax(indicator)
-    #print (qoi_chosen)
+    # print (qoi_chosen)
 
     indicator = indicator.max()
 
@@ -392,8 +403,8 @@ def variance_refinement_indicator(subspace_index, num_new_subspace_samples,
     if mean_only:
         error = np.absolute(new_moments[0]-moments[0])
     else:
-        #old version from misc paper
-        #error = np.absolute(new_moments[0]-moments[0])**2 +\
+        # old version from misc paper
+        # error = np.absolute(new_moments[0]-moments[0])**2 +\
         #    np.absolute(new_moments[1]-moments[1])
         # new version from integrated surrogates paper
         error = np.absolute(new_moments[0]-moments[0]) +\
@@ -404,10 +415,10 @@ def variance_refinement_indicator(subspace_index, num_new_subspace_samples,
     if normalize:
         # relative error will not work if value at first grid point is
         # close to zero
-        #assert np.all(np.absolute(sparse_grid.values[0,:])>1e-6)
+        # assert np.all(np.absolute(sparse_grid.values[0,:])>1e-6)
         denom = np.absolute(sparse_grid.values[0, :])
-        I = np.where(denom < 1e-6)[0]
-        denom[I] = 1
+        II = np.where(denom < 1e-6)[0]
+        denom[II] = 1
         #old version from misc paper
         #indicator /= denom**2
         # new version from integrated surrogates paper
@@ -525,7 +536,7 @@ def compute_hierarchical_surpluses_direct(subspace_index, sparse_grid):
     hier_indices = get_hierarchical_sample_indices(
         subspace_index, sparse_grid.subspace_poly_indices_list[ii],
         sparse_grid.samples_1d, sparse_grid.config_variables_idx)
-    #hier_indices = np.arange(subspace_samples.shape[1])
+    # hier_indices = np.arange(subspace_samples.shape[1])
 
     subspace_samples = subspace_samples[:, hier_indices]
 
@@ -557,7 +568,8 @@ def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
         subspace_index, sparse_grid, hierarchical=hierarchical)
 
     subspace_weights = get_subspace_weights(
-        subspace_index, sparse_grid.weights_1d, sparse_grid.config_variables_idx)
+        subspace_index, sparse_grid.weights_1d,
+        sparse_grid.config_variables_idx)
     if hier_indices is not None:
         subspace_weights = subspace_weights[hier_indices]
 
@@ -570,7 +582,8 @@ def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
 
     assert error.shape[0] == surpluses.shape[1]
 
-    # relative error will not work if value at first grid point is close to zero
+    # relative error will not work if value at first grid point is close to
+    # zero
     assert np.all(np.absolute(sparse_grid.values[0, :]) > 1e-6)
     error /= np.absolute(sparse_grid.values[0, :])
 
@@ -705,7 +718,7 @@ class SubSpaceRefinementManager(object):
         self.error = np.zeros((0))
         # self.prioritize_active_subspaces(
         #    self.subspace_indices, np.asarray([self.samples.shape[1]]))
-        #self.active_subspace_queue.list[0] = (np.inf,self.error[0],0)
+        # self.active_subspace_queue.list[0] = (np.inf,self.error[0],0)
         self.error = np.concatenate([self.error, [np.inf]])
         self.active_subspace_queue.put((-np.inf, self.error[0], 0))
 
@@ -714,7 +727,8 @@ class SubSpaceRefinementManager(object):
             self.initialize()
 
         priority, error, best_subspace_idx = self.active_subspace_queue.get()
-        best_active_subspace_index = self.subspace_indices[:, best_subspace_idx]
+        best_active_subspace_index = self.subspace_indices[
+            :, best_subspace_idx]
         if self.verbose > 1:
             msg = f'refining index {best_active_subspace_index} '
             msg += f'with priority {priority}\n'
@@ -759,10 +773,10 @@ class SubSpaceRefinementManager(object):
                     # if conditions correspond respectively to decreasing
                     # conservatism. On problem I have tested there seems to
                     # be no difference in final answer
-                    #temp_index = new_subspace_index.copy()
+                    # temp_index = new_subspace_index.copy()
                     # temp_index[dd-1]=new_subspace_index[dd]
                     # temp_index[dd]-=1
-                    #temp_key = hash_array(temp_index)
+                    # temp_key = hash_array(temp_index)
                     # if temp_key not in self.subspace_indices_dict:
                     if np.any(max_level_1d[:dd] < new_subspace_index[dd]):
                         # if np.any(max_level_1d[:dd]==0):
@@ -782,15 +796,16 @@ class SubSpaceRefinementManager(object):
             new_subspace_index = new_active_subspace_indices[:, jj]
             for dd in range(1, new_active_subspace_indices.shape[0]):
                 if new_subspace_index[dd] > 0:
-                    #temp_index = new_subspace_index.copy()
+                    # temp_index = new_subspace_index.copy()
                     # temp_index[dd-1]=new_subspace_index[dd]
                     # temp_index[dd]-=1
-                    #temp_key = hash_array(temp_index)
+                    # temp_key = hash_array(temp_index)
                     # if temp_key not in self.subspace_indices_dict:
                     if np.any(max_level_1d[:dd] < new_subspace_index[dd]):
                         # if np.any(max_level_1d[:dd]==0):
                         self.postponed_subspace_indices[
-                            hash_array(new_subspace_index)] = new_subspace_index
+                            hash_array(new_subspace_index)] = \
+                                new_subspace_index
                         use = False
                         break
             if use:
@@ -818,7 +833,8 @@ class SubSpaceRefinementManager(object):
                     self.active_subspace_indices_dict and
                     self.admissibility_function(self, neighbor_index)):
                 new_active_subspace_indices = np.hstack(
-                    (new_active_subspace_indices, neighbor_index[:, np.newaxis]))
+                    (new_active_subspace_indices,
+                     neighbor_index[:, np.newaxis]))
             else:
                 if self.verbose > 2:
                     msg = f'Subspace {neighbor_index} is not admissible'
@@ -886,7 +902,7 @@ class SubSpaceRefinementManager(object):
         cnt = num_current_subspaces
         for ii in range(num_new_subspaces):
             subspace_index = new_subspace_indices[:, ii]
-            unique_poly_indices = self.initialize_subspace(subspace_index)
+            self.initialize_subspace(subspace_index)
             self.active_subspace_indices_dict[hash_array(subspace_index)] = cnt
             cnt += 1
 
@@ -895,12 +911,12 @@ class SubSpaceRefinementManager(object):
         self.initialize_subspaces(new_subspace_indices)
         num_vars, num_new_subspaces = new_subspace_indices.shape
         new_samples = np.empty((num_vars, 0), dtype=float)
-        #num_current_subspaces = self.subspace_indices.shape[1]
-        #cnt = num_current_subspaces
+        # num_current_subspaces = self.subspace_indices.shape[1]
+        # cnt = num_current_subspaces
         num_new_subspace_samples = np.empty((num_new_subspaces), dtype=int)
         for ii in range(num_new_subspaces):
             subspace_index = new_subspace_indices[:, ii]
-            #unique_poly_indices = self.initialize_subspace(subspace_index)
+            # unique_poly_indices = self.initialize_subspace(subspace_index)
             idx1 = self.unique_poly_indices_idx[num_current_subspaces+ii]
             if ii < num_new_subspaces-1:
                 idx2 = self.unique_poly_indices_idx[num_current_subspaces+ii+1]
@@ -913,7 +929,7 @@ class SubSpaceRefinementManager(object):
                 (new_samples, unique_subspace_samples))
             num_new_subspace_samples[ii] = unique_subspace_samples.shape[1]
             # self.active_subspace_indices_dict[hash_array(subspace_index)]=cnt
-            #cnt += 1
+            # cnt += 1
         return new_samples, num_new_subspace_samples
 
     def add_new_subspaces(self, new_subspace_indices):
@@ -926,7 +942,8 @@ class SubSpaceRefinementManager(object):
         self.samples = np.hstack((self.samples, new_samples))
 
         if self.values is None:
-            assert np.any(np.isnan(new_values)) == False, "New values cannot have NaN!"
+            msg = "New values cannot have NaN!"
+            assert np.any(np.isnan(new_values)) == False, msg
             self.values = new_values
         else:
             self.values = np.vstack((self.values, new_values))
@@ -1042,7 +1059,8 @@ class SubSpaceRefinementManager(object):
         assert len(self.univariate_growth_rule) == dd
 
     def set_refinement_functions(self, refinement_indicator,
-                                 admissibility_function, univariate_growth_rule,
+                                 admissibility_function,
+                                 univariate_growth_rule,
                                  cost_function=None, work_qoi_index=None,
                                  unique_quadrule_indices=None):
         """
@@ -1261,10 +1279,10 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
     """
     Return a list of quadrature rules for every variable
     """
-    unique_quad_rules, unique_growth_rules, unique_quadrule_indices, \
-        unique_max_level_1d = \
-            get_sparse_grid_univariate_leja_quadrature_rules_economical(
-                var_trans, growth_rules=None)
+    (unique_quad_rules, unique_growth_rules, unique_quadrule_indices,
+     unique_max_level_1d) = \
+         get_sparse_grid_univariate_leja_quadrature_rules_economical(
+             var_trans, growth_rules=None)
     quad_rules = [None for ii in var_trans.num_vars()]
     growth_rules = [None for ii in var_trans.num_vars()]
     max_level_1d = [None for ii in var_trans.num_vars()]
@@ -1272,7 +1290,7 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
             unique_quad_rules, unique_growth_rules, unique_quadrule_indices,
             unique_max_level_1d):
         quad_rules[indices] = quad_rule
-        qrowth_rules[indices] = growth_rule
+        growth_rules[indices] = growth_rule
         max_level_1d[indices] = max_level
     return quad_rules, growth_rules, max_level_1d
 
@@ -1509,9 +1527,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
                 self.config_variables_idx)
             new_subspace_moments[ii, :, :] = subspace_moments.T
             if self.canonical_interrogation_samples is not None:
-                # if storage becomes a problem may need to remove subspace values
-                # when they have a non-zero smolyak coefficient and recompute it
-                # if needed again
+                # if storage becomes a problem may need to remove subspace
+                # values when they have a non-zero smolyak coefficient and
+                # recompute it if needed again
                 self.subspace_interrogation_values.append(
                     evaluate_sparse_grid_subspace(
                         self.canonical_interrogation_samples, subspace_index,
@@ -1531,7 +1549,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         try:
             with open(filename, 'wb') as file_object:
                 pickle.dump(self, file_object)
-        except:
+        except RuntimeError:
             msg = 'Initial attempt to save failed. Likely self.function '
             msg += 'cannot be pickled. Trying to save setting function to None'
             print(msg)
@@ -1587,7 +1605,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     num_vars = sparse_grid.num_vars
     num_random_vars = num_vars-sparse_grid.num_config_vars
     assert len(quadrule_variables) == num_random_vars
-    univariate_growth_rules = []
+    # univariate_growth_rules = []
     unique_quadrule_indices = [[ii] for ii in range(num_random_vars)]
     new_var_trans = AffineRandomVariableTransformation(
         quadrule_variables)

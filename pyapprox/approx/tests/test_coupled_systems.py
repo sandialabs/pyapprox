@@ -3,7 +3,7 @@ import unittest
 from scipy import stats
 from scipy import sparse as scipy_sparse
 
-from pyapprox.coupled_systems import (
+from pyapprox.approx.coupled_systems import (
     SystemNetwork, build_chain_graph, build_peer_graph, plot_adjacency_matrix,
     gauss_jacobi_fixed_point_iteration, GaussJacobiSystemNetwork,
     get_extraction_indices, get_extraction_matrices

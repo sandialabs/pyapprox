@@ -1148,9 +1148,3 @@ def random_induced_measure_sampling(num_samples, num_vars,
         envelope_factor, num_vars, num_samples, verbose=False)
 
     return samples
-
-# if __name__=='__main__':
-#     from pyapprox.polychaos.indexing import compute_hyperbolic_indices
-#     from pyapprox.util.configure_plots import *
-#     demo_idist_jacobi()
-#     demo_multivariate_sampling_jacobi()

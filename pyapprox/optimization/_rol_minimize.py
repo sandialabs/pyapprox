@@ -1,12 +1,14 @@
-from scipy.optimize import rosen, rosen_der, rosen_hess
 import numpy as np
-import ROL
-from ROL import StdVector as RolVector
 # NumpyVector is much slower than StdVector
 # from ROL.numpy_vector import NumpyVector as RolVector
-from scipy.optimize import LinearConstraint, NonlinearConstraint, Bounds, \
-    OptimizeResult, BFGS
+from scipy.optimize import (
+    LinearConstraint, NonlinearConstraint, Bounds, OptimizeResult, BFGS
+)
+from scipy.optimize import rosen, rosen_der, rosen_hess
 from functools import partial
+
+import ROL
+from ROL import StdVector as RolVector
 
 
 def std_vector_to_numpy(x):

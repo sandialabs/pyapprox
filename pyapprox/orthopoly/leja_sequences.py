@@ -8,7 +8,7 @@ from scipy.optimize import Bounds
 from functools import partial
 from warnings import warn
 
-from pyapprox.optimization.rol_minimize import pyapprox_minimize
+from pyapprox.optimization.pya_minimize import pyapprox_minimize
 from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
 )

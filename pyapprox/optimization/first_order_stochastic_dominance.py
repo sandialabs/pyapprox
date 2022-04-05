@@ -2,7 +2,7 @@ import numpy as np
 from functools import partial
 from scipy.optimize import NonlinearConstraint, Bounds
 
-from pyapprox.optimization.rol_minimize import pyapprox_minimize, has_ROL
+from pyapprox.optimization.pya_minimize import pyapprox_minimize, has_ROL
 from pyapprox.util.pya_numba import njit
 
 

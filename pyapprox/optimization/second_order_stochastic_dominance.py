@@ -1,8 +1,13 @@
 import numpy as np
 from functools import partial
 
-from pyapprox.optimization.first_order_stochastic_dominance import *
 from pyapprox.variables.risk_measures import compute_conditional_expectations
+from pyapprox.optimization.first_order_stochastic_dominance import (
+    FSDOptProblem, smooth_max_function_log,
+    smooth_max_function_first_derivative_log,
+    smooth_max_function_second_derivative_log, linear_model_fun,
+    linear_model_jac
+)
 
 
 class SSDOptProblem(FSDOptProblem):

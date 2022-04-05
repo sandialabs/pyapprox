@@ -25,16 +25,21 @@ As our first example we will consider the following ensemble of three univariate
 
 Let's first import the necessary functions and modules and set the seed for reproducibility
 """
-from pyapprox.util.configure_plots import *
+from pyapprox.util.configure_plots import plt
 import numpy as np
 from scipy import stats
 import scipy
 import pyapprox as pya
-from pyapprox.gaussian_network import *
-import matplotlib.pyplot as plt
-import copy
-from pyapprox.bayes.laplace import \
+from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
+)
+from pyapprox.gaussian_network import (
+    get_total_degree_polynomials, plot_1d_lvn_approx, GaussianNetwork,
+    cond_prob_variable_elimination,
+    convert_gaussian_from_canonical_form,
+    plot_peer_network_with_data
+)
+
 np.random.seed(2)
 
 #%%

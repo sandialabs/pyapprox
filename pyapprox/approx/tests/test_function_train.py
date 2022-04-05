@@ -3,7 +3,7 @@ import numpy as np
 import copy
 from functools import partial
 
-from pyapprox.function_train import (
+from pyapprox.approx.function_train import (
     generate_additive_function_in_function_train_format,
     generate_homogeneous_function_train,
     function_trains_equal, evaluate_function_train_grad,

@@ -50,22 +50,29 @@ Here we will use the nested Clenshaw-Curtis points
 to define the univariate Lagrange polynomials. The number of points :math:`m(l)` of this rule grows exponentially with the level :math:`l`, specifically
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
 """
-
-import pyapprox as pya
+import numpy as np
 import matplotlib as mpl
-from pyapprox.examples.tensor_product_lagrange_interpolation import *
+from pyapprox.util.utilities import cartesian_product
+from pyapprox.util.visualization import get_meshgrid_function_data, plt
+from pyapprox.interp.barycentric_interpolation import (
+    plot_tensor_product_lagrange_basis_2d,
+    tensor_product_barycentric_lagrange_interpolation)
+from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.orthopoly.quadrature import (
+    clenshaw_curtis_pts_wts_1D, clenshaw_curtis_rule_growth)
+
+quad_rule = clenshaw_curtis_pts_wts_1D
 fig = plt.figure(figsize=(2*8, 6))
 ax = fig.add_subplot(1, 2, 1, projection='3d')
 level = 2
-ii = 1
-jj = 1
-plot_tensor_product_lagrange_basis_2d(level, ii, jj, ax)
+ii, jj = 1, 1
+plot_tensor_product_lagrange_basis_2d(quad_rule, level, ii, jj, ax)
 
 ax = fig.add_subplot(1, 2, 2, projection='3d')
 level = 2
+ii, jj = 1, 3
 ii = 1
-jj = 3
-plot_tensor_product_lagrange_basis_2d(level, ii, jj, ax)
+plot_tensor_product_lagrange_basis_2d(quad_rule, level, ii, jj, ax)
 
 #%%
 #To construct a surrogate using tensor product interpolation we simply multiply all such basis functions by the value of the function :math:`f_\ai` evaluated at the corresponding interpolation point. The following uses tensor product interpolation to approximate the simple function
@@ -77,37 +84,20 @@ def f(z): return (np.cos(2*np.pi*z[0, :]) *
                   np.cos(2*np.pi*z[1, :]))[:, np.newaxis]
 
 
-def get_interpolant(function, level):
-    level = np.asarray(level)
-    def univariate_samples_func(l): return pya.clenshaw_curtis_pts_wts_1D(l)[0]
-    abscissa_1d = [univariate_samples_func(level[0]),
-                   univariate_samples_func(level[1])]
-
-    samples_1d = pya.get_1d_samples_weights(
-        [pya.clenshaw_curtis_in_polynomial_order]*2,
-        [pya.clenshaw_curtis_rule_growth]*2, level)[0]
-
-    poly_indices = pya.get_subspace_polynomial_indices(
-        level, [pya.clenshaw_curtis_rule_growth]*2, config_variables_idx=None)
-    samples = pya.get_subspace_samples(level, poly_indices, samples_1d)
-    fn_vals = function(samples)
-
-    def interp(samples): return pya.evaluate_sparse_grid_subspace(
-        samples, level, fn_vals, samples_1d, None, False)
-    hier_indices = pya.get_hierarchical_sample_indices(
-        level, poly_indices, samples_1d, config_variables_idx=None)
-
-    return interp, samples, hier_indices, abscissa_1d[0].shape[0], \
-        abscissa_1d[1].shape[0]
+levels = [2, 3]
+grid_samples_1d = [clenshaw_curtis_pts_wts_1D(ll)[0] for ll in levels]
+grid_samples = cartesian_product(grid_samples_1d)
 
 
-level = [2, 3]
-interp, samples, _ = get_interpolant(f, level)[:3]
+def interp(samples):
+    return tensor_product_barycentric_lagrange_interpolation(
+        grid_samples_1d, f, samples)[0]
+
 
 marker_color = 'k'
 alpha = 1.0
 fig, axs = plt.subplots(1, 1, figsize=(8, 6))
-axs.plot(samples[0, :], samples[1, :], 'o',
+axs.plot(grid_samples[0, :], grid_samples[1, :], 'o',
          color=marker_color, ms=10, alpha=alpha)
 
 plot_limits = [-1, 1, -1, 1]
@@ -152,8 +142,7 @@ plt.show()
 #.. math:: v_{\V{j}}=\prod_{i=1}^d\int_{\rvdom_i}{\phi_{i,j_i}(\rv_i)}\,dw(\rv_i),
 #
 #which can be computed analytically.
-x, w = pya.get_tensor_product_quadrature_rule(
-    level, 2, pya.clenshaw_curtis_pts_wts_1D)
+x, w = get_tensor_product_quadrature_rule(level, 2, clenshaw_curtis_pts_wts_1D)
 surrogate_mean = f(x)[:, 0].dot(w)
 print('Quadrature mean', surrogate_mean)
 #%%

@@ -9,12 +9,13 @@ This tutorial describes how to construct a polynomial chaos expansion (PCE) of a
 from pyapprox.interp.sparse_grid import plot_sparse_grid_2d
 import numpy as np
 import pyapprox as pya
-from pyapprox.util.configure_plots import *
+from pyapprox.util.configure_plots import plt
 from functools import partial
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 
 
-def compute_l2_error(validation_samples, validation_values, pce, relative=True):
+def compute_l2_error(validation_samples, validation_values, pce,
+                     relative=True):
     pce_values = pce(validation_samples)
     error = np.linalg.norm(pce_values-validation_values, axis=0)
     if not relative:
@@ -32,7 +33,8 @@ np.random.seed(1)
 
 c = np.array([10, 0.01])
 w = np.zeros(2)
-benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory', coefficients=(c,w))
+benchmark = setup_benchmark('genz', nvars=2, test_name='oscillatory',
+                            coefficients=(c, w))
 model = benchmark.fun
 variable = benchmark.variable
 
@@ -71,9 +73,9 @@ def callback(pce):
     errors.append(error)
     num_samples.append(pce.samples.shape[1])
 
+
 #%%
 #Now we setup the adaptive algorithm.
-
 max_num_samples = 200
 error_tol = 1e-10
 candidate_samples = -np.cos(
@@ -89,7 +91,7 @@ admissibility_function = partial(
     max_num_samples, error_tol)
 
 growth_rule = partial(pya.constant_increment_growth_rule, 2)
-#growth_rule = pya.clenshaw_curtis_rule_growth
+# growth_rule = pya.clenshaw_curtis_rule_growth
 pce.set_function(model, var_trans)
 pce.set_refinement_functions(
     pya.variance_pce_refinement_indicator, admissibility_function,
