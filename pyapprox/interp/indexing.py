@@ -475,8 +475,6 @@ def compute_hyperbolic_indices_itertools(num_vars, degree, p):
     return indices
 
 
-
-
 def total_degree_space_dimension(dimension, degree):
     r"""
     Return the number of basis functions in a total degree polynomial space,

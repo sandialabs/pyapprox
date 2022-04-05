@@ -17,7 +17,7 @@ from pyapprox.polychaos.gpc import (
 from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 
 
 class TestMixtureModel(unittest.TestCase):

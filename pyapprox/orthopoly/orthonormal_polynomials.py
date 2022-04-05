@@ -341,9 +341,3 @@ def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef, ab,
     mono_coefs = shift_momomial_expansion(mono_coefs, shift, scale)
     return mono_coefs
 
-
-def univariate_monomial_basis_matrix(max_level, samples):
-    assert samples.ndim == 1
-    basis_matrix = samples[:, np.newaxis]**np.arange(
-        max_level+1)[np.newaxis, :]
-    return basis_matrix

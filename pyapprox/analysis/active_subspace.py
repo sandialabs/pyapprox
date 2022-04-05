@@ -5,7 +5,7 @@ from scipy.spatial import ConvexHull
 from scipy import stats
 
 from pyapprox.variables.variable_transformations import map_hypercube_samples
-from pyapprox.polychaos.manipulate_polynomials import (
+from pyapprox.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials,
     coeffs_of_power_of_nd_linear_monomial,
 )

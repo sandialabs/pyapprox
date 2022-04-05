@@ -13,7 +13,7 @@ from pyapprox.polychaos.gpc import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.util.linalg import get_pivot_matrix_from_vector
 
 

@@ -35,7 +35,7 @@ from pyapprox.expdesign.low_discrepancy_sequences import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.approx.approximate import approximate
 from pyapprox.analysis.sensitivity_analysis import (
     get_sobol_indices,

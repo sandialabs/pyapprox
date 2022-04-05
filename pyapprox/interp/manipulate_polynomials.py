@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     argsort_indices_leixographically, compute_hyperbolic_level_indices
 )
 from pyapprox.util.pya_numba import njit
@@ -14,8 +14,8 @@ def multiply_multivariate_polynomials(indices1, coeffs1, indices2, coeffs2):
     unique_indices, repeated_idx = np.unique(
         indices[active_idx,:], axis=1, return_inverse=True)
 
-    as is done in 
-    multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion. 
+    as is done in
+    multivariate_polynomials.conditional_moments_of_polynomial_chaos_expansion.
     Choose which one is faster
 
 
@@ -145,19 +145,19 @@ def substitute_polynomials_for_variables_in_another_polynomial(
 
     Parameters
     ----------
-    indices_in : list 
-        List of the polynomial indices for each input stored in a 
+    indices_in : list
+        List of the polynomial indices for each input stored in a
         np.ndarray (nvars_i, nterms_i) i=0,...,len(indices_in)-1
 
-    coeffs_in : list 
-        List of the polynomial coefficients for each input stored in a 
+    coeffs_in : list
+        List of the polynomial coefficients for each input stored in a
         np.ndarray (nterms_i, nqoi_i) i=0,...,len(indices_in)-1
 
     indices : np.ndarray (nvars, nterms)
         The polynomial indices of the downstream polynomial which
         we are substituting into
 
-    coeffs : np.ndarray (nterms, nqoi) 
+    coeffs : np.ndarray (nterms, nqoi)
         The polynomial coefficients of the downstream polynomial which
         we are substituting into
 
@@ -165,8 +165,8 @@ def substitute_polynomials_for_variables_in_another_polynomial(
         The indices of the variable we are replacing by a polynomial
 
     global_var_idx : [np.ndarray(nvars[ii]) for ii in ninputs]
-        The index of the active variables for each input. 
-        Note the number of parameters of the final polynomial will likely be 
+        The index of the active variables for each input.
+        Note the number of parameters of the final polynomial will likely be
         greater than the number of global variables of the downstream polynomial
         E.g if y2 = y1*x3 and y1 = x1*x2 then y2 is a function of x1,x2,x3
         despite being only parameterized by two variables y1 and x3
@@ -238,11 +238,11 @@ def substitute_polynomials_for_variables_in_single_basis_term(
     Parameters
     ----------
     indices_in : np.ndarray (nvars_in, nterms_in)
-        The polynomial indices for the polynomial which we will 
+        The polynomial indices for the polynomial which we will
         subsitute in
 
     coeffs_in : np.ndarray (nterms_in, nqoi_in)
-        The polynomial coefficients for the polynomial which we will 
+        The polynomial coefficients for the polynomial which we will
         subsitute in
 
     basis_index : np.ndarray (nvars, 1)
@@ -255,8 +255,8 @@ def substitute_polynomials_for_variables_in_single_basis_term(
         The dimensions in basis_index which will be substituted
 
     global_var_idx : [np.ndarray(nvars[ii]) for ii in num_inputs]
-        The index of the active variables for each input. 
-        Note the number of parameters of the final polynomial will likely be 
+        The index of the active variables for each input.
+        Note the number of parameters of the final polynomial will likely be
         greater than the number of global variables of the downstream polynomial
         E.g if y2 = y1*x3 and y1 = x1*x2 then y2 is a function of x1,x2,x3
         despite being only parameterized by two variables y1 and x3
@@ -448,14 +448,14 @@ def multinomial_coeffs_of_power_of_nd_linear_monomial(num_vars, degree):
 
 
 def add_polynomials(indices_list, coeffs_list):
-    """ 
+    """
     Add many polynomials together.
 
     Example:
         p1 = x1**2+x2+x3, p2 = x2**2+2*x3
-        p3 = p1+p2 
+        p3 = p1+p2
 
-       return the degrees of each term in the the polynomial 
+       return the degrees of each term in the the polynomial
 
        p3 = x1**2+x2+3*x3+x2**2
 
@@ -469,11 +469,11 @@ def add_polynomials(indices_list, coeffs_list):
     Parameters
     ----------
     indices_list : list [np.ndarray (num_vars,num_indices_i)]
-        List of polynomial indices. indices_i may be different for each 
+        List of polynomial indices. indices_i may be different for each
         polynomial
 
     coeffs_list : list [np.ndarray (num_indices_i,num_qoi)]
-        List of polynomial coefficients. indices_i may be different for each 
+        List of polynomial coefficients. indices_i may be different for each
         polynomial. num_qoi must be the same for each list element.
 
 
@@ -547,7 +547,7 @@ def add_polynomials(indices_list, coeffs_list):
 @njit(cache=True)
 def get_indices_double_set(indices):
     """
-    Given muultivariate indices 
+    Given muultivariate indices
 
         [i1,i2,...,]
 
@@ -573,12 +573,12 @@ def get_indices_double_set(indices):
 
 
 def compress_and_sort_polynomial(coef, indices, tol=1e-12):
-    I = np.where(np.absolute(coef) > tol)[0]
-    indices = indices[:, I]
-    coef = coef[I]
-    J = argsort_indices_leixographically(indices)
-    indices = indices[:, J]
-    coef = coef[J, :]
+    II = np.where(np.absolute(coef) > tol)[0]
+    indices = indices[:, II]
+    coef = coef[II]
+    JJ = argsort_indices_leixographically(indices)
+    indices = indices[:, JJ]
+    coef = coef[JJ, :]
     return indices, coef
 
 # 1D versions of some of these functions can be found at

@@ -15,15 +15,14 @@ from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
-from pyapprox.orthopoly.orthonormal_polynomials import gauss_quadrature
 from pyapprox.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_deriv_1d,
-    evaluate_orthonormal_polynomial_1d
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature
 )
-from pyapprox.polychaos.monomial import monomial_basis_matrix
+from pyapprox.interp.monomial import monomial_basis_matrix
 from pyapprox.util.linalg import \
     flattened_rectangular_lower_triangular_matrix_index
-from pyapprox.polychaos.manipulate_polynomials import add_polynomials
+from pyapprox.interp.manipulate_polynomials import add_polynomials
 
 
 def make_2D_array(lis):

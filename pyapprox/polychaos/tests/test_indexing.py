@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 from scipy.special import binom
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices,
     nchoosek, get_upper_triangular_matrix_indices, set_difference,
     argsort_indices_leixographically, compute_downward_closed_indices,

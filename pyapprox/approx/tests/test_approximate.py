@@ -23,7 +23,7 @@ from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.util.utilities import nchoosek
 from pyapprox.variables.density import tensor_product_pdf
 

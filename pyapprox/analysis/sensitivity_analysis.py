@@ -3,7 +3,7 @@ from scipy.optimize import OptimizeResult
 from scipy.spatial.distance import cdist
 from itertools import combinations
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     hash_array, argsort_indices_leixographically
 )
 from pyapprox.util.utilities import nchoosek
@@ -20,7 +20,7 @@ from pyapprox.gaussianprocess.gaussian_process import (
 from pyapprox.polychaos.gpc import (
     define_poly_options_from_variable_transformation
 )
-from pyapprox.interp.adaptive_sparse_grid import (
+from pyapprox.polychaos.sparse_grid_to_gpc import (
     convert_sparse_grid_to_polynomial_chaos_expansion
 )
 

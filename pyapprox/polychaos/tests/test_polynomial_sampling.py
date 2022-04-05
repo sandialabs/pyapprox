@@ -18,7 +18,7 @@ from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation, RosenblattTransformation,
     TransformationComposition
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.variables.tests.test_rosenblatt_transformation import (

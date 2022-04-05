@@ -19,7 +19,7 @@ from pyapprox.benchmarks.sensitivity_benchmarks import (
     get_sobol_g_function_statistics, morris_function
 )
 from pyapprox.approx.approximate import approximate, adaptive_approximate
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, tensor_product_indices
 )
 from pyapprox.variables.variables import IndependentRandomVariable

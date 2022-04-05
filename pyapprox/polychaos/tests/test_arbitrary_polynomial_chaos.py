@@ -22,7 +22,7 @@ from pyapprox.variables.variable_transformations import (
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.variables.density import tensor_product_pdf
 from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule

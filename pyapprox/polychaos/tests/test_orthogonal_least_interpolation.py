@@ -9,7 +9,7 @@ from pyapprox.polychaos.orthogonal_least_interpolation import (
     pre_multiply_block_diagonal_matrix,  LeastInterpolationSolver
 )
 from pyapprox.util.utilities import cartesian_product
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_level_indices, compute_hyperbolic_indices,
     compute_tensor_product_level_indices, get_total_degree
 )

@@ -47,8 +47,8 @@ from pyapprox.interp.tensorprod import piecewise_univariate_linear_quad_rule
 from pyapprox.variables.random_variable_algebra import (
     weighted_sum_dependent_gaussian_variables
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
-from pyapprox.polychaos.monomial import monomial_basis_matrix
+from pyapprox.interp.indexing import compute_hyperbolic_indices
+from pyapprox.interp.monomial import monomial_basis_matrix
 
 import warnings
 warnings.filterwarnings('error')

@@ -14,7 +14,7 @@ from pyapprox.expdesign.linear_oed import (
     ioptimality_criterion_more_design_pts_than_params,
     NonLinearAlphabetOptimalDesign
 )
-from pyapprox.polychaos.monomial import univariate_monomial_basis_matrix
+from pyapprox.interp.monomial import univariate_monomial_basis_matrix
 from pyapprox.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D
 )

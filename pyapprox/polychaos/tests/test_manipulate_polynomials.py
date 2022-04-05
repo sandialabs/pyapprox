@@ -2,11 +2,11 @@ import unittest
 import numpy as np
 from scipy.special import binom, factorial
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, argsort_indices_leixographically
 )
-from pyapprox.polychaos.monomial import monomial_basis_matrix
-from pyapprox.polychaos.manipulate_polynomials import (
+from pyapprox.interp.monomial import monomial_basis_matrix
+from pyapprox.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials, compress_and_sort_polynomial,
     multinomial_coefficient, multinomial_coeffs_of_power_of_nd_linear_monomial,
     multinomial_coefficients, coeffs_of_power_of_nd_linear_monomial,

@@ -8,7 +8,7 @@ from pyapprox.polychaos.leja_sequences import (
     leja_objective, compute_coefficients_of_leja_interpolant,
     get_leja_sequence_1d
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.variables.variable_transformations import (
     define_iid_random_variable_transformation
 )

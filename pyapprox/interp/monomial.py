@@ -1,9 +1,14 @@
 import numpy as np
-from pyapprox.polychaos.manipulate_polynomials import (
+from pyapprox.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials
 )
-from pyapprox.orthopoly.orthonormal_polynomials import \
-    univariate_monomial_basis_matrix
+
+
+def univariate_monomial_basis_matrix(max_level, samples):
+    assert samples.ndim == 1
+    basis_matrix = samples[:, np.newaxis]**np.arange(
+        max_level+1)[np.newaxis, :]
+    return basis_matrix
 
 
 def monomial_mean_uniform_variables(indices, coeffs):
@@ -16,7 +21,7 @@ def monomial_mean_uniform_variables(indices, coeffs):
     indices : np.ndarray (num_vars, num_indices)
         The exponents of each monomial term
 
-    coeffs : np.ndarray (num_indices)
+    coeffs : np.ndarray (num_indices, nqoi)
         The coefficients of each monomial term
 
     Return
@@ -39,36 +44,6 @@ def monomial_variance_uniform_variables(indices, coeffs):
     variance = monomial_mean_uniform_variables(
         squared_indices, squared_coeffs)-mean**2
     return variance
-
-
-def evaluate_monomial(indices, coeffs, samples):
-    """
-    Evaluate a multivariate monomial at a set of samples.
-
-    Parameters
-    ----------
-    indices : np.ndarray (num_vars, num_indices)
-        The exponents of each monomial term
-
-    coeffs : np.ndarray (num_indices,num_qoi)
-        The coefficients of each monomial term
-
-    samples : np.ndarray (num_vars, num_samples)
-        Samples at which to evaluate the monomial
-
-    Return
-    ------
-    integral : float
-        The values of the monomial at the samples
-    """
-    if coeffs.ndim == 1:
-        coeffs = coeffs[:, np.newaxis]
-    assert coeffs.ndim == 2
-    assert coeffs.shape[0] == indices.shape[1]
-
-    basis_matrix = monomial_basis_matrix(indices, samples)
-    values = np.dot(basis_matrix, coeffs)
-    return values
 
 
 def monomial_basis_matrix(indices, samples, deriv_order=0):
@@ -126,47 +101,32 @@ def monomial_basis_matrix(indices, samples, deriv_order=0):
     return basis_matrix
 
 
-def c_monomial_basis_matrix(indices, samples):
-    fast_code = r"""
-int num_vars=Nsamples[0], num_samples=Nsamples[1], num_indices=Nindices[1];
-double ** basis_vals_1d = new double*[num_indices];
-for (int jj=0; jj<num_indices; ++jj){
-    basis_vals_1d[jj] = new double[num_samples];
-}
 
-for (int kk=0; kk<num_vars; ++kk){
-    for (int ii=0; ii<num_samples; ++ii)
-         basis_vals_1d[0][ii]=1.0;
-    for (int jj=1; jj<max_degree_1d[kk]+1; ++jj){
-        for (int ii=0; ii<num_samples; ++ii)
-            basis_vals_1d[jj][ii] = basis_vals_1d[jj-1][ii]*SAMPLES2(kk,ii);
-    }
-    for (int jj=0; jj<num_indices; ++jj){
-        for (int ii=0; ii<num_samples; ++ii)
-            VALS2(ii,jj)*=basis_vals_1d[INDICES2(kk,jj)][ii];
-    }
-}
-for (int jj=0; jj<num_indices; ++jj)
-   delete [] basis_vals_1d[jj];
-delete [] basis_vals_1d;
-"""
-    slow_code = r"""
-int num_vars=Nsamples[0], num_samples=Nsamples[1], num_indices=Nindices[1];
-for (int ii=0; ii<num_samples; ++ii){
-    for (int jj=0; jj<num_indices; ++jj){
-        VALS2(ii,jj)=std::pow(SAMPLES2(0,ii),INDICES2(0,jj)); 
-        for (int kk=1; kk<num_vars; ++kk){
-            VALS2(ii,jj)*=std::pow(SAMPLES2(kk,ii),INDICES2(kk,jj));
-        }
-    }
-}
-"""
-    import weave
-    num_samples = samples.shape[1]
-    num_indices = indices.shape[1]
-    max_degree_1d = np.max(indices, axis=1)
-    # c code needs vals initialized to 1
-    vals = np.ones((num_samples, num_indices), dtype=float)
-    weave.inline(fast_code, ['indices', 'max_degree_1d',
-                             'samples', 'vals'], verbose=2)
-    return vals
+def evaluate_monomial(indices, coeffs, samples):
+    """
+    Evaluate a multivariate monomial at a set of samples.
+
+    Parameters
+    ----------
+    indices : np.ndarray (num_vars, num_indices)
+        The exponents of each monomial term
+
+    coeffs : np.ndarray (num_indices,num_qoi)
+        The coefficients of each monomial term
+
+    samples : np.ndarray (num_vars, num_samples)
+        Samples at which to evaluate the monomial
+
+    Return
+    ------
+    integral : float
+        The values of the monomial at the samples
+    """
+    if coeffs.ndim == 1:
+        coeffs = coeffs[:, np.newaxis]
+    assert coeffs.ndim == 2
+    assert coeffs.shape[0] == indices.shape[1]
+
+    basis_matrix = monomial_basis_matrix(indices, samples)
+    values = np.dot(basis_matrix, coeffs)
+    return values

@@ -21,7 +21,7 @@ from pyapprox.polychaos.gpc import (
     compute_univariate_orthonormal_basis_products,
     conditional_moments_of_polynomial_chaos_expansion
 )
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, tensor_product_indices,
     sort_indices_lexiographically
 )
@@ -48,7 +48,7 @@ from pyapprox.optimization.quantile_regression import (
 )
 
 
-class TestMultivariatePolynomials(unittest.TestCase):
+class TestGPC(unittest.TestCase):
     def setUp(self):
         np.random.seed(1)
 
@@ -992,12 +992,5 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    multivariate_polynomials_test_suite = \
-        unittest.TestLoader().loadTestsFromTestCase(
-            TestMultivariatePolynomials)
-    unittest.TextTestRunner(verbosity=2).run(
-        multivariate_polynomials_test_suite)
-
-
-    # TODO check that PCE built with any scipy variable returns the correct mean and variance of that distribution
-    # when least squares is applied to a simple function
+    gpc_test_suite = unittest.TestLoader().loadTestsFromTestCase(TestGPC)
+    unittest.TextTestRunner(verbosity=2).run(gpc_test_suite)

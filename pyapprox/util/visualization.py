@@ -3,7 +3,7 @@ import subprocess
 from scipy.spatial import ConvexHull
 import os
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     hash_array, compute_hyperbolic_level_indices,
     compute_anova_level_indices
 )

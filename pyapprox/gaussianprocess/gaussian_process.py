@@ -26,7 +26,7 @@ from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.polychaos.indexing import argsort_indices_leixographically
+from pyapprox.interp.indexing import argsort_indices_leixographically
 from pyapprox.polychaos.gpc import (
     get_univariate_quadrature_rules_from_variable
 )

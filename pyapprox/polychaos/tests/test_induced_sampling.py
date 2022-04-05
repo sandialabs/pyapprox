@@ -13,7 +13,7 @@ from pyapprox.polychaos.induced_sampling import (
     compute_preconditioned_basis_matrix_condition_number,
     increment_induced_samples_migliorati, christoffel_function
 )
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, compute_hyperbolic_level_indices
 )
 from pyapprox.variables.variables import (

@@ -11,7 +11,7 @@ from pyapprox.util.utilities import (
     lists_of_lists_of_arrays_equal,
     lists_of_arrays_equal, partial_functions_equal, hash_array
 )
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     get_forward_neighbor, get_backward_neighbor
 )
 from pyapprox.orthopoly.quadrature import (
@@ -25,17 +25,11 @@ from pyapprox.variables.variable_transformations import (
 )
 from pyapprox.util.visualization import plot_2d_indices, plot_3d_indices, plt
 from matplotlib.pyplot import MaxNLocator
-from pyapprox.polychaos.gpc import (
-    PolynomialChaosExpansion
-)
-from pyapprox.polychaos.manipulate_polynomials import add_polynomials
 from pyapprox.interp.sparse_grid import (
     get_sparse_grid_samples, integrate_sparse_grid,
     evaluate_sparse_grid, get_subspace_samples,
     get_hierarchical_sample_indices, get_subspace_values,
     get_subspace_weights,
-    convert_univariate_lagrange_basis_to_orthonormal_polynomials,
-    convert_multivariate_lagrange_polys_to_orthonormal_polys,
     get_subspace_polynomial_indices,
     get_1d_samples_weights, update_1d_samples_weights,
     integrate_sparse_grid_from_subspace_moments,
@@ -171,7 +165,7 @@ def max_level_admissibility_function(max_level, max_level_1d,
                 if verbose > 0:
                     print(msg)
             else:
-                print(subspace_index)
+                print(subspace_index,  sparse_grid.error.sum())
                 msg = 'Accuracy misleadingly appears reached because '
                 msg += 'admissibility  criterion is preventing new subspaces '
                 msg += 'from being added to the active set'
@@ -562,7 +556,7 @@ def compute_hierarchical_surpluses_direct(subspace_index, sparse_grid):
 
 def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
                                  sparse_grid, output=False, hierarchical=False,
-                                 norm_order=np.inf):
+                                 norm_order=np.inf, normalize=True):
 
     surpluses, hier_indices = compute_surpluses(
         subspace_index, sparse_grid, hierarchical=hierarchical)
@@ -584,8 +578,9 @@ def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
 
     # relative error will not work if value at first grid point is close to
     # zero
-    assert np.all(np.absolute(sparse_grid.values[0, :]) > 1e-6)
-    error /= np.absolute(sparse_grid.values[0, :])
+    if normalize:
+        assert np.all(np.absolute(sparse_grid.values[0, :]) > 1e-6)
+        error /= np.absolute(sparse_grid.values[0, :])
 
     error = np.max(error)
 
@@ -596,65 +591,6 @@ def surplus_refinement_indicator(subspace_index, num_new_subspace_samples,
     indicator = error/cost
 
     return -indicator, error
-
-
-def convert_sparse_grid_to_polynomial_chaos_expansion(sparse_grid, pce_opts,
-                                                      debug=False):
-    pce = PolynomialChaosExpansion()
-    pce.configure(pce_opts)
-    if sparse_grid.config_variables_idx is not None:
-        assert pce.num_vars() == sparse_grid.config_variables_idx
-    else:
-        assert pce.num_vars() == sparse_grid.num_vars
-
-    def get_recursion_coefficients(N, dd):
-        pce.update_recursion_coefficients([N]*pce.num_vars())
-        return pce.recursion_coeffs[pce.basis_type_index_map[dd]].copy()
-
-    coeffs_1d = [
-        convert_univariate_lagrange_basis_to_orthonormal_polynomials(
-            sparse_grid.samples_1d[dd],
-            partial(get_recursion_coefficients, dd=dd))
-        for dd in range(pce.num_vars())]
-
-    indices_list = []
-    coeffs_list = []
-    for ii in range(sparse_grid.subspace_indices.shape[1]):
-        if (abs(sparse_grid.smolyak_coefficients[ii]) > np.finfo(float).eps):
-            subspace_index = sparse_grid.subspace_indices[:, ii]
-            poly_indices = sparse_grid.subspace_poly_indices_list[ii]
-            values_indices =\
-                sparse_grid.subspace_values_indices_list[ii]
-            subspace_values = get_subspace_values(
-                sparse_grid.values, values_indices)
-            subspace_coeffs = \
-                convert_multivariate_lagrange_polys_to_orthonormal_polys(
-                    subspace_index, subspace_values, coeffs_1d, poly_indices,
-                    sparse_grid.config_variables_idx)
-
-            if debug:
-                pce.set_indices(
-                    poly_indices[:sparse_grid.config_variables_idx, :])
-                pce.set_coefficients(subspace_coeffs)
-                subspace_samples = get_subspace_samples(
-                    subspace_index,
-                    sparse_grid.subspace_poly_indices_list[ii],
-                    sparse_grid.samples_1d, sparse_grid.config_variables_idx,
-                    unique_samples_only=False)
-                poly_values = pce(
-                    subspace_samples[:sparse_grid.config_variables_idx, :])
-                assert np.allclose(poly_values, subspace_values)
-
-            coeffs_list.append(
-                subspace_coeffs*sparse_grid.smolyak_coefficients[ii])
-            indices_list.append(
-                poly_indices[:sparse_grid.config_variables_idx, :])
-
-    indices, coeffs = add_polynomials(indices_list, coeffs_list)
-    pce.set_indices(indices)
-    pce.set_coefficients(coeffs)
-
-    return pce
 
 
 def extract_sparse_grid_quadrature_rule(asg):
@@ -725,7 +661,6 @@ class SubSpaceRefinementManager(object):
     def refine(self):
         if self.subspace_indices.shape[1] == 0:
             self.initialize()
-
         priority, error, best_subspace_idx = self.active_subspace_queue.get()
         best_active_subspace_index = self.subspace_indices[
             :, best_subspace_idx]

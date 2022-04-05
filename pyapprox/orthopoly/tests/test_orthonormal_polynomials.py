@@ -18,7 +18,7 @@ from pyapprox.orthopoly.orthonormal_recursions import (
 from pyapprox.orthopoly.orthonormal_recursions import (
     convert_orthonormal_recurence_to_three_term_recurence
 )
-from pyapprox.polychaos.monomial import (
+from pyapprox.interp.monomial import (
     univariate_monomial_basis_matrix, evaluate_monomial
 )
 from pyapprox.variables.variables import float_rv_discrete

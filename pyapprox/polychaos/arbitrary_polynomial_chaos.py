@@ -12,8 +12,8 @@ from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial
 )
 from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.polychaos.indexing import set_difference
-from pyapprox.polychaos.monomial import monomial_basis_matrix
+from pyapprox.interp.indexing import set_difference
+from pyapprox.interp.monomial import monomial_basis_matrix
 
 
 class APC(PolynomialChaosExpansion):

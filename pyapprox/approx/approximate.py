@@ -13,7 +13,7 @@ from sklearn.utils._testing import ignore_warnings
 from sklearn.linear_model._base import LinearModel
 
 from pyapprox.util.utilities import hash_array
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     get_forward_neighbor, get_backward_neighbor,
     compute_hyperbolic_indices
 )

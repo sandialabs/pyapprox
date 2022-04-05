@@ -1,10 +1,10 @@
 import unittest
 import numpy as np
 
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, argsort_indices_leixographically
 )
-from pyapprox.polychaos.monomial import (
+from pyapprox.interp.monomial import (
     monomial_mean_uniform_variables, monomial_variance_uniform_variables,
     evaluate_monomial, monomial_basis_matrix, multiply_multivariate_polynomials
 )

@@ -259,8 +259,8 @@ class TestFunctionTrain(unittest.TestCase):
         assert ft_error < 1e-3, ft_error
 
         # compare against tensor-product linear least squares
-        from pyapprox.polychaos.monomial import monomial_basis_matrix, evaluate_monomial
-        from pyapprox.polychaos.indexing import tensor_product_indices
+        from pyapprox.interp.monomial import monomial_basis_matrix, evaluate_monomial
+        from pyapprox.interp.indexing import tensor_product_indices
         indices = tensor_product_indices([degree]*num_vars)
         basis_matrix = monomial_basis_matrix(indices, samples)
         coef = np.linalg.lstsq(basis_matrix, values, rcond=None)[0]

@@ -6,7 +6,7 @@ import itertools
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
-from pyapprox.polychaos.indexing import compute_hyperbolic_indices
+from pyapprox.interp.indexing import compute_hyperbolic_indices
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )

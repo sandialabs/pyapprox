@@ -2,12 +2,12 @@ import numpy as np
 from scipy import stats
 import unittest
 
-from pyapprox.polychaos.manipulate_polynomials import group_like_terms
-from pyapprox.polychaos.monomial import (
+from pyapprox.interp.manipulate_polynomials import group_like_terms
+from pyapprox.interp.monomial import (
     monomial_mean_uniform_variables,
     monomial_basis_matrix, univariate_monomial_basis_matrix
 )
-from pyapprox.polychaos.indexing import (
+from pyapprox.interp.indexing import (
     compute_hyperbolic_indices, argsort_indices_leixographically
 )
 from pyapprox.util.sys_utilities import package_available

@@ -21,7 +21,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    from pyapprox.variables.probability_measure_sampling import \
    generate_independent_random_samples
    from scipy.stats import uniform, beta
-   from pyapprox.polychaos.indexing import compute_hyperbolic_indices, tensor_product_indices
+   from pyapprox.interp.indexing import compute_hyperbolic_indices, tensor_product_indices
    from pyapprox.interface.genz import GenzFunction
    from functools import partial
    from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D, \

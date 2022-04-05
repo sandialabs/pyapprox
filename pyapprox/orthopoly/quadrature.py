@@ -322,7 +322,8 @@ def constant_increment_growth_rule(increment, level):
     """
     if level == 1:
         return 3
-    return increment*level+1
+    nsamples_1d = increment*level+1
+    return nsamples_1d
 
 
 def algebraic_growth(rate, level):

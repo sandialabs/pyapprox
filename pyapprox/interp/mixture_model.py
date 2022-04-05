@@ -5,7 +5,7 @@ from scipy import stats
 from pyapprox.interp.sparse_grid import get_sparse_grid_samples_and_weights
 from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.quadrature import leja_growth_rule
-from pyapprox.polychaos.manipulate_polynomials import get_indices_double_set
+from pyapprox.interp.manipulate_polynomials import get_indices_double_set
 from pyapprox.variables.density import tensor_product_pdf, beta_pdf
 from pyapprox.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
