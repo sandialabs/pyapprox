@@ -2,14 +2,21 @@ import numpy as np
 import os
 from scipy.optimize import linprog as scipy_linprog
 from scipy.spatial import ConvexHull
+from scipy import stats
+
 from pyapprox.variables.variable_transformations import map_hypercube_samples
-from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials,\
-    coeffs_of_power_of_nd_linear_monomial
-from pyapprox.manipulate_polynomials import multiply_multivariate_polynomials
+from pyapprox.polychaos.manipulate_polynomials import (
+    multiply_multivariate_polynomials,
+    coeffs_of_power_of_nd_linear_monomial,
+)
 from pyapprox.util.utilities import cartesian_product
+from pyapprox.util.visualization import (
+    plt, plot_2d_polygon, get_meshgrid_function_data
+)
 
 
-def get_random_active_subspace_eigenvecs(num_vars, num_active_vars, filename=None):
+def get_random_active_subspace_eigenvecs(
+        num_vars, num_active_vars, filename=None):
     """
     Eigenvectors will be zero for all inactive variables
     """
@@ -74,7 +81,8 @@ def get_chebyshev_center_of_inactive_subspace(W1, W2, active_sample):
     return z0
 
 
-def transform_active_subspace_samples_to_original_coordinates(active_samples, W):
+def transform_active_subspace_samples_to_original_coordinates(
+        active_samples, W):
     num_active_vars = active_samples.shape[0]
     num_active_samples = active_samples.shape[1]
     num_vars = W.shape[0]
@@ -137,7 +145,7 @@ def get_uniform_samples_on_polygon(num_samples, vertices, batch_size=100):
         batch_samples = np.random.uniform(0., 1., (num_vars, batch_size))
         batch_samples = map_hypercube_samples(
             batch_samples, current_ranges, ranges)
-        constraints = np.dot(Aeq, batch_samples)+beq[:, np.newaxis]
+        # constraints = np.dot(Aeq, batch_samples)+beq[:, np.newaxis]
         accepted_idx = np.arange(batch_size)[np.all(constraints <= 0, axis=0)]
         num_batch_samples_accepted = min(
             num_samples-num_accepted_samples, accepted_idx.shape[0])
@@ -149,7 +157,7 @@ def get_uniform_samples_on_polygon(num_samples, vertices, batch_size=100):
     assert accepted_samples.shape[1] == num_samples
     # from pyapprox.util.visualization import plot_2d_polygon
     # plot_2d_polygon(vertices)
-    # import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as pl
     # plt.plot(accepted_samples[0,:],accepted_samples[1,:],'ro')
     # plt.show()
     return accepted_samples
@@ -209,7 +217,8 @@ def coeffs_of_active_subspace_polynomial(W1_trans, as_index):
     return coeffs, indices
 
 
-def moments_of_active_subspace(W1_trans, as_poly_indices, integrate_polynomial):
+def moments_of_active_subspace(
+        W1_trans, as_poly_indices, integrate_polynomial):
     """Evaluate the moments of a total-degree polynomial in an
     active subspace.
 
@@ -237,7 +246,7 @@ def moments_of_active_subspace(W1_trans, as_poly_indices, integrate_polynomial):
         Compute the integral of a polynomial in the native model parameter
         space (dimension=num_vars). The function must have the signature
         ``val = integrate_polynomial(indices,coeffs)``
-        where index index is a np.ndarray (num_vars,num_indices) of 
+        where index index is a np.ndarray (num_vars,num_indices) of
         multivariate indices and coeffs are the coefficients associated
         with each index
 
@@ -252,9 +261,9 @@ def moments_of_active_subspace(W1_trans, as_poly_indices, integrate_polynomial):
     currently work when computing moments using orthogonal polynomials.
     This is because of reliance on function coeffs_of_active_subspace_polynomial
 
-    E.g. When not using monomials y1**2 can not be expanded as 
+    E.g. When not using monomials y1**2 can not be expanded as
     (W_11*x1+W_12*x2+W_13*x3)**2 instead if y1 = 0.5*(3*x^2-1)
-    then we must expand as 
+    then we must expand as
     0.5*(3*(W_11*x1+W_12*x2+W_13*x3)^2-1)
     """
 
@@ -309,7 +318,8 @@ def coeffs_of_active_subspace_polynomials(W1_trans, as_poly_indices):
             coeffs_dd = monomial_power_coeffs[var_num][degree]
             indices_dd = monomial_power_indices[var_num][degree]
 
-            # # TODO Extension does not group like terms, but pure python function
+            # # TODO Extension does not group like terms,
+            # # but pure python function
             # # multiply_multivariate_polynomials does.
             # # This is only a valid substitution if this function is
             # # only called by intergrate moments
@@ -396,7 +406,6 @@ def sample_based_inner_products_on_active_subspace(W1, basis_matrix_func,
             inner_product_indices[:, ii*as_indices.shape[1]+jj] =\
                 as_indices[:, ii]+as_indices[:, jj]
 
-    num_vars = W1.shape[0]
     samples = generate_samples(int(num_samples))
     active_samples = np.dot(W1.T, samples)
 
@@ -434,9 +443,9 @@ def sort_2d_vertices_by_polar_angle(vertices):
 def find_line_perpendicular_to_active_subspace(W, point):
     """
     Find a line perpenidicular to a one dimensional active subspace that passes
-    through a specified point in that 1d subspace and that does not extend 
-    outside the bounds of the 2d polygon defined by the original hyperbube 
-    coordinates mapped to the rorated (but not truncated) active subspace 
+    through a specified point in that 1d subspace and that does not extend
+    outside the bounds of the 2d polygon defined by the original hyperbube
+    coordinates mapped to the rorated (but not truncated) active subspace
     coordinate system
 
     Assume we have hypercube on [-1,1]^d, d=2
@@ -527,8 +536,8 @@ def plot_evaluate_active_subspace_density_1d_step(
     ss_samples = np.vstack(
         (points_for_eval[:cnt_all], np.zeros(cnt_all, float)))
     axs[0].plot(ss_samples[0, :], ss_samples[1, :], 'r-')
-    I = [0, 3]
-    axs[0].plot(rotated_vertices[0, I], rotated_vertices[1, I], 'o-k')
+    II = [0, 3]
+    axs[0].plot(rotated_vertices[0, II], rotated_vertices[1, II], 'o-k')
 
     def rotated_density_fn(x): return density_fn(np.dot(W.T, x))
     limits = [
@@ -538,10 +547,10 @@ def plot_evaluate_active_subspace_density_1d_step(
         rotated_density_fn, limits, 51)
     xx = np.vstack(
         (X.flatten()[np.newaxis, :], Y.flatten()[np.newaxis, :]))
-    I = np.where(np.absolute(np.dot(W.T, xx)) > 1)[1]
+    II = np.where(np.absolute(np.dot(W.T, xx)) > 1)[1]
     Z = Z.flatten()
     levels = np.linspace(Z.min(), Z.max(), 30)
-    Z[I] = np.nan
+    Z[II] = np.nan
     cmap = plt.cm.coolwarm
     cmap.set_bad('white', 1.)
     Z = Z.reshape(X.shape[0], X.shape[1])
@@ -572,7 +581,7 @@ def evaluate_active_subspace_density_1d(W, density_fn, points_for_eval=None,
     # Split rotation matrix into active subspace eigenvector
     W1 = W[0, :]
     # and inactive subspace eigenvector
-    W2 = W[1, :]
+    # W2 = W[1, :]
 
     # define hypercube vertices
     hypercube_vertices_1d = np.array([-1., 1.])
@@ -611,10 +620,10 @@ def evaluate_active_subspace_density_1d(W, density_fn, points_for_eval=None,
     for i in range(mapped_vertices.shape[0]-1):
         # Find points in 1d active subspace that map to the
         # current edge of the two dimensional hypercube
-        I = np.where(
+        II = np.where(
             (points_for_eval >= mapped_vertices[i]) &
             (points_for_eval < mapped_vertices[i+1]))[0]
-        points_for_eval_in_interval = points_for_eval[I]
+        points_for_eval_in_interval = points_for_eval[II]
         num_points_for_eval_in_interval = points_for_eval_in_interval.shape[0]
 
         # Check that no points for eval coincide with the location of
@@ -653,8 +662,6 @@ def evaluate_active_subspace_density_1d(W, density_fn, points_for_eval=None,
 
 
 def evaluate_active_subspace_density_1d_example(density_fn, tol, test=False):
-    from pyapprox.util.visualization import plot_2d_polygon, \
-        get_meshgrid_function_data
 
     num_quad_samples = 100
     points_for_eval, quad_weights = np.polynomial.legendre.leggauss(
@@ -662,8 +669,6 @@ def evaluate_active_subspace_density_1d_example(density_fn, tol, test=False):
 
     # for varing rotations make sure density on 1d active subspace
     # integrates to 1
-    n = 10
-    r = 1
     num_rotations = 23
     angles = np.linspace(0., np.pi*2., num_rotations)
     import matplotlib.pyplot as plt
@@ -698,12 +703,12 @@ def evaluate_active_subspace_density_1d_example(density_fn, tol, test=False):
 
 
 def plot_evaluate_active_subspace_density_1d_steps():
-    #niform_density_fn = lambda x: np.ones(x.shape[1])*0.25
+    # niform_density_fn = lambda x: np.ones(x.shape[1])*0.25
     alpha = 2
     beta = 5
 
     def beta_density_function_1d(x):
-        return beta_rv.pdf((x+1.)/2., alpha, beta)/2
+        return stats.beta.pdf((x+1.)/2., alpha, beta)/2
 
     def beta_density_fn(x): return beta_density_function_1d(
         x[0, :])*beta_density_function_1d(x[1, :])

@@ -4,26 +4,35 @@ from scipy.stats import uniform, norm
 import numpy as np
 from functools import partial
 
-from pyapprox.analysis.sensitivity_analysis import get_sobol_indices, \
-    get_main_and_total_effect_indices_from_pce, \
-    get_morris_samples, downselect_morris_trajectories, \
-    get_morris_elementary_effects, get_morris_sensitivity_indices, \
-    print_morris_sensitivity_indices, \
-    analyze_sensitivity_polynomial_chaos, analyze_sensitivity_sparse_grid, \
-    sampling_based_sobol_indices, repeat_sampling_based_sobol_indices, \
-    sampling_based_sobol_indices_from_gaussian_process, \
+from pyapprox.analysis.sensitivity_analysis import (
+    get_sobol_indices, get_main_and_total_effect_indices_from_pce,
+    get_morris_samples, downselect_morris_trajectories,
+    get_morris_elementary_effects, get_morris_sensitivity_indices,
+    print_morris_sensitivity_indices,
+    analyze_sensitivity_polynomial_chaos, analyze_sensitivity_sparse_grid,
+    sampling_based_sobol_indices, repeat_sampling_based_sobol_indices,
+    sampling_based_sobol_indices_from_gaussian_process,
     analytic_sobol_indices_from_gaussian_process
+)
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.benchmarks.sensitivity_benchmarks import ishigami_function, \
-    get_ishigami_funciton_statistics, sobol_g_function, \
+from pyapprox.benchmarks.sensitivity_benchmarks import (
+    ishigami_function, get_ishigami_funciton_statistics, sobol_g_function,
     get_sobol_g_function_statistics, morris_function
-import pyapprox as pya
-from pyapprox.approximate import approximate, adaptive_approximate
-
-
-skip_windows = unittest.skipIf(
-    sys.platform == 'win32',
-    reason="fenics_adjoint package not available on Windows")
+)
+from pyapprox.approx.approximate import approximate, adaptive_approximate
+from pyapprox.polychaos.indexing import (
+    compute_hyperbolic_indices, tensor_product_indices
+)
+from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variable_transformations import (
+    AffineRandomVariableTransformation
+)
+from pyapprox.polychaos.gpc import (
+    define_poly_options_from_variable_transformation, PolynomialChaosExpansion,
+    marginalize_polynomial_chaos_expansion
+)
+from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence
+from pyapprox.util.utilities import cartesian_product
 
 
 class TestSensitivityAnalysis(unittest.TestCase):
@@ -33,7 +42,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_get_sobol_indices_from_pce(self):
         num_vars = 5
         degree = 5
-        indices = pya.compute_hyperbolic_indices(num_vars, degree, 1.0)
+        indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
         coefficients = np.ones((indices.shape[1], 2), float)
         coefficients[:, 1] *= 2
         interaction_indices, interaction_values = \
@@ -46,20 +55,19 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 1500
         nvars, degree = 3, 18
         univariate_variables = [uniform(-np.pi, 2*np.pi)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
-        indices = pya.compute_hyperbolic_indices(nvars, degree, 1.0)
+        indices = compute_hyperbolic_indices(nvars, degree, 1.0)
         poly.set_indices(indices)
         # print('No. PCE Terms',indices.shape[1])
 
-        samples = pya.generate_independent_random_samples(
-            var_trans.variable, nsamples)
+        samples = variable.rvs(nsamples)
         values = ishigami_function(samples)
 
         basis_matrix = poly.basis_matrix(samples)
@@ -67,7 +75,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         poly.set_coefficients(coef)
 
         # nvalidation_samples = 1000
-        # validation_samples = pya.generate_independent_random_samples(
+        # validation_samples = generate_independent_random_samples(
         #     var_trans.variable, nvalidation_samples)
         # validation_values = ishigami_function(validation_samples)
         # poly_validation_vals = poly(validation_samples)
@@ -76,7 +84,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # print('Abs. Error',abs_error)
 
         pce_main_effects, pce_total_effects =\
-            pya.get_main_and_total_effect_indices_from_pce(
+            get_main_and_total_effect_indices_from_pce(
                 poly.get_coefficients(), poly.get_indices())
 
         mean, variance, main_effects, total_effects, sobol_indices, \
@@ -95,20 +103,19 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nvars, degree = 3, 8
         a = np.array([1, 2, 5])[:nvars]
         univariate_variables = [uniform(0, 1)]*nvars
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
 
-        var_trans = pya.AffineRandomVariableTransformation(variable)
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        var_trans = AffineRandomVariableTransformation(variable)
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
-        indices = pya.tensor_product_indices([degree]*nvars)
+        indices = tensor_product_indices([degree]*nvars)
         poly.set_indices(indices)
         # print('No. PCE Terms',indices.shape[1])
 
-        samples = pya.generate_independent_random_samples(
-            var_trans.variable, nsamples)
+        samples = variable.rvs(nsamples)
         samples = (np.cos(np.random.uniform(0, np.pi, (nvars, nsamples)))+1)/2
         values = sobol_g_function(a, samples)
 
@@ -119,8 +126,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         poly.set_coefficients(coef)
 
         nvalidation_samples = 1000
-        validation_samples = pya.generate_independent_random_samples(
-            var_trans.variable, nvalidation_samples)
+        validation_samples = variable.rvs(nvalidation_samples)
         validation_values = sobol_g_function(a, validation_samples)
 
         poly_validation_vals = poly(validation_samples)
@@ -130,7 +136,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         print('Rel. Error', rel_error)
 
         pce_main_effects, pce_total_effects =\
-            pya.get_main_and_total_effect_indices_from_pce(
+            get_main_and_total_effect_indices_from_pce(
                 poly.get_coefficients(), poly.get_indices())
         interaction_terms, pce_sobol_indices = get_sobol_indices(
             poly.get_coefficients(), poly.get_indices(), max_order=3)
@@ -150,7 +156,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         num_vars = 3
         degree = 4
         max_order = 2
-        indices = pya.compute_hyperbolic_indices(num_vars, degree, 1.0)
+        indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
         coefficients = np.ones((indices.shape[1], 2), float)
         coefficients[:, 1] *= 2
         interaction_indices, interaction_values = \
@@ -186,7 +192,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         num_vars = 3
         degree = num_vars
         # max_order = 2
-        indices = pya.compute_hyperbolic_indices(num_vars, degree, 1.0)
+        indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
         coefficients = np.ones((indices.shape[1], 2), float)
         coefficients[:, 1] *= 2
         main_effects, total_effects = \
@@ -239,8 +245,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
         num_samples = 1000
-        train_samples = pya.generate_independent_random_samples(
-            benchmark.variable, num_samples)
+        train_samples = benchmark.variable.rvs(num_samples)
         train_vals = benchmark.fun(train_samples)
 
         pce = approximate(
@@ -259,7 +264,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             benchmark.fun, benchmark.variable.all_variables(),
             'sparse_grid', options).approx
 
-        from pyapprox.approximate import compute_l2_error
+        from pyapprox.approx.approximate import compute_l2_error
         nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, approx.variable_transformation.variable,
@@ -276,7 +281,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 10000
         nvars = benchmark.variable.num_vars()
         order = 3
-        interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
             interaction_terms.max(axis=0) == 1)[0]]
 
@@ -308,7 +313,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 10000
         nvars = benchmark.variable.num_vars()
         order = 3
-        interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
             interaction_terms.max(axis=0) == 1)[0]]
 
@@ -348,7 +353,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 100000
         nvars = benchmark.variable.num_vars()
         order = 1
-        interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
             interaction_terms.max(axis=0) == 1)[0]]
 
@@ -369,18 +374,17 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.approximate import approximate
+        from pyapprox.approx.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
         # nsobol_samples and ntrain_samples effect assert tolerances
         ntrain_samples = 500
         nsobol_samples = int(1e4)
-        train_samples = pya.generate_independent_random_samples(
-            benchmark.variable, ntrain_samples)
+        train_samples = benchmark.variable.rvs(ntrain_samples)
         # from pyapprox import CholeskySampler
         # sampler = CholeskySampler(nvars, 10000, benchmark.variable)
-        # kernel = pya.Matern(
+        # kernel = Matern(
         #     np.array([1]*nvars), length_scale_bounds='fixed', nu=np.inf)
         # sampler.set_kernel(kernel)
         # train_samples = sampler(ntrain_samples)[0]
@@ -390,7 +394,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             train_samples, train_vals, 'gaussian_process', {
                 'nu': np.inf, 'normalize_y': True}).approx
 
-        from pyapprox.approximate import compute_l2_error
+        from pyapprox.approx.approximate import compute_l2_error
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)
@@ -398,7 +402,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # assert error < 4e-2
 
         order = 2
-        interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
             interaction_terms.max(axis=0) == 1)[0]]
 
@@ -466,14 +470,12 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_analytic_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.approximate import approximate
+        from pyapprox.approx.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
         ntrain_samples = 500
-        # train_samples = pya.generate_independent_random_samples(
-        #     benchmark.variable, ntrain_samples)
-        train_samples = pya.sobol_sequence(
+        train_samples = sobol_sequence(
             nvars, ntrain_samples, variable=benchmark.variable)
 
         train_vals = benchmark.fun(train_samples)
@@ -482,14 +484,14 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 'nu': np.inf, 'normalize_y': True, 'alpha': 1e-10}).approx
 
         nsobol_samples = int(1e4)
-        from pyapprox.approximate import compute_l2_error
+        from pyapprox.approx.approximate import compute_l2_error
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)
         print(error)
 
         order = 2
-        interaction_terms = pya.compute_hyperbolic_indices(nvars, order)
+        interaction_terms = compute_hyperbolic_indices(nvars, order)
         interaction_terms = interaction_terms[:, np.where(
             interaction_terms.max(axis=0) == 1)[0]]
 
@@ -523,23 +525,23 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_marginalize_polynomial_chaos_expansions(self):
         univariate_variables = [
             uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
-        variable = pya.IndependentMultivariateRandomVariable(
+        variable = IndependentMultivariateRandomVariable(
             univariate_variables)
-        var_trans = pya.AffineRandomVariableTransformation(variable)
+        var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
-        poly = pya.PolynomialChaosExpansion()
-        poly_opts = pya.define_poly_options_from_variable_transformation(
+        poly = PolynomialChaosExpansion()
+        poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
         poly.configure(poly_opts)
 
         degree = 2
-        indices = pya.compute_hyperbolic_indices(num_vars, degree, 1)
+        indices = compute_hyperbolic_indices(num_vars, degree, 1)
         poly.set_indices(indices)
         poly.set_coefficients(np.ones((indices.shape[1], 1)))
 
         pce_main_effects, pce_total_effects =\
-            pya.get_main_and_total_effect_indices_from_pce(
+            get_main_and_total_effect_indices_from_pce(
                 poly.get_coefficients(), poly.get_indices())
         print(poly.num_terms())
 
@@ -548,17 +550,17 @@ class TestSensitivityAnalysis(unittest.TestCase):
             xx = np.linspace(-1, 1, 101)
             inactive_idx = np.hstack(
                 (np.arange(ii), np.arange(ii+1, num_vars)))
-            marginalized_pce = pya.marginalize_polynomial_chaos_expansion(
+            marginalized_pce = marginalize_polynomial_chaos_expansion(
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx[None, :])
             variable_ii = variable.all_variables()[ii:ii+1]
-            var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
-            poly_ii = pya.PolynomialChaosExpansion()
+            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \
-                pya.define_poly_options_from_variable_transformation(
+                define_poly_options_from_variable_transformation(
                     var_trans_ii)
             poly_ii.configure(poly_opts_ii)
-            indices_ii = pya.compute_hyperbolic_indices(1, degree, 1.)
+            indices_ii = compute_hyperbolic_indices(1, degree, 1.)
             poly_ii.set_indices(indices_ii)
             poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
             pvals = poly_ii(xx[None, :])
@@ -573,24 +575,25 @@ class TestSensitivityAnalysis(unittest.TestCase):
             assert np.allclose(poly_ii.variance(), pce_main_effects[ii])
 
             # Marginalize out 1 variable
-            xx = pya.cartesian_product([xx]*2)
+            xx = cartesian_product([xx]*2)
             inactive_idx = np.array([ii])
-            marginalized_pce = pya.marginalize_polynomial_chaos_expansion(
+            marginalized_pce = marginalize_polynomial_chaos_expansion(
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx)
             variable_ii = variable.all_variables()[:ii] +\
                 variable.all_variables()[ii+1:]
-            var_trans_ii = pya.AffineRandomVariableTransformation(variable_ii)
-            poly_ii = pya.PolynomialChaosExpansion()
+            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \
-                pya.define_poly_options_from_variable_transformation(
+                define_poly_options_from_variable_transformation(
                     var_trans_ii)
             poly_ii.configure(poly_opts_ii)
-            indices_ii = pya.compute_hyperbolic_indices(2, degree, 1.)
+            indices_ii = compute_hyperbolic_indices(2, degree, 1.)
             poly_ii.set_indices(indices_ii)
             poly_ii.set_coefficients(np.ones((indices_ii.shape[1], 1)))
             pvals = poly_ii(xx)
             assert np.allclose(mvals, pvals-poly.mean())
+
 
 if __name__ == "__main__":
     sensitivity_analysis_test_suite = \

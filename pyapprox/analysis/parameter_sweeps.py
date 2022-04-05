@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from pyapprox.variables.variables import get_truncated_ranges
 from pyapprox.variables.variable_transformations import map_hypercube_samples
-from pyapprox.density import map_from_canonical_gaussian
+from pyapprox.variables.density import map_from_canonical_gaussian
 
 
 def get_parameter_sweeps_samples_using_rotation(

@@ -1,6 +1,6 @@
 import unittest
 from scipy.stats import multivariate_normal
-from pyapprox.parameter_sweeps import *
+from pyapprox.analysis.parameter_sweeps import *
 
 class TestParameterSweeps(unittest.TestCase):
     def xtest_get_hypercube_parameter_sweeps_samples(self):

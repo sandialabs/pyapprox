@@ -1,7 +1,7 @@
 Developer Reference Guide
 =========================
 
-.. automodapi:: pyapprox.approximate
+.. automodapi:: pyapprox.approx.approximate
    :no-inheritance-diagram:
    
 

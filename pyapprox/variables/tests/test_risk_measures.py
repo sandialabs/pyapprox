@@ -279,7 +279,7 @@ def plot_truncated_lognormal_example_exact_quantities(
     if plot:
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
-        from pyapprox.density import EmpiricalCDF
+        from pyapprox.variables.density import EmpiricalCDF
         ecdf = EmpiricalCDF(values)
         axs[0].plot(ygrid, ecdf(ygrid), '-')
         axs[0].plot(ygrid, f_cdf(ygrid), '--')
@@ -362,7 +362,7 @@ def plot_lognormal_example_exact_quantities(num_samples=int(2e5), plot=False,
     if plot:
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(1, 6, sharey=False, figsize=(16, 6))
-        # from pyapprox.density import EmpiricalCDF
+        # from pyapprox.variables.density import EmpiricalCDF
         ygrid = np.linspace(-1, 5, 100)
         # ecdf = EmpiricalCDF(values)
         # axs[0].plot(ygrid,ecdf(ygrid),'-')

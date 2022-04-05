@@ -4,7 +4,7 @@ import numpy as np
 import copy
 from functools import partial
 
-from pyapprox.approximate import (
+from pyapprox.approx.approximate import (
     approximate, adaptive_approximate,
     cross_validate_pce_degree, compute_l2_error,
     cross_validate_approximation, LinearLeastSquaresCV,

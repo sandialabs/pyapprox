@@ -541,7 +541,7 @@ class FSDOptProblem(object):
         def cdf2(zz): return self.probabilities.dot(
             self.smooth_fun(self.values[:, None]-zz[None, :]))
 
-        # from pyapprox.density import EmpiricalCDF
+        # from pyapprox.variables.density import EmpiricalCDF
         # cdf3 = EmpiricalCDF(self.values)
         def cdf3(zz): return self.probabilities.dot(
             np.heaviside(-(self.values[:, None]-zz[None, :]), 1))

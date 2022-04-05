@@ -1,4 +1,4 @@
-from pyapprox.manipulate_polynomials import group_like_terms
+from pyapprox.polychaos.manipulate_polynomials import group_like_terms
 from pyapprox.polychaos.monomial import monomial_mean_uniform_variables, \
     monomial_basis_matrix, univariate_monomial_basis_matrix
 from pyapprox.polychaos.indexing import compute_hyperbolic_indices,\
@@ -7,7 +7,7 @@ from scipy.stats import beta as beta_rv
 from pyapprox.util.utilities import cartesian_product, outer_product
 from scipy.linalg import lu_factor, lu as scipy_lu
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.active_subspace import *
+from pyapprox.analysis.active_subspace import *
 import unittest
 try:
     import active_subspaces as asub

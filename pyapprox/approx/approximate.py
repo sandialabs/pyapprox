@@ -179,7 +179,7 @@ def adaptive_approximate_sparse_grid(
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`
@@ -410,7 +410,7 @@ def adaptive_approximate_polynomial_chaos_induced(
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
@@ -518,7 +518,7 @@ def adaptive_approximate_polynomial_chaos_leja(
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
@@ -660,7 +660,7 @@ def adaptive_approximate_gaussian_process(
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx : :class:`pyapprox.gaussianprocess.gaussian_process.AdaptiveGaussianProcess`
@@ -797,14 +797,14 @@ def adaptive_approximate(fun, variable, method, options=None):
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object. For more details see
 
-         - :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
+         - :func:`pyapprox.approx.approximate.adaptive_approximate_sparse_grid`
 
-         - :func:`pyapprox.approximate.adaptive_approximate_polynomial_chaos`
+         - :func:`pyapprox.approx.approximate.adaptive_approximate_polynomial_chaos`
 
-         - :func:`pyapprox.approximate.adaptive_approximate_gaussian_process`
+         - :func:`pyapprox.approx.approximate.adaptive_approximate_gaussian_process`
     """
 
     methods = {'sparse_grid': adaptive_approximate_sparse_grid,
@@ -843,9 +843,9 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
     basis_type : string
         Type of approximation. Should be one of
 
-        - 'hyperbolic_cross' see :func:`pyapprox.approximate.cross_validate_pce_degree`
-        - 'expanding_basis' see :func:`pyapprox.approximate.expanding_basis_pce`
-        - 'fixed' see :func:`pyapprox.approximate.approximate_fixed_pce`
+        - 'hyperbolic_cross' see :func:`pyapprox.approx.approximate.cross_validate_pce_degree`
+        - 'expanding_basis' see :func:`pyapprox.approx.approximate.expanding_basis_pce`
+        - 'fixed' see :func:`pyapprox.approx.approximate.approximate_fixed_pce`
 
     variable : pya.IndependentMultivariateRandomVariable
         Object containing information of the joint density of the inputs z.
@@ -860,14 +860,14 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object. For more details see
 
-         - :func:`pyapprox.approximate.cross_validate_pce_degree`
+         - :func:`pyapprox.approx.approximate.cross_validate_pce_degree`
 
-         - :func:`pyapprox.approximate.expanding_basis_pce`
+         - :func:`pyapprox.approx.approximate.expanding_basis_pce`
 
-         - :func:`pyapprox.approximate.approximate_fixed_pce`
+         - :func:`pyapprox.approx.approximate.approximate_fixed_pce`
     """
     funcs = {'expanding_basis': expanding_basis_pce,
              'hyperbolic_cross': cross_validate_pce_degree,
@@ -932,7 +932,7 @@ def approximate(train_samples, train_vals, method, options=None):
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
     """
 
     methods = {'polynomial_chaos': approximate_polynomial_chaos,
@@ -1169,7 +1169,7 @@ def cross_validate_pce_degree(
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
@@ -1379,7 +1379,7 @@ def expanding_basis_pce(pce, train_samples, train_vals, hcross_strength=1,
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
@@ -1619,7 +1619,7 @@ def approximate_fixed_pce(pce, train_samples, train_vals, indices,
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx: :class:`pyapprox.polychaos.gpc.PolynomialChaosExpansion`
@@ -1761,7 +1761,7 @@ def approximate_gaussian_process(train_samples, train_vals, nu=np.inf,
 
     Returns
     -------
-    result : :class:`pyapprox.approximate.ApproximateResult`
+    result : :class:`pyapprox.approx.approximate.ApproximateResult`
          Result object with the following attributes
 
     approx : :class:`pyapprox.gaussianprocess.gaussian_process.GaussianProcess`

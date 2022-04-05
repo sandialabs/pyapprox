@@ -128,7 +128,7 @@ class DecoupledSystemSurrogate(object):
             initialize each surrogate
 
             See documentation of
-           :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
+           :func:`pyapprox.approx.approximate.adaptive_approximate_sparse_grid`
         """
         # self.random_samples_for_refinement_test = \
         #     generate_independent_random_samples(
@@ -210,7 +210,7 @@ class DecoupledSystemSurrogate(object):
         options : dict
             Arguments necessary to initialize each surrogate.
             See documentation of
-            :func:`pyapprox.approximate.adaptive_approximate_sparse_grid`
+            :func:`pyapprox.approx.approximate.adaptive_approximate_sparse_grid`
 
         Returns
         -------

@@ -3,18 +3,26 @@ from scipy.optimize import OptimizeResult
 from scipy.spatial.distance import cdist
 from itertools import combinations
 
-from pyapprox.polychaos.indexing import hash_array, argsort_indices_leixographically
+from pyapprox.polychaos.indexing import (
+    hash_array, argsort_indices_leixographically
+)
 from pyapprox.util.utilities import nchoosek
-from pyapprox.expdesign.low_discrepancy_sequences import sobol_sequence, halton_sequence
-from pyapprox.variables.probability_measure_sampling import \
+from pyapprox.expdesign.low_discrepancy_sequences import (
+    sobol_sequence, halton_sequence
+)
+from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
-from pyapprox.gaussianprocess.gaussian_process import \
-    _compute_expected_sobol_indices, generate_gp_realizations, \
+)
+from pyapprox.gaussianprocess.gaussian_process import (
+    _compute_expected_sobol_indices, generate_gp_realizations,
     extract_gaussian_process_attributes_for_integration
-from pyapprox.polychaos.gpc import \
+)
+from pyapprox.polychaos.gpc import (
     define_poly_options_from_variable_transformation
-from pyapprox.interp.adaptive_sparse_grid import \
+)
+from pyapprox.interp.adaptive_sparse_grid import (
     convert_sparse_grid_to_polynomial_chaos_expansion
+)
 
 
 def get_main_and_total_effect_indices_from_pce(coefficients, indices):

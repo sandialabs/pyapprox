@@ -2,11 +2,12 @@ import unittest
 
 import numpy as np
 
-import pyapprox as pya
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.benchmarks.surrogate_benchmarks import \
-    wing_weight_function, wing_weight_gradient, \
+from pyapprox.benchmarks.surrogate_benchmarks import (
+    wing_weight_function, wing_weight_gradient,
     define_wing_weight_random_variables
+)
+from pyapprox.util.utilities import check_gradients, check_hessian
 
 
 class TestBenchmarks(unittest.TestCase):
@@ -18,12 +19,12 @@ class TestBenchmarks(unittest.TestCase):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         init_guess = benchmark.variable.get_statistics('mean') +\
             benchmark.variable.get_statistics('std')
-        errors = pya.check_gradients(
+        errors = check_gradients(
             benchmark.fun, benchmark.jac, init_guess, disp=False)
         # print(errors.min())
         assert errors.min() < 2e-6
         def hess_matvec(x, v): return np.dot(benchmark.hess(x), v)
-        errors = pya.check_hessian(
+        errors = check_hessian(
             benchmark.jac, hess_matvec, init_guess, disp=False)
         assert errors.min() < 2e-7
 
@@ -31,10 +32,10 @@ class TestBenchmarks(unittest.TestCase):
         benchmark = setup_benchmark("rosenbrock", nvars=2)
         init_guess = benchmark.variable.get_statistics('mean') +\
             benchmark.variable.get_statistics('std')
-        errors = pya.check_gradients(
+        errors = check_gradients(
             benchmark.fun, benchmark.jac, init_guess, disp=False)
         assert errors.min() < 1e-5
-        errors = pya.check_hessian(
+        errors = check_hessian(
             benchmark.jac, benchmark.hessp, init_guess, disp=False)
         assert errors.min() < 1e-5
 
@@ -55,7 +56,7 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
-        errors = pya.check_gradients(
+        errors = check_gradients(
             fun, jac, init_guess, disp=True)
         assert errors.min() < 4e-7
 
@@ -70,13 +71,12 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.variable.get_statistics('mean'),
             benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
-        errors = pya.check_gradients(
+        errors = check_gradients(
             constraint_fun, constraint_jac, init_guess, disp=True)
         assert errors.min() < 4e-7
 
         nsamples = 10
-        samples = pya.generate_independent_random_samples(
-            benchmark.variable, nsamples)
+        samples = benchmark.variable.rvs(nsamples)
         constraint_fun = ActiveSetVariableModel(
             benchmark.constraint_fun,
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
@@ -86,7 +86,7 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
             samples, benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
-        errors = pya.check_gradients(
+        errors = check_gradients(
             lambda x: constraint_fun(x).flatten(order='F'), constraint_jac,
             init_guess, disp=True)
         assert errors.min() < 4e-7
@@ -95,8 +95,8 @@ class TestBenchmarks(unittest.TestCase):
         variable = define_wing_weight_random_variables()
         fun = wing_weight_function
         grad = wing_weight_gradient
-        sample = pya.generate_independent_random_samples(variable, 1)
-        errors = pya.check_gradients(fun, grad, sample)
+        sample = variable.rvs(1)
+        errors = check_gradients(fun, grad, sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 
@@ -110,9 +110,9 @@ class TestBenchmarks(unittest.TestCase):
 
     def test_piston_gradient(self):
         benchmark = setup_benchmark("piston")
-        sample = pya.generate_independent_random_samples(benchmark.variable, 1)
+        sample = benchmark.variable.rvs(1)
         print(benchmark.jac(sample))
-        errors = pya.check_gradients(benchmark.fun, benchmark. jac, sample)
+        errors = check_gradients(benchmark.fun, benchmark. jac, sample)
         errors = errors[np.isfinite(errors)]
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 

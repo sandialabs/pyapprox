@@ -21,7 +21,8 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     ChemicalReactionModel, define_random_oscillator_random_variables,
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
-    define_nondim_hastings_ecology_random_variables
+    define_nondim_hastings_ecology_random_variables, NobileBenchmarkFunctions,
+    SpectralPDEMultiIndexWrapper
     )
 from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.variables.variables import (
@@ -115,7 +116,7 @@ def setup_sobol_g_function(nvars):
     """
 
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
     a = (np.arange(1, nvars+1)-2)/2
     mean, variance, main_effects, total_effects = \
         get_sobol_g_function_statistics(a)
@@ -156,7 +157,7 @@ def setup_ishigami_function(a, b):
     .. [Ishigami1990] `T. Ishigami and T. Homma, "An importance quantification technique in uncertainty analysis for computer models," [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403 <https://doi.org/10.1109/ISUMA.1990.151285>`_
     """
     univariate_variables = [stats.uniform(-np.pi, 2*np.pi)]*3
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
     mean, variance, main_effects, total_effects, sobol_indices, \
         sobol_interaction_indices = get_ishigami_funciton_statistics()
     return Benchmark(
@@ -192,7 +193,7 @@ def setup_oakley_function():
     .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
     """
     univariate_variables = [stats.norm()]*15
-    variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentMultivariateRandomVariable(univariate_variables)
     mean, variance, main_effects = oakley_function_statistics()
     return Benchmark(
         {'fun': oakley_function,
@@ -410,7 +411,7 @@ def setup_benchmark(name, **kwargs):
         'hastings_ecology': setup_hastings_ecology_benchmark,
         'multi_index_advection_diffusion':
         setup_multi_index_advection_diffusion_benchmark}
-    if pya.PYA_DEV_AVAILABLE:
+    if PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
         fenics_benchmarks = {
@@ -683,7 +684,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     pool_model = PoolModel(
        timer_model, max_eval_concurrency, base_model=base_model)
     # pool_model = timer_model
-    
+
     # add wrapper that tracks execution times.
     model = WorkTrackingModel(pool_model, multi_index_model,
                               multi_index_model.num_config_vars)

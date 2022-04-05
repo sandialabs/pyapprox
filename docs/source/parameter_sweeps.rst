@@ -94,7 +94,7 @@ sweeps
    :context:
        close-figs
        
-   from pyapprox.density import plot_gaussian_contours
+   from pyapprox.variables.density import plot_gaussian_contours
    f, ax = plt.subplots(1,1)
    ax=plot_gaussian_contours(mean,np.linalg.cholesky(covariance),ax=ax)[1]
    ax.plot(samples[0,:],samples[1,:],'o')
