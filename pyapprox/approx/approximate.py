@@ -32,7 +32,7 @@ from pyapprox.interp.adaptive_sparse_grid import (
     max_level_admissibility_function, get_unique_max_level_1d,
     get_unique_quadrule_variables
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
@@ -69,7 +69,7 @@ def adaptive_approximate_sparse_grid(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    variables : IndependentMultivariateRandomVariable
+    variables : IndependentRandomVariable
         A set of independent univariate random variables
 
     callback : callable
@@ -343,7 +343,7 @@ def adaptive_approximate_polynomial_chaos_induced(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    variables : IndependentMultivariateRandomVariable
+    variables : IndependentRandomVariable
         A set of independent univariate random variables
 
     callback : callable
@@ -451,7 +451,7 @@ def adaptive_approximate_polynomial_chaos_leja(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    variables : IndependentMultivariateRandomVariable
+    variables : IndependentRandomVariable
         A set of independent univariate random variables
 
     callback : callable
@@ -577,7 +577,7 @@ def adaptive_approximate_gaussian_process(
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,nqoi)
 
-    variables : IndependentMultivariateRandomVariable
+    variables : IndependentRandomVariable
         A set of independent univariate random variables
 
     callback : callable
@@ -742,7 +742,7 @@ def compute_l2_error(f, g, variable, nsamples, rel=False):
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shaoe (nsamples,nqoi)
 
-    variable : pya.IndependentMultivariateRandomVariable
+    variable : pya.IndependentRandomVariable
         Object containing information of the joint density of the inputs z.
         This is used to generate random samples from this join density
 
@@ -811,8 +811,8 @@ def adaptive_approximate(fun, variable, method, options=None):
                'polynomial_chaos': adaptive_approximate_polynomial_chaos,
                'gaussian_process': adaptive_approximate_gaussian_process}
 
-    if type(variable) != IndependentMultivariateRandomVariable:
-        variable = IndependentMultivariateRandomVariable(
+    if type(variable) != IndependentRandomVariable:
+        variable = IndependentRandomVariable(
             variable)
 
     if method not in methods:
@@ -847,7 +847,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
         - 'expanding_basis' see :func:`pyapprox.approx.approximate.expanding_basis_pce`
         - 'fixed' see :func:`pyapprox.approx.approximate.approximate_fixed_pce`
 
-    variable : pya.IndependentMultivariateRandomVariable
+    variable : pya.IndependentRandomVariable
         Object containing information of the joint density of the inputs z.
         This is used to generate random samples from this join density
 

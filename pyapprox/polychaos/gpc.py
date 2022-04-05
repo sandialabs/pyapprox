@@ -6,7 +6,7 @@ from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
 from pyapprox.variables.variables import (
-    get_distribution_info, IndependentMultivariateRandomVariable
+    get_distribution_info, IndependentRandomVariable
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
@@ -607,7 +607,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     opts = copy.deepcopy(poly.config_opts)
     all_variables = poly.var_trans.variable.all_variables()
     active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
-    active_variables = IndependentMultivariateRandomVariable(
+    active_variables = IndependentRandomVariable(
         [all_variables[ii] for ii in active_idx])
     opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
 
@@ -795,7 +795,7 @@ def get_univariate_gauss_quadrature_rule_from_variable(rv, nsamples):
     w_quad : np.ndarray (nsamples)
         The weights of the quadrature rule
     """
-    variable = IndependentMultivariateRandomVariable([rv])
+    variable = IndependentRandomVariable([rv])
     pce = get_polynomial_from_variable(variable)
     indices = np.arange(nsamples, dtype=int)[None, :]
     pce.set_indices(indices)

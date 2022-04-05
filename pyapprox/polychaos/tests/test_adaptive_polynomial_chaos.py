@@ -10,7 +10,7 @@ from pyapprox.polychaos.adaptive_polynomial_chaos import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
@@ -67,7 +67,7 @@ class TestAdaptivePCE(unittest.TestCase):
         def function(x): return np.sum(a*x**2, axis=0)[:, np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         candidate_samples = -np.cos(
@@ -111,7 +111,7 @@ class TestAdaptivePCE(unittest.TestCase):
         # function = lambda x: np.sum(a*x**2,axis=0)[:,np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         candidate_samples = -np.cos(
@@ -147,7 +147,7 @@ class TestAdaptivePCE(unittest.TestCase):
         # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(num_vars, cond_tol=1e2)
@@ -168,7 +168,7 @@ class TestAdaptivePCE(unittest.TestCase):
         # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
         pce = AdaptiveInducedPCE(

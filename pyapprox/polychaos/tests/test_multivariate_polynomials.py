@@ -33,7 +33,7 @@ from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
 from pyapprox.variables.variables import (
-    IndependentMultivariateRandomVariable,
+    IndependentRandomVariable,
     float_rv_discrete, rv_function_indpndt_vars, rv_product_indpndt_vars
 )
 from pyapprox.variables.probability_measure_sampling import (
@@ -242,7 +242,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         univariate_variables = [
             stats.uniform(-1, 2), stats.norm(gauss_mean, np.sqrt(gauss_var)),
             stats.uniform(0, 3)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -432,7 +432,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         alpha_stat, beta_stat = 2, 3
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -471,7 +471,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         alpha_stat, beta_stat = 2, 3
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -666,7 +666,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_compute_multivariate_orthonormal_basis_product(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
 
         poly1 = get_polynomial_from_variable(variable)
@@ -702,7 +702,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_multiply_multivariate_orthonormal_polynomial_expansions(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
 
         degree1, degree2 = 3, 2
@@ -740,7 +740,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         np.random.seed(1)
         np.set_printoptions(precision=16)
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         degree1, degree2 = 1, 2
         poly1 = get_polynomial_from_variable(variable)
@@ -767,7 +767,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
 
     def test_add_pce(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         degree1, degree2 = 2, 3
         poly1 = get_polynomial_from_variable(variable)
@@ -913,7 +913,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
         univariate_variables = [
             rv_function_indpndt_vars(fun, initial_variables, quad_rules)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -936,7 +936,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         # TODO get quad rules from initial variables
         univariate_variables = [
             rv_product_indpndt_vars(funs, initial_variables, quad_rules)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)

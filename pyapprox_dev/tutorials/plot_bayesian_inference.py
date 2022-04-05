@@ -297,7 +297,7 @@ np.random.seed(1)
 
 univariate_variables = [uniform(-2,4),uniform(-2,4)]
 plot_range = np.asarray([-1,1,-1,1])*2
-variables = pya.IndependentMultivariateRandomVariable(univariate_variables)
+variables = pya.IndependentRandomVariable(univariate_variables)
 
 loglike = ExponentialQuarticLogLikelihoodModel()
 loglike = PYMC3LogLikeWrapper(loglike)

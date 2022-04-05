@@ -5,7 +5,7 @@ from functools import partial
 from scipy.special import factorial
 
 from pyapprox.variables.variables import float_rv_discrete, \
-    IndependentMultivariateRandomVariable
+    IndependentRandomVariable
 from pyapprox.variables.variable_transformations import \
     AffineRandomVariableTransformation
 from pyapprox.interp.barycentric_interpolation import \
@@ -33,7 +33,7 @@ def preconditioned_barycentric_weights():
     var1 = float_rv_discrete(
         name='float_rv_discrete', values=(xk, pk))()
     univariate_variables = [var1]
-    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentRandomVariable(univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
     growth_rule = partial(constant_increment_growth_rule, 2)
     quad_rule = get_univariate_leja_quadrature_rule(var1, growth_rule)

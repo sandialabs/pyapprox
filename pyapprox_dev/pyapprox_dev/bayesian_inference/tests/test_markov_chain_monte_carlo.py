@@ -3,7 +3,7 @@ import unittest
 from scipy.stats import norm, uniform
 
 import pyapprox as pya
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayes.laplace import \
@@ -61,7 +61,7 @@ class TestMCMC(unittest.TestCase):
         Amatrix = np.hstack([np.ones((nobs,1)),x[:,np.newaxis]])
 
         univariate_variables = [norm(1,1),norm(0,4)]
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             univariate_variables)
 
         mtrue = 0.4  # true gradient
@@ -121,7 +121,7 @@ class TestMCMC(unittest.TestCase):
         
         univariate_variables = [uniform(-2,4),uniform(-2,4)]
         plot_range = np.asarray([-1,1,-1,1])*2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()

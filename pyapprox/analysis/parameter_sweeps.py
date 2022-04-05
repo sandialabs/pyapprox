@@ -435,7 +435,7 @@ def generate_parameter_sweeps_and_plot_from_variable(
 
         where samples : np.ndarray (nvars, nsamples)
 
-    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentRandomVariable`
         Random variable
 
     filename : string

@@ -203,12 +203,12 @@ def define_iid_random_variables(rv, num_vars):
 
     Returns
     -------
-    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentRandomVariable`
         The multivariate random variable
     """
     unique_variables = [rv]
     unique_var_indices = [np.arange(num_vars)]
-    return IndependentMultivariateRandomVariable(
+    return IndependentRandomVariable(
         unique_variables, unique_var_indices)
 
 
@@ -271,16 +271,16 @@ def variable_shapes_equivalent(rv1, rv2):
     return True
 
 
-class IndependentMultivariateRandomVariable(object):
+class IndependentRandomVariable(object):
     """
     Class representing independent random variables
 
     Examples
     --------
-    >>> from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+    >>> from pyapprox.variables.variables import IndependentRandomVariable
     >>> from scipy.stats import norm, beta
     >>> marginals = [norm(0,1),beta(0,1),norm()]
-    >>> variable = IndependentMultivariateRandomVariable(marginals)
+    >>> variable = IndependentRandomVariable(marginals)
     >>> print(variable)
     I.I.D. Variable
     Number of variables: 3
@@ -359,7 +359,7 @@ class IndependentMultivariateRandomVariable(object):
         >>> import pyapprox as pya
         >>> from scipy.stats import uniform
         >>> num_vars = 2
-        >>> variable = pya.IndependentMultivariateRandomVariable([uniform(-2, 3)], [np.arange(num_vars)])
+        >>> variable = pya.IndependentRandomVariable([uniform(-2, 3)], [np.arange(num_vars)])
         >>> variable.get_statistics("interval", alpha=1)
         array([[-2.,  1.],
                [-2.,  1.]])
@@ -675,7 +675,7 @@ def combine_uncertain_and_bounded_design_variables(
             raise ValueError(f"Design variable {ii} is not bounded")
         rv = stats.uniform(lb, ub-lb)
         variable_list[design_variable_indices[ii]] = rv
-    return IndependentMultivariateRandomVariable(variable_list)
+    return IndependentRandomVariable(variable_list)
 
 
 rv_function_indpndt_vars = rv_function_indpndt_vars_gen(
@@ -733,7 +733,7 @@ def get_truncated_ranges(variable, unbounded_alpha=0.99):
 
     Parameters
     ----------
-    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentRandomVariable`
         Variable
 
     unbounded_alpha : float

@@ -46,7 +46,7 @@ from pyapprox.util.utilities import (
     approx_jacobian, check_gradients
 )
 from pyapprox.variables.variables import (
-    IndependentMultivariateRandomVariable
+    IndependentRandomVariable
 )
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
@@ -248,7 +248,7 @@ class TestGaussianProcess(unittest.TestCase):
         # mu_scalar, sigma_scalar = 0, 1
 
         univariate_variables = [stats.norm(mu_scalar, sigma_scalar)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
 
         lb, ub = univariate_variables[0].interval(0.99999)
@@ -439,7 +439,7 @@ class TestGaussianProcess(unittest.TestCase):
         def func(x): return constant*np.sum((2*x-.5)**2, axis=0)[:, np.newaxis]
 
         univariate_variables = [stats.uniform(0, 1)]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -547,7 +547,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -607,7 +607,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -649,7 +649,7 @@ class TestGaussianProcess(unittest.TestCase):
             gp_ii = marginalized_gps[ii]
             if center is True:
                 assert np.allclose(gp_ii.mean, expected_random_mean)
-            # variable_ii = IndependentMultivariateRandomVariable(
+            # variable_ii = IndependentRandomVariable(
             #     [univariate_variables[ii]])
 
             # kernel must be evaluated in canonical space
@@ -746,7 +746,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         # var_trans = AffineRandomVariableTransformation(variable)
 
@@ -812,7 +812,7 @@ class TestGaussianProcess(unittest.TestCase):
         train_vals = func(train_samples)
 
         univariate_variables = [stats.uniform(0, 1)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         # var_trans = AffineRandomVariableTransformation(variable)
 
@@ -874,11 +874,11 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [
             stats.uniform(bounds[2*ii], bounds[2*ii+1]-bounds[2*ii])
             for ii in range(len(bounds)//2)]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         # lb, ub = 1e4, 1e5
         # # lb, ub = 1e0, 1e1
-        # variable =  IndependentMultivariateRandomVariable(
+        # variable =  IndependentRandomVariable(
         #     [stats.uniform(lb, ub-lb)])#, stats.uniform(1e4, 1e5-1e4)])
         # length_scale = (ub-lb)/10
 
@@ -989,7 +989,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_basic_restart(self):
         nvars = 1
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
         sampler = CholeskySampler(nvars, 100, variables)
         kernel = Matern(1, length_scale_bounds='fixed', nu=np.inf)
@@ -1006,7 +1006,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_restart_with_changed_kernel(self):
         nvars = 1
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
         kernel1 = Matern(1, length_scale_bounds='fixed', nu=np.inf)
         kernel2 = Matern(0.1, length_scale_bounds='fixed', nu=np.inf)
@@ -1031,7 +1031,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_restart_with_changed_weight_function(self):
         nvars = 1
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.uniform(-1, 2)]*nvars)
         kernel1 = Matern(1, length_scale_bounds='fixed', nu=np.inf)
 
@@ -1059,7 +1059,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_cholesky_sampler_adaptive_gp_fixed_kernel(self):
         nvars = 1
-        # variables = IndependentMultivariateRandomVariable(
+        # variables = IndependentRandomVariable(
         #    [stats.uniform(-1, 2)]*nvars)
 
         def func(samples): return np.array(
@@ -1111,7 +1111,7 @@ class TestSamplers(unittest.TestCase):
         ncandidate_samples = 1000
 
         alpha_stat, beta_stat = 20, 20
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(a=alpha_stat, b=beta_stat)]*nvars)
 
         generate_samples = partial(
@@ -1557,7 +1557,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_monte_carlo_gradient_based_ivar_sampler(self):
         nvars = 2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)
@@ -1654,7 +1654,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_quadrature_gradient_based_ivar_sampler(self):
         nvars = 2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)
@@ -1751,7 +1751,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_greedy_gauss_quadrature_ivar_sampler_I(self):
         nvars = 2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)
@@ -1806,7 +1806,7 @@ class TestSamplers(unittest.TestCase):
 
     def check_greedy_monte_carlo_ivar_sampler(
             self, nvars, kernel, kernels_1d):
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)
@@ -1874,7 +1874,7 @@ class TestSamplers(unittest.TestCase):
 
     def test_greedy_variance_of_mean_sampler(self):
         nvars = 2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)
@@ -1939,7 +1939,7 @@ class TestSamplers(unittest.TestCase):
 
     def compare_ivar_samplers(self):
         nvars = 2
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [stats.beta(20, 20)]*nvars)
         generate_random_samples = partial(
             generate_independent_random_samples, variables)

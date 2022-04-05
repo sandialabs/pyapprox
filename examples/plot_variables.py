@@ -7,11 +7,11 @@ PyApprox primarily supports multivariate random variables comprised of
 independent univariate variables. Such variables can be defined from a list of
 scipy.stats variable objects. To create a Beta random variable defined on :math:`[0, 1]\times[1, 2]`
 """
-from pyapprox import IndependentMultivariateRandomVariable
+from pyapprox import IndependentRandomVariable
 from scipy import stats
 scipy_vars = [stats.beta(2, 3, loc=0, scale=1),
               stats.beta(5, 2, loc=1, scale=1)]
-variable = IndependentMultivariateRandomVariable(scipy_vars)
+variable = IndependentRandomVariable(scipy_vars)
 
 #%%
 #A summary of the random variable can be printed using
@@ -32,7 +32,7 @@ print(pdf_vals)
 #%%
 #Any statistics, supported by the univariate scipy.stats variables,
 #can be accessed for all 1D variabels using
-#:func:`pyapprox.variables.IndependentMultivariateRandomVariable.get_statistics`
+#:func:`pyapprox.variables.IndependentRandomVariable.get_statistics`
 #For example,
 mean = variable.get_statistics("mean")
 variance = variable.get_statistics("var")

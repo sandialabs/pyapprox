@@ -424,7 +424,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
         The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
         size is and :math:`T/2^{l_{t}+2}`.
 
-    variable : pya.IndependentMultivariateRandomVariable
+    variable : pya.IndependentRandomVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
@@ -441,10 +441,10 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
     from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
-    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+    from pyapprox.variables.variables import IndependentRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
-    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentRandomVariable(univariate_variables)
     final_time, degree = 1.0, 1
     options = {'corr_len': corr_len}
     base_model = AdvectionDiffusionModel(
@@ -473,11 +473,11 @@ def setup_multi_level_advection_diffusion_benchmark(
     from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
-    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+    from pyapprox.variables.variables import IndependentRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     from pyapprox.interface.wrappers import MultiLevelWrapper
     univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
-    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentRandomVariable(univariate_variables)
     final_time, degree = 1.0, 1
     options = {'corr_len': corr_len}
     base_model = AdvectionDiffusionModel(
@@ -588,7 +588,7 @@ def setup_advection_diffusion_source_inversion_benchmark(
         The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep 
         size is and :math:`T/2^{l_{t}+2}`.
 
-    variable : pya.IndependentMultivariateRandomVariable
+    variable : pya.IndependentRandomVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed 
         uniform variables on :math:`[0,1]`.
@@ -619,10 +619,10 @@ def setup_advection_diffusion_source_inversion_benchmark(
     from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
-    from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+    from pyapprox.variables.variables import IndependentRandomVariable
     from pyapprox.benchmarks.benchmarks import Benchmark
     univariate_variables = [stats.uniform(0, 1)]*2
-    variable = IndependentMultivariateRandomVariable(univariate_variables)
+    variable = IndependentRandomVariable(univariate_variables)
     final_time, degree = measurement_times.max(), 2
     options = {'intermediate_times': measurement_times[:-1],
                'source_strength': source_strength, 'source_width': source_width}

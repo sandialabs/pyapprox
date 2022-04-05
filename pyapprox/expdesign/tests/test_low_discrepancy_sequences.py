@@ -39,9 +39,9 @@ class TestLowDiscrepancySequences(unittest.TestCase):
         assert np.allclose(true_samples[:, 2:], samples)
 
     def test_sobol_sequence_variable_transformation(self):
-        from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+        from pyapprox.variables.variables import IndependentRandomVariable
         from scipy.stats import uniform
-        variables = IndependentMultivariateRandomVariable(
+        variables = IndependentRandomVariable(
             [uniform(-1, 2), uniform(0, 1), uniform(0,3)])
         samples = sobol_sequence(3, 10, variable=variables)
         true_samples = np.asarray(

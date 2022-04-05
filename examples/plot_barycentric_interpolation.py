@@ -36,7 +36,7 @@ def fun(samples):
 interp_fun = partial(pya.tensor_product_barycentric_lagrange_interpolation,
                      grid_samples_1d, fun)
 
-variable = pya.IndependentMultivariateRandomVariable(scipy_vars)
+variable = pya.IndependentRandomVariable(scipy_vars)
 X, Y, Z = pya.get_meshgrid_function_data_from_variable(
     interp_fun, variable, 50)
 fig, ax = pya.plt.subplots(1, 1, figsize=(8, 6))

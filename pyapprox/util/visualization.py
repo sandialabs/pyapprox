@@ -284,7 +284,7 @@ def get_meshgrid_function_data_from_variable(
         The function must accept an np.ndarray of size (2, num_pts_1d**2)
         and return a np.ndarray of size (num_pts_1d,num_qoi)
 
-    variable : :class:`pyapprox.variables.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentRandomVariable`
         Variable used to determine plotting ranges
 
     num_pts_1d : integer

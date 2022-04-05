@@ -82,7 +82,7 @@ class DecoupledSystemSurrogate(object):
     system_network : :class:SystemNetwork
         Object describing the connections between components of a system model.
 
-    variables : :class:`pyapprox.IndependentMultivariateRandomVariable`
+    variables : :class:`pyapprox.IndependentRandomVariable`
         The system level variables
 
     estimate_coupling_ranges : boolean

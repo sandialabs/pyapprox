@@ -189,7 +189,7 @@ def sobol_sequence(nvars, nsamples, start_index=0, variable=None):
     start_index : integer
         The number of initial samples in the Sobol sequence to skip
 
-    variable : :class:pyapprox.variabels.IndependentMultivariateRandomVariable
+    variable : :class:pyapprox.variabels.IndependentRandomVariable
         If provided will be used for inverse transform sampling
 
     Returns
@@ -219,7 +219,7 @@ def halton_sequence(num_vars, nsamples, start_index=0, variable=None):
     start_index : integer
         The number of initial samples in the Sobol sequence to skip
 
-    variable : :class:pyapprox.variabels.IndependentMultivariateRandomVariable
+    variable : :class:pyapprox.variabels.IndependentRandomVariable
         If provided will be used for inverse transform sampling
 
     Returns

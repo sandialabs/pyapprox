@@ -18,7 +18,7 @@ from pyapprox.expdesign.bayesian_oed import (
     sequential_oed_synthetic_observation_process,
     gaussian_noise_fun, get_bayesian_oed_optimizer
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
@@ -55,7 +55,7 @@ warnings.filterwarnings('error')
 
 
 def setup_linear_gaussian_model_inference(prior_variable, noise_std, obs_mat):
-    # prior_variable = pya.IndependentMultivariateRandomVariable(
+    # prior_variable = pya.IndependentRandomVariable(
     #     [stats.norm(0, 1)]*nrandom_vars)
     nobs = obs_mat.shape[0]
     prior_mean = prior_variable.get_statistics("mean")
@@ -650,7 +650,7 @@ class TestBayesianOED(unittest.TestCase):
         # specify the first design point
         collected_design_indices = np.array([0])
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         prior_mean = prior_variable.get_statistics('mean')
@@ -741,7 +741,7 @@ class TestBayesianOED(unittest.TestCase):
             Amat = design_candidates.T
             return Amat.dot(samples).T
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         x_quad, w_quad = gauss_hermite_pts_wts_1D(ninner_loop_samples)
@@ -828,7 +828,7 @@ class TestBayesianOED(unittest.TestCase):
             Amat = basis_matrix(degree, prediction_candidates)
             return Amat.dot(samples).T
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         x_quad, w_quad = get_oed_inner_quadrature_rule(
@@ -938,7 +938,7 @@ class TestBayesianOED(unittest.TestCase):
             assert samples.ndim == 2
             return Amat.dot(samples).T
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         true_sample = np.array([.4]*nrandom_vars)[:, None]
@@ -1202,7 +1202,7 @@ class TestBayesianOED(unittest.TestCase):
             Amat = design_candidates.T
             return Amat.dot(samples).T
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         true_sample = np.array([.4]*nrandom_vars)[:, None]
@@ -1281,7 +1281,7 @@ class TestBayesianOED(unittest.TestCase):
         nrandom_vars = 2
         Amat = np.array([[-0.5, 1]])
         noise_std = 0.1
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
         prior_mean = prior_variable.get_statistics('mean')
         prior_cov = np.diag(prior_variable.get_statistics('var')[:, 0])
@@ -1354,7 +1354,7 @@ class TestBayesianOED(unittest.TestCase):
 
         # Define the prior PDF of the unknown variables
         nrandom_vars = indices.shape[1]
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 0.5)]*nrandom_vars)
 
         # Define the independent observational noise
@@ -1513,7 +1513,7 @@ class TestBayesianOED(unittest.TestCase):
             assert samples.ndim == 2
             return Amat.dot(samples).T
 
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, 1)]*nrandom_vars)
 
         x_quad, w_quad = get_oed_inner_quadrature_rule(
@@ -1623,7 +1623,7 @@ class TestBayesianOED(unittest.TestCase):
             return oed_average_prediction_deviation(x, weights=ww[:, None])[0]
 
         nrandom_vars = degree+1
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(-0.25, .5)]*nrandom_vars)
 
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
@@ -1741,7 +1741,7 @@ class TestBayesianOED(unittest.TestCase):
                 prob=False)
 
         nrandom_vars = degree+1
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(0, .1)]*nrandom_vars)
 
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
@@ -1821,7 +1821,7 @@ class TestBayesianOED(unittest.TestCase):
         noise_std = 0.5
         nrandom_vars = degree+1
         ncandidates = 11
-        prior_variable = IndependentMultivariateRandomVariable(
+        prior_variable = IndependentRandomVariable(
             [stats.norm(1, 0.5)]*nrandom_vars)
         design_candidates = np.linspace(-1, 1, ncandidates)[None, :]
 

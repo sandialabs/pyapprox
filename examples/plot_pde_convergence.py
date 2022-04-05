@@ -19,7 +19,7 @@ from pyapprox.interface.wrappers import (
     TimerModelWrapper
 )
 from scipy import stats
-from pyapprox import IndependentMultivariateRandomVariable
+from pyapprox import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     ConfigureVariableTransformation
 )
@@ -58,7 +58,7 @@ class Integrator(object):
 #Now define this integrand and the true value as a function of the random samples.
 
 
-variable = IndependentMultivariateRandomVariable([stats.uniform(0, 1)])
+variable = IndependentRandomVariable([stats.uniform(0, 1)])
 
 
 def integrand(sample, x):

@@ -5,7 +5,7 @@ from warnings import warn
 
 from pyapprox.variables.variables import (
     get_distribution_info,
-    define_iid_random_variables, IndependentMultivariateRandomVariable,
+    define_iid_random_variables, IndependentRandomVariable,
     float_rv_discrete, variables_equivalent, get_pdf
 )
 from pyapprox.util.utilities import lists_of_arrays_equal
@@ -216,7 +216,7 @@ class TestVariables(unittest.TestCase):
         univariate_variables = [
             stats.uniform(-1, 2), stats.beta(1, 1, -1, 2), stats.norm(0, 1), stats.uniform(-1, 2),
             stats.uniform(-1, 2), stats.beta(1, 1, -1, 2)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
 
         assert len(variable.unique_variables) == 3
         assert lists_of_arrays_equal(variable.unique_variable_indices,
@@ -232,7 +232,7 @@ class TestVariables(unittest.TestCase):
             stats.uniform(-1, 2), stats.beta(1, 1, -1, 2),
             stats.norm(-1, 2), stats.uniform(), stats.uniform(-1, 2),
             stats.beta(2, 1, -2, 3)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
 
         assert len(variable.unique_variables) == 5
         assert lists_of_arrays_equal(variable.unique_variable_indices,
@@ -273,7 +273,7 @@ class TestVariables(unittest.TestCase):
     def test_get_statistics(self):
         univariate_variables = [
             stats.uniform(2, 4), stats.beta(1, 1, -1, 2), stats.norm(0, 1)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         mean = variable.get_statistics('mean')
         assert np.allclose(mean.squeeze(), [4, 0, 0])
 

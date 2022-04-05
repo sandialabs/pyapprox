@@ -5,16 +5,17 @@ This tutorial describes how to setup a function with random inputs. It also prov
 
 We start by defining a function of two random variables. We will use the Rosenbrock becnhmark. See :func:`pyapprox.benchmarks.benchmarks.setup_rosenbrock_function`
 """
-from pyapprox.interface.wrappers import TimerModelWrapper, WorkTrackingModel
-from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 import os
-from pyapprox.interface.wrappers import PoolModel
-from pyapprox.multifidelity.control_variate_monte_carlo import ModelEnsemble
 import time
 import numpy as np
 from scipy import stats
-import pyapprox as pya
+from pyapprox.interface.wrappers import (
+    TimerModelWrapper, WorkTrackingModel, PoolModel,
+    evaluate_1darray_function_on_2d_array, ModelEnsemble)
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.benchmarks.benchmarks import setup_benchmark
+
+
 benchmark = setup_benchmark('rosenbrock', nvars=2)
 
 #%%
@@ -29,7 +30,7 @@ print(benchmark.keys())
 #We define multivariate random variables by specifying each 1D variable in a list. Here we will setup a 2D variable which is the tensor product of two independent and identically distributed uniform random variables
 
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
-variable = pya.IndependentMultivariateRandomVariable(univariate_variables)
+variable = IndependentRandomVariable(univariate_variables)
 
 #%%
 #This variable is also defined in the benchmark.variable attribute. To print a summary of the random variable
@@ -64,7 +65,15 @@ print_statistics(samples, values)
 #.. Also note that path above is relative to source/auto_tutorials/foundations
 #
 
-from pyapprox.examples.setup_model_functions import pyapprox_fun_0, fun_0
+
+def fun_0(sample):
+    assert sample.ndim == 1
+    return np.sum(sample**2)
+
+
+def pyapprox_fun_0(samples):
+    values = evaluate_1darray_function_on_2d_array(fun_0, samples)
+    return values
 values = pyapprox_fun_0(samples)
 
 #%%
@@ -90,7 +99,16 @@ assert np.allclose(values, values_loop)
 #
 
 
-from pyapprox.examples.setup_model_functions import pyapprox_fun_1, fun_pause_1
+def fun_pause_1(sample):
+    assert sample.ndim == 1
+    time.sleep(np.random.uniform(0, .05))
+    return np.sum(sample**2)
+
+
+def pyapprox_fun_1(samples):
+    return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
+
+
 timer_fun = TimerModelWrapper(pyapprox_fun_1)
 worktracking_fun = WorkTrackingModel(timer_fun)
 values = worktracking_fun(samples)
@@ -105,6 +123,7 @@ print(costs)
 fun_id = np.atleast_2d([0])
 print(worktracking_fun.work_tracker(fun_id))
 
+
 #%%
 #Evaluating multiple models
 #^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -117,7 +136,10 @@ print(worktracking_fun.work_tracker(fun_id))
 #.. Note for some reason text like this is needed after the literalinclude
 #.. Also note that path above is relative to source/auto_tutorials/foundations
 #
-from pyapprox.examples.setup_model_functions import pyapprox_fun_2
+
+def pyapprox_fun_2(samples):
+    return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
+
 
 #%%
 #Now using :class:`pyapprox.multifidelity.control_variate_monte_carlo.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples

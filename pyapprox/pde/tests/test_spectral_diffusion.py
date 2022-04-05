@@ -700,11 +700,11 @@ class TestSpectralDiffusion2D(unittest.TestCase):
 
         # print(np.linalg.norm(exact_sol(model.mesh.mesh_pts)-solution))
         # fig, axs = plt.subplots(1, 2, figsize=(2*8, 6))
-        # X, Y, Z = pya.get_meshgrid_function_data(exact_sol, model.domain, 30)
+        # X, Y, Z = get_meshgrid_function_data(exact_sol, model.domain, 30)
         # p = axs[0].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))
         # plt.colorbar(p, ax=axs[0])
-        # X, Y, Z = pya.get_meshgrid_function_data(
+        # X, Y, Z = get_meshgrid_function_data(
         #     partial(model.mesh.interpolate, solution), model.domain, 30)
         # p = axs[1].contourf(
         #     X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 10))

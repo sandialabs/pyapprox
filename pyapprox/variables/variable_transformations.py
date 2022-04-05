@@ -2,7 +2,7 @@ import numpy as np
 
 from pyapprox.variables.variables import (
     define_iid_random_variables, is_bounded_continuous_variable,
-    IndependentMultivariateRandomVariable, transform_scale_parameters
+    IndependentRandomVariable, transform_scale_parameters
 )
 from pyapprox.variables.rosenblatt_transformation import (
     rosenblatt_transformation, inverse_rosenblatt_transformation
@@ -123,8 +123,8 @@ class AffineRandomVariableTransformation(object):
         e.g. beta, gaussian, etc. and the parameters of that distribution
         e.g. loc and scale parameters as well as any additional parameters
         """
-        if (type(variable) != IndependentMultivariateRandomVariable):
-            variable = IndependentMultivariateRandomVariable(variable)
+        if (type(variable) != IndependentRandomVariable):
+            variable = IndependentRandomVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
         self.identity_map_indices = None

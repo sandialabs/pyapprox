@@ -22,7 +22,7 @@ from pyapprox.approx.approximate import approximate, adaptive_approximate
 from pyapprox.polychaos.indexing import (
     compute_hyperbolic_indices, tensor_product_indices
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
@@ -54,7 +54,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 1500
         nvars, degree = 3, 18
         univariate_variables = [uniform(-np.pi, 2*np.pi)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
 
         var_trans = AffineRandomVariableTransformation(variable)
@@ -102,7 +102,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nvars, degree = 3, 8
         a = np.array([1, 2, 5])[:nvars]
         univariate_variables = [uniform(0, 1)]*nvars
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
 
         var_trans = AffineRandomVariableTransformation(variable)
@@ -524,7 +524,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_marginalize_polynomial_chaos_expansions(self):
         univariate_variables = [
             uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)

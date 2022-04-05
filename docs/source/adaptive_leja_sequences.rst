@@ -14,7 +14,7 @@ First lets import necessary modules and define a function useful for estimating 
    from pyapprox.polychaos.adaptive_polynomial_chaos import *
    from pyapprox.variables.variable_transformations import \
    AffineBoundedVariableTransformation, AffineRandomVariableTransformation
-   from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+   from pyapprox.variables.variables import IndependentRandomVariable
    from scipy.stats import beta
    from pyapprox.variables.probability_measure_sampling import \
        generate_independent_random_samples
@@ -46,7 +46,7 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
       close-figs
 
    univariate_variables = [uniform(),beta(3,3)]
-   variable = IndependentMultivariateRandomVariable(univariate_variables)
+   variable = IndependentRandomVariable(univariate_variables)
 
    c = np.array([10,0.01])
    model = GenzFunction(

@@ -22,7 +22,7 @@ from pyapprox.util.linalg import (
     pivoted_cholesky_decomposition,
     continue_pivoted_cholesky_decomposition, cholesky_solve_linear_system
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
@@ -752,7 +752,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
     kernel_var : float
         The variance :math:`\sigma_K^2` of the kernel :math:`K`
 
-    variable : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variable.IndependentRandomVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`
 
@@ -893,7 +893,7 @@ class CholeskySampler(object):
     num_candidate_samples : integer
         The number of candidate samples from which final samples are chosen
 
-    variable : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+    variable : :class:`pyapprox.variable.IndependentRandomVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`
 
@@ -1457,7 +1457,7 @@ class IVARSampler(object):
         by this function and the other half of samples will be from a Halton
         sequence.
 
-    variables : :class:`pyapprox.variable.IndependentMultivariateRandomVariable`
+    variables : :class:`pyapprox.variable.IndependentRandomVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`. The bounds and
         CDFs of these variables are used to transform the Halton sequence used
@@ -2416,7 +2416,7 @@ def marginalize_gaussian_process(gp, variable, center=True):
             kernel, gp.X_train_[:, ii:ii+1].T, L_factor, gp.y_train_,
             gp._y_train_mean, gp._y_train_std, mean=shift)
         if hasattr(gp, 'var_trans'):
-            variable_ii = IndependentMultivariateRandomVariable(
+            variable_ii = IndependentRandomVariable(
                 [gp.var_trans.variable.all_variables()[ii]])
             var_trans_ii = AffineRandomVariableTransformation(variable_ii)
             gp_ii.set_variable_transformation(var_trans_ii)

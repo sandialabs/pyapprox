@@ -224,7 +224,7 @@ def run_bayesian_inference_gaussian_error_model(
     loglike : pyapprox_dev.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
         A log-likelihood function associated with a Gaussian error model
 
-    variables : pya.IndependentMultivariateRandomVariable
+    variables : pya.IndependentRandomVariable
         Object containing information of the joint density of the inputs z.
         This is used to generate random samples from this join density
 

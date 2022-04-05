@@ -8,7 +8,7 @@ from pyapprox.approx.coupled_systems import (
     gauss_jacobi_fixed_point_iteration, GaussJacobiSystemNetwork,
     get_extraction_indices, get_extraction_matrices
 )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.variables.probability_measure_sampling import \
     generate_independent_random_samples
 from pyapprox.util.utilities import flatten_2D_list
@@ -75,7 +75,7 @@ def get_3_peer_polynomial_components():
 
     nvars = np.unique(np.concatenate(global_random_var_indices)).sum()
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variables = IndependentMultivariateRandomVariable(univariate_variables)
+    variables = IndependentRandomVariable(univariate_variables)
 
     def system_fun(samples):
         funs = graph_data['functions']
@@ -159,7 +159,7 @@ def get_3_peer_polynomial_components_multiple_qoi():
 
     nvars = np.unique(np.concatenate(global_random_var_indices)).sum()
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variables = IndependentMultivariateRandomVariable(univariate_variables)
+    variables = IndependentRandomVariable(univariate_variables)
     return graph, variables, graph_data
 
 
@@ -226,7 +226,7 @@ def get_3_recursive_polynomial_components():
 
     nvars = np.unique(np.concatenate(global_random_var_indices)).sum()
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variables = IndependentMultivariateRandomVariable(univariate_variables)
+    variables = IndependentRandomVariable(univariate_variables)
     return graph, variables, graph_data
 
 
@@ -280,7 +280,7 @@ def get_3_recursive_polynomial_components_multiple_qoi():
 
     nvars = np.unique(np.concatenate(global_random_var_indices)).sum()
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variables = IndependentMultivariateRandomVariable(univariate_variables)
+    variables = IndependentRandomVariable(univariate_variables)
     return graph, variables, graph_data
 
 
@@ -309,7 +309,7 @@ def get_chaudhuri_3_component_system():
         return (samples[0:1, :] + samples[1:2, :]).T
 
     nexog_vars = 5
-    variable = IndependentMultivariateRandomVariable(
+    variable = IndependentRandomVariable(
         [stats.norm(1, 0.1)]*nexog_vars)
 
     # 0.02+(9.7236*x+0.2486*y)/sqrt[x^2+y^2]-x=0

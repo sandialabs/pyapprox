@@ -9,7 +9,7 @@ from pyapprox.variables.variable_transformations import (
     TransformationComposition, UniformMarginalTransformation
 )
 from pyapprox.variables.variables import (
-    IndependentMultivariateRandomVariable, float_rv_discrete
+    IndependentRandomVariable, float_rv_discrete
 )
 from pyapprox.variables.tests.test_rosenblatt_transformation import (
     rosenblatt_example_2d
@@ -290,7 +290,7 @@ class TestVariableTransformations(unittest.TestCase):
             float_rv_discrete(name='float_rv_discrete',
                               values=(mass_locs, mass_probs))()]*nvars
 
-        variables = IndependentMultivariateRandomVariable(univariate_variables)
+        variables = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variables)
 
         samples = np.vstack(

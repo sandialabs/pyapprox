@@ -67,7 +67,7 @@ from pyapprox.polychaos.manipulate_polynomials import get_indices_double_set
 from pyapprox.variables.variable_transformations import (
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
     )
-from pyapprox.variables.variables import IndependentMultivariateRandomVariable
+from pyapprox.variables.variables import IndependentRandomVariable
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
@@ -688,7 +688,7 @@ class TestSparseGrid(unittest.TestCase):
         poly = PolynomialChaosExpansion()
         univariate_variables = [
             stats.uniform(-1, 2), stats.beta(alpha_stat, beta_stat, -1, 2)]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         poly_opts = define_poly_options_from_variable_transformation(
@@ -1432,7 +1432,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             ranges[2*ii:2*(ii+1)] = all_ranges[2*index:2*(index+1)]
             weight_functions.append(all_weight_functions[index])
 
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         num_vars = len(univariate_variables)
@@ -1570,7 +1570,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         alpha_stat, beta_stat = 2, 2
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, -1, 2), stats.norm()]
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         quad_rules, growth_rules, unique_quadrule_indices, \
@@ -1911,7 +1911,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
 
     def test_combination_sparse_grid_setup(self):
         univariate_variables = [stats.uniform(-1, 2)]*2
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
@@ -1948,7 +1948,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
 
         univariate_variables = [stats.uniform(-1, 2)]
         num_vars = len(univariate_variables)
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())

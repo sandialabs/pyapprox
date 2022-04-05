@@ -1577,7 +1577,7 @@ def run_bayesian_batch_deviation_oed(
     r"""
     Parameters
     ----------
-    prior_variable : pya.IndependentMultivariateRandomVariable
+    prior_variable : pya.IndependentRandomVariable
         The prior variable consisting of independent univariate random
         variables
 

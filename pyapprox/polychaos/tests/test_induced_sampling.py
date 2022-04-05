@@ -18,7 +18,7 @@ from pyapprox.polychaos.indexing import (
 )
 from pyapprox.variables.variables import (
     float_rv_discrete,
-    IndependentMultivariateRandomVariable, get_probability_masses
+    IndependentRandomVariable, get_probability_masses
 )
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
@@ -273,7 +273,7 @@ class TestInducedSampling(unittest.TestCase):
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, -1, 2)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 
@@ -296,7 +296,7 @@ class TestInducedSampling(unittest.TestCase):
         bet = 5.
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentMultivariateRandomVariable(
+            IndependentRandomVariable(
                 [stats.beta(alph, bet, -1, 3)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 

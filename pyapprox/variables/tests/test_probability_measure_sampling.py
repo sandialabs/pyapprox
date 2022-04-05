@@ -6,7 +6,7 @@ from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
 from pyapprox.variables.variables import (
-    IndependentMultivariateRandomVariable, float_rv_discrete
+    IndependentRandomVariable, float_rv_discrete
 )
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
@@ -43,7 +43,7 @@ class TestProbabilitySampling(unittest.TestCase):
 
     def test_independent_continuous_samples(self):
 
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             self.continuous_variables)
 
         var_trans = AffineRandomVariableTransformation(variable)
@@ -57,7 +57,7 @@ class TestProbabilitySampling(unittest.TestCase):
 
     def test_independent_discrete_samples(self):
 
-        variable = IndependentMultivariateRandomVariable(
+        variable = IndependentRandomVariable(
             self.discrete_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
@@ -74,7 +74,7 @@ class TestProbabilitySampling(unittest.TestCase):
         II = np.random.permutation(len(univariate_variables))
         univariate_variables = [univariate_variables[ii] for ii in II]
 
-        variable = IndependentMultivariateRandomVariable(univariate_variables)
+        variable = IndependentRandomVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         num_samples = int(5e6)
