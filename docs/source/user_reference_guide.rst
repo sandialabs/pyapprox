@@ -70,6 +70,6 @@ Optimal experimental design
 ---------------------------
 Optimal experimental designs for m-estimators such as least squares and quantile regression can be computed with
 
-:func:`pyapprox.expdesign.optimal_experimental_design.optimal_experimental_design`
+:func:`pyapprox.expdesign.linear_oed.optimal_experimental_design`
 
 

@@ -26,7 +26,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
    from functools import partial
    from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D, \
    clenshaw_curtis_in_polynomial_order
-   from pyapprox.util.utilities import get_tensor_product_quadrature_rule
+   from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
    from pyapprox.polychaos.polynomial_sampling import christoffel_weights
    
    np.random.seed(1)

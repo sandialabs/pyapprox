@@ -14,7 +14,7 @@ from pyapprox.variables.probability_measure_sampling import (
 from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
-from pyapprox.util.utilities import (
+from pyapprox.interp.tensorprod import (
     get_tensor_product_quadrature_rule,
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )

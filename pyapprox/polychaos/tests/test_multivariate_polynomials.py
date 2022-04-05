@@ -6,11 +6,11 @@ from scipy import stats
 from scipy.stats._continuous_distns import rv_continuous
 
 from pyapprox.util.utilities import (
-    approx_jacobian, get_tensor_product_quadrature_rule,
-    approx_fprime, cartesian_product, outer_product,
+    approx_jacobian, approx_fprime, cartesian_product, outer_product,
     get_all_sample_combinations,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
 )
+from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial,
     define_poly_options_from_variable_transformation,

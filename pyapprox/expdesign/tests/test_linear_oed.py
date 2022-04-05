@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 import copy
 
-from pyapprox.expdesign.optimal_experimental_design import (
+from pyapprox.expdesign.linear_oed import (
     compute_homoscedastic_outer_products,
     compute_prediction_variance, goptimality_criterion,
     r_oed_objective, r_oed_objective_jacobian,

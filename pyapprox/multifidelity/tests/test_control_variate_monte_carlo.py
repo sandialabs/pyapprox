@@ -30,15 +30,13 @@ from pyapprox.multifidelity.control_variate_monte_carlo import (
     get_rsquared_mfmc, get_lagrange_multiplier_mlmc,
     bootstrap_monte_carlo_estimator
 )
-from pyapprox.multifidelity.monte_carlo_estimators import (
-    get_estimator
-)
+from pyapprox.multifidelity.monte_carlo_estimators import get_estimator
 from pyapprox.util.utilities import (
     check_gradients, get_all_sample_combinations,
     scipy_gauss_jacobi_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D,
-    get_tensor_product_quadrature_rule, approx_jacobian,
-    get_correlation_from_covariance
+    approx_jacobian, get_correlation_from_covariance
 )
+from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )

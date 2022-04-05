@@ -16,8 +16,7 @@ from pyapprox.expdesign.bayesian_oed import (
     oed_average_prediction_deviation, run_bayesian_batch_deviation_oed,
     get_deviation_fun, extract_independent_noise_cov,
     sequential_oed_synthetic_observation_process,
-    gaussian_noise_fun, BayesianSequentialDeviationOED,
-    get_bayesian_oed_optimizer
+    gaussian_noise_fun, get_bayesian_oed_optimizer
 )
 from pyapprox.variables.variables import IndependentMultivariateRandomVariable
 from pyapprox.variables.probability_measure_sampling import (
@@ -42,8 +41,9 @@ from pyapprox.variables.variable_transformations import (
     AffineRandomVariableTransformation
 )
 from pyapprox.util.utilities import (
-    cartesian_product, outer_product, piecewise_univariate_linear_quad_rule
+    cartesian_product, outer_product
 )
+from pyapprox.interp.tensorprod import piecewise_univariate_linear_quad_rule
 from pyapprox.variables.random_variable_algebra import (
     weighted_sum_dependent_gaussian_variables
 )

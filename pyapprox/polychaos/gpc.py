@@ -9,8 +9,9 @@ from pyapprox.variables.variables import (
     get_distribution_info, IndependentMultivariateRandomVariable
 )
 from pyapprox.util.utilities import (
-    get_tensor_product_quadrature_rule, cartesian_product, outer_product
+    cartesian_product, outer_product
 )
+from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
