@@ -1,11 +1,13 @@
 from scipy import integrate
 from scipy.special import betaln
-from scipy.special import beta as betafn
 from scipy.optimize import brenth
 from functools import partial
 import numpy as np
 import os
+from multiprocessing import Pool
 
+from pyapprox.cython.orthonormal_polynomials_1d import\
+    continuous_induced_measure_cdf_pyx
 from pyapprox.polychaos.polynomial_sampling import christoffel_weights
 from pyapprox.variables.random_variable_algebra import invert_monotone_function
 from pyapprox.variables.variables import (
@@ -606,40 +608,6 @@ def idistinv_jacobi(u, n, alph, bet):
     return x
 
 
-def demo_idist_jacobi():
-    alph = -0.8
-    bet = np.sqrt(101)
-    #n = 8;    M = 1001
-    n = 4
-    M = 5
-
-    x = np.cos(np.linspace(0, np.pi, M+2))[:, np.newaxis]
-    x = x[1:-1]
-
-    F = idist_jacobi(x, n, alph, bet)
-
-    recursion_coeffs = jacobi_recurrence(n+1, alph, bet, True)
-    # recursion_coeffs[:,1]=np.sqrt(recursion_coeffs[:,1])
-    polys = evaluate_orthonormal_polynomial_1d(x[:, 0], n, recursion_coeffs)
-    wt_function = (1-x)**alph*(1+x)**bet / \
-        (2**(alph+bet+1)*betafn(bet+1, alph+1))
-    f = polys[:, -1:]**2*wt_function
-
-    fig, ax = plt.subplots(1, 1)
-    plt.plot(x, f)
-    ax.set_xlabel(r'$x$')
-    ax.set_ylabel(r'$p_n^2(x) \mathrm{d}\mu(x)$')
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(0, 4)
-
-    fig, ax = plt.subplots(1, 1)
-    plt.plot(x, F)
-    ax.set_xlabel(r'$x$')
-    ax.set_ylabel(r'$F_n(x)$')
-    ax.set_xlim(-1, 1)
-    plt.show()
-
-
 def idist_mixture_sampling_pool_helper(indices, univ_inv, weights, args):
     return idist_mixture_sampling(
         indices, univ_inv, num_samples=args[0], weights=weights, seed=args[1])
@@ -664,7 +632,6 @@ def idist_mixture_sampling_parallel(indices, univ_inv, num_samples=None,
            numpy uses threads under the hood and these threads will be 
            overloaded when muliprocessing.pool is called
     """
-    from multiprocessing import Pool
 
     if assert_omp:
         assert int(os.environ['OMP_NUM_THREADS']) == 1
@@ -694,104 +661,6 @@ def idist_mixture_sampling_parallel(indices, univ_inv, num_samples=None,
         samples[:, cnt:cnt+result[ii].shape[1]] = result[ii]
         cnt += result[ii].shape[1]
     return samples
-
-
-def demo_multivariate_sampling_jacobi():
-    from work.adaptive_surrogates_for_inference.apc_study import \
-        plot_random_equlibrium_density_corrrelated_beta,\
-        plot_random_equlibrium_density_iid_beta
-    from pyapprox.arbitrary_polynomial_chaos import \
-        compute_coefficients_of_unrotated_basis
-    from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-    from pyapprox.polychaos.polynomial_sampling import christoffel_function
-    from pyapprox.util.visualization import get_meshgrid_function_data
-
-    num_vars = 2
-    num_samples = 10000
-    alpha_stat = 5
-    beta_stat = 2
-    degree = 1
-
-    alph = beta_stat-1
-    bet = alpha_stat-1
-
-    #case = 'iid'
-    case = 'corr'
-    if case != 'iid':
-        pce, random_variable_density = \
-            plot_random_equlibrium_density_corrrelated_beta()
-    else:
-        pce, random_variable_density = plot_random_equlibrium_density_iid_beta()
-
-    indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
-    pce.set_indices(indices)
-
-    christoffel_func = partial(
-        christoffel_function, basis_matrix_generator=pce.basis_matrix)
-
-    def induced_density(x): return \
-        christoffel_func(x)*random_variable_density(x)/(pce.indices.shape[1])
-
-    num_contour_levels = 30
-    num_samples_1d = 101
-    eps = 1e-2
-    plot_limits = [eps, 1-eps, eps, 1-eps]
-
-    def plot(fun, ax):
-        X, Y, Z = get_meshgrid_function_data(
-            fun, plot_limits, num_samples_1d)
-        dx = (plot_limits[1]-plot_limits[0])/num_samples_1d
-        dy = (plot_limits[3]-plot_limits[2])/num_samples_1d
-        # should converge to 1 as num_samples_1d->\infty
-        print(('integral of func', Z.sum()*(dx*dy)))
-
-        z_max = np.percentile(Z.flatten(), 99.9)
-        if Z.max()/z_max < 10:
-            z_max = Z.max()
-        levels = np.linspace(0, z_max, num_contour_levels)
-        cset = ax.contourf(
-            X, Y, Z, levels=levels, cmap=mpl.cm.coolwarm)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.set_xlabel('$z_1$')
-        ax.set_ylabel('$z_2$')
-
-    fig, axs = plt.subplots(1, 5, figsize=(5*8, 6), sharey=True)
-    plot(induced_density, axs[0])
-    plot(random_variable_density, axs[1])
-    plot(christoffel_func, axs[2])
-    # plt.show()
-    if case != 'iid':
-        coefficients = np.ones((indices.shape[1], 1))
-        unrotated_basis_coefficients = compute_coefficients_of_unrotated_basis(
-            coefficients, pce.R_inv)
-        weights = np.absolute(unrotated_basis_coefficients)
-    else:
-        weights = np.ones((indices.shape[1], 1))
-
-    univ_inv = partial(idistinv_jacobi, alph=alph, bet=bet)
-    #unrotated_basis_coefficients = unrotated_basis_coefficients*0+1
-    import time
-    t0 = time.time()
-    samples = idist_mixture_sampling_parallel(
-        pce.indices, univ_inv, num_samples=num_samples,
-        weights=weights, max_eval_concurrency=20)
-    # samples = idist_mixture_sampling(
-    #     pce.indices,univ_inv,num_samples=num_samples,
-    #     weights=unrotated_basis_coefficients)
-    print(('generating samples took', (time.time()-t0)))
-    # samples are in canonical domain
-    samples = pce.var_trans.map_from_canonical_space(samples)
-
-    from scipy.stats import gaussian_kde as GKDE
-    kde = GKDE(samples, 'silverman')
-    plot(kde, axs[3])
-    # max is just for plotting purposes to prevent division by zero
-
-    def approx_christoffel(x): return kde(x).squeeze()/np.maximum(
-        1e-2, random_variable_density(x)).squeeze()
-    plot(approx_christoffel, axs[4])
-    plt.show()
 
 
 def discrete_inverse_transform_sampling_1d(probability_mesh, probability_masses,
@@ -834,7 +703,7 @@ def discrete_induced_sampling(basis_matrix_generator_1d, basis_indices,
         assert num_indices_1d >= max_degree_1d[dd]
         basis_probability_masses = (
             basis_probability_masses.T*probability_masses_list[dd]).T
-        #print ('basis l2 norm', basis_probability_masses.sum(axis=0))
+        # print ('basis l2 norm', basis_probability_masses.sum(axis=0))
         basis_cdfs.append(np.cumsum(basis_probability_masses, axis=0))
         basis_cdfs[-1] /= basis_cdfs[-1][-1]
 
@@ -916,13 +785,6 @@ def continuous_induced_measure_cdf(pdf, ab, ii, lb, ub, tol, x):
 
     def integrand(xx): return evaluate_orthonormal_polynomial_1d(
         np.atleast_1d(xx), ii, ab)[:, -1]**2*pdf(xx)
-    # import matplotlib.pyplot as plt
-    # plt.plot(x, integrand(x))
-    # plt.show()
-
-    # from pyapprox.cython.orthonormal_polynomials_1d import\
-    #    induced_measure_pyx
-    # integrand = lambda x: induced_measure_pyx(x,ii,ab,pdf)
     vals = np.empty_like(x, dtype=float)
     for jj in range(x.shape[0]):
         integral, err = integrate.quad(
@@ -954,8 +816,6 @@ def continuous_induced_measure_ppf(var, ab, ii, u_samples,
 
     # pdf = var.pdf
     # func = partial(continuous_induced_measure_cdf,pdf,ab,ii,lb,ub,quad_tol)
-    from pyapprox.cython.orthonormal_polynomials_1d import\
-        continuous_induced_measure_cdf_pyx
     func = partial(continuous_induced_measure_cdf_pyx,
                    canonical_pdf, ab, ii, can_lb, quad_tol)
     method = 'bisect'
@@ -1111,7 +971,8 @@ def increment_induced_samples_migliorati(pce, cond_tol, samples, indices,
         print('No. samples from new mixture components',
               num_samples_per_new_index*new_indices.shape[1])
         print('No. additional new samples from all mixture components',
-              new_samples.shape[1]-num_samples_per_new_index*new_indices.shape[1] -
+              new_samples.shape[1] -
+              num_samples_per_new_index*new_indices.shape[1] -
               samples.shape[1])
 
     return new_samples
