@@ -1,6 +1,8 @@
 import unittest
 import numpy as np
 import pickle
+import tempfile
+import os
 
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 from pyapprox.benchmarks.surrogate_benchmarks import (
@@ -117,11 +119,13 @@ class TestBenchmarks(unittest.TestCase):
         assert errors.max() > 0.1 and errors.min() <= 6e-7
 
     def test_genz_pickle(self):
+        tmp_dir = tempfile.TemporaryDirectory()
         g = setup_benchmark("genz", nvars=2, test_name="oscillatory")
-        with open('function.pkl', 'wb') as f:
+        with open(os.path.join(tmp_dir.name, 'function.pkl'), 'wb') as f:
             pickle.dump(g, f)
-        with open('function.pkl', 'rb') as f:
+        with open(os.path.join(tmp_dir.name, 'function.pkl')) as f:
             g1 = pickle.load(f)
+        tmp_dir.cleanup()
 
 
 if __name__ == "__main__":

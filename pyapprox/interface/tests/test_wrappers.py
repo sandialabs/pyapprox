@@ -3,6 +3,7 @@ import numpy as np
 import glob
 import os
 import multiprocessing
+import tempfile
 
 from pyapprox.interface.wrappers import (
     ActiveSetVariableModel, PoolModel, DataFunctionModel,
@@ -65,13 +66,11 @@ class TestModelwrappers(unittest.TestCase):
 
     def test_data_function_model(self):
         num_vars = 3
-        data_basename = 'data_function-model-data'
+        tmp_dir = tempfile.TemporaryDirectory()
+        data_basename = 'data-function-model-data'
+        data_basename = os.path.join(tmp_dir.name, data_basename)
         save_frequency = 3
         max_eval_concurrency = min(multiprocessing.cpu_count(), 10)
-
-        filenames = glob.glob(data_basename+'*.npz')
-        for filename in filenames:
-            os.remove(filename)
 
         pool_model = PoolModel(
             function, max_eval_concurrency, assert_omp=False)
@@ -121,8 +120,7 @@ class TestModelwrappers(unittest.TestCase):
         assert data[0].shape[1] == num_samples*3
         assert unique_matrix_rows(data[0].T).T.shape[1] == 3*num_samples
 
-        for filename in filenames:
-            os.remove(filename)
+        tmp_dir.cleanup()
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ from pyapprox.variables.probability_measure_sampling import (
     generate_independent_random_samples
 )
 from pyapprox.variables.density import tensor_product_pdf
-from pyapprox.polychaos.polynomial_sampling import christoffel_function
+from pyapprox.orthopoly.leja_sequences import christoffel_function
 from pyapprox.util.linalg import truncated_pivoted_lu_factorization
 
 
