@@ -3,10 +3,6 @@ import subprocess
 from scipy.spatial import ConvexHull
 import os
 
-from pyapprox.interp.indexing import (
-    hash_array, compute_hyperbolic_level_indices,
-    compute_anova_level_indices
-)
 from pyapprox.util.configure_plots import plt, mpl
 
 
@@ -15,7 +11,6 @@ def convert_plot_to_tikz(tikz_file, tikz_dir, show=False,
     """
     Create a standalone PDF from a tikz enviornment
     """
-    import sys
     import matplotlib2tikz as pylab2tikz
 
     pylab2tikz.save(tikz_file, show_info=False)
@@ -50,7 +45,7 @@ def show_pdf(pdf_file):
     try:
         # check_call will raise an error if the command is not found
         subprocess.check_call('okular %s' % pdf_file, shell=True)
-    except:
+    except RuntimeError:
         try:
             # if using aliases the bashrc or bash_profile is not loaded
             # by subprocess.call unless the following modification is made.
@@ -59,7 +54,7 @@ def show_pdf(pdf_file):
                 ['/bin/bash', '-i', '-c', 'skim %s' % pdf_file])
             # skim has to be manually quit, not just close specific file
             # before the code will proceed from here
-        except:
+        except RuntimeError:
             print('No pdf reader could be found. plot cannot be shown')
 
 
@@ -81,8 +76,8 @@ def compile_tikz_figure(file_string, filename_out, tikz_dir, show=False,
         Directory to store the generated files. Directory must already exist
 
     remove_all_files : boolean
-        True - remove all generated files including .tex and .pdf files. This is
-               useful when show=True
+        True - remove all generated files including .tex and .pdf files.
+               This is useful when show=True
         False - all generated files will be removed except .tex. and .pdf
     """
 
@@ -93,7 +88,7 @@ def compile_tikz_figure(file_string, filename_out, tikz_dir, show=False,
         f.write(file_string)
 
     # compile tex
-    tex_out = subprocess.check_output(
+    subprocess.check_output(
         ['pdflatex', '--interaction=nonstopmode', filename_out],
         stderr=subprocess.STDOUT)
 
@@ -134,16 +129,16 @@ def plot_3d_indices_latex(
         Directory to store the generated files. Directory must already exist
 
     remove_all_files : boolean
-        True - remove all generated files including .tex and .pdf files. This is
-               useful when show=True
+        True - remove all generated files including .tex and .pdf files.
+               This is useful when show=True
         False - all generated files will be removed except .tex. and .pdf files
 
     show : boolean
         Call PDF viewer to display generated PDF
 
     tol : float
-        Plot only indices with coefficients whose magnitude exceeds this threshold
-        If coeff is None this argument is ignored
+        Plot only indices with coefficients whose magnitude exceeds this
+        threshold. If coeff is None this argument is ignored
 
     coeff : np.ndarray(num_indices,1)
         The coefficients associated with each index
@@ -171,16 +166,16 @@ def plot_3d_indices_latex(
         max_degree = max(max_degree, index.max())
 
     # for clear plotting need to order indices
-    I = np.lexsort((indices[2, :], indices[1, :], indices[0, :]))
-    indices = indices[:, I]
+    II = np.lexsort((indices[2, :], indices[1, :], indices[0, :]))
+    indices = indices[:, II]
 
     # determine all non-zero indices
     for i in range(indices.shape[1]):
         if coeff is None or abs(coeff[i, 0]) > tol:
             # +1 to have write coordinates for latex file
             index = indices[:, i]  # +1
-            # Last three arguments to latex function \cube are color percentages
-            # I could not get latex to do the math I needed here.
+            # Last three arguments to latex function \cube are color
+            # percentages. I could not get latex to do the math I needed here.
             if label_indices:
                 tmp = r'\cube{%d}{%d}{%d}{(%d,%d,%d)}{%d}{%d}{%d}' % (
                     index[0], index[1], index[2], index[0], index[1], index[2],
@@ -262,56 +257,6 @@ def get_meshgrid_function_data(function, plot_limits, num_pts_1d, qoi=0,
     Z : np.ndarray of size (num_pts_1d,num_pts_1d)
         The function values at each sample
     """
-    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
-    Z = function(pts)
-    if (Z.ndim == 2):
-        Z = Z[:, qoi]
-    Z = np.reshape(Z, (X.shape[0], X.shape[1]))
-    return X, Y, Z
-
-
-def get_meshgrid_function_data_from_variable(
-        function, variable, num_pts_1d, qoi=0,
-        logspace=False, unbounded_alpha=.99):
-    r"""
-    Generate data from a function in the format needed for plotting.
-    Samples are generated between specified lower and upper bounds
-    and the function is evaluated on the tensor product of the 1d samples.
-
-    Parameters
-    ----------
-    function : callable function
-        The function must accept an np.ndarray of size (2, num_pts_1d**2)
-        and return a np.ndarray of size (num_pts_1d,num_qoi)
-
-    variable : :class:`pyapprox.variables.IndependentRandomVariable`
-        Variable used to determine plotting ranges
-
-    num_pts_1d : integer
-        The number of samples in each dimension. The function is evaluated
-        on the tensor product of the 1d samples
-
-    qoi : integer
-        function returns a np.ndarray of size (num_pts_1d,num_qoi) qoi
-        specifies which column of the array to access.
-
-    unbouned_alpha : float
-        For any unbounded variable set the plot ranges to contain this fraction
-        of the distribution, e.g. 0.99 will contain 99% of the probability
-
-    Returns
-    -------
-    X : np.ndarray of size (num_pts_1d,num_pts_1d)
-        The 1st coordinate of the samples
-
-    Y : np.ndarray of size (num_pts_1d,num_pts_1d)
-        The 2nd coordinate of the samples
-
-    Z : np.ndarray of size (num_pts_1d,num_pts_1d)
-        The function values at each sample
-    """
-    from pyapprox.variables.variables import get_truncated_ranges
-    plot_limits = get_truncated_ranges(variable, unbounded_alpha)
     X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
     Z = function(pts)
     if (Z.ndim == 2):
@@ -455,9 +400,9 @@ def remove_nonfinite_meshgrid_data(Z, val):
     """
     shape = Z.shape
     Z = Z.flatten()
-    I = np.isfinite(Z)
+    II = np.isfinite(Z)
     mask = np.ones(Z.shape[0], dtype=bool)
-    mask[I] = False
+    mask[II] = False
     Z[mask] = val
     Z = np.reshape(Z, shape)
     return Z
@@ -488,7 +433,7 @@ def plot_2d_indices(indices, coeffs=None, other_indices=None, ax=None):
                         [indices[0, ii], indices[1, ii]],
                         [indices[0, ii]-1, indices[1, ii]],
                         [indices[0, ii]-1, indices[1, ii]-1]]).T + 0.5
-        p1 = ax.plot(box[0, :], box[1, :], '-k', lw=1)
+        ax.plot(box[0, :], box[1, :], '-k', lw=1)
         ax.fill(box[0, :], box[1, :], color='gray', alpha=0.5, edgecolor='k')
         if coeffs is not None:
             ax.text(indices[0, ii], indices[1, ii], '$%1.0f$' % coeffs[ii],
@@ -508,7 +453,7 @@ def plot_2d_indices(indices, coeffs=None, other_indices=None, ax=None):
                                 [other_indices[jj][0, ii]-1,
                                     other_indices[jj][1, ii]],
                                 [other_indices[jj][0, ii]-1, other_indices[jj][1, ii]-1]]).T + 0.5
-                p2 = ax.plot(box[0, :], box[1, :], '-', c=colors[jj], lw=1)
+                ax.plot(box[0, :], box[1, :], '-', c=colors[jj], lw=1)
                 ax.fill(box[0, :], box[1, :], color=colors[jj],
                         alpha=alphas[jj], edgecolor=colors[jj])
             if other_indices[jj].shape[1] > 0:
@@ -541,145 +486,6 @@ def plot_2d_polygon(vertices, ax=plt):
     plt.plot(vertices[0, :], vertices[1, :], 'ko')
     for simplex in convhull.simplices:
         ax.plot(vertices[0, simplex], vertices[1, simplex], 'k-')
-
-
-try:  # SciPy >= 0.19
-    from scipy.special import comb as nchoosek
-except:
-    from scipy.misc import comb as nchoosek
-
-
-def get_coefficients_for_plotting(pce, qoi_idx):
-    """
-   Get the coefficients of a
-    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`
-"""
-    coeff = pce.get_coefficients()[:, qoi_idx]
-    indices = pce.indices.copy()
-    assert coeff.shape[0] == indices.shape[1]
-
-    num_vars = pce.num_vars()
-    degree = -1
-    indices_dict = dict()
-    max_degree = indices.sum(axis=0).max()
-    for ii in range(indices.shape[1]):
-        key = hash_array(indices[:, ii])
-        indices_dict[key] = ii
-    i = 0
-    degree_breaks = []
-    coeff_sorted = []
-    degree_indices_set = np.empty((num_vars, 0))
-    for degree in range(max_degree+1):
-        nterms = nchoosek(num_vars+degree, degree)
-        if nterms < 1e6:
-            degree_indices = compute_hyperbolic_level_indices(
-                num_vars, degree, 1.)
-        else:
-            'Could not plot coefficients of terms with degree >= %d' % degree
-            break
-        degree_indices_set = np.hstack((degree_indices_set, indices))
-        for ii in range(degree_indices.shape[1]-1, -1, -1):
-            index = degree_indices[:, ii]
-            key = hash_array(index)
-            if key in indices_dict:
-                coeff_sorted.append(coeff[indices_dict[key]])
-            else:
-                coeff_sorted.append(0.0)
-            i += 1
-        degree_breaks.append(i)
-
-    return np.array(coeff_sorted), degree_indices_set, degree_breaks
-
-
-def plot_unsorted_pce_coefficients(coeffs,
-                                   indices,
-                                   ax,
-                                   degree_breaks=None,
-                                   axislabels=None,
-                                   legendlabels=None,
-                                   title=None,
-                                   cutoffs=None,
-                                   ylim=[1e-6, 1.]):
-    """
-    Plot the coefficients of linear (in parameters) approximation
-    """
-    
-    np.set_printoptions(precision=16)
-
-    colors = ['k', 'r', 'b', 'g', 'm', 'y', 'c']
-    markers = ['s', 'o', 'd', ]
-    fill_style = ['none', 'full']
-    #fill_style = ['full','full']
-    ax.set_xlim([1, coeffs[0].shape[0]])
-    for i in range(len(coeffs)):
-        coeffs_i = np.absolute(coeffs[i])
-        assert coeffs_i.ndim == 1
-        mfc = colors[i]
-        fs = fill_style[min(i, 1)]
-        if (fs == 'none'):
-            mfc = 'none'
-        ms = 10.-2.*i
-        ax.plot(list(range(1, coeffs_i.shape[0]+1)), coeffs_i,
-                marker=markers[i % 3],
-                fillstyle=fs,
-                markeredgecolor=colors[i],
-                linestyle='None', markerfacecolor=mfc,
-                markersize=ms)
-        if degree_breaks is not None:
-            for i in np.array(degree_breaks) + 1:
-                ax.axvline(i, linestyle='--', color='k')
-
-    if cutoffs is not None:
-        i = 1
-        for cutoff in cutoffs:
-            pylab.axhline(cutoff, linestyle='-', color=colors[i])
-            i += 1
-
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-
-    if (axislabels is not None):
-        ax.set_xlabel(axislabels[0], fontsize=20)
-        ax.set_ylabel(axislabels[1], rotation='horizontal', fontsize=20)
-
-    if (title is not None):
-        ax.set_title(title)
-
-    if (legendlabels is not None):
-        msg = "Must provide a legend label for each filename"
-        assert (len(legendlabels) >= len(coeffs)), msg
-        ax.legend(legendlabels, numpoints=1)
-
-    ax.set_ylim(ylim)
-
-
-def plot_pce_coefficients(ax, pces, ylim=[1e-6, 1], qoi_idx=0):
-    """
-    Plot the coefficients of multiple
-    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`
-    """
-    coeffs = []
-    breaks = []
-    indices_list = []
-    max_num_indices = 0
-    for pce in pces:
-        # only plot coeff that will fit inside axis limits
-        coeff, indices, degree_breaks = get_coefficients_for_plotting(
-            pce, qoi_idx)
-        coeffs.append(coeff)
-        indices_list.append(indices)
-        breaks.append(degree_breaks)
-        max_num_indices = max(max_num_indices, indices.shape[1])
-
-    for ii in range(len(indices_list)):
-        nn = indices.shape[1]
-        if (nn < max_num_indices):
-            indices_list[ii] += [None]*(max_num_indices-nn)
-            coeffs[ii] = np.resize(coeffs[ii], max_num_indices)
-            coeffs[ii][nn:] = 0.
-
-    plot_unsorted_pce_coefficients(
-        coeffs, indices_list, ax, degree_breaks=breaks[0], ylim=ylim)
 
 
 def plot_multiple_2d_gaussian_slices(means, variances, texfilename,
@@ -875,218 +681,6 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
             texts.append(text)
 
     return texts
-
-
-def plot_1d_cross_section(fun, var, var_idx, nominal_sample, nsamples_1d,
-                          ax, qoi, plt_kwargs):
-    """
-    Plot a single 1D cross section of a multivariate function.
-    """
-    from pyapprox.variables.variables import get_truncated_range
-    lb, ub = get_truncated_range(var, 0.99)
-    samples = np.tile(nominal_sample, (1, nsamples_1d))
-    samples[var_idx, :] = np.linspace(lb, ub, nsamples_1d)
-    values = fun(samples)
-    ax.plot(samples[var_idx, :], values[:, qoi], **plt_kwargs)
-
-
-def plot_1d_cross_sections(fun, variable, nominal_sample=None,
-                           nsamples_1d=100, subplot_tuple=None, qoi=0,
-                           plt_kwargs={}):
-    """
-    Plot the 1D cross sections of a multivariate function.
-    """
-    if nominal_sample is None:
-        nominal_sample = variable.get_statistics("mean")
-
-    if subplot_tuple is None:
-        nfig_rows, nfig_cols = 1, variable.num_vars()
-    else:
-        nfig_rows, nfig_cols = subplot_tuple
-
-    if nfig_rows*nfig_cols < variable.num_vars():
-        raise ValueError("Number of subplots is insufficient")
-
-    fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
-    axs = axs.flatten()
-    all_variables = variable.all_variables()
-    for ii, var in enumerate(all_variables):
-        axs[ii].set_title(r"$Z_{%d}$" % (ii+1))
-        plot_1d_cross_section(
-            fun, var, ii, nominal_sample, nsamples_1d, axs[ii], qoi,
-            plt_kwargs)
-
-    for ii in range(variable.num_vars(), nfig_rows*nfig_cols):
-        axs[ii].axis("off")
-
-    return fig, axs
-
-
-def plot_2d_cross_sections(fun, variable, nominal_sample=None,
-                           nsamples_1d=100, variable_pairs=None,
-                           subplot_tuple=None, qoi=0, num_contour_levels=20):
-    """
-    Plot the 2D cross sections of a multivariate function.
-    """
-    if nominal_sample is None:
-        nominal_sample = variable.get_statistics("mean")
-
-    if variable_pairs is None:
-        variable_pairs = np.array(
-            compute_anova_level_indices(variable.num_vars(), 2))
-        # make first column values vary fastest so we plot lower triangular
-        # matrix of subplots
-        variable_pairs[:, 0], variable_pairs[:, 1] = \
-            variable_pairs[:, 1].copy(), variable_pairs[:, 0].copy()
-
-    if variable_pairs.shape[1] != 2:
-        raise ValueError("Variable pairs has the wrong shape")
-
-    if subplot_tuple is None:
-        nfig_rows, nfig_cols = variable.num_vars(), variable.num_vars()
-    else:
-        nfig_rows, nfig_cols = subplot_tuple
-
-    if nfig_rows*nfig_cols < len(variable_pairs):
-        raise ValueError("Number of subplots is insufficient")
-
-    fig, axs = plt.subplots(
-        nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
-    all_variables = variable.all_variables()
-
-    for ii, var in enumerate(all_variables):
-        lb, ub = get_variable_plot_interval(var)
-        samples = np.tile(nominal_sample, (1, nsamples_1d))
-        samples[ii, :] = np.linspace(lb, ub, nsamples_1d)
-        values = fun(samples)
-        axs[ii][ii].plot(samples[ii, :], values[:, qoi])
-
-    for ii, pair in enumerate(variable_pairs):
-        var1, var2 = all_variables[pair[0]], all_variables[pair[1]]
-        # print(pair)
-        axs[pair[1], pair[0]].axis("off")
-        lb1, ub1 = get_variable_plot_interval(var1)
-        lb2, ub2 = get_variable_plot_interval(var2)
-        X, Y, samples_2d = get_meshgrid_samples(
-            [lb1, ub1, lb2, ub2], nsamples_1d)
-        samples = np.tile(nominal_sample, (1, samples_2d.shape[1]))
-        samples[[pair[0], pair[1]], :] = samples_2d
-        values = fun(samples)
-        Z = np.reshape(values[:, qoi], (X.shape[0], X.shape[1]))
-        ax = axs[pair[0]][pair[1]]
-        # place a text box in upper left in axes coords
-        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-        ax.text(0.05, 0.95, r"$(\mathrm{%d, %d})$" % (pair[0], pair[1]),
-                transform=ax.transAxes, fontsize=14,
-                verticalalignment='top', bbox=props)
-        ax.contourf(
-            X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
-            cmap='jet')
-
-    return fig, axs
-
-
-def plot_discrete_measure_1d(samples, weights, ax=None):
-    """
-    Plot a discrete measure
-    """
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    plt.plot(samples, weights, 'o')
-    for s, w in zip(samples, weights):
-        ax.vlines(x=s, ymin=0, ymax=w)
-    return ax
-
-
-def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
-    """
-    Plot the probability masses of a 2D discrete random variable.
-
-    Only works if rv1 and rv2 are defined on consecutive integers
-    """
-    from matplotlib import cm
-    from pyapprox.util.utilities import cartesian_product, outer_product
-    from pyapprox.variables.variables import get_probability_masses
-
-    if ax is None:
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111, projection='3d')
-    x_1d = [get_probability_masses(rv)[0] for rv in [rv1, rv2]]
-    w_1d = [get_probability_masses(rv)[1] for rv in [rv1, rv2]]
-    samples = cartesian_product(x_1d)
-    weights = outer_product(w_1d)
-
-    dz = weights
-    cmap = cm.get_cmap('jet')  # Get desired colormap - you can change this!
-    max_height = np.max(dz)    # get range of colorbars so we can normalize
-    min_height = np.min(dz)
-    # scale each z to [0,1], and get their rgb values
-    rgba = [cmap((k-min_height)/max_height) for k in dz]
-    # Only works if rv1 and rv2 are defined on consecutive integers
-    dx, dy = 1, 1
-    ax.bar3d(samples[0, :], samples[1, :], 0, dx, dy, dz, color=rgba,
-             zsort='average')
-
-    angle = 45
-    ax.view_init(10, angle)
-    ax.set_axis_off()
-
-
-def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
-    """
-    Plot the probability masses of a 2D discrete random variable.
-
-    Only works if rv1 and rv2 are defined on consecutive integers
-    """
-    import copy
-    from pyapprox.util.utilities import outer_product
-    from pyapprox.variables.variables import get_probability_masses
-
-    if ax is None:
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111)
-    x_1d = [get_probability_masses(rv)[0] for rv in [rv1, rv2]]
-    w_1d = [get_probability_masses(rv)[1] for rv in [rv1, rv2]]
-    weights = outer_product(w_1d)
-
-    Z = np.reshape(weights, (len(x_1d[0]), len(x_1d[1])), order='F')
-    Z[Z < zero_tol] = np.inf
-    cmap = copy.copy(plt.cm.viridis)
-    cmap.set_bad('gray', 1)
-    xx = np.hstack((x_1d[0], x_1d[0].max()+1))-0.5
-    yy = np.hstack((x_1d[1], x_1d[1].max()+1))-0.5
-    p = ax.pcolormesh(xx, yy, Z.T, cmap=cmap)
-    plt.colorbar(p, ax=ax)
-    # xticks = ax.get_xticks()
-    # xticklabels = ax.get_xticklabels()
-    # print(xticklabels, xticks)
-    # yticks = ax.get_yticks()
-    # yticklabels = ax.get_yticklabels()
-    # print(yticklabels, yticks)
-    # ax.set_xticks((xx[:-1]+xx[1:])/2)
-    # ax.set_xticklabels([f"${x}$" for x in x_1d[0]])
-    # ax.set_yticks((yy[:-1]+yy[1:])/2)
-    # ax.set_yticklabels([f"${x}$" for x in x_1d[1]])
-
-
-def plot_qoi_marginals(values):
-    """
-    Use KDE to plot the marginals of each QoI.
-
-    Parameters
-    ----------
-    values : np.ndarray (nsamples, nqoi)
-        Realiations of the QoI
-    """
-    from scipy import stats
-    nqoi = values.shape[1]
-    fig, axs = plt.subplots(1, nqoi, figsize=(nqoi*8, 6))
-    for ii in range(nqoi):
-        kde = stats.gaussian_kde(values[:, ii])
-        yy = np.linspace(values[:, ii].min(), values[:, ii].max(), 101)
-        axs[ii].plot(yy, kde(yy))
-    return axs
 
 
 def plot_2d_samples(samples, ax=None, **kwargs):

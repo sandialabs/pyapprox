@@ -9,7 +9,7 @@ from pyapprox.variables.variables import (
     get_distribution_info, IndependentRandomVariable
 )
 from pyapprox.util.utilities import (
-    cartesian_product, outer_product
+    cartesian_product, outer_product, hash_array, nchoosek
 )
 from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.orthopoly.recursion_factory import (
@@ -23,6 +23,7 @@ from pyapprox.interp.monomial import monomial_basis_matrix
 from pyapprox.util.linalg import \
     flattened_rectangular_lower_triangular_matrix_index
 from pyapprox.interp.manipulate_polynomials import add_polynomials
+from pyapprox.interp.indexing import compute_hyperbolic_level_indices
 
 
 def make_2D_array(lis):
@@ -803,3 +804,136 @@ def get_univariate_gauss_quadrature_rule_from_variable(rv, nsamples):
     x_quad = AffineRandomVariableTransformation(
         variable).map_from_canonical_space(x_quad[None, :])[0, :]
     return x_quad, w_quad
+
+
+def get_coefficients_for_plotting(pce, qoi_idx):
+    """
+   Get the coefficients of a
+    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`
+"""
+    coeff = pce.get_coefficients()[:, qoi_idx]
+    indices = pce.indices.copy()
+    assert coeff.shape[0] == indices.shape[1]
+
+    num_vars = pce.num_vars()
+    degree = -1
+    indices_dict = dict()
+    max_degree = indices.sum(axis=0).max()
+    for ii in range(indices.shape[1]):
+        key = hash_array(indices[:, ii])
+        indices_dict[key] = ii
+    i = 0
+    degree_breaks = []
+    coeff_sorted = []
+    degree_indices_set = np.empty((num_vars, 0))
+    for degree in range(max_degree+1):
+        nterms = nchoosek(num_vars+degree, degree)
+        if nterms < 1e6:
+            degree_indices = compute_hyperbolic_level_indices(
+                num_vars, degree, 1.)
+        else:
+            'Could not plot coefficients of terms with degree >= %d' % degree
+            break
+        degree_indices_set = np.hstack((degree_indices_set, indices))
+        for ii in range(degree_indices.shape[1]-1, -1, -1):
+            index = degree_indices[:, ii]
+            key = hash_array(index)
+            if key in indices_dict:
+                coeff_sorted.append(coeff[indices_dict[key]])
+            else:
+                coeff_sorted.append(0.0)
+            i += 1
+        degree_breaks.append(i)
+
+    return np.array(coeff_sorted), degree_indices_set, degree_breaks
+
+
+def plot_unsorted_pce_coefficients(coeffs,
+                                   indices,
+                                   ax,
+                                   degree_breaks=None,
+                                   axislabels=None,
+                                   legendlabels=None,
+                                   title=None,
+                                   cutoffs=None,
+                                   ylim=[1e-6, 1.]):
+    """
+    Plot the coefficients of linear (in parameters) approximation
+    """
+
+    np.set_printoptions(precision=16)
+
+    colors = ['k', 'r', 'b', 'g', 'm', 'y', 'c']
+    markers = ['s', 'o', 'd', ]
+    fill_style = ['none', 'full']
+    # fill_style = ['full','full']
+    ax.set_xlim([1, coeffs[0].shape[0]])
+    for i in range(len(coeffs)):
+        coeffs_i = np.absolute(coeffs[i])
+        assert coeffs_i.ndim == 1
+        mfc = colors[i]
+        fs = fill_style[min(i, 1)]
+        if (fs == 'none'):
+            mfc = 'none'
+        ms = 10.-2.*i
+        ax.plot(list(range(1, coeffs_i.shape[0]+1)), coeffs_i,
+                marker=markers[i % 3],
+                fillstyle=fs,
+                markeredgecolor=colors[i],
+                linestyle='None', markerfacecolor=mfc,
+                markersize=ms)
+        if degree_breaks is not None:
+            for i in np.array(degree_breaks) + 1:
+                ax.axvline(i, linestyle='--', color='k')
+
+    if cutoffs is not None:
+        i = 1
+        for cutoff in cutoffs:
+            plt.axhline(cutoff, linestyle='-', color=colors[i])
+            i += 1
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+
+    if (axislabels is not None):
+        ax.set_xlabel(axislabels[0], fontsize=20)
+        ax.set_ylabel(axislabels[1], rotation='horizontal', fontsize=20)
+
+    if (title is not None):
+        ax.set_title(title)
+
+    if (legendlabels is not None):
+        msg = "Must provide a legend label for each filename"
+        assert (len(legendlabels) >= len(coeffs)), msg
+        ax.legend(legendlabels, numpoints=1)
+
+    ax.set_ylim(ylim)
+
+
+def plot_pce_coefficients(ax, pces, ylim=[1e-6, 1], qoi_idx=0):
+    """
+    Plot the coefficients of multiple
+    :class:`pyapprox.polynomial_chaos.multivariate_polynomials.PolynomialChaosExpansion`
+    """
+    coeffs = []
+    breaks = []
+    indices_list = []
+    max_num_indices = 0
+    for pce in pces:
+        # only plot coeff that will fit inside axis limits
+        coeff, indices, degree_breaks = get_coefficients_for_plotting(
+            pce, qoi_idx)
+        coeffs.append(coeff)
+        indices_list.append(indices)
+        breaks.append(degree_breaks)
+        max_num_indices = max(max_num_indices, indices.shape[1])
+
+    for ii in range(len(indices_list)):
+        nn = indices.shape[1]
+        if (nn < max_num_indices):
+            indices_list[ii] += [None]*(max_num_indices-nn)
+            coeffs[ii] = np.resize(coeffs[ii], max_num_indices)
+            coeffs[ii][nn:] = 0.
+
+    plot_unsorted_pce_coefficients(
+        coeffs, indices_list, ax, degree_breaks=breaks[0], ylim=ylim)
