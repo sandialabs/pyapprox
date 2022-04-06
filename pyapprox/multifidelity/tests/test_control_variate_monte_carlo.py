@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 from functools import partial
 
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     estimate_variance, allocate_samples_mlmc,
     get_discrepancy_covariances_MF, get_nsamples_per_model,
@@ -56,7 +56,7 @@ class PolynomialModelEnsemble(object):
         self.models = [self.m0, self.m1, self.m2, self.m3, self.m4]
 
         univariate_variables = [stats.uniform(0, 1)]
-        self.variable = IndependentRandomVariable(
+        self.variable = IndependentMarginalsVariable(
             univariate_variables)
         self.generate_samples = partial(
             generate_independent_random_samples, self.variable)
@@ -130,7 +130,7 @@ class TunableModelEnsemble(object):
         self.models = [self.m0, self.m1, self.m2]
 
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
-        self.variable = IndependentRandomVariable(
+        self.variable = IndependentMarginalsVariable(
             univariate_variables)
         self.generate_samples = self.variable.rvs
 
@@ -180,7 +180,7 @@ class ShortColumnModelEnsemble(object):
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        self.variable = IndependentRandomVariable(
+        self.variable = IndependentMarginalsVariable(
             univariate_variables)
         self.generate_samples = partial(
             generate_independent_random_samples, self.variable)
@@ -260,7 +260,7 @@ def setup_model_ensemble_short_column(
     univariate_variables = [
         stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
         stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     generate_samples = partial(
         generate_independent_random_samples, variable)
 
@@ -276,7 +276,7 @@ def setup_model_ensemble_short_column(
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.norm(loc=5, scale=0.5)]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         example.apply_lognormal = True
@@ -311,7 +311,7 @@ class TestCVMC(unittest.TestCase):
 
     def test_model_ensemble(self):
         model = ModelEnsemble([lambda x: x.T, lambda x: x.T**2])
-        variable = IndependentRandomVariable([stats.uniform(0, 1)])
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
         samples_per_model = [variable.rvs(10), variable.rvs(5)]
         values_per_model = model.evaluate_models(samples_per_model)
         for ii in range(model.nmodels):
@@ -585,7 +585,7 @@ class TestCVMC(unittest.TestCase):
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         generate_samples = partial(
             generate_independent_random_samples, variable)
@@ -612,7 +612,7 @@ class TestCVMC(unittest.TestCase):
         univariate_variables = [
             stats.uniform(5, 10), stats.uniform(15, 10), stats.norm(500, 100),
             stats.norm(2000, 400), stats.lognorm(s=0.5, scale=np.exp(5))]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         generate_samples = partial(
             generate_independent_random_samples, variable)
@@ -806,7 +806,7 @@ class TestCVMC(unittest.TestCase):
         np.linalg.cholesky(cov)
         costs = np.array([6, 3, 1])
         target_cost = 81
-        variable = IndependentRandomVariable([stats.uniform(0, 1)])
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
         estimator = get_estimator("mlmc", cov, costs, variable)
 
         (nsample_ratios_exact, log10_var) = allocate_samples_mlmc(
@@ -877,7 +877,7 @@ class TestCVMC(unittest.TestCase):
             cov, costs, target_cost)[0]
 
         print(nsample_ratios)
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*3)
         estimator = get_estimator("acvmf", cov, costs, variable)
         factor = 1-0.1
@@ -905,7 +905,7 @@ class TestCVMC(unittest.TestCase):
         nsample_ratios = allocate_samples_mlmc(
             cov, costs, target_cost)[0]
 
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             [stats.norm(0, 1)]*3)
         estimator = get_estimator("mlmc", cov, costs, variable)
 
@@ -972,7 +972,7 @@ class TestCVMC(unittest.TestCase):
                           [0.90, 1.00, 0.50],
                           [0.85, 0.50, 1.10]])
         costs = [4, 2, .5]
-        variable = IndependentRandomVariable([stats.uniform(0, 1)])
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
 
         recursion_index = np.array([0, 1])
         estimator = get_estimator(
@@ -1011,7 +1011,7 @@ class TestCVMC(unittest.TestCase):
         costs = np.array([4, 2, .5])
 
         recursion_index = np.array([0, 1])
-        variable = IndependentRandomVariable([stats.uniform(0, 1)])
+        variable = IndependentMarginalsVariable([stats.uniform(0, 1)])
         estimator = get_estimator("acvgmf", cov, costs, variable)
         estimator.set_recursion_index(recursion_index)
         x0 = get_acv_initial_guess(None, cov, costs, target_cost)

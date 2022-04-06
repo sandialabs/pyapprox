@@ -82,7 +82,7 @@ class DecoupledSystemSurrogate(object):
     system_network : :class:SystemNetwork
         Object describing the connections between components of a system model.
 
-    variables : :class:`pyapprox.IndependentRandomVariable`
+    variables : :class:`pyapprox.IndependentMarginalsVariable`
         The system level variables
 
     estimate_coupling_ranges : boolean
@@ -133,7 +133,7 @@ class DecoupledSystemSurrogate(object):
         # self.random_samples_for_refinement_test = \
         #     generate_independent_random_samples(
         #         self.variables, self.nrefinement_samples)
-        marginal_icdfs = [v.ppf for v in self.variables.all_variables()]
+        marginal_icdfs = [v.ppf for v in self.variables.marginals()]
         self.random_samples_for_refinement_test = \
             transformed_halton_sequence(
                 marginal_icdfs, len(marginal_icdfs), self.nrefinement_samples)
@@ -164,7 +164,7 @@ class DecoupledSystemSurrogate(object):
 
     def get_node_variables(self, node):
         var_indices = node['global_random_var_indices']
-        global_variables = self.variables.all_variables()
+        global_variables = self.variables.marginals()
         local_nvars = len(node['local_random_var_indices']) + \
             len(node['local_coupling_var_indices_in'])
         local_variables = [None for ii in range(local_nvars)]
@@ -409,7 +409,7 @@ class DecoupledSystemSurrogate(object):
                 surrogate = surr_graph.nodes[nid]['functions']
                 coupling_inds = node['local_coupling_var_indices_in']
                 quadrule_variables = \
-                    surrogate.variable_transformation.variable.all_variables()
+                    surrogate.variable_transformation.variable.marginals()
                 for kk, ind in enumerate(coupling_inds):
                     quadrule_variables[ind] = node['coupling_variables'][kk]
                 surr_graph.nodes[nid]['functions'] = \

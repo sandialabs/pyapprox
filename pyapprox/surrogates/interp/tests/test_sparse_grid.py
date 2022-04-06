@@ -54,7 +54,7 @@ from pyapprox.variables.transforms import (
 from pyapprox.variables.transforms import (
     AffineBoundedVariableTransformation, AffineRandomVariableTransformation
     )
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
@@ -1233,7 +1233,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             ranges[2*ii:2*(ii+1)] = all_ranges[2*index:2*(index+1)]
             weight_functions.append(all_weight_functions[index])
 
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         num_vars = len(univariate_variables)
@@ -1582,7 +1582,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
 
     def test_combination_sparse_grid_setup(self):
         univariate_variables = [stats.uniform(-1, 2)]*2
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
@@ -1619,7 +1619,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
 
         univariate_variables = [stats.uniform(-1, 2)]
         num_vars = len(univariate_variables)
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())

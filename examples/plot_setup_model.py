@@ -12,8 +12,8 @@ from scipy import stats
 from pyapprox.interface.wrappers import (
     TimerModelWrapper, WorkTrackingModel, PoolModel,
     evaluate_1darray_function_on_2d_array, ModelEnsemble)
-from pyapprox.variables.marginals import IndependentRandomVariable
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.variables.joint import IndependentMarginalsVariable
+from pyapprox.benchmarks import setup_benchmark
 
 
 benchmark = setup_benchmark('rosenbrock', nvars=2)
@@ -30,7 +30,7 @@ print(benchmark.keys())
 #We define multivariate random variables by specifying each 1D variable in a list. Here we will setup a 2D variable which is the tensor product of two independent and identically distributed uniform random variables
 
 univariate_variables = [stats.uniform(-2, 4), stats.uniform(-2, 4)]
-variable = IndependentRandomVariable(univariate_variables)
+variable = IndependentMarginalsVariable(univariate_variables)
 
 #%%
 #This variable is also defined in the benchmark.variable attribute. To print a summary of the random variable
@@ -44,7 +44,7 @@ values = benchmark.fun(samples)
 
 #%%
 #Summary statistics of the samples and values can be printed using
-from pyapprox import print_statistics
+from pyapprox.variables import print_statistics
 print_statistics(samples, values)
 
 #%%
@@ -54,26 +54,19 @@ print_statistics(samples, values)
 #
 #PyApprox requires all functions to take 2D np.ndarray with shape (nvars,nsamples) and requires a function to return a 2D np.ndarray with shape (nsampels,nqoi). nqoi==1 for scalar valued functions and nqoi>1 for vectored value functions.
 #
-#Lets define a function which does not match this criteria and use wrappers provided by PyApprox to convert it to the correct format. Specifically we will define a function that only takes a 1D np.ndarray and returns a scalar. We import thse functions from a separate file
+#Lets define a function which does not match this criteria and use wrappers provided by PyApprox to convert it to the correct format. Specifically we will define a function that only takes a 1D np.ndarray and returns a scalar. We import these functions from a separate file
 #
-#.. literalinclude:: ../../../../pyapprox/examples/setup_model_functions.py
+#.. literalinclude:: ../../../examples/__util.py
 #  :language: python
 #  :start-at: def fun_0
 #  :end-before: def fun_pause_1
 #
 #.. Note for some reason text like this is needed after the literalinclude
-#.. Also note that path above is relative to source/auto_tutorials/foundations
+#.. Also note that path above is relative to source/auto_examples
 #
 
 
-def fun_0(sample):
-    assert sample.ndim == 1
-    return np.sum(sample**2)
-
-
-def pyapprox_fun_0(samples):
-    values = evaluate_1darray_function_on_2d_array(fun_0, samples)
-    return values
+from __util import pyapprox_fun_0, fun_0
 values = pyapprox_fun_0(samples)
 
 #%%
@@ -89,26 +82,16 @@ assert np.allclose(values, values_loop)
 #
 #Lets use the class with a function that takes a random amount of time. We will use the previous function but add a random pause between 0 and .1 seconds. Lets import some functions
 #
-#.. literalinclude:: ../../../../pyapprox/examples/setup_model_functions.py
+#.. literalinclude:: ../../../examples/__util.py
 #  :language: python
 #  :start-at: def fun_pause_1
 #  :end-before: def fun_pause_2
 #
 #.. Note for some reason text like this is needed after the literalinclude
-#.. Also note that path above is relative to source/auto_tutorials/foundations
+#.. Also note that path above is relative to source/auto_examples
 #
 
-
-def fun_pause_1(sample):
-    assert sample.ndim == 1
-    time.sleep(np.random.uniform(0, .05))
-    return np.sum(sample**2)
-
-
-def pyapprox_fun_1(samples):
-    return evaluate_1darray_function_on_2d_array(fun_pause_1, samples)
-
-
+from __util import pyapprox_fun_1, fun_pause_1
 timer_fun = TimerModelWrapper(pyapprox_fun_1)
 worktracking_fun = WorkTrackingModel(timer_fun)
 values = worktracking_fun(samples)
@@ -129,17 +112,14 @@ print(worktracking_fun.work_tracker(fun_id))
 #^^^^^^^^^^^^^^^^^^^^^^^^^^
 #Now let apply this two an ensemble of models to explore the use of model ids. First create a second function which we import.
 #
-#.. literalinclude:: ../../../../pyapprox/examples/setup_model_functions.py
+#.. literalinclude:: ../../../examples/__util.py
 #  :language: python
 #  :start-at: def fun_pause_2
 #
 #.. Note for some reason text like this is needed after the literalinclude
-#.. Also note that path above is relative to source/auto_tutorials/foundations
+#.. Also note that path above is relative to source/auto_examples
 #
-
-def pyapprox_fun_2(samples):
-    return evaluate_1darray_function_on_2d_array(fun_pause_2, samples)
-
+from __util import pyapprox_fun_2
 
 #%%
 #Now using :class:`pyapprox.multifidelity.control_variate_monte_carlo.ModelEnsemble` we can create a function which takes the random samples plus an additional configure variable which defines which model to evaluate. Lets use half the samples to evaluate the first model and evaluate the second model at the remaining samples

@@ -3,7 +3,7 @@ import unittest
 from scipy.stats import norm, uniform
 
 import pyapprox as pya
-from pyapprox.variables.variables import IndependentRandomVariable
+from pyapprox.variables.marginals import IndependentMarginalsVariable
 from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayes.laplace import \
@@ -61,7 +61,7 @@ class TestMCMC(unittest.TestCase):
         Amatrix = np.hstack([np.ones((nobs,1)),x[:,np.newaxis]])
 
         univariate_variables = [norm(1,1),norm(0,4)]
-        variables = IndependentRandomVariable(
+        variables = IndependentMarginalsVariable(
             univariate_variables)
 
         mtrue = 0.4  # true gradient
@@ -90,9 +90,9 @@ class TestMCMC(unittest.TestCase):
                 algorithm=algorithm,get_map=True,print_summary=False)
 
         prior_mean = np.asarray(
-            [rv.mean() for rv in variables.all_variables()])
+            [rv.mean() for rv in variables.marginals()])
         prior_hessian = np.diag(
-            [1./rv.var() for rv in variables.all_variables()])
+            [1./rv.var() for rv in variables.marginals()])
         noise_covariance_inv = 1./noise_stdev**2*np.eye(nobs)
        
         exact_mean, exact_covariance = \
@@ -121,7 +121,7 @@ class TestMCMC(unittest.TestCase):
         
         univariate_variables = [uniform(-2,4),uniform(-2,4)]
         plot_range = np.asarray([-1,1,-1,1])*2
-        variables = IndependentRandomVariable(
+        variables = IndependentMarginalsVariable(
             univariate_variables)
 
         loglike = ExponentialQuarticLogLikelihoodModel()
@@ -138,7 +138,7 @@ class TestMCMC(unittest.TestCase):
             # avoid use of pymc3 wrapper which only evaluates samples 1 at
             # a time
             vals = np.exp(loglike.loglike(x))
-            rvs = variables.all_variables()
+            rvs = variables.marginals()
             for ii in range(variables.num_vars()):
                 vals[:,0] *= rvs[ii].pdf(x[ii,:])
             return vals

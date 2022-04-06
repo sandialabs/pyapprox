@@ -11,7 +11,7 @@ from pyapprox.optimization.cvar_regression import (
     smooth_conditional_value_at_risk_composition
 )
 
-from pyapprox.variables.risk_measures import value_at_risk
+from pyapprox.variables.risk import value_at_risk
 
 from pyapprox.util.utilities import check_gradients
 

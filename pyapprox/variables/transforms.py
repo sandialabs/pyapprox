@@ -1,8 +1,7 @@
 import numpy as np
 
 from pyapprox.variables.marginals import (
-    define_iid_random_variables, is_bounded_continuous_variable,
-    IndependentRandomVariable, transform_scale_parameters
+    is_bounded_continuous_variable, transform_scale_parameters
 )
 from pyapprox.variables.rosenblatt import (
     rosenblatt_transformation, inverse_rosenblatt_transformation
@@ -10,6 +9,9 @@ from pyapprox.variables.rosenblatt import (
 from pyapprox.variables.nataf import (
     covariance_to_correlation, trans_x_to_u, trans_u_to_x,
     transform_correlations, scipy_gauss_hermite_pts_wts_1D
+)
+from pyapprox.variables.joint import (
+    define_iid_random_variable, IndependentMarginalsVariable
 )
 
 
@@ -123,8 +125,8 @@ class AffineRandomVariableTransformation(object):
         e.g. beta, gaussian, etc. and the parameters of that distribution
         e.g. loc and scale parameters as well as any additional parameters
         """
-        if (type(variable) != IndependentRandomVariable):
-            variable = IndependentRandomVariable(variable)
+        if (type(variable) != IndependentMarginalsVariable):
+            variable = IndependentMarginalsVariable(variable)
         self.variable = variable
         self.enforce_bounds = enforce_bounds
         self.identity_map_indices = None
@@ -293,7 +295,7 @@ class AffineRandomVariableTransformation(object):
 
 
 def define_iid_random_variable_transformation(variable_1d, num_vars):
-    variable = define_iid_random_variables(variable_1d, num_vars)
+    variable = define_iid_random_variable(variable_1d, num_vars)
     var_trans = AffineRandomVariableTransformation(variable)
     return var_trans
 
@@ -468,7 +470,7 @@ class ConfigureVariableTransformation(object):
 
     def map_to_canonical_space(self, samples):
         """
-        This is the naive slow implementation that searches through all 
+        This is the naive slow implementation that searches through all
         canonical samples to find one that matches each sample provided
         """
         assert samples.shape[0] == self.nvars

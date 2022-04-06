@@ -4,8 +4,8 @@ from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
 
 from pyapprox.util.pya_numba import njit
-from pyapprox.variables.marginals import (
-    IndependentRandomVariable, DesignVariable
+from pyapprox.variables.joint import (
+    IndependentMarginalsVariable, DesignVariable
 )
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
@@ -57,7 +57,7 @@ def define_beam_random_variables():
     design_bounds = Bounds([1, 1], [4, 4])
     design_variable = DesignVariable(design_bounds)
 
-    variable = IndependentRandomVariable([X, Y, E, R])
+    variable = IndependentMarginalsVariable([X, Y, E, R])
     return variable, design_variable
 
 
@@ -156,7 +156,7 @@ def define_piston_random_variables():
     T_a = stats.uniform(loc=290., scale=6.)
     T_0 = stats.uniform(loc=340., scale=20.)
 
-    variable = IndependentRandomVariable([M, S, V_0, k,
+    variable = IndependentMarginalsVariable([M, S, V_0, k,
                                                       P_0, T_a, T_0])
     return variable
 
@@ -264,7 +264,7 @@ def define_wing_weight_random_variables():
         stats.uniform(2.5, 3.5),
         stats.uniform(1700, 800),
         stats.uniform(0.025, 0.055)]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     return variable
 
 
@@ -283,7 +283,7 @@ def define_chemical_reaction_random_variables():
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     return variable
 
 
@@ -343,7 +343,7 @@ def define_random_oscillator_random_variables():
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     return variable
 
 
@@ -452,7 +452,7 @@ def define_coupled_springs_random_variables():
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     return variable
 
 
@@ -540,7 +540,7 @@ def define_nondim_hastings_ecology_random_variables():
     univariate_variables = [
         stats.uniform(ranges[2*ii], ranges[2*ii+1]-ranges[2*ii])
         for ii in range(len(ranges)//2)]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     return variable
 
 

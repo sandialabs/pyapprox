@@ -54,7 +54,7 @@ Surrogate based quadrature
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The following functions can be used to compute the mean and variance analytically from a surrogate. 
 
-  - 'sparse_grid'  See :func:`pyapprox.quadrature.compute_mean_and_variance_sparse_grid`
+  - 'sparse_grid'  See :func:`pyapprox.surrogates.orthopoly.quadrature.compute_mean_and_variance_sparse_grid`
 
   - 'polynomial_chaos' See :func:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion.mean` and :func:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion.variance`
 

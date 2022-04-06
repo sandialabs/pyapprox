@@ -2,28 +2,33 @@ import copy
 from functools import partial
 import numpy as np
 
-from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
-)
-from pyapprox.variables.marginals import (
-    get_distribution_info, IndependentRandomVariable
-)
+from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, hash_array, nchoosek
 )
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.interp.tensorprod import (
+    get_tensor_product_quadrature_rule
+)
 from pyapprox.surrogates.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_deriv_1d,
-    evaluate_orthonormal_polynomial_1d, gauss_quadrature
+    evaluate_orthonormal_polynomial_1d, gauss_quadrature,
+    define_orthopoly_options_from_marginal
+)
+from pyapprox.surrogates.orthopoly.quadrature import (
+    get_gauss_quadrature_rule_from_marginal
 )
 from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
-from pyapprox.util.linalg import \
+from pyapprox.util.linalg import (
     flattened_rectangular_lower_triangular_matrix_index
+)
 from pyapprox.surrogates.interp.manipulate_polynomials import add_polynomials
-from pyapprox.surrogates.interp.indexing import compute_hyperbolic_level_indices
+from pyapprox.surrogates.interp.indexing import (
+    compute_hyperbolic_level_indices
+)
 
 
 def make_2D_array(lis):
@@ -488,20 +493,6 @@ def get_univariate_quadrature_rules_from_pce(pce, degrees):
     return univariate_quadrature_rules
 
 
-def get_univariate_quadrature_rules_from_variable(variable, degrees):
-    assert len(degrees) == variable.num_vars()
-    pce = get_polynomial_from_variable(variable)
-    indices = []
-    for ii in range(pce.num_vars()):
-        indices_ii = np.zeros((pce.num_vars(), degrees[ii]+1), dtype=int)
-        indices_ii[ii, :] = np.arange(degrees[ii]+1, dtype=int)
-        indices.append(indices_ii)
-    pce.set_indices(np.hstack(indices))
-    univariate_quad_rules = get_univariate_quadrature_rules_from_pce(
-        pce, degrees)
-    return univariate_quad_rules, pce
-
-
 def get_tensor_product_quadrature_rule_from_pce(pce, degrees):
     univariate_quadrature_rules = get_univariate_quadrature_rules_from_pce(
         pce, degrees)
@@ -517,9 +508,8 @@ def define_poly_options_from_variable(variable):
     basis_opts = dict()
     for ii in range(len(variable.unique_variables)):
         var = variable.unique_variables[ii]
-        name, scales, shapes = get_distribution_info(var)
-        opts = {'var': var, 'shapes': shapes,
-                'var_nums': variable.unique_variable_indices[ii]}
+        opts = define_orthopoly_options_from_marginal(var)
+        opts['var_nums'] = variable.unique_variable_indices[ii]
         basis_opts['basis%d' % ii] = opts
     return basis_opts
 
@@ -605,9 +595,9 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     marginalized_pce = PolynomialChaosExpansion()
     # poly.config_opts.copy will not work
     opts = copy.deepcopy(poly.config_opts)
-    all_variables = poly.var_trans.variable.all_variables()
+    all_variables = poly.var_trans.variable.marginals()
     active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
-    active_variables = IndependentRandomVariable(
+    active_variables = IndependentMarginalsVariable(
         [all_variables[ii] for ii in active_idx])
     opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
 
@@ -775,35 +765,19 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
     return indices, coefs
 
 
-def get_univariate_gauss_quadrature_rule_from_variable(rv, nsamples):
-    """
-    Generate a Gaussian quadrature rule for a random variable
-
-    Parameters
-    ----------
-    rv : :class:`scipy.stats.dist`
-        The random variable defining the PDF for integration
-
-    nsamples : integer
-        The number of samples needed
-
-    Returns
-    -------
-    x_quad : np.ndarray (nsamples)
-        The samples of the quadrature rule
-
-    w_quad : np.ndarray (nsamples)
-        The weights of the quadrature rule
-    """
-    variable = IndependentRandomVariable([rv])
-    pce = get_polynomial_from_variable(variable)
-    indices = np.arange(nsamples, dtype=int)[None, :]
-    pce.set_indices(indices)
-    ab = pce.recursion_coeffs[0]
-    x_quad, w_quad = gauss_quadrature(ab, nsamples)
-    x_quad = AffineRandomVariableTransformation(
-        variable).map_from_canonical_space(x_quad[None, :])[0, :]
-    return x_quad, w_quad
+def get_univariate_quadrature_rules_from_variable(variable, max_nsamples):
+    max_nsamples = np.atleast_1d(max_nsamples)
+    if max_nsamples.shape[0] == 1:
+        max_nsamples = np.ones(variable.num_vars(), dtype=int)*max_nsamples[0]
+    if max_nsamples.shape[0] != variable.num_vars():
+        raise ValueError(
+            "max_nsamples must be an integer or specfied for each marginal")
+    univariate_quad_rules = []
+    for ii, marginal in enumerate(variable.marginals()):
+        quad_rule = get_gauss_quadrature_rule_from_marginal(
+            marginal, max_nsamples[ii], canonical=False)
+        univariate_quad_rules.append(quad_rule)
+    return univariate_quad_rules
 
 
 def get_coefficients_for_plotting(pce, qoi_idx):

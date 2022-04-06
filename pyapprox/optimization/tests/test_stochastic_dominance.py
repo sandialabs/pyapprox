@@ -10,7 +10,7 @@ from pyapprox.optimization.second_order_stochastic_dominance import (
 )
 from pyapprox.util.utilities import check_gradients, check_hessian
 from pyapprox.optimization.pya_minimize import has_ROL
-from pyapprox.variables.risk_measures import compute_conditional_expectations
+from pyapprox.variables.risk import compute_conditional_expectations
 
 
 skiptest_rol = unittest.skipIf(

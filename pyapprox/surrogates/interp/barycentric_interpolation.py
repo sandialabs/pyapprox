@@ -449,7 +449,7 @@ def tensor_product_lagrange_interpolation(
 
 
 def tensor_product_barycentric_lagrange_interpolation(
-        grid_samples_1d, fun, samples):
+        grid_samples_1d, fun, samples, return_all=False):
     """
     Use tensor-product Barycentric Lagrange interpolation to approximate a
     function.
@@ -476,7 +476,7 @@ def tensor_product_barycentric_lagrange_interpolation(
         Evaluations of the interpolant at the samples
 
     grid_samples : np.ndarray (nvars, ngrid_samples)
-        The samples used to consruct the basis functions where
+        if return_all: The samples used to consruct the basis functions where
         ngrid_samples = prod([len(s) for s in grid_samples_1d])
     """
     barycentric_weights_1d = [
@@ -487,6 +487,8 @@ def tensor_product_barycentric_lagrange_interpolation(
     interp_vals = multivariate_barycentric_lagrange_interpolation(
         samples, grid_samples_1d, barycentric_weights_1d, fn_vals,
         np.arange(samples.shape[0]))
+    if not return_all:
+        return interp_vals
     return interp_vals, grid_samples
 
 

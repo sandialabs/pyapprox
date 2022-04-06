@@ -1,5 +1,7 @@
-from pyapprox.util.pya_numba import njit
 import numpy as np
+
+from pyapprox.util.pya_numba import njit
+from pyapprox.variables.marginals import get_distribution_info
 
 
 def evaluate_orthonormal_polynomial_1d(x, nmax, ab):
@@ -341,3 +343,8 @@ def convert_orthonormal_expansion_to_monomial_expansion_1d(ortho_coef, ab,
     mono_coefs = shift_momomial_expansion(mono_coefs, shift, scale)
     return mono_coefs
 
+
+def define_orthopoly_options_from_marginal(marginal):
+    name, scales, shapes = get_distribution_info(marginal)
+    opts = {'var': marginal, 'shapes': shapes}
+    return opts

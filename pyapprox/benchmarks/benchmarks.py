@@ -25,9 +25,7 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     SpectralPDEMultiIndexWrapper
     )
 from pyapprox.benchmarks.genz import GenzFunction
-from pyapprox.variables.variables import (
-    IndependentRandomVariable
-)
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
     ConfigureVariableTransformation
 )
@@ -116,7 +114,7 @@ def setup_sobol_g_function(nvars):
     """
 
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     a = (np.arange(1, nvars+1)-2)/2
     mean, variance, main_effects, total_effects = \
         get_sobol_g_function_statistics(a)
@@ -157,7 +155,7 @@ def setup_ishigami_function(a, b):
     .. [Ishigami1990] `T. Ishigami and T. Homma, "An importance quantification technique in uncertainty analysis for computer models," [1990] Proceedings. First International Symposium on Uncertainty Modeling and Analysis, College Park, MD, USA, 1990, pp. 398-403 <https://doi.org/10.1109/ISUMA.1990.151285>`_
     """
     univariate_variables = [stats.uniform(-np.pi, 2*np.pi)]*3
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     mean, variance, main_effects, total_effects, sobol_indices, \
         sobol_interaction_indices = get_ishigami_funciton_statistics()
     return Benchmark(
@@ -193,7 +191,7 @@ def setup_oakley_function():
     .. [OakelyOJRSB2004] `Oakley, J.E. and O'Hagan, A. (2004), Probabilistic sensitivity analysis of complex models: a Bayesian approach. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 66: 751-769. <https://doi.org/10.1111/j.1467-9868.2004.05304.x>`_
     """
     univariate_variables = [stats.norm()]*15
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     mean, variance, main_effects = oakley_function_statistics()
     return Benchmark(
         {'fun': oakley_function,
@@ -257,7 +255,7 @@ def setup_rosenbrock_function(nvars):
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an
         arbitraty vector with shape (nvars,1)
 
-    variable : pya.IndependentRandomVariable
+    variable : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-2,2]`.
@@ -297,7 +295,7 @@ def setup_rosenbrock_function(nvars):
     dict_keys(['fun', 'jac', 'hessp', 'variable', 'mean', 'loglike', 'loglike_grad'])
     """
     univariate_variables = [stats.uniform(-2, 4)]*nvars
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
 
     benchmark = Benchmark(
         {'fun': rosenbrock_function, 'jac': rosenbrock_function_jacobian,
@@ -375,7 +373,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     """
     genz = GenzFunction(test_name, nvars)
     univariate_variables = [stats.uniform(0, 1)]*nvars
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     if coefficients is None:
         genz.set_coefficients(1, 'squared-exponential-decay', 0.25)
     else:
@@ -461,7 +459,7 @@ def setup_piston_benchmark():
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,1)
 
-    variable : pya.IndependentRandomVariable
+    variable : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables`.
@@ -508,7 +506,7 @@ def setup_wing_weight_benchmark():
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nvars,1)
 
-    variable : pya.IndependentRandomVariable
+    variable : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables`.
@@ -646,7 +644,7 @@ def setup_multi_index_advection_diffusion_benchmark(
         The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
         size is and :math:`T/2^{l_{t}+2}`.
 
-    variable : pya.IndependentRandomVariable
+    variable : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
@@ -659,7 +657,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     dict_keys(['fun', 'variable'])
     """
     univariate_variables = [stats.uniform(-np.sqrt(3), 2*np.sqrt(3))]*nvars
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     pde_funs = NobileBenchmarkFunctions(nvars, corr_len)
     config_values = [2*np.arange(1, 11)+1, 2*np.arange(1, 11)+1]
     if final_time is not None:

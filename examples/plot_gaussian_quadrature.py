@@ -8,13 +8,14 @@ any continouous random variable implemented in scipy.stats.
 
 To generate a univariate quadrature rule for uniform random variables
 """
-import pyapprox as pya
+from pyapprox import surrogates
 from scipy import stats
 degree = 10
 
 scipy_var = stats.uniform(-1, 2)
-x_quad, w_quad = pya.get_univariate_gauss_quadrature_rule_from_variable(
-    scipy_var, degree)
+quad_rule = surrogates.get_gauss_quadrature_rule_from_marginal(
+    scipy_var, degree+1)
+x_quad, w_quad = quad_rule(5)
 
 #%%
 # As an example, we can use this quadrature rule to integrate :math:`\rv^2`
@@ -32,8 +33,8 @@ print(integral)
 #The function is also capable of generating rules on different intervals
 #For example
 scipy_var = stats.uniform(0, 2)
-x_quad, w_quad = pya.get_univariate_gauss_quadrature_rule_from_variable(
-    scipy_var, degree)
+x_quad, w_quad = surrogates.get_gauss_quadrature_rule_from_marginal(
+    scipy_var, degree+1)(degree)
 values = x_quad**2
 integral = values.dot(w_quad)
 print(integral)
@@ -42,8 +43,8 @@ print(integral)
 #Quadrature rules can be created for almost any random variable. Here
 #we will generate a quadrature rule for an exponential random variable
 scipy_var = stats.expon()
-x_quad, w_quad = pya.get_univariate_gauss_quadrature_rule_from_variable(
-    scipy_var, degree)
+x_quad, w_quad = surrogates.get_gauss_quadrature_rule_from_marginal(
+    scipy_var, degree+1)(degree)
 values = x_quad**2
 integral = values.dot(w_quad)
 print(integral)
@@ -53,8 +54,10 @@ print(integral)
 #variable
 import numpy as np
 from pyapprox.util.configure_plots import plt
-pya.plot_discrete_measure_1d(x_quad, w_quad)
-vrange = pya.get_truncated_range(scipy_var, 1-1e-6)
+from pyapprox.analysis import visualize
+from pyapprox.variables import marginals
+visualize.plot_discrete_measure_1d(x_quad, w_quad)
+vrange = marginals.get_truncated_range(scipy_var, 1-1e-6)
 xx = np.linspace(vrange[0], vrange[1], 101)
 plt.fill_between(xx, 0*xx, scipy_var.pdf(xx), alpha=0.3)
 plt.show()

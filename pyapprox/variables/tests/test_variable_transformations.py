@@ -8,9 +8,8 @@ from pyapprox.variables.transforms import (
     NatafTransformation, define_iid_random_variable_transformation,
     TransformationComposition, UniformMarginalTransformation
 )
-from pyapprox.variables.marginals import (
-    IndependentRandomVariable, float_rv_discrete
-)
+from pyapprox.variables.marginals import float_rv_discrete
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.tests.test_rosenblatt_transformation import (
     rosenblatt_example_2d
 )
@@ -18,9 +17,7 @@ from pyapprox.variables.nataf import (
     gaussian_copula_compute_x_correlation_from_z_correlation,
     generate_x_samples_using_gaussian_copula, correlation_to_covariance
 )
-from pyapprox.variables.sampling import (
-    generate_independent_random_samples
-)
+from pyapprox.variables.sampling import generate_independent_random_samples
 
 
 class TestVariableTransformations(unittest.TestCase):
@@ -290,7 +287,7 @@ class TestVariableTransformations(unittest.TestCase):
             float_rv_discrete(name='float_rv_discrete',
                               values=(mass_locs, mass_probs))()]*nvars
 
-        variables = IndependentRandomVariable(univariate_variables)
+        variables = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variables)
 
         samples = np.vstack(
@@ -341,7 +338,7 @@ class TestVariableTransformations(unittest.TestCase):
             [stats.uniform(0, 1), stats.uniform(2, 2)])
         canonical_derivs = var_trans.map_derivatives_to_canonical_space(grad)
         for ii in range(nvars):
-            lb, ub = var_trans.variable.all_variables()[ii].interval(1)
+            lb, ub = var_trans.variable.marginals()[ii].interval(1)
             assert np.allclose(canonical_derivs[ii, :], (ub-lb)*grad[ii, :]/2)
         recovered_derivs = var_trans.map_derivatives_from_canonical_space(
             canonical_derivs)

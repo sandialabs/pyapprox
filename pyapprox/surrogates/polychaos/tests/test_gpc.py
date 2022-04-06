@@ -10,7 +10,9 @@ from pyapprox.util.utilities import (
     get_all_sample_combinations,
     integrate_using_univariate_gauss_legendre_quadrature_unbounded
 )
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.interp.tensorprod import (
+    get_tensor_product_quadrature_rule
+)
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial,
     define_poly_options_from_variable_transformation,
@@ -19,7 +21,8 @@ from pyapprox.surrogates.polychaos.gpc import (
     multiply_multivariate_orthonormal_polynomial_expansions,
     compute_multivariate_orthonormal_basis_product,
     compute_univariate_orthonormal_basis_products,
-    conditional_moments_of_polynomial_chaos_expansion
+    conditional_moments_of_polynomial_chaos_expansion,
+    get_univariate_quadrature_rules_from_variable
 )
 from pyapprox.surrogates.interp.indexing import (
     compute_hyperbolic_indices, tensor_product_indices,
@@ -33,13 +36,15 @@ from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
 from pyapprox.variables.marginals import (
-    IndependentRandomVariable,
     float_rv_discrete, rv_function_indpndt_vars, rv_product_indpndt_vars
 )
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+    jacobi_recurrence
+)
 from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
     evaluate_orthonormal_polynomial_1d
 )
@@ -242,7 +247,7 @@ class TestGPC(unittest.TestCase):
         univariate_variables = [
             stats.uniform(-1, 2), stats.norm(gauss_mean, np.sqrt(gauss_var)),
             stats.uniform(0, 3)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -432,7 +437,7 @@ class TestGPC(unittest.TestCase):
         alpha_stat, beta_stat = 2, 3
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -471,7 +476,7 @@ class TestGPC(unittest.TestCase):
         alpha_stat, beta_stat = 2, 3
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
 
@@ -666,7 +671,7 @@ class TestGPC(unittest.TestCase):
 
     def test_compute_multivariate_orthonormal_basis_product(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         poly1 = get_polynomial_from_variable(variable)
@@ -702,7 +707,7 @@ class TestGPC(unittest.TestCase):
 
     def test_multiply_multivariate_orthonormal_polynomial_expansions(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         degree1, degree2 = 3, 2
@@ -740,7 +745,7 @@ class TestGPC(unittest.TestCase):
         np.random.seed(1)
         np.set_printoptions(precision=16)
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         degree1, degree2 = 1, 2
         poly1 = get_polynomial_from_variable(variable)
@@ -767,7 +772,7 @@ class TestGPC(unittest.TestCase):
 
     def test_add_pce(self):
         univariate_variables = [stats.norm(), stats.uniform()]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         degree1, degree2 = 2, 3
         poly1 = get_polynomial_from_variable(variable)
@@ -913,7 +918,7 @@ class TestGPC(unittest.TestCase):
         quad_rules = [(x, w) for x, w in zip(x_1d, w_1d)]
         univariate_variables = [
             rv_function_indpndt_vars(fun, initial_variables, quad_rules)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -936,7 +941,7 @@ class TestGPC(unittest.TestCase):
         # TODO get quad rules from initial variables
         univariate_variables = [
             rv_product_indpndt_vars(funs, initial_variables, quad_rules)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -989,6 +994,24 @@ class TestGPC(unittest.TestCase):
         pce.set_coefficients(coef)
         print(pce.mean(), values.mean())
         assert np.allclose(pce.mean(), values.mean(), rtol=1e-3)
+
+    def test_get_univariate_quadrature_rules_from_variable(self):
+        max_nsamples = 10
+        nsamples = 5
+        variable = IndependentMarginalsVariable(
+            [stats.uniform(-1, 2), stats.norm(0, 1)])
+        quad_rules = get_univariate_quadrature_rules_from_variable(
+            variable, max_nsamples)
+
+        x, w = quad_rules[0](nsamples)
+        x_exact, w_exact = gauss_jacobi_pts_wts_1D(nsamples, 0, 0)
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
+
+        x, w = quad_rules[1](nsamples)
+        x_exact, w_exact = gauss_hermite_pts_wts_1D(nsamples)
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
 
 
 if __name__ == "__main__":

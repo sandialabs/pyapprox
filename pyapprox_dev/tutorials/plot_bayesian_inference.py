@@ -297,7 +297,7 @@ np.random.seed(1)
 
 univariate_variables = [uniform(-2,4),uniform(-2,4)]
 plot_range = np.asarray([-1,1,-1,1])*2
-variables = pya.IndependentRandomVariable(univariate_variables)
+variables = pya.IndependentMarginalsVariable(univariate_variables)
 
 loglike = ExponentialQuarticLogLikelihoodModel()
 loglike = PYMC3LogLikeWrapper(loglike)
@@ -321,7 +321,7 @@ print('MAP sample',map_sample.squeeze())
 #Lets plot the posterior distribution and the MCMC samples. First we must compute the evidence
 def unnormalized_posterior(x):
     vals = np.exp(loglike.loglike(x))
-    rvs = variables.all_variables()
+    rvs = variables.marginals()
     for ii in range(variables.num_vars()):
         vals[:,0] *= rvs[ii].pdf(x[ii,:])
     return vals

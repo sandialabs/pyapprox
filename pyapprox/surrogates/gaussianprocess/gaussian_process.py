@@ -22,11 +22,13 @@ from pyapprox.util.linalg import (
     pivoted_cholesky_decomposition,
     continue_pivoted_cholesky_decomposition, cholesky_solve_linear_system
 )
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.surrogates.interp.indexing import argsort_indices_leixographically
+from pyapprox.surrogates.interp.indexing import (
+    argsort_indices_leixographically
+)
 from pyapprox.surrogates.polychaos.gpc import (
     get_univariate_quadrature_rules_from_variable
 )
@@ -752,7 +754,7 @@ def integrate_gaussian_process_squared_exponential_kernel(
     kernel_var : float
         The variance :math:`\sigma_K^2` of the kernel :math:`K`
 
-    variable : :class:`pyapprox.variable.IndependentRandomVariable`
+    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`
 
@@ -864,7 +866,7 @@ def generate_gp_candidate_samples(nvars, num_candidate_samples,
         marginal_icdfs = []
         # spread QMC samples over entire domain. Range of variable
         # is used but not its PDF
-        for v in variables.all_variables():
+        for v in variables.marginals():
             lb, ub = v.interval(1)
             if not np.isfinite(lb) or not np.isfinite(ub):
                 lb, ub = v.interval(1-1e-6)
@@ -893,7 +895,7 @@ class CholeskySampler(object):
     num_candidate_samples : integer
         The number of candidate samples from which final samples are chosen
 
-    variable : :class:`pyapprox.variable.IndependentRandomVariable`
+    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`
 
@@ -1457,7 +1459,7 @@ class IVARSampler(object):
         by this function and the other half of samples will be from a Halton
         sequence.
 
-    variables : :class:`pyapprox.variable.IndependentRandomVariable`
+    variables : :class:`pyapprox.variable.IndependentMarginalsVariable`
         A set of independent univariate random variables. The tensor-product
         of the 1D PDFs yields the joint density :math:`\rho`. The bounds and
         CDFs of these variables are used to transform the Halton sequence used
@@ -1625,7 +1627,7 @@ class IVARSampler(object):
         if self.greedy_sampler.variables is None:
             lbs, ubs = np.zeros(self.nvars), np.ones(self.nvars)
         else:
-            variables = self.greedy_sampler.variables.all_variables()
+            variables = self.greedy_sampler.variables.marginals()
             lbs = [v.interval(1)[0] for v in variables]
             ubs = [v.interval(1)[1] for v in variables]
         lbs = np.repeat(lbs, nsamples)
@@ -2416,8 +2418,8 @@ def marginalize_gaussian_process(gp, variable, center=True):
             kernel, gp.X_train_[:, ii:ii+1].T, L_factor, gp.y_train_,
             gp._y_train_mean, gp._y_train_std, mean=shift)
         if hasattr(gp, 'var_trans'):
-            variable_ii = IndependentRandomVariable(
-                [gp.var_trans.variable.all_variables()[ii]])
+            variable_ii = IndependentMarginalsVariable(
+                [gp.var_trans.variable.marginals()[ii]])
             var_trans_ii = AffineRandomVariableTransformation(variable_ii)
             gp_ii.set_variable_transformation(var_trans_ii)
         marginalized_gps.append(gp_ii)

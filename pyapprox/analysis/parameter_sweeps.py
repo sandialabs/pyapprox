@@ -2,7 +2,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from pyapprox.variables.marginals import get_truncated_ranges
+from pyapprox.variables.joint import get_truncated_ranges
 from pyapprox.variables.transforms import map_hypercube_samples
 from pyapprox.variables.density import map_from_canonical_gaussian
 
@@ -435,7 +435,7 @@ def generate_parameter_sweeps_and_plot_from_variable(
 
         where samples : np.ndarray (nvars, nsamples)
 
-    variable : :class:`pyapprox.variables.IndependentRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         Random variable
 
     filename : string

@@ -1548,7 +1548,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     max_levels = sparse_grid.subspace_indices.max(axis=1)
     # initial_points_list = []
     growth_rules = []
-    all_variable = sparse_grid.variable_transformation.variable.all_variables()
+    all_variable = sparse_grid.variable_transformation.variable.marginals()
     for ii in range(num_random_vars):
         for jj, inds in enumerate(sparse_grid.unique_quadrule_indices):
             if ii in inds:

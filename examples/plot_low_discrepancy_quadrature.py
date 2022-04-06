@@ -7,9 +7,8 @@ It is often important to quantify statistics of numerical models. Monte Carlo
 quadrature is the simplest and most robust method for doing so. For any model
 we can compute statistics, such as mean and variance as follows
 """
-import pyapprox as pya
-from scipy import stats
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox import expdesign
+from pyapprox.benchmarks import setup_benchmark
 benchmark = setup_benchmark("genz", test_name="oscillatory", nvars=2)
 nsamples = 100
 mc_samples = benchmark.variable.rvs(nsamples)
@@ -31,10 +30,11 @@ print("variance", variance)
 #fixed number of samples. We can compute statistics using Sobol sequences as
 #follows
 
-sobol_samples = pya.sobol_sequence(
+sobol_samples = expdesign.sobol_sequence(
     benchmark.variable.num_vars(), nsamples, variable=benchmark.variable)
 values = benchmark.fun(sobol_samples)
-pya.print_statistics(sobol_samples, values)
+from pyapprox.variables import print_statistics
+print_statistics(sobol_samples, values)
 
 #%%
 #Here we have used print statistics to compute the sample stats. Note,
@@ -55,10 +55,10 @@ plt.show()
 #Halton Sequences
 #================
 #Pyapprox also supports Halton Sequences
-halton_samples = pya.halton_sequence(
+halton_samples = expdesign.halton_sequence(
     benchmark.variable.num_vars(), nsamples, variable=benchmark.variable)
 values = benchmark.fun(halton_samples)
-pya.print_statistics(halton_samples, values)
+print_statistics(halton_samples, values)
 
 #%%
 #Latin Hypercube Designs

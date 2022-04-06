@@ -22,7 +22,7 @@ from pyapprox.surrogates.approximate import approximate, adaptive_approximate
 from pyapprox.surrogates.interp.indexing import (
     compute_hyperbolic_indices, tensor_product_indices
 )
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
@@ -54,7 +54,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 1500
         nvars, degree = 3, 18
         univariate_variables = [uniform(-np.pi, 2*np.pi)]*nvars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         var_trans = AffineRandomVariableTransformation(variable)
@@ -102,7 +102,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nvars, degree = 3, 8
         a = np.array([1, 2, 5])[:nvars]
         univariate_variables = [uniform(0, 1)]*nvars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
 
         var_trans = AffineRandomVariableTransformation(variable)
@@ -260,7 +260,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
         options = {'max_nsamples': 2000, 'verbose': 0}
         approx = adaptive_approximate(
-            benchmark.fun, benchmark.variable.all_variables(),
+            benchmark.fun, benchmark.variable.marginals(),
             'sparse_grid', options).approx
 
         from pyapprox.surrogates.approximate import compute_l2_error
@@ -524,7 +524,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_marginalize_polynomial_chaos_expansions(self):
         univariate_variables = [
             uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         num_vars = len(univariate_variables)
@@ -552,7 +552,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             marginalized_pce = marginalize_polynomial_chaos_expansion(
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx[None, :])
-            variable_ii = variable.all_variables()[ii:ii+1]
+            variable_ii = variable.marginals()[ii:ii+1]
             var_trans_ii = AffineRandomVariableTransformation(variable_ii)
             poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \
@@ -579,8 +579,8 @@ class TestSensitivityAnalysis(unittest.TestCase):
             marginalized_pce = marginalize_polynomial_chaos_expansion(
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx)
-            variable_ii = variable.all_variables()[:ii] +\
-                variable.all_variables()[ii+1:]
+            variable_ii = variable.marginals()[:ii] +\
+                variable.marginals()[ii+1:]
             var_trans_ii = AffineRandomVariableTransformation(variable_ii)
             poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \

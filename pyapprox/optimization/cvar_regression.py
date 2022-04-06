@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import sparse
 
-from pyapprox.variables.risk_measures import value_at_risk
+from pyapprox.variables.risk import value_at_risk
 from pyapprox.optimization.first_order_stochastic_dominance import (
     smooth_max_function_log, smooth_max_function_first_derivative_log,
     smooth_max_function_second_derivative_log

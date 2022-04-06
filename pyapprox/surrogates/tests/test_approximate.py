@@ -21,7 +21,7 @@ from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation,
     define_poly_options_from_variable
 )
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
@@ -70,7 +70,7 @@ class TestApproximate(unittest.TestCase):
 
     def test_approximate_sparse_grid_user_options(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
-        univariate_variables = benchmark["variable"].all_variables()
+        univariate_variables = benchmark["variable"].marginals()
         errors = []
 
         def callback(approx):
@@ -160,14 +160,14 @@ class TestApproximate(unittest.TestCase):
         # this test purposefully select wrong variable to make sure
         # poly_type overide is activated
         univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         # specify correct basis so it is not chosen from var_trans.variable
         poly_opts = {"var_trans": var_trans}
         # but rather from another variable which will invoke Legendre polys
         basis_opts = define_poly_options_from_variable(
-            IndependentRandomVariable([stats.uniform()]*nvars))
+            IndependentMarginalsVariable([stats.uniform()]*nvars))
         poly_opts["poly_types"] = basis_opts
         options = {"poly_opts": poly_opts, "variable": variable,
                    "options": {"max_num_step_increases": 1}}
@@ -190,7 +190,7 @@ class TestApproximate(unittest.TestCase):
         print(solver_type, solver_options)
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly = PolynomialChaosExpansion()
@@ -242,7 +242,7 @@ class TestApproximate(unittest.TestCase):
     def test_pce_basis_expansion(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly = PolynomialChaosExpansion()
@@ -289,7 +289,7 @@ class TestApproximate(unittest.TestCase):
         from sklearn.gaussian_process.kernels import Matern
         num_vars = 1
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         num_samples = 100
         train_samples = variable.rvs(num_samples)
@@ -368,7 +368,7 @@ class TestApproximate(unittest.TestCase):
             # return np.cos(2*np.pi*x.sum(axis=0)/num_vars)[:, np.newaxis]
 
         errors = []
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         validation_samples = variable.rvs(100)
         validation_values = fun(validation_samples)
 
@@ -407,7 +407,7 @@ class TestApproximate(unittest.TestCase):
     def test_approximate_fixed_pce(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly = PolynomialChaosExpansion()
@@ -466,7 +466,7 @@ class TestApproximate(unittest.TestCase):
         """
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly = PolynomialChaosExpansion()
@@ -554,7 +554,7 @@ class TestApproximate(unittest.TestCase):
     def test_adaptive_approximate_increment_degree(self):
         num_vars = 2
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
-        variable = IndependentRandomVariable(
+        variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
         poly = PolynomialChaosExpansion()

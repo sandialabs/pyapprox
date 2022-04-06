@@ -4,7 +4,7 @@ import numpy as np
 import theano
 import theano.tensor as tt
 from scipy.optimize import approx_fprime
-from pyapprox.variables.variables import get_distribution_info
+from pyapprox.variables.marginals import get_distribution_info
 
 
 class GaussianLogLike(object):
@@ -224,7 +224,7 @@ def run_bayesian_inference_gaussian_error_model(
     loglike : pyapprox_dev.bayesian_inference.markov_chain_monte_carlo.GaussianLogLike
         A log-likelihood function associated with a Gaussian error model
 
-    variables : pya.IndependentRandomVariable
+    variables : pya.IndependentMarginalsVariable
         Object containing information of the joint density of the inputs z.
         This is used to generate random samples from this join density
 
@@ -273,7 +273,7 @@ def run_bayesian_inference_gaussian_error_model(
     with pm.Model():
         # must be defined inside with pm.Model() block
         pymc_variables, pymc_var_names = get_pymc_variables(
-            variables.all_variables())
+            variables.marginals())
 
         # convert m and c to a tensor vector
         theta = tt.as_tensor_variable(pymc_variables)

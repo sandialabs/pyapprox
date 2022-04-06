@@ -1,9 +1,16 @@
 import numpy as np
+from functools import partial
 
-from pyapprox.surrogates.orthopoly.orthonormal_polynomials import gauss_quadrature
+from pyapprox.surrogates.orthopoly.orthonormal_polynomials import (
+    gauss_quadrature, define_orthopoly_options_from_marginal
+)
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     jacobi_recurrence, hermite_recurrence
 )
+from pyapprox.surrogates.orthopoly.recursion_factory import (
+    get_recursion_coefficients_from_variable
+)
+from pyapprox.variables.transforms import AffineRandomVariableTransformation
 
 
 def clenshaw_curtis_rule_growth(level):
@@ -352,3 +359,51 @@ def exponential_growth(level, constant=1):
 
 def exponential_growth_rule(quad_rule, level):
     return quad_rule(exponential_growth(level))
+
+
+def transformed_quadrature_rule(marginal, recursion_coeffs, nsamples):
+    var_trans = AffineRandomVariableTransformation([marginal])
+    x, w = gauss_quadrature(recursion_coeffs, nsamples)
+    x = var_trans.map_from_canonical_space(x[None, :])[0, :]
+    return x, w
+
+
+def get_gauss_quadrature_rule_from_marginal(
+        marginal, max_nsamples, canonical=False):
+    """
+    Return the quadrature rule associated with the marginal.
+
+    Parameters
+    ----------
+    marginal : scipy.stats.dist
+        The 1D variable
+
+    max_nsamples : integer
+        The maximum number of samples that can be in the generated quadrature
+        rules
+
+    canonical : boolean
+            True - the loc, and scale parameters of the marginal are
+            ignored. The quadrature rules for all bounded variables will be
+             defined on the interval [-1, 1].
+
+    Returns
+    -------
+    quad_rule : callable
+        Function that returns the quadrature samples and weights with the
+        signature
+
+        `quad_rule(nsamples) -> x, w
+
+        where x : np.ndarray (nsamples) and w : np.ndarray (nsamples)
+        are the quadrature samples and weights respectivelly.
+        Note nsamples <= max_nsamples
+
+    """
+    basis_opts = define_orthopoly_options_from_marginal(marginal)
+    recursion_coeffs = get_recursion_coefficients_from_variable(
+        marginal, max_nsamples, basis_opts)
+    univariate_quad_rule = partial(gauss_quadrature, recursion_coeffs)
+    if canonical:
+        return univariate_quad_rule
+    return partial(transformed_quadrature_rule, marginal, recursion_coeffs)

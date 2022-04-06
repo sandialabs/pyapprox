@@ -9,7 +9,7 @@ from scipy import integrate
 from functools import partial
 from scipy.optimize import minimize
 
-from pyapprox.variables.risk_measures import (
+from pyapprox.variables.risk import (
     value_at_risk, conditional_value_at_risk,
     univariate_quantile_continuous_variable,
     compute_conditional_expectations,

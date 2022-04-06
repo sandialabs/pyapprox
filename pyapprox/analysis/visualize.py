@@ -1,9 +1,9 @@
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.utilities import get_meshgrid_samples
-from pyapprox.configure_plots import plt
-from pyapprox.variables.marginals import (
+from pyapprox.util.visualization import get_meshgrid_samples
+from pyapprox.util.configure_plots import plt
+from pyapprox.variables.joint import (
     get_truncated_range, get_truncated_ranges
 )
 from pyapprox.surrogates.interp.indexing import compute_anova_level_indices
@@ -41,7 +41,7 @@ def get_meshgrid_function_data_from_variable(
         The function must accept an np.ndarray of size (2, num_pts_1d**2)
         and return a np.ndarray of size (num_pts_1d,num_qoi)
 
-    variable : :class:`pyapprox.variables.IndependentRandomVariable`
+    variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
         Variable used to determine plotting ranges
 
     num_pts_1d : integer
@@ -70,6 +70,7 @@ def get_meshgrid_function_data_from_variable(
     plot_limits = get_truncated_ranges(variable, unbounded_alpha)
     X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
     Z = function(pts)
+    print(Z)
     if (Z.ndim == 2):
         Z = Z[:, qoi]
     Z = np.reshape(Z, (X.shape[0], X.shape[1]))
@@ -108,7 +109,7 @@ def plot_1d_cross_sections(fun, variable, nominal_sample=None,
     fig, axs = plt.subplots(
         nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
     axs = axs.flatten()
-    all_variables = variable.all_variables()
+    all_variables = variable.marginals()
     for ii, var in enumerate(all_variables):
         axs[ii].set_title(r"$Z_{%d}$" % (ii+1))
         plot_1d_cross_section(
@@ -151,7 +152,7 @@ def plot_2d_cross_sections(fun, variable, nominal_sample=None,
 
     fig, axs = plt.subplots(
         nfig_rows, nfig_cols, figsize=(nfig_cols*8, nfig_rows*6))
-    all_variables = variable.all_variables()
+    all_variables = variable.marginals()
 
     for ii, var in enumerate(all_variables):
         lb, ub = get_truncated_range(var)

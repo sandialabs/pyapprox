@@ -58,7 +58,7 @@ from scipy.stats import uniform
 
 np.random.seed(1)
 univariate_variables = [uniform(-1, 2), uniform(-1, 2)]
-variable = pya.IndependentRandomVariable(univariate_variables)
+variable = pya.IndependentMarginalsVariable(univariate_variables)
 print(variable)
 shifts = [.1, .2]
 model = TunableModelEnsemble(np.pi/2*.95, shifts=shifts)

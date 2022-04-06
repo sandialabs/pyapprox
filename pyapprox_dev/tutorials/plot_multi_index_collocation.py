@@ -150,7 +150,7 @@ options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
 #%%
 #Now lets us build the sparse grid
 sparse_grid = adaptive_approximate_multi_index_sparse_grid(
-    model,variable.all_variables(),options)
+    model,variable.marginals(),options)
 
 # #%%
 # #Lets plot the errors
@@ -176,7 +176,7 @@ options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
 multi_level_errors,multi_level_total_cost = errors.copy(), total_cost.copy()
 errors,total_cost = [],[]
 sparse_grid = adaptive_approximate_multi_index_sparse_grid(
-    model,variable.all_variables(),options)
+    model,variable.marginals(),options)
 
 #%%
 #Lets plot the errors
@@ -219,7 +219,7 @@ options = {'config_var_trans':config_var_trans,'max_nsamples':max_nsamples,
 single_fidelity_errors,single_fidelity_total_cost = errors.copy(), total_cost.copy()
 errors,total_cost = [],[]
 sparse_grid = adaptive_approximate_multi_index_sparse_grid(
-    model,variable.all_variables(),options)
+    model,variable.marginals(),options)
 
 #%%
 #Lets plot the errors

@@ -9,7 +9,7 @@ Developer Reference Guide
    :no-inheritance-diagram:
    
 
-.. automodapi:: pyapprox.quadrature
+.. automodapi:: pyapprox.surrogates.orthopoly.quadrature
    :no-inheritance-diagram:
    
 

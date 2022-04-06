@@ -3,15 +3,15 @@ Random Variables
 ----------------
 This tutorial describes how to create multivariate random variable objects.
 
-PyApprox primarily supports multivariate random variables comprised of
+PyApprox supports multivariate random variables comprised of
 independent univariate variables. Such variables can be defined from a list of
 scipy.stats variable objects. To create a Beta random variable defined on :math:`[0, 1]\times[1, 2]`
 """
-from pyapprox import IndependentRandomVariable
+from pyapprox.variables import IndependentMarginalsVariable
 from scipy import stats
-scipy_vars = [stats.beta(2, 3, loc=0, scale=1),
-              stats.beta(5, 2, loc=1, scale=1)]
-variable = IndependentRandomVariable(scipy_vars)
+marginals = [stats.beta(2, 3, loc=0, scale=1),
+             stats.beta(5, 2, loc=1, scale=1)]
+variable = IndependentMarginalsVariable(marginals)
 
 #%%
 #A summary of the random variable can be printed using
@@ -32,7 +32,7 @@ print(pdf_vals)
 #%%
 #Any statistics, supported by the univariate scipy.stats variables,
 #can be accessed for all 1D variabels using
-#:func:`pyapprox.variables.IndependentRandomVariable.get_statistics`
+#:func:`pyapprox.variables.IndependentMarginalsVariable.get_statistics`
 #For example,
 mean = variable.get_statistics("mean")
 variance = variable.get_statistics("var")
@@ -52,7 +52,8 @@ print("Variance", variance)
 #variables are unbounded then the range corresponding to a fraction of
 #the total probability will be used. See the documentation at
 #:func:`pyapprox.util.visualization.get_meshgrid_function_data_from_variable`
-from pyapprox import get_meshgrid_function_data_from_variable
+from pyapprox.analysis.visualize import (
+    get_meshgrid_function_data_from_variable)
 nplot_pts_1d = 50
 X, Y, Z = get_meshgrid_function_data_from_variable(
     variable.pdf, variable, nplot_pts_1d)
@@ -66,7 +67,31 @@ fig = plt.figure(figsize=(2*8, 6))
 ax0 = fig.add_subplot(1, 2, 1)
 ax0.plot(samples[0, :], samples[1, :], 'ro')
 ax0.contourf(
-    X, Y, Z, zdir='z', levels=np.linspace(Z.min(), Z.max(), ncontours))
+    X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontours))
+ax1 = fig.add_subplot(1, 2, 2, projection='3d')
+ax1.plot_surface(X, Y, Z)
+plt.show()
+
+
+#%%
+#We can also generate samples using Gaussian copulas. First specify the
+# marginals and the correlation between them
+from pyapprox.variables import GaussCopulaVariable
+marginals = [stats.beta(a=2, b=5), stats.beta(a=5, b=2)]
+x_correlation = np.array([[1, 0.9], [0.9, 1]])
+variable = GaussCopulaVariable(marginals, x_correlation)
+
+#%% To generate samples and plot the PDF use
+samples = variable.rvs(nsamples)
+nplot_pts_1d = 50
+X, Y, Z = get_meshgrid_function_data_from_variable(
+    variable.pdf, variable, nplot_pts_1d)
+ncontours = 20
+fig = plt.figure(figsize=(2*8, 6))
+ax0 = fig.add_subplot(1, 2, 1)
+ax0.plot(samples[0, :], samples[1, :], 'ro')
+ax0.contourf(
+    X, Y, Z, levels=np.linspace(Z.min(), Z.max(), ncontours))
 ax1 = fig.add_subplot(1, 2, 2, projection='3d')
 ax1.plot_surface(X, Y, Z)
 plt.show()

@@ -38,7 +38,7 @@ from pyapprox.util.utilities import hash_array
 from pyapprox.surrogates.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
 )
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     get_sparse_grid_univariate_leja_quadrature_rules_economical,
     variance_refinement_indicator, max_level_admissibility_function,
@@ -168,7 +168,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         poly = PolynomialChaosExpansion()
         univariate_variables = [
             stats.uniform(-1, 2), stats.beta(alpha_stat, beta_stat, -1, 2)]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         poly_opts = define_poly_options_from_variable_transformation(
@@ -260,7 +260,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         alpha_stat, beta_stat = 2, 2
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, -1, 2), stats.norm()]
-        variable = IndependentRandomVariable(univariate_variables)
+        variable = IndependentMarginalsVariable(univariate_variables)
         var_trans = AffineRandomVariableTransformation(variable)
 
         quad_rules, growth_rules, unique_quadrule_indices, \

@@ -7,7 +7,8 @@ import sympy as sp
 from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_jacobi_pts_wts_1D, gauss_hermite_pts_wts_1D,
     clenshaw_curtis_pts_wts_1D, leja_growth_rule,
-    constant_increment_growth_rule, gauss_quadrature
+    constant_increment_growth_rule, gauss_quadrature,
+    get_gauss_quadrature_rule_from_marginal
 )
 from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
 from pyapprox.variables.marginals import (
@@ -16,7 +17,9 @@ from pyapprox.variables.marginals import (
 from pyapprox.surrogates.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
     )
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import laguerre_recurrence
+from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+    laguerre_recurrence
+)
 
 
 class TestQuadrature(unittest.TestCase):
@@ -258,6 +261,41 @@ class TestQuadrature(unittest.TestCase):
         # print((function(x).dot(w)-true_mean**2, true_variance))
         assert x.min() >= 0
         assert np.allclose(function(x).dot(w)-true_mean**2, true_variance)
+
+    def test_get_univariate_quadrature_rule_from_marginal(self):
+        max_nsamples = 10
+        nsamples = 5
+        marginal = stats.uniform(0, 1)
+        canonical_quad_rule = get_gauss_quadrature_rule_from_marginal(
+            marginal, max_nsamples, True)
+        x, w = canonical_quad_rule(nsamples)
+        x_exact, w_exact = gauss_jacobi_pts_wts_1D(nsamples, 0, 0)
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
+
+        quad_rule = get_gauss_quadrature_rule_from_marginal(
+            marginal, max_nsamples, False)
+        x, w = quad_rule(nsamples)
+        x_exact = (x_exact+1)/2
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
+
+        max_nsamples = 10
+        nsamples = 5
+        marginal = stats.norm(1, 2)
+        canonical_quad_rule = get_gauss_quadrature_rule_from_marginal(
+            marginal, max_nsamples, True)
+        x, w = canonical_quad_rule(nsamples)
+        x_exact, w_exact = gauss_hermite_pts_wts_1D(nsamples)
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
+
+        quad_rule = get_gauss_quadrature_rule_from_marginal(
+            marginal, max_nsamples, False)
+        x, w = quad_rule(nsamples)
+        x_exact = 2*x_exact+1
+        assert np.allclose(x, x_exact)
+        assert np.allclose(w, w_exact)
 
 
 if __name__ == "__main__":

@@ -724,7 +724,7 @@ def get_AB_sample_sets_for_sobol_sensitivity_analysis(
             qmc_samples = sobol_sequence(2*nvars, nsamples, qmc_start_index)
         samplesA = qmc_samples[:nvars, :]
         samplesB = qmc_samples[nvars:, :]
-        for ii, rv in enumerate(variables.all_variables()):
+        for ii, rv in enumerate(variables.marginals()):
             lb, ub = rv.interval(1)
             # transformation is undefined at [0,1] for unbouned
             # random variables

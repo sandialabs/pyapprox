@@ -4,25 +4,32 @@ import numpy as np
 from functools import partial
 from scipy.special import factorial
 
-from pyapprox.variables.marginals import float_rv_discrete, \
-    IndependentRandomVariable
+from pyapprox.variables.marginals import float_rv_discrete
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import \
     AffineRandomVariableTransformation
-from pyapprox.surrogates.interp.barycentric_interpolation import \
-    compute_barycentric_weights_1d, equidistant_barycentric_weights, \
-    multivariate_barycentric_lagrange_interpolation, \
-    clenshaw_curtis_barycentric_weights, \
-    multivariate_hierarchical_barycentric_lagrange_interpolation, \
+from pyapprox.surrogates.interp.barycentric_interpolation import (
+    compute_barycentric_weights_1d, equidistant_barycentric_weights,
+    multivariate_barycentric_lagrange_interpolation,
+    clenshaw_curtis_barycentric_weights,
+    multivariate_hierarchical_barycentric_lagrange_interpolation,
     tensor_product_lagrange_interpolation
+)
 from pyapprox.util.utilities import cartesian_product
-from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_in_polynomial_order
-from pyapprox.surrogates.polychaos.gpc import PolynomialChaosExpansion, \
+from pyapprox.surrogates.orthopoly.quadrature import (
+    clenshaw_curtis_in_polynomial_order
+)
+from pyapprox.surrogates.polychaos.gpc import (
+    PolynomialChaosExpansion,
     define_poly_options_from_variable_transformation
-from pyapprox.surrogates.orthopoly.quadrature import \
-    gauss_hermite_pts_wts_1D, constant_increment_growth_rule, \
+)
+from pyapprox.surrogates.orthopoly.quadrature import (
+    gauss_hermite_pts_wts_1D, constant_increment_growth_rule,
     clenshaw_curtis_pts_wts_1D
-from pyapprox.surrogates.orthopoly.leja_quadrature import \
+)
+from pyapprox.surrogates.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
+)
 from pyapprox.util.utilities import nchoosek
 
 
@@ -33,7 +40,7 @@ def preconditioned_barycentric_weights():
     var1 = float_rv_discrete(
         name='float_rv_discrete', values=(xk, pk))()
     univariate_variables = [var1]
-    variable = IndependentRandomVariable(univariate_variables)
+    variable = IndependentMarginalsVariable(univariate_variables)
     var_trans = AffineRandomVariableTransformation(variable)
     growth_rule = partial(constant_increment_growth_rule, 2)
     quad_rule = get_univariate_leja_quadrature_rule(var1, growth_rule)

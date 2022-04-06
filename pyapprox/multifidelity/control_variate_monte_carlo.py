@@ -1590,7 +1590,7 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
     nmodels : integer
         The number of information sources
 
-    variable : :class:`pyapprox.variable.IndependentRandomVariable`
+    variable : :class:`pyapprox.variable.IndependentMarginalsVariable`
         Object defining the nvar uncertain random variables.
         Samples will be drawn from its joint density.
 

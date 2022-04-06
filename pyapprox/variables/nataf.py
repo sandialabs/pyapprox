@@ -1,8 +1,11 @@
 import numpy as np
 from scipy import stats
 from scipy.linalg import solve_triangular
+import matplotlib.pyplot as plt
+from functools import partial
 
 from pyapprox.util.utilities import scipy_gauss_hermite_pts_wts_1D
+from pyapprox.util.visualization import get_meshgrid_function_data
 
 
 def corrcoeffij(corrij, x_inv_cdfs,  x_means, x_stdevs, quad_rule):
@@ -222,11 +225,6 @@ def nataf_joint_density(x_samples, x_marginal_cdfs, x_marginal_pdfs,
 def plot_nataf_joint_density(x_marginal_cdfs, x_marginal_pdfs, z_correlation,
                              plot_limits, num_contour_levels=40,
                              num_samples_1d=100, show=True):
-    from functools import partial
-    import matplotlib.pyplot as plt
-    from matplotlib.cm import coolwarm
-    from PyDakota.plot_3d import get_meshgrid_function_data
-
     num_vars = len(x_marginal_cdfs)
     z_variable = stats.multivariate_normal(
         mean=np.zeros((num_vars)), cov=z_correlation)
@@ -237,12 +235,11 @@ def plot_nataf_joint_density(x_marginal_cdfs, x_marginal_pdfs, z_correlation,
         nataf_joint_density, x_marginal_cdfs=x_marginal_cdfs,
         x_marginal_pdfs=x_marginal_pdfs, z_joint_density=z_joint_density)
 
-    import matplotlib.pyplot as plt
     X, Y, Z = get_meshgrid_function_data(
         function, plot_limits, num_samples_1d)
     plt.contourf(
         X, Y, Z, levels=np.linspace(Z.min(), Z.max(), num_contour_levels),
-        cmap=coolwarm)
+        cmap="coolwarm")
     if show:
         plt.show()
 
@@ -257,7 +254,6 @@ def generate_x_samples_using_gaussian_copula(num_vars, z_correlation,
     x_samples = np.empty_like(u_samples)
     for ii in range(num_vars):
         x_samples[ii, :] = univariate_inv_cdfs[ii](z_samples[ii, :])
-    # import matplotlib.pyplot as plt
     # plt.plot(x_samples[0,:],x_samples[1,:],'sk')
     # plt.show()
     return x_samples, u_samples

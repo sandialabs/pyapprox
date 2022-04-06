@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.joint import IndependentMarginalsVariable
 
 
 def print_statistics(samples, values, sample_labels=None, value_labels=None):
@@ -75,8 +75,8 @@ def generate_independent_random_samples(variable, num_samples,
     samples : np.ndarray (num_vars, num_samples)
         Independent samples from the target distribution
     """
-    assert type(variable) == IndependentRandomVariable, \
-        "`variable` must be of IndependentRandomVariable type"
+    assert type(variable) == IndependentMarginalsVariable, \
+        "`variable` must be of IndependentMarginalsVariable type"
     return variable.rvs(num_samples, random_state)
 
 

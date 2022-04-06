@@ -7,7 +7,7 @@ from multiprocessing import Pool
 from abc import ABC, abstractmethod
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
-from pyapprox.variables.risk_measures import conditional_value_at_risk
+from pyapprox.variables.risk import conditional_value_at_risk
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
@@ -1577,7 +1577,7 @@ def run_bayesian_batch_deviation_oed(
     r"""
     Parameters
     ----------
-    prior_variable : pya.IndependentRandomVariable
+    prior_variable : pya.IndependentMarginalsVariable
         The prior variable consisting of independent univariate random
         variables
 

@@ -13,7 +13,7 @@ Lets first import the necessary modules and set the random seed to ensure the ex
       close-figs
 
    import numpy as np
-   from pyapprox.variables.marginals import IndependentRandomVariable
+   from pyapprox.variables.joint import IndependentMarginalsVariable
    from pyapprox.variables.transforms import \
    AffineRandomVariableTransformation
    from pyapprox.surrogates.polychaos.gpc import PolynomialChaosExpansion,\
@@ -39,7 +39,7 @@ Our goal is to demonstrate how to use a polynomial chaos expansion (PCE) to appr
       close-figs
 
    univariate_variables = [uniform(),beta(3,3)]
-   variable = IndependentRandomVariable(univariate_variables)
+   variable = IndependentMarginalsVariable(univariate_variables)
 
    c = np.random.uniform(0.,1.,variable.num_vars())
    c*=4/c.sum()

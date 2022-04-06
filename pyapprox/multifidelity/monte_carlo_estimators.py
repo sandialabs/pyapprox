@@ -50,7 +50,7 @@ class AbstractMonteCarloEstimator(ABC):
         costs : np.ndarray (nmodels)
             The relative costs of evaluating each model
 
-        variable : :class:`pyapprox.variables.IndependentRandomVariable`
+        variable : :class:`pyapprox.variables.IndependentMarginalsVariable`
             The uncertain model parameters
 
         sampling_method : string

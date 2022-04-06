@@ -121,9 +121,10 @@ class TestBenchmarks(unittest.TestCase):
     def test_genz_pickle(self):
         tmp_dir = tempfile.TemporaryDirectory()
         g = setup_benchmark("genz", nvars=2, test_name="oscillatory")
+        print(tmp_dir.name)
         with open(os.path.join(tmp_dir.name, 'function.pkl'), 'wb') as f:
             pickle.dump(g, f)
-        with open(os.path.join(tmp_dir.name, 'function.pkl')) as f:
+        with open(os.path.join(tmp_dir.name, 'function.pkl'), 'rb') as f:
             g1 = pickle.load(f)
         tmp_dir.cleanup()
 

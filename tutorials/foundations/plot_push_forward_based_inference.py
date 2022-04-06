@@ -105,7 +105,7 @@ model.qoi = np.array([1])
 univariate_variables = [
     uniform(lb, ub-lb)
     for lb, ub in zip(model.ranges[::2], model.ranges[1::2])]
-prior_variable = pya.IndependentRandomVariable(
+prior_variable = pya.IndependentMarginalsVariable(
     univariate_variables)
 
 

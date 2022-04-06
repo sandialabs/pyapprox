@@ -18,12 +18,10 @@ from pyapprox.surrogates.interp.indexing import (
     compute_hyperbolic_indices, compute_hyperbolic_level_indices
 )
 from pyapprox.variables.marginals import (
-    float_rv_discrete,
-    IndependentRandomVariable, get_probability_masses
+    float_rv_discrete, get_probability_masses
 )
-from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
-)
+from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
@@ -31,9 +29,13 @@ from pyapprox.variables.transforms import (
     define_iid_random_variable_transformation
 )
 from pyapprox.variables.density import tensor_product_pdf
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.interp.tensorprod import (
+    get_tensor_product_quadrature_rule
+)
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.surrogates.orthopoly.orthonormal_recursions import jacobi_recurrence
+from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
+    jacobi_recurrence
+)
 from pyapprox.surrogates.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
@@ -113,10 +115,10 @@ class TestInducedSampling(unittest.TestCase):
         #                2*get_distribution_info(var2)[2]['xk']-1]
         xk = np.array(
             [get_probability_masses(var)[0]
-             for var in var_trans.variable.all_variables()])
+             for var in var_trans.variable.marginals()])
         pk = np.array(
             [get_probability_masses(var)[1]
-             for var in var_trans.variable.all_variables()])
+             for var in var_trans.variable.marginals()])
         canonical_xk = var_trans.map_to_canonical_space(xk)
         basis_matrix_generator = partial(
             basis_matrix_generator_1d, pce, degree)
@@ -274,7 +276,7 @@ class TestInducedSampling(unittest.TestCase):
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentRandomVariable(
+            IndependentMarginalsVariable(
                 [stats.beta(alph, bet, -1, 2)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 
@@ -297,7 +299,7 @@ class TestInducedSampling(unittest.TestCase):
         bet = 5.
 
         var_trans = AffineRandomVariableTransformation(
-            IndependentRandomVariable(
+            IndependentMarginalsVariable(
                 [stats.beta(alph, bet, -1, 3)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 
