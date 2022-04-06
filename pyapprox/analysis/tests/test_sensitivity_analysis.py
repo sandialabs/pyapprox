@@ -18,15 +18,15 @@ from pyapprox.benchmarks.sensitivity_benchmarks import (
     ishigami_function, get_ishigami_funciton_statistics, sobol_g_function,
     get_sobol_g_function_statistics, morris_function
 )
-from pyapprox.approx.approximate import approximate, adaptive_approximate
-from pyapprox.interp.indexing import (
+from pyapprox.surrogates.approximate import approximate, adaptive_approximate
+from pyapprox.surrogates.interp.indexing import (
     compute_hyperbolic_indices, tensor_product_indices
 )
-from pyapprox.variables.variables import IndependentRandomVariable
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.polychaos.gpc import (
+from pyapprox.surrogates.polychaos.gpc import (
     define_poly_options_from_variable_transformation, PolynomialChaosExpansion,
     marginalize_polynomial_chaos_expansion
 )
@@ -263,7 +263,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             benchmark.fun, benchmark.variable.all_variables(),
             'sparse_grid', options).approx
 
-        from pyapprox.approx.approximate import compute_l2_error
+        from pyapprox.surrogates.approximate import compute_l2_error
         nsamples = 100
         error = compute_l2_error(
             approx, benchmark.fun, approx.variable_transformation.variable,
@@ -373,7 +373,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.approx.approximate import approximate
+        from pyapprox.surrogates.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
@@ -393,7 +393,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             train_samples, train_vals, 'gaussian_process', {
                 'nu': np.inf, 'normalize_y': True}).approx
 
-        from pyapprox.approx.approximate import compute_l2_error
+        from pyapprox.surrogates.approximate import compute_l2_error
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)
@@ -469,7 +469,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_analytic_sobol_indices_from_gaussian_process(self):
         from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.approx.approximate import approximate
+        from pyapprox.surrogates.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
@@ -483,7 +483,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 'nu': np.inf, 'normalize_y': True, 'alpha': 1e-10}).approx
 
         nsobol_samples = int(1e4)
-        from pyapprox.approx.approximate import compute_l2_error
+        from pyapprox.surrogates.approximate import compute_l2_error
         error = compute_l2_error(
             approx, benchmark.fun, benchmark.variable,
             nsobol_samples, rel=True)

@@ -6,7 +6,7 @@ import networkx as nx
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
-from pyapprox.variables.multivariate_gaussian import (
+from pyapprox.variables.gaussian import (
     joint_density_from_linear_conditional_relationship,
     convert_gaussian_to_canonical_form,
     convert_conditional_probability_density_to_canonical_form,

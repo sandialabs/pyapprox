@@ -20,7 +20,7 @@ from pyapprox.interface.wrappers import (
 )
 from scipy import stats
 from pyapprox import IndependentRandomVariable
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     ConfigureVariableTransformation
 )
 

@@ -12,21 +12,6 @@ from pyapprox.interface.file_io_model import FileIOModel
 max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
 
 
-def remove_files(filenames):
-    for filename in filenames:
-        os.remove(filename)
-
-
-def cleanup_fileiomodel_files():
-    """
-    Remove all the params.in and results.out files created by a test.
-    This function is only useful when not using work directories
-    """
-    filenames = glob.glob('params.in*')
-    filenames += glob.glob('results.out*')
-    remove_files(filenames)
-
-
 def check_model_values(model, target_function, num_vars, num_samples,
                        opts={}, ignore_nans=False, saved_data_basename=None):
     """
@@ -117,7 +102,6 @@ class TestAsyncModel(unittest.TestCase):
         r"""
         Clean up model input/output files if necessary (e.g.,
         due to test failure)."""
-        cleanup_fileiomodel_files()
 
     def test_file_io_model(self):
         """
@@ -126,7 +110,6 @@ class TestAsyncModel(unittest.TestCase):
         num_samples = 5
         model, target_function, num_vars = get_file_io_model()
         check_model_values(model, target_function, num_vars, num_samples)
-        cleanup_fileiomodel_files()
 
     def test_async_model(self):
         workdir_basename = self.tmp_dir.name
@@ -154,7 +137,7 @@ class TestAsyncModel(unittest.TestCase):
         model, target_function, num_vars = get_file_io_model(
             0.02, fault_percentage=10)
         shell_command = model.shell_command
-        saved_data_basename = 'saved-data'
+        saved_data_basename = os.path.join(self.tmp_dir.name, 'saved-data')
         model = AsynchronousEvaluationModel(
             shell_command, max_eval_concurrency=max_eval_concurrency,
             workdir_basename=workdir_basename,
@@ -165,7 +148,6 @@ class TestAsyncModel(unittest.TestCase):
             model, target_function, num_vars, num_samples, ignore_nans=True,
             saved_data_basename=saved_data_basename,
             opts={'verbosity': verbosity})
-        os.remove('saved-data-%d-%d.npz' % (0, num_samples))
 
         workdirs = glob.glob(workdir_basename+'.*')
         assert len(workdirs) == num_samples, \
@@ -246,19 +228,6 @@ class TestAsyncModel(unittest.TestCase):
         saved_data_basename = os.path.join(
             temp_dirname, saved_data_basename)
 
-        filenames = glob.glob(saved_data_basename+'*.npz')
-        remove_files(filenames)
-
-        # Set an alarm to raise an exception after predefined interval
-        # def timeout_handler(num, stack):
-        #     #print 'function exceeded time limit'
-        #     raise Exception('function exceeded time limit')
-
-        # duration=2
-        # import signal
-        # signal.signal(signal.SIGALRM, timeout_handler)
-        # signal.alarm(duration)
-
         num_samples = 3*max_eval_concurrency
         model, target_function, num_vars = get_file_io_model(
             0.02, fault_percentage=10)
@@ -278,7 +247,6 @@ class TestAsyncModel(unittest.TestCase):
 
         backup_files = glob.glob(saved_data_basename+'*')
         assert len(backup_files) == num_iters
-        remove_files(backup_files)
         temp_directory.cleanup()
 
 

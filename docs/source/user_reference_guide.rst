@@ -7,23 +7,23 @@ Surrogate modeling
 ------------------
 Supervised learning 
 ^^^^^^^^^^^^^^^^^^^
-The :func:`pyapprox.approx.approximate.approximate` function produces 
+The :func:`pyapprox.surrogates.approximate.approximate` function produces 
 response surface approximations from training data.
 
 The `approximate` function supports the following methods
 
-  - 'polynomial_chaos' See :func:`pyapprox.approx.approximate.approximate_polynomial_chaos`
-  - 'gaussian_process' See :func:`pyapprox.approx.approximate.approximate_gaussian_process`
+  - 'polynomial_chaos' See :func:`pyapprox.surrogates.approximate.approximate_polynomial_chaos`
+  - 'gaussian_process' See :func:`pyapprox.surrogates.approximate.approximate_gaussian_process`
 
 Supervised active learning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-The :func:`pyapprox.approx.approximate.adaptive_approximate` function produces adaptive
+The :func:`pyapprox.surrogates.approximate.adaptive_approximate` function produces adaptive
 response surface approximations of a function ``fun``, As the approximation is built the function being approximated is sampled at locations that greedily minimize an estimate of error.
 
 The `adaptive_approximate` function supports the following methods
 
-  - 'sparse_grid' See :func:`pyapprox.approx.approximate.adaptive_approximate_sparse_grid`
-  - 'polynomial_chaos' See :func:`pyapprox.approx.approximate.adaptive_approximate_polynomial_chaos`
+  - 'sparse_grid' See :func:`pyapprox.surrogates.approximate.adaptive_approximate_sparse_grid`
+  - 'polynomial_chaos' See :func:`pyapprox.surrogates.approximate.adaptive_approximate_polynomial_chaos`
 
 Sensitivity analysis
 --------------------
@@ -56,7 +56,7 @@ The following functions can be used to compute the mean and variance analyticall
 
   - 'sparse_grid'  See :func:`pyapprox.quadrature.compute_mean_and_variance_sparse_grid`
 
-  - 'polynomial_chaos' See :func:`pyapprox.polychaos.gpc.PolynomialChaosExpansion.mean` and :func:`pyapprox.polychaos.gpc.PolynomialChaosExpansion.variance`
+  - 'polynomial_chaos' See :func:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion.mean` and :func:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion.variance`
 
 .. Multi-fidelity Monte Carlo quadrature
 .. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

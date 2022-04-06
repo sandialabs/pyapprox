@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 from functools import partial
 
-from pyapprox.variables.variables import IndependentRandomVariable
+from pyapprox.variables.marginals import IndependentRandomVariable
 from pyapprox.multifidelity.control_variate_monte_carlo import (
     estimate_variance, allocate_samples_mlmc,
     get_discrepancy_covariances_MF, get_nsamples_per_model,
@@ -36,12 +36,12 @@ from pyapprox.util.utilities import (
     scipy_gauss_jacobi_pts_wts_1D, scipy_gauss_hermite_pts_wts_1D,
     approx_jacobian, get_correlation_from_covariance
 )
-from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 from pyapprox.interface.wrappers import ModelEnsemble
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
 

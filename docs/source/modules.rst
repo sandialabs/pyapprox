@@ -1,7 +1,7 @@
 Developer Reference Guide
 =========================
 
-.. automodapi:: pyapprox.approx.approximate
+.. automodapi:: pyapprox.surrogates.approximate
    :no-inheritance-diagram:
    
 
@@ -17,11 +17,11 @@ Developer Reference Guide
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.polychaos.gpc
+.. automodapi:: pyapprox.surrogates.polychaos.gpc
    :no-inheritance-diagram:
 
 
-.. automodapi:: pyapprox.orthopoly.quadrature
+.. automodapi:: pyapprox.surrogates.orthopoly.quadrature
    :no-inheritance-diagram:
 
 

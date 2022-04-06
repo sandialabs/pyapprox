@@ -2,13 +2,13 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.variables.variables import (
+from pyapprox.variables.marginals import (
     IndependentRandomVariable, float_rv_discrete
 )
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 

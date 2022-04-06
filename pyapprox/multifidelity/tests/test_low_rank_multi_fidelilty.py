@@ -7,13 +7,13 @@ from pyapprox.multifidelity.low_rank_multifidelity import (
     compute_mean_l2_error, BiFidelityModel,
     select_nodes, select_nodes_cholesky
 )
-from pyapprox.polychaos.gpc import (
+from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.interp.indexing import compute_hyperbolic_indices
+from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.util.linalg import get_pivot_matrix_from_vector
 
 

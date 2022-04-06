@@ -28,7 +28,7 @@ from pyapprox.benchmarks.genz import GenzFunction
 from pyapprox.variables.variables import (
     IndependentRandomVariable
 )
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     ConfigureVariableTransformation
 )
 from pyapprox.interface.wrappers import (

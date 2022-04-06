@@ -4,8 +4,8 @@ from functools import partial
 from scipy import stats
 
 from pyapprox.variables.density import NormalDensity
-from pyapprox.variables.probability_measure_sampling import rejection_sampling
-from pyapprox.variables.rosenblatt_transformation import (
+from pyapprox.variables.sampling import rejection_sampling
+from pyapprox.variables.rosenblatt import (
     invert_cdf, rosenblatt_transformation,
     marginalized_cumulative_distribution_function, marginal_pdf,
     inverse_rosenblatt_transformation, combine_samples_with_fixed_data

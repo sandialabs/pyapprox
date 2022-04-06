@@ -4,8 +4,8 @@ from scipy.optimize import linprog as scipy_linprog
 from scipy.spatial import ConvexHull
 from scipy import stats
 
-from pyapprox.variables.variable_transformations import map_hypercube_samples
-from pyapprox.interp.manipulate_polynomials import (
+from pyapprox.variables.transforms import map_hypercube_samples
+from pyapprox.surrogates.interp.manipulate_polynomials import (
     multiply_multivariate_polynomials,
     coeffs_of_power_of_nd_linear_monomial,
 )

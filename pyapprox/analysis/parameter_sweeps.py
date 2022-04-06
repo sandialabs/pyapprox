@@ -2,8 +2,8 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from pyapprox.variables.variables import get_truncated_ranges
-from pyapprox.variables.variable_transformations import map_hypercube_samples
+from pyapprox.variables.marginals import get_truncated_ranges
+from pyapprox.variables.transforms import map_hypercube_samples
 from pyapprox.variables.density import map_from_canonical_gaussian
 
 

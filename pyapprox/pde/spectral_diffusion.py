@@ -8,13 +8,13 @@ from pyapprox.util.utilities import (
     cartesian_product, outer_product
 )
 from pyapprox.util.linalg import qr_solve
-from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
-from pyapprox.interp.barycentric_interpolation import (
+from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
 )
-from pyapprox.variables.variable_transformations import map_hypercube_samples
+from pyapprox.variables.transforms import map_hypercube_samples
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )

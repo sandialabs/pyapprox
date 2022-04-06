@@ -54,11 +54,11 @@ import numpy as np
 import matplotlib as mpl
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
-from pyapprox.interp.barycentric_interpolation import (
+from pyapprox.surrogates.interp.barycentric_interpolation import (
     plot_tensor_product_lagrange_basis_2d,
     tensor_product_barycentric_lagrange_interpolation)
-from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.orthopoly.quadrature import (
+from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.orthopoly.quadrature import (
     clenshaw_curtis_pts_wts_1D, clenshaw_curtis_rule_growth)
 
 quad_rule = clenshaw_curtis_pts_wts_1D

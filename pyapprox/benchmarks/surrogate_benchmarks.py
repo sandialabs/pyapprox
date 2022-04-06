@@ -4,7 +4,7 @@ from scipy.optimize import rosen, rosen_der, rosen_hess_prod
 from scipy import integrate
 
 from pyapprox.util.pya_numba import njit
-from pyapprox.variables.variables import (
+from pyapprox.variables.marginals import (
     IndependentRandomVariable, DesignVariable
 )
 from pyapprox.interface.wrappers import (

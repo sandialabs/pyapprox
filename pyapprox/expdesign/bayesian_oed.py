@@ -8,20 +8,20 @@ from abc import ABC, abstractmethod
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
 from pyapprox.variables.risk_measures import conditional_value_at_risk
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.interp.tensorprod import (
+from pyapprox.surrogates.interp.tensorprod import (
     get_tensor_product_quadrature_rule,
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )
-from pyapprox.polychaos.gpc import (
+from pyapprox.surrogates.polychaos.gpc import (
     get_univariate_quadrature_rules_from_variable
 )
-from pyapprox.interp.barycentric_interpolation import (
+from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,
     multivariate_barycentric_lagrange_interpolation
 )

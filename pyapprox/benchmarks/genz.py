@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 
 from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
-from pyapprox.variables.random_variable_algebra import (
+from pyapprox.variables.algebra import (
     get_pdf_from_monomial_expansion, sum_of_independent_random_variables_pdf
 )
 

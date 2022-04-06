@@ -2,23 +2,23 @@ import unittest
 from scipy import stats
 import numpy as np
 
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     map_hypercube_samples, AffineRandomVariableTransformation,
     RosenblattTransformation,
     NatafTransformation, define_iid_random_variable_transformation,
     TransformationComposition, UniformMarginalTransformation
 )
-from pyapprox.variables.variables import (
+from pyapprox.variables.marginals import (
     IndependentRandomVariable, float_rv_discrete
 )
 from pyapprox.variables.tests.test_rosenblatt_transformation import (
     rosenblatt_example_2d
 )
-from pyapprox.variables.nataf_transformation import (
+from pyapprox.variables.nataf import (
     gaussian_copula_compute_x_correlation_from_z_correlation,
     generate_x_samples_using_gaussian_copula, correlation_to_covariance
 )
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 

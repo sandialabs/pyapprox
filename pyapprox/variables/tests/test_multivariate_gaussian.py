@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from pyapprox.variables.multivariate_gaussian import (
+from pyapprox.variables.gaussian import (
     compute_gaussian_pdf_canonical_form_normalization,
     GaussianFactor, condition_gaussian_on_data,
     convert_gaussian_to_canonical_form, condition_gaussian_in_canonical_form,

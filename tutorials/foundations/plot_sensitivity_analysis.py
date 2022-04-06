@@ -41,7 +41,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyapprox as pya
 from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.approx.approximate import approximate
+from pyapprox.surrogates.approximate import approximate
 benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
 num_samples = 1000

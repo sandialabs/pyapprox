@@ -3,7 +3,7 @@ import numpy as np
 from scipy import stats
 from warnings import warn
 
-from pyapprox.variables.variables import (
+from pyapprox.variables.marginals import (
     get_distribution_info,
     define_iid_random_variables, IndependentRandomVariable,
     float_rv_discrete, variables_equivalent, get_pdf

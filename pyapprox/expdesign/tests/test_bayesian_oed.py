@@ -18,11 +18,11 @@ from pyapprox.expdesign.bayesian_oed import (
     sequential_oed_synthetic_observation_process,
     gaussian_noise_fun, get_bayesian_oed_optimizer
 )
-from pyapprox.variables.variables import IndependentRandomVariable
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.variables.marginals import IndependentRandomVariable
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
-from pyapprox.orthopoly.quadrature import (
+from pyapprox.surrogates.orthopoly.quadrature import (
     gauss_hermite_pts_wts_1D
 )
 from pyapprox.bayes.laplace import (
@@ -37,18 +37,18 @@ from pyapprox.variables.tests.test_risk_measures import (
     get_lognormal_example_exact_quantities
 )
 from pyapprox.bayes.laplace import laplace_evidence
-from pyapprox.variables.variable_transformations import (
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
 )
-from pyapprox.interp.tensorprod import piecewise_univariate_linear_quad_rule
-from pyapprox.variables.random_variable_algebra import (
+from pyapprox.surrogates.interp.tensorprod import piecewise_univariate_linear_quad_rule
+from pyapprox.variables.algebra import (
     weighted_sum_dependent_gaussian_variables
 )
-from pyapprox.interp.indexing import compute_hyperbolic_indices
-from pyapprox.interp.monomial import monomial_basis_matrix
+from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
+from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
 
 import warnings
 warnings.filterwarnings('error')

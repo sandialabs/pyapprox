@@ -9,7 +9,7 @@ from pyapprox.pde.spectral_diffusion import (
     SteadyStateAdvectionDiffusionEquation2D,
     TransientAdvectionDiffusionEquation2D
 )
-from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.util.utilities import check_gradients
 
 

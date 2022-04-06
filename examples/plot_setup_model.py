@@ -12,7 +12,7 @@ from scipy import stats
 from pyapprox.interface.wrappers import (
     TimerModelWrapper, WorkTrackingModel, PoolModel,
     evaluate_1darray_function_on_2d_array, ModelEnsemble)
-from pyapprox.variables.variables import IndependentRandomVariable
+from pyapprox.variables.marginals import IndependentRandomVariable
 from pyapprox.benchmarks.benchmarks import setup_benchmark
 
 

@@ -4,8 +4,8 @@ from scipy.stats import norm, uniform
 
 import pyapprox as pya
 from pyapprox.variables.variables import IndependentRandomVariable
-from pyapprox.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.bayes.laplace import \
     laplace_posterior_approximation_for_linear_models
 

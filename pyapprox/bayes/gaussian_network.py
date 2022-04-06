@@ -3,14 +3,14 @@ import networkx as nx
 import copy
 import itertools
 
-from pyapprox.polychaos.gpc import (
+from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
-from pyapprox.interp.indexing import compute_hyperbolic_indices
-from pyapprox.variables.variable_transformations import (
+from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
+from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
-from pyapprox.variables.multivariate_gaussian import (
+from pyapprox.variables.gaussian import (
     convert_conditional_probability_density_to_canonical_form, GaussianFactor,
     compute_gaussian_pdf_canonical_form_normalization,
     convert_gaussian_from_canonical_form

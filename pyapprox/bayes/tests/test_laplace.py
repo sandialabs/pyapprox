@@ -11,7 +11,7 @@ from pyapprox.util.randomized_svd import (
     randomized_svd, MatVecOperator, adjust_sign_svd, svd_using_orthogonal_basis
 )
 from pyapprox.variables.tests.test_density import check_gradient
-from pyapprox.variables.multivariate_gaussian import MultivariateGaussian,\
+from pyapprox.variables.gaussian import MultivariateGaussian,\
     CholeskySqrtCovarianceOperator, CovarianceOperator, get_operator_diagonal
 from pyapprox.interface.wrappers import evaluate_1darray_function_on_2d_array
 from pyapprox.bayes.laplace import (

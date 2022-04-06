@@ -3,10 +3,10 @@ from scipy import stats
 
 from pyapprox.util.utilities import get_meshgrid_samples
 from pyapprox.configure_plots import plt
-from pyapprox.variables.variables import (
+from pyapprox.variables.marginals import (
     get_truncated_range, get_truncated_ranges
 )
-from pyapprox.interp.indexing import compute_anova_level_indices
+from pyapprox.surrogates.interp.indexing import compute_anova_level_indices
 
 
 def plot_qoi_marginals(values):
@@ -205,7 +205,7 @@ def plot_discrete_distribution_surface_2d(rv1, rv2, ax=None):
     """
     from matplotlib import cm
     from pyapprox.util.utilities import cartesian_product, outer_product
-    from pyapprox.variables.variables import get_probability_masses
+    from pyapprox.variables.marginals import get_probability_masses
 
     if ax is None:
         fig = plt.figure(figsize=(8, 6))
@@ -239,7 +239,7 @@ def plot_discrete_distribution_heatmap_2d(rv1, rv2, ax=None, zero_tol=1e-4):
     """
     import copy
     from pyapprox.util.utilities import outer_product
-    from pyapprox.variables.variables import get_probability_masses
+    from pyapprox.variables.marginals import get_probability_masses
 
     if ax is None:
         fig = plt.figure(figsize=(8, 6))

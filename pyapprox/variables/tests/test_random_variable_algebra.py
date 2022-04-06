@@ -4,7 +4,7 @@ from scipy import stats
 from scipy.special import factorial, kn as modified_bessel_2nd_kind, erf
 import numpy as np
 
-from pyapprox.variables.random_variable_algebra import (
+from pyapprox.variables.algebra import (
     sum_of_independent_random_variables_pdf, get_inverse_derivatives,
     scalar_multiple_of_random_variable, power_of_random_variable_pdf,
     get_global_maxima_and_minima_of_monomial_expansion,
@@ -14,11 +14,11 @@ from pyapprox.variables.random_variable_algebra import (
     product_of_independent_random_variables_pdf,
     weighted_sum_dependent_gaussian_variables
 )
-from pyapprox.variables.nataf_transformation import (
+from pyapprox.variables.nataf import (
     scipy_gauss_hermite_pts_wts_1D
 )
 
-# from pyapprox.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
+# from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 
 
 class TestRandomVariableAlgebra(unittest.TestCase):

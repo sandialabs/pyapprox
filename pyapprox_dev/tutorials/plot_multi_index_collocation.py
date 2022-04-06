@@ -101,7 +101,7 @@ variable = benchmark.variable
 
 #%%
 #First define the levels of the multi-level model we will use. Will will skip level 0 and use levels 1,2, and 3. Thus we must define a transformation that converts the sparse grid indices starting at 0 to these levels. We can do this with
-from pyapprox.interp.adaptive_sparse_grid import ConfigureVariableTransformation
+from pyapprox.surrogates.interp.adaptive_sparse_grid import ConfigureVariableTransformation
 level_indices = [[1,2,3,4]]
 config_var_trans = ConfigureVariableTransformation(level_indices)
 
@@ -198,7 +198,7 @@ variable = benchmark.variable
 #%%
 #Again we define the ConfigureVariableTransformation and define the appropriate options. Notice the different in max_level_1d. (print it; it should be longer than the single fidelity and multi-level versions)
 
-from pyapprox.interp.adaptive_sparse_grid import ConfigureVariableTransformation
+from pyapprox.surrogates.interp.adaptive_sparse_grid import ConfigureVariableTransformation
 level_indices = multi_level_indices*3
 config_var_trans = ConfigureVariableTransformation(level_indices)
 

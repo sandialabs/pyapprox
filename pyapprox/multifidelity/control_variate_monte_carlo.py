@@ -11,7 +11,7 @@ from itertools import product
 import copy
 
 
-from pyapprox.variables.probability_measure_sampling import (
+from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 from pyapprox.util.utilities import get_all_sample_combinations
