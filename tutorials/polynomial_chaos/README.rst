@@ -1,2 +1,0 @@
-Polynomial Chaos Expansions
----------------------------
