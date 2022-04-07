@@ -18,7 +18,7 @@ from pyapprox.variables.risk import (
     gaussian_cvar, lognormal_kl_divergence, gaussian_kl_divergence,
     compute_f_divergence
     )
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.marginals import get_distribution_info
 from pyapprox.variables.nataf import (
     scipy_gauss_hermite_pts_wts_1D

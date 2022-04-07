@@ -2,11 +2,11 @@ import numpy as np
 import unittest
 from functools import partial
 
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.interp.tensorprod import (
     piecewise_quadratic_interpolation,
-    get_tensor_product_piecewise_polynomial_quadrature_rule,
     canonical_piecewise_quadratic_interpolation,
-    get_tensor_product_quadrature_rule,
+    get_tensor_product_piecewise_polynomial_quadrature_rule,
     tensor_product_piecewise_polynomial_interpolation
 )
 

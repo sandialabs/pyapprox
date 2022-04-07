@@ -1135,7 +1135,38 @@ def scipy_gauss_hermite_pts_wts_1D(nn):
     return x, w
 
 
-def scipy_gauss_jacobi_pts_wts_1D(nn):
+def scipy_gauss_legendre_pts_wts_1D(nn):
     x, w = np.polynomial.legendre.leggauss(nn)
     w *= 0.5
     return x, w
+
+
+def get_tensor_product_quadrature_rule(
+        nsamples, num_vars, univariate_quadrature_rules,
+        transform_samples=None, density_function=None):
+    r"""
+    if get error about outer product failing it may be because
+    univariate_quadrature rule is returning a weights array for every level,
+    i.e. l=0,...level
+    """
+    nsamples = np.atleast_1d(nsamples)
+    if nsamples.shape[0] == 1 and num_vars > 1:
+        nsamples = np.array([nsamples[0]]*num_vars, dtype=int)
+
+    if callable(univariate_quadrature_rules):
+        univariate_quadrature_rules = [univariate_quadrature_rules]*num_vars
+
+    x_1d = []
+    w_1d = []
+    for ii in range(len(univariate_quadrature_rules)):
+        x, w = univariate_quadrature_rules[ii](nsamples[ii])
+        x_1d.append(x)
+        w_1d.append(w)
+    samples = cartesian_product(x_1d, 1)
+    weights = outer_product(w_1d)
+
+    if density_function is not None:
+        weights *= density_function(samples)
+    if transform_samples is not None:
+        samples = transform_samples(samples)
+    return samples, weights

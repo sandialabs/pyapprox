@@ -10,6 +10,7 @@ from pyapprox.variables.joint import (
 from pyapprox.interface.wrappers import (
     evaluate_1darray_function_on_2d_array
 )
+from pyapprox.pde.spectral_diffusion import zeros_fun_axis_1
 
 
 def rosenbrock_function(samples):
@@ -730,3 +731,70 @@ class SpectralPDEMultiIndexWrapper(object):
     def __call__(self, samples):
         return evaluate_1darray_function_on_2d_array(
             self.value, samples, None)
+
+
+class ParameterizedNonlinearModel(object):
+    def __init__(self):
+        self.qoi = 1
+        self.ranges = np.array(
+            [0.79, 0.99, 1-4.5*np.sqrt(0.1), 1+4.5*np.sqrt(0.1)],
+            np.double)
+
+    def num_qoi(self):
+        if np.isscalar(self.qoi):
+            return 1
+        else:
+            return len(self.qoi)
+
+    def evaluate(self, samples):
+        assert samples.ndim == 1
+        assert samples.ndim == 1
+
+        sol = np.ones((2), float)
+
+        x1 = samples[0]
+        x2 = samples[1]
+        u1 = sol[0]
+        u2 = sol[1]
+
+        res1 = 1.-(x1*u1*u1+u2*u2)
+        res2 = 1.-(u1*u1-x2*u2*u2)
+
+        norm_res = np.sqrt(res1*res1 + res2*res2)
+
+        it = 0
+        max_iters = 20
+        while (norm_res > 1e-10) and (it < max_iters):
+            det = -4*u1*u2*(x1*x2+1.0)
+            j11i = -2.0*x2*u2 / det
+            j12i = -2.0*u2 / det
+            j21i = -2.0*u1 / det
+            j22i = 2*x1*u1 / det
+
+            du1 = j11i*res1 + j12i*res2
+            du2 = j21i*res1 + j22i*res2
+
+            u1 += du1
+            u2 += du2
+
+            res1 = 1.-(x1*u1*u1+u2*u2)
+            res2 = 1.-(u1*u1-x2*u2*u2)
+
+            norm_res = np.sqrt(res1*res1 + res2*res2)
+            it += 1
+
+        sol[0] = u1
+        sol[1] = u2
+
+        if np.isscalar(self.qoi):
+            values = np.array([sol[self.qoi]])
+        else:
+            values = sol[self.qoi]
+        return values
+
+    def __call__(self, samples):
+        num_samples = samples.shape[1]
+        values = np.empty((num_samples, self.num_qoi()), float)
+        for i in range(samples.shape[1]):
+            values[i, :] = self.evaluate(samples[:, i])
+        return values

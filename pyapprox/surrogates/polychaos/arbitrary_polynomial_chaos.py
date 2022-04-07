@@ -1,7 +1,9 @@
 from functools import partial
 import numpy as np
 
-from pyapprox.surrogates.interp.sparse_grid import get_sparse_grid_samples_and_weights
+from pyapprox.surrogates.interp.sparse_grid import (
+    get_sparse_grid_samples_and_weights
+)                                                   
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
     max_level_admissibility_function, variance_refinement_indicator,
@@ -11,7 +13,7 @@ from pyapprox.surrogates.interp.adaptive_sparse_grid import (
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, evaluate_multivariate_orthonormal_polynomial
 )
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.interp.indexing import set_difference
 from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
 

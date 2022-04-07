@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+import os
 import numpy as np
 from functools import partial
 from itertools import combinations
+import copy
 
 from pyapprox.util.utilities import get_correlation_from_covariance
+from pyapprox.util.configure_plots import mathrm_label
 from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, halton_sequence
 )
@@ -558,6 +561,14 @@ class AbstractACVEstimator(AbstractMonteCarloEstimator):
             partition_indices_per_model)
         return acv_samples, acv_values
 
+    def estimate_from_values_per_model(self, values_per_model,
+                                       partition_indices_per_model):
+        reorder_allocation_mat = self._get_reordered_sample_allocation_matrix()
+        acv_values = separate_model_values_acv(
+            reorder_allocation_mat, values_per_model,
+            partition_indices_per_model)
+        return self(acv_values)
+
     @abstractmethod
     def _get_approximate_control_variate_weights(self):
         """
@@ -762,8 +773,14 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
             self._get_npartition_samples, self.cov, self.recursion_index,
             nsample_ratios)
 
-    def _get_rsquared(self, cov, nsample_ratios):
-        raise NotImplementedError()
+    def _get_rsquared(self, cov, nsample_ratios, target_cost):
+        nsamples_per_model = get_nsamples_per_model(
+            target_cost, self.costs, nsample_ratios, False)
+        weights, cf = get_generalized_approximate_control_variate_weights(
+            self.allocation_mat, nsamples_per_model,
+            self._get_npartition_samples, self.cov, self.recursion_index)
+        rsquared = -cf.dot(weights)/cov[0, 0]
+        return rsquared
 
     def _get_approximate_control_variate_weights(self):
         return get_generalized_approximate_control_variate_weights(
@@ -781,21 +798,20 @@ class ACVGMFBEstimator(ACVGMFEstimator):
         best_result = None
         for index in get_acv_recursion_indices(self.nmodels):
             self.set_recursion_index(index)
-            print(index)
+            # print(index, target_cost)
             try:
                 super().allocate_samples(target_cost)
             except RuntimeError:
                 # typically solver failes because trying to use
                 # uniformative model as a recursive control variate
                 self.optimized_variance = np.inf
-            print(self.optimized_variance, best_variance)
             if self.optimized_variance < best_variance:
                 best_result = [self.nsample_ratios, self.rounded_target_cost,
                                self.optimized_variance, index]
                 best_variance = self.optimized_variance
         self.set_recursion_index(best_result[3])
         self.set_optimized_params(*best_result[:3])
-        print("Best", self.recursion_index)
+        # print("Best", self.recursion_index)
 
 
 class ACVMFEstimator(AbstractNumericalACVEstimator):
@@ -907,3 +923,270 @@ def get_best_models_for_acv_estimator(
                 best_model_indices = idx
                 best_variance = est.optimized_variance
     return best_est, best_model_indices
+
+
+def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
+        target_cost, nsample_ratios, estimator,
+        model_ensemble, seed):
+    r"""
+    Compute the approximate control variate estimate of a high-fidelity
+    model from using it and a set of lower fidelity models.
+    Also compute the single fidelity Monte Carlo estimate of the mean from
+    only the high-fidelity data.
+
+    Notes
+    -----
+    To create reproducible results when running numpy.random in parallel
+    must use RandomState. If not the results will be non-deterministic.
+    This is happens because of a race condition. numpy.random.* uses only
+    one global PRNG that is shared across all the threads without
+    synchronization. Since the threads are running in parallel, at the same
+    time, and their access to this global PRNG is not synchronized between
+    them, they are all racing to access the PRNG state (so that the PRNG's
+    state might change behind other threads' backs). Giving each thread its
+    own PRNG (RandomState) solves this problem because there is no longer
+    any state that's shared by multiple threads without synchronization.
+    Also see new features
+    https://docs.scipy.org/doc/numpy/reference/random/parallel.html
+    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
+    """
+    random_state = np.random.RandomState(seed)
+    estimator.set_random_state(random_state)
+    samples, values = estimator.generate_data(model_ensemble)
+    # compute mean using only hf daa
+    hf_mean = values[0][1].mean()
+    # compute ACV mean
+    acv_mean = estimator(values)
+    return hf_mean, acv_mean
+
+
+def estimate_variance(model_ensemble, estimator, target_cost,
+                      ntrials=1e3, nsample_ratios=None, max_eval_concurrency=1):
+    r"""
+    Numerically estimate the variance of an approximate control variate
+    estimator.
+
+    Parameters
+    ----------
+    model_ensemble: :class:`pyapprox.interface.wrappers.ModelEnsemble`
+        Model that takes random samples and model id as input
+
+    estimator : :class:`pyapprox.multifidelity.monte_carlo_estimators.AbstractMonteCarloEstimator`
+        A Monte Carlo like estimator for computing sample based statistics
+
+    target_cost : float
+        The total cost budget
+
+    ntrials : integer
+        The number of times to compute estimator using different randomly
+        generated set of samples
+
+    nsample_ratios : np.ndarray (nmodels-1, dtype=int)
+            The sample ratios r used to specify the number of samples of the
+            lower fidelity models, e.g. N_i = r_i*nhf_samples,
+            i=1,...,nmodels-1. For model i>0 nsample_ratio*nhf_samples equals
+            the number of samples in the two different discrepancies involving
+            the ith model.
+
+            If not provided nsample_ratios will be optimized based on target
+            cost
+
+    max_eval_concurrency : integer
+        The number of processors used to compute realizations of the estimators
+        which can be run independently and in parallel.
+
+    Returns
+    -------
+    means : np.ndarray (ntrials, 2)
+        The high-fidelity and estimator means for each trial
+
+    numerical_var : float
+        The variance computed numerically from the trials
+
+    true_var : float
+        The variance computed analytically
+    """
+    if nsample_ratios is None:
+        nsample_ratios, variance, rounded_target_cost = \
+            estimator.allocate_samples(target_cost)
+    else:
+        rounded_target_cost = target_cost
+        estimator.set_optimized_params(
+            nsample_ratios, rounded_target_cost, None)
+
+    ntrials = int(ntrials)
+    from multiprocessing import Pool
+    func = partial(
+        compute_single_fidelity_and_approximate_control_variate_mean_estimates,
+        rounded_target_cost, nsample_ratios, estimator, model_ensemble)
+    if max_eval_concurrency > 1:
+        assert int(os.environ['OMP_NUM_THREADS']) == 1
+        pool = Pool(max_eval_concurrency)
+        means = np.asarray(pool.map(func, [ii for ii in range(ntrials)]))
+        pool.close()
+    else:
+        means = np.empty((ntrials, 2))
+        for ii in range(ntrials):
+            means[ii, :] = func(ii)
+
+    numerical_var = means[:, 1].var(axis=0)
+    true_var = estimator.get_variance(
+        estimator.rounded_target_cost, estimator.nsample_ratios)
+    return means, numerical_var, true_var
+
+
+def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
+    """
+    Approximate the variance of the Monte Carlo estimate of the mean using
+    bootstraping
+
+    Parameters
+    ----------
+    values : np.ndarry (nsamples, 1)
+        The values used to compute the mean
+
+    nbootstraps : integer
+        The number of boostraps used to compute estimator variance
+
+    verbose:
+        If True print the estimator mean and +/- 2 standard deviation interval
+
+    Returns
+    -------
+    bootstrap_mean : float
+        The bootstrap estimate of the estimator mean
+
+    bootstrap_variance : float
+        The bootstrap estimate of the estimator variance
+    """
+    values = values.squeeze()
+    assert values.ndim == 1
+    nsamples = values.shape[0]
+    bootstrap_values = np.random.choice(
+        values, size=(nsamples, nbootstraps), replace=True)
+    bootstrap_means = bootstrap_values.mean(axis=0)
+    bootstrap_mean = bootstrap_means.mean()
+    bootstrap_variance = np.var(bootstrap_means)
+    if verbose:
+        print('No. samples', values.shape[0])
+        print('Mean', bootstrap_mean)
+        print('Mean +/- 2 sigma', [bootstrap_mean-2*np.sqrt(
+            bootstrap_variance), bootstrap_mean+2*np.sqrt(bootstrap_variance)])
+
+    return bootstrap_mean, bootstrap_variance
+
+
+def compare_estimator_variances(target_costs, estimators):
+    """
+    Compute the variances of different Monte-Carlo like estimators.
+
+    Parameters
+    ----------
+    target_costs : np.ndarray (ntarget_costs)
+        Different total cost budgets
+
+    estimators : list (nestimators)
+        List of Monte Carlo estimator objects, e.g.
+        :class:`pyapprox.multifidelity.control_variate_monte_carlo.MC`
+
+    Returns
+    -------
+        optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+    """
+    optimized_estimators = []
+    for est in estimators:
+        est_copies = []
+        for target_cost in target_costs:
+            est_copy = copy.deepcopy(est)
+            est_copy.allocate_samples(target_cost)
+            est_copies.append(est_copy)
+        optimized_estimators.append(est_copies)
+    return optimized_estimators
+
+
+def plot_estimator_variances(optimized_estimators,
+                             est_labels, ax, ylabel=None):
+    """
+    Plot variance as a function of the total cost for a set of estimators.
+
+    Parameters
+    ----------
+    optimized_estimators : list
+         Each entry is a list of optimized estimators for a set of target costs
+
+    est_labels : list (nestimators)
+        String used to label each estimator
+    """
+    linestyles = ['-', '--', ':', '-.', (0, (5, 10))]
+    nestimators = len(est_labels)
+    for ii in range(nestimators):
+        est_total_costs = np.array(
+            [est.rounded_target_cost for est in optimized_estimators[ii]])
+        est_variances = np.array(
+            [est.optimized_variance for est in optimized_estimators[ii]])
+        ax.loglog(est_total_costs, est_variances, label=est_labels[ii],
+                  ls=linestyles[ii], marker='o')
+    if ylabel is None:
+        ylabel = r'$\mathrm{Estimator\;Variance}$'
+    ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
+    ax.set_ylabel(ylabel)
+    ax.legend()
+
+
+def plot_acv_sample_allocation_comparison(
+        estimators, model_labels, ax):
+    """
+    Plot the number of samples allocated to each model for a set of estimators
+
+    Parameters
+    ----------
+    estimators : list
+       Each entry is a MonteCarlo like estimator
+
+    model_labels : list (nestimators)
+        String used to label each estimator
+    """
+    def autolabel(ax, rects, model_labels):
+        # Attach a text label in each bar in *rects*
+        for rect, label in zip(rects, model_labels):
+            rect = rect[0]
+            ax.annotate(label,
+                        xy=(rect.get_x() + rect.get_width()/2,
+                            rect.get_y() + rect.get_height()/2),
+                        xytext=(0, -10),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+
+    nestimators = len(estimators)
+    xlocs = np.arange(nestimators)
+
+    from matplotlib.pyplot import cm
+    for jj, est in enumerate(estimators):
+        cnt = 0
+        # warning currently colors will not match if estimators use different
+        # models
+        colors = cm.rainbow(np.linspace(0, 1, est.nmodels))
+        rects = []
+        for ii in range(est.nmodels):
+            if jj == 0:
+                label = model_labels[ii]
+            else:
+                label = None
+            cost_ratio = (est.costs[ii]*est.nsamples_per_model[ii] /
+                          est.rounded_target_cost)
+            rect = ax.bar(
+                xlocs[jj:jj+1], cost_ratio, bottom=cnt, edgecolor='white',
+                label=label, color=colors[ii])
+            rects.append(rect)
+            cnt += cost_ratio
+        autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
+                              for ii in range(est.nmodels)])
+    ax.set_xticks(xlocs)
+    ax.set_xticklabels(
+        ['$%f$' % est.rounded_target_cost for est in estimators])
+    ax.set_xlabel(mathrm_label("Total cost"))
+    # / $N_\alpha$')
+    ax.set_ylabel(
+        mathrm_label("Precentage of total cost"))
+    ax.legend(loc=[0.925, 0.25])

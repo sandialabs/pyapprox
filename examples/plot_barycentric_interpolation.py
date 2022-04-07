@@ -21,9 +21,9 @@ from pyapprox import variables
 from pyapprox import util
 
 degree = 10
-scipy_vars = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
+marginals = [stats.uniform(-1, 2), stats.uniform(-1, 2)]
 grid_samples_1d = [surrogates.get_gauss_quadrature_rule_from_marginal(
-    rv, degree+1)(degree+1)[0] for rv in scipy_vars]
+    rv, degree+1)(degree+1)[0] for rv in marginals]
 
 
 #%%
@@ -40,8 +40,7 @@ def fun(samples):
 interp_fun = partial(
     surrogates.tensor_product_barycentric_lagrange_interpolation,
     grid_samples_1d, fun)
-
-variable = variables.IndependentMarginalsVariable(scipy_vars)
+variable = variables.IndependentMarginalsVariable(marginals)
 X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
     interp_fun, variable, 50)
 fig, ax = plt.subplots(1, 1, figsize=(8, 6))

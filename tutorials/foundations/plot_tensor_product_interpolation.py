@@ -1,9 +1,9 @@
 r"""
-Surrogate Modeling
-==================
-Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures. 
+Tensor-product Barycentric Interpolation
+========================================
+Many simulation models are extremely computationally expensive such that adequately understanding their behaviour and quantifying uncertainty can be computationally intractable for any of the aforementioned techniques. Various methods have been developed to produce surrogates of the model response to uncertain parameters, the most efficient are goal-oriented in nature and target very specific uncertainty measures.
 
-Generally speaking surrogates are built using a "small" number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) [XKSISC2002]_, Gaussian processes (GP) [RWMIT2006]_, and sparse grids (SG) [BGAN2004]_. 
+Generally speaking surrogates are built using a "small" number of model simulations and are then substituted in place of the expensive simulation models in future analysis. Some of the most popular surrogate types include polynomial chaos expansions (PCE) [XKSISC2002]_, Gaussian processes (GP) [RWMIT2006]_, and sparse grids (SG) [BGAN2004]_.
 
 Reduced order models (e.g. [SFIJNME2017]_) can also be used to construct surrogates and have been applied successfully for UQ on many applications. These methods do not construct response surface approximations, but rather solve the governing equations on a reduced basis. PyApprox does not currently implement reduced order modeling, however the modeling analyis tools found in PyApprox can easily be applied to assess or design systems based on reduced order models.
 
@@ -33,7 +33,7 @@ Constructing the interpolant requires evaluating the function :math:`\hat{f}_{\b
 
    \mathcal{Z}_{\boldsymbol{\beta}} = \bigotimes_{i=1}^d \mathcal{Z}_{\beta_i}^i=\begin{bmatrix}\mathbf{z}^{(1)} & \cdots&\mathbf{z}^{(M_{\boldsymbol{\beta}})}\end{bmatrix}\in\mathbb{R}^{d\times M_{\boldsymbol{\beta}}}
 
-	  
+
 We denote the resulting function evaluations by
 
 .. math:: \mathcal{F}_{\boldsymbol{\alpha},\boldsymbol{\beta}}=\hat{f}_{\boldsymbol{\alpha}}(\mathcal{Z}_{\boldsymbol{\beta}})=\begin{bmatrix}\hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(1)}) \quad \cdots\quad \hat{f}_{\boldsymbol{\alpha}}(\mathbf{z}^{(M_{\boldsymbol{\beta}})})\end{bmatrix}^T\in\mathbb{R}^{M_{\boldsymbol{\beta}}\times q},
@@ -44,22 +44,20 @@ It is often reasonable to assume that, for any :math:`\mathbf{z}`, the cost of e
 Here we will use the nested Clenshaw-Curtis points
 
 .. math::
-      
+
   z_{i}^{(j)}=\cos\left(\frac{(j-1)\pi}{m_{\beta_i}}\right),\qquad j=1,\ldots,m_{\beta_i}
 
 to define the univariate Lagrange polynomials. The number of points :math:`m(l)` of this rule grows exponentially with the level :math:`l`, specifically
 :math:`m(0)=1` and :math:`m(l)=2^{l}+1` for :math:`l\geq1`. The univariate Clenshaw-Curtis points, the tensor-product grid :math:`\mathcal{Z}_{\boldsymbol{\beta}}`, and two multivariate Lagrange polynomials with their corresponding univariate Lagrange polynomials are shown below for :math:`\boldsymbol{\beta}=(2,2)`.
 """
 import numpy as np
-import matplotlib as mpl
 from pyapprox.util.utilities import cartesian_product
 from pyapprox.util.visualization import get_meshgrid_function_data, plt
 from pyapprox.surrogates.interp.barycentric_interpolation import (
     plot_tensor_product_lagrange_basis_2d,
     tensor_product_barycentric_lagrange_interpolation)
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
-from pyapprox.surrogates.orthopoly.quadrature import (
-    clenshaw_curtis_pts_wts_1D, clenshaw_curtis_rule_growth)
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
+from pyapprox.surrogates.orthopoly.quadrature import clenshaw_curtis_pts_wts_1D
 
 quad_rule = clenshaw_curtis_pts_wts_1D
 fig = plt.figure(figsize=(2*8, 6))
@@ -91,7 +89,7 @@ grid_samples = cartesian_product(grid_samples_1d)
 
 def interp(samples):
     return tensor_product_barycentric_lagrange_interpolation(
-        grid_samples_1d, f, samples)[0]
+        grid_samples_1d, f, samples)
 
 
 marker_color = 'k'
@@ -106,10 +104,9 @@ X, Y, Z = get_meshgrid_function_data(
     interp, plot_limits, num_pts_1d)
 
 num_contour_levels = 10
-cmap = mpl.cm.coolwarm
 levels = np.linspace(Z.min(), Z.max(), num_contour_levels)
 cset = axs.contourf(
-    X, Y, Z, levels=levels, cmap=cmap, alpha=alpha)
+    X, Y, Z, levels=levels, cmap="coolwarm", alpha=alpha)
 plt.show()
 
 #%%

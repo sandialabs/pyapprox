@@ -1,4 +1,7 @@
-from pyapprox.util.utilities import cartesian_product, outer_product
+from pyapprox.util.utilities import (
+    cartesian_product, outer_product, check_gradients
+)
 from pyapprox.util.visualization import plot_2d_samples
 
-__all__ = ["cartesian_product", "outer_product", "plot_2d_samples"]
+__all__ = ["cartesian_product", "outer_product", "check_gradients",
+           "plot_2d_samples"]

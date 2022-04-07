@@ -8,7 +8,7 @@ from pyapprox.analysis.sensitivity_analysis import (
     get_morris_samples, downselect_morris_trajectories,
     get_morris_elementary_effects, get_morris_sensitivity_indices,
     print_morris_sensitivity_indices,
-    analyze_sensitivity_polynomial_chaos, analyze_sensitivity_sparse_grid,
+    gpc_sobol_sensitivities, sparse_grid_sobol_sensitivities,
     sampling_based_sobol_indices, repeat_sampling_based_sobol_indices,
     sampling_based_sobol_indices_from_gaussian_process,
     analytic_sobol_indices_from_gaussian_process
@@ -240,7 +240,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         #     ix1=ix2
         # plt.xlim([0,1]); plt.ylim([0,1]); plt.show()
 
-    def test_analyze_sensitivity_polynomial_chaos(self):
+    def test_gpc_sobol_sensitivities(self):
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
         num_samples = 1000
@@ -252,10 +252,10 @@ class TestSensitivityAnalysis(unittest.TestCase):
             {'basis_type': 'hyperbolic_cross', 'variable': benchmark.variable,
              'options': {'max_degree': 8}}).approx
 
-        res = analyze_sensitivity_polynomial_chaos(pce)
+        res = gpc_sobol_sensitivities(pce)
         assert np.allclose(res.main_effects, benchmark.main_effects, atol=2e-3)
 
-    def test_analyze_sensitivity_sparse_grid(self):
+    def test_sparse_grid_sobol_sensitivities(self):
         benchmark = setup_benchmark("oakley")
 
         options = {'max_nsamples': 2000, 'verbose': 0}
@@ -271,7 +271,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         # print(error)
         assert error < 7e-3
 
-        res = analyze_sensitivity_sparse_grid(approx)
+        res = sparse_grid_sobol_sensitivities(approx)
         assert np.allclose(res.main_effects, benchmark.main_effects, atol=4e-4)
 
     def test_qmc_sobol_sensitivity_analysis_ishigami(self):

@@ -36,8 +36,11 @@ as a surrogate for uncertainty quantification and sensitivity analysis
 First we must load the benchmark
 """
 import numpy as np
-import pyapprox as pya
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox.variables import combine_uncertain_and_bounded_design_variables
+from pyapprox import surrogates
+from pyapprox.analysis import visualize
+from pyapprox import util
 import matplotlib.pyplot as plt
 benchmark = setup_benchmark('cantilever_beam')
 np.random.seed(1)
@@ -47,7 +50,7 @@ np.random.seed(1)
 #defines random and design variables. All surrogates require random variable
 #information so we define a new variable for this purpose
 
-variable = pya.combine_uncertain_and_bounded_design_variables(
+variable = combine_uncertain_and_bounded_design_variables(
     benchmark.variable, benchmark.design_variable)
 
 #%% The objective fun of the benchmark is not a function of random variables
@@ -56,8 +59,14 @@ variable = pya.combine_uncertain_and_bounded_design_variables(
 #We can set a maximum number of samples using the options dictionary
 
 options = {"max_nsamples": 1000}
-approx = pya.adaptive_approximate(
+approx = surrogates.adaptive_approximate(
     benchmark.constraint_fun, variable, "sparse_grid", options).approx
+
+#%%
+#Plot the sparse grid samples with
+sparse_grid_samples = approx.get_samples()
+util.plot_2d_samples(sparse_grid_samples, marker='o')
+plt.show()
 
 #%%
 # We can estimate the error in the surrogate using some validation samples.
@@ -71,7 +80,7 @@ print(f"The RMSE error is {error}")
 #%% We can estimate the PDF of the two function outputs by sampling the surrogate
 #and building a kernel density estimator. Lets first just plot the marginal
 #PDFs of the output
-surrogate_samples = pya.generate_independent_random_samples(variable, 10000)
+surrogate_samples = variable.rvs(10000)
 approx_values = approx(surrogate_samples)
-pya.plot_qoi_marginals(approx_values)
+visualize.plot_qoi_marginals(approx_values)
 plt.show()

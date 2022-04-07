@@ -25,7 +25,7 @@ from pyapprox.variables.sampling import (
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.variables.density import tensor_product_pdf
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.interp.mixture_model import (
     get_leja_univariate_quadrature_rules_of_beta_mixture,
     compute_grammian_of_mixture_models_using_sparse_grid_quadrature
@@ -34,6 +34,7 @@ from pyapprox.surrogates.orthopoly.quadrature import (
     leja_growth_rule, clenshaw_curtis_in_polynomial_order,
     clenshaw_curtis_rule_growth
 )
+
 
 class TestArbitraryPolynomialChaos(unittest.TestCase):
 

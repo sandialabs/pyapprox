@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 
 
 def invert_cdf(F, cdffun, x_limits, tol=1e-12, num_bins=101, plot=False):
@@ -78,11 +78,12 @@ def invert_cdf(F, cdffun, x_limits, tol=1e-12, num_bins=101, plot=False):
     return values
 
 
-def combine_samples_with_fixed_data(fixed_data, fixed_data_indices, sub_samples):
+def combine_samples_with_fixed_data(
+        fixed_data, fixed_data_indices, sub_samples):
     assert sub_samples.ndim == 2
     if fixed_data.shape[0] == 0:
         return sub_samples
-    #assert fixed_data.shape[1]==sub_samples.shape[1]
+    # assert fixed_data.shape[1]==sub_samples.shape[1]
     num_vars = fixed_data.shape[0] + sub_samples.shape[0]
     num_samples = sub_samples.shape[1]
     samples = np.empty((num_vars, num_samples), dtype=float)

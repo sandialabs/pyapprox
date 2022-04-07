@@ -7,9 +7,7 @@ from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, hash_array, nchoosek
 )
-from pyapprox.surrogates.interp.tensorprod import (
-    get_tensor_product_quadrature_rule
-)
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )

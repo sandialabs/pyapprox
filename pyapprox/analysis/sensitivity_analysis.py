@@ -521,8 +521,8 @@ class SensitivityResult(OptimizeResult):
     pass
 
 
-def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories,
-                               nlevels=4):
+def morris_sensitivities(fun, univariate_variables, ntrajectories,
+                         nlevels=4):
     r"""
     Compute sensitivity indices by constructing an adaptive polynomial chaos
     expansion.
@@ -579,7 +579,7 @@ def analyze_sensitivity_morris(fun, univariate_variables, ntrajectories,
          'samples': samples, 'values': values})
 
 
-def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
+def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
     r"""
     Compute sensitivity indices from a sparse grid
     by converting it to a polynomial chaos expansion
@@ -637,7 +637,7 @@ def analyze_sensitivity_sparse_grid(sparse_grid, max_order=2):
          'pce': pce})
 
 
-def analyze_sensitivity_polynomial_chaos(pce, max_order=2):
+def gpc_sobol_sensitivities(pce, max_order=2):
     r"""
     Compute variance based sensitivity metrics from a polynomial chaos
     expansion

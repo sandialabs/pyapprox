@@ -25,15 +25,16 @@ As our first example we will consider the following ensemble of three univariate
 
 Let's first import the necessary functions and modules and set the seed for reproducibility
 """
-from pyapprox.util.configure_plots import plt
+import networkx as nx
 import numpy as np
 from scipy import stats
 import scipy
-import pyapprox as pya
+
+from pyapprox.util.configure_plots import plt
 from pyapprox.bayes.laplace import (
     laplace_posterior_approximation_for_linear_models
 )
-from pyapprox.gaussian_network import (
+from pyapprox.bayes.gaussian_network import (
     get_total_degree_polynomials, plot_1d_lvn_approx, GaussianNetwork,
     cond_prob_variable_elimination,
     convert_gaussian_from_canonical_form,
@@ -60,7 +61,7 @@ plt.plot(xx[0, :],  f1(xx), label=r'$f_1$', c='b')
 plt.plot(xx[0, :],  f2(xx), label=r'$f_2$', c='r')
 plt.plot(xx[0, :],  f3(xx), label=r'$f_3$', c='k')
 plt.legend()
-plt.show()
+#plt.show()
 
 #%%
 #Now setup the polynomial approximations of each information source
@@ -71,8 +72,7 @@ polys, nparams = get_total_degree_polynomials(
 #%%
 #Next generate the training data. Here we will set the noise to be independent Gaussian with mean zero and variance :math:`0.01^2`.
 nsamples = [20, 20, 3]
-samples_train = [pya.generate_independent_random_samples(p.var_trans.variable, n)
-                 for p, n in zip(polys, nsamples)]
+samples_train = [p.var_trans.variable.rvs(n) for p, n in zip(polys, nsamples)]
 noise_std = [0.01]*nmodels
 noise = [noise_std[ii]*np.random.normal(
     0, noise_std[ii], (samples_train[ii].shape[1], 1)) for ii in range(nmodels)]
@@ -139,7 +139,7 @@ plot_1d_lvn_approx(
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
 plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-plt.show()
+# plt.show()
 
 #%%
 #Unfortunately by assuming that the coefficients of each information source are independent the lower fidelity data is not informing the estimation of the coefficients of the high-fidelity approximation. This statement can be verified by computing an approximation with only the high-fidelity data
@@ -193,8 +193,8 @@ prior_cov = np.vstack(rows)
 #%%
 #Plot the structure of the prior covariance
 fig, axs = plt.subplots(1, 1, figsize=(8, 6))
-plt.spy(prior_cov, cmap='coolwarm')
-plt.show()
+plt.spy(prior_cov)
+# plt.show()
 
 #%% Now lets compute the posterior distribution and plot the resulting approximations
 post_mean, post_cov = laplace_posterior_approximation_for_linear_models(
@@ -217,7 +217,7 @@ plot_1d_lvn_approx(xx, nmodels, polys[2].basis_matrix, hf_posterior, hf_prior,
 axs.set_xlabel(r'$z$')
 axs.set_ylabel(r'$f(z)$')
 plt.plot(xx, f3(xx), 'k', label=r'$f_3$')
-plt.show()
+# plt.show()
 
 #%%
 #Depsite using only a very small number of samples of the high-fidelity information source, the multi-fidelity approximation has smaller variance and the mean more closely approximates the true high-fidelity information source, when compared to the single fidelity strategy.
@@ -308,8 +308,7 @@ prior = convert_gaussian_from_canonical_form(
 
 #To infer the uncertain coefficients we must add training data to the network.
 nsamples = [10, 10, 2]
-samples_train = [pya.generate_independent_random_samples(p.var_trans.variable, n)
-                 for p, n in zip(polys, nsamples)]
+samples_train = [p.var_trans.variable.rvs(n) for p, n in zip(polys, nsamples)]
 noise_std = [0.01]*nmodels
 noise = [noise_std[ii]*np.random.normal(
     0, noise_std[ii], (samples_train[ii].shape[1], 1)) for ii in range(nmodels)]
@@ -324,7 +323,7 @@ noise_covs = [np.eye(nsamples[ii])*noise_std[ii]**2
 network.add_data_to_network(data_cpd_mats, data_cpd_vecs, noise_covs)
 fig, ax = plt.subplots(1, 1, figsize=(8, 5))
 plot_peer_network_with_data(network.graph, ax)
-plt.show()
+# plt.show()
 
 
 #%%

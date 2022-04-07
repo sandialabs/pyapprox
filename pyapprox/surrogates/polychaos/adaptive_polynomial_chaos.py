@@ -220,7 +220,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
     def set_polynomial_chaos_expansion(self, pce=None):
         if pce is None:
             poly_opts = define_poly_options_from_variable_transformation(
-                self.variable_transformation)
+                self.var_trans)
             self.pce = PolynomialChaosExpansion()
             self.pce.configure(poly_opts)
         else:

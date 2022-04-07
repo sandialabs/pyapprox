@@ -27,6 +27,13 @@ def plot_qoi_marginals(values):
     return axs
 
 
+def get_meshgrid_samples_from_variable(variable, num_pts_1d,
+                                       logspace=False, unbounded_alpha=.99):
+    plot_limits = get_truncated_ranges(variable, unbounded_alpha)
+    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
+    return X, Y, pts
+
+
 def get_meshgrid_function_data_from_variable(
         function, variable, num_pts_1d, qoi=0,
         logspace=False, unbounded_alpha=.99):
@@ -67,10 +74,9 @@ def get_meshgrid_function_data_from_variable(
     Z : np.ndarray of size (num_pts_1d,num_pts_1d)
         The function values at each sample
     """
-    plot_limits = get_truncated_ranges(variable, unbounded_alpha)
-    X, Y, pts = get_meshgrid_samples(plot_limits, num_pts_1d, logspace)
+    X, Y, pts = get_meshgrid_samples_from_variable(
+        variable, num_pts_1d, logspace, unbounded_alpha)
     Z = function(pts)
-    print(Z)
     if (Z.ndim == 2):
         Z = Z[:, qoi]
     Z = np.reshape(Z, (X.shape[0], X.shape[1]))

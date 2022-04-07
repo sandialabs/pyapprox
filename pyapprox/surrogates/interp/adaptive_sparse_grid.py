@@ -639,7 +639,7 @@ class SubSpaceRefinementManager(object):
         self.values = None
         self.num_equivalent_function_evaluations = 0
         self.function = None
-        self.variable_transformation = None
+        self.var_trans = None
         self.work_qoi_index = None
         self.config_var_trans = None
         self.unique_quadrule_indices = None
@@ -908,7 +908,7 @@ class SubSpaceRefinementManager(object):
 
     def set_function(self, function, variable_transformation=None):
         self.function = function
-        self.variable_transformation = variable_transformation
+        self.var_trans = variable_transformation
 
     def map_config_samples_from_canonical_space(self, samples):
         if self.config_variables_idx is None:
@@ -927,9 +927,9 @@ class SubSpaceRefinementManager(object):
         else:
             config_variables_idx = self.config_variables_idx
         random_samples = canonical_samples[:config_variables_idx, :]
-        if self.variable_transformation is not None:
+        if self.var_trans is not None:
             random_samples = \
-                self.variable_transformation.map_from_canonical_space(
+                self.var_trans.map_from_canonical_space(
                     random_samples)
         return random_samples
 
@@ -1035,8 +1035,8 @@ class SubSpaceRefinementManager(object):
         self.config_variables_idx = idx
         self.config_var_trans = config_var_trans
         self.num_config_vars = self.num_vars-self.config_variables_idx
-        if self.variable_transformation is not None:
-            assert (self.variable_transformation.num_vars() ==
+        if self.var_trans is not None:
+            assert (self.var_trans.num_vars() ==
                     self.config_variables_idx)
         if self.config_var_trans is not None:
             assert self.num_config_vars == self.config_var_trans.num_vars()
@@ -1237,7 +1237,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         self.univariate_quad_rule = None
         self.samples_1d, self.weights_1d = [None, None]
         self.smolyak_coefficients = np.empty((0), np.float64)
-        self.variable_transformation = None
+        self.var_trans = None
         self.compact_univariate_quad_rule = None
 
         # extra storage to reduce cost of repeated interrogation
@@ -1343,9 +1343,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         approximation of the highest fidelity model. TODO: consider enforcing
         that samples do not have configure variables
         """
-        if self.variable_transformation is not None:
+        if self.var_trans is not None:
             canonical_samples = \
-                self.variable_transformation.map_to_canonical_space(
+                self.var_trans.map_to_canonical_space(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1389,9 +1389,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
              Samples at which to evaluate the sparae grid. If config values
              are provided they are ignored.
         """
-        if self.variable_transformation is not None:
+        if self.var_trans is not None:
             canonical_samples = \
-                self.variable_transformation.map_to_canonical_space(
+                self.var_trans.map_to_canonical_space(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1425,9 +1425,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
                 subspace_index, self.subspace_indices,
                 smolyak_coefficients)
 
-        if self.variable_transformation is not None:
+        if self.var_trans is not None:
             canonical_samples = \
-                self.variable_transformation.map_to_canonical_space(
+                self.var_trans.map_to_canonical_space(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1495,6 +1495,9 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             self.function = function
             msg = 'Second save was successful'
             print(msg)
+
+    def get_samples(self):
+        return self.var_trans.map_from_canonical_space(self.samples)
 
 
 def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):

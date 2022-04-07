@@ -11,12 +11,10 @@ The solution to the PFI inverse problem is given by
 
 where :math:`\pi_\text{pr}(\rv)` is a prior density which captures any initial knowledge, :math:`\pi_\text{obs}(f(\rv))` is the density on the observations, and :math:`\pi_\text{model}(f(\rv))` is the push-forward of the prior density trough the forward model.
 """
-
-import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from scipy.stats import uniform, norm, gaussian_kde as kde
+from scipy import stats
 
 #%%
 #First we must define the forward model. We will use a functional of solution to the following system of non-linear equations
@@ -28,94 +26,21 @@ from scipy.stats import uniform, norm, gaussian_kde as kde
 #
 #Specifically we choose :math:`f(\rv)=x_2(\rv)`.
 
+from pyapprox.benchmarks import setup_benchmark
+benchmark = setup_benchmark("parameterized_nonlinear_model")
+model = benchmark.fun
 
-class TimsModel(object):
-    def __init__(self):
-        self.qoi = 1
-        self.ranges = np.array(
-            [0.79, 0.99, 1-4.5*np.sqrt(0.1), 1+4.5*np.sqrt(0.1)],
-            np.double)
-
-    def num_qoi(self):
-        if np.isscalar(self.qoi):
-            return 1
-        else:
-            return len(self.qoi)
-
-    def evaluate(self, samples):
-        assert samples.ndim == 1
-        assert samples.ndim == 1
-
-        sol = np.ones((2), float)
-
-        x1 = samples[0]
-        x2 = samples[1]
-        u1 = sol[0]
-        u2 = sol[1]
-
-        res1 = 1.-(x1*u1*u1+u2*u2)
-        res2 = 1.-(u1*u1-x2*u2*u2)
-
-        norm_res = np.sqrt(res1*res1 + res2*res2)
-
-        it = 0
-        max_iters = 20
-        while (norm_res > 1e-10) and (it < max_iters):
-            det = -4*u1*u2*(x1*x2+1.0)
-            j11i = -2.0*x2*u2 / det
-            j12i = -2.0*u2 / det
-            j21i = -2.0*u1 / det
-            j22i = 2*x1*u1 / det
-
-            du1 = j11i*res1 + j12i*res2
-            du2 = j21i*res1 + j22i*res2
-
-            u1 += du1
-            u2 += du2
-
-            res1 = 1.-(x1*u1*u1+u2*u2)
-            res2 = 1.-(u1*u1-x2*u2*u2)
-
-            norm_res = np.sqrt(res1*res1 + res2*res2)
-            it += 1
-
-        sol[0] = u1
-        sol[1] = u2
-
-        if np.isscalar(self.qoi):
-            values = np.array([sol[self.qoi]])
-        else:
-            values = sol[self.qoi]
-        return values
-
-    def __call__(self, samples):
-        num_samples = samples.shape[1]
-        values = np.empty((num_samples, self.num_qoi()), float)
-        for i in range(samples.shape[1]):
-            values[i, :] = self.evaluate(samples[:, i])
-        return values
-
-
-model = TimsModel()
-model.qoi = np.array([1])
 
 #%%
 #Define the prior density and the observational density
-
-univariate_variables = [
-    uniform(lb, ub-lb)
-    for lb, ub in zip(model.ranges[::2], model.ranges[1::2])]
-prior_variable = pya.IndependentMarginalsVariable(
-    univariate_variables)
-
-
-def prior_pdf(x): return np.prod(prior_variable.evaluate('pdf', x), axis=0)
+prior_variable = benchmark.variable
+prior_pdf = prior_variable.pdf
 
 
 mean = 0.3
 variance = 0.025**2
-obs_variable = norm(mean, np.sqrt(variance))
-def obs_pdf(y): return obs_variable.pdf(y).squeeze()
+obs_variable = stats.norm(mean, np.sqrt(variance))
+def obs_pdf(y): return obs_variable.pdf(y)
 
 #%%
 #PFI requires the push forward of the prior :math:`\pi_\text{model}(f(\rv))`. Lets approximate this PDF using a Gaussian kernel density estimate built on a large number model outputs evaluated at random samples of the prior.
@@ -123,13 +48,12 @@ def obs_pdf(y): return obs_variable.pdf(y).squeeze()
 
 #Define samples used to evaluate the push forward of the prior
 num_prior_samples = 10000
-prior_samples = pya.generate_independent_random_samples(
-    prior_variable, num_prior_samples)
+prior_samples = prior_variable.rvs(num_prior_samples)
 response_vals_at_prior_samples = model(prior_samples)
 
 #Construct a KDE of the push forward of the prior through the model
-push_forward_kde = kde(response_vals_at_prior_samples.T)
-def push_forward_pdf(y): return push_forward_kde(y.T).squeeze()
+push_forward_kde = stats.gaussian_kde(response_vals_at_prior_samples.T)
+def push_forward_pdf(y): return push_forward_kde(y.T)[:, None]
 
 #%%
 #We can now simply evaluate
@@ -141,7 +65,9 @@ def push_forward_pdf(y): return push_forward_kde(y.T).squeeze()
 
 #Define the samples at which to evaluate the posterior density
 num_pts_1d = 50
-X, Y, samples_for_posterior_eval = pya.get_meshgrid_samples(model.ranges, 30)
+from pyapprox.analysis import visualize
+X, Y, samples_for_posterior_eval = \
+    visualize.get_meshgrid_samples_from_variable(prior_variable, 30)
 
 #Evaluate the density of the prior at the samples used to evaluate
 #the posterior
@@ -161,8 +87,9 @@ response_prob_at_samples_for_posterior_eval = push_forward_pdf(
     response_vals_at_samples_for_posterior_eval)
 
 #Evaluate the posterior probability
-posterior_prob = prior_prob_at_samples_for_posterior_eval*(
-    obs_prob_at_samples_for_posterior_eval/response_prob_at_samples_for_posterior_eval)
+posterior_prob = (prior_prob_at_samples_for_posterior_eval*(
+    obs_prob_at_samples_for_posterior_eval /
+    response_prob_at_samples_for_posterior_eval))
 
 #Plot the posterior density
 p = plt.contourf(
@@ -190,10 +117,10 @@ posterior_prob_at_prior_samples = prior_prob_at_prior_samples * (
 max_posterior_prob = posterior_prob_at_prior_samples.max()
 accepted_samples_idx = np.where(
     posterior_prob_at_prior_samples/(1.1*max_posterior_prob) >
-    np.random.uniform(0., 1., num_prior_samples))[0]
+    np.random.uniform(0., 1., (num_prior_samples, 1)))[0]
 posterior_samples = prior_samples[:, accepted_samples_idx]
-acceptance_ratio = float(posterior_samples.shape[1])/num_prior_samples
-print(acceptance_ratio)
+acceptance_ratio = posterior_samples.shape[1]/num_prior_samples
+print("Acceptance ratio", acceptance_ratio)
 
 #plot the accepted samples
 plt.plot(posterior_samples[0, :], posterior_samples[1, :], 'ok')
@@ -204,7 +131,7 @@ _ = plt.ylim(model.ranges[2:])
 #The goal of inverse problem was to define the posterior density that when push forward through the forward model exactly matches the observed PDF. Lets check that by pushing forward our samples from the posterior.
 
 #compute the posterior push forward
-posterior_push_forward_kde = kde(
+posterior_push_forward_kde = stats.gaussian_kde(
     response_vals_at_prior_samples[accepted_samples_idx].T)
 
 

@@ -3,9 +3,7 @@ from scipy import stats
 from functools import partial
 import unittest
 
-from pyapprox.surrogates.interp.tensorprod import (
-    get_tensor_product_quadrature_rule
-)
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.nataf import (
     nataf_transformation, transform_correlations,
     gaussian_copula_compute_x_correlation_from_z_correlation,

@@ -22,9 +22,12 @@ from pyapprox.benchmarks.surrogate_benchmarks import (
     RandomOscillator, piston_function_gradient, CoupledSprings,
     define_coupled_springs_random_variables, HastingsEcology,
     define_nondim_hastings_ecology_random_variables, NobileBenchmarkFunctions,
-    SpectralPDEMultiIndexWrapper
+    SpectralPDEMultiIndexWrapper, ParameterizedNonlinearModel
     )
 from pyapprox.benchmarks.genz import GenzFunction
+from pyapprox.benchmarks.multifidelity_benchmarks import (
+    PolynomialModelEnsemble, TunableModelEnsemble, ShortColumnModelEnsemble
+)
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
     ConfigureVariableTransformation
@@ -408,7 +411,11 @@ def setup_benchmark(name, **kwargs):
         'coupled_springs': setup_coupled_springs_benchmark,
         'hastings_ecology': setup_hastings_ecology_benchmark,
         'multi_index_advection_diffusion':
-        setup_multi_index_advection_diffusion_benchmark}
+        setup_multi_index_advection_diffusion_benchmark,
+        'polynomial_ensemble': setup_polynomial_ensemble,
+        'tunable_model_ensemble': setup_tunable_model_ensemble,
+        'short_column_ensemble': setup_short_column_ensemble,
+        "parameterized_nonlinear_model": setup_parameterized_nonlinear_model}
     if PYA_DEV_AVAILABLE:
         # will fail if fenics is not installed and the import of the fenics
         # benchmarks fail
@@ -691,3 +698,34 @@ def setup_multi_index_advection_diffusion_benchmark(
         "get_num_degrees_of_freedom": base_model.get_num_degrees_of_freedom,
         "config_var_trans": config_var_trans}
     return Benchmark(attributes)
+
+
+def setup_polynomial_ensemble():
+    model = PolynomialModelEnsemble()
+    return Benchmark(
+        {'fun': model, 'variable': model.variable, "means": model.get_means(),
+         "model_covariance": model.get_covariance_matrix()})
+
+
+def setup_tunable_model_ensemble(theta1=np.pi/2*0.95, shifts=None):
+    model = TunableModelEnsemble(theta1, shifts)
+    return Benchmark(
+        {'fun': model, 'variable': model.variable, "means": model.get_means(),
+         "model_covariance": model.get_covariance_matrix()})
+
+
+def setup_short_column_ensemble():
+    model = ShortColumnModelEnsemble()
+    return Benchmark(
+        {'fun': model, 'variable': model.variable, "means": model.get_means(),
+         "model_covariance": model.get_covariance_matrix()})
+
+
+def setup_parameterized_nonlinear_model():
+    model = ParameterizedNonlinearModel()
+    model.qoi = np.array([1])
+    marginals = [stats.uniform(lb, ub-lb)
+                 for lb, ub in zip(model.ranges[::2], model.ranges[1::2])]
+    variable = IndependentMarginalsVariable(marginals)
+    return Benchmark(
+        {'fun': model, 'variable': variable})

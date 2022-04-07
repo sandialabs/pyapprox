@@ -4,11 +4,9 @@ Monte-Carlo based methods such as multi-level Monte-Carlo,
 control-variate Monte-Carlo, and approximate control-variate Monte-Carlo.
 """
 import numpy as np
-import os
 from scipy.optimize import minimize
 from functools import partial, reduce
 from itertools import product
-import copy
 
 
 from pyapprox.variables.sampling import (
@@ -83,6 +81,12 @@ def pkg_diff(array):
     if use_torch and pkg.is_tensor(array):
         return pkg.diff(array)
     return np.diff(array)
+
+
+def pkg_solve(A, b):
+    if use_torch and pkg.is_tensor(A):
+        return pkg.linalg.solve(A, b)
+    return np.linalg.solve(A, b)
 
 
 def check_safe_cast_to_integers(array):
@@ -161,7 +165,7 @@ def get_control_variate_rsquared(cov):
         The value  :math:`r^2`
     """
     # nmodels = cov.shape[0]
-    rsquared = cov[0, 1:].dot(pkg.linalg.solve(cov[1:, 1:], cov[1:, 0]))
+    rsquared = cov[0, 1:].dot(pkg_solve(cov[1:, 1:], cov[1:, 0]))
     rsquared /= cov[0, 0]
     return rsquared
 
@@ -741,7 +745,7 @@ def get_rsquared_acv(cov, nsample_ratios, get_discrepancy_covariances):
 def acv_sample_allocation_gmf_ratio_constraint(ratios, *args):
     model_idx, parent_idx, target_cost, costs = args
     assert parent_idx > 0 and model_idx > 0
-    eps = 1e-12
+    eps = 1e-8
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # ratios are only for low-fidelity models so use index-1
     return nhf_samples*(ratios[model_idx-1]-ratios[parent_idx-1])-(1+eps)
@@ -763,7 +767,7 @@ def acv_sample_allocation_gmf_ratio_constraint_jac(ratios, *args):
 def acv_sample_allocation_nlf_gt_nhf_ratio_constraint(ratios, *args):
     model_idx, target_cost, costs = args
     assert model_idx > 0
-    eps = 1e-12
+    eps = 1e-8
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # print(target_cost, nhf_samples)
     # ratios are only for low-fidelity models so use index-1
@@ -787,7 +791,7 @@ def acv_sample_allocation_nhf_samples_constraint(ratios, *args):
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # print(target_cost, nhf_samples)
-    eps = 1e-12
+    eps = 1e-8
     return nhf_samples-(1+eps)
 
 
@@ -1325,12 +1329,13 @@ def get_acv_initial_guess(initial_guess, cov, costs, target_cost):
     nmodels = len(costs)
     return np.arange(2, nmodels+1)
 
-    nratios = np.empty(nmodels-1)
-    for ii in range(1, nmodels):
-        idx = np.array([0, ii])
-        nratio = allocate_samples_mfmc(
-            cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
-        nratios[ii-1] = nratio
+    # nmodels = cov.shape[0]
+    # nratios = np.empty(nmodels-1)
+    # for ii in range(1, nmodels):
+    #     idx = np.array([0, ii])
+    #     nratio = allocate_samples_mfmc(
+    #         cov[np.ix_(idx, idx)], costs[idx], target_cost)[0]
+    #     nratios[ii-1] = nratio
 
     # scale ratios so that nhf_samples is one
     nhf_samples = 1
@@ -1407,12 +1412,11 @@ def allocate_samples_acv(cov, costs, target_cost, estimator,
     assert optim_method == "SLSQP"
     opt = solve_allocate_samples_acv_slsqp_optimization(
         estimator, costs, target_cost, initial_guess, optim_options, cons)
-    print(opt)
     nsample_ratios = opt.x
     if not opt.success:# or opt.nit == 1: nit will be 1 if using only two models
         for con in cons:
-            print(con['fun'](opt.x, *con['args']))
-        raise Exception('SLSQP optimizer failed'+f'{opt}')
+            print(con['fun'], con['fun'](opt.x, *con['args']))
+        raise RuntimeError('SLSQP optimizer failed'+f'{opt}')
         # var = 1e99
         # log10_var = 99
     else:
@@ -1488,101 +1492,6 @@ def estimate_model_ensemble_covariance(npilot_samples, generate_samples,
     return cov, pilot_random_samples, pilot_values
 
 
-def compute_single_fidelity_and_approximate_control_variate_mean_estimates(
-        target_cost, nsample_ratios, estimator,
-        model_ensemble, seed):
-    r"""
-    Compute the approximate control variate estimate of a high-fidelity
-    model from using it and a set of lower fidelity models.
-    Also compute the single fidelity Monte Carlo estimate of the mean from
-    only the high-fidelity data.
-
-    Notes
-    -----
-    To create reproducible results when running numpy.random in parallel
-    must use RandomState. If not the results will be non-deterministic.
-    This is happens because of a race condition. numpy.random.* uses only
-    one global PRNG that is shared across all the threads without
-    synchronization. Since the threads are running in parallel, at the same
-    time, and their access to this global PRNG is not synchronized between
-    them, they are all racing to access the PRNG state (so that the PRNG's
-    state might change behind other threads' backs). Giving each thread its
-    own PRNG (RandomState) solves this problem because there is no longer
-    any state that's shared by multiple threads without synchronization.
-    Also see new features
-    https://docs.scipy.org/doc/numpy/reference/random/parallel.html
-    https://docs.scipy.org/doc/numpy/reference/random/multithreading.html
-    """
-    random_state = np.random.RandomState(seed)
-    estimator.set_random_state(random_state)
-    samples, values = estimator.generate_data(model_ensemble)
-    # compute mean using only hf daa
-    hf_mean = values[0][1].mean()
-    # compute ACV mean
-    acv_mean = estimator(values)
-    return hf_mean, acv_mean
-
-
-def estimate_variance(model_ensemble, estimator, target_cost,
-                      ntrials=1e3, max_eval_concurrency=1):
-    r"""
-    Numerically estimate the variance of an approximate control variate
-    estimator.
-
-    Parameters
-    ----------
-    model_ensemble: :class:`pyapprox.interface.wrappers.ModelEnsemble`
-        Model that takes random samples and model id as input
-
-    estimator : :class:`pyapprox.multifidelity.monte_carlo_estimators.AbstractMonteCarloEstimator`
-        A Monte Carlo like estimator for computing sample based statistics
-
-    target_cost : float
-        The total cost budget
-
-    ntrials : integer
-        The number of times to compute estimator using different randomly
-        generated set of samples
-
-    max_eval_concurrency : integer
-        The number of processors used to compute realizations of the estimators
-        which can be run independently and in parallel.
-
-    Returns
-    -------
-    means : np.ndarray (ntrials, 2)
-        The high-fidelity and estimator means for each trial
-
-    numerical_var : float
-        The variance computed numerically from the trials
-
-    true_var : float
-        The variance computed analytically
-    """
-    nsample_ratios, variance, rounded_target_cost = estimator.allocate_samples(
-        target_cost)
-
-    ntrials = int(ntrials)
-    from multiprocessing import Pool
-    func = partial(
-        compute_single_fidelity_and_approximate_control_variate_mean_estimates,
-        rounded_target_cost, nsample_ratios, estimator, model_ensemble)
-    if max_eval_concurrency > 1:
-        assert int(os.environ['OMP_NUM_THREADS']) == 1
-        pool = Pool(max_eval_concurrency)
-        means = np.asarray(pool.map(func, [ii for ii in range(ntrials)]))
-        pool.close()
-    else:
-        means = np.empty((ntrials, 2))
-        for ii in range(ntrials):
-            means[ii, :] = func(ii)
-
-    numerical_var = means[:, 1].var(axis=0)
-    true_var = estimator.get_variance(
-        estimator.rounded_target_cost, estimator.nsample_ratios)
-    return means, numerical_var, true_var
-
-
 def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
     """
     Parameters
@@ -1628,46 +1537,6 @@ def get_pilot_covariance(nmodels, variable, model_ensemble, npilot_samples):
     return cov_matrix, pilot_samples, pilot_values
 
 
-def bootstrap_monte_carlo_estimator(values, nbootstraps=10, verbose=True):
-    """
-    Approximate the variance of the Monte Carlo estimate of the mean using
-    bootstraping
-
-    Parameters
-    ----------
-    values : np.ndarry (nsamples, 1)
-        The values used to compute the mean
-
-    nbootstraps : integer
-        The number of boostraps used to compute estimator variance
-
-    verbose:
-        If True print the estimator mean and +/- 2 standard deviation interval
-
-    Returns
-    -------
-    bootstrap_mean : float
-        The bootstrap estimate of the estimator mean
-
-    bootstrap_variance : float
-        The bootstrap estimate of the estimator variance
-    """
-    values = values.squeeze()
-    assert values.ndim == 1
-    nsamples = values.shape[0]
-    bootstrap_values = np.random.choice(
-        values, size=(nsamples, nbootstraps), replace=True)
-    bootstrap_means = bootstrap_values.mean(axis=0)
-    bootstrap_mean = bootstrap_means.mean()
-    bootstrap_variance = np.var(bootstrap_means)
-    if verbose:
-        print('No. samples', values.shape[0])
-        print('Mean', bootstrap_mean)
-        print('Mean +/- 2 sigma', [bootstrap_mean-2*np.sqrt(
-            bootstrap_variance), bootstrap_mean+2*np.sqrt(bootstrap_variance)])
-
-    return bootstrap_mean, bootstrap_variance
-
 
 def compute_covariance_from_control_variate_samples(values):
     r"""
@@ -1701,64 +1570,6 @@ def compute_covariance_from_control_variate_samples(values):
     return cov
 
 
-def compare_estimator_variances(target_costs, estimators):
-    """
-    Compute the variances of different Monte-Carlo like estimators.
-
-    Parameters
-    ----------
-    target_costs : np.ndarray (ntarget_costs)
-        Different total cost budgets
-
-    estimators : list (nestimators)
-        List of Monte Carlo estimator objects, e.g.
-        :class:`pyapprox.multifidelity.control_variate_monte_carlo.MC`
-
-    Returns
-    -------
-        optimized_estimators : list
-         Each entry is a list of optimized estimators for a set of target costs
-    """
-    optimized_estimators = []
-    for est in estimators:
-        est_copies = []
-        for target_cost in target_costs:
-            est_copy = copy.deepcopy(est)
-            est_copy.allocate_samples(target_cost)
-            est_copies.append(est_copy)
-        optimized_estimators.append(est_copies)
-    return optimized_estimators
-
-
-def plot_estimator_variances(optimized_estimators,
-                             est_labels, ax, ylabel=None):
-    """
-    Plot variance as a function of the total cost for a set of estimators.
-
-    Parameters
-    ----------
-    optimized_estimators : list
-         Each entry is a list of optimized estimators for a set of target costs
-
-    est_labels : list (nestimators)
-        String used to label each estimator
-    """
-    linestyles = ['-', '--', ':', '-.']
-    nestimators = len(est_labels)
-    for ii in range(nestimators):
-        est_total_costs = np.array(
-            [est.rounded_target_cost for est in optimized_estimators[ii]])
-        est_variances = np.array(
-            [est.optimized_variance for est in optimized_estimators[ii]])
-        ax.loglog(est_total_costs, est_variances, label=est_labels[ii],
-                  ls=linestyles[ii], marker='o')
-    if ylabel is None:
-        ylabel = r'$\mathrm{Estimator\;Variance}$'
-    ax.set_xlabel(r'$\mathrm{Target\;Cost}$')
-    ax.set_ylabel(ylabel)
-    ax.legend()
-
-
 def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
     """
     Plot a correlation matrix
@@ -1782,61 +1593,6 @@ def plot_correlation_matrix(corr_matrix, ax=None, model_labels=None):
         ax.set_yticklabels(model_labels)
         ax.set_xticklabels(model_labels, rotation=60)
     return ax
-
-
-def plot_acv_sample_allocation_comparison(
-        estimators, model_labels, ax):
-    """
-    Plot the number of samples allocated to each model for a set of estimators
-
-    Parameters
-    ----------
-    estimators : list
-       Each entry is a MonteCarlo like estimator
-
-    model_labels : list (nestimators)
-        String used to label each estimator
-    """
-    def autolabel(ax, rects, model_labels):
-        # Attach a text label in each bar in *rects*
-        for rect, label in zip(rects, model_labels):
-            rect = rect[0]
-            ax.annotate(label,
-                        xy=(rect.get_x() + rect.get_width()/2,
-                            rect.get_y() + rect.get_height()/2),
-                        xytext=(0, -10),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-
-    nestimators = len(estimators)
-    xlocs = np.arange(nestimators)
-
-    from matplotlib.pyplot import cm
-    for jj, est in enumerate(estimators):
-        cnt = 0
-        # warning currently colors will not match if estimators use different models
-        colors = cm.rainbow(np.linspace(0, 1, est.nmodels))
-        rects = []
-        for ii in range(est.nmodels):
-            if jj == 0:
-                label = model_labels[ii]
-            else:
-                label = None
-            rect = ax.bar(
-                xlocs[jj:jj+1], est.costs[ii], bottom=cnt, edgecolor='white',
-                label=label, color=colors[ii])
-            rects.append(rect)
-            cnt += est.costs[ii]
-        autolabel(ax, rects, ['$%d$' % int(est.nsamples_per_model[ii])
-                              for ii in range(est.nmodels)])
-    ax.set_xticks(xlocs)
-    ax.set_xticklabels(
-        ['$%f$' % est.rounded_target_cost for est in estimators])
-    ax.set_xlabel(r'$\mathrm{Total}\;\mathrm{Cost}$')
-    # / $N_\alpha$')
-    ax.set_ylabel(
-        r'$\mathrm{Percentage}\;\mathrm{of}\;\mathrm{Total}\;\mathrm{Cost}$')
-    ax.legend(loc=[0.925, 0.25])
 
 
 def get_nhf_samples(target_cost, costs, nsample_ratios):

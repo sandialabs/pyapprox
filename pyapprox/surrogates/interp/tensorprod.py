@@ -2,38 +2,9 @@ import numpy as np
 from functools import partial
 
 from pyapprox.util.pya_numba import njit
-from pyapprox.util.utilities import cartesian_product, outer_product
-
-
-def get_tensor_product_quadrature_rule(
-        degrees, num_vars, univariate_quadrature_rules, transform_samples=None,
-        density_function=None):
-    r"""
-    if get error about outer product failing it may be because
-    univariate_quadrature rule is returning a weights array for every level,
-    i.e. l=0,...level
-    """
-    degrees = np.atleast_1d(degrees)
-    if degrees.shape[0] == 1 and num_vars > 1:
-        degrees = np.array([degrees[0]]*num_vars, dtype=int)
-
-    if callable(univariate_quadrature_rules):
-        univariate_quadrature_rules = [univariate_quadrature_rules]*num_vars
-
-    x_1d = []
-    w_1d = []
-    for ii in range(len(univariate_quadrature_rules)):
-        x, w = univariate_quadrature_rules[ii](degrees[ii])
-        x_1d.append(x)
-        w_1d.append(w)
-    samples = cartesian_product(x_1d, 1)
-    weights = outer_product(w_1d)
-
-    if density_function is not None:
-        weights *= density_function(samples)
-    if transform_samples is not None:
-        samples = transform_samples(samples)
-    return samples, weights
+from pyapprox.util.utilities import (
+    cartesian_product, get_tensor_product_quadrature_rule
+)
 
 
 def piecewise_quadratic_interpolation(samples, mesh, mesh_vals, ranges):

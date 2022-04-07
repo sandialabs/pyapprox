@@ -3,7 +3,7 @@ from functools import partial
 from scipy import stats
 
 from pyapprox.surrogates.interp.sparse_grid import get_sparse_grid_samples_and_weights
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import leja_growth_rule
 from pyapprox.surrogates.interp.manipulate_polynomials import get_indices_double_set
 from pyapprox.variables.density import tensor_product_pdf, beta_pdf

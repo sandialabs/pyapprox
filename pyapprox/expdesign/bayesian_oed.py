@@ -7,6 +7,7 @@ from multiprocessing import Pool
 from abc import ABC, abstractmethod
 
 from pyapprox.util.sys_utilities import trace_error_with_msg
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.variables.risk import conditional_value_at_risk
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
@@ -15,7 +16,6 @@ from pyapprox.variables.transforms import (
     AffineRandomVariableTransformation
 )
 from pyapprox.surrogates.interp.tensorprod import (
-    get_tensor_product_quadrature_rule,
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )
 from pyapprox.surrogates.polychaos.gpc import (

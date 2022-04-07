@@ -6,12 +6,12 @@ This tutorial describes how to construct a polynomial chaos expansion (PCE) of a
 #%%
 #First lets import necessary modules and define a function useful for estimating the error in the PCE. We will also set the random seed for reproductibility
 
-from pyapprox.surrogates.interp.sparse_grid import plot_sparse_grid_2d
 import numpy as np
-import pyapprox as pya
-from pyapprox.util.configure_plots import plt
 from functools import partial
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.util.configure_plots import plt
+
+from pyapprox.surrogates.interp.sparse_grid import plot_sparse_grid_2d
+from pyapprox.benchmarks import setup_benchmark
 
 
 def compute_l2_error(validation_samples, validation_values, pce,
@@ -58,10 +58,9 @@ variable = benchmark.variable
 #where :math:`\lambda=(\lambda_1\ldots,\lambda_d)\in\mathbb{N}_0^d` is a multi-index and :math:`\Lambda` specifies the terms included in the expansion. In :ref:`Polynomial Chaos Regression` we set :math:`\Lambda` to be a total degree expansion. This choice was somewhat arbitray. The exact indices in :math:`\Lambda` should be chosen with more care. The number of terms in a PCE dictates how many samples are need to accurately compute the coefficients of the expansion. Consequently we should choose the index set :math:`\Lambda` in a way that minimizes error for a fixed computational budget. In this tutorial we use an adaptive algorithm to construct an index set that greedily minimizes the error in the PCE.
 #
 #Before starting the adaptive algorithm  we will generate some test data to estimate the error in the PCE as the adaptive algorithm evolves. We will compute the error at each step using a callback function.
-
-var_trans = pya.AffineRandomVariableTransformation(variable)
-validation_samples = pya.generate_independent_random_samples(
-    var_trans.variable, int(1e3))
+from pyapprox import variables
+var_trans = variables.AffineRandomVariableTransformation(variable)
+validation_samples = variable.rvs(int(1e3))
 validation_values = model(validation_samples)
 
 errors = []
@@ -75,27 +74,11 @@ def callback(pce):
 
 
 #%%
-#Now we setup the adaptive algorithm.
+#Now we setup the options for the adaptive algorithm.
+from pyapprox import surrogates
 max_num_samples = 200
-error_tol = 1e-10
-candidate_samples = -np.cos(
-    np.random.uniform(0, np.pi, (var_trans.num_vars(), int(1e4))))
-pce = pya.AdaptiveLejaPCE(
-    var_trans.num_vars(), candidate_samples, factorization_type='fast')
-
-max_level = np.inf
-max_level_1d = [max_level]*(pce.num_vars)
-
-admissibility_function = partial(
-    pya.max_level_admissibility_function, max_level, max_level_1d,
-    max_num_samples, error_tol)
-
-growth_rule = partial(pya.constant_increment_growth_rule, 2)
-# growth_rule = pya.clenshaw_curtis_rule_growth
-pce.set_function(model, var_trans)
-pce.set_refinement_functions(
-    pya.variance_pce_refinement_indicator, admissibility_function,
-    growth_rule)
+opts = {"method": "leja",
+        "options": {"max_nsamples": 100, "tol": 1e-10, "callback": callback}}
 
 #%%
 #The AdaptiveLejaPCE object is used to build an adaptive Leja sequence. Before building the sequence, let us first introduce the basic concepts of Leja sequences.
@@ -162,12 +145,9 @@ pce.set_refinement_functions(
 #
 #Now we are in a position to start the adaptive process
 
-while (not pce.active_subspace_queue.empty() or
-       pce.subspace_indices.shape[1] == 0):
-    pce.refine()
-    pce.recompute_active_subspace_priorities()
-    if callback is not None:
-        callback(pce)
+pce = surrogates.adaptive_approximate(
+    benchmark.fun, benchmark.variable, "polynomial_chaos", opts).approx
+
 #%%
 #And finally we plot the final polynomial index set :math:`\Lambda` the subspace index set, the Leja sequence, and the decay in error as the number of samples increases.
 

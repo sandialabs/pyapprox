@@ -38,15 +38,13 @@ where :math:`\V{e}_i` is the unit vector, with only one non-zero entry located a
 Sobol indices can be computed different ways. In the following we will use polynomial chaos expansions, as in [SRESS2008]_.
 """
 import matplotlib.pyplot as plt
-import numpy as np
-import pyapprox as pya
-from pyapprox.benchmarks.benchmarks import setup_benchmark
-from pyapprox.surrogates.approximate import approximate
+from pyapprox.benchmarks import setup_benchmark
+from pyapprox.surrogates import approximate
+from pyapprox import analysis
 benchmark = setup_benchmark("ishigami", a=7, b=0.1)
 
 num_samples = 1000
-train_samples = pya.generate_independent_random_samples(
-    benchmark.variable, num_samples)
+train_samples = benchmark.variable.rvs(num_samples)
 train_vals = benchmark.fun(train_samples)
 
 approx_res = approximate(
@@ -55,7 +53,7 @@ approx_res = approximate(
      'options': {'max_degree': 8}})
 pce = approx_res.approx
 
-res = pya.analyze_sensitivity_polynomial_chaos(pce)
+res = analysis.gpc_sobol_sensitivities(pce)
 
 #%%
 #Now lets compare the estimated values with the exact value
@@ -66,10 +64,10 @@ print(benchmark.main_effects[:, 0])
 #We can visualize the sensitivity indices using the following
 
 fig, axs = plt.subplots(1, 3, figsize=(3*8, 6))
-pya.plot_main_effects(benchmark.main_effects, axs[0])
-pya.plot_total_effects(benchmark.total_effects, axs[1])
-pya.plot_interaction_values(benchmark.sobol_indices,
-                            benchmark.sobol_interaction_indices, axs[2])
+analysis.plot_main_effects(benchmark.main_effects, axs[0])
+analysis.plot_total_effects(benchmark.total_effects, axs[1])
+analysis.plot_interaction_values(benchmark.sobol_indices,
+                                 benchmark.sobol_interaction_indices, axs[2])
 axs[0].set_title(r'$\mathrm{Main\;Effects}$')
 axs[1].set_title(r'$\mathrm{Total\;Effects}$')
 axs[2].set_title(r'$\mathrm{Sobol\;Indices}$')

@@ -299,6 +299,9 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
     any of its member variables that are updated in __call__ will not
     persist once each __call__ to pool completes.
     """
+    if max_eval_concurrency == 1:
+        return model(samples)
+
     num_samples = samples.shape[1]
     if assert_omp and max_eval_concurrency > 1:
         if ('OMP_NUM_THREADS' not in os.environ or
@@ -318,7 +321,6 @@ def run_model_samples_in_parallel(model, max_eval_concurrency, samples,
     if pool_given is False:
         pool.close()
 
-    # result  = [model(samples[:, ii:ii+1]) for ii in range(samples.shape[1])]
     num_qoi = result[0].shape[1]
     values = np.empty((num_samples, num_qoi))
     for ii in range(len(result)):

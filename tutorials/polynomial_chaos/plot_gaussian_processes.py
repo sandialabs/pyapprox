@@ -44,15 +44,16 @@ Consider the univariate Runge function
 Lets construct a GP with a fixed set of training samples and associated values we can train the Gaussian process. But first lets plot the true function and prior GP mean and plus/minus 2 standard deviations using the prior covariance
 """
 import numpy as np
-import pyapprox as pya
 import matplotlib.pyplot as plt
+from pyapprox.surrogates import gaussianprocess as gp
 
 lb, ub = -1, 1
+
 def func(x):
     return 1/(1+25*x[0, :]**2)[:, np.newaxis]
 
-kernel = pya.Matern(1, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
-gp = pya.GaussianProcess(kernel)
+kernel = gp.Matern(1, length_scale_bounds=(1e-1, 1e1), nu=np.inf)
+gp = gp.GaussianProcess(kernel)
 
 validation_samples = np.linspace(lb, ub, 101)[None, :]
 validation_values = func(validation_samples)

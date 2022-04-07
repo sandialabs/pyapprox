@@ -29,9 +29,7 @@ from pyapprox.variables.transforms import (
     define_iid_random_variable_transformation
 )
 from pyapprox.variables.density import tensor_product_pdf
-from pyapprox.surrogates.interp.tensorprod import (
-    get_tensor_product_quadrature_rule
-)
+from pyapprox.util.utilities import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
     jacobi_recurrence

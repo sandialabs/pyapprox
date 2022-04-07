@@ -50,36 +50,34 @@ where :math:`\rv_1,\rv_2\sim\mathcal{U}(-1,1)` and all :math:`A` and :math:`\the
 #%%
 #Lets setup the problem
 import sympy as sp
-import pyapprox as pya
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.tests.test_control_variate_monte_carlo import TunableModelEnsemble
-from scipy.stats import uniform
+from scipy import stats
+
+from pyapprox import variables
+from pyapprox.analysis import visualize
+from pyapprox.benchmarks import setup_benchmark
 
 np.random.seed(1)
-univariate_variables = [uniform(-1, 2), uniform(-1, 2)]
-variable = pya.IndependentMarginalsVariable(univariate_variables)
-print(variable)
 shifts = [.1, .2]
-model = TunableModelEnsemble(np.pi/2*.95, shifts=shifts)
+benchmark = setup_benchmark(
+    "tunable_model_ensemble", theta1=np.pi/2*.95, shifts=shifts)
+print(benchmark.variable)
 
 #%%
 #Now let us compute the mean of :math:`f_1` using Monte Carlo
 nsamples = int(1e3)
-samples = pya.generate_independent_random_samples(
-    variable, nsamples)
+samples = benchmark.variable.rvs(nsamples)
+
+model = benchmark.fun
 values = model.m1(samples)
-pya.print_statistics(samples, values)
+variables.print_statistics(samples, values)
 
 #%%
 #We can compute the exact mean using sympy and compute the MC MSE
 z1, z2 = sp.Symbol('z1'), sp.Symbol('z2')
 ranges = [-1, 1, -1, 1]
-integrand_f1 = model.A1*(sp.cos(model.theta1)*z1**3 +
-                         sp.sin(model.theta1)*z2**3)+shifts[0]*0.25
-exact_integral_f1 = float(
-    sp.integrate(integrand_f1, (z1, ranges[0], ranges[1]), (z2, ranges[2], ranges[3])))
-
+exact_integral_f1 = benchmark.means[1]
 print('MC difference squared =', (values.mean()-exact_integral_f1)**2)
 
 #%%
@@ -91,15 +89,15 @@ print('MC difference squared =', (values.mean()-exact_integral_f1)**2)
 ntrials = 1000
 means = np.empty((ntrials, 2))
 for ii in range(ntrials):
-    samples = pya.generate_independent_random_samples(
-        variable, nsamples)
+    samples = benchmark.variable.rvs(nsamples)
     values = model.m1(samples)
     means[ii] = values[:100].mean(), values.mean()
 fig, ax = plt.subplots()
-textstr = '\n'.join([r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
-                     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
-                     r'$\mathbb{E}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].mean(),
-                     r'$\mathbb{V}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].var()])
+textstr = '\n'.join(
+    [r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
+     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
+     r'$\mathbb{E}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].mean(),
+     r'$\mathbb{V}[Q_{1,1000}]=\mathrm{%.2e}$' % means[:, 1].var()])
 ax.hist(means[:, 0], bins=ntrials//100, density=True)
 ax.hist(means[:, 1], bins=ntrials//100, density=True, alpha=0.5)
 ax.axvline(x=shifts[0], c='r', label=r'$\mathbb{E}[Q_1]$')
@@ -128,8 +126,8 @@ print('MC f1 variance =', means.var())
 print('MC f1 MSE =', bias+means.var())
 
 fig, ax = plt.subplots()
-X, Y, Z = pya.get_meshgrid_function_data(
-    lambda z: model.m0(z)-model.m1(z), [-1, 1, -1, 1], 50)
+X, Y, Z = visualize.get_meshgrid_function_data_from_variable(
+    lambda z: model.m0(z)-model.m1(z), benchmark.variable, 50)
 cset = ax.contourf(X, Y, Z, levels=np.linspace(Z.min(), Z.max(), 20))
 _ = plt.colorbar(cset, ax=ax)
 # plt.show()
@@ -142,16 +140,16 @@ _ = plt.colorbar(cset, ax=ax)
 ntrials = 1000
 m0_means = np.empty((ntrials, 1))
 for ii in range(ntrials):
-    samples = pya.generate_independent_random_samples(
-        variable, nsamples)
+    samples = benchmark.variable.rvs(nsamples)
     values = model.m0(samples)
     m0_means[ii] = values[:10].mean()
 
 fig, ax = plt.subplots()
-textstr = '\n'.join([r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
-                     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
-                     r'$\mathbb{E}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].mean(),
-                     r'$\mathbb{V}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].var()])
+textstr = '\n'.join(
+    [r'$\mathbb{E}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].mean(),
+     r'$\mathbb{V}[Q_{1,100}]=\mathrm{%.2e}$' % means[:, 0].var(),
+     r'$\mathbb{E}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].mean(),
+     r'$\mathbb{V}[Q_{0,10}]=\mathrm{%.2e}$' % m0_means[:, 0].var()])
 ax.hist(means[:, 0], bins=ntrials//100, density=True)
 ax.hist(m0_means[:, 0], bins=ntrials//100, density=True, alpha=0.5)
 ax.axvline(x=shifts[0], c='r', label=r'$\mathbb{E}[Q_1]$')

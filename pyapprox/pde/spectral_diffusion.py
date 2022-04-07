@@ -5,10 +5,9 @@ from functools import partial
 
 
 from pyapprox.util.utilities import (
-    cartesian_product, outer_product
+    cartesian_product, outer_product, get_tensor_product_quadrature_rule
 )
 from pyapprox.util.linalg import qr_solve
-from pyapprox.surrogates.interp.tensorprod import get_tensor_product_quadrature_rule
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
 from pyapprox.surrogates.interp.barycentric_interpolation import (
     compute_barycentric_weights_1d,

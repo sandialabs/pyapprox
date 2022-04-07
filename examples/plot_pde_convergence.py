@@ -8,20 +8,19 @@ First lets define a Integrator class which can be used to integrate multivariate
 .. math:: I(\rv) = \int_D f(x, \rv)dx
 """
 import numpy as np
-from pyapprox.convergence_studies import \
+from pyapprox.analysis.convergence_studies import \
     run_convergence_study, plot_convergence_data
 from pyapprox.util.configure_plots import plt
-from pyapprox.util.utilities import (
+from pyapprox.surrogates import (
     get_tensor_product_piecewise_polynomial_quadrature_rule,
 )
-from pyapprox.interface.wrappers import (
+from pyapprox.interface import (
     evaluate_1darray_function_on_2d_array, WorkTrackingModel,
     TimerModelWrapper
 )
 from scipy import stats
-from pyapprox import IndependentMarginalsVariable
-from pyapprox.variables.transforms import (
-    ConfigureVariableTransformation
+from pyapprox.variables import (
+    IndependentMarginalsVariable, ConfigureVariableTransformation
 )
 
 
@@ -105,7 +104,7 @@ plt.show()
 #We can also generate similar plots for methods used to solve parameterized partial differential equations. I the following we will assess convergence of a spectral collocation method used to solve the transient advection diffusion equation on a rectangle.
 
 
-from pyapprox.benchmarks.benchmarks import setup_benchmark
+from pyapprox.benchmarks import setup_benchmark
 np.random.seed(1)
 final_time = .01
 # final_time = None
@@ -125,10 +124,10 @@ convergence_data = run_convergence_study(
 plot_convergence_data(convergence_data)
 plt.show()
 
-
 #%%
 #Note when because the benchmark fun is run using multiprocessing.Pool
-#The .py script of this tutorial cannot be run with
-#python plot_pde_convergence.py because Pool must be called inside
+#The .py script of this tutorial cannot be run with max_eval_concurrency > 1
+#via the shell command using python plot_pde_convergence.py because Pool
+#must be called inside
 #
 #`if __name__ == "__main__":
