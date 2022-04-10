@@ -31,7 +31,7 @@ from pyapprox.surrogates.orthopoly.quadrature import (
 )
 from pyapprox.variables.transforms import (
     define_iid_random_variable_transformation,
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.variables.marginals import (
     float_rv_discrete, rv_function_indpndt_vars, rv_product_indpndt_vars
@@ -246,7 +246,7 @@ class TestGPC(unittest.TestCase):
             stats.uniform(-1, 2), stats.norm(gauss_mean, np.sqrt(gauss_var)),
             stats.uniform(0, 3)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         num_vars = len(univariate_variables)
 
         poly = PolynomialChaosExpansion()
@@ -259,7 +259,7 @@ class TestGPC(unittest.TestCase):
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0)]
         samples, weights = get_tensor_product_quadrature_rule(
             degree+1, num_vars, univariate_quadrature_rules,
-            var_trans.map_from_canonical_space)
+            var_trans.map_from_canonical)
 
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
@@ -436,7 +436,7 @@ class TestGPC(unittest.TestCase):
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         num_vars = len(univariate_variables)
 
         poly = PolynomialChaosExpansion()
@@ -451,7 +451,7 @@ class TestGPC(unittest.TestCase):
                     beta_poly=alpha_stat-1), gauss_hermite_pts_wts_1D]
         samples, weights = get_tensor_product_quadrature_rule(
             degree+1, num_vars, univariate_quadrature_rules,
-            var_trans.map_from_canonical_space)
+            var_trans.map_from_canonical)
 
         coef = np.ones((indices.shape[1], 2))
         coef[:, 1] *= 2
@@ -475,7 +475,7 @@ class TestGPC(unittest.TestCase):
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, 0, 1), stats.norm(-1, 2)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         num_vars = len(univariate_variables)
 
         poly = PolynomialChaosExpansion()
@@ -500,7 +500,7 @@ class TestGPC(unittest.TestCase):
         degree = 4
         M, n, N = 20, 7, 12
         rv = stats.hypergeom(M, n, N)
-        var_trans = AffineRandomVariableTransformation([rv])
+        var_trans = AffineTransform([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -515,7 +515,7 @@ class TestGPC(unittest.TestCase):
         degree = 4
         n, p = 10, 0.5
         rv = stats.binom(n, p)
-        var_trans = AffineRandomVariableTransformation([rv])
+        var_trans = AffineTransform([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -529,7 +529,7 @@ class TestGPC(unittest.TestCase):
         N, degree = 10, 5
         xk, pk = np.arange(N).astype(float), np.ones(N)/N
         rv = float_rv_discrete(name='discrete_chebyshev', values=(xk, pk))()
-        var_trans = AffineRandomVariableTransformation([rv])
+        var_trans = AffineTransform([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -543,7 +543,7 @@ class TestGPC(unittest.TestCase):
         N, degree = 10, 5
         xk, pk = np.geomspace(1.0, 512.0, num=N), np.ones(N)/N
         rv = float_rv_discrete(name='float_rv_discrete', values=(xk, pk))()
-        var_trans = AffineRandomVariableTransformation([rv])
+        var_trans = AffineTransform([rv])
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly_opts['numerically_generated_poly_accuracy_tolerance'] = 1e-9
@@ -562,7 +562,7 @@ class TestGPC(unittest.TestCase):
         assert np.allclose(rv1.mean(), mean) and np.allclose(rv1.std(), std)
         rv2 = stats.lognorm(1)
         for rv in [rv2, rv1]:
-            var_trans = AffineRandomVariableTransformation([rv])
+            var_trans = AffineTransform([rv])
             poly = PolynomialChaosExpansion()
             poly_opts = define_poly_options_from_variable_transformation(
                 var_trans)
@@ -605,7 +605,7 @@ class TestGPC(unittest.TestCase):
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=0, beta_poly=0),
             partial(gauss_jacobi_pts_wts_1D, alpha_poly=1, beta_poly=1),
             partial(gauss_hermite_pts_wts_1D)]
-        var_trans = AffineRandomVariableTransformation(var)
+        var_trans = AffineTransform(var)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
@@ -917,7 +917,7 @@ class TestGPC(unittest.TestCase):
         univariate_variables = [
             rv_function_indpndt_vars(fun, initial_variables, quad_rules)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
         poly.set_indices(tensor_product_indices([degree]))
@@ -940,7 +940,7 @@ class TestGPC(unittest.TestCase):
         univariate_variables = [
             rv_product_indpndt_vars(funs, initial_variables, quad_rules)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)
         poly.set_indices(tensor_product_indices([degree]))
@@ -968,7 +968,7 @@ class TestGPC(unittest.TestCase):
         # assert np.allclose([lognorm.mean(), lognorm.std()], [mu_l, sigma_l])
 
         univariate_variables = [stats.norm(mu_g, sigma_g)]
-        var_trans = AffineRandomVariableTransformation(univariate_variables)
+        var_trans = AffineTransform(univariate_variables)
         pce = PolynomialChaosExpansion()
         pce_opts = define_poly_options_from_variable_transformation(
             var_trans)

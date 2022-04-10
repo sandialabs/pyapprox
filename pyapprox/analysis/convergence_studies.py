@@ -26,7 +26,7 @@ def run_convergence_study(model, variable, validation_levels,
         for kk, ll in zip(coarsest_levels, validation_levels)]
     canonical_config_samples = cartesian_product(
         canonical_config_samples_1d)
-    config_samples = config_var_trans.map_from_canonical_space(
+    config_samples = config_var_trans.map_from_canonical(
         canonical_config_samples)
 
     random_samples = variable.rvs(num_samples)
@@ -34,7 +34,7 @@ def run_convergence_study(model, variable, validation_levels,
 
     reference_samples = samples[:, ::config_samples.shape[1]].copy()
     reference_samples[-config_var_trans.num_vars():, :] =\
-        config_var_trans.map_from_canonical_space(
+        config_var_trans.map_from_canonical(
             validation_levels[:, np.newaxis])
 
     reference_values = model(reference_samples)
@@ -54,7 +54,7 @@ def run_convergence_study(model, variable, validation_levels,
     # put keys in order returned by cartesian product
     keys = sorted(model.work_tracker.costs.keys(),
                   key=lambda x: tuple(
-                      config_var_trans.map_to_canonical_space(
+                      config_var_trans.map_to_canonical(
                           np.asarray(x)[:, None])[::-1, 0]))
     validation_ndof = get_num_degrees_of_freedom(keys[-1])
     # remove validation key associated with validation samples

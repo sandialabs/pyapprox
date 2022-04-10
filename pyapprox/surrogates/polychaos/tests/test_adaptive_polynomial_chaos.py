@@ -8,7 +8,7 @@ from pyapprox.surrogates.polychaos.adaptive_polynomial_chaos import (
     AdaptiveInducedPCE
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.sampling import (
@@ -66,7 +66,7 @@ class TestAdaptivePCE(unittest.TestCase):
         a = np.random.uniform(0, 1, (num_vars, 1))
         def function(x): return np.sum(a*x**2, axis=0)[:, np.newaxis]
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
@@ -110,7 +110,7 @@ class TestAdaptivePCE(unittest.TestCase):
             return vals
         # function = lambda x: np.sum(a*x**2,axis=0)[:,np.newaxis]
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
@@ -146,7 +146,7 @@ class TestAdaptivePCE(unittest.TestCase):
             return vals
         # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 
@@ -167,7 +167,7 @@ class TestAdaptivePCE(unittest.TestCase):
             return vals
         # function = lambda x: np.sum(x**2,axis=0)[:,np.newaxis]
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, 0, 1)], [np.arange(num_vars)]))
 

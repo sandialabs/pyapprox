@@ -1,15 +1,15 @@
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable, GaussCopulaVariable,
-    combine_uncertain_and_bounded_design_variables
+    combine_uncertain_and_bounded_design_variables, JointVariable
 )
 from pyapprox.variables.sampling import print_statistics
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation, NatafTransformation,
-    RosenblattTransformation, ConfigureVariableTransformation
+    AffineTransform, NatafTransform,
+    RosenblattTransform, ConfigureVariableTransformation
 )
 
 __all__ = ["IndependentMarginalsVariable", "GaussCopulaVariable",
-           "print_statistics",
-           "AffineRandomVariableTransformation", "NatafTransformation",
-           "RosenblattTransformation", "ConfigureVariableTransformation",
+           "print_statistics", "JointVariable",
+           "AffineTransform", "NatafTransform",
+           "RosenblattTransform", "ConfigureVariableTransformation",
            "combine_uncertain_and_bounded_design_variables"]

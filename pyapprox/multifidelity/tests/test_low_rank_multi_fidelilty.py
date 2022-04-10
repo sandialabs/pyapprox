@@ -11,7 +11,7 @@ from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.util.linalg import get_pivot_matrix_from_vector
@@ -23,7 +23,7 @@ class OscillatoryPolyLowFidelityModel(object):
         self.num_terms = num_terms
 
         variable = [uniform(-1, 2)]
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         self.poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)

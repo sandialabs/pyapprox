@@ -52,7 +52,7 @@ from pyapprox.variables.transforms import (
     define_iid_random_variable_transformation
     )
 from pyapprox.variables.transforms import (
-    AffineBoundedVariableTransformation, AffineRandomVariableTransformation
+    AffineBoundedVariableTransformation, AffineTransform
     )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.sampling import (
@@ -800,7 +800,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         num_validation_samples = 10
         validation_samples = np.random.uniform(
             -1, 1, (num_vars, num_validation_samples))
-        validation_samples = var_trans.map_from_canonical_space(
+        validation_samples = var_trans.map_from_canonical(
             validation_samples)
 
         values = sparse_grid(validation_samples)
@@ -1234,7 +1234,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
             weight_functions.append(all_weight_functions[index])
 
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         num_vars = len(univariate_variables)
         max_level_1d = [max_level]*(num_vars)
@@ -1398,7 +1398,7 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         #     print(sparse_grid.subspace_poly_indices_list[ii])
 
         samples, weights = extract_sparse_grid_quadrature_rule(sparse_grid)
-        samples = var_trans.map_from_canonical_space(samples)
+        samples = var_trans.map_from_canonical(samples)
 
         basis_matrix = monomial_basis_matrix(indices, samples)
         inner_products = (basis_matrix.T*weights).dot(basis_matrix)
@@ -1422,7 +1422,7 @@ class MultilevelPolynomialModelConfigureVariableTransformation(object):
     def __init__(self, nvars):
         self.nvars = nvars
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         assert canonical_samples.shape[0] == self.nvars
         samples = canonical_samples.copy()
         samples = samples*2
@@ -1448,10 +1448,10 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         num_validation_samples = 100
         validation_samples = np.random.uniform(
             -1., 1., (num_vars+1, num_validation_samples))
-        validation_samples[:-1, :] = var_trans.map_from_canonical_space(
+        validation_samples[:-1, :] = var_trans.map_from_canonical(
             validation_samples[:-1, :])
         validation_samples[-1, :] = num_model_levels-1
-        validation_samples[-1, :] = config_var_trans.map_from_canonical_space(
+        validation_samples[-1, :] = config_var_trans.map_from_canonical(
             validation_samples[-1:])
         validation_values = model(validation_samples)
 
@@ -1485,7 +1485,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         model_level_evals = np.asarray(
             model_level_evals_list, dtype=int)[0, :]
         model_ids = np.asarray(model_level_evals_list, dtype=int)[1:, :]
-        model_ids = config_var_trans.map_from_canonical_space(model_ids)
+        model_ids = config_var_trans.map_from_canonical(model_ids)
         equivalent_costs, total_costs = get_equivalent_cost(
             cost_function, model_level_evals, model_ids)
 
@@ -1508,7 +1508,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         num_model_levels = 3
         base_model = MultilevelPolynomialModel(
             num_model_levels, return_work=True)
-        # TimerModelWrapper is hard to test because cost is constantly
+        # TimerModel is hard to test because cost is constantly
         # changing because of variable wall time. So for testing instead use
         # function of polynomial model that just fixes cost for each level of
         # the multilevel model
@@ -1528,10 +1528,10 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         num_validation_samples = 100
         validation_samples = np.random.uniform(
             -1., 1., (num_vars+1, num_validation_samples))
-        validation_samples[:-1, :] = var_trans.map_from_canonical_space(
+        validation_samples[:-1, :] = var_trans.map_from_canonical(
             validation_samples[:-1, :])
         validation_samples[-1, :] = num_model_levels-1
-        validation_samples[-1, :] = config_var_trans.map_from_canonical_space(
+        validation_samples[-1, :] = config_var_trans.map_from_canonical(
             validation_samples[-1:])
         validation_values = model(validation_samples)
 
@@ -1565,7 +1565,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         model_level_evals = np.asarray(
             model_level_evals_list, dtype=int)[0, :]
         model_ids = np.asarray(model_level_evals_list, dtype=int)[1:, :]
-        model_ids = config_var_trans.map_from_canonical_space(model_ids)
+        model_ids = config_var_trans.map_from_canonical(model_ids)
         equivalent_costs, total_costs = get_equivalent_cost(
             cost_function, model_level_evals, model_ids)
 
@@ -1584,7 +1584,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*2
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \
@@ -1621,7 +1621,7 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
         num_vars = len(univariate_variables)
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         sparse_grid = CombinationSparseGrid(var_trans.num_vars())
         admissibility_function = partial(
             max_level_admissibility_function, np.inf,
@@ -1641,13 +1641,13 @@ class TestAdaptiveMultiIndexSparseGrid(unittest.TestCase):
             sparse_grid.refine()
 
         quadrule_variables = [stats.uniform(-2, 4)]
-        var_trans_new = AffineRandomVariableTransformation(
+        var_trans_new = AffineTransform(
             quadrule_variables)
         # map initial points from canonical domain of first range
         # to canconical domain of second range
         initial_points = sparse_grid.samples_1d[0][-1][None, :].copy()
-        initial_points = var_trans.map_from_canonical_space(initial_points)
-        initial_points = var_trans_new.map_to_canonical_space(initial_points)
+        initial_points = var_trans.map_from_canonical(initial_points)
+        initial_points = var_trans_new.map_to_canonical(initial_points)
         # print(initial_points)
 
         quad_rule = get_univariate_leja_quadrature_rule(

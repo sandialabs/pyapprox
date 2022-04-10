@@ -10,7 +10,7 @@ from pyapprox.surrogates.orthopoly.orthonormal_recursions import (
 from pyapprox.surrogates.orthopoly.recursion_factory import (
     get_recursion_coefficients_from_variable
 )
-from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.transforms import AffineTransform
 
 
 def clenshaw_curtis_rule_growth(level):
@@ -362,9 +362,9 @@ def exponential_growth_rule(quad_rule, level):
 
 
 def transformed_quadrature_rule(marginal, recursion_coeffs, nsamples):
-    var_trans = AffineRandomVariableTransformation([marginal])
+    var_trans = AffineTransform([marginal])
     x, w = gauss_quadrature(recursion_coeffs, nsamples)
-    x = var_trans.map_from_canonical_space(x[None, :])[0, :]
+    x = var_trans.map_from_canonical(x[None, :])[0, :]
     return x, w
 
 
@@ -383,9 +383,9 @@ def get_gauss_quadrature_rule_from_marginal(
         rules
 
     canonical : boolean
-            True - the loc, and scale parameters of the marginal are
-            ignored. The quadrature rules for all bounded variables will be
-             defined on the interval [-1, 1].
+        True - the loc, and scale parameters of the marginal are
+        ignored. The quadrature rules for all bounded variables will be
+        defined on the interval [-1, 1].
 
     Returns
     -------

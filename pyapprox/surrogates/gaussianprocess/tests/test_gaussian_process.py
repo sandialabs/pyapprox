@@ -33,7 +33,7 @@ from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, transformed_halton_sequence
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.surrogates.approximate import approximate
@@ -192,14 +192,14 @@ class TestGaussianProcess(unittest.TestCase):
             candidate_samples, rand_noise, ninterpolation_samples,
             nvalidation_samples)
         interp_random_gp_vals = gp_realizations(
-            gp.map_from_canonical_space(
+            gp.map_from_canonical(
                 gp_realizations.selected_canonical_samples))
         # print(np.absolute(gp_realizations.train_vals-interp_random_gp_vals))
         # adding alpha means we wont interpolate the data exactly
         assert np.allclose(
             gp_realizations.train_vals, interp_random_gp_vals,
             rtol=1e-6, atol=1e-6)
-        samples = gp.map_from_canonical_space(np.hstack((
+        samples = gp.map_from_canonical(np.hstack((
             gp_realizations.selected_canonical_samples,
             gp_realizations.canonical_validation_samples)))
         random_gp_vals = gp.predict_random_realization(
@@ -439,7 +439,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         ntrain_samples = 7
         train_samples = (np.cos(
@@ -547,7 +547,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2), stats.uniform(0, 1)]
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         nu = np.inf
         length_scale = np.ones(nvars)
@@ -607,7 +607,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         nu = np.inf
         kernel_var = 2.
@@ -746,7 +746,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        # var_trans = AffineRandomVariableTransformation(variable)
+        # var_trans = AffineTransform(variable)
 
         nu = np.inf
         kernel_var = 1.
@@ -812,7 +812,7 @@ class TestGaussianProcess(unittest.TestCase):
         univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        # var_trans = AffineRandomVariableTransformation(variable)
+        # var_trans = AffineTransform(variable)
 
         nu = np.inf
         kernel_var = 1.
@@ -913,7 +913,7 @@ class TestGaussianProcess(unittest.TestCase):
         # normalize_y, constant_value = False, fkernel.k1.constant_value
 
         alpha = 1e-8
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         kernel = Matern(
             np.ones(nvars), length_scale_bounds=(1e-1, 1e1), nu=np.inf)
         kernel = ConstantKernel(

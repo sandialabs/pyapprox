@@ -268,7 +268,7 @@ class NeuralNetwork(object):
     def fit(self, samples, values, x0=None, opts={}, verbose=0):
         assert samples.shape[0] == self.layers[0]
         if self.var_trans is not None:
-            self.train_samples = self.var_trans.map_to_canonical_space(samples)
+            self.train_samples = self.var_trans.map_to_canonical(samples)
         else:
             self.train_samples = samples
         self.train_values = values
@@ -320,7 +320,7 @@ class NeuralNetwork(object):
 
     def __call__(self, samples):
         if self.var_trans is not None:
-            canonical_samples = self.var_trans.map_to_canonical_space(samples)
+            canonical_samples = self.var_trans.map_to_canonical(samples)
         else:
             canonical_samples = samples.copy()
         return self.forward_propagate(canonical_samples, self.parameters)

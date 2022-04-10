@@ -139,7 +139,7 @@ def generate_probability_samples_tolerance(
     if samples is None:
         new_samples = generate_independent_random_samples(
             variable, nindices)
-        new_samples = pce.var_trans.map_to_canonical_space(new_samples)
+        new_samples = pce.var_trans.map_to_canonical(new_samples)
     else:
         new_samples = samples.copy()
     cond = compute_preconditioned_canonical_basis_matrix_condition_number(
@@ -151,7 +151,7 @@ def generate_probability_samples_tolerance(
     max_nsamples = 1000*pce.indices.shape[1]
     while cond > cond_tol:
         tmp = generate_independent_random_samples(variable, cnt*nindices)
-        tmp = pce.var_trans.map_to_canonical_space(tmp)
+        tmp = pce.var_trans.map_to_canonical(tmp)
         new_samples = np.hstack((new_samples, tmp))
         cond = compute_preconditioned_canonical_basis_matrix_condition_number(
             pce, new_samples)
@@ -182,7 +182,7 @@ def increment_probability_samples(pce, cond_tol, samples, indices,
     # allocate at one sample for every new basis
     tmp = generate_independent_random_samples(
         pce.var_trans.variable, new_indices.shape[1])
-    tmp = pce.var_trans.map_to_canonical_space(tmp)
+    tmp = pce.var_trans.map_to_canonical(tmp)
     new_samples = np.hstack((samples, tmp))
     # keep sampling until condition number is below cond_tol
     new_samples = generate_probability_samples_tolerance(
@@ -236,7 +236,7 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
             samples = generate_independent_random_samples(
                 self.pce.var_trans.variable,
                 sample_ratio*unique_poly_indices.shape[1])
-            samples = self.pce.var_trans.map_to_canonical_space(samples)
+            samples = self.pce.var_trans.map_to_canonical(samples)
             samples = np.hstack([self.samples, samples])
             return samples
 

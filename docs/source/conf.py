@@ -90,7 +90,8 @@ if 'pyapprox-dev' in installed_pkgs:
     example_filenames_in_order.insert(14, 'plot_multi_index_collocation.py')
 
 example_filenames_in_order += [
-    'plot_variables.py', 'plot_setup_model.py', 'plot_parameter_sweeps.py',
+    'plot_variables.py', 'plot_setup_model.py',
+    'plot_interface.py', 'plot_parameter_sweeps.py',
     'plot_low_discrepancy_quadrature.py', 'plot_gaussian_quadrature.py',
     'plot_barycentric_interpolation.py',
     'plot_multivariate_piecewise_polynomial_interpolation.py',

@@ -33,7 +33,7 @@ from pyapprox.variables.transforms import (
     ConfigureVariableTransformation
 )
 from pyapprox.interface.wrappers import (
-    TimerModelWrapper, PoolModel, WorkTrackingModel
+    TimerModel, PoolModel, WorkTrackingModel
 )
 from pyapprox.pde.spectral_diffusion import (
     TransientAdvectionDiffusion, SteadyStateAdvectionDiffusion
@@ -45,14 +45,16 @@ class Benchmark(OptimizeResult):
     Contains functions and results needed to implement known
     benchmarks.
 
-    The quantities
+    A benchmark can be created with any attribute.
+    Only fun and variable are required. Below are these two required attributes
+    and other optional attributes used in different PyApprox Benchmarks
 
     Attributes
     ----------
     fun : callable
         The function being analyzed
 
-    variable : pya.variable
+    variable : :py:class:`pyapprox.variables.JointVariable`
         Class containing information about each of the nvars inputs to fun
 
     jac : callable
@@ -108,7 +110,7 @@ def setup_sobol_g_function(nvars):
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
 
     References
@@ -150,7 +152,7 @@ def setup_ishigami_function(a, b):
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
 
     References
@@ -186,7 +188,7 @@ def setup_oakley_function():
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
 
     References
@@ -230,7 +232,7 @@ def setup_rosenbrock_function(nvars):
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes documented below
 
     fun : callable
@@ -339,7 +341,7 @@ def setup_genz_function(nvars, test_name, coefficients=None):
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
 
     References
@@ -397,6 +399,35 @@ if PYA_DEV_AVAILABLE:
 
 
 def setup_benchmark(name, **kwargs):
+    """
+    Setup a PyApprox benchmark.
+
+    Parameters
+    ----------
+    name : string
+        The name of the benchmark
+
+    kwargs: kwargs
+     optional keyword arguments
+
+    Returns
+    -------
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
+       Object containing the benchmark attributes
+
+    The benchmark object must contain at least the following two attributes
+
+    fun : callable
+        A function with signature
+
+        fun(samples) -> np.ndarray(nsamples, nqoi)
+
+        where samples : np.ndarray(nvars, nsamples)
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    """
     benchmarks = {
         'sobol_g': setup_sobol_g_function,
         'ishigami': setup_ishigami_function,
@@ -454,7 +485,7 @@ def setup_piston_benchmark():
     r"""
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes documented below
 
     fun : callable
@@ -493,7 +524,7 @@ def setup_wing_weight_benchmark():
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes documented below
 
     fun : callable
@@ -629,7 +660,7 @@ def setup_multi_index_advection_diffusion_benchmark(
 
     Returns
     -------
-    benchmark : pya.Benchmark
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes documented below
 
     fun : callable
@@ -685,7 +716,7 @@ def setup_multi_index_advection_diffusion_benchmark(
     config_var_trans = ConfigureVariableTransformation(config_values)
 
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(multi_index_model, multi_index_model)
+    timer_model = TimerModel(multi_index_model, multi_index_model)
     pool_model = PoolModel(
        timer_model, max_eval_concurrency, base_model=base_model)
     # pool_model = timer_model

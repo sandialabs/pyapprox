@@ -31,7 +31,7 @@ from pyapprox.surrogates.interp.barycentric_interpolation import (
 )
 from pyapprox.variables.transforms import (
     define_iid_random_variable_transformation,
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.variables.density import beta_pdf_on_ab, gaussian_pdf
 from pyapprox.util.utilities import hash_array
@@ -169,7 +169,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         univariate_variables = [
             stats.uniform(-1, 2), stats.beta(alpha_stat, beta_stat, -1, 2)]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         poly_opts = define_poly_options_from_variable_transformation(
                 var_trans)
@@ -261,7 +261,7 @@ class TestMultivariatePolynomials(unittest.TestCase):
         univariate_variables = [
             stats.beta(alpha_stat, beta_stat, -1, 2), stats.norm()]
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         quad_rules, growth_rules, unique_quadrule_indices, \
             unique_max_level_1d = \

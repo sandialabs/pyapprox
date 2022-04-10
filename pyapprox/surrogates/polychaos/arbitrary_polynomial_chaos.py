@@ -84,7 +84,7 @@ class APC(PolynomialChaosExpansion):
     def unrotated_basis_matrix(self, samples):
         assert samples.ndim == 2
         assert samples.shape[0] == self.num_vars()
-        canonical_samples = self.var_trans.map_to_canonical_space(
+        canonical_samples = self.var_trans.map_to_canonical(
             samples)
         matrix = self.unrotated_canonical_basis_matrix(canonical_samples)
         return matrix
@@ -106,7 +106,7 @@ class APC(PolynomialChaosExpansion):
     def basis_matrix(self, samples, opts=dict()):
         assert samples.ndim == 2
         assert samples.shape[0] == self.num_vars()
-        canonical_samples = self.var_trans.map_to_canonical_space(
+        canonical_samples = self.var_trans.map_to_canonical(
             samples)
         return self.canonical_basis_matrix(canonical_samples, opts)
 
@@ -397,7 +397,7 @@ def compute_grammian_matrix_using_combination_sparse_grid(
         num_vars, sparse_grid.subspace_indices.max(),
         sparse_grid.univariate_quad_rule,
         sparse_grid.univariate_growth_rule, sparse_grid.subspace_indices)[:2]
-    samples = var_trans.map_from_canonical_space(samples)
+    samples = var_trans.map_from_canonical(samples)
     weights *= density_function(samples)
     basis_matrix = basis_matrix_function(samples)
     moment_matrix = np.dot(basis_matrix.T*weights, basis_matrix)

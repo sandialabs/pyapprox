@@ -99,7 +99,7 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         def univariate_quadrature_rule(n):
             x, w = gauss_jacobi_pts_wts_1D(n, beta_stat-1, alpha_stat-1)
-            x = random_var_trans.map_from_canonical_space(x[np.newaxis, :])[
+            x = random_var_trans.map_from_canonical(x[np.newaxis, :])[
                 0, :]
             return x, w
 
@@ -174,7 +174,7 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         samples, weights = get_tensor_product_quadrature_rule(
             degree+1, num_vars, true_univariate_quadrature_rule,
-            transform_samples=random_var_trans.map_from_canonical_space)
+            transform_samples=random_var_trans.map_from_canonical)
 
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
@@ -228,7 +228,7 @@ class TestArbitraryPolynomialChaos(unittest.TestCase):
 
         samples, weights = get_tensor_product_quadrature_rule(
             degree+1, num_vars, true_univariate_quadrature_rule,
-            transform_samples=random_var_trans.map_from_canonical_space)
+            transform_samples=random_var_trans.map_from_canonical)
 
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 

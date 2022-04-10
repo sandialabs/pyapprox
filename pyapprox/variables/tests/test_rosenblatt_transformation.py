@@ -27,7 +27,7 @@ def cwum_2d(x, c=0.):
 def rosenblatt_example_3d_joint_density(x):
     """
     This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransformation class can be
+    stores this joint density like the RosenblattTransform class can be
     pickled.
     """
     return 80./21.*(x[0, :]**4+x[1, :]**3*x[2, :]**3)
@@ -78,7 +78,7 @@ def rosenblatt_example_3d(num_samples=10000, run_tests=False):
 def rosenblatt_example_2d_joint_density_1(x):
     """
     This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransformation class can be
+    stores this joint density like the RosenblattTransform class can be
     pickled.
     """
     return 20./9.*(x[0, :]**4+x[1, :]**3)
@@ -87,7 +87,7 @@ def rosenblatt_example_2d_joint_density_1(x):
 def rosenblatt_example_2d_joint_density_2(x):
     """
     This function must be defined outside of example so that any object that
-    stores this joint density like the RosenblattTransformation class can be
+    stores this joint density like the RosenblattTransform class can be
     pickled.
     """
     return 6./5.*(x[0, :]**2+x[1, :])
@@ -171,7 +171,7 @@ def rosenblatt_example_2d(num_samples=10000, density_num=1, run_tests=False):
     return samples, trans_samples, joint_density, limits
 
 
-class TestRosenblattTransformation(unittest.TestCase):
+class TestRosenblattTransform(unittest.TestCase):
 
     def test_combine_samples_with_fixed_data(self):
         num_samples = 3
@@ -361,10 +361,10 @@ class TestRosenblattTransformation(unittest.TestCase):
 
 if __name__ == '__main__':
     #suite = unittest.TestSuite()
-    # suite.addTest(TestRosenblattTransformation(
+    # suite.addTest(TestRosenblattTransform(
     #    "test_inverse_rosenblatt_transformation"))
     # unittest.TextTestRunner(verbosity=2).run(suite)
 
     rosenblatt_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestRosenblattTransformation)
+        TestRosenblattTransform)
     unittest.TextTestRunner(verbosity=2).run(rosenblatt_test_suite)

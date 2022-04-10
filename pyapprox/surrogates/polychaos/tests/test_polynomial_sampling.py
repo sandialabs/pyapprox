@@ -18,8 +18,8 @@ from pyapprox.surrogates.polychaos.gpc import (
     define_poly_options_from_variable
 )
 from pyapprox.variables.transforms import (
-    define_iid_random_variable_transformation, RosenblattTransformation,
-    TransformationComposition
+    define_iid_random_variable_transformation, RosenblattTransform,
+    ComposeTransforms
 )
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.surrogates.orthopoly.quadrature import gauss_jacobi_pts_wts_1D
@@ -112,7 +112,7 @@ class TestPolynomialSampling(unittest.TestCase):
         samples, data_structures = get_fekete_samples(
             poly.canonical_basis_matrix, generate_candidate_samples,
             num_candidate_samples, preconditioning_function=precond_func)
-        samples = var_trans.map_from_canonical_space(samples)
+        samples = var_trans.map_from_canonical(samples)
 
         assert samples.max() <= 1 and samples.min() >= 0.
 
@@ -160,7 +160,7 @@ class TestPolynomialSampling(unittest.TestCase):
             poly.canonical_basis_matrix, generate_candidate_samples,
             num_candidate_samples, num_leja_samples,
             preconditioning_function=precond_func)
-        samples = var_trans.map_from_canonical_space(samples)
+        samples = var_trans.map_from_canonical(samples)
 
         assert samples.max() <= 1 and samples.min() >= 0.
 
@@ -231,7 +231,7 @@ class TestPolynomialSampling(unittest.TestCase):
 
         assert np.allclose(samples[:, :num_initial_samples], initial_samples)
 
-        samples = var_trans.map_from_canonical_space(samples)
+        samples = var_trans.map_from_canonical(samples)
 
         assert samples.max() <= 1 and samples.min() >= 0.
 
@@ -321,13 +321,13 @@ class TestPolynomialSampling(unittest.TestCase):
         num_vars = len(limits)//2
 
         rosenblatt_opts = {'limits': limits, 'num_quad_samples_1d': 20}
-        var_trans_1 = RosenblattTransformation(
+        var_trans_1 = RosenblattTransform(
             joint_density, num_vars, rosenblatt_opts)
         # rosenblatt maps to [0,1] but polynomials of bounded variables
         # are in [-1,1] so add second transformation for this second mapping
         var_trans_2 = define_iid_random_variable_transformation(
             stats.uniform(), num_vars)
-        var_trans = TransformationComposition([var_trans_1, var_trans_2])
+        var_trans = ComposeTransforms([var_trans_1, var_trans_2])
 
         poly = PolynomialChaosExpansion()
         # use var_trans2 to configure polynomial recursions
@@ -347,9 +347,9 @@ class TestPolynomialSampling(unittest.TestCase):
         canonical_samples, data_structures = get_fekete_samples(
             poly.canonical_basis_matrix, generate_candidate_samples,
             num_candidate_samples, preconditioning_function=precond_func)
-        samples = var_trans.map_from_canonical_space(canonical_samples)
+        samples = var_trans.map_from_canonical(canonical_samples)
         assert np.allclose(
-            canonical_samples, var_trans.map_to_canonical_space(samples))
+            canonical_samples, var_trans.map_to_canonical(samples))
 
         assert samples.max() <= 1 and samples.min() >= 0.
 

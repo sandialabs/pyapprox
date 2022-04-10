@@ -122,7 +122,7 @@ def setup_model(num_vars, corr_len, max_eval_concurrency):
         add_work_to_qoi=False,
         second_order_timestepping=second_order_timestepping)
     # add wrapper to allow execution times to be captured
-    timer_model = pya.TimerModelWrapper(base_model, base_model)
+    timer_model = pya.TimerModel(base_model, base_model)
     # add wraper to allow model runs to be run on independent threads
     model = pya.PoolModel(timer_model, max_eval_concurrency,
                           base_model=base_model)

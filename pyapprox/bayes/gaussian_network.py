@@ -8,7 +8,7 @@ from pyapprox.surrogates.polychaos.gpc import (
 )
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.variables.gaussian import (
     convert_conditional_probability_density_to_canonical_form, GaussianFactor,
@@ -659,7 +659,7 @@ def get_total_degree_polynomials(univariate_variables, degrees):
     polys, nparams = [], []
     for ii in range(len(degrees)):
         poly = PolynomialChaosExpansion()
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             univariate_variables[ii])
         poly_opts = define_poly_options_from_variable_transformation(var_trans)
         poly.configure(poly_opts)

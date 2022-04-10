@@ -438,7 +438,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
     """
 
     from scipy import stats
-    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModel, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
     from pyapprox.variables.marginals import IndependentMarginalsVariable
@@ -451,7 +451,7 @@ def setup_advection_diffusion_benchmark(nvars, corr_len,
         final_time, degree, qoi_functional_misc, second_order_timestepping=False,
         options=options, qoi_functional_grad=qoi_functional_grad_misc)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(base_model, base_model)
+    timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
 
@@ -470,7 +470,7 @@ def setup_multi_level_advection_diffusion_benchmark(
     See :func:`pyapprox_dev.advection_diffusion_wrappers.setup_advection_diffusion_benchmark` for details on function arguments and output.
     """
     from scipy import stats
-    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModel, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
     from pyapprox.variables.marginals import IndependentMarginalsVariable
@@ -486,7 +486,7 @@ def setup_multi_level_advection_diffusion_benchmark(
     multilevel_model = MultiLevelWrapper(
         base_model, base_model.num_config_vars)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(multilevel_model, base_model)
+    timer_model = TimerModel(multilevel_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
     model = WorkTrackingModel(
@@ -616,7 +616,7 @@ def setup_advection_diffusion_source_inversion_benchmark(
     """
 
     from scipy import stats
-    from pyapprox.interface.wrappers import TimerModelWrapper, PoolModel, \
+    from pyapprox.interface.wrappers import TimerModel, PoolModel, \
         WorkTrackingModel
     from pyapprox.interface.wrappers import PoolModel
     from pyapprox.variables.marginals import IndependentMarginalsVariable
@@ -630,7 +630,7 @@ def setup_advection_diffusion_source_inversion_benchmark(
         final_time, degree, qoi_functional_source_inversion,
         second_order_timestepping=False, options=options)
     # add wrapper to allow execution times to be captured
-    timer_model = TimerModelWrapper(base_model, base_model)
+    timer_model = TimerModel(base_model, base_model)
     pool_model = PoolModel(
         timer_model, max_eval_concurrency, base_model=base_model)
 

@@ -2,7 +2,7 @@ import copy
 from functools import partial
 import numpy as np
 
-from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.transforms import AffineTransform
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, hash_array, nchoosek
@@ -204,10 +204,10 @@ class PolynomialChaosExpansion(object):
     Notes
     -----
     When pickling this class from a file that file must contain
-    from pyapprox.variables.transforms import AffineRandomVariableTransformation
+    from pyapprox.variables.transforms import AffineTransform
     Otherwise the following error will be thrown
 
-    AttributeError: 'AffineRandomVariableTransformation' object has no
+    AttributeError: 'AffineTransform' object has no
     attribute 'enforce_bounds'
     """
     def __init__(self):
@@ -293,7 +293,7 @@ class PolynomialChaosExpansion(object):
         """
         Parameters
         ----------
-        var_trans : :class:`pyapprox.variables.transforms.AffineRandomVariableTransformation`
+        var_trans : :class:`pyapprox.variables.transforms.AffineTransform`
             Variable transformation mapping user samples into the canonical
             domain of the polynomial basis
 
@@ -366,7 +366,7 @@ class PolynomialChaosExpansion(object):
     def basis_matrix(self, samples, opts=dict()):
         assert samples.ndim == 2
         assert samples.shape[0] == self.num_vars()
-        canonical_samples = self.var_trans.map_to_canonical_space(
+        canonical_samples = self.var_trans.map_to_canonical(
             samples)
         basis_matrix = self.canonical_basis_matrix(canonical_samples, opts)
         deriv_order = opts.get('deriv_order', 0)
@@ -497,7 +497,7 @@ def get_tensor_product_quadrature_rule_from_pce(pce, degrees):
     canonical_samples, weights = \
         get_tensor_product_quadrature_rule(
             degrees+1, pce.num_vars(), univariate_quadrature_rules)
-    samples = pce.var_trans.map_from_canonical_space(
+    samples = pce.var_trans.map_from_canonical(
         canonical_samples)
     return samples, weights
 
@@ -597,7 +597,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
     active_idx = np.setdiff1d(np.arange(poly.num_vars()), inactive_idx)
     active_variables = IndependentMarginalsVariable(
         [all_variables[ii] for ii in active_idx])
-    opts['var_trans'] = AffineRandomVariableTransformation(active_variables)
+    opts['var_trans'] = AffineTransform(active_variables)
 
     marginalized_var_nums = -np.ones(poly.num_vars())
     marginalized_var_nums[active_idx] = np.arange(active_idx.shape[0])
@@ -630,7 +630,7 @@ def marginalize_polynomial_chaos_expansion(poly, inactive_idx, center=True):
 
 
 def get_polynomial_from_variable(variable):
-    var_trans = AffineRandomVariableTransformation(
+    var_trans = AffineTransform(
         variable)
     poly = PolynomialChaosExpansion()
     poly_opts = define_poly_options_from_variable_transformation(var_trans)

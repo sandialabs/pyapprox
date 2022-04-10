@@ -891,6 +891,9 @@ monte_carlo_estimators = {"acvmf": ACVMFEstimator,
 
 
 def get_estimator(estimator_type, cov, costs, variable, **kwargs):
+    """
+    Initialize an monte-carlo estimator.
+    """
     if estimator_type not in monte_carlo_estimators:
         msg = f"Estimator {estimator_type} not supported"
         msg += f"Must be one of {monte_carlo_estimators.keys()}"

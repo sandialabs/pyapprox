@@ -3,10 +3,10 @@ from scipy import stats
 import numpy as np
 
 from pyapprox.variables.transforms import (
-    map_hypercube_samples, AffineRandomVariableTransformation,
-    RosenblattTransformation,
-    NatafTransformation, define_iid_random_variable_transformation,
-    TransformationComposition, UniformMarginalTransformation
+    map_hypercube_samples, AffineTransform,
+    RosenblattTransform,
+    NatafTransform, define_iid_random_variable_transformation,
+    ComposeTransforms, UniformMarginalTransformation
 )
 from pyapprox.variables.marginals import float_rv_discrete
 from pyapprox.variables.joint import IndependentMarginalsVariable
@@ -47,7 +47,7 @@ class TestVariableTransformations(unittest.TestCase):
             stats.uniform(-1, 2), stats.beta(1, 1, -1, 2),
             stats.norm(-1, np.sqrt(4)), stats.uniform(),
             stats.uniform(-1, 2), stats.beta(2, 1, -2, 3)]
-        var_trans = AffineRandomVariableTransformation(univariate_variables)
+        var_trans = AffineTransform(univariate_variables)
 
         # first sample is on left boundary of all bounded variables
         # and one standard deviation to left of mean for gaussian variable
@@ -56,12 +56,12 @@ class TestVariableTransformations(unittest.TestCase):
         true_user_samples = np.asarray(
             [[-1, -1, -3, 0, -1, -2], [1, 1, 1, 1, 1, 1]]).T
 
-        canonical_samples = var_trans.map_to_canonical_space(true_user_samples)
+        canonical_samples = var_trans.map_to_canonical(true_user_samples)
         true_canonical_samples = np.ones_like(true_user_samples)
         true_canonical_samples[:, 0] = -1
         assert np.allclose(true_canonical_samples, canonical_samples)
 
-        user_samples = var_trans.map_from_canonical_space(canonical_samples)
+        user_samples = var_trans.map_from_canonical(canonical_samples)
         assert np.allclose(user_samples, true_user_samples)
 
     def test_define_mixed_tensor_product_random_variable_contin_discrete(self):
@@ -79,7 +79,7 @@ class TestVariableTransformations(unittest.TestCase):
             stats.binom(num_trials, prob_success),
             stats.norm(-1, np.sqrt(4)), stats.uniform(0, 1),
             stats.uniform(0, 1), stats.binom(num_trials, prob_success)]
-        var_trans = AffineRandomVariableTransformation(univariate_variables)
+        var_trans = AffineTransform(univariate_variables)
 
         # first sample is on left boundary of all bounded variables
         # and one standard deviation to left of mean for gaussian variables
@@ -89,7 +89,7 @@ class TestVariableTransformations(unittest.TestCase):
             [[0, -3, -3, 0, -3, 0, 0, 0],
              [1, 1, 1, num_trials, 1, 1, 1, 10]]).T
 
-        canonical_samples = var_trans.map_to_canonical_space(true_user_samples)
+        canonical_samples = var_trans.map_to_canonical(true_user_samples)
         true_canonical_samples = np.ones_like(true_user_samples)
         true_canonical_samples[:, 0] = -1
         true_canonical_samples[5, 0] = -1
@@ -97,7 +97,7 @@ class TestVariableTransformations(unittest.TestCase):
         true_canonical_samples[7, :] = [-1, 1]
         assert np.allclose(true_canonical_samples, canonical_samples)
 
-        user_samples = var_trans.map_from_canonical_space(canonical_samples)
+        user_samples = var_trans.map_from_canonical(canonical_samples)
         assert np.allclose(user_samples, true_user_samples)
 
     def test_rosenblatt_transformation(self):
@@ -107,13 +107,13 @@ class TestVariableTransformations(unittest.TestCase):
 
         num_vars = 2
         opts = {'limits': limits, 'num_quad_samples_1d': 100}
-        var_trans = RosenblattTransformation(joint_density, num_vars, opts)
+        var_trans = RosenblattTransform(joint_density, num_vars, opts)
 
-        samples = var_trans.map_from_canonical_space(
+        samples = var_trans.map_from_canonical(
             true_canonical_samples)
         assert np.allclose(true_samples, samples)
 
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
         assert np.allclose(true_canonical_samples, canonical_samples)
 
     def test_nataf_transformation(self):
@@ -144,7 +144,7 @@ class TestVariableTransformations(unittest.TestCase):
         x_covariance = correlation_to_covariance(
             x_correlation, x_marginal_stdevs)
 
-        var_trans = NatafTransformation(
+        var_trans = NatafTransform(
             x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs,
             x_covariance, x_marginal_means, bisection_opts)
 
@@ -155,10 +155,10 @@ class TestVariableTransformations(unittest.TestCase):
             generate_x_samples_using_gaussian_copula(
                 num_vars, z_correlation, x_marginal_inv_cdfs, num_samples)
 
-        canonical_samples = var_trans.map_to_canonical_space(true_samples)
+        canonical_samples = var_trans.map_to_canonical(true_samples)
         assert np.allclose(true_canonical_samples, canonical_samples)
 
-        samples = var_trans.map_from_canonical_space(
+        samples = var_trans.map_from_canonical(
             true_canonical_samples)
         assert np.allclose(true_samples, samples)
 
@@ -173,16 +173,16 @@ class TestVariableTransformations(unittest.TestCase):
 
         num_vars = 2
         opts = {'limits': limits, 'num_quad_samples_1d': 100}
-        var_trans_1 = RosenblattTransformation(joint_density, num_vars, opts)
+        var_trans_1 = RosenblattTransform(joint_density, num_vars, opts)
         var_trans_2 = define_iid_random_variable_transformation(
             stats.uniform(0, 1), num_vars)
-        var_trans = TransformationComposition([var_trans_1, var_trans_2])
+        var_trans = ComposeTransforms([var_trans_1, var_trans_2])
 
-        samples = var_trans.map_from_canonical_space(
+        samples = var_trans.map_from_canonical(
             true_canonical_samples)
         assert np.allclose(true_samples, samples)
 
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
         assert np.allclose(true_canonical_samples, canonical_samples)
 
     def test_transformation_composition_II(self):
@@ -212,7 +212,7 @@ class TestVariableTransformations(unittest.TestCase):
         x_covariance = correlation_to_covariance(
             x_correlation, x_marginal_stdevs)
 
-        var_trans_1 = NatafTransformation(
+        var_trans_1 = NatafTransform(
             x_marginal_cdfs, x_marginal_inv_cdfs, x_marginal_pdfs,
             x_covariance, x_marginal_means)
 
@@ -224,7 +224,7 @@ class TestVariableTransformations(unittest.TestCase):
         std_normal_marginal_inv_cdfs = [normal_icdf]*num_vars
         var_trans_2 = UniformMarginalTransformation(
             std_normal_marginal_cdfs, std_normal_marginal_inv_cdfs)
-        var_trans = TransformationComposition([var_trans_1, var_trans_2])
+        var_trans = ComposeTransforms([var_trans_1, var_trans_2])
 
         num_samples = 1000
         true_samples, true_canonical_samples = \
@@ -232,11 +232,11 @@ class TestVariableTransformations(unittest.TestCase):
                 num_vars, z_correlation, x_marginal_inv_cdfs, num_samples)
         true_canonical_samples = stats.norm.cdf(true_canonical_samples)
 
-        samples = var_trans.map_from_canonical_space(
+        samples = var_trans.map_from_canonical(
             true_canonical_samples)
         assert np.allclose(true_samples, samples)
 
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
         assert np.allclose(true_canonical_samples, canonical_samples)
 
     def test_pickle_rosenblatt_transformation(self):
@@ -247,7 +247,7 @@ class TestVariableTransformations(unittest.TestCase):
 
         num_vars = 2
         opts = {'limits': limits, 'num_quad_samples_1d': 100}
-        var_trans = RosenblattTransformation(joint_density, num_vars, opts)
+        var_trans = RosenblattTransform(joint_density, num_vars, opts)
 
         filename = 'rv_trans.pkl'
         with open(filename, 'wb') as f:
@@ -288,16 +288,16 @@ class TestVariableTransformations(unittest.TestCase):
                               values=(mass_locs, mass_probs))()]*nvars
 
         variables = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variables)
+        var_trans = AffineTransform(variables)
 
         samples = np.vstack(
             [mass_locs[np.newaxis, :], mass_locs[0]*np.ones((1, nmasses))])
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
 
         assert(canonical_samples[0].min() == -1)
         assert(canonical_samples[0].max() == 1)
 
-        recovered_samples = var_trans.map_from_canonical_space(
+        recovered_samples = var_trans.map_from_canonical(
             canonical_samples)
         assert np.allclose(recovered_samples, samples)
 
@@ -308,25 +308,25 @@ class TestVariableTransformations(unittest.TestCase):
         var_trans.set_identity_maps([1])
 
         samples = np.random.uniform(0, 1, (num_vars, 4))
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
         assert np.allclose(canonical_samples[1, :], samples[1, :])
 
         assert np.allclose(
-            var_trans.map_from_canonical_space(canonical_samples), samples)
+            var_trans.map_from_canonical(canonical_samples), samples)
 
         univariate_variables = [
             stats.uniform(-1, 2), stats.beta(1, 1, -1, 2),
             stats.norm(-1, np.sqrt(4)), stats.uniform(),
             stats.uniform(-1, 2), stats.beta(2, 1, -2, 3)]
-        var_trans = AffineRandomVariableTransformation(univariate_variables)
+        var_trans = AffineTransform(univariate_variables)
         var_trans.set_identity_maps([4, 2])
 
         samples = generate_independent_random_samples(var_trans.variable, 10)
-        canonical_samples = var_trans.map_to_canonical_space(samples)
+        canonical_samples = var_trans.map_to_canonical(samples)
         assert np.allclose(canonical_samples[[2, 4], :], samples[[2, 4], :])
 
         assert np.allclose(
-            var_trans.map_from_canonical_space(canonical_samples), samples)
+            var_trans.map_from_canonical(canonical_samples), samples)
 
     def test_map_derivatives(self):
         nvars = 2
@@ -334,7 +334,7 @@ class TestVariableTransformations(unittest.TestCase):
         x = np.random.uniform(0, 1, (nvars, nsamples))
         # vals = np.sum(x**2, axis=0)[:, None]
         grad = np.vstack([2*x[ii:ii+1, :] for ii in range(nvars)])
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             [stats.uniform(0, 1), stats.uniform(2, 2)])
         canonical_derivs = var_trans.map_derivatives_to_canonical_space(grad)
         for ii in range(nvars):

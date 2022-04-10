@@ -86,10 +86,10 @@ class IdentityTransformation(object):
     def __init__(self, num_vars):
         self.nvars = num_vars
 
-    def map_from_canonical_space(self, samples):
+    def map_from_canonical(self, samples):
         return samples
 
-    def map_to_canonical_space(self, samples):
+    def map_to_canonical(self, samples):
         return samples
 
     def num_vars(self):
@@ -106,11 +106,11 @@ class AffineBoundedVariableTransformation(object):
         self.user_ranges = np.asarray(user_ranges)
         self.nvars = int(len(self.user_ranges)/2)
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         return map_hypercube_samples(
             canonical_samples, self.canonical_ranges, self.user_ranges)
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         return map_hypercube_samples(
             user_samples, self.user_ranges, self.canonical_ranges)
 
@@ -118,7 +118,12 @@ class AffineBoundedVariableTransformation(object):
         return self.nvars
 
 
-class AffineRandomVariableTransformation(object):
+class AffineTransform(object):
+    r"""
+    Apply an affine transformation to a
+    :py:class:`pyapprox.variables.IndependentMarginalsVariable`
+    """
+
     def __init__(self, variable, enforce_bounds=False):
         """
         Variable uniquness dependes on both the type of random variable
@@ -158,7 +163,7 @@ class AffineRandomVariableTransformation(object):
         """
         self.identity_map_indices = identity_map_indices
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         canonical_samples = user_samples.copy().astype(float)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
@@ -185,7 +190,7 @@ class AffineRandomVariableTransformation(object):
 
         return canonical_samples
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         user_samples = canonical_samples.copy().astype(float)
         for ii in range(self.variable.nunique_vars):
             indices = self.variable.unique_variable_indices[ii]
@@ -200,7 +205,7 @@ class AffineRandomVariableTransformation(object):
 
         return user_samples
 
-    def map_to_canonical_space_1d(self, samples, ii):
+    def map_to_canonical_1d(self, samples, ii):
         for jj in range(self.variable.nunique_vars):
             if ii in self.variable.unique_variable_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
@@ -210,7 +215,7 @@ class AffineRandomVariableTransformation(object):
                     return samples
         raise Exception()
 
-    def map_from_canonical_space_1d(self, canonical_samples, ii):
+    def map_from_canonical_1d(self, canonical_samples, ii):
         for jj in range(self.variable.nunique_vars):
             if ii in self.variable.unique_variable_indices[jj]:
                 loc, scale = self.scale_parameters[jj, :]
@@ -222,12 +227,14 @@ class AffineRandomVariableTransformation(object):
 
     def map_derivatives_from_canonical_space(self, derivatives):
         """
+        Parameters
+        ----------
         derivatives : np.ndarray (nvars*nsamples, nqoi)
             Derivatives of each qoi. The ith column consists of the derivatives
             [d/dx_1 f(x^{(1)}), ..., f(x^{(M)}),
-             d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
-             ...,
-             d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
+            d/dx_2 f(x^{(1)}), ..., f(x^{(M)})
+            ...,
+            d/dx_D f(x^{(1)}), ..., f(x^{(M)})]
             where M is the number of samples and D=nvars
 
             Derivatives can also be (nvars, nsamples) - transpose of Jacobian -
@@ -296,11 +303,16 @@ class AffineRandomVariableTransformation(object):
 
 def define_iid_random_variable_transformation(variable_1d, num_vars):
     variable = define_iid_random_variable(variable_1d, num_vars)
-    var_trans = AffineRandomVariableTransformation(variable)
+    var_trans = AffineTransform(variable)
     return var_trans
 
 
-class RosenblattTransformation(object):
+class RosenblattTransform(object):
+    r"""
+    Apply the Rosenblatt transformation to an arbitraty multivariate
+    random variable.
+    """
+
     def __init__(self, joint_density, num_vars, opts):
         self.joint_density = joint_density
         self.limits = opts['limits']
@@ -310,13 +322,13 @@ class RosenblattTransformation(object):
         self.nvars = num_vars
         self.canonical_variable_types = ['uniform']*self.num_vars()
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         user_samples = inverse_rosenblatt_transformation(
             canonical_samples, self.joint_density, self.limits,
             self.num_quad_samples_1d, self.tol, self.num_bins)
         return user_samples
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         canonical_samples = rosenblatt_transformation(
             user_samples, self.joint_density, self.limits,
             self.num_quad_samples_1d)
@@ -327,7 +339,7 @@ class RosenblattTransformation(object):
 
 
 class UniformMarginalTransformation(object):
-    """
+    r"""
     Transform variables to have uniform marginals on [0,1]
     """
 
@@ -343,7 +355,7 @@ class UniformMarginalTransformation(object):
         self.x_marginal_inv_cdfs = x_marginal_inv_cdfs
         self.enforce_open_bounds = enforce_open_bounds
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         # there is a singularity at the boundary of the unit hypercube when
         # mapping to the (semi) unbounded distributions
         if self.enforce_open_bounds:
@@ -354,7 +366,7 @@ class UniformMarginalTransformation(object):
                 canonical_samples[ii, :])
         return user_samples
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         canonical_samples = np.empty_like(user_samples)
         for ii in range(self.nvars):
             canonical_samples[ii, :] = self.x_marginal_cdfs[ii](
@@ -365,7 +377,12 @@ class UniformMarginalTransformation(object):
         return self.nvars
 
 
-class NatafTransformation(object):
+class NatafTransform(object):
+    r"""
+    Apply the Nataf transformation to an arbitraty multivariate
+    random variable.
+    """
+
     def __init__(self, x_marginal_cdfs, x_marginal_inv_cdfs,
                  x_marginal_pdfs, x_covariance, x_marginal_means,
                  bisection_opts=dict()):
@@ -388,12 +405,12 @@ class NatafTransformation(object):
         self.z_correlation_cholesky_factor = np.linalg.cholesky(
             self.z_correlation)
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         return trans_u_to_x(
             canonical_samples, self.x_marginal_inv_cdfs,
             self.z_correlation_cholesky_factor)
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         return trans_x_to_u(
             user_samples, self.x_marginal_cdfs,
             self.z_correlation_cholesky_factor)
@@ -402,30 +419,35 @@ class NatafTransformation(object):
         return self.nvars
 
 
-class TransformationComposition(object):
+class ComposeTransforms(object):
+    r"""
+    Apply a composition of transformation to an multivariate
+    random variable.
+    """
+
     def __init__(self, transformations):
         """
         Parameters
         ----------
         transformations : list of transformation objects
             The transformations are applied first to last for
-            map_to_canonical_space and in reverse order for
-            map_from_canonical_space
+            map_to_canonical and in reverse order for
+            map_from_canonical
         """
         self.transformations = transformations
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         user_samples = canonical_samples
         for ii in range(len(self.transformations)-1, -1, -1):
             user_samples = \
-                self.transformations[ii].map_from_canonical_space(user_samples)
+                self.transformations[ii].map_from_canonical(user_samples)
         return user_samples
 
-    def map_to_canonical_space(self, user_samples):
+    def map_to_canonical(self, user_samples):
         canonical_samples = user_samples
         for ii in range(len(self.transformations)):
             canonical_samples = \
-                self.transformations[ii].map_to_canonical_space(
+                self.transformations[ii].map_to_canonical(
                     canonical_samples)
         return canonical_samples
 
@@ -437,25 +459,28 @@ class ConfigureVariableTransformation(object):
     """
     Class which maps one-to-one configure indices in [0, 1, 2, 3,...]
     to a set of configure values accepted by a function
-
-    Parameters
-    ---------
-    nvars : integer
-        The number of configure variables
-
-    config_values : list
-        The list of configure values for each configure variable. Each entry
-        in the list is a 1D np.ndarray with potentiallly different sizes
     """
 
     def __init__(self, config_values, labels=None):
+        """
+        Parameters
+        ----------
+        nvars : integer
+            The number of configure variables
+
+        config_values : list
+            The list of configure values for each configure variable.
+            Each entry in the list is a 1D np.ndarray with potentiallly
+            different sizes
+        """
+
         self.nvars = len(config_values)
         assert (type(config_values[0]) == list or
                 type(config_values[0]) == np.ndarray)
         self.config_values = config_values
         self.variable_labels = labels
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         """
         Map a configure multi-dimensional index to the corresponding
         configure values
@@ -468,7 +493,7 @@ class ConfigureVariableTransformation(object):
                 samples[jj, ii] = self.config_values[jj][int(kk)]
         return samples
 
-    def map_to_canonical_space(self, samples):
+    def map_to_canonical(self, samples):
         """
         This is the naive slow implementation that searches through all
         canonical samples to find one that matches each sample provided

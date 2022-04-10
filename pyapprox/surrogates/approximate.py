@@ -34,7 +34,7 @@ from pyapprox.surrogates.interp.adaptive_sparse_grid import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.expdesign.low_discrepancy_sequences import halton_sequence
 from pyapprox.surrogates.gaussianprocess.gaussian_process import (
@@ -185,7 +185,7 @@ def adaptive_approximate_sparse_grid(
     approx : :class:`pyapprox.adaptive_sparse_grid.CombinationSparseGrid`
         The sparse grid approximation
     """
-    var_trans = AffineRandomVariableTransformation(variables)
+    var_trans = AffineTransform(variables)
     nvars = var_trans.num_vars()
     if config_var_trans is not None:
         nvars += config_var_trans.num_vars()
@@ -416,7 +416,7 @@ def adaptive_approximate_polynomial_chaos_induced(
     approx: :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
     """
-    var_trans = AffineRandomVariableTransformation(variables)
+    var_trans = AffineTransform(variables)
 
     pce = AdaptiveInducedPCE(
         var_trans.num_vars(), induced_sampling=induced_sampling,
@@ -524,7 +524,7 @@ def adaptive_approximate_polynomial_chaos_leja(
     approx: :class:`pyapprox.surrogates.polychaos.gpc.PolynomialChaosExpansion`
         The PCE approximation
     """
-    var_trans = AffineRandomVariableTransformation(variables)
+    var_trans = AffineTransform(variables)
 
     pce = __initialize_leja_pce(
         variables, generate_candidate_samples, ncandidate_samples)
@@ -671,7 +671,7 @@ def adaptive_approximate_gaussian_process(
     nvars = variables.num_vars()
 
     if normalize_inputs:
-        var_trans = AffineRandomVariableTransformation(variables)
+        var_trans = AffineTransform(variables)
     else:
         var_trans = None
 
@@ -883,7 +883,7 @@ def approximate_polynomial_chaos(train_samples, train_vals, verbosity=0,
 
     poly = PolynomialChaosExpansion()
     if poly_opts is None:
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
     poly.configure(poly_opts)
@@ -1875,7 +1875,7 @@ def adaptive_approximate_polynomial_chaos_increment_degree(
         solver_type='lasso', linear_solver_options={},
         callback=None):
 
-    var_trans = AffineRandomVariableTransformation(variable)
+    var_trans = AffineTransform(variable)
     pce = PolynomialChaosExpansion()
     pce_opts = define_poly_options_from_variable_transformation(var_trans)
     pce.configure(pce_opts)

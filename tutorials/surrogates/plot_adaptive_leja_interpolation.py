@@ -59,7 +59,7 @@ variable = benchmark.variable
 #
 #Before starting the adaptive algorithm  we will generate some test data to estimate the error in the PCE as the adaptive algorithm evolves. We will compute the error at each step using a callback function.
 from pyapprox import variables
-var_trans = variables.AffineRandomVariableTransformation(variable)
+var_trans = variables.AffineTransform(variable)
 validation_samples = variable.rvs(int(1e3))
 validation_values = model(validation_samples)
 

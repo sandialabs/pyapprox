@@ -20,7 +20,7 @@ from pyapprox.surrogates.interp.indexing import (
 from pyapprox.variables.marginals import (
     float_rv_discrete, get_probability_masses
 )
-from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.transforms import AffineTransform
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.surrogates.polychaos.gpc import (
     PolynomialChaosExpansion, define_poly_options_from_variable_transformation
@@ -95,7 +95,7 @@ class TestInducedSampling(unittest.TestCase):
     def help_discrete_induced_sampling(self, var1, var2, envelope_factor):
         degree = 3
 
-        var_trans = AffineRandomVariableTransformation([var1, var2])
+        var_trans = AffineTransform([var1, var2])
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
 
         pce = PolynomialChaosExpansion()
@@ -106,7 +106,7 @@ class TestInducedSampling(unittest.TestCase):
         num_samples = int(3e4)
         np.random.seed(1)
         canonical_samples = generate_induced_samples(pce, num_samples)
-        samples = var_trans.map_from_canonical_space(canonical_samples)
+        samples = var_trans.map_from_canonical(canonical_samples)
 
         np.random.seed(1)
         # canonical_xk = [2*get_distribution_info(var1)[2]['xk']-1,
@@ -117,13 +117,13 @@ class TestInducedSampling(unittest.TestCase):
         pk = np.array(
             [get_probability_masses(var)[1]
              for var in var_trans.variable.marginals()])
-        canonical_xk = var_trans.map_to_canonical_space(xk)
+        canonical_xk = var_trans.map_to_canonical(xk)
         basis_matrix_generator = partial(
             basis_matrix_generator_1d, pce, degree)
         canonical_samples1 = discrete_induced_sampling(
             basis_matrix_generator, pce.indices, canonical_xk,
             pk, num_samples)
-        samples1 = var_trans.map_from_canonical_space(canonical_samples1)
+        samples1 = var_trans.map_from_canonical(canonical_samples1)
 
         def univariate_pdf(var, x):
             if hasattr(var.dist, 'pdf'):
@@ -241,7 +241,7 @@ class TestInducedSampling(unittest.TestCase):
             (num_vars, 1))
         samples = univ_inv(xx, indices)
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             [stats.beta(bet+1, alph+1, -1, 2),
              stats.beta(bet+1, alph+1, -1, 2)])
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -273,7 +273,7 @@ class TestInducedSampling(unittest.TestCase):
         bet = 5.
         indices = compute_hyperbolic_indices(num_vars, degree, 1.0)
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, -1, 2)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -296,7 +296,7 @@ class TestInducedSampling(unittest.TestCase):
         alph = 5
         bet = 5.
 
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             IndependentMarginalsVariable(
                 [stats.beta(alph, bet, -1, 3)], [np.arange(num_vars)]))
         pce_opts = define_poly_options_from_variable_transformation(var_trans)
@@ -324,7 +324,7 @@ class TestInducedSampling(unittest.TestCase):
             # plot_2d_indices(indices,other_indices=new_indices,ax=axs[1]);
             # plt.show()
 
-        samples = var_trans.map_from_canonical_space(samples)
+        samples = var_trans.map_from_canonical(samples)
         cond = compute_preconditioned_basis_matrix_condition_number(
             pce.basis_matrix, samples)
         assert cond < cond_tol

@@ -6,7 +6,7 @@ import glob
 import tempfile
 import multiprocessing
 
-from pyapprox.interface.async_model import AsynchronousEvaluationModel
+from pyapprox.interface.async_model import AynchModel
 from pyapprox.interface.file_io_model import FileIOModel
 
 max_eval_concurrency = max(2, multiprocessing.cpu_count()-2)
@@ -117,7 +117,7 @@ class TestAsyncModel(unittest.TestCase):
         num_samples = 4*max_eval_concurrency
         model, target_function, num_vars = get_file_io_model(0.02)
         shell_command = model.shell_command
-        model = AsynchronousEvaluationModel(
+        model = AynchModel(
             shell_command, max_eval_concurrency=max_eval_concurrency,
             workdir_basename=workdir_basename)
 
@@ -138,7 +138,7 @@ class TestAsyncModel(unittest.TestCase):
             0.02, fault_percentage=10)
         shell_command = model.shell_command
         saved_data_basename = os.path.join(self.tmp_dir.name, 'saved-data')
-        model = AsynchronousEvaluationModel(
+        model = AynchModel(
             shell_command, max_eval_concurrency=max_eval_concurrency,
             workdir_basename=workdir_basename,
             save_workdirs=save_workdirs,
@@ -184,7 +184,7 @@ class TestAsyncModel(unittest.TestCase):
         model, target_function, num_vars = get_file_io_model(
             0.0, fault_percentage=10)
         shell_command = model.shell_command
-        model = AsynchronousEvaluationModel(
+        model = AynchModel(
             shell_command, max_eval_concurrency=max_eval_concurrency,
             workdir_basename=workdir_basename,
             save_workdirs=save_workdirs)
@@ -232,7 +232,7 @@ class TestAsyncModel(unittest.TestCase):
         model, target_function, num_vars = get_file_io_model(
             0.02, fault_percentage=10)
         shell_command = model.shell_command
-        model = AsynchronousEvaluationModel(
+        model = AynchModel(
             shell_command, max_eval_concurrency=max_eval_concurrency,
             workdir_basename=workdir_basename,
             save_workdirs=save_workdirs,

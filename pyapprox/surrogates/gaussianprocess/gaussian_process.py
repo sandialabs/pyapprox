@@ -24,7 +24,7 @@ from pyapprox.util.linalg import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.indexing import (
     argsort_indices_leixographically
@@ -41,14 +41,14 @@ class GaussianProcess(GaussianProcessRegressor):
     def set_variable_transformation(self, var_trans):
         self.var_trans = var_trans
 
-    def map_to_canonical_space(self, samples):
+    def map_to_canonical(self, samples):
         if hasattr(self, 'var_trans'):
-            return self.var_trans.map_to_canonical_space(samples)
+            return self.var_trans.map_to_canonical(samples)
         return samples
 
-    def map_from_canonical_space(self, canonical_samples):
+    def map_from_canonical(self, canonical_samples):
         if hasattr(self, 'var_trans'):
-            return self.var_trans.map_from_canonical_space(canonical_samples)
+            return self.var_trans.map_from_canonical(canonical_samples)
         return canonical_samples
 
     def fit(self, train_samples, train_values):
@@ -64,7 +64,7 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
-        canonical_train_samples = self.map_to_canonical_space(train_samples)
+        canonical_train_samples = self.map_to_canonical(train_samples)
         return super().fit(canonical_train_samples.T, train_values)
 
     def __call__(self, samples, return_std=False, return_cov=False):
@@ -80,7 +80,7 @@ class GaussianProcess(GaussianProcessRegressor):
             Samples at which to evaluate the GP. Sklearn requires the
             transpose of this matrix, i.e a matrix with size (nsamples,nvars)
         """
-        canonical_samples = self.map_to_canonical_space(samples)
+        canonical_samples = self.map_to_canonical(samples)
         result = self.predict(canonical_samples.T, return_std, return_cov)
         if type(result) == tuple:
             # when returning prior stdev covariance then must reshape vals
@@ -169,7 +169,7 @@ class GaussianProcess(GaussianProcessRegressor):
 
     def get_training_samples(self):
         if hasattr(self, "var_trans") and self.var_trans is not None:
-            return self.var_trans.map_from_canonical_space(self.X_train_.T)
+            return self.var_trans.map_from_canonical(self.X_train_.T)
         else:
             return self.X_train_.T
 
@@ -218,7 +218,7 @@ class RandomGaussianProcessRealizations:
                     ninterpolation_samples,
                     candidate_samples.shape[1] + self.gp.X_train_.T.shape[1])
 
-        canonical_candidate_samples = self.gp.map_to_canonical_space(
+        canonical_candidate_samples = self.gp.map_to_canonical(
             candidate_samples)
         canonical_candidate_samples = np.hstack(
             (self.gp.X_train_.T, canonical_candidate_samples))
@@ -273,7 +273,7 @@ class RandomGaussianProcessRealizations:
         rand_noise = rand_noise[:samples.shape[1], :]
         rand_noise[:, -1] = np.zeros((rand_noise.shape[0]))
         vals = self.gp.predict_random_realization(
-            self.gp.map_from_canonical_space(samples),
+            self.gp.map_from_canonical(samples),
             rand_noise=rand_noise, truncated_svd=None,
             keep_normalized=True)
         self.train_vals = vals[:self.selected_canonical_samples.shape[1]]
@@ -302,7 +302,7 @@ class RandomGaussianProcessRealizations:
         print('Median relative interpolation error', np.median(error))
 
     def __call__(self, samples):
-        canonical_samples = self.gp.map_to_canonical_space(samples)
+        canonical_samples = self.gp.map_to_canonical(samples)
         K_pred = self.kernel(
             canonical_samples.T, self.selected_canonical_samples.T)
         vals = K_pred.dot(self.alpha_)
@@ -952,7 +952,7 @@ class CholeskySampler(object):
 
     def set_candidate_samples(self, candidate_samples):
         if self.var_trans is not None:
-            self.candidate_samples = self.var_trans.map_to_canonical_space(
+            self.candidate_samples = self.var_trans.map_to_canonical(
                 candidate_samples)
         else:
             self.candidate_samples = candidate_samples
@@ -969,7 +969,7 @@ class CholeskySampler(object):
             # weight function is applied in canonical_space
             def wt_function(x):
                 return weight_function(
-                    self.var_trans.map_from_canonical_space(x))
+                    self.var_trans.map_from_canonical(x))
             self.weight_function = wt_function
         if self.weight_function is not None:
             self.pivot_weights = self.weight_function(self.candidate_samples)
@@ -1048,7 +1048,7 @@ class CholeskySampler(object):
 
         if self.var_trans is None:
             return new_samples, self.chol_flag
-        return self.var_trans.map_from_canonical_space(
+        return self.var_trans.map_from_canonical(
             new_samples), self.chol_flag
 
 
@@ -2322,9 +2322,9 @@ class UnivariateMarginalizedGaussianProcess:
         self.var_trans = None
         self.mean = mean
 
-    def map_to_canonical_space(self, samples):
+    def map_to_canonical(self, samples):
         if self.var_trans is not None:
-            return self.var_trans.map_to_canonical_space(samples)
+            return self.var_trans.map_to_canonical(samples)
         return samples
 
     def set_variable_transformation(self, var_trans):
@@ -2332,7 +2332,7 @@ class UnivariateMarginalizedGaussianProcess:
 
     def __call__(self, samples, return_std=False):
         assert samples.shape[0] == 1
-        canonical_samples = self.map_to_canonical_space(samples)
+        canonical_samples = self.map_to_canonical(samples)
         K_pred = self.kernel_(canonical_samples.T, self.X_train_)
         mean = K_pred.dot(self.K_inv_y)
         mean = self._y_train_std*mean + self._y_train_mean - self.mean
@@ -2420,7 +2420,7 @@ def marginalize_gaussian_process(gp, variable, center=True):
         if hasattr(gp, 'var_trans'):
             variable_ii = IndependentMarginalsVariable(
                 [gp.var_trans.variable.marginals()[ii]])
-            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            var_trans_ii = AffineTransform(variable_ii)
             gp_ii.set_variable_transformation(var_trans_ii)
         marginalized_gps.append(gp_ii)
     return marginalized_gps

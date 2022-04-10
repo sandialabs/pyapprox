@@ -13,7 +13,7 @@ from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.tensorprod import (
     get_tensor_product_piecewise_polynomial_quadrature_rule
@@ -1414,14 +1414,14 @@ def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
     nrandom_vars = prior_variable.num_vars()
     ninner_loop_samples_1d = ninner_loop_samples
     if quad_method == "gauss":
-        var_trans = AffineRandomVariableTransformation(prior_variable)
+        var_trans = AffineTransform(prior_variable)
         univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
                 prior_variable, [ninner_loop_samples_1d]*nrandom_vars)[0]
         x_quad, w_quad = get_tensor_product_quadrature_rule(
             [ninner_loop_samples_1d]*nrandom_vars, nrandom_vars,
             univariate_quad_rules,
-            transform_samples=var_trans.map_from_canonical_space)
+            transform_samples=var_trans.map_from_canonical)
         return x_quad, w_quad
 
     degree = {'linear': 1, 'quadratic': 2}[quad_method]

@@ -125,18 +125,53 @@ def run_shell_command(shell_command, opts={}):
 
 
 class DataFunctionModel(object):
-    def hash_sample(self, sample):
-        # if samples have undergone a transformation thier value
-        # may not be exactly the same so make hash on samples
-        # with fixed precision
-        # sample = np.round(sample, self.digits)
-        # I = np.where(np.abs(sample)<self.tol)[0]
-        # sample[I] = 0.
-        key = hash_array(sample)  # ,decimals=self.digits)
-        return key
+    r"""
+    Create a queriable function that stores samples and
+    associated function values and returns stored values
+    for samples in the database or otherwise evaluate the
+    function.
+    """
 
     def __init__(self, function, data=None, data_basename=None,
                  save_frequency=None, use_hash=True, digits=16):
+        """
+        Parameters
+        ----------
+        function : callable
+            A function with signature
+
+            ``function(w) -> np.ndarray (nsamples,nqoi+1)``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+             The last qoi returned by function (i.e. the last column of the
+             output array) must be the cost of the simulation. This column
+             is removed from the output of __call__.
+
+        data : tuple
+            (samples, values) of any previously computed previously samples
+            and associated values
+
+        data_basename : string
+            The basename of the file used to store the database of samples and
+            values.
+
+        save_frequency : integer
+            The number of function evaluations run before data is saved.
+            E.g. if save frequency is 10 and __call__(samples) is run
+            with samples containing 30 samples the values and data will
+            be stored at 3 checkpoint, i.e. after 10, 20 and 30 samples
+            have been evaluated
+
+        use_hash : boolean
+            True - hash samples to determine if values have already been
+            collected
+            False - np.allclose is used to match samples by looping over
+            all samples in the database. This is slower.
+
+        digits : integer
+            The number of significant digits used to ahs or compare samples
+            in the database
+        """
         self.function = function
 
         self.data = dict()
@@ -166,6 +201,16 @@ class DataFunctionModel(object):
             self.samples, self.values = data
             assert self.samples.shape[1] == self.values.shape[0]
             self.add_new_data(data)
+
+    def hash_sample(self, sample):
+        # if samples have undergone a transformation thier value
+        # may not be exactly the same so make hash on samples
+        # with fixed precision
+        # sample = np.round(sample, self.digits)
+        # I = np.where(np.abs(sample)<self.tol)[0]
+        # sample[I] = 0.
+        key = hash_array(sample)  # ,decimals=self.digits)
+        return key
 
     def add_new_data(self, data):
         samples, values = data
@@ -342,40 +387,69 @@ def time_function_evaluations(function, samples):
     return np.hstack([vals, times])
 
 
-class TimerModelWrapper(object):
+class TimerModel(object):
+    r"""
+    Return the wall-time needed to evaluate a function at each sample
+    as an additional quantity of interest.
+    """
+
     def __init__(self, function, base_model=None):
+        """
+        Parameters
+        ----------
+        function : callable
+            A function with signature
+
+            ``function(w) -> np.ndarray (nsamples,nqoi+1)``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+             The last qoi returned by function (i.e. the last column of the
+             output array) must be the cost of the simulation. This column
+             is removed from the output of __call__.
+
+        base_model : callable
+            A function with signature
+
+            ``base_model(w) -> float``
+
+             where ``w`` is a np.ndarray of shape (nvars,nsamples).
+
+             This is useful when function is a wrapper of another model, i.e.
+             base_model and algorithms or the user want access to the attribtes
+             of the base_model.
+        """
         self.function_to_time = function
         self.base_model = base_model
 
-    def x__getattr__(self, name):
-        """
-        Cannot get following to work
+    # def x__getattr__(self, name):
+    #     """
+    #     Cannot get following to work
 
-        If defining a custom __getattr__ it seems I cannot have member
-        variables with the same name in this class and class definition
-        of function
+    #     If defining a custom __getattr__ it seems I cannot have member
+    #     variables with the same name in this class and class definition
+    #     of function
 
-        if self.function is itself a model object allow the access of
-        self.function.name using self.name
+    #     if self.function is itself a model object allow the access of
+    #     self.function.name using self.name
 
-        Note  __getattr__
-        will be invoked on python objects only when the requested
-        attribute is not found in the particular object's space.
-        """
+    #     Note  __getattr__
+    #     will be invoked on python objects only when the requested
+    #     attribute is not found in the particular object's space.
+    #     """
 
-        if hasattr(self.function_to_time, name):
-            attr = getattr(self.function_to_time, name)
-            return attr
+    #     if hasattr(self.function_to_time, name):
+    #         attr = getattr(self.function_to_time, name)
+    #         return attr
 
-        raise AttributeError(
-            f" {self} or its member {self}.function has no attribute '{name}'")
+    #     raise AttributeError(
+    #         f" {self} or its member {self}.function has no attribute '{name}'")
 
     def __call__(self, samples):
         return time_function_evaluations(self.function_to_time, samples)
 
 
 class WorkTracker(object):
-    """
+    r"""
     Store the cost needed to evaluate a function under different
     configurations, e.g. mesh resolution of a finite element model
     used to solve a PDE.
@@ -445,6 +519,10 @@ class WorkTracker(object):
 
 
 class WorkTrackingModel(object):
+    r"""
+    Keep track of the wall time needed to evaluate a function.
+    """
+
     def __init__(self, function, base_model=None, num_config_vars=0):
         """
         Keep track of the wall time needed to evaluate a function.
@@ -531,12 +609,14 @@ class WorkTrackingModel(object):
 
 
 class PoolModel(object):
+    r"""
+    Evaluate a function at multiple samples in parallel using
+    multiprocessing.Pool
+    """
+
     def __init__(self, function, max_eval_concurrency, assert_omp=True,
                  base_model=None):
         """
-        Evaluate a function at multiple samples in parallel using
-        multiprocessing.Pool
-
         Parameters
         ----------
         function : callable
@@ -634,6 +714,10 @@ def get_active_set_model_from_variable(function, variable, active_var_indices,
 
 
 class ActiveSetVariableModel(object):
+    r"""
+    Create a model wrapper that only accepts a subset of the model variables.
+    """
+
     def __init__(self, function, num_vars, inactive_var_values,
                  active_var_indices):
         # num_vars can de determined from inputs but making it
@@ -682,6 +766,11 @@ def combine_saved_model_data(saved_data_basename):
 
 
 class SingleFidelityWrapper(object):
+    r"""
+    Create a single fidelity model that fixes the configuration variables
+    to user-defined nominal values.
+    """
+
     def __init__(self, model, config_values):
         self.model = model
         assert config_values.ndim == 1
@@ -704,7 +793,7 @@ def default_map_to_multidimensional_index(num_config_vars, indices):
 
 
 class MultiLevelWrapper(object):
-    """
+    r"""
     Specify a one-dimension model hierachy from a multiple dimensional
     hierarchy
     For example if model has configure variables which refine the x and y

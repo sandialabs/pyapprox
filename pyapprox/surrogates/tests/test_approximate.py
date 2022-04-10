@@ -23,7 +23,7 @@ from pyapprox.surrogates.polychaos.gpc import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.indexing import compute_hyperbolic_indices
 from pyapprox.util.utilities import nchoosek
@@ -162,7 +162,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.beta(5, 5, -np.pi, 2*np.pi)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         # specify correct basis so it is not chosen from var_trans.variable
         poly_opts = {"var_trans": var_trans}
         # but rather from another variable which will invoke Legendre polys
@@ -192,7 +192,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -244,7 +244,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -409,7 +409,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -468,7 +468,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -522,9 +522,9 @@ class TestApproximate(unittest.TestCase):
         nqoi = 1
         maxiter = 30000
         print(benchmark.variable)
-        # var_trans = AffineRandomVariableTransformation(
+        # var_trans = AffineTransform(
         #      [stats.uniform(-2, 4)]*nvars)
-        var_trans = AffineRandomVariableTransformation(benchmark.variable)
+        var_trans = AffineTransform(benchmark.variable)
         network_opts = {"activation_func": "sigmoid",
                         "layers": [nvars, 75, nqoi],
                         "loss_func": "squared_loss",
@@ -536,7 +536,7 @@ class TestApproximate(unittest.TestCase):
                 "optimizer_opts": optimizer_opts}
         ntrain_samples = 500
         train_samples = benchmark.variable.rvs(ntrain_samples)
-        train_samples = var_trans.map_from_canonical_space(
+        train_samples = var_trans.map_from_canonical(
             np.cos(np.random.uniform(0, np.pi, (nvars, ntrain_samples))))
         train_vals = benchmark.fun(train_samples)
 
@@ -556,7 +556,7 @@ class TestApproximate(unittest.TestCase):
         univariate_variables = [stats.uniform(-1, 2)]*num_vars
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)

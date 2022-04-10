@@ -24,7 +24,7 @@ from pyapprox.surrogates.interp.indexing import (
 )
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.polychaos.gpc import (
     define_poly_options_from_variable_transformation, PolynomialChaosExpansion,
@@ -57,7 +57,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         variable = IndependentMarginalsVariable(
             univariate_variables)
 
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -105,7 +105,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         variable = IndependentMarginalsVariable(
             univariate_variables)
 
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         poly = PolynomialChaosExpansion()
         poly_opts = define_poly_options_from_variable_transformation(
             var_trans)
@@ -526,7 +526,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
         variable = IndependentMarginalsVariable(
             univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
         num_vars = len(univariate_variables)
 
         poly = PolynomialChaosExpansion()
@@ -553,7 +553,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
                 poly, inactive_idx, center=True)
             mvals = marginalized_pce(xx[None, :])
             variable_ii = variable.marginals()[ii:ii+1]
-            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            var_trans_ii = AffineTransform(variable_ii)
             poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \
                 define_poly_options_from_variable_transformation(
@@ -581,7 +581,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
             mvals = marginalized_pce(xx)
             variable_ii = variable.marginals()[:ii] +\
                 variable.marginals()[ii+1:]
-            var_trans_ii = AffineRandomVariableTransformation(variable_ii)
+            var_trans_ii = AffineTransform(variable_ii)
             poly_ii = PolynomialChaosExpansion()
             poly_opts_ii = \
                 define_poly_options_from_variable_transformation(

@@ -21,7 +21,7 @@ from pyapprox.surrogates.orthopoly.leja_quadrature import (
     get_univariate_leja_quadrature_rule
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.util.visualization import plot_2d_indices, plot_3d_indices, plt
 from matplotlib.pyplot import MaxNLocator
@@ -286,10 +286,10 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
 
     if plot_grid:
         samples, active_samples = partition_sparse_grid_samples(sparse_grid)
-        samples = sparse_grid.variable_transformation.map_from_canonical_space(
+        samples = sparse_grid.variable_transformation.map_from_canonical(
             samples)
         active_samples = \
-            sparse_grid.variable_transformation.map_from_canonical_space(
+            sparse_grid.variable_transformation.map_from_canonical(
                 active_samples)
         if sparse_grid.config_variables_idx is None:
             axs[1].plot(samples[0, :], samples[1, :], samples_marker[1],
@@ -917,7 +917,7 @@ class SubSpaceRefinementManager(object):
             config_variables_idx = self.config_variables_idx
         config_samples = samples[config_variables_idx:, :]
         if self.config_var_trans is not None:
-            config_samples = self.config_var_trans.map_from_canonical_space(
+            config_samples = self.config_var_trans.map_from_canonical(
                 config_samples)
         return config_samples
 
@@ -929,7 +929,7 @@ class SubSpaceRefinementManager(object):
         random_samples = canonical_samples[:config_variables_idx, :]
         if self.var_trans is not None:
             random_samples = \
-                self.var_trans.map_from_canonical_space(
+                self.var_trans.map_from_canonical(
                     random_samples)
         return random_samples
 
@@ -1345,7 +1345,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         """
         if self.var_trans is not None:
             canonical_samples = \
-                self.var_trans.map_to_canonical_space(
+                self.var_trans.map_to_canonical(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1391,7 +1391,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
         """
         if self.var_trans is not None:
             canonical_samples = \
-                self.var_trans.map_to_canonical_space(
+                self.var_trans.map_to_canonical(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1427,7 +1427,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
 
         if self.var_trans is not None:
             canonical_samples = \
-                self.var_trans.map_to_canonical_space(
+                self.var_trans.map_to_canonical(
                     samples[:self.config_variables_idx, :])
         else:
             canonical_samples = samples[:self.config_variables_idx, :]
@@ -1497,7 +1497,7 @@ class CombinationSparseGrid(SubSpaceRefinementManager):
             print(msg)
 
     def get_samples(self):
-        return self.var_trans.map_from_canonical_space(self.samples)
+        return self.var_trans.map_from_canonical(self.samples)
 
 
 def plot_adaptive_sparse_grid_3d(sparse_grid, plot_grid=True):
@@ -1545,7 +1545,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     assert len(quadrule_variables) == num_random_vars
     # univariate_growth_rules = []
     unique_quadrule_indices = [[ii] for ii in range(num_random_vars)]
-    new_var_trans = AffineRandomVariableTransformation(
+    new_var_trans = AffineTransform(
         quadrule_variables)
     quad_rules = []
     max_levels = sparse_grid.subspace_indices.max(axis=1)
@@ -1565,10 +1565,10 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
             sparse_grid.samples_1d[ii][max_levels[ii]][None, :]
         # samples_1d are in the canonical domain map to old user domain
         initial_points_old = \
-            sparse_grid.variable_transformation.map_from_canonical_space_1d(
+            sparse_grid.variable_transformation.map_from_canonical_1d(
                 canonical_initial_points, ii)
         # map to new canonical domain
-        canonical_initial_points_new = new_var_trans.map_to_canonical_space_1d(
+        canonical_initial_points_new = new_var_trans.map_to_canonical_1d(
                 initial_points_old, ii)
         # initial_points_list.append(canonical_initial_points_new)
 
@@ -1582,9 +1582,9 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     sparse_grid.set_univariate_rules(quad_rules, max_level)
     sparse_grid_samples = sparse_grid.samples.copy()
     sparse_grid_samples = \
-        sparse_grid.variable_transformation.map_from_canonical_space(
+        sparse_grid.variable_transformation.map_from_canonical(
             sparse_grid_samples)
-    sparse_grid_samples = new_var_trans.map_to_canonical_space(
+    sparse_grid_samples = new_var_trans.map_to_canonical(
         sparse_grid_samples)
     sparse_grid.samples = sparse_grid_samples
     sparse_grid.variable_transformation = new_var_trans

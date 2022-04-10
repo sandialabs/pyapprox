@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 
 from pyapprox.variables.marginals import (
     get_unique_variables, get_distribution_info,
-    is_bounded_continuous_variable, is_bounded_discrete_variable,
-    get_truncated_range
+    is_bounded_continuous_variable, get_truncated_range
 )
 from pyapprox.variables.nataf import (
     nataf_joint_density, generate_x_samples_using_gaussian_copula,
@@ -14,6 +13,10 @@ from pyapprox.variables.nataf import (
 
 
 class JointVariable(ABC):
+    r"""
+    Base class for multivariate variables.
+    """
+    
     @abstractmethod
     def rvs(self, num_samples):
         """
@@ -262,6 +265,11 @@ class IndependentMarginalsVariable(JointVariable):
 
 
 class GaussCopulaVariable(JointVariable):
+    """
+    Multivariate random variable with Gaussian correlation and arbitrary
+    marginals
+    """
+    
     def __init__(self, marginals, x_correlation, bisection_opts={}):
         self.nvars = len(marginals)
         self._marginals = marginals

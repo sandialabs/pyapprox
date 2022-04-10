@@ -7,7 +7,7 @@ import re
 import glob
 
 
-class AsynchronousEvaluationModel(object):
+class AynchModel(object):
     """
     Evaluate a model in parallel when model instances are invoked by a shell
     script.

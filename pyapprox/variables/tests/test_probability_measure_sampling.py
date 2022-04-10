@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from scipy import stats
 
-from pyapprox.variables.transforms import AffineRandomVariableTransformation
+from pyapprox.variables.transforms import AffineTransform
 from pyapprox.variables.marginals import float_rv_discrete
 from pyapprox.variables.joint import IndependentMarginalsVariable
 from pyapprox.variables.sampling import generate_independent_random_samples
@@ -41,7 +41,7 @@ class TestProbabilitySampling(unittest.TestCase):
         variable = IndependentMarginalsVariable(
             self.continuous_variables)
 
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         num_samples = int(1e6)
         samples = generate_independent_random_samples(
@@ -54,7 +54,7 @@ class TestProbabilitySampling(unittest.TestCase):
 
         variable = IndependentMarginalsVariable(
             self.discrete_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         num_samples = int(1e6)
         samples = generate_independent_random_samples(
@@ -70,7 +70,7 @@ class TestProbabilitySampling(unittest.TestCase):
         univariate_variables = [univariate_variables[ii] for ii in II]
 
         variable = IndependentMarginalsVariable(univariate_variables)
-        var_trans = AffineRandomVariableTransformation(variable)
+        var_trans = AffineTransform(variable)
 
         num_samples = int(5e6)
         samples = generate_independent_random_samples(

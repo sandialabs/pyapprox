@@ -38,7 +38,7 @@ from pyapprox.variables.tests.test_risk_measures import (
 )
 from pyapprox.bayes.laplace import laplace_evidence
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.util.utilities import (
     cartesian_product, outer_product
@@ -1369,12 +1369,12 @@ class TestBayesianOED(unittest.TestCase):
             # 301 needed for cvar deviation
             # only 31 needed for variance deviation
             ninner_loop_samples_1d = ninner_loop_samples
-            var_trans = AffineRandomVariableTransformation(prior_variable)
+            var_trans = AffineTransform(prior_variable)
             x_quad, w_quad = gauss_hermite_pts_wts_1D(
                 ninner_loop_samples_1d)
             x_quad = cartesian_product([x_quad]*nrandom_vars)
             w_quad = outer_product([w_quad]*nrandom_vars)
-            x_quad = var_trans.map_from_canonical_space(x_quad)
+            x_quad = var_trans.map_from_canonical(x_quad)
             ninner_loop_samples = x_quad.shape[1]
 
             def generate_inner_prior_samples(nsamples):

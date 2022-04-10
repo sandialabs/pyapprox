@@ -9,7 +9,7 @@ from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
 from pyapprox.variables.transforms import (
-    AffineRandomVariableTransformation
+    AffineTransform
 )
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
@@ -180,7 +180,7 @@ class DecoupledSystemSurrogate(object):
                                         enforce_variable_bounds,
                                         univariate_quad_rule_info,
                                         quad_method, growth_incr=2):
-        var_trans = AffineRandomVariableTransformation(
+        var_trans = AffineTransform(
             variables, enforce_variable_bounds)
 
         if univariate_quad_rule_info is None:

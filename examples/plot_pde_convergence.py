@@ -16,7 +16,7 @@ from pyapprox.surrogates import (
 )
 from pyapprox.interface import (
     evaluate_1darray_function_on_2d_array, WorkTrackingModel,
-    TimerModelWrapper
+    TimerModel
 )
 from scipy import stats
 from pyapprox.variables import (
@@ -83,7 +83,7 @@ coarsest_levels = [0, 0]
 #%%
 #Convergence can be assessed with respect to the CPU time used to compute the integral. To return the time taken we must wrap `Integrator` in a WorkTrackingModel.
 model = Integrator(integrand)
-timer_model = TimerModelWrapper(model, model)
+timer_model = TimerModel(model, model)
 work_model = WorkTrackingModel(timer_model, model,
                                config_var_trans.num_vars())
 

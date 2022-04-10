@@ -148,7 +148,7 @@ def get_tensor_product_points(level, var_trans, quad_type):
     for dd in range(num_vars):
         abscissa_1d.append(x)
     pts = cartesian_product(abscissa_1d, 1)
-    pts = var_trans.map_from_canonical_space(pts)
+    pts = var_trans.map_from_canonical(pts)
     return pts
 
 # do not have test in the name or nose will try to test this function

@@ -13,7 +13,7 @@ from pyapprox.variables.nataf import (
 )
 
 
-class TestNatafTransformation(unittest.TestCase):
+class TestNatafTransform(unittest.TestCase):
 
     def test_independent_gaussian(self):
         num_vars = 2
@@ -165,5 +165,5 @@ class TestNatafTransformation(unittest.TestCase):
 
 if __name__ == '__main__':
     nataf_test_suite = unittest.TestLoader().loadTestsFromTestCase(
-        TestNatafTransformation)
+        TestNatafTransform)
     unittest.TextTestRunner(verbosity=2).run(nataf_test_suite)

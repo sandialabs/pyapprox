@@ -1,8 +1,8 @@
 Benchmarks
 ==========
-The :mod:`pyapprox.benchmarks.benchmarks` provides a number of benchmarks commonly used to evaluate the performance of quadrature, sensitivity analysis, inference and design algorithms.
+The :mod:`pyapprox.benchmarks` provides a number of benchmarks commonly used to evaluate the performance of quadrature, sensitivity analysis, inference and design algorithms.
 
-Following shows how to use the common interface, provided by :class:`pyapprox.benchmarks.benchmarks.Benchmark`, to access the data necessary
+Following shows how to use the common interface, provided by :class:`pyapprox.benchmarks.Benchmark`, to access the data necessary
 to run a benchmark.
 
 To demonstrate the benchmark class consider the problem of estimating sensitivity indices of the Ishigami function
@@ -11,7 +11,7 @@ To demonstrate the benchmark class consider the problem of estimating sensitivit
 
 The mean, variance, main effect and total effect sensitivity indices are well known for this problem.
 
-The following sets up a :class:`pyapprox.benchmarks.benchmarks.Benchmark` object which returns the Ishigami function its Jacobian, Hessian the joint density of the input variables :math:`z` and the various sensitivity indices. The attributes of the benchmark can be accessed using the member `keys()`
+The following sets up a :class:`pyapprox.benchmarks.Benchmark` object which returns the Ishigami function its Jacobian, Hessian the joint density of the input variables :math:`z` and the various sensitivity indices. The attributes of the benchmark can be accessed using the member `keys()`
 
     >>> from pyapprox.benchmarks.benchmarks import setup_benchmark
     >>> benchmark = setup_benchmark("ishigami",a=7,b=0.1)
@@ -35,11 +35,11 @@ Sensitivity Analysis
 
 Quadrature
 ----------
-:func:`pyapprox.benchmarks.benchmarks.setup_genz_function`
+:func:`pyapprox.benchmarks.setup_genz_function`
 
 Inference
 ---------
-:func:`pyapprox.benchmarks.benchmarks.setup_rosenbrock_function`
+:func:`pyapprox.benchmarks.setup_rosenbrock_function`
 
 Multi-fidelity Modeling
 -----------------------

@@ -919,7 +919,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     difference with multiple step sizes.
 
     Parameters
-    ---------
+    ----------
     fun : callable
 
         A function with signature
