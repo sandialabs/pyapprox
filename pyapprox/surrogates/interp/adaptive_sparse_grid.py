@@ -1231,7 +1231,15 @@ def get_sparse_grid_univariate_leja_quadrature_rules(
 
 
 class CombinationSparseGrid(SubSpaceRefinementManager):
+    """
+    Adaptive sparse grid that uses the combination technique.
+    """
+
     def __init__(self, num_vars):
+        """
+        num_vars : integer
+            The number of variables
+        """
         super(CombinationSparseGrid, self).__init__(num_vars)
 
         self.univariate_quad_rule = None

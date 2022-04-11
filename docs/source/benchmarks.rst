@@ -44,6 +44,8 @@ Inference
 Multi-fidelity Modeling
 -----------------------
 
+:func:`pyapprox.benchmarks.setup_polynomial_ensemble`
+
 .. Do not document dev tutorials
    :func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_benchmark`
    :func:`pyapprox_dev.fenics_models.advection_diffusion_wrappers.setup_advection_diffusion_source_inversion_benchmark`

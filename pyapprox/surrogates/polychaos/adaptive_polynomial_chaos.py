@@ -24,7 +24,9 @@ from pyapprox.util.linalg import (
     pivot_rows,
     truncated_pivoted_lu_factorization, unprecondition_LU_factor
 )
-from pyapprox.surrogates.interp.adaptive_sparse_grid import SubSpaceRefinementManager
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    SubSpaceRefinementManager
+)
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
 )
@@ -198,8 +200,28 @@ def increment_probability_samples(pce, cond_tol, samples, indices,
 
 
 class AdaptiveInducedPCE(SubSpaceRefinementManager):
+    """
+    An adaptive PCE built using induced sampling and generalized sparse grid
+    like refinement.
+    """
     def __init__(self, num_vars, cond_tol=1e2, induced_sampling=True,
                  fit_opts={'omp_tol': 0}):
+        """
+        num_vars : integer
+            The number of random variables
+
+        cond_tol : float
+            The target condition number of the basis matrix used for regression
+
+        induced_sampling : boolean
+            True - use induced sampling
+            False - use random sampling
+
+        fit_opts : dict
+            Options used to solve the regression problem at each step of the
+            adaptive algorithm
+        """
+
         super(AdaptiveInducedPCE, self).__init__(num_vars)
         self.cond_tol = cond_tol
         self.fit_opts = fit_opts
@@ -354,8 +376,23 @@ class AdaptiveInducedPCE(SubSpaceRefinementManager):
 
 
 class AdaptiveLejaPCE(AdaptiveInducedPCE):
+    """
+    An adaptive PCE built using multivariate Leja sequences and 
+    generalized sparse grid like refinement.
+    """
     def __init__(self, num_vars, candidate_samples, factorization_type='fast'):
-        # TODO: remove cond_tol from __init__
+        """
+        num_vars : integer
+            The number of random variables
+
+        candidate_samples : np.ndarray (num_vars, ncandidate_samples)
+            The candidate samples from which the leja sequence is selected
+
+        factorization_type : string
+            fast - update LU factorization at each step
+            slow - recompute LU factorization at each step
+        """
+
         super(AdaptiveLejaPCE, self).__init__(num_vars, 1e6)
 
         # Make sure correct preconditioning function is used.

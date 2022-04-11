@@ -1,6 +1,7 @@
+from functools import partial
+
 import numpy as np
 from scipy import stats
-from functools import partial
 from scipy.optimize import OptimizeResult
 
 from pyapprox import PYA_DEV_AVAILABLE
@@ -87,7 +88,6 @@ class Benchmark(OptimizeResult):
     Use the `keys()` method to see a list of the available
     attributes for a specific benchmark
     """
-    pass
 
 
 def setup_sobol_g_function(nvars):
@@ -113,6 +113,24 @@ def setup_sobol_g_function(nvars):
     benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
 
+    fun : callable
+        The function being analyzed
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    mean: np.ndarray (nvars)
+        The mean of the function with respect to the PDF of var
+
+    variance: np.ndarray (nvars)
+        The variance of the function with respect to the PDF of var
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
     References
     ----------
     .. [Saltelli1995] `Saltelli, A., & Sobol, I. M. About the use of rank transformation in sensitivity analysis of model output. Reliability Engineering & System Safety, 50(3), 225-239, 1995. <https://doi.org/10.1016/0951-8320(95)00099-2>`_
@@ -120,10 +138,10 @@ def setup_sobol_g_function(nvars):
 
     univariate_variables = [stats.uniform(0, 1)]*nvars
     variable = IndependentMarginalsVariable(univariate_variables)
-    a = (np.arange(1, nvars+1)-2)/2
+    a_param = (np.arange(1, nvars+1)-2)/2
     mean, variance, main_effects, total_effects = \
-        get_sobol_g_function_statistics(a)
-    return Benchmark({'fun': partial(sobol_g_function, a),
+        get_sobol_g_function_statistics(a_param)
+    return Benchmark({'fun': partial(sobol_g_function, a_param),
                       'mean': mean, 'variance': variance,
                       'main_effects': main_effects,
                       'total_effects': total_effects, 'variable': variable})
@@ -154,6 +172,41 @@ def setup_ishigami_function(a, b):
     -------
     benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
+
+    fun : callable
+        The function being analyzed
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    jac : callable
+        The jacobian of fun. (optional)
+
+    hess : callable
+        The Hessian of fun. (optional)
+
+    hessp : callable
+        Function implementing the hessian of fun multiplied by a vector.
+        (optional)
+
+    mean: np.ndarray (nvars)
+        The mean of the function with respect to the PDF of var
+
+    variance: np.ndarray (nvars)
+        The variance of the function with respect to the PDF of var
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
+
+    total_effects : np.ndarray (nvars)
+        The variance based total effect sensitivity indices
+
+    sobol_indices : np.ndarray (nsobol_indices)
+        The variance based Sobol sensitivity indices
+
+    sobol_interaction_indices : np.ndarray(nsobol_indices)
+        The indices of the acitive variable dimensions involved in each
+        sobol index
 
     References
     ----------
@@ -190,6 +243,21 @@ def setup_oakley_function():
     -------
     benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
+
+    fun : callable
+        The function being analyzed
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    mean: np.ndarray (nvars)
+        The mean of the function with respect to the PDF of var
+
+    variance: np.ndarray (nvars)
+        The variance of the function with respect to the PDF of var
+
+    main_effects : np.ndarray (nvars)
+        The variance based main effect sensitivity indices
 
     References
     ----------
@@ -260,7 +328,7 @@ def setup_rosenbrock_function(nvars):
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and p is an
         arbitraty vector with shape (nvars,1)
 
-    variable : pya.IndependentMarginalsVariable
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-2,2]`.
@@ -343,6 +411,15 @@ def setup_genz_function(nvars, test_name, coefficients=None):
     -------
     benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
        Object containing the benchmark attributes
+
+    fun : callable
+        The function being analyzed
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    mean: np.ndarray (nvars)
+        The mean of the function with respect to the PDF of var
 
     References
     ----------
@@ -497,7 +574,7 @@ def setup_piston_benchmark():
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nsamples,1)
 
-    variable : pya.IndependentMarginalsVariable
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables`.
@@ -544,7 +621,7 @@ def setup_wing_weight_benchmark():
         where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
         output is a 2D np.ndarray with shape (nvars,1)
 
-    variable : pya.IndependentMarginalsVariable
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables`.
@@ -565,9 +642,28 @@ def setup_chemical_reaction_benchmark():
     Setup the chemical reaction model benchmark
 
     Model of species absorbing onto a surface out of gas phase
-    # u = y[0] = monomer species
-    # v = y[1] = dimer species
-    # w = y[2] = inert species
+    u = y[0] = monomer species
+    v = y[1] = dimer species
+    w = y[2] = inert species
+
+    Returns
+    -------
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
+       Object containing the benchmark attributes documented below
+
+    fun : callable
+
+        The piston model with signature
+
+        ``fun(z) -> np.ndarray``
+
+        where ``z`` is a 2D np.ndarray with shape (nvars,nsamples) and the
+        output is a 2D np.ndarray with shape (nsamples,1)
+
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
+        Object containing information of the joint density of the inputs z
+        which is the tensor product of independent and identically distributed
+        uniform variables`.
 
     References
     ----------
@@ -682,7 +778,7 @@ def setup_multi_index_advection_diffusion_benchmark(
         The number of timesteps satisfies :math:`2^{l_{t}+2}` so the timestep
         size is and :math:`T/2^{l_{t}+2}`.
 
-    variable : pya.IndependentMarginalsVariable
+    variable : :py:class:`pyapprox.variables.IndependentMarginalsVariable`
         Object containing information of the joint density of the inputs z
         which is the tensor product of independent and identically distributed
         uniform variables on :math:`[-\sqrt{3},\sqrt{3}]`.
@@ -732,6 +828,34 @@ def setup_multi_index_advection_diffusion_benchmark(
 
 
 def setup_polynomial_ensemble():
+    r"""
+    Return an ensemble of 5 univariate models of the form
+ 
+    .. math:: f_\alpha(\rv)=\rv^{5-\alpha}, \quad \alpha=0,\ldots,4
+
+    where :mat:`z\sim\mathcal{U}[0, 1]`
+
+    Returns
+    -------
+    benchmark : :py:class:`pyapprox.benchmarks.Benchmark`
+       Object containing the benchmark attributes
+
+    fun : callable
+        The function being analyzed
+
+    variable : :py:class:`pyapprox.variables.JointVariable`
+        Class containing information about each of the nvars inputs to fun
+
+    means : np.ndarray (nmodels)
+        The mean of each model fidelity
+
+    model_covariance : np.ndarray (nmodels)
+        The covariance between the outputs of each model fidelity
+
+    References
+    ----------
+    .. [GGEJJCP2020] `A generalized approximate control variate framework for multifidelity uncertainty quantification,  Journal of Computational Physics,  408:109257, 2020. <https://doi.org/10.1016/j.jcp.2020.109257>`_
+    """
     model = PolynomialModelEnsemble()
     return Benchmark(
         {'fun': model, 'variable': model.variable, "means": model.get_means(),

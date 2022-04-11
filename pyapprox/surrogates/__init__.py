@@ -9,10 +9,22 @@ from pyapprox.surrogates.interp.tensorprod import (
     get_tensor_product_piecewise_polynomial_quadrature_rule
 )
 from pyapprox.surrogates.approximate import adaptive_approximate, approximate
+from pyapprox.surrogates.polychaos.gpc import PolynomialChaosExpansion
+from pyapprox.surrogates.polychaos.arbitrary_polynomial_chaos import APC
+from pyapprox.surrogates.polychaos.adaptive_polynomial_chaos import (
+    AdaptiveInducedPCE, AdaptiveLejaPCE)
+from pyapprox.surrogates.interp.adaptive_sparse_grid import (
+    CombinationSparseGrid
+)
+from pyapprox.surrogates.gaussianprocess.gaussian_process import (
+    GaussianProcess
+)
 
 
 __all__ = ["get_gauss_quadrature_rule_from_marginal",
            "tensor_product_barycentric_lagrange_interpolation",
            "tensor_product_piecewise_polynomial_interpolation",
            "get_tensor_product_piecewise_polynomial_quadrature_rule",
-           "approximate", "adaptive_approximate"]
+           "approximate", "adaptive_approximate", "PolynomialChaosExpansion",
+           "APC", "AdaptiveInducedPCE", "AdaptiveLejaPCE",
+           "CombinationSparseGrid", "GaussianProcess"]

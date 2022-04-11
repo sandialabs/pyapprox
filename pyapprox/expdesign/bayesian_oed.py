@@ -775,12 +775,83 @@ def d_optimal_utility(Amat, noise_std):
     return 0.5*np.linalg.slogdet(hess_misfit+ident)[1]
 
 
-class BayesianBatchOED(ABC):
-    @abstractmethod
+class AbstractBayesianOED(ABC):
+    r"""Base Bayesian OED class"""
+
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, max_eval_concurrency=1):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+        design_candidates : np.ndarray (nvars, nsamples)
+            The location of all design sample candidates
+
+        obs_fun : callable
+            Function with the signature
+
+            `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+            That returns noiseless evaluations of the forward model.
+
+        noise_std : float or np.ndarray (nobs, 1)
+            The standard deviation of the mean zero Gaussian noise added to
+            each observation
+
+        prior_variable : pya.IndependentMarginalsVariable
+            The prior variable consisting of independent univariate random
+            variables
+
+        generate_inner_prior_samples : callable
+           Function with the signature
+
+            `generate_inner_prior_samples(nsamples) -> np.ndarray(
+             nvars, nsamples), np.ndarray(nsamples, 1)`
+
+            Generate samples and associated weights used to evaluate
+            the evidence computed by the inner loop
+            If None then the function generate_outer_prior_samples is used and
+            weights are assumed to be 1/nsamples. This function is useful if
+            wanting to use multivariate quadrature to evaluate the evidence
+
+        ninner_loop_samples : integer
+            The number of quadrature samples used for the inner integral that
+            computes the evidence for each realiaztion of the predicted
+            observations
+
+        nouter_loop_samples : integer
+            The number of Monte Carlo samples used to compute the outer
+            integral over all possible observations
+
+        quad_method : string
+            The method used to compute the inner loop integral needed to
+            evaluate the evidence for an outer loop sample. Options are
+            ["linear", "quadratic", "gaussian", "monte_carlo"]
+            The first 3 construct tensor product quadrature rules from
+            univariate rules that are respectively piecewise linear,
+            piecewise quadratic or Gauss-quadrature.
+
+        pre_collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        econ : boolean
+            Make all inner loop samples the same for all outer loop samples.
+            This reduces number of evaluations of prediction model. Currently
+            this common data is copied and repeated for each outer loop sample
+            so the rest of the code can remain the same. Eventually the data
+            has to be tiled anyway when computing exepcted utility so this is
+            not a big deal.
+
+        max_eval_concurrency : integer
+            The number of threads used to compute OED design. Warning:
+            this uses multiprocessing.Pool and seems to provide very little
+            benefit and in many cases increases the CPU time.
+        """
+
         self.design_candidates = design_candidates
         if not callable(obs_fun):
             raise ValueError("obs_fun must be a callable function")
@@ -891,20 +962,16 @@ class BayesianBatchOED(ABC):
         self.collected_design_indices = indices.copy()
 
     @abstractmethod
-    def compute_expected_utility(collected_design_indices,
+    def compute_expected_utility(self, collected_design_indices,
                                  new_design_indices, return_all=False):
-        pass
+        raise NotImplementedError()
 
 
-class BayesianBatchKLOED(BayesianBatchOED):
-    def __init__(self, design_candidates, obs_fun, noise_std,
-                 prior_variable, nouter_loop_samples=1000,
-                 ninner_loop_samples=1000, generate_inner_prior_samples=None,
-                 econ=False, max_eval_concurrency=1):
-        super().__init__(design_candidates, obs_fun, noise_std,
-                         prior_variable, nouter_loop_samples,
-                         ninner_loop_samples, generate_inner_prior_samples,
-                         econ, max_eval_concurrency)
+class BayesianBatchKLOED(AbstractBayesianOED):
+    r"""
+    Compute open-loop OED my maximizing KL divergence between the prior and
+    posterior.
+    """
 
     def populate(self):
         (self.outer_loop_pred_obs,
@@ -1034,7 +1101,7 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
     """
     Compute the conditional value at risk deviation for each outer loop
     sample using the corresponding inner loop samples
-    
+
     Parameters
     ----------
     samples : np.ndarray (nouter_loop_samples, ninner_loop_samples, nqois)
@@ -1061,7 +1128,12 @@ def oed_conditional_value_at_risk_deviation(samples, weights, quantile=None,
     return cvars
 
 
-class BayesianBatchDeviationOED(BayesianBatchOED):
+class BayesianBatchDeviationOED(AbstractBayesianOED):
+    r"""
+    Compute open-loop OED by minimizing the deviation on the push forward
+    of the posterior through a QoI model.
+    """
+
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
@@ -1069,15 +1141,103 @@ class BayesianBatchDeviationOED(BayesianBatchOED):
                  max_eval_concurrency=1,
                  risk_fun=oed_average_prediction_deviation):
         r"""
+        Constructor.
+
+        Parameters
+        ----------
+        design_candidates : np.ndarray (nvars, nsamples)
+            The location of all design sample candidates
+
+        obs_fun : callable
+            Function with the signature
+
+            `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+            That returns noiseless evaluations of the forward model.
+
+        noise_std : float or np.ndarray (nobs, 1)
+            The standard deviation of the mean zero Gaussian noise added to
+            each observation
+
+        prior_variable : pya.IndependentMarginalsVariable
+            The prior variable consisting of independent univariate random
+            variables
+
         qoi_fun : callable
-        Function with the signature
+            Function with the signature
 
-        `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
+            `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
 
-        That returns evaluations of the forward model. Observations are assumed
-        to be :math:`f(z)+\epsilon` where :math:`\epsilon` is additive noise
-        nsamples : np.ndarray (nvars, nsamples)
+            That returns evaluations of the forward model. Observations are
+            assumed to be :math:`f(z)+\epsilon` where :math:`\epsilon` is
+            additive noise nsamples : np.ndarray (nvars, nsamples)
+
+        generate_inner_prior_samples : callable
+           Function with the signature
+
+            `generate_inner_prior_samples(nsamples) -> np.ndarray(
+             nvars, nsamples), np.ndarray(nsamples, 1)`
+
+            Generate samples and associated weights used to evaluate
+            the evidence computed by the inner loop
+            If None then the function generate_outer_prior_samples is used and
+            weights are assumed to be 1/nsamples. This function is useful if
+            wanting to use multivariate quadrature to evaluate the evidence
+
+        ninner_loop_samples : integer
+            The number of quadrature samples used for the inner integral that
+            computes the evidence for each realiaztion of the predicted
+            observations
+
+        nouter_loop_samples : integer
+            The number of Monte Carlo samples used to compute the outer
+            integral over all possible observations
+
+        quad_method : string
+            The method used to compute the inner loop integral needed to
+            evaluate the evidence for an outer loop sample. Options are
+            ["linear", "quadratic", "gaussian", "monte_carlo"]
+            The first 3 construct tensor product quadrature rules from
+            univariate rules that are respectively piecewise linear,
+            piecewise quadratic or Gauss-quadrature.
+
+        pre_collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        econ : boolean
+            Make all inner loop samples the same for all outer loop samples.
+            This reduces number of evaluations of prediction model. Currently
+            this common data is copied and repeated for each outer loop sample
+            so the rest of the code can remain the same. Eventually the data
+            has to be tiled anyway when computing exepcted utility so this is
+            not a big deal.
+
+         deviation_fun : callable
+             Function with the signature
+
+            `deviation_fun(inner_loop_pred_qois, weights) ->
+             np.ndarray(nouter_loop_samples, nqois)`
+
+             where
+
+             inner_loop_pred_qois : np.ndarray (
+             nouter_loop_samples, ninner_loop_samples, nqois)
+             weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+
+        max_eval_concurrency : integer
+            The number of threads used to compute OED design. Warning:
+            this uses multiprocessing.Pool and seems to provide very little
+            benefit and in many cases increases the CPU time.
+
+        risk_fun : callable
+            Function with the signature
+
+             `risk_fun(deviations) -> float`
+
+            where deviations : np.ndarray (nqois, 1)
         """
+
         super().__init__(design_candidates, obs_fun, noise_std,
                          prior_variable, nouter_loop_samples,
                          ninner_loop_samples, generate_inner_prior_samples,
@@ -1182,11 +1342,12 @@ class BayesianBatchDeviationOED(BayesianBatchOED):
             self.risk_fun, return_all)
 
 
-class BayesianSequentialOED(BayesianBatchOED):
-    """
-    A class to compute sequential optimal experimental designs that collect
+class BayesianSequentialOED(AbstractBayesianOED):
+    r"""
+    Compute sequential optimal experimental designs that collect
     data and use this to inform the choice of subsequent design locations.
     """
+
     @abstractmethod
     def __init__(self, obs_process):
         if not callable(obs_process):
@@ -1317,10 +1478,91 @@ class BayesianSequentialOED(BayesianBatchOED):
 
 
 class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
+    r"""
+    Compute closed-loop OED my maximizing KL divergence between the prior and
+    posterior.
+    """
+    
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, obs_process=None, nouter_loop_samples=1000,
                  ninner_loop_samples=1000, generate_inner_prior_samples=None,
                  econ=False, max_eval_concurrency=1):
+        r"""
+        Constructor.
+
+        Parameters
+        ----------
+        design_candidates : np.ndarray (nvars, nsamples)
+            The location of all design sample candidates
+
+        obs_fun : callable
+            Function with the signature
+
+            `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+            That returns noiseless evaluations of the forward model.
+
+        noise_std : float or np.ndarray (nobs, 1)
+            The standard deviation of the mean zero Gaussian noise added to
+            each observation
+
+        prior_variable : pya.IndependentMarginalsVariable
+            The prior variable consisting of independent univariate random
+            variables
+
+        obs_process : callable
+            The true data generation model with the signature
+
+            `obs_process(design_indices) -> np.ndarray (1, ndesign_indices)`
+
+            where design_samples is np.ndarary (nvars, ndesign_indices)
+
+        generate_inner_prior_samples : callable
+           Function with the signature
+
+            `generate_inner_prior_samples(nsamples) -> np.ndarray(
+             nvars, nsamples), np.ndarray(nsamples, 1)`
+
+            Generate samples and associated weights used to evaluate
+            the evidence computed by the inner loop
+            If None then the function generate_outer_prior_samples is used and
+            weights are assumed to be 1/nsamples. This function is useful if
+            wanting to use multivariate quadrature to evaluate the evidence
+
+        ninner_loop_samples : integer
+            The number of quadrature samples used for the inner integral that
+            computes the evidence for each realiaztion of the predicted
+            observations
+
+        nouter_loop_samples : integer
+            The number of Monte Carlo samples used to compute the outer
+            integral over all possible observations
+
+        quad_method : string
+            The method used to compute the inner loop integral needed to
+            evaluate the evidence for an outer loop sample. Options are
+            ["linear", "quadratic", "gaussian", "monte_carlo"]
+            The first 3 construct tensor product quadrature rules from
+            univariate rules that are respectively piecewise linear,
+            piecewise quadratic or Gauss-quadrature.
+
+        pre_collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        econ : boolean
+            Make all inner loop samples the same for all outer loop samples.
+            This reduces number of evaluations of prediction model. Currently
+            this common data is copied and repeated for each outer loop sample
+            so the rest of the code can remain the same. Eventually the data
+            has to be tiled anyway when computing exepcted utility so this is
+            not a big deal.
+
+        max_eval_concurrency : integer
+            The number of threads used to compute OED design. Warning:
+            this uses multiprocessing.Pool and seems to provide very little
+            benefit and in many cases increases the CPU time.   
+        """
         # obs_process default is None so same API can be used as
         # open loop design
         BayesianBatchKLOED.__init__(
@@ -1360,6 +1602,10 @@ class BayesianSequentialKLOED(BayesianSequentialOED, BayesianBatchKLOED):
 
 class BayesianSequentialDeviationOED(
         BayesianSequentialOED, BayesianBatchDeviationOED):
+    r"""
+    Compute closed-loop OED by minimizing the deviation on the push forward
+    of the posterior through a QoI model.
+    """
     def __init__(self, design_candidates, obs_fun, noise_std,
                  prior_variable, qoi_fun=None, obs_process=None,
                  nouter_loop_samples=1000, ninner_loop_samples=1000,
@@ -1367,6 +1613,110 @@ class BayesianSequentialDeviationOED(
                  deviation_fun=oed_standard_deviation,
                  max_eval_concurrency=1,
                  risk_fun=oed_average_prediction_deviation):
+        r"""
+        Constructor.
+
+        Parameters
+        ----------
+        design_candidates : np.ndarray (nvars, nsamples)
+            The location of all design sample candidates
+
+        obs_fun : callable
+            Function with the signature
+
+            `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+            That returns noiseless evaluations of the forward model.
+
+        noise_std : float or np.ndarray (nobs, 1)
+            The standard deviation of the mean zero Gaussian noise added to
+            each observation
+
+        prior_variable : pya.IndependentMarginalsVariable
+            The prior variable consisting of independent univariate random
+            variables
+
+        obs_process : callable
+            The true data generation model with the signature
+
+            `obs_process(design_indices) -> np.ndarray (1, ndesign_indices)`
+
+            where design_samples is np.ndarary (nvars, ndesign_indices)
+
+        qoi_fun : callable
+            Function with the signature
+
+            `qoi_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+            That returns evaluations of the forward model. Observations are
+            assumed to be :math:`f(z)+\epsilon` where :math:`\epsilon` is
+            additive noise nsamples : np.ndarray (nvars, nsamples)
+
+        generate_inner_prior_samples : callable
+           Function with the signature
+
+            `generate_inner_prior_samples(nsamples) -> np.ndarray(
+             nvars, nsamples), np.ndarray(nsamples, 1)`
+
+            Generate samples and associated weights used to evaluate
+            the evidence computed by the inner loop
+            If None then the function generate_outer_prior_samples is used and
+            weights are assumed to be 1/nsamples. This function is useful if
+            wanting to use multivariate quadrature to evaluate the evidence
+
+        ninner_loop_samples : integer
+            The number of quadrature samples used for the inner integral that
+            computes the evidence for each realiaztion of the predicted
+            observations
+
+        nouter_loop_samples : integer
+            The number of Monte Carlo samples used to compute the outer
+            integral over all possible observations
+
+        quad_method : string
+            The method used to compute the inner loop integral needed to
+            evaluate the evidence for an outer loop sample. Options are
+            ["linear", "quadratic", "gaussian", "monte_carlo"]
+            The first 3 construct tensor product quadrature rules from
+            univariate rules that are respectively piecewise linear,
+            piecewise quadratic or Gauss-quadrature.
+
+        pre_collected_design_indices : np.ndarray (nobs)
+            The indices into the qoi vector associated with the
+            collected observations
+
+        econ : boolean
+            Make all inner loop samples the same for all outer loop samples.
+            This reduces number of evaluations of prediction model. Currently
+            this common data is copied and repeated for each outer loop sample
+            so the rest of the code can remain the same. Eventually the data
+            has to be tiled anyway when computing exepcted utility so this is
+            not a big deal.
+
+         deviation_fun : callable
+             Function with the signature
+
+            `deviation_fun(inner_loop_pred_qois, weights) ->
+             np.ndarray(nouter_loop_samples, nqois)`
+
+             where
+
+             inner_loop_pred_qois : np.ndarray (
+             nouter_loop_samples, ninner_loop_samples, nqois)
+             weights : np.ndarray (nouter_loop_samples, ninner_loop_samples)
+
+        max_eval_concurrency : integer
+            The number of threads used to compute OED design. Warning:
+            this uses multiprocessing.Pool and seems to provide very little
+            benefit and in many cases increases the CPU time.
+
+        risk_fun : callable
+            Function with the signature
+
+             `risk_fun(deviations) -> float`
+
+            where deviations : np.ndarray (nqois, 1)            
+        """
         # obs_process default is None so same API can be used as
         # open loop design
         BayesianBatchDeviationOED.__init__(
@@ -1844,6 +2194,57 @@ def get_bayesian_oed_optimizer(
         ninner_loop_samples, quad_method,
         pre_collected_design_indices=None,
         **kwargs):
+    r"""
+    Initialize a Bayesian OED optimizer.
+
+    Parameters
+    ----------
+    short_oed_type : string
+        The type of experimental design strategy
+
+    design_candidates : np.ndarray (nvars, nsamples)
+        The location of all design sample candidates
+
+    obs_fun : callable
+        Function with the signature
+
+        `obs_fun(samples) -> np.ndarray(nsamples, nqoi)`
+
+        That returns noiseless evaluations of the forward model.
+
+    noise_std : float or np.ndarray (nobs, 1)
+        The standard deviation of the mean zero Gaussian noise added to each
+        observation
+
+    ninner_loop_samples : integer
+        The number of quadrature samples used for the inner integral that
+        computes the evidence for each realiaztion of the predicted
+        observations
+
+    nouter_loop_samples : integer
+        The number of Monte Carlo samples used to compute the outer integral
+        over all possible observations
+
+    quad_method : string
+        The method used to compute the inner loop integral needed to
+        evaluate the evidence for an outer loop sample. Options are
+        ["linear", "quadratic", "gaussian", "monte_carlo"]
+        The first 3 construct tensor product quadrature rules from univariate
+        rules that are respectively piecewise linear, piecewise quadratic
+        or Gauss-quadrature.
+
+    pre_collected_design_indices : np.ndarray (nobs)
+        The indices into the qoi vector associated with the
+        collected observations
+
+    kwargs : kwargs
+        Key word arguments specific to the OED type
+
+    Returns
+    -------
+    oed : pyapprox.expdesign.AbstractBayesianOED
+        Bayesian OED optimizer object
+    """
 
     if "obs_process" in kwargs:
         oed_type = "closed_loop_" + short_oed_type

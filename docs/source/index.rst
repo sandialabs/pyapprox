@@ -24,11 +24,12 @@ The following links document the functionality of the PyApprox module.
 	     
    benchmarks
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Tutorials (extended)
+..
+   .. toctree::
+      :maxdepth: 2
+      :caption: Tutorials (extended)
 
-   auto_dev_tutorials/index
+      auto_dev_tutorials/index
 
 .. toctree::
    :maxdepth: 2

@@ -295,16 +295,24 @@ def build_hierarchical_polynomial_network(
 
 class GaussianNetwork(object):
     r"""
-    Notes
-    -----
-    Currently only entire (dataless) nodes can be marginalized.
-    self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number
-    of nodes (variable indexing starts at 0). k<= number of vars associated
-    with dataless nodes. For example if k=2 and each node has two
-    vars number of dataless variables is 4, yet self.evidence_ids starts at 2.
+    A Bayesian network of linear Gaussian models.
     """
 
+    # Note
+    # Currently only entire (dataless) nodes can be marginalized.
+    # self.evidence_ids is defined to be [k-1,k-1+ndata] where k is the number
+    # of nodes (variable indexing starts at 0). k<= number of vars associated
+    # with dataless nodes. For example if k=2 and each node has two
+    # vars number of dataless variables is 4, yet self.evidence_ids starts at 2.
     def __init__(self, graph):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+        graph : py:class:`networkx.DiGraph`
+            A directed acyclic graph
+        """
         self.graph = copy.deepcopy(graph)
         self.construct_dataless_network()
 

@@ -348,6 +348,24 @@ def cvar_regression_quadrature(basis_matrix, values, alpha, nquad_intervals,
 
 
 def cvar_regression(basis_matrix, values, alpha, verbosity=1):
+    """
+    Solve conditional value at risk (CVaR) regression problems.
+
+    Parameters
+    ----------
+    basis_matrix : np.ndarray (nsamples, nbasis)
+        A basis evaluated at the set of training samples
+
+
+    values : np.ndarray (nsamples, 1)
+        The function values at the set of training samples
+
+    alpha : float
+        The quantile in [0, 1) defining CVaR
+
+    verbosity : integer
+        The verbosity level
+    """
     from cvxopt import matrix, solvers, spmatrix
     # do not include constant basis in optimization
     assert alpha < 1 and alpha > 0

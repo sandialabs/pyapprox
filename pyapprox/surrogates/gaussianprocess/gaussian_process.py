@@ -38,6 +38,9 @@ from pyapprox.variables.sampling import (
 
 
 class GaussianProcess(GaussianProcessRegressor):
+    """
+    A Gaussian process.
+    """
     def set_variable_transformation(self, var_trans):
         self.var_trans = var_trans
 

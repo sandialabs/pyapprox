@@ -1,7 +1,7 @@
+import copy
 from functools import partial
 import numpy as np
 from scipy.linalg import solve_triangular
-import copy
 
 from scipy.optimize import (
     Bounds, minimize, LinearConstraint, NonlinearConstraint
@@ -206,7 +206,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         M0u = M0.dot(u)
         # value = np.sum(u*M0u) / num_pred_pts
         value = np.sum(u*pred_prob_measure*M0u)
-        if (return_grad):
+        if return_grad:
             gamma = -solve_triangular(R, (Q.T.dot(M0u)))
             Fu = design_factors.dot(u)
             t = noise_multiplier[:, np.newaxis] * Fu
@@ -242,7 +242,7 @@ def ioptimality_criterion(homog_outer_prods, design_factors,
         # value = np.sum(pred_factors*u.T) / num_pred_pts
         # print(pred_prob_measure)
         value = np.sum(np.sum(pred_factors*u.T, axis=1)*pred_prob_measure)
-        if (not return_grad):
+        if not return_grad:
             return value
         # Gradient
         # F_M1_inv_P = design_factors.dot(u)
@@ -385,7 +385,7 @@ def coptimality_criterion(homog_outer_prods, design_factors,
         u = solve_triangular(R, Q.T.dot(c))
         M0u = M0.dot(u)
         value = u.T.dot(M0u)
-        if (return_grad):
+        if return_grad:
             gamma = -solve_triangular(R, (Q.T.dot(M0u)))
             Fu = design_factors.dot(u)
             t = noise_multiplier[:, np.newaxis] * Fu
@@ -400,7 +400,7 @@ def coptimality_criterion(homog_outer_prods, design_factors,
     else:
         u = np.linalg.solve(M1, c)
         value = c.T.dot(u)
-        if (not return_grad):
+        if not return_grad:
             return value
         # Gradient
         F_M1_inv_c = design_factors.dot(u)
@@ -474,18 +474,21 @@ def doptimality_criterion(homog_outer_prods, design_factors,
     if noise_multiplier is not None:
         gamma = M0.dot(M1_inv)
         value = np.log(np.linalg.det(M1_inv.dot(gamma)))
-        if (return_grad):
+        if return_grad:
             M0_inv = np.linalg.inv(M0)
             # ident = np.eye(gamma.shape[0])
             # kappa  = M1.dot(M0_inv)
             # gradient = np.zeros(num_design_pts)
             # for ii in range(num_design_pts):
             #     if regression_type=='lstsq':
-            #         gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
+            #         gradient[ii] = np.sum(
+            #              kappa.dot(homog_outer_prods[:,:,ii])*(
             #             -2*gamma.T+noise_multiplier[ii]**2*ident).dot(M1_inv))
             #     elif regression_type=='quantile':
-            #         gradient[ii] = np.sum(kappa.dot(homog_outer_prods[:,:,ii])*(
-            #             -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+ident).dot(M1_inv))
+            #         gradient[ii] = np.sum(
+            #            kappa.dot(homog_outer_prods[:,:,ii])*(
+            #                -2/noise_multiplier[:,np.newaxis][ii]*gamma.T+
+            #                ident).dot(M1_inv))
             # return value, gradient
 
             if regression_type == 'lstsq':
@@ -998,18 +1001,42 @@ def get_r_oed_jacobian_structure(num_pred_pts, num_design_pts):
 
 class AlphabetOptimalDesign(object):
     r"""
+    Construct optimal experimental designs using functions of the fisher
+    information matrix
+
     Notes
     -----
-        # Even though scipy.optimize.minimize may print the warning
-        # UserWarning: delta_grad == 0.0. Check if the approximated function is
-        # linear. If the function is linear better results can be obtained by
-        # defining the Hessian as zero instead of using quasi-Newton
-        # approximations.
-        # The Hessian is not zero.
+    Even though scipy.optimize.minimize may print the warning
+    "UserWarning: delta_grad == 0.0. Check if the approximated function is
+    linear. If the function is linear better results can be obtained by
+    defining the Hessian as zero instead of using quasi-Newton
+    approximations"
+    the Hessian is not zero so do not make this change
     """
 
     def __init__(self, criteria, design_factors, noise_multiplier=None,
                  opts=None, regression_type='lstsq'):
+        r"""
+        Parameters
+        ----------
+        criteria : string
+            The name of the optimality criteria
+
+        design_factors : np.ndarray (num_design_pts, num_design_factors)
+            The design factors evaluated at each of the design points
+
+        noise_multiplier : np.ndarray (num_design_pts)
+            The design dependent noise function :math:`\eta(x)`
+
+        opts : dict
+            Options passed to the non-linear optimizer which solves
+            the  OED problem
+
+        regression_type : string
+            The method used to compute the coefficients of the linear model.
+            Currently supported options are ``lstsq`` and ``quantile``.
+        """
+
         self.criteria = criteria
         self.noise_multiplier = noise_multiplier
         self.design_factors = design_factors
@@ -1353,8 +1380,34 @@ def jac_from_obj_plus_jac_fun(fun, xx):
 
 
 class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
+    r"""
+    Construct minimax optimal experimental designs of non-linear models
+    by sampling fisher information matrix at multiple uncertain parameter
+    realizations.
+    """
+
     def __init__(self, criteria, design_factors, noise_multiplier=None,
                  opts=None, regression_type='lstsq'):
+        r"""
+        Parameters
+        ----------
+        criteria : string
+            The name of the optimality criteria
+
+        design_factors : np.ndarray (num_design_pts, num_design_factors)
+            The design factors evaluated at each of the design points
+
+        noise_multiplier : np.ndarray (num_design_pts)
+            The design dependent noise function :math:`\eta(x)`
+
+        opts : dict
+            Options passed to the non-linear optimizer which solves
+            the  OED problem
+
+        regression_type : string
+            The method used to compute the coefficients of the linear model.
+            Currently supported options are ``lstsq`` and ``quantile``.
+        """
         if not callable(design_factors):
             msg = "design_factors must be a function that returns local"
             msg += " design factors for a given estimate of the unknown"
@@ -1482,11 +1535,11 @@ class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
                 samples.shape[1])/samples.shape[1]
         assert sample_weights.shape[0] == samples.shape[1]
 
-        def objective(x):
+        def objective(xx):
             objective = 0
             vec = 0
             for obj, weight in zip(objs, sample_weights):
-                val, grad = obj(x)
+                val, grad = obj(xx)
                 objective += val*weight
                 vec += grad*weight
             return objective, vec
@@ -1531,12 +1584,12 @@ class NonLinearAlphabetOptimalDesign(AlphabetOptimalDesign):
         weights = res.x
         if not return_full:
             return weights
-        else:
-            return weights, res
+        
+        return weights, res
 
 
 def optimal_experimental_design(
-        design_pts, fun, criteria, regresion_type='lstsq',
+        design_pts, fun, criteria, regression_type='lstsq',
         noise_multiplier=None, solver_opts=None, pred_factors=None,
         cvar_tol=None):
     r"""
@@ -1645,7 +1698,7 @@ def optimal_experimental_design(
 
     ncandidate_design_pts = design_pts.shape[1]
     opt_problem = AlphabetOptimalDesign(
-        criteria, design_factors, regression_type='quantile',
+        criteria, design_factors, regression_type=regression_type,
         noise_multiplier=noise_multiplier, opts=opts)
     if solver_opts is None:
         solver_opts = {'iprint': 1, 'ftol': 1e-8}

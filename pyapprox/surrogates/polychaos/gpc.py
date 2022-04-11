@@ -201,16 +201,10 @@ def evaluate_multivariate_orthonormal_polynomial(
 
 class PolynomialChaosExpansion(object):
     """
-    Notes
-    -----
-    When pickling this class from a file that file must contain
-    from pyapprox.variables.transforms import AffineTransform
-    Otherwise the following error will be thrown
-
-    AttributeError: 'AffineTransform' object has no
-    attribute 'enforce_bounds'
+    A polynomial chaos expansion for independent random variables.
     """
     def __init__(self):
+        """ Constructor. """
         self.coefficients = None
         self.indices = None
         self.recursion_coeffs = []

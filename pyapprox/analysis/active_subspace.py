@@ -1,5 +1,5 @@
-import numpy as np
 import os
+import numpy as np
 from scipy.optimize import linprog as scipy_linprog
 from scipy.spatial import ConvexHull
 from scipy import stats

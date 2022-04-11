@@ -85,6 +85,29 @@ def quantile_regression(basis_matrix, values, tau, opts={}):
 
 def solve_quantile_regression(tau, samples, values, eval_basis_matrix,
                               normalize_vals=False, opts={}):
+    r"""
+    Solve quantile regression problems.
+
+    Parameters
+    ----------
+    tau : float
+        The quantile in [0, 1)
+
+    samples : np.ndarary (nvars, nsamples)
+        The training samples
+
+    values : np.ndarary (nsamples, 1)
+        The function values at the training samples
+
+    eval_basis_matrix : callable
+        A function returning the basis evaluated at the set of samples
+        with signature
+        ``eval_basis_matrix(samples) -> np.ndarray (nsamples, nbasis)``
+
+    normalize_vals : boolean
+        True - normalize the training values
+        False - use the raw training values
+    """
     basis_matrix = eval_basis_matrix(samples)
     if basis_matrix.shape[0] < basis_matrix.shape[1]:
         raise ValueError("System is under-determined")
@@ -108,6 +131,31 @@ def solve_quantile_regression(tau, samples, values, eval_basis_matrix,
 
 def solve_least_squares_regression(samples, values, eval_basis_matrix,
                                    lamda=0., normalize_vals=True):
+    """
+    Solve the safety margins least squares regression problem.
+
+    Parameters
+    ----------
+    samples : np.ndarary (nvars, nsamples)
+        The training samples
+
+    values : np.ndarary (nsamples, 1)
+        The function values at the training samples
+
+    eval_basis_matrix : callable
+        A function returning the basis evaluated at the set of samples
+        with signature
+        ``eval_basis_matrix(samples) -> np.ndarray (nsamples, nbasis)``
+
+    lambda : float
+        The number [0, infty) of standard deviations used to determine
+        risk averse shift
+
+    normalize_vals : boolean
+        True - normalize the training values
+        False - use the raw training values
+    """
+
     basis_matrix = eval_basis_matrix(samples)
     # assume first coefficient is for constant term
     if normalize_vals is True:

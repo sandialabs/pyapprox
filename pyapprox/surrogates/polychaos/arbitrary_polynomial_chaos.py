@@ -3,7 +3,7 @@ import numpy as np
 
 from pyapprox.surrogates.interp.sparse_grid import (
     get_sparse_grid_samples_and_weights
-)                                                   
+)
 from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     CombinationSparseGrid,
     max_level_admissibility_function, variance_refinement_indicator,
@@ -19,8 +19,43 @@ from pyapprox.surrogates.interp.monomial import monomial_basis_matrix
 
 
 class APC(PolynomialChaosExpansion):
+    """
+    A polynomial chaos expansion for dependent random variables.
+    """
     def __init__(self, compute_moment_matrix_function=None, moments=None,
                  compute_grammian_function=None):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+        compute_moment_matrix_function : callable
+            A function to compute ``np.sqrt(np.diag(w)).dot(B)`` where ``w``
+            are the positive weights of the quadrature rule and B is the
+            basis matrix evaluated at the quadrature points.
+            It must have the signature
+
+            ``compute_moment_matrix_function(basis_mat_fun) -> np.ndarray (
+              nsamples, nbasis)``
+
+            where basis_mat_fun is a function with the signature
+            ``basis_mat_fun(samples) -> np.ndarray(nsamples, nbasis)``
+             where samples : np.ndarray (nvars, nsamples)
+
+        moments : np.ndarray (nbasis, nbasis)
+            The symmetric matrix containing the inner product of each
+            polynomial basis with every polynomial basis
+            (including itself - diagonal entries)
+
+        compute_grammian_function : callable
+            A function to compute the inner products of all basis combinations
+            with the signature
+
+            ``compute_moment_matrix_function(basis_mat) -> np.ndarray (
+              nbasis, nbasis)``
+
+            where basis_mat : np.ndarray (nsamples, nbasis)
+        """
         super(APC, self).__init__()
         self.compute_moment_matrix_function = compute_moment_matrix_function
         self.compute_grammian_function = compute_grammian_function
