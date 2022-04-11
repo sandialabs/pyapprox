@@ -1,5 +1,5 @@
 import unittest
-from scipy.stats import uniform, norm
+from scipy import stats
 import numpy as np
 from functools import partial
 
@@ -53,7 +53,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
     def test_pce_sensitivities_of_ishigami_function(self):
         nsamples = 1500
         nvars, degree = 3, 18
-        univariate_variables = [uniform(-np.pi, 2*np.pi)]*nvars
+        univariate_variables = [stats.uniform(-np.pi, 2*np.pi)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
 
@@ -101,7 +101,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         nsamples = 2000
         nvars, degree = 3, 8
         a = np.array([1, 2, 5])[:nvars]
-        univariate_variables = [uniform(0, 1)]*nvars
+        univariate_variables = [stats.uniform(0, 1)]*nvars
         variable = IndependentMarginalsVariable(
             univariate_variables)
 
@@ -266,7 +266,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
         from pyapprox.surrogates.approximate import compute_l2_error
         nsamples = 100
         error = compute_l2_error(
-            approx, benchmark.fun, approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.var_trans.variable,
             nsamples, rel=True)
         # print(error)
         assert error < 7e-3
@@ -372,8 +372,6 @@ class TestSensitivityAnalysis(unittest.TestCase):
             assert np.allclose(main_effects, benchmark.main_effects, atol=2e-2)
 
     def test_sampling_based_sobol_indices_from_gaussian_process(self):
-        from pyapprox.benchmarks.benchmarks import setup_benchmark
-        from pyapprox.surrogates.approximate import approximate
         benchmark = setup_benchmark("ishigami", a=7, b=0.1)
         nvars = benchmark.variable.num_vars()
 
@@ -523,7 +521,7 @@ class TestSensitivityAnalysis(unittest.TestCase):
 
     def test_marginalize_polynomial_chaos_expansions(self):
         univariate_variables = [
-            uniform(-1, 2), norm(0, 1), uniform(-1, 2)]
+            stats.uniform(-1, 2), stats.norm(0, 1), stats.uniform(-1, 2)]
         variable = IndependentMarginalsVariable(
             univariate_variables)
         var_trans = AffineTransform(variable)

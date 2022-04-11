@@ -1,9 +1,8 @@
 import unittest
-import numpy as np
 from functools import partial
+import numpy as np
 
 from pyapprox.optimization.cvar_regression import (
-    smooth_conditional_value_at_risk,
     smooth_conditional_value_at_risk_gradient,
     smooth_conditional_value_at_risk, smooth_max_function,
     smooth_max_function_first_derivative,

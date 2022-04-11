@@ -1025,7 +1025,7 @@ def estimate_variance(model_ensemble, estimator, target_cost,
     if max_eval_concurrency > 1:
         assert int(os.environ['OMP_NUM_THREADS']) == 1
         pool = Pool(max_eval_concurrency)
-        means = np.asarray(pool.map(func, [ii for ii in range(ntrials)]))
+        means = np.asarray(pool.map(func, list(range(ntrials))))
         pool.close()
     else:
         means = np.empty((ntrials, 2))

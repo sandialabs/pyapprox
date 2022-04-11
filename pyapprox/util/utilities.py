@@ -1004,7 +1004,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)
-        if jac:
+        if jac is True:
             perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]

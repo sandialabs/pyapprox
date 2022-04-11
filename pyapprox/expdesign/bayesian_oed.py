@@ -1770,8 +1770,7 @@ def get_oed_inner_quadrature_rule(ninner_loop_samples, prior_variable,
                 prior_variable, [ninner_loop_samples_1d]*nrandom_vars)[0]
         x_quad, w_quad = get_tensor_product_quadrature_rule(
             [ninner_loop_samples_1d]*nrandom_vars, nrandom_vars,
-            univariate_quad_rules,
-            transform_samples=var_trans.map_from_canonical)
+            univariate_quad_rules, transform_samples=None)
         return x_quad, w_quad
 
     degree = {'linear': 1, 'quadratic': 2}[quad_method]

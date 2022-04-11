@@ -1,6 +1,6 @@
 import unittest
-import numpy as np
 from functools import partial
+import numpy as np
 
 from pyapprox.optimization.first_order_stochastic_dominance import (
     linear_model_fun, linear_model_jac, FSDOptProblem

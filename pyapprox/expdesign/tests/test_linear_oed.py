@@ -702,14 +702,14 @@ class TestOptimalExperimentalDesign(unittest.TestCase):
         # test high-level api for D optimality
         selected_pts, mu_d = optimal_experimental_design(
             design_samples[np.newaxis, :], design_factors, 'D',
-            regresion_type='lstsq', noise_multiplier=None)
+            regression_type='lstsq', noise_multiplier=None)
         assert np.allclose(selected_pts, design_samples[II])
         assert np.allclose(mu_d, np.round(mu[II]*num_design_pts))
 
         # test high-level api for G optimality
         selected_pts, mu_g = optimal_experimental_design(
             design_samples[np.newaxis, :], design_factors, 'G',
-            regresion_type='lstsq', noise_multiplier=None,
+            regression_type='lstsq', noise_multiplier=None,
             pred_factors=pred_factors)
         assert np.allclose(selected_pts, design_samples[II])
         assert np.allclose(mu_g, np.round(mu[II]*num_design_pts))

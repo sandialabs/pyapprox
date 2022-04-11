@@ -1,13 +1,6 @@
-from functools import partial
-
-from warnings import warn
 import numpy as np
-from numpy.polynomial.legendre import leggauss
-from scipy.special import erf, beta as beta_fn
 from scipy.linalg import solve_triangular
 from scipy.linalg import lapack
-
-from pyapprox.util.pya_numba import njit
 
 
 def invert_permutation_vector(p, dtype=int):
@@ -104,8 +97,9 @@ def adjust_sign_svd(U, V, adjust_based_upon_U=True):
         right singular vectors consistent with sign adjustment applied to U.
     """
     if U.shape[1] != V.shape[0]:
-        raise ValueError(
-            'U.shape[1] must equal V.shape[0]. If using np.linalg.svd set full_matrices=False')
+        msg = 'U.shape[1] must equal V.shape[0]. If using np.linalg.svd set '
+        msg += 'full_matrices=False'
+        raise ValueError(msg)
 
     if adjust_based_upon_U:
         s = np.sign(U[0, :])
@@ -575,7 +569,8 @@ def update_cholesky_factorization(L_11, A_12, A_22):
 
     Specifically compute the Cholesky factorization of
 
-    .. math:: A=\begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T & A_{22}\end{bmatrix}
+    .. math:: A=\begin{bmatrix} A_{11} & A_{12}\\ A_{12}^T &
+              A_{22}\end{bmatrix}
 
     where :math:`L_{11}` is the Cholesky factorization of :math:`A_{11}`.
     Noting that

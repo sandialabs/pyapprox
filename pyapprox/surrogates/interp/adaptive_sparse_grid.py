@@ -286,10 +286,10 @@ def plot_adaptive_sparse_grid_2d(sparse_grid, plot_grid=True, axs=None,
 
     if plot_grid:
         samples, active_samples = partition_sparse_grid_samples(sparse_grid)
-        samples = sparse_grid.variable_transformation.map_from_canonical(
+        samples = sparse_grid.var_trans.map_from_canonical(
             samples)
         active_samples = \
-            sparse_grid.variable_transformation.map_from_canonical(
+            sparse_grid.var_trans.map_from_canonical(
                 active_samples)
         if sparse_grid.config_variables_idx is None:
             axs[1].plot(samples[0, :], samples[1, :], samples_marker[1],
@@ -1559,7 +1559,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     max_levels = sparse_grid.subspace_indices.max(axis=1)
     # initial_points_list = []
     growth_rules = []
-    all_variable = sparse_grid.variable_transformation.variable.marginals()
+    all_variable = sparse_grid.var_trans.variable.marginals()
     for ii in range(num_random_vars):
         for jj, inds in enumerate(sparse_grid.unique_quadrule_indices):
             if ii in inds:
@@ -1573,7 +1573,7 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
             sparse_grid.samples_1d[ii][max_levels[ii]][None, :]
         # samples_1d are in the canonical domain map to old user domain
         initial_points_old = \
-            sparse_grid.variable_transformation.map_from_canonical_1d(
+            sparse_grid.var_trans.map_from_canonical_1d(
                 canonical_initial_points, ii)
         # map to new canonical domain
         canonical_initial_points_new = new_var_trans.map_to_canonical_1d(
@@ -1590,12 +1590,12 @@ def insitu_update_sparse_grid_quadrature_rule(sparse_grid,
     sparse_grid.set_univariate_rules(quad_rules, max_level)
     sparse_grid_samples = sparse_grid.samples.copy()
     sparse_grid_samples = \
-        sparse_grid.variable_transformation.map_from_canonical(
+        sparse_grid.var_trans.map_from_canonical(
             sparse_grid_samples)
     sparse_grid_samples = new_var_trans.map_to_canonical(
         sparse_grid_samples)
     sparse_grid.samples = sparse_grid_samples
-    sparse_grid.variable_transformation = new_var_trans
+    sparse_grid.var_trans = new_var_trans
     return sparse_grid
 
 """

@@ -409,7 +409,7 @@ class DecoupledSystemSurrogate(object):
                 surrogate = surr_graph.nodes[nid]['functions']
                 coupling_inds = node['local_coupling_var_indices_in']
                 quadrule_variables = \
-                    surrogate.variable_transformation.variable.marginals()
+                    surrogate.var_trans.variable.marginals()
                 for kk, ind in enumerate(coupling_inds):
                     quadrule_variables[ind] = node['coupling_variables'][kk]
                 surr_graph.nodes[nid]['functions'] = \

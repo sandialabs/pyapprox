@@ -619,7 +619,7 @@ def sparse_grid_sobol_sensitivities(sparse_grid, max_order=2):
        The pce respresentation of the sparse grid ``approx``
     """
     pce_opts = define_poly_options_from_variable_transformation(
-        sparse_grid.variable_transformation)
+        sparse_grid.var_trans)
     pce = convert_sparse_grid_to_polynomial_chaos_expansion(
         sparse_grid, pce_opts)
     pce_main_effects, pce_total_effects =\

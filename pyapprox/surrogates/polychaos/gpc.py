@@ -757,7 +757,8 @@ def multiply_multivariate_orthonormal_polynomial_expansions(
     return indices, coefs
 
 
-def get_univariate_quadrature_rules_from_variable(variable, max_nsamples):
+def get_univariate_quadrature_rules_from_variable(
+        variable, max_nsamples, canonical=False):
     max_nsamples = np.atleast_1d(max_nsamples)
     if max_nsamples.shape[0] == 1:
         max_nsamples = np.ones(variable.num_vars(), dtype=int)*max_nsamples[0]
@@ -767,7 +768,7 @@ def get_univariate_quadrature_rules_from_variable(variable, max_nsamples):
     univariate_quad_rules = []
     for ii, marginal in enumerate(variable.marginals()):
         quad_rule = get_gauss_quadrature_rule_from_marginal(
-            marginal, max_nsamples[ii], canonical=False)
+            marginal, max_nsamples[ii], canonical=canonical)
         univariate_quad_rules.append(quad_rule)
     return univariate_quad_rules
 

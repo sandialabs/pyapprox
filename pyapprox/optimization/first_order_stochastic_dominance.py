@@ -619,7 +619,7 @@ def solve_FSD_constrained_least_squares_smooth(
     -------
     coef : np.narray (nbasis, 1)
         The solution to the regression problem
-    
+
     opt_problem : :py:class:`FSDOptProblem`
         The object used to solve the regression problem
     """

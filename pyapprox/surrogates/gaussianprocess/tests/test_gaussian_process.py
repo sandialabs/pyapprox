@@ -1,10 +1,11 @@
 import unittest
+import copy
+import time
+
 import numpy as np
 from scipy import stats
 from scipy.linalg import solve_triangular
 from scipy.spatial.distance import cdist
-import copy
-import time
 from functools import partial
 
 from sklearn.gaussian_process.kernels import (
@@ -86,12 +87,12 @@ def compute_mean_and_variance_of_gaussian_process(gp, length_scale,
     post_cov_ww_xx = prior_cov_ww_xx - kernel_var*np.sum(
         t_ww.T.dot(L)*t_xx.T.dot(L), axis=1)
 
-    variance_of_mean = post_cov_ww_xx.dot(quad_weights_WWXX)
+    var_of_mean = post_cov_ww_xx.dot(quad_weights_WWXX)
 
-    mean_of_variance = (gp_vals**2+gp_std**2).dot(quad_weights) - (
-        variance_of_mean+mean_of_mean**2)
+    mean_of_var = (gp_vals**2+gp_std**2).dot(quad_weights) - (
+        var_of_mean+mean_of_mean**2)
 
-    return mean_of_mean, variance_of_mean, mean_of_variance
+    return mean_of_mean, var_of_mean, mean_of_var
 
 
 def compute_intermediate_quantities_with_monte_carlo(mu_scalar, sigma_scalar,
@@ -289,10 +290,10 @@ class TestGaussianProcess(unittest.TestCase):
 
         # import time
         # t0 = time.time()
-        expected_random_mean, variance_random_mean, expected_random_var,\
-            variance_random_var, intermediate_quantities =\
-            integrate_gaussian_process(gp, variable, return_full=True,
-                                       nquad_samples=100)
+        (expected_random_mean, variance_random_mean, expected_random_var,
+         variance_random_var, intermediate_quantities) =\
+             integrate_gaussian_process(gp, variable, return_full=True,
+                                        nquad_samples=100)
         # print('time', time.time()-t0)
 
         # mu and sigma should match variable
@@ -1683,12 +1684,11 @@ class TestSamplers(unittest.TestCase):
         train_samples = cartesian_product(
             [np.linspace(0, 1, ntrain_samples_1d)]*nvars)
         x0 = train_samples.flatten(order='F')
-        if not use_gauss_quadrature:
-            # gradients not currently implemented when using quadrature
-            errors = check_gradients(
-                sampler.objective, sampler.objective_gradient,
-                x0[:, np.newaxis], disp=False)
-            assert errors.min() < 4e-6
+
+        errors = check_gradients(
+            sampler.objective, sampler.objective_gradient,
+            x0[:, np.newaxis], disp=False)
+        assert errors.min() < 5e-6
 
         # gsampler = sampler.greedy_sampler
         # print(np.linalg.norm(gsampler.candidate_samples))

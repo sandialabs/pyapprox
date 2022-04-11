@@ -19,9 +19,7 @@ from pyapprox.optimization.optimization import (
 )
 
 
-
 class TestL1Minimization(unittest.TestCase):
-
     def test_basis_pursuit(self):
         np.random.seed(1)
         nsamples, degree, sparsity = 6, 7, 2

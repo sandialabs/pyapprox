@@ -88,6 +88,10 @@ class TestBenchmarks(unittest.TestCase):
             benchmark.variable.num_vars()+benchmark.design_variable.num_vars(),
             samples, benchmark.design_var_indices)
         init_guess = 2*np.ones((2, 1))
+        print(constraint_jac(init_guess))
+        from pyapprox.util.utilities import approx_jacobian
+        print(approx_jacobian(lambda x: constraint_fun(x).flatten(order="F"),
+                              init_guess)-constraint_jac(init_guess))
         errors = check_gradients(
             lambda x: constraint_fun(x).flatten(order='F'), constraint_jac,
             init_guess, disp=True)

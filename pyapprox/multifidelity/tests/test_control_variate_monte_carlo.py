@@ -450,7 +450,7 @@ class TestCVMC(unittest.TestCase):
 
         means, numerical_var, true_var = \
             estimate_variance(
-                model_ensemble, estimator, target_cost, ntrials,
+                model_ensemble, estimator, target_cost, ntrials, None,
                 max_eval_concurrency)
 
         # from pyapprox.multifidelity.control_variate_monte_carlo import plot_sample_allocation

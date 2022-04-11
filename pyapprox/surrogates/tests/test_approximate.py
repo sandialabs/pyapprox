@@ -42,7 +42,7 @@ class TestApproximate(unittest.TestCase):
             benchmark.fun, univariate_variables, "sparse_grid").approx
         nsamples = 100
         error = compute_l2_error(
-            approx, benchmark.fun, approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.var_trans.variable,
             nsamples)
         assert error < 1e-12
 
@@ -55,7 +55,7 @@ class TestApproximate(unittest.TestCase):
             fun, univariate_variables, "sparse_grid").approx
         nsamples = 100
         error = compute_l2_error(
-            approx, fun, approx.variable_transformation.variable,
+            approx, fun, approx.var_trans.variable,
             nsamples)
         assert error < 1e-12
         # check leja samples are nested. Sparse grid uses christoffel
@@ -76,7 +76,7 @@ class TestApproximate(unittest.TestCase):
         def callback(approx):
             nsamples = 1000
             error = compute_l2_error(
-                approx, benchmark.fun, approx.variable_transformation.variable,
+                approx, benchmark.fun, approx.var_trans.variable,
                 nsamples)
             errors.append(error)
         univariate_quad_rule_info = [
@@ -113,7 +113,7 @@ class TestApproximate(unittest.TestCase):
                      "options": {"max_nsamples": 100}}).approx
         nsamples = 100
         error = compute_l2_error(
-            approx, benchmark.fun, approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.var_trans.variable,
             nsamples)
         assert error < 1e-12
 
@@ -133,7 +133,7 @@ class TestApproximate(unittest.TestCase):
         #                          "cond_tol": 1e8}}).approx
         # nsamples = 100
         # error = compute_l2_error(
-        #     approx, benchmark.fun, approx.variable_transformation.variable,
+        #     approx, benchmark.fun, approx.var_trans.variable,
         #     nsamples)
         # print(error)
         # assert error < 1e-5
@@ -149,7 +149,7 @@ class TestApproximate(unittest.TestCase):
                                  "max_level_1d": 4, "verbose": 3}}).approx
         nsamples = 100
         error = compute_l2_error(
-            approx, benchmark.fun, approx.variable_transformation.variable,
+            approx, benchmark.fun, approx.var_trans.variable,
             nsamples)
         print(error)
         assert error < 1e-5

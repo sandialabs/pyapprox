@@ -1,8 +1,8 @@
 import unittest
+import copy
 import numpy as np
 from scipy import stats
 from functools import partial
-import copy
 from scipy.special import erfinv
 
 from pyapprox.expdesign.bayesian_oed import (
@@ -1751,7 +1751,7 @@ class TestBayesianOED(unittest.TestCase):
 
         (prior_mean, prior_cov, noise_cov, prior_cov_inv,
          noise_cov_inv) = setup_linear_gaussian_model_inference(
-            prior_variable, noise_std, obs_mat)
+             prior_variable, noise_std, obs_mat)
 
         round_decimals = 3
         collected_indices, analytical_results = \
@@ -1792,8 +1792,8 @@ class TestBayesianOED(unittest.TestCase):
                 [d["utility_val"] for d in analytical_results[kk]])
             oed_utility_vals = np.array(
                 [d["utility_val"] for d in oed_results[ii]])
-            # print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
-            # print(anlyt_utility_vals, '\n', oed_utility_vals)
+            print((anlyt_utility_vals-oed_utility_vals)/anlyt_utility_vals)
+            print(anlyt_utility_vals, '\n', oed_utility_vals)
             assert np.allclose(
                oed_utility_vals, anlyt_utility_vals, rtol=tols[0])
 

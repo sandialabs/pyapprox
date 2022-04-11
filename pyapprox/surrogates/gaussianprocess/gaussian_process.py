@@ -640,8 +640,8 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
         nquad_samples=50, skip_xi_1=False):
     nvars = variable.num_vars()
     degrees = [nquad_samples]*nvars
-    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
-        variable, degrees)
+    univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
+        variable, np.asarray(degrees)+1, True)
 
     lscale = np.atleast_1d(length_scale)
     # tau, u = 1, 1
@@ -650,6 +650,8 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
     # lamda = np.ones(ntrain_samples)
     # Pi = np.ones((ntrain_samples, ntrain_samples))
     # xi_1, nu = 1, 1
+
+    var_trans = AffineTransform(variable)
 
     tau_list, P_list, u_list, lamda_list = [], [], [], []
     Pi_list, nu_list, xi_1_list = [], [], []
@@ -670,10 +672,8 @@ def get_gaussian_process_squared_exponential_kernel_1d_integrals(
 
         # Get 1D quadrature rule
         xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
-        if transform_quad_rules is True:
-            jj = pce.basis_type_index_map[ii]
-            loc, scale = pce.var_trans.scale_parameters[jj, :]
-            xx_1d = xx_1d*scale+loc
+        if transform_quad_rules:
+            xx_1d = var_trans.map_from_canonical_1d(xx_1d, ii)
 
         # Evaluate 1D integrals
         tau_ii, P_ii = integrate_tau_P(xx_1d, ww_1d, xtr, lscale[ii])
@@ -1530,15 +1530,12 @@ class IVARSampler(object):
 
     def precompute_gauss_quadrature(self):
         degrees = [min(100, self.nquad_samples)]*self.nvars
-        self.univariate_quad_rules, self.pce = \
+        self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.greedy_sampler.variables, degrees)
+                self.greedy_sampler.variables, np.asarray(degrees)+1, False)
         self.quad_rules = []
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.univariate_quad_rules[ii](degrees[ii]+1)
-            jj = self.pce.basis_type_index_map[ii]
-            loc, scale = self.pce.var_trans.scale_parameters[jj, :]
-            xx_1d = xx_1d*scale+loc
             self.quad_rules.append([xx_1d, ww_1d])
 
     def get_univariate_quadrature_rule(self, ii):
@@ -1816,9 +1813,6 @@ class GreedyVarianceOfMeanSampler(object):
 
     def get_univariate_quadrature_rule(self, ii):
         xx_1d, ww_1d = self.univariate_quad_rules[ii](self.degrees[ii]+1)
-        jj = self.pce.basis_type_index_map[ii]
-        loc, scale = self.pce.var_trans.scale_parameters[jj, :]
-        xx_1d = xx_1d*scale+loc
         return xx_1d, ww_1d
 
     def precompute_gauss_quadrature(self):
@@ -1828,9 +1822,9 @@ class GreedyVarianceOfMeanSampler(object):
             length_scale = [length_scale]*nvars
         self.degrees = [self.nquad_samples]*nvars
 
-        self.univariate_quad_rules, self.pce = \
+        self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.variables, self.degrees)
+                self.variables, np.asarray(self.degrees)+1, False)
         # dist_func = partial(cdist, metric='sqeuclidean')
         self.tau = 1
 
@@ -2032,7 +2026,7 @@ class GreedyVarianceOfMeanSampler(object):
             [self.training_samples,
              self.candidate_samples[:, pivot:pivot+1]])
 
-    def __call__(self, nsamples, verbosity=1):
+    def __call__(self, nsamples, verbosity=0):
         if not hasattr(self, 'kernel'):
             raise Exception('Must call set_kernel')
         if self.econ is True:
@@ -2163,9 +2157,9 @@ class GreedyIntegratedVarianceSampler(GreedyVarianceOfMeanSampler):
         length_scale = self.kernel.length_scale
         if np.isscalar(length_scale):
             length_scale = np.array([length_scale]*self.nvars)
-        self.univariate_quad_rules, self.pce = \
+        self.univariate_quad_rules = \
             get_univariate_quadrature_rules_from_variable(
-                self.variables, self.degrees)
+                self.variables, np.array(self.degrees)+1, False)
         self.P = 1
         for ii in range(self.nvars):
             xx_1d, ww_1d = self.get_univariate_quadrature_rule(ii)
@@ -2472,18 +2466,18 @@ def _compute_expected_sobol_indices(
     # ntrain_samples = x_train.shape[1]
     nvars = variable.num_vars()
     degrees = [nquad_samples]*nvars
-    univariate_quad_rules, pce = get_univariate_quadrature_rules_from_variable(
-        variable, degrees)
+    univariate_quad_rules = get_univariate_quadrature_rules_from_variable(
+        variable, np.asarray(degrees)+1, True)
+
+    var_trans = AffineTransform(variable)
 
     P_mod_list = []
     for ii in range(nvars):
         # Training samples of ith variable
         xtr = x_train[ii:ii+1, :]
         xx_1d, ww_1d = univariate_quad_rules[ii](degrees[ii]+1)
-        if transform_quad_rules is True:
-            jj = pce.basis_type_index_map[ii]
-            loc, scale = pce.var_trans.scale_parameters[jj, :]
-            xx_1d = xx_1d*scale+loc
+        if transform_quad_rules:
+            xx_1d = var_trans.map_from_canonical_1d(xx_1d, ii)
         P_mod_list.append(compute_conditional_P(xx_1d, ww_1d, xtr, lscale[ii]))
 
     A_inv = K_inv*kernel_var
