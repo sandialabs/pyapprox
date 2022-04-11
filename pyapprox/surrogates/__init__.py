@@ -1,3 +1,7 @@
+"""The :mod:`pyapprox.surrogates` module implements numerous algorithms for
+constructing surrogates.
+"""
+
 from pyapprox.surrogates.orthopoly.quadrature import (
     get_gauss_quadrature_rule_from_marginal
 )

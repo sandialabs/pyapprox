@@ -1,9 +1,7 @@
+import os
 import numpy as np
-import copy
 from functools import partial
 from scipy import stats
-import os
-import networkx as nx
 
 from pyapprox.variables.sampling import (
     generate_independent_random_samples
@@ -17,7 +15,9 @@ from pyapprox.surrogates.interp.adaptive_sparse_grid import (
     get_sparse_grid_univariate_leja_quadrature_rules_economical,
     update_smolyak_coefficients, insitu_update_sparse_grid_quadrature_rule
 )
-from pyapprox.expdesign.low_discrepancy_sequences import transformed_halton_sequence
+from pyapprox.expdesign.low_discrepancy_sequences import (
+    transformed_halton_sequence
+)
 
 
 def get_coupling_variables_via_sampling(

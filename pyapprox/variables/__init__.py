@@ -1,3 +1,7 @@
+"""The :mod:`pyapprox.variables` module provides tools for creating and
+transforming multivariate random variables.
+"""
+
 from pyapprox.variables.joint import (
     IndependentMarginalsVariable, GaussCopulaVariable,
     combine_uncertain_and_bounded_design_variables, JointVariable

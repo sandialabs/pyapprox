@@ -1,3 +1,6 @@
+"""The :mod:`pyapprox.optimization` module implements a number of popular tools for risk-averse regression and design.
+"""
+
 from pyapprox.optimization.first_order_stochastic_dominance import (
     solve_FSD_constrained_least_squares_smooth)
 

@@ -1,3 +1,6 @@
+"""The :mod:`pyapprox.util` module implements numerous foundational utilities.
+"""
+
 from pyapprox.util.utilities import (
     cartesian_product, outer_product, check_gradients
 )

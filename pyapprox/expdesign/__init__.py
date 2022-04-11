@@ -1,3 +1,7 @@
+"""The :mod:`pyapprox.expdesign` module implements a number of popular tools
+for designing experiments
+"""
+
 from pyapprox.expdesign.low_discrepancy_sequences import (
     sobol_sequence, halton_sequence
 )

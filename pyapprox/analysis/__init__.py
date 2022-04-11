@@ -1,3 +1,7 @@
+"""The :mod:`pyapprox.analysis` module implements a number of popular tools for
+model analysis.
+"""
+
 from pyapprox.analysis.parameter_sweeps import (
     generate_parameter_sweeps_and_plot_from_variable
 )
