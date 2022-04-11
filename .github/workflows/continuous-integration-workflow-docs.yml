@@ -29,33 +29,33 @@ jobs:
         # Expected 96 from C header, got 88 from PyObject
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        activate-environment: pyapprox-base
-        python-version: ${{ matrix.python-version }}
-        # channels: defaults,conda-forge
-        channels: defaults
-        environment-file: environment.yml
-        # use-only-tar-bz2: true
-        auto-update-conda: true
-        auto-activate-base: false
-    - name: Conda list
-      shell: bash -l {0}  # - l {0} is needed to activate created env
-      run: |
-        conda list
-        conda env list
-    - name: Setup PyApprox
-      shell: bash -l {0}
-      run: |
-        pip install -e .
-    - name: Setup PyApprox Documentation
-      shell: bash -l {0}
-      run: |
-        pip install -e .[docs]
-    - name: Create PyApprox Documentation
-      shell: bash -l {0}
-      run: |
-        cd docs
-        make html SPHINXOPTS=-vvv
+      - uses: actions/checkout@v2
+      - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: pyapprox-base
+          python-version: ${{ matrix.python-version }}
+          # channels: defaults,conda-forge
+          channels: defaults
+          environment-file: environment.yml
+          # use-only-tar-bz2: true
+          auto-update-conda: true
+          auto-activate-base: false
+      - name: Conda list
+        shell: bash -l {0}  # - l {0} is needed to activate created env
+        run: |
+          conda list
+          conda env list
+      - name: Setup PyApprox
+        shell: bash -l {0}
+        run: |
+          pip install -e .
+      - name: Setup PyApprox Documentation
+        shell: bash -l {0}
+        run: |
+          pip install -e .[docs]
+      - name: Create PyApprox Documentation
+        shell: bash -l {0}
+        run: |
+          cd docs
+          make html SPHINXOPTS=-vvv

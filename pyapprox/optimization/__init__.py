@@ -10,6 +10,6 @@ from pyapprox.optimization.quantile_regression import (
 
 
 __all__ = ["solve_FSD_constrained_least_squares_smooth",
-          "solve_SSD_constrained_least_squares_smooth",
-          "cvar_regression", "solve_quantile_regression",
-          "solve_least_squares_regression"]
+           "solve_SSD_constrained_least_squares_smooth",
+           "cvar_regression", "solve_quantile_regression",
+           "solve_least_squares_regression"]

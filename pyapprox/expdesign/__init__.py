@@ -17,4 +17,5 @@ __all__ = ["sobol_sequence", "halton_sequence", "optimal_experimental_design",
            "AlphabetOptimalDesign", "NonLinearAlphabetOptimalDesign",
            "get_bayesian_oed_optimizer", "BayesianBatchKLOED",
            "BayesianBatchDeviationOED", "BayesianSequentialOED",
-           "BayesianSequentialKLOED", "BayesianSequentialDeviationOED"]
+           "BayesianSequentialKLOED", "BayesianSequentialDeviationOED",
+           "AbstractBayesianOED"]

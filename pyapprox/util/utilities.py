@@ -647,7 +647,8 @@ def get_cross_validation_rsquared_coefficient_of_variation(
 
     We define r_sq as
 
-    .. math:: 1-\frac{N^{-1}\left(\sum_{n=1}^N e_n\right)}/mathbb{V}\left[Y\right] where Y is the vector of training vals
+    .. math:: 1-\frac{N^{-1}\left(\sum_{n=1}^N e_n\right)}/mathbb{V}\left[
+              Y\right] where Y is the vector of training vals
     """
     # total sum of squares (proportional to variance)
     denom = np.std(train_vals)
@@ -1003,7 +1004,7 @@ def check_gradients(fun, jac, zz, plot=False, disp=True, rel=True,
     for ii in range(fd_eps.shape[0]):
         zz_perturbed = zz.copy()+fd_eps[ii]*direction
         perturbed_function_val = fun(zz_perturbed)
-        if jac == True:
+        if jac:
             perturbed_function_val = perturbed_function_val[0].squeeze()
         fd_directional_derivative = (
             perturbed_function_val-function_val).squeeze()/fd_eps[ii]
@@ -1047,7 +1048,7 @@ def check_hessian(jac, hessian_matvec, zz, plot=False, disp=True, rel=True,
         output is a 2D np.ndarray with shape (nqoi,nvars)
 
     hessian_matvec : callable
-        A function implementing the hessian matrix-vector product with 
+        A function implementing the hessian matrix-vector product with
         signature
 
         ``hessian_matvec(z,p) -> np.ndarray``

@@ -29,30 +29,30 @@ jobs:
         # Expected 96 from C header, got 88 from PyObject
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        activate-environment: pyapprox-base
-        python-version: ${{ matrix.python-version }}
-        # channels: defaults,conda-forge
-        channels: defaults
-        environment-file: environment.yml
-        auto-update-conda: true
-        # use-only-tar-bz2: true
-        auto-activate-base: false
-    - name: Conda list
-      shell: bash -l {0}  # - l {0} is needed to activate created env
-      run: |
-        conda list
-        conda env list
-    - name: Setup PyApprox
-      shell: bash -l {0}
-      run: |
-        pip install -e .
-    - name: Test PyApprox
-      shell: bash -l {0}
-      run: |
-        pytest -s --cov-report term --cov=pyapprox pyapprox/tests/ pyapprox/bayesian_inference/tests pyapprox/models pyapprox/benchmarks pyapprox/polynomial_chaos/tests pyapprox/univariate_polynomials/tests
+      - uses: actions/checkout@v2
+      - name: Setup Miniconda with Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: pyapprox-base
+          python-version: ${{ matrix.python-version }}
+          # channels: defaults,conda-forge
+          channels: defaults
+          environment-file: environment.yml
+          auto-update-conda: true
+          # use-only-tar-bz2: true
+          auto-activate-base: false
+      - name: Conda list
+        shell: bash -l {0}  # - l {0} is needed to activate created env
+        run: |
+          conda list
+          conda env list
+      - name: Setup PyApprox
+        shell: bash -l {0}
+        run: |
+          pip install -e .
+      - name: Test PyApprox
+        shell: bash -l {0}
+        run: |
+          pytest -s --cov-report term --cov=pyapprox
 # -s disables capturing stdout so print statements print to screen
 #        python setup.py test
