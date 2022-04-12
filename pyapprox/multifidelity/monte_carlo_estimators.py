@@ -70,7 +70,7 @@ class AbstractMonteCarloEstimator(ABC):
         self.nmodels = len(costs)
 
         self.cov_opt = self.cov
-        self.costs = self.costs
+        self.costs_opt = self.costs
         if use_torch:
             if not pkg.is_tensor(self.cov):
                 self.cov_opt = pkg.tensor(self.cov, dtype=pkg.double)

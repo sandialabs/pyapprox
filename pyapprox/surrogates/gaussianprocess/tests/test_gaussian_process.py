@@ -1688,7 +1688,7 @@ class TestSamplers(unittest.TestCase):
         errors = check_gradients(
             sampler.objective, sampler.objective_gradient,
             x0[:, np.newaxis], disp=False)
-        assert errors.min() < 5e-6
+        assert errors.min() < 6e-6
 
         # gsampler = sampler.greedy_sampler
         # print(np.linalg.norm(gsampler.candidate_samples))
