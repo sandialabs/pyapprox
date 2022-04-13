@@ -743,7 +743,6 @@ class ACVGMFEstimator(AbstractNumericalACVEstimator):
              'jac': acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac,
              'args': (ii, target_cost, self.costs)}
             for ii in range(1, self.nmodels)]
-
         return cons
 
     def set_recursion_index(self, index):

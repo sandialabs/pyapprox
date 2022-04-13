@@ -745,10 +745,12 @@ def get_rsquared_acv(cov, nsample_ratios, get_discrepancy_covariances):
 def acv_sample_allocation_gmf_ratio_constraint(ratios, *args):
     model_idx, parent_idx, target_cost, costs = args
     assert parent_idx > 0 and model_idx > 0
-    eps = 1e-8
+    eps = 0
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
     # ratios are only for low-fidelity models so use index-1
-    return nhf_samples*(ratios[model_idx-1]-ratios[parent_idx-1])-(1+eps)
+    # return nhf_samples*(ratios[model_idx-1]-ratios[parent_idx-1])-(1+eps)
+    return (nhf_samples*ratios[model_idx-1]-nhf_samples*ratios[parent_idx-1] -
+            (1+eps))
 
 
 def acv_sample_allocation_gmf_ratio_constraint_jac(ratios, *args):
@@ -767,11 +769,13 @@ def acv_sample_allocation_gmf_ratio_constraint_jac(ratios, *args):
 def acv_sample_allocation_nlf_gt_nhf_ratio_constraint(ratios, *args):
     model_idx, target_cost, costs = args
     assert model_idx > 0
-    eps = 1e-8
+    eps = 0
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
-    # print(target_cost, nhf_samples)
+    # print(model_idx, nhf_samples)
     # ratios are only for low-fidelity models so use index-1
-    return nhf_samples*(ratios[model_idx-1]-1)-(1+eps)
+    val = nhf_samples*ratios[model_idx-1]-nhf_samples-(1+eps)
+    # print(val)
+    return val
 
 
 def acv_sample_allocation_nlf_gt_nhf_ratio_constraint_jac(ratios, *args):
@@ -790,8 +794,7 @@ def acv_sample_allocation_nhf_samples_constraint(ratios, *args):
     # add to ensure that when constraint is violated by small numerical value
     # nhf samples generated from ratios will be greater than 1
     nhf_samples = get_nhf_samples(target_cost, costs, ratios)
-    # print(target_cost, nhf_samples)
-    eps = 1e-8
+    eps = 0
     return nhf_samples-(1+eps)
 
 
@@ -1187,7 +1190,9 @@ def get_generalized_approximate_control_variate_weights(
     CF, cf = get_acv_discrepancy_covariances(cov, Fmat, fvec)
     try:
         weights = get_approximate_control_variate_weights(CF, cf)
+        # print(np.linalg.cond(CF), nsamples_per_model)
     except RuntimeError:
+        print("acv weights failed")
         weights = pkg_ones(cf.shape, type(cf), pkg.double)*1e16
     return weights, cf
 
@@ -1357,7 +1362,7 @@ def solve_allocate_samples_acv_slsqp_optimization(
         estimator, costs, target_cost, initial_guess, optim_options, cons):
     if optim_options is None:
         optim_options = {'disp': True, 'ftol': 1e-10,
-                         'maxiter': 1000, 'iprint': 0}
+                         'maxiter': 10000, 'iprint': 0}
         # set iprint=2 to printing iteration info
 
     if target_cost < costs.sum():
@@ -1366,15 +1371,33 @@ def solve_allocate_samples_acv_slsqp_optimization(
 
     nmodels = len(costs)
     nunknowns = len(initial_guess)
-    bounds = [(1.0, np.inf)]*nunknowns
+    # bounds = [(1.0, 1e10)]*nunknowns
+    # bounds = [(1.0, np.ceil(target_cost/cost)) for cost in costs[1:]]
+    max_nhf = target_cost/costs[0]
+    bounds = [(1+1/(max_nhf),
+               np.ceil(target_cost/cost)) for cost in costs[1:]]
     assert nunknowns == nmodels-1
+
+    # constraint
+    # nhf*r-nhf >= 1
+    # nhf*(r-1) >= 1
+    # r-1 >= 1/nhf
+    # r >= 1+1/nhf
+    # smallest lower bound whenn nhf = max_nhf
 
     jac = False
     if use_torch:
         jac = True
+    method = "SLSQP"
+    # method = "trust-constr"
+    # print(optim_options)
+    # del optim_options['ftol']
+    # del optim_options['iprint']
+    # optim_options["maxiter"] = 10000
+    # optim_options["gtol"] = 1e-6
     opt = minimize(
         partial(estimator.objective, target_cost, jac=jac),
-        initial_guess, method='SLSQP', jac=jac,
+        initial_guess, method=method, jac=jac,
         bounds=bounds, constraints=cons, options=optim_options)
     return opt
 
